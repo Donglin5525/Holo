@@ -132,4 +132,6 @@ struct HoloSubscriptionStatusResponse: Decodable {
     let quotas: [String: HoloQuotaSnapshot]
     let source: String?
     let acceptanceMode: String?
+    /// 服务端可控的行为开关（P2：admin 修改即生效，客户端随订阅状态刷新应用）
+    let featureFlags: [String: Bool]?
 }

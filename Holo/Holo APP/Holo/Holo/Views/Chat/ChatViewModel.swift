@@ -23,6 +23,8 @@ final class ChatViewModel: ObservableObject {
         }
     }
     @Published var isStreaming: Bool = false
+    /// 流式超 90s 未完成时的「AI 还在工作」提示（watchdog 第一段写入，结束/取消时清空）
+    @Published var streamingStatusHint: String?
     /// AI 数据处理授权未开启时，点发送触发此提示（替代静默失败）
     @Published var showConsentPrompt: Bool = false
     @Published var streamingText: String = ""
@@ -194,6 +196,8 @@ final class ChatViewModel: ObservableObject {
                 .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
             await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: preserved)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: initialHistoryLimit)
+            // 上次确认流程若中途被杀，消息停在 confirming 态：对账防重复入账
+            repo.reconcileInterruptedConfirmations()
             hasLoadedMessages = true
             syncHasEarlierSessions()
         }
@@ -259,6 +263,9 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Send Message
 
     func sendMessage() async {
+        // 一条流式回复进行中时禁止再发：并发发送会互相覆盖 currentTask/activeStreamingMessageID，
+        // 两条气泡还会显示同一段交叉串流内容（发送按钮已切换为停止键，这里挡住键盘回车等旁路入口）
+        guard !isStreaming else { return }
         await retryConfigurationLoadIfNeeded()
         await ensureChatRepositoryReady()
         guard let chatRepo = chatRepo else { return }
@@ -335,10 +342,20 @@ final class ChatViewModel: ObservableObject {
                     )
                     self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: initialStatus)
                     self.streamingText = initialStatus.messageContent
+                    // P2 步骤实时化：等待期间低频轮询当前步骤文案，前台卡片不再静止
+                    // （2s 间隔本地读，成本可忽略；终态由下方主路径落地，轮询天然停止）
+                    let progressPoller = Task { [weak self] in
+                        while !Task.isCancelled {
+                            try? await Task.sleep(for: .seconds(2))
+                            guard let self else { return }
+                            await self.analysisService.refreshLiveProgress(sourceMessageID: aiMessageId)
+                        }
+                    }
                     let rendered = await self.analysisService.runAnalysis(
                         question: text,
                         sourceMessageID: aiMessageId
                     )
+                    progressPoller.cancel()
                     try Task.checkCancellation()
                     // 额度耗尽走专属卡片（与普通聊天路径一致）：档位限制不是系统错误，
                     // 渲染 QuotaExhaustedChatCard + "了解 Holo Plus"入口，不写 agentResultJSON。
@@ -355,6 +372,30 @@ final class ChatViewModel: ObservableObject {
                             agentResultJSON: nil,
                             messageType: .quotaExhausted
                         )
+                    } else if case .analysisFailed = rendered.failure {
+                        // P2 R11：Agent 失败自动降级——改走 chat 直接重答，用户先拿到答案；
+                        // 降级流也失败时再落原「深度分析出错」卡片（两层兜底）
+                        let degraded = await self.runChatFallbackStream(
+                            aiMessageId: aiMessageId,
+                            text: text,
+                            userContext: userContext
+                        )
+                        if !degraded {
+                            let fallbackText = [rendered.title, rendered.summary]
+                                .filter { !$0.isEmpty }
+                                .joined(separator: "\n")
+                            self.chatRepo?.finalizeMessage(
+                                aiMessageId,
+                                finalContent: fallbackText,
+                                intent: processResult.firstIntent?.rawValue,
+                                extractedDataJSON: nil,
+                                parsedBatchJSON: nil,
+                                executionBatchJSON: nil,
+                                analysisContextJSON: nil,
+                                rawLogJSON: nil,
+                                agentResultJSON: Self.encodeAgentResult(rendered)
+                            )
+                        }
                     } else {
                         // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
                         // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
@@ -558,11 +599,75 @@ final class ChatViewModel: ObservableObject {
             if self.activeStreamingMessageID == aiMessageId {
                 self.isStreaming = false
                 self.streamingText = ""
+                self.streamingStatusHint = nil
                 self.streamingWatchdogTask?.cancel()
                 self.streamingWatchdogTask = nil
                 self.currentTask = nil
                 self.activeStreamingMessageID = nil
             }
+        }
+    }
+
+    // MARK: - Agent 失败降级（P2 R11）
+
+    /// Agent 深度分析失败后的兜底：改走 chat 链路直接回答（不带分析卡片形态），
+    /// 让用户先拿到答案。等待期间用卡片文案提示「正在直接回答」；
+    /// 返回 false 表示降级流也失败（调用方落回「深度分析出错」卡片）。
+    private func runChatFallbackStream(
+        aiMessageId: UUID,
+        text: String,
+        userContext: UserContext
+    ) async -> Bool {
+        guard let chatRepo = self.chatRepo else { return false }
+        chatRepo.updateAgentMessageProgress(
+            aiMessageId,
+            status: HoloAgentChatStatus(
+                title: "深度分析未完成，正在直接回答…",
+                detail: "本次不生成分析卡片，改用对话方式回答。",
+                keepsMessageStreaming: true,
+                showsActivityIndicator: true
+            )
+        )
+        do {
+            let historyDTOs = await chatRepo.loadRecentDTOsAsync(limit: 20)
+            let memorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
+                purpose: nil,
+                queryText: text,
+                requireQueryMatch: true,
+                consumer: .chat
+            )
+            var contextualUserContext = userContext
+            contextualUserContext.memorySummary = memorySummary
+            let stream = self.provider.chatStreaming(
+                messages: historyDTOs,
+                userContext: contextualUserContext
+            )
+            var fullText = ""
+            for try await chunk in stream {
+                try Task.checkCancellation()
+                fullText += chunk
+            }
+            guard !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return false
+            }
+            let resolvedText = self.consumeMemoryUsageMarker(
+                from: fullText,
+                availableMemoryIDs: memorySummary.sourceIDs,
+                channel: .chat
+            )
+            // intent 落 query（普通问答形态）：渲染回文本气泡而非空态分析卡片
+            chatRepo.finalizeMessage(
+                aiMessageId,
+                finalContent: resolvedText,
+                intent: AIIntent.query.rawValue,
+                extractedDataJSON: nil,
+                parsedBatchJSON: nil,
+                executionBatchJSON: nil,
+                rawLogJSON: nil
+            )
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -578,6 +683,7 @@ final class ChatViewModel: ObservableObject {
         // 不能让按钮是否消失取决于网络请求何时响应取消。
         isStreaming = false
         streamingText = ""
+        streamingStatusHint = nil
         activeStreamingMessageID = nil
         if let cancelledMessageID {
             // 打 .userCancelled 持久标记：重新进入页面做 Agent 状态同步时，
@@ -587,6 +693,15 @@ final class ChatViewModel: ObservableObject {
                 finalContent: "已停止生成",
                 messageType: .userCancelled
             )
+        }
+        // 兜底：页面重进后 currentTask/activeStreamingMessageID 已丢失（旧 VM 已销毁，
+        // 其 watchdog 因 weak self 一并失效），残留 streaming 消息既停不掉也无人收尾。
+        // 点停止时把它们一并定稿为「已停止」，让按钮真正生效；后台 Agent 由下方调用继续取消。
+        let orphanedIDs = messages
+            .filter { $0.isStreaming && $0.id != cancelledMessageID }
+            .map(\.id)
+        for id in orphanedIDs {
+            chatRepo?.finishStreaming(id, finalContent: "已停止生成", messageType: .userCancelled)
         }
         // 关键修复：Agent 深度分析跑在 Scheduler 独立 Task 上（activeTasks[jobID]），
         // 与 chat 的 currentTask 是不同对象。此前只取消 currentTask 对 Agent 无效，
@@ -614,16 +729,22 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Streaming Watchdog
 
-    /// 90 秒超时守护：如果 streaming 未在预期时间内完成，强制终止并恢复 UI
+    /// 流式守护分两段：90 秒未完成先提示「AI 还在工作」（不掐断，长分析回复常见超过 90s）；
+    /// 累计 300 秒仍未完成才强制超时。两段都要求仍是当前活跃消息。
     private func startStreamingWatchdog(aiMessageId: UUID) {
         streamingWatchdogTask?.cancel()
         streamingWatchdogTask = Task { [weak self] in
             guard let self = self else { return }
-            try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
+            try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s：进入提示段
+            guard !Task.isCancelled else { return }
+            guard self.activeStreamingMessageID == aiMessageId else { return }
+            self.streamingStatusHint = "AI 正在处理较长的内容，仍在工作中，可随时停止"
+
+            try? await Task.sleep(nanoseconds: 210_000_000_000) // 累计 300s：超时
             guard !Task.isCancelled else { return }
             guard self.activeStreamingMessageID == aiMessageId else { return }
 
-            self.logger.error("Streaming watchdog 触发：90 秒超时，强制终止")
+            self.logger.error("Streaming watchdog 触发：300 秒超时，强制终止")
 
             self.currentTask?.cancel()
             self.currentTask = nil
@@ -639,6 +760,7 @@ final class ChatViewModel: ObservableObject {
             self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
             self.isStreaming = false
             self.streamingText = ""
+            self.streamingStatusHint = nil
             self.errorMessage = "AI 响应超时"
             self.currentTask = nil
             self.activeStreamingMessageID = nil
@@ -673,7 +795,9 @@ final class ChatViewModel: ObservableObject {
     private func handleCoreDataChange(_ notification: Notification) {
         guard let userInfo = notification.userInfo else { return }
 
-        var affectedIds: Set<UUID> = []
+        var affectedIds: Set<UUID> = []          // 删除态刷新（含软删除）
+        var updatedFinanceIds: Set<UUID> = []    // 交易内容刷新（账本页编辑金额/分类/日期）
+        var updatedTaskIds: Set<UUID> = []       // 任务内容刷新（任务页改名/改期）
 
         // 硬删除：Transaction、TodoTask 永久删除
         if let deleted = userInfo[NSDeletedObjectsKey] as? Set<NSManagedObject> {
@@ -687,31 +811,47 @@ final class ChatViewModel: ObservableObject {
             }
         }
 
-        // 软删除/更新：TodoTask deletedFlag 变更
+        // 更新：TodoTask（含软删除/改名/改期）；Transaction 此前未监听，导致账本页编辑后聊天卡不刷新
         if let updated = userInfo[NSUpdatedObjectsKey] as? Set<NSManagedObject> {
             for object in updated {
                 if let task = object as? TodoTask {
                     affectedIds.insert(task.id)
+                    updatedTaskIds.insert(task.id)
+                }
+                if let transaction = object as? Transaction {
+                    updatedFinanceIds.insert(transaction.id)
                 }
             }
         }
 
-        guard !affectedIds.isEmpty else { return }
+        guard !affectedIds.isEmpty || !updatedFinanceIds.isEmpty || !updatedTaskIds.isEmpty else { return }
 
-        // 命中受影响实体的消息：精准刷新其删除态缓存（缓存读自 snapshot，不能只发 willChange）
+        // 命中受影响实体的消息：按全量实体 ID 匹配（多卡消息每张卡各一个 ID）
         var affectedMessageIDs: Set<UUID> = []
+        var financeRefreshIDs: Set<UUID> = []
+        var taskRefreshIDs: Set<UUID> = []
         for message in messages {
-            for category in [EntityCategory.finance, .task] {
-                if let entityId = message.resolveLinkedEntityId(for: category),
-                   affectedIds.contains(entityId) {
-                    affectedMessageIDs.insert(message.id)
-                    break
-                }
+            let financeIds = message.allLinkedEntityIds(for: .finance)
+            let taskIds = message.allLinkedEntityIds(for: .task)
+            if affectedIds.contains(where: { financeIds.contains($0) || taskIds.contains($0) }) {
+                affectedMessageIDs.insert(message.id)
+            }
+            if !updatedFinanceIds.isDisjoint(with: financeIds) {
+                financeRefreshIDs.formUnion(updatedFinanceIds.intersection(financeIds))
+            }
+            if !updatedTaskIds.isDisjoint(with: taskIds) {
+                taskRefreshIDs.formUnion(updatedTaskIds.intersection(taskIds))
             }
         }
 
         for messageID in affectedMessageIDs {
             chatRepo?.refreshDeletionState(for: messageID, affectedCategories: [.finance, .task])
+        }
+        for transactionId in financeRefreshIDs {
+            chatRepo?.refreshTransactionCard(transactionId: transactionId)
+        }
+        for taskId in taskRefreshIDs {
+            chatRepo?.refreshTaskCard(taskId: taskId)
         }
     }
 
@@ -759,11 +899,82 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Pending Task Confirmation
 
-    func confirmPendingTask(from message: ChatMessageViewData) {
+    /// 待确认任务项谓词（createTask / modifyTaskItems / deleteTask；确认入口含 failed 重试）
+    private static func isPendingTaskItem(_ item: AIExecutionItem) -> Bool {
+        Self.isTaskActionItem(item)
+            && item.status == .skipped
+            && item.renderData?["confirmationStatus"] == "pending"
+    }
+
+    private static func isTaskActionItem(_ item: AIExecutionItem) -> Bool {
+        item.intent == .createTask || item.intent == .modifyTaskItems || item.intent == .deleteTask
+    }
+
+    /// 可确认（含失败重试）的任务项
+    private static func isConfirmableTaskItem(_ item: AIExecutionItem) -> Bool {
+        Self.isTaskActionItem(item)
+            && item.status == .skipped
+            && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
+    }
+
+    /// 待确认财务项谓词
+    private static func isPendingFinanceItem(_ item: AIExecutionItem) -> Bool {
+        item.intent.isFinance
+            && item.status == .skipped
+            && item.renderData?["confirmationStatus"] == "pending"
+    }
+
+    /// 把消息里指定 item 的确认状态持久化（基于重读的最新 batch 按 itemId 定位）。
+    /// 状态机：pending → confirming（路由执行前落库）→ confirmed / failed / cancelled。
+    /// confirming 中间态 + 实体上的 AI 来源标记，构成「确认中途 App 被杀」后的对账依据。
+    private func persistConfirmationStatus(messageId: UUID, itemId: String, status: String) {
+        guard let msg = messages.first(where: { $0.id == messageId }),
+              let batch = msg.executionBatch,
+              let index = batch.items.firstIndex(where: { $0.id == itemId }),
+              var rd = batch.items[index].renderData else { return }
+        rd["confirmationStatus"] = status
+        var updatedItems = batch.items
+        let item = updatedItems[index]
+        updatedItems[index] = AIExecutionItem(
+            id: item.id,
+            parseItemId: item.parseItemId,
+            intent: item.intent,
+            status: item.status,
+            summaryText: item.summaryText,
+            renderData: rd,
+            linkedEntityType: item.linkedEntityType,
+            linkedEntityId: item.linkedEntityId,
+            errorText: item.errorText
+        )
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: batch.finalText
+        )
+        chatRepo?.updateMessageMetadata(
+            messageId,
+            intent: msg.intent,
+            extractedDataJSON: Self.encodeExtractedData(msg.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(msg.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    /// 取消息里被点击卡片的待确认财务项：多卡消息按 itemID 精确定位，
+    /// 单意图旧格式（itemID 为 nil）退回第一个 pending 项；确认进行中的项不可再操作。
+    func pendingFinanceItem(in message: ChatMessageViewData, itemID: String?) -> AIExecutionItem? {
+        guard let batch = message.executionBatch else { return nil }
+        guard let item = batch.items.first(where: {
+            Self.isPendingFinanceItem($0) && (itemID == nil || $0.id == itemID)
+        }) else { return nil }
+        guard !confirmingItemIds.contains(item.id) else { return nil }
+        return item
+    }
+
+    func confirmPendingTask(from message: ChatMessageViewData, itemID: String? = nil) {
         guard let batch = message.executionBatch,
               let pendingIndex = batch.items.firstIndex(where: {
-                  ($0.intent == .createTask || $0.intent == .modifyTaskItems)
-                  && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+                  Self.isConfirmableTaskItem($0) && (itemID == nil || $0.id == itemID)
               }),
               let renderData = batch.items[pendingIndex].renderData else {
             return
@@ -780,10 +991,37 @@ final class ChatViewModel: ObservableObject {
             }
 
             do {
-                // 重读最新消息状态，防止过期数据重复确认
+                // 重读最新消息状态，防止过期数据重复确认；failed 也放行（失败卡重试走同一入口）
                 guard let currentBatch = self.latestExecutionBatch(for: message.id),
                       let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
-                      currentItems.renderData?["confirmationStatus"] == "pending" else {
+                      ["pending", "failed"].contains(currentItems.renderData?["confirmationStatus"] ?? "") else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+
+                // 路由执行前先落 confirming 中间态（对账依据，与交易侧同构）
+                self.persistConfirmationStatus(messageId: message.id, itemId: itemId, status: "confirming")
+
+                // 删除确认卡：直接按 ID 删（不回头走关键词模糊匹配路由）
+                if currentItems.intent == .deleteTask {
+                    var deleteRouteResult: IntentRouter.RouteResult
+                    if let taskIdStr = renderData["taskId"],
+                       let taskId = UUID(uuidString: taskIdStr),
+                       let task = TodoRepository.shared.findTask(by: taskId) {
+                        try TodoRepository.shared.deleteTask(task)
+                        deleteRouteResult = IntentRouter.RouteResult(
+                            text: "已删除任务：\(task.title)",
+                            taskId: taskId,
+                            linkedEntity: LinkedEntity(type: .task, id: taskId)
+                        )
+                    } else {
+                        deleteRouteResult = IntentRouter.RouteResult(text: "任务已不存在，可能已被删除")
+                    }
+                    await self.finalizeTaskConfirmation(
+                        chatRepo: chatRepo, message: message, itemId: itemId,
+                        currentBatch: currentBatch, renderData: renderData,
+                        routeResult: deleteRouteResult
+                    )
                     self.confirmingItemIds.remove(itemId)
                     return
                 }
@@ -797,44 +1035,10 @@ final class ChatViewModel: ObservableObject {
                     responseText: nil
                 )
                 let routeResult = try await IntentRouter.shared.route(result)
-
-                var confirmedRenderData = renderData
-                confirmedRenderData["confirmationStatus"] = "confirmed"
-                if let entity = routeResult.linkedEntity {
-                    confirmedRenderData["entityType"] = entity.type.rawValue
-                    confirmedRenderData["entityId"] = entity.id.uuidString
-                }
-                if let taskId = routeResult.taskId {
-                    confirmedRenderData["taskId"] = taskId.uuidString
-                }
-
-                var updatedItems = batch.items
-                let pending = updatedItems[pendingIndex]
-                updatedItems[pendingIndex] = AIExecutionItem(
-                    id: pending.id,
-                    parseItemId: pending.parseItemId,
-                    intent: pending.intent,
-                    status: .success,
-                    summaryText: routeResult.text,
-                    renderData: confirmedRenderData,
-                    linkedEntityType: routeResult.linkedEntity?.type.rawValue,
-                    linkedEntityId: routeResult.linkedEntity?.id.uuidString,
-                    errorText: nil
-                )
-
-                let updatedBatch = AIExecutionBatch(
-                    mode: batch.mode,
-                    items: updatedItems,
-                    finalText: Self.confirmedFinalText(from: updatedItems)
-                )
-
-                chatRepo.updateMessage(message.id, content: updatedBatch.finalText)
-                chatRepo.updateMessageMetadata(
-                    message.id,
-                    intent: message.intent,
-                    extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
-                    parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
-                    executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+                await self.finalizeTaskConfirmation(
+                    chatRepo: chatRepo, message: message, itemId: itemId,
+                    currentBatch: currentBatch, renderData: renderData,
+                    routeResult: routeResult
                 )
             } catch {
                 // 错误回写：标记卡片为 failed
@@ -877,6 +1081,112 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// 任务确认成功后的统一回写：来源标记 + confirmed 状态 + 基于最新 batch 定位回写
+    private func finalizeTaskConfirmation(
+        chatRepo: ChatMessageRepository,
+        message: ChatMessageViewData,
+        itemId: String,
+        currentBatch: AIExecutionBatch,
+        renderData: [String: String],
+        routeResult: IntentRouter.RouteResult
+    ) async {
+        // 任务侧来源标记（对账依据，与交易侧同构）
+        if let taskId = routeResult.taskId {
+            TodoRepository.shared.markTaskAISource(
+                taskId: taskId,
+                messageId: message.id.uuidString,
+                itemId: itemId
+            )
+        }
+
+        var confirmedRenderData = renderData
+        confirmedRenderData["confirmationStatus"] = "confirmed"
+        if let entity = routeResult.linkedEntity {
+            confirmedRenderData["entityType"] = entity.type.rawValue
+            confirmedRenderData["entityId"] = entity.id.uuidString
+        }
+        if let taskId = routeResult.taskId {
+            confirmedRenderData["taskId"] = taskId.uuidString
+        }
+
+        // 回写基于重读的最新 batch 按 itemId 定位：
+        // 同消息多张卡先后确认时，旧快照里的 pendingIndex 已过期，
+        // 会把兄弟卡片刚写入的状态回滚成 pending（诱导重复确认）
+        guard let currentIndex = currentBatch.items.firstIndex(where: { $0.id == itemId }) else { return }
+        var updatedItems = currentBatch.items
+        let pending = updatedItems[currentIndex]
+        updatedItems[currentIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: .success,
+            summaryText: routeResult.text,
+            renderData: confirmedRenderData,
+            linkedEntityType: routeResult.linkedEntity?.type.rawValue,
+            linkedEntityId: routeResult.linkedEntity?.id.uuidString,
+            errorText: nil
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: currentBatch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    /// 取消任务类待确认卡（创建/修改/删除通用）：置 cancelled，不执行任何动作
+    func cancelPendingTask(from message: ChatMessageViewData, itemID: String? = nil) {
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  Self.isPendingTaskItem($0) && (itemID == nil || $0.id == itemID)
+              }) else {
+            return
+        }
+
+        let pending = batch.items[pendingIndex]
+        guard !confirmingItemIds.contains(pending.id) else { return }
+
+        var renderData = pending.renderData
+        renderData?["confirmationStatus"] = "cancelled"
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: pending.status,
+            summaryText: "已取消",
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: nil
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
     private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
         guard !items.isEmpty else { return "已处理" }
         if items.count == 1 { return items[0].summaryText }
@@ -887,10 +1197,10 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Pending Transaction Confirmation
 
-    func confirmPendingTransaction(from message: ChatMessageViewData) {
+    func confirmPendingTransaction(from message: ChatMessageViewData, itemID: String? = nil) {
         guard let batch = message.executionBatch,
               let pendingIndex = batch.items.firstIndex(where: {
-                  $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+                  Self.isPendingFinanceItem($0) && (itemID == nil || $0.id == itemID)
               }),
               batch.items[pendingIndex].renderData != nil else {
             return
@@ -903,7 +1213,7 @@ final class ChatViewModel: ObservableObject {
         if batch.items[pendingIndex].renderData?["installmentEnabled"] == "true",
            !HoloEntitlementState.shared.isPlusActive {
             HoloPlusActionCoordinator.shared.requirePlus(context: .financeInstallment) { [weak self] in
-                self?.confirmPendingTransaction(from: message)
+                self?.confirmPendingTransaction(from: message, itemID: itemID)
             }
             return
         }
@@ -915,15 +1225,26 @@ final class ChatViewModel: ObservableObject {
                 return
             }
 
+            // 重读最新 batch 供校验与回写共用；route 抛错时错误回写也要基于它，
+            // 避免旧快照把同消息兄弟卡片的状态回滚
+            var latestBatch: AIExecutionBatch?
+
             do {
-                // 重读最新消息状态，防止过期数据重复确认
+                // 重读最新消息状态，防止过期数据重复确认；
+                // failed 也放行：失败卡上的「重试」按钮走同一入口
                 guard let currentBatch = self.latestExecutionBatch(for: message.id),
                       let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
                       let currentRenderData = currentItems.renderData,
-                      currentRenderData["confirmationStatus"] == "pending" else {
+                      currentRenderData["confirmationStatus"] == "pending"
+                          || currentRenderData["confirmationStatus"] == "failed" else {
                     self.confirmingItemIds.remove(itemId)
                     return
                 }
+                latestBatch = currentBatch
+
+                // 路由执行前先落 confirming 中间态：路由期间 App 被杀，
+                // 重启对账据此（配合实体上的 AI 来源标记）判断是否已入账，防止重复确认
+                self.persistConfirmationStatus(messageId: message.id, itemId: itemId, status: "confirming")
 
                 let intent: AIIntent = currentRenderData["pendingKind"] == "transaction"
                     ? (currentItems.intent == .recordIncome ? .recordIncome : .recordExpense)
@@ -955,14 +1276,23 @@ final class ChatViewModel: ObservableObject {
                     confirmedRenderData["subCategory"] = sub
                 }
 
-                // 写入 AI 来源标记
+                // 写入 AI 来源标记 + 确认流程来源（对账依据）
                 if let txId = routeResult.transactionId {
-                    self.markTransactionAsAICreated(txId, candidate: currentRenderData["categoryCandidate"] ?? currentRenderData["note"])
+                    self.markTransactionAsAICreated(
+                        txId,
+                        candidate: currentRenderData["categoryCandidate"] ?? currentRenderData["note"],
+                        sourceMessageId: message.id.uuidString,
+                        sourceItemId: itemId
+                    )
                 }
 
-                var updatedItems = batch.items
-                let pending = updatedItems[pendingIndex]
-                updatedItems[pendingIndex] = AIExecutionItem(
+                guard let currentIndex = currentBatch.items.firstIndex(where: { $0.id == itemId }) else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+                var updatedItems = currentBatch.items
+                let pending = updatedItems[currentIndex]
+                updatedItems[currentIndex] = AIExecutionItem(
                     id: pending.id,
                     parseItemId: pending.parseItemId,
                     intent: pending.intent,
@@ -975,7 +1305,7 @@ final class ChatViewModel: ObservableObject {
                 )
 
                 let updatedBatch = AIExecutionBatch(
-                    mode: batch.mode,
+                    mode: currentBatch.mode,
                     items: updatedItems,
                     finalText: Self.confirmedFinalText(from: updatedItems)
                 )
@@ -1003,24 +1333,33 @@ final class ChatViewModel: ObservableObject {
                     intent: intent
                 )
             } catch {
-                self.writeTransactionError(itemId: itemId, batch: batch, message: message, error: error)
+                self.writeTransactionError(
+                    itemId: itemId,
+                    batch: latestBatch ?? batch,
+                    message: message,
+                    error: error
+                )
             }
 
             self.confirmingItemIds.remove(itemId)
         }
     }
 
-    func cancelPendingTransaction(from message: ChatMessageViewData) {
-        guard let batch = message.executionBatch,
+    func cancelPendingTransaction(from message: ChatMessageViewData, itemID: String? = nil) {
+        // 基于重读的最新 batch 取消，且确认进行中的项不允许取消：
+        // 否则「确认的路由刚创建实体、取消把卡片改写、确认结果又覆盖回来」会绕过用户最后的意图
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
               let pendingIndex = batch.items.firstIndex(where: {
-                  $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+                  Self.isPendingFinanceItem($0) && (itemID == nil || $0.id == itemID)
               }) else {
             return
         }
 
         let pending = batch.items[pendingIndex]
-        guard var renderData = pending.renderData else { return }
-        renderData["confirmationStatus"] = "cancelled"
+        guard !confirmingItemIds.contains(pending.id) else { return }
+
+        var renderData = pending.renderData
+        renderData?["confirmationStatus"] = "cancelled"
 
         var updatedItems = batch.items
         updatedItems[pendingIndex] = AIExecutionItem(
@@ -1052,10 +1391,14 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// AddTransactionSheet 编辑保存后，将待确认卡片标记为"已确认"（不重复创建交易）
-    func dismissPendingCardAfterEdit(from message: ChatMessageViewData, createdTransaction: Transaction? = nil) {
-        guard let batch = message.executionBatch,
+    func dismissPendingCardAfterEdit(
+        from message: ChatMessageViewData,
+        itemID: String? = nil,
+        createdTransaction: Transaction? = nil
+    ) {
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
               let pendingIndex = batch.items.firstIndex(where: {
-                $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+                Self.isPendingFinanceItem($0) && (itemID == nil || $0.id == itemID)
               }) else {
             return
         }
@@ -1233,8 +1576,18 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Category Learning
 
-    private func markTransactionAsAICreated(_ transactionId: UUID, candidate: String?) {
-        FinanceRepository.shared.markTransactionAsAICreated(transactionId, candidate: candidate)
+    private func markTransactionAsAICreated(
+        _ transactionId: UUID,
+        candidate: String?,
+        sourceMessageId: String? = nil,
+        sourceItemId: String? = nil
+    ) {
+        FinanceRepository.shared.markTransactionAsAICreated(
+            transactionId,
+            candidate: candidate,
+            sourceMessageId: sourceMessageId,
+            sourceItemId: sourceItemId
+        )
     }
 
     private func recordCategoryLearningIfNeeded(
@@ -1512,7 +1865,15 @@ final class ChatViewModel: ObservableObject {
                         messageType: .quotaExhausted
                     )
                 } else {
-                    errorMessage = HoloAIUserErrorMapper.message(for: error)
+                    // errorMessage 没有界面消费点，失败必须落到气泡，否则用户发消息石沉大海
+                    let userMessage = HoloAIUserErrorMapper.message(for: error)
+                    errorMessage = userMessage
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。",
+                        parentMessageId: userMessageId,
+                        messageType: .goalPlanning
+                    )
                 }
             }
         }
@@ -1566,7 +1927,15 @@ final class ChatViewModel: ObservableObject {
                     messageType: .quotaExhausted
                 )
             } else {
-                errorMessage = HoloAIUserErrorMapper.message(for: error)
+                // 同上：失败写气泡，避免静默失败
+                let userMessage = HoloAIUserErrorMapper.message(for: error)
+                errorMessage = userMessage
+                _ = chatRepo.addMessage(
+                    role: "assistant",
+                    content: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。",
+                    parentMessageId: userMessageId,
+                    messageType: .goalPlanning
+                )
             }
         }
     }

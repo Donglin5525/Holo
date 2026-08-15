@@ -130,7 +130,7 @@ final class PromptManager {
     private static let promptVersions: [PromptType: Int] = [
         .personaPreamble: 1,            // v1: 人格层首版（Persona Preamble 唯一真源见 PROMPT_GUIDELINES.md）
         .systemPrompt: 4,               // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
-        .intentRecognition: 24,         // v24: 个人近期整体状态稳定进入 query_analysis
+        .intentRecognition: 26,         // v26: P3 瘦身（删重复 few-shot+对齐 V23）；意图清单源同 v25
         .memoryInsightGeneration: 10,   // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
         .analysisPrompt: 5,             // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
         .annualReview: 2,               // v2: 年度回放升级为完整阅读长度
@@ -473,77 +473,7 @@ final class PromptManager {
         - 如果用户要执行记账、创建任务、打卡等操作，而当前链路无法确认执行成功，不要假装已完成。
         """,
 
-        .intentRecognition: """
-        你是短意图 Router。只判断用户要做什么，只输出 JSON。不要解释/闲聊。
-        日期：{{todayDate}}
-        时：{{currentTime}}
-
-        输出 JSON：
-        {
-          "mode": "single_action | multi_action | query | clarification | unknown",
-          "items": [{ "id": "1", "intent": "...", "confidence": 0.0-1.0, "extractedData": {} }],
-          "needsClarification": false,
-          "clarificationQuestion": null
-        }
-
-        意图字段：
-        - record_expense：记录支出。金额填 amount；note 填用户可见名称；categoryCandidate 填原始消费语义；用户明确或相对日期填 transactionDate（YYYY-MM-DD），如昨天=交易日-1。可选 normalizedCategoryCandidate/semanticCategoryHint。工资/发工资+金额走 record_income。
-        - record_income：记录收入。填 amount、note、categoryCandidate；用户明确或相对日期填 transactionDate（YYYY-MM-DD），如昨天=交易日-1。
-        - create_task：建待办/提醒。填 title；能确定日期填 dueDate（yyyy-MM-dd 或 yyyy-MM-dd HH:mm）；用户明确提醒时间填 reminderDate（yyyy-MM-dd HH:mm）。用户说了具体钟点（如"晚上10点""今晚8点"）必须把时间填进 reminderDate 和 dueDate，时段换算 24 小时制（晚上10点=22:00，下午3点=15:00）。多个并列待办填 subtasks（逗号分隔），title 概括整体。填 description 补充。
-        - complete_task / update_task / delete_task：操作已有任务，填 taskKeyword。
-        - modify_task_items：对最近对话提到的任务增删条目（还要买/不买了/换成）。addItems 填新增、removeItems 填删除（逗号分隔；removeItems 须用现有条目确切名称）；替换=删旧+加新。
-        - check_in：习惯打卡。填 habitName / habitValue。
-        - create_note / record_mood / record_weight：记录笔记、心情、体重。
-        - query_tasks / query_habits：查询任务或习惯状态。
-        - flexible_data_query：查一个或一组确定结果——总金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词花了多少，以及同一批记录的平均每笔/每次/每顿金额。
-        - query_analysis：分析、复盘、趋势、结构、占比、总结，以及需要按时间折算或统计规律的——频率趋势、平均每天/每周花多少、日均、单位时间花销。
-        - query：普通问答或闲聊。
-        - generate_memory_insight：记忆回放。
-        - unknown：无法判断。
-
-        分流：
-        - 确定数字类："今年收入是多少""本月花了多少钱""今年买烟花花了多少""咖啡一共花了多少""最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱"→ flexible_data_query。
-        - 分析总结类："分析今年收入结构""复盘本月消费""最近财务状态怎么样"→ query_analysis。
-        - 频率/折算类："买烟的频率怎么样""平均一天抽烟花多少钱""每天花多少""多久买一次"→ query_analysis（需要次数÷时间或总额÷天数，超出单值查询）。
-        - 具体数据查询不要用 query。
-
-        规则：
-        - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown。
-        - 同一批账单的次数、总额和平均每笔/每次/每顿金额是一个 flexible_data_query，必须输出 single_action 且 items 只有一项；不要拆成 multi_action。
-        - note 是交易名称，保留具体对象/关系/场景，不要只写分类；如"给爷爷买了两百块的彩票"→note:"给爷爷买彩票"。
-        - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定留空。不要编造分类。semanticCategoryHint 填一级分类（餐饮、交通、购物、娱乐、居住、医疗、学习、人情、其他）。品牌消费必填，如"麦当劳"→"餐饮"，"优衣库"→"购物"。
-        - title 去掉"提醒我""帮我"等套话。日期：今天=当天，昨天=交易日-1，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。用户说了具体钟点时，按时段换算 24 小时制："晚上N点"=N+12点（晚上10点=22:00，晚上8点=20:00），"今晚N点"=当天N点，"下午3点"=15:00，"凌晨2点"=02:00，半点=N:30。
-        - 记账日期写入 transactionDate，不要写入 dueDate/reminderDate；任务日期才写 dueDate/reminderDate。
-        - 明确说"提醒我明天早上/下午/今晚N点"时，同时填 reminderDate 和 dueDate（含 HH:mm）。
-        - 购物清单：并列物品填 subtasks（逗号分隔），title 概括。只有 1 个事项时不填 subtasks。
-        - 多笔记账每项的 note/categoryCandidate 对应各自内容。
-        - 查询+执行混合时返回 clarification。不确定就 clarification，不要编造字段。
-        - 复杂字段（分期、重复任务）由专用 parser 处理，不要输出 installment* / repeat* 字段。
-        - 无法判断时输出 intent: "unknown", mode: "unknown"，不要输出自由文本。
-
-        例：
-        - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", note: "午饭", categoryCandidate: "午饭", transactionDate: "今天对应的 YYYY-MM-DD" }
-        - "昨天停车18" → intent: "record_expense", extractedData: { amount: "18", note: "停车", categoryCandidate: "停车", transactionDate: "昨天对应的 YYYY-MM-DD", semanticCategoryHint: "交通" }
-        - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", note: "麦当劳", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
-        - "给爷爷买了两百块的彩票" → intent: "record_expense", extractedData: { amount: "200", note: "给爷爷买彩票", categoryCandidate: "给爷爷买彩票", semanticCategoryHint: "人情" }
-        - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
-        - "最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱" → mode: "single_action", items: [{ intent: "flexible_data_query", extractedData: { queryDomain: "finance", queryGoal: "统计麦当劳消费次数、总额、平均每顿金额", categoryCandidate: "麦当劳", periodLabel: "最近一个月", rawConstraints: "最近一个月, 麦当劳, 支出" }]
-        - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
-        - "买烟的频率怎么样" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
-        - "平均一天抽烟花多少钱" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
-        - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
-        - "提醒我今天晚上10点给猫换水" → intent: "create_task", extractedData: { title: "给猫换水", dueDate: "今天对应的 YYYY-MM-DD 22:00", reminderDate: "今天对应的 YYYY-MM-DD 22:00" }
-        - "（最近任务：去山姆购物）还要买可乐" → intent: "modify_task_items", extractedData: { addItems: "买可乐" }
-        - "（最近任务：去山姆购物）牛奶不买了，换成酸奶" → intent: "modify_task_items", extractedData: { removeItems: "买牛奶", addItems: "买酸奶" }
-        - "嗯..." → intent: "unknown", mode: "unknown"
-
-        [HOLO_PERSONAL_STATE_ROUTING_V24]
-        - 个人近期整体状态问法，如“我最近状态怎么样/如何”“最近我咋样”“帮我看看我近期整体情况”“我最近过得好不好”，必须输出 mode=query、intent=query_analysis、needsClarification=false；不得追问领域，也不得降级为普通 query。extractedData 填 analysisDomain="cross_domain"、analysisScope="holistic"、periodLabel="最近"。
-        - 明确单领域的近期状态/趋势问法仍为 query_analysis，analysisDomain 填 finance/health/habit/task/goal/thought；同时涉及两个及以上领域时填 cross_domain。睡眠问法加 subDomain="sleep"。
-        - “你最近怎么样”“今天天气怎么样”“Holo 服务状态怎么样”属于普通 query；查询与执行混合仍走 clarification。
-
-        只回 JSON。
-        """,
+        .intentRecognition: IntentDescriptorRegistry.intentRecognitionTemplate,
 
         .dataExtraction: """
         从用户输入中提取结构化数据。

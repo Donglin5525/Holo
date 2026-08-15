@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-08-15] 意图路由架构 P1-P3——意图注册表单一事实源 + Agent 问答基建 + prompt 瘦身
+
+### 背景
+- P0（数据上下文注册表+评测基线）见上一条目。本批完成 P1（意图注册表+后端骨架化）、P2（Agent 问答基建）、P3（意图 prompt 瘦身）、P4（清理与文档化）。方案终态记录见 `docs/plans/2026-08-15-intent-routing-long-term-architecture.md` §9。
+
+### 改动（P1：意图注册表，双份维护归一）
+- **后端**：意图清单+few-shot 从 defaultPrompts.json 静态文本迁出为 `intents.json`（单一事实源，17 条目覆盖 21 意图）；prompt serve 时以 marker（`{{HOLO_INTENT_SECTION}}`/`{{HOLO_INTENT_EXAMPLES}}`）渲染注入，逐内容等价（清 3 行历史空行残留+例句按意图分组）；护栏测试升级为「注册表一致性断言」（防漏新：每个注册意图的 id/摘要/例句必须出现在渲染产物，未注册意图不得出现）。
+- **iOS**：`IntentDescriptor.swift` 由后端生成器程序化产出（`HoloBackend/scripts/generate-intent-descriptors.mjs`），DEBUG 兜底 prompt 与后端 serve 产物逐字节一致——原双份手写（已漂移：iOS 缺 3 个 goal 意图）彻底归一；`AIParseBatchValidator` 必填字段从硬编码 5 意图扩到注册表全量；`MessageBubbleView` 本地意图文案副本收编到 `chatDisplayLabel`。
+- **跨仓库对拍护栏**：`tests/intent-registry-consistency.test.js` 进 npm test——重生成 diff + AIIntent 枚举集合对拍 + 评测语料覆盖断言，两端漂移即红。
+- **顺手修复**：prompts.test.js「恢复默认」flaky（reset 分支 SQLite 写失败吞错→stale 内容错标 source；managedPrompts 非原子写在并行测试下损坏→静默丢内容）：改原子写（PID 临时文件+rename）、SQLite 失败抛出、admin reset/save 兜底错误 redirect。
+
+### 改动（P2：Agent 问答基建，1C/2A 落地）
+- **服务端急停开关**（后端）：feature_flags 表（migration #12）+ admin「功能开关」页 + 经 `GET /v1/subscription/status` 的 featureFlags 字段下发；`agentDeepAnalysis` 总闸关闭后客户端下次刷新即回到纯 chat 链路，**不发版**。
+- **iOS 开关接线**：`HoloServerFeatureFlags`（订阅状态响应写入 UserDefaults）接入 `shouldRouteToDeepAgent`（服务端值优先、本地默认兜底）。
+- **Agent 失败自动降级**（iOS）：深度分析失败不再只留无重试的错误卡片——自动改走 chat 流式直接重答（卡片提示「正在直接回答」→ 完成后以文本气泡落库）；降级流也失败才落回错误卡片（两层兜底）。
+- **前台步骤实时化**（iOS）：等待深度分析期间每 2s 刷新当前步骤文案（「正在读取数据→正在校验结论」），前台卡片不再静止（原仅回前台/解锁瞬间快照刷新）。
+- **AI 指标仪表盘**（后端 admin）：按 purpose 聚合 ai_call_logs 30 天（调用量/p50/p90 时延/错误率）+ 近 14 日趋势页。
+- **anniversary 动态数据集**（iOS）：纪念日注册为 Agent 第 14 个动态数据集（schema+rows+基座工具+装配+白名单），「新数据零提示词接入」首个实战——深度分析可直接回答「离妈妈生日还有多久」类问题。
+
+### 改动（P3：意图 prompt 瘦身，范围修正）
+- 核实结论：v2 方案的「删意图定义」不可行（删定义后单值查询会从精确计算引擎跌回 chat 文本回答）。实际执行：删与分流规则重复的 few-shot 3 条 + flexible_data_query 摘要与 V23 聚合契约对齐（原自相矛盾）；serve 长度 5002→4745，红线 5100→4900。
+
+### 验证
+- 后端 `npm test` 215/215 全绿（新增：注册表一致性 3 项 + 功能开关 5 项）；iOS Debug 全量构建通过；Release prompt 边界 standalone 测试 PASS
+- 意图评测（123 条真实调用 deepseek-chat）：基线 95.1% → P1 95.1% → P2 95.1% → **P3 95.9%**，全程不低于门禁（93.1%）
+- **后端发版 1 次**（P1+P2+P3 合并，migration #12 自动执行）；iOS 发版独立，旧后端兼容（featureFlags 可选字段）
+
+## [2026-08-15] 意图路由架构 P0——数据上下文注册表 + 意图评测基线
+
+### 背景
+- 长期架构方案定稿（`docs/plans/2026-08-15-intent-routing-long-term-architecture.md` v2）：三轮对抗审查 + 东林拍板 1C（普通问答不切 Agent）/2A（建服务端开关，上线即全量）/3B（意图注册表全量做）。P0 为地基阶段。
+
+### 改动
+- **iOS**：新建 `AIContextSection` 注册表（协议 + 注册表 + 3 个 section）——纪念日、数据覆盖度、最近关联任务三块上下文注入从 `AIUserContextMessageBuilder` 手写分支迁入 section 自描述，chat 与意图识别两个消费者统一遍历渲染；新数据域接入成本 3 处手写 → 1 个 section 文件。
+- **评测**：意图识别回归评测集落地 `docs/holoai-audit/intent-eval/`（种子语料 123 条覆盖全部 21 意图+歧义组+闲聊组、Node runner、报告落盘）；mock 环境管道冒烟通过，真实基线待真实模型环境首跑。迁移等价性验收工具归档 `docs/holoai-audit/context-section-equiv-check/`。
+
+### 验证
+- iOS Debug 全量构建通过；三块迁移渲染 14 组边界样例逐字节等价（独立对比工具实测，含 15 条截断/16 条后缀/各覆盖度档位）
+- 评测 runner 冒烟 12/12 通过（mock，仅验证管道）
+- 纯客户端改动，不涉及后端发版；后端发版需求自 P1 起
+
 ## [2026-08-15] 纪念日模块交互走查修复——右滑返回/删除确认/关联任务同步根治
 
 ### 背景

@@ -60,6 +60,7 @@ final class HoloSubscriptionService: ObservableObject {
 
             let status = try JSONDecoder().decode(HoloSubscriptionStatusResponse.self, from: data)
             entitlementState.apply(status: status)
+            HoloServerFeatureFlags.apply(status.featureFlags)
             HoloWidgetSnapshotService.shared.refreshEntitlementSnapshot(
                 isPlusActive: status.isPlusActive,
                 source: status.source ?? "backend"

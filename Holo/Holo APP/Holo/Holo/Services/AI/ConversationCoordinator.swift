@@ -41,8 +41,11 @@ final class ConversationCoordinator {
 
     /// 是否应把该 intent 路由到本地深度 Agent（灰度，agentRuntimeEnabled flag 保护）。
     /// 分析与确定性数据查询统一进入 Agent；动态开关关闭时 flexible query 回退旧路径。
+    /// 服务端急停总闸（HoloServerFeatureFlags.agentDeepAnalysis）：admin 后台关闭后
+    /// 客户端随订阅状态刷新应用，无需发版。
     static func shouldRouteToDeepAgent(intent: String) -> Bool {
         guard HoloAIFeatureFlags.agentRuntimeEnabled else { return false }
+        guard HoloServerFeatureFlags.agentDeepAnalysis else { return false }
         let executionIntents: Set<String> = [
             "record_expense", "record_income", "create_task", "complete_task",
             "update_task", "modify_task_items", "delete_task", "check_in",
@@ -234,6 +237,33 @@ final class ConversationCoordinator {
 
         for item in parseBatch.items {
             try Task.checkCancellation()
+
+            // 删除任务必须经用户确认（删除是破坏性操作）：唯一命中时生成「删除确认卡」，
+            // 无命中/多命中仍走 IntentRouter 的文本追问
+            if item.intent == .deleteTask,
+               let keyword = item.extractedData?["taskKeyword"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !keyword.isEmpty,
+               let task = IntentRouter.shared.matchUniqueTaskForDeletion(keyword: keyword) {
+                var renderData = item.extractedData ?? [:]
+                renderData["confirmationStatus"] = "pending"
+                renderData["pendingKind"] = "taskDelete"
+                renderData["taskId"] = task.id.uuidString
+                renderData["taskTitle"] = task.title
+                executionItems.append(
+                    AIExecutionItem(
+                        id: UUID().uuidString,
+                        parseItemId: item.id,
+                        intent: item.intent,
+                        status: .skipped,
+                        summaryText: "我找到了要删除的任务「\(task.title)」，请确认",
+                        renderData: renderData,
+                        linkedEntityType: nil,
+                        linkedEntityId: nil,
+                        errorText: nil
+                    )
+                )
+                continue
+            }
 
             if item.intent == .createTask {
                 var renderData = item.extractedData ?? [:]
@@ -509,6 +539,11 @@ final class ConversationCoordinator {
         }
         if let habitId = routeResult.habitId {
             data["habitId"] = habitId.uuidString
+            // 打卡是 toggle 语义：取消打卡时必须写 completed=false，
+            // 否则卡片「已取消打卡」文案与「已完成」徽章自相矛盾
+            if routeResult.text.contains("已取消打卡") {
+                data["completed"] = "false"
+            }
         }
         if let thoughtId = routeResult.thoughtId {
             data["thoughtId"] = thoughtId.uuidString

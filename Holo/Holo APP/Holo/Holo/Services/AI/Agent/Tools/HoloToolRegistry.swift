@@ -10,6 +10,7 @@ import Foundation
 
 nonisolated enum HoloAgentToolCoverage {
     static let requiredToolNames = [
+        "anniversary",
         "conversation",
         "finance",
         "goal",
@@ -22,7 +23,7 @@ nonisolated enum HoloAgentToolCoverage {
         "thought"
     ]
     static let requiredDynamicDatasets: Set<String> = [
-        "conversation.metadata", "finance.transactions", "goal.progress.daily",
+        "anniversary.events", "conversation.metadata", "finance.transactions", "goal.progress.daily",
         "habit.daily", "health.steps", "health.sleep", "health.stand", "health.activity",
         "insight.records", "memory.entries", "profile.items", "task.daily", "thought.daily"
     ]

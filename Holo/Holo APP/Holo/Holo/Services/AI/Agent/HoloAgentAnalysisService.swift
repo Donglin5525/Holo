@@ -376,6 +376,30 @@ final class HoloAgentAnalysisService {
         return preservedStreamingMessageIDs
     }
 
+    /// 前台等待期间的单条步骤刷新（P2 步骤实时化）：按消息找最新活跃 job，
+    /// 把当前步骤文案推给聊天气泡。与 syncRecoverableChatMessages 同管道、同竞态约束
+    /// （userCancelled 不点亮、终态交给主路径），供 ChatViewModel 轮询调用。
+    @discardableResult
+    func refreshLiveProgress(sourceMessageID: UUID) async -> Bool {
+        let repository = ChatMessageRepository.shared
+        let jobs: [HoloAgentJob]
+        do {
+            jobs = try await runtime.loadChatLinkedJobs()
+        } catch {
+            return false
+        }
+        guard let job = jobs
+            .filter({ $0.sourceMessageID == sourceMessageID })
+            .max(by: { $0.updatedAt < $1.updatedAt }),
+            job.state != .completed,
+            repository.messageType(for: sourceMessageID) != .userCancelled
+        else { return false }
+        let status = HoloAgentChatStatusPresenter.status(for: job)
+        guard status.keepsMessageStreaming else { return false }
+        repository.updateAgentMessageProgress(sourceMessageID, status: status)
+        return true
+    }
+
     /// 从持久化的样本摘要构造渲染预览；空或缺失返回 nil。
     private static func makeSamplePreview(from excerpts: [String]?) -> HoloRenderedDataSamplePreview? {
         guard let excerpts, !excerpts.isEmpty else { return nil }

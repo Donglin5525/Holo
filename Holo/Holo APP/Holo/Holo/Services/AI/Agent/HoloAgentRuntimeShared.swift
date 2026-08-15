@@ -143,6 +143,23 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                 )
             }
         }
+        if source == "anniversary.events" {
+            // 纪念日是「下一次发生」语义的少量固定事件，不按历史时间窗过滤（过滤会丢未来事件）
+            let reference = Date()
+            return await HoloDefaultAnniversaryDataSource().activeAnniversaries().map { record in
+                HoloQueryRow(
+                    id: "anniversary-\(record.id.uuidString)",
+                    occurredAt: record.nextDate,
+                    fields: [
+                        "date": .date(record.nextDate),
+                        "title": .text(record.title),
+                        "daysUntil": .number(Double(record.daysUntil)),
+                        "repeatYearly": .text(record.repeatYearly ? "true" : "false")
+                    ],
+                    excerpt: "\(record.title)：\(record.daysUntil) 天后"
+                )
+            }
+        }
         if source == "conversation.metadata" {
             return await HoloDefaultConversationDataSource().recentRecords(limit: 200).compactMap { record in
                 guard Self.contains(record.timestamp, in: timeRange) else { return nil }
@@ -268,6 +285,7 @@ extension HoloLocalAgentRuntime {
             HoloDynamicToolDecorator(base: HoloTaskTool(dataSource: HoloDefaultTaskDataSource()), catalog: HoloAgentDynamicCatalogs.task, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloProfileTool(dataSource: HoloDefaultProfileDataSource()), catalog: HoloAgentDynamicCatalogs.profile, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloConversationTool(dataSource: HoloDefaultConversationDataSource()), catalog: HoloAgentDynamicCatalogs.conversation, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloAnniversaryTool(dataSource: HoloDefaultAnniversaryDataSource()), catalog: HoloAgentDynamicCatalogs.anniversary, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloInsightTool(dataSource: HoloDefaultInsightDataSource()), catalog: HoloAgentDynamicCatalogs.insight, dataSource: dynamicDataSource),
             // 第一梯队增强工具：纯叠加，不进 requiredToolNames / 动态数据集，避免破坏覆盖断言
             HoloFeedbackTool(dataSource: HoloDefaultFeedbackDataSource()),

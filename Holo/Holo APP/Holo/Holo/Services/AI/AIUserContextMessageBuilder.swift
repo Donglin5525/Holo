@@ -86,22 +86,15 @@ enum AIUserContextMessageBuilder {
             message += "\n\n" + goalContext
         }
 
-        if !context.anniversaryLines.isEmpty {
-            let lines = context.anniversaryLines.map { "- \($0)" }.joined(separator: "\n")
-            message += "\n\n## 纪念日\n\n\(lines)"
+        // 数据上下文注册表：纪念日、覆盖度、备忘单等注入块由各 section 自描述（单一事实源）
+        for section in AIContextSectionRegistry.sections {
+            if let block = section.chatBlock(context), !block.isEmpty {
+                message += "\n\n" + block
+            }
         }
 
-        // 聊天场景：注入记忆摘要和数据覆盖度
+        // 聊天场景：注入记忆摘要
         if purpose == .chat {
-            if let coverage = context.dataCoverage, coverage.level != .rich {
-                message += "\n\n--- 数据覆盖度 ---"
-                message += "\n\(coverage.reason)"
-                if !coverage.missingSources.isEmpty {
-                    let missing = coverage.missingSources.map { $0.displayName }.prefix(3)
-                    message += "\n缺失来源：\(missing.joined(separator: "、"))"
-                }
-            }
-
             if HoloAIFeatureFlags.memorySummaryInjectionEnabled,
                let memorySummary = context.memorySummary {
                 let envelope = HoloMemoryContextEnvelope.render(memorySummary)
@@ -131,35 +124,11 @@ enum AIUserContextMessageBuilder {
         - 不得编造金额、日期、任务、习惯、想法或分类。
         """
 
-        // 纪念日事实清单：让意图识别知道「X的生日/纪念日」是已有数据的事实问答，
-        // 输出 query 走对话回复（回复上下文含同一份清单），而不是因不认识而 clarification。
-        if !context.anniversaryLines.isEmpty {
-            let lines = context.anniversaryLines.map { "- \($0)" }.joined(separator: "\n")
-            message += "\n\n--- 纪念日 ---"
-            message += "\n\(lines)"
-            message += "\n规则：用户询问某个纪念日的日期或倒计时（如「妈妈生日是哪天/还有多久」）属于事实问答，输出 mode=query、intent=query，不要 clarification，也不要 flexible_data_query（纪念日不是交易数据）。"
-        }
-
-        // 意图识别阶段只保留数据覆盖度风险提示，避免任务/想法/目标等无关上下文干扰 Router。
-        if let coverage = context.dataCoverage, coverage.level != .rich {
-            message += "\n\n--- 数据覆盖度提示 ---"
-            message += "\n当前用户数据\(coverage.level == .partial ? "部分可用" : "暂无")：\(coverage.reason)"
-            message += "\n处理意图时请注意数据完整性，缺失字段需向用户确认。"
-        }
-
-        // 最近对话关联的任务（「备忘单」）：仅当确实存在时注入，
-        // 供 modify_task_items 意图识别——用户对上文任务增删条目时据此判断。
-        if let recent = context.recentLinkedTask {
-            message += "\n\n--- 最近对话关联的任务 ---"
-            message += "\n- 任务：\(recent.title)"
-            if !recent.itemTitles.isEmpty {
-                let shown = recent.itemTitles.prefix(15).joined(separator: "、")
-                let suffix = recent.itemTitles.count > 15 ? "等共 \(recent.itemTitles.count) 项" : ""
-                message += "\n- 现有条目：\(shown)\(suffix)"
-            } else {
-                message += "\n- 现有条目：（暂无）"
+        // 纪念日/覆盖度/备忘单等注入块由注册表统一供给（含各域专属路由规则）
+        for section in AIContextSectionRegistry.sections {
+            if let block = section.intentBlock(context), !block.isEmpty {
+                message += "\n\n" + block
             }
-            message += "\n规则：仅当用户明确针对上面这个最近的任务补充/删除/替换条目时，用 modify_task_items（填 addItems 新增、removeItems 删除，removeItems 必须引用现有条目的确切名称）；用户不是针对这个任务时不要使用。"
         }
 
         return message

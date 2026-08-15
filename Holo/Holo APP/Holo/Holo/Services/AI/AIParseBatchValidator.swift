@@ -56,21 +56,14 @@ enum AIParseBatchValidator {
 
     // MARK: - Required Fields
 
-    /// 各意图的必填字段
-    private static let requiredFields: [AIIntent: [String]] = [
-        .recordExpense: ["amount"],
-        .recordIncome: ["amount"],
-        .createTask: ["title"],
-        .checkIn: ["habitName"],
-        .recordWeight: ["weight"]
-    ]
-
     private static func validateRequiredFields(
         item: AIParseItem,
         index: Int,
         issues: inout [ValidationIssue]
     ) {
-        guard let fields = requiredFields[item.intent] else { return }
+        // 必填字段来自意图注册表（与后端 intents.json 单一事实源同构，覆盖全部注册意图）
+        let fields = IntentDescriptorRegistry.requiredFields(for: item.intent)
+        guard !fields.isEmpty else { return }
 
         for field in fields {
             let value = item.extractedData?[field]

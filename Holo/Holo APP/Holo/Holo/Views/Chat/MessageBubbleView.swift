@@ -30,13 +30,15 @@ struct MessageBubbleView: View {
     var onRetry: (() -> Void)? = nil
     /// 额度耗尽卡片「了解 Holo Plus」点击，由上层导航到会员中心
     var onLearnPlus: (() -> Void)? = nil
-    var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
-    var onTaskConfirm: ((ChatMessageViewData) -> Void)? = nil
+    var onCardDelete: ((ChatMessageViewData, UUID, EntityCategory, String) -> Void)? = nil
+    var onTaskConfirm: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
+    /// 任务卡片「取消」：取消待确认的创建/修改/删除
+    var onTaskCancel: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
     /// 任务卡片「补充条目」：锚定该任务继续对话修改条目
     var onTaskFollowUp: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
-    var onTransactionConfirm: ((ChatMessageViewData) -> Void)? = nil
-    var onTransactionCancel: ((ChatMessageViewData) -> Void)? = nil
-    var onTransactionModifyCategory: ((ChatMessageViewData) -> Void)? = nil
+    var onTransactionConfirm: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
+    var onTransactionCancel: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
+    var onTransactionModifyCategory: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     /// 举报 AI 生成内容（App Store Guideline 1.2），仅对 AI 消息生效。
     var onReport: ((ChatMessageViewData) -> Void)? = nil
 
@@ -73,12 +75,14 @@ struct MessageBubbleView: View {
             }
         }
         .contextMenu {
-            // 删除记录（仅有关联实体且未删除的卡片消息）
-            if !isUser, let info = firstDeletableCard {
-                Button(role: .destructive) {
-                    onCardDelete?(message, info.category, info.description)
-                } label: {
-                    Label("删除记录", systemImage: "trash")
+            // 删除记录（仅有关联实体且未删除的卡片消息；多卡消息逐张列出）
+            if !isUser {
+                ForEach(deletableCards, id: \.entityId) { info in
+                    Button(role: .destructive) {
+                        onCardDelete?(message, info.entityId, info.category, info.description)
+                    } label: {
+                        Label("删除\(info.description)", systemImage: "trash")
+                    }
                 }
             }
             // 举报 AI 生成内容（App Store Guideline 1.2）：对所有 AI 消息开放。
@@ -197,26 +201,30 @@ struct MessageBubbleView: View {
 
     // MARK: - Avatars
 
-    /// 获取第一个可删除的卡片信息（用于上下文菜单）
-    private var firstDeletableCard: (category: EntityCategory, description: String)? {
+    /// 删除菜单候选：按卡片粒度列出（多卡消息每张卡各带自己的实体 ID），
+    /// 避免旧行为「只取第一个可删除实体」在多卡时删错对象
+    private var deletableCards: [(category: EntityCategory, entityId: UUID, description: String)] {
         let allCards = message.executionCards.isEmpty ? (message.singleCard.map { [$0] } ?? []) : message.executionCards
 
+        var result: [(EntityCategory, UUID, String)] = []
         for card in allCards {
             switch card {
             case .transaction(let data):
-                if message.hasLinkedEntity(for: .finance) && !message.isEntityDeleted(for: .finance) {
-                    let desc = "\(data.displayTitle) ¥\(data.amount)"
-                    return (.finance, desc)
+                if let id = data.entityID.flatMap(UUID.init(uuidString:))
+                    ?? message.resolveLinkedEntityId(for: .finance),
+                    !message.isEntityDeleted(for: .finance) {
+                    result.append((.finance, id, "\(data.displayTitle) ¥\(data.amount)"))
                 }
             case .task(let data):
-                if message.hasLinkedEntity(for: .task) && !message.isEntityDeleted(for: .task) {
-                    return (.task, "任务「\(data.title)」")
+                if let id = data.taskId ?? message.resolveLinkedEntityId(for: .task),
+                    !message.isEntityDeleted(for: .task) {
+                    result.append((.task, id, "任务「\(data.title)」"))
                 }
             default:
                 break
             }
         }
-        return nil
+        return result
     }
 
     private var aiAvatar: some View {
@@ -315,17 +323,19 @@ struct MessageBubbleView: View {
             TransactionChatCard(data: txData, isDeleted: message.isEntityDeleted(for: .finance)) {
                 onCardTap?(message, data)
             } onConfirm: {
-                onTransactionConfirm?(message)
+                onTransactionConfirm?(message, txData)
             } onCancel: {
-                onTransactionCancel?(message)
+                onTransactionCancel?(message, txData)
             } onModifyCategory: {
-                onTransactionModifyCategory?(message)
+                onTransactionModifyCategory?(message, txData)
             }
         case .task(let taskData):
             TaskChatCard(data: taskData, isDeleted: message.isEntityDeleted(for: .task)) {
                 onCardTap?(message, data)
             } onConfirm: {
-                onTaskConfirm?(message)
+                onTaskConfirm?(message, taskData)
+            } onCancel: {
+                onTaskCancel?(message, taskData)
             } onFollowUp: {
                 onTaskFollowUp?(message, taskData)
             }
@@ -383,7 +393,7 @@ struct MessageBubbleView: View {
                 HStack(spacing: 4) {
                     Image(systemName: intentIcon(intent))
                         .font(.system(size: 10))
-                    Text(intentLabel(intent))
+                    Text(intent.chatDisplayLabel)
                         .font(.system(size: 11))
                     if canTap {
                         Image(systemName: "chevron.right")
@@ -418,22 +428,6 @@ struct MessageBubbleView: View {
         }
     }
 
-    private func intentLabel(_ intent: AIIntent) -> String {
-        switch intent {
-        case .recordExpense, .recordIncome: return "已记账"
-        case .createTask: return "已创建任务"
-        case .completeTask: return "已完成任务"
-        case .updateTask: return "已更新任务"
-        case .deleteTask: return "已删除任务"
-        case .recordMood: return "已记录心情"
-        case .recordWeight: return "已记录体重"
-        case .checkIn: return "已打卡"
-        case .createNote: return "已记录笔记"
-        case .queryTasks: return "任务查询"
-        case .queryHabits: return "习惯查询"
-        default: return intent.chatDisplayLabel
-        }
-    }
 }
 
 // MARK: - Equatable（隔离流式刷新：message 不变时跳过 body 重算）

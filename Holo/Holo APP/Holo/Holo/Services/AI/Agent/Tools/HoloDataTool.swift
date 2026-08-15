@@ -297,6 +297,11 @@ nonisolated enum HoloAgentDynamicCatalogs {
         field("date", .date, nil, "消息时间"), field("role", .text, nil, "角色"), field("intent", .text, nil, "意图"),
         field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "消息计数")
     ], sensitivity: .sensitive, maximumRangeDays: 90)
+    static let anniversary = schema("anniversary.events", domain: "anniversary", description: "纪念日/生日等固定事件：下次发生日期与倒计时", fields: [
+        field("date", .date, nil, "下次发生日期"), field("title", .text, nil, groupable: false, "事件名称，如 妈妈生日"),
+        field("daysUntil", .number, "天", groupable: false, aggregatable: true, "距离下次发生的天数（负数=已过去）"),
+        field("repeatYearly", .text, nil, groupable: false, "是否每年重复（true/false）")
+    ], sensitivity: .normal, maximumRangeDays: 366)
 }
 
 nonisolated struct HoloCrossDomainTool: HoloDataTool {
