@@ -112,6 +112,10 @@ const DEFAULT_CONFIG = {
         ?? "holo-mock",
       temperature: Number(process.env.HOLO_MEMORY_OBSERVER_TEMPERATURE ?? 0.1),
       maxTokens: Number(process.env.HOLO_MEMORY_OBSERVER_MAX_TOKENS ?? 2048),
+      // §reasoning-off: 与 thought_organization 同因——记忆观察/萃取是结构化信号处理，
+      // 推理模型先在 reasoning_content 展开长思考导致耗时超上游 30s 网关超时
+      //（生产 2026-08-04 起记忆萃取 73% 请求 "This operation was aborted"，中位 30.7s）。
+      reasoningEffort: process.env.HOLO_MEMORY_OBSERVER_REASONING_EFFORT ?? "low",
     },
     memory_domain_extraction: {
       provider: process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_PROVIDER
@@ -124,6 +128,9 @@ const DEFAULT_CONFIG = {
         ?? "holo-mock",
       temperature: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_TEMPERATURE ?? 0.1),
       maxTokens: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_MAX_TOKENS ?? 4096),
+      // §reasoning-off: 输入是客户端预筛后的结构化信号包、输出是固定 schema，
+      // 不需要重推理；关思考后耗时预期从 ~30s+ 降到与 thought_organization 同量级。
+      reasoningEffort: process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_REASONING_EFFORT ?? "none",
       requestLimits: {
         perMinute: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_REQUESTS_PER_MINUTE ?? 6),
         perDay: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_REQUESTS_PER_DAY ?? 60),
@@ -140,6 +147,8 @@ const DEFAULT_CONFIG = {
         ?? "holo-mock",
       temperature: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_TEMPERATURE ?? 0.1),
       maxTokens: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_MAX_TOKENS ?? 4096),
+      // 跨域融合含候选关联判断，保留 low 档思考（与 agent_loop 同级）。
+      reasoningEffort: process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_REASONING_EFFORT ?? "low",
       requestLimits: {
         perMinute: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_REQUESTS_PER_MINUTE ?? 2),
         perDay: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_REQUESTS_PER_DAY ?? 10),
