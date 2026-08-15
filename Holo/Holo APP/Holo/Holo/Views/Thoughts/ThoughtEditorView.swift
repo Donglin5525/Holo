@@ -35,6 +35,8 @@ struct ThoughtEditorView: View {
     var onSave: (() -> Void)?
     /// 编辑模式（传入已有想法 ID）
     var editingThoughtId: UUID? = nil
+    /// 由列表双击直达编辑时自动聚焦正文；从详情页菜单进入仍保持阅读优先。
+    var autoFocusExistingThought: Bool = false
 
     // MARK: - Form State
     @State private var content: String = ""
@@ -65,7 +67,8 @@ struct ThoughtEditorView: View {
     @State private var showVoiceInput: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var pendingVoiceTranscriptToInsert: String? = nil
-    @State private var editorHeight: CGFloat = 360
+    // 先用短内容的舒适起步高度，避免编辑器等待第一次布局回调时先闪出大块空白。
+    @State private var editorHeight: CGFloat = 240
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
     /// 当前光标在编辑器视图局部坐标系内的 rect（由 MarkdownTextView 上报，候选浮层据此吸附）
     @State private var caretRect: CGRect = .zero
@@ -81,6 +84,7 @@ struct ThoughtEditorView: View {
         let content: String
         let sourceThought: Thought
         let isFromSelection: Bool
+        let sourceRange: NSRange?
     }
 
     // MARK: - 自动保存
@@ -115,7 +119,7 @@ struct ThoughtEditorView: View {
 
     // MARK: - Body
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
                     // 内容编辑区（含光标吸附候选浮层）
@@ -129,7 +133,8 @@ struct ThoughtEditorView: View {
                 .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已移至 inputAccessoryView）
             }
             .background(Color.holoBackground)
-            .scrollDismissesKeyboard(.never)  // 禁止下滑自动收键盘（编辑器自己管焦点）
+            // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
             // 「查看记录」跳转：通过 navigationDestination 驱动（NavigationLink 必须在 NavigationView 内部才生效）
@@ -146,14 +151,17 @@ struct ThoughtEditorView: View {
             // safeAreaInset 在 fullScreenCover 下不跟随键盘，inputAccessoryView 由 UIKit 系统保证位置。
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("完成") {
-                        dismiss()
+                    Button(action: dismiss.callAsFunction) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(minWidth: 44, minHeight: 44)
                     }
+                    .accessibilityLabel("完成")
+                    .buttonStyle(.plain)
                     .foregroundColor(.holoTextSecondary)
                 }
             }
         }
-        .navigationViewStyle(.stack)
         // 右滑退出：自动保存由 onDisappear 兜底，不再弹窗确认。
         .swipeBackToDismiss(isEnabled: true) {
             dismiss()
@@ -163,15 +171,25 @@ struct ThoughtEditorView: View {
                 content: request.content,
                 sourceThought: request.sourceThought,
                 isFromSelection: request.isFromSelection,
+                visibleSourceText: visibleEditorText(for: request.sourceThought),
+                sourceRange: request.sourceRange,
                 onDismiss: {
                     taskExtractionRequest = nil
                 },
-                onCreated: { createdTaskIds in
+                onCreated: { createdTasks in
                     taskExtractionRequest = nil
-                    // 选中转化：正文只保留轻量关系标记，完成反馈由 Toast 承担。
-                    if request.isFromSelection,
-                       let firstTaskId = createdTaskIds.first {
-                        pendingEditorAction = .insertTaskMark(taskId: firstTaskId, displayText: request.content)
+                    // 每个任务都携带自己的来源范围：选中文字是一段，整篇提取则是多行。
+                    // 无法可靠映射的 AI 结果不强行下划线，避免给用户错误关系暗示。
+                    let insertions = createdTasks.compactMap { task -> TaskMarkInsertion? in
+                        guard let sourceRange = task.sourceRange else { return nil }
+                        return TaskMarkInsertion(
+                            taskId: task.id,
+                            displayText: task.title,
+                            sourceRange: sourceRange
+                        )
+                    }
+                    if !insertions.isEmpty {
+                        pendingEditorAction = .insertTaskMarks(insertions)
                     }
                     NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
                 }
@@ -299,7 +317,8 @@ struct ThoughtEditorView: View {
     ///   - shouldDismiss: 是否在保存后关闭页面（手动点保存 / 空内容退出时为 true）
     ///   - notifyDataChange: 是否发送数据变更通知（退出时为 true；防抖中间保存为 false，
     ///     避免 Widget 快照、列表刷新等重链路频繁触发）
-    private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) {
+    @discardableResult
+    private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) -> UUID? {
         // 无内容：不创建空记录。已创建过的草稿（draftThoughtId != nil）删除回退。
         if !hasContent {
             if let draftId = draftThoughtId {
@@ -307,24 +326,28 @@ struct ThoughtEditorView: View {
                 draftThoughtId = nil
             }
             if shouldDismiss { dismiss() }
-            return
+            return nil
         }
 
         let repository = thoughtRepository
         let nodes = editorNodesLoaded
             ? editorNodes
             : RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: content)
-        let hasTokens = nodes.contains { node in
+        // 结构化内容不只包括 @/标签/任务，也包括颜色、粗体、斜体和下划线。
+        // 如果只按 Token 判断，纯格式想法会退回“只有 content 字符串”的路径，
+        // 外层阅读、详情页和下一次编辑无法共享同一份可恢复事实源。
+        let hasStructuredContent = nodes.contains { node in
             if case .text = node { return false }
             return true
-        }
-        let richJSON = hasTokens ? try? RichContentSerializer.jsonString(from: nodes) : nil
+        } || content != MarkdownTextView.visiblePlainText(from: nodes)
+        let richJSON = hasStructuredContent ? try? RichContentSerializer.jsonString(from: nodes) : nil
         let referenceSnapshots: [ThoughtRepository.ReferenceSnapshot] = nodes.compactMap { node in
             guard case .reference(let noteId, let displayText, let snapshot) = node else { return nil }
             return ThoughtRepository.ReferenceSnapshot(targetId: noteId, displayText: displayText, snapshot: snapshot)
         }
         let inlineTags = InlineTagDetector.extractTags(from: content)
 
+        let persistedThoughtId: UUID
         do {
             if let thoughtId = currentThoughtId {
                 // 已有记录（编辑模式或草稿已创建）：update
@@ -336,6 +359,7 @@ struct ThoughtEditorView: View {
                     richContentJSON: .some(richJSON)
                 )
                 try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
+                persistedThoughtId = thoughtId
             } else {
                 // 新建模式首次落库：create
                 let thought = try repository.create(
@@ -347,6 +371,8 @@ struct ThoughtEditorView: View {
                 )
                 draftThoughtId = thought.id
                 try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
+                // 不能依赖上面的 @State 在本次同步调用中立即回写；调用方需要继续使用刚创建的 ID。
+                persistedThoughtId = thought.id
 
                 // 上传暂存图片（新建模式首次 create 后转为编辑模式，图片落库）
                 let imagesToUpload = pendingImages
@@ -387,7 +413,7 @@ struct ThoughtEditorView: View {
             }
         } catch {
             ThoughtLog.error("观点自动保存失败", error.localizedDescription)
-            return
+            return nil
         }
 
         // 同步修改检测基线
@@ -401,23 +427,38 @@ struct ThoughtEditorView: View {
         if shouldDismiss {
             dismiss()
         }
+        return persistedThoughtId
     }
 
     // MARK: - 转为任务
 
     /// 触发「转为任务」：先落库（含草稿首次创建），再弹确认面板。
     /// 整篇转化（selectedText=nil）和选中文字转化共用此入口。
-    private func startTaskExtraction(selectedText: String? = nil) {
+    private func startTaskExtraction(selectedText: String? = nil, selectedRange: NSRange? = nil) {
         guard hasContent else { return }
-        persistContent(shouldDismiss: false, notifyDataChange: false)
-        guard let thoughtId = currentThoughtId,
+        guard let thoughtId = persistContent(shouldDismiss: false, notifyDataChange: false),
               let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
         // 一次性构建完整请求，避免 sheet 闭包分两步读状态导致拿到中间态
         taskExtractionRequest = TaskExtractionRequest(
             content: selectedText ?? thought.content,
             sourceThought: thought,
-            isFromSelection: selectedText != nil
+            isFromSelection: selectedText != nil,
+            sourceRange: selectedRange
         )
+    }
+
+    /// 任务范围必须以编辑器当前的可见文本为基准：Markdown 原文中的 `**`、列表符号
+    /// 与编辑器实际下划线位置并不等长，直接按 Thought.content 计算会标错字符。
+    private func visibleEditorText(for thought: Thought) -> String {
+        let nodes = editorNodesLoaded
+            ? editorNodes
+            : RichContentSerializer.nodes(
+                richJSON: thought.richContentJSON,
+                fallbackPlainText: thought.content
+            )
+        // 来源范围必须基于用户真正看到的文字；任务关系附件在 attributed string
+        // 中占一个 U+FFFC，但不属于正文，不能参与后续整篇任务的偏移计算。
+        return MarkdownTextView.visiblePlainText(from: nodes)
     }
 
     /// 转任务面板所需的来源 Thought
@@ -451,7 +492,10 @@ struct ThoughtEditorView: View {
                         triggerContext: $triggerContext,
                         selectedToken: $selectedToken,
                         caretRect: $caretRect,
-                        textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16),
+                        autoFocus: !isEditing || autoFocusExistingThought,
+                        // 录音按钮只占底部约 62pt，保留过大的 inset 会让短内容产生
+                        // 一整块不可用空白；长文仍由动态高度自然增长。
+                        textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 72, right: 16),
                         initialRichJSON: initialRichJSON,
                         placeholder: "写点什么吧…",
                         onNodesChange: { newNodes in
@@ -460,20 +504,23 @@ struct ThoughtEditorView: View {
                         },
                         onAddImage: { showAttachmentSourceChoice = true },
                         onConvertToTask: { startTaskExtraction() },
-                        onConvertSelection: startTaskExtraction(selectedText:)
-                    )
+                        onConvertSelection: { selectedText, selectedRange in
+                            startTaskExtraction(selectedText: selectedText, selectedRange: selectedRange)
+                        },
+                        onSuggestionCommand: handleSuggestionKeyboardCommand,
+                        suggestionKeyboardEnabled: triggerContext != nil,
+                        suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty
+                        )
                         .frame(height: max(editorHeight, contentEditorMinimumHeight))
-                        // 光标吸附候选浮层：挂在 MarkdownTextView 自身上，
-                        // 这样 overlay 坐标系与 caretRect（UITextView 局部坐标）完全对齐
-                        .overlay(alignment: .topLeading) {
-                            suggestionOverlay
-                        }
 
                     voiceInputButton
+                        // 候选面板是当前输入动作的主交互，不能被右下角的语音入口盖住。
+                        // 面板关闭后再恢复语音入口，避免短编辑器里出现“候选能看见但点不到”。
+                        .opacity(triggerContext == nil ? 1 : 0)
+                        .allowsHitTesting(triggerContext == nil)
                         .padding(.trailing, 18)
                         .padding(.bottom, 18)
                 }
-
                 attachmentStrip
             }
             .background(Color.holoCardBackground)
@@ -482,6 +529,11 @@ struct ThoughtEditorView: View {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .stroke(Color.holoBorder, lineWidth: 1)
             )
+            // 候选浮层必须挂在卡片的圆角裁剪之后，才能越过短编辑器卡片展示完整列表；
+            // 同时仍以卡片左上角为坐标原点，与 caretRect 保持一致。
+            .overlay(alignment: .topLeading) {
+                suggestionOverlay
+            }
         }
     }
 
@@ -498,54 +550,103 @@ struct ThoughtEditorView: View {
     }
 
     /// 根据光标位置计算浮层 frame 并放置 SuggestionPanelView
-    /// 纯 offset 定位（不用 GeometryReader/Color.clear），避免透明区域拦截下层触摸
+    /// 用编辑器实际尺寸计算边界；透明区域不设置背景，避免拦截下层编辑器触摸
     @ViewBuilder
     private func suggestionPanelContainer(_ context: EditorTriggerContext) -> some View {
-        let panelWidth: CGFloat = 280
-        let gap: CGFloat = 6
-        let estimatedPanelHeight: CGFloat = 200
-        // 翻转判断：光标在编辑器顶部 1/4 以上时，浮层显示在光标下方
-        let showBelow = caretRect.minY < estimatedPanelHeight + gap + 8
-        // x 边界：光标右侧对齐，超出时左移（保守估算，编辑器宽度通常 > panelWidth + 32）
-        let editorEstimatedWidth: CGFloat = max(panelWidth + 32, UIScreen.main.bounds.width - 32 - 32)  // 减去卡片左右 padding
-        let clampedX = max(0, min(caretRect.maxX, editorEstimatedWidth - panelWidth))
-        // 浮层左上角偏移：x 已裁剪；y 让浮层底部贴光标顶部（或翻转时顶部贴光标下方）
-        let offsetX = clampedX
-        let offsetY: CGFloat = showBelow
-            ? caretRect.maxY + gap
-            : max(8, caretRect.minY - estimatedPanelHeight - gap)
-
-        SuggestionPanelView(
-            context: context,
-            viewModel: suggestionViewModel,
-            onSelectTag: { tagId, path in
-                pendingEditorAction = .insertTagToken(id: tagId, displayPath: path)
-            },
-            onCreateTag: { path in
-                if let tag = suggestionViewModel.createTag(path: path) {
-                    pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
-                }
-            },
-            onSelectReference: { thoughtId, title, snapshot in
-                // displayText 的契约是「不含 @ 前缀」的纯展示文字（makeTokenAttributedText 会补 @）。
-                // 当目标想法正文以 @引用 开头时，它的 firstLine 会忠实带 @，这里必须剥掉，
-                // 否则 makeTokenAttributedText 再补一个 @ 会变成 @@。
-                let cleanTitle = title.hasPrefix("@") ? String(title.dropFirst()) : title
-                pendingEditorAction = .insertReferenceToken(
-                    id: thoughtId,
-                    displayText: RichContentSerializer.truncatedReferenceDisplay(cleanTitle),
-                    snapshot: snapshot
-                )
-            }
-        )
-        .frame(width: panelWidth, alignment: .topLeading)
-        .offset(x: offsetX, y: offsetY)
-        .transition(
-            .asymmetric(
-                insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.14)),
-                removal: .opacity.animation(.easeOut(duration: 0.1))
+        GeometryReader { proxy in
+            let gap: CGFloat = 6
+            let horizontalInset: CGFloat = 8
+            let maximumPanelWidth: CGFloat = 280
+            let maximumPanelHeight = SuggestionPanelView.referenceRowHeight * 4
+            let panelWidth = min(maximumPanelWidth, max(160, proxy.size.width - horizontalInset * 2))
+            let availableAbove = max(0, caretRect.minY - gap)
+            let availableBelow = max(0, proxy.size.height - caretRect.maxY - gap)
+            // 候选浮层允许越过编辑器的短内容边界，使用空白区域承载完整候选列表；
+            // 否则 GeometryReader 会把面板压缩成两行并在卡片底部截断。
+            let showBelow = availableBelow >= availableAbove
+            let panelHeight = SuggestionPanelView.preferredHeight(
+                for: context,
+                itemCount: suggestionViewModel.visibleItems.count,
+                maxHeight: maximumPanelHeight
             )
+            let rawY = showBelow
+                ? caretRect.maxY + gap
+                : caretRect.minY - panelHeight - gap
+            let offsetY = max(horizontalInset, rawY)
+            let offsetX = min(
+                max(horizontalInset, caretRect.minX),
+                max(horizontalInset, proxy.size.width - panelWidth - horizontalInset)
+            )
+
+            SuggestionPanelView(
+                context: context,
+                viewModel: suggestionViewModel,
+                maxHeight: panelHeight,
+                onSelectTag: { tagId, path in
+                    applySuggestion(.tag(id: tagId, path: path))
+                },
+                onCreateTag: { path in
+                    applySuggestion(.createTag(path: path))
+                },
+                onSelectReference: { thoughtId, title, snapshot in
+                    applyReferenceSuggestion(id: thoughtId, title: title, snapshot: snapshot)
+                }
+            )
+            .frame(width: panelWidth, alignment: .topLeading)
+            .offset(x: offsetX, y: offsetY)
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.14)),
+                    removal: .opacity.animation(.easeOut(duration: 0.1))
+                )
+            )
+        }
+    }
+
+    /// 鼠标/触摸与硬件键盘共用同一套候选提交规则，避免两条路径的 @ 展示逻辑再次分叉。
+    private func applySuggestion(_ item: SuggestionPanelViewModel.Item) {
+        suggestionViewModel.clearSelection()
+
+        switch item {
+        case .tag(let id, let path):
+            pendingEditorAction = .insertTagToken(id: id, displayPath: path)
+        case .createTag(let path):
+            if let tag = suggestionViewModel.createTag(path: path) {
+                pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
+            }
+        case .reference(let id, let title, _, let snapshot, _):
+            applyReferenceSuggestion(id: id, title: title, snapshot: snapshot)
+        }
+    }
+
+    private func applyReferenceSuggestion(id: UUID, title: String, snapshot: String) {
+        // displayText 的契约是「不含 @ 前缀」的纯展示文字（makeTokenAttributedText 会补 @）。
+        // 当目标想法正文以 @引用 开头时，它的 firstLine 会忠实带 @，这里必须剥掉，
+        // 否则 makeTokenAttributedText 再补一个 @ 会变成 @@。
+        pendingEditorAction = .insertReferenceToken(
+            id: id,
+            displayText: RichContentSerializer.normalizedReferenceDisplayText(
+                displayText: title,
+                snapshot: snapshot
+            ),
+            snapshot: snapshot
         )
+    }
+
+    /// 候选面板打开且有条目时，硬件键盘上下键移动、回车提交、Escape 关闭。
+    private func handleSuggestionKeyboardCommand(_ command: SuggestionKeyboardCommand) {
+        guard triggerContext != nil else { return }
+
+        switch command {
+        case .moveSelection(let offset):
+            suggestionViewModel.moveSelection(by: offset)
+        case .commitSelection:
+            guard let item = suggestionViewModel.defaultCommitItem else { return }
+            applySuggestion(item)
+        case .dismiss:
+            suggestionViewModel.clearSelection()
+            pendingEditorAction = .dismissSuggestion
+        }
     }
 
     private var voiceInputButton: some View {
@@ -577,6 +678,8 @@ struct ThoughtEditorView: View {
                             .fill(smartSummaryEnabled ? Color.holoPrimary.opacity(0.12) : Color.holoCardBackground)
                     )
             }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
             .accessibilityLabel(smartSummaryEnabled ? "关闭智能总结" : "开启智能总结")
         }
     }
@@ -666,11 +769,23 @@ struct ThoughtEditorView: View {
     private func tokenActionSheet(_ token: HoloContentNode) -> some View {
         VStack(spacing: HoloSpacing.sm) {
             // 标题行
-            Text(tokenMenuTitle(token))
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.top, HoloSpacing.sm)
+            VStack(spacing: 4) {
+                Text(tokenMenuTitle(token))
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+
+                if let subtitle = tokenMenuSubtitle(token) {
+                    Text(subtitle)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, HoloSpacing.sm)
 
             Divider()
                 .padding(.vertical, 2)
@@ -679,6 +794,10 @@ struct ThoughtEditorView: View {
             VStack(spacing: 0) {
                 switch token {
                 case .tag(_, let displayPath):
+                    tokenMenuButton("复制标签", icon: "doc.on.doc") {
+                        selectedToken = nil
+                        MarkdownTextView.copyNodesToPasteboard([token])
+                    }
                     tokenMenuButton("查看标签", icon: "tag") {
                         selectedToken = nil
                         viewTagThoughts(displayPath)
@@ -688,15 +807,23 @@ struct ThoughtEditorView: View {
                         pendingEditorAction = .removeSelectedToken
                     }
                 case .reference(let noteId, _, _):
+                    tokenMenuButton("复制引用", icon: "doc.on.doc") {
+                        selectedToken = nil
+                        MarkdownTextView.copyNodesToPasteboard([token])
+                    }
                     tokenMenuButton("查看记录", icon: "doc.text") {
                         selectedToken = nil
-                        navigateToThoughtId = noteId
+                        // 先让 Token 操作菜单完成收起，再推进导航状态；同一事务内同时改
+                        // sheet 和 navigationDestination，会被 UIKit 的弹层状态覆盖。
+                        DispatchQueue.main.async {
+                            navigateToThoughtId = noteId
+                        }
                     }
                     tokenMenuButton("取消引用", icon: "link.badge.minus", isDestructive: true) {
                         selectedToken = nil
                         pendingEditorAction = .removeSelectedToken
                     }
-                case .taskMark(_, let taskId, _):
+                case .taskMark(_, let taskId, _, _):
                     tokenMenuButton("查看任务", icon: "checklist") {
                         selectedToken = nil
                         viewTask(taskId)
@@ -721,11 +848,22 @@ struct ThoughtEditorView: View {
             return "#\(displayPath)"
         case .reference(_, let displayText, _):
             return "@\(displayText)"
-        case .taskMark(_, _, let displayText):
+        case .taskMark(_, _, let displayText, _):
             return "已转任务：\(displayText)"
         case .text:
             return "操作"
         }
+    }
+
+    /// 行内 Token 为了不撑坏正文会截断；操作面板补一条来源摘要，帮助用户确认引用对象。
+    /// 只对确实存在额外来源信息的引用显示，避免普通短引用增加无意义层级。
+    private func tokenMenuSubtitle(_ token: HoloContentNode) -> String? {
+        guard case .reference(_, let displayText, let snapshot) = token else { return nil }
+        let sourceLine = RichContentSerializer.firstLine(fromPlainText: snapshot)
+        guard !sourceLine.isEmpty else { return nil }
+        let normalizedSource = sourceLine.hasPrefix("@") ? String(sourceLine.dropFirst()) : sourceLine
+        guard normalizedSource != displayText else { return nil }
+        return "来源：\(normalizedSource)"
     }
 
     private func tokenMenuButton(_ title: String, icon: String, isDestructive: Bool = false, action: @escaping () -> Void) -> some View {
@@ -775,7 +913,9 @@ struct ThoughtEditorView: View {
     }
 
     private var contentEditorMinimumHeight: CGFloat {
-        hasAttachments ? 220 : 360
+        // 短内容从约三行的舒适输入高度开始，避免两行文字被放大成大空卡片。
+        // 有附件时缩小一档，图片缩略图会在编辑区下方承担内容高度。
+        hasAttachments ? 220 : 240
     }
 
     /// 已添加图片的横向缩略图条（带可见删除按钮）
@@ -802,7 +942,8 @@ struct ThoughtEditorView: View {
                                         .foregroundColor(.white)
                                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                                 }
-                                .padding(2)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                             }
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -833,7 +974,8 @@ struct ThoughtEditorView: View {
                                             .foregroundColor(.white)
                                             .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                                     }
-                                    .padding(2)
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                                 }
                         }
                     }

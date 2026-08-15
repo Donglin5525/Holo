@@ -13,6 +13,9 @@ import SwiftUI
 /// Markdown AST → SwiftUI View 转换器
 struct MarkdownRenderer {
 
+    /// 想法正文统一阅读基线：与编辑器、结构化详情和卡片保持一致。
+    private static let bodyLineSpacing: CGFloat = 6
+
     // MARK: - 公共接口
 
     /// 渲染完整 Markdown 内容为 SwiftUI 视图
@@ -55,15 +58,17 @@ struct MarkdownRenderer {
         case let textNode as TextNode:
             AnyView(
                 Text(textNode.text)
-                    .font(.holoBody)
+                    .font(.body)
                     .foregroundColor(.holoTextPrimary)
+                    .lineSpacing(bodyLineSpacing)
             )
 
         case let paragraph as ParagraphNode:
             AnyView(
                 renderInlineNodes(paragraph.children)
-                    .font(.holoBody)
+                    .font(.body)
                     .foregroundColor(.holoTextPrimary)
+                    .lineSpacing(bodyLineSpacing)
             )
 
         case let bold as BoldNode:
@@ -97,12 +102,13 @@ struct MarkdownRenderer {
             AnyView(
                 HStack(alignment: .top, spacing: HoloSpacing.xs) {
                     Text("\u{2022}")
-                        .font(.holoBody)
+                        .font(.body)
                         .foregroundColor(.holoTextSecondary)
                         .frame(width: 16)
                     renderInlineNodes(item.children)
-                        .font(.holoBody)
+                        .font(.body)
                         .foregroundColor(.holoTextPrimary)
+                        .lineSpacing(bodyLineSpacing)
                 }
             )
 
@@ -110,12 +116,13 @@ struct MarkdownRenderer {
             AnyView(
                 HStack(alignment: .top, spacing: HoloSpacing.xs) {
                     Text("\(item.index).")
-                        .font(.holoBody)
+                        .font(.body)
                         .foregroundColor(.holoTextSecondary)
                         .frame(width: 20, alignment: .trailing)
                     renderInlineNodes(item.children)
-                        .font(.holoBody)
+                        .font(.body)
                         .foregroundColor(.holoTextPrimary)
+                        .lineSpacing(bodyLineSpacing)
                 }
             )
 

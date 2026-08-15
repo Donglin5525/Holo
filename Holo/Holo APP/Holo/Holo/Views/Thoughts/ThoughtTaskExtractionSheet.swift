@@ -6,12 +6,22 @@
 //
 
 import SwiftUI
+import Foundation
 
-/// 单行候选任务
+/// 候选任务（整篇模式通常对应一行，选区模式可对应一整段）
 struct TaskCandidateRow: Identifiable {
     let id = UUID()
     var text: String
     var isSelected: Bool
+    /// 候选行在编辑器可见文本中的作用范围；AI 无法可靠映射时为空。
+    var sourceRange: NSRange? = nil
+}
+
+/// 创建任务后的结果，保留它对应的原文范围，供编辑器写入持续可见的关系标识。
+struct CreatedThoughtTask: Equatable {
+    let id: UUID
+    let title: String
+    let sourceRange: NSRange?
 }
 
 /// 从想法文本里提取任务的批量确认面板
@@ -27,16 +37,16 @@ struct ThoughtTaskExtractionSheet: View {
     /// 来源想法（每条任务都关联它）
     private let sourceThought: Thought
 
-    /// 想法原始内容（保留 markdown 标记，既供 AI 提取，也用于按行拆分预勾选）。
-    /// 必须传原始 content，不能传 plainContent —— plainContent 已被 stripFormatting
-    /// 去掉行首列表标记（- / 1. ），会导致 isListLine 永远 false、预勾选失效。
+    /// 想法原始内容（保留 markdown 标记，用于按行拆分和识别列表预勾选）。
+    /// 任务标题和 AI 输入优先使用 visibleSourceText，避免把 `**`、颜色标记等存储语法
+    /// 泄漏给用户；不能直接用整体 stripFormatting 后的文本判断列表，否则会丢失行首语义。
     private let rawContent: String
 
     /// 关闭回调
     private let onDismiss: () -> Void
 
-    /// 成功创建后回调，参数为创建的任务 ID 数组（供调用方插入 ✅ 标记 / 刷新数据）
-    private let onCreated: ([UUID]) -> Void
+    /// 成功创建后回调，参数同时携带任务 ID 和原文范围，供调用方插入关系标识 / 刷新数据。
+    private let onCreated: ([CreatedThoughtTask]) -> Void
 
     /// 是否来自"选中文字转化"（影响顶部说明文案）
     private let isFromSelection: Bool
@@ -54,22 +64,33 @@ struct ThoughtTaskExtractionSheet: View {
     @State private var createdCount = 0
     @State private var showSuccess = false
     /// 本批创建的任务 ID（供 onCreated 回调传出，调用方据此插入 ✅ 标记）
-    @State private var createdTaskIds: [UUID] = []
+    @State private var createdTasks: [CreatedThoughtTask] = []
 
     init(
         content: String,
         sourceThought: Thought,
         isFromSelection: Bool = false,
+        visibleSourceText: String? = nil,
+        sourceRange: NSRange? = nil,
         onDismiss: @escaping () -> Void,
-        onCreated: @escaping ([UUID]) -> Void
+        onCreated: @escaping ([CreatedThoughtTask]) -> Void
     ) {
         self.sourceThought = sourceThought
         self.rawContent = content
         self.isFromSelection = isFromSelection
+        self.visibleSourceText = visibleSourceText
         self.onDismiss = onDismiss
         self.onCreated = onCreated
-        _candidates = State(initialValue: Self.buildCandidates(from: content, defaultSelected: isFromSelection))
+        _candidates = State(initialValue: Self.buildCandidates(
+            from: content,
+            defaultSelected: isFromSelection,
+            sourceRange: sourceRange,
+            visibleSourceText: visibleSourceText
+        ))
     }
+
+    /// 编辑器当前可见文本（已去掉 Markdown 标记），用于将整篇候选行映射回真实展示位置。
+    private let visibleSourceText: String?
 
     var body: some View {
         NavigationView {
@@ -89,24 +110,26 @@ struct ThoughtTaskExtractionSheet: View {
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
                 }
-                ToolbarItem(placement: .principal) {
-                    Button {
-                        Task { await runAIExtraction() }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 13))
-                            if isExtracting {
-                                Text("识别中…")
-                                    .font(.holoCaption)
-                            } else {
-                                Text("AI 智能识别")
-                                    .font(.holoCaption.bold())
+                if !isFromSelection {
+                    ToolbarItem(placement: .principal) {
+                        Button {
+                            Task { await runAIExtraction() }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 13))
+                                if isExtracting {
+                                    Text("识别中…")
+                                        .font(.holoCaption)
+                                } else {
+                                    Text("AI 智能识别")
+                                        .font(.holoCaption.bold())
+                                }
                             }
+                            .foregroundColor(isExtracting ? .holoTextSecondary : .holoPrimary)
                         }
-                        .foregroundColor(isExtracting ? .holoTextSecondary : .holoPrimary)
+                        .disabled(isExtracting || isCreating)
                     }
-                    .disabled(isExtracting || isCreating)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -127,7 +150,7 @@ struct ThoughtTaskExtractionSheet: View {
             }
             .alert("已创建 \(createdCount) 个任务", isPresented: $showSuccess) {
                 Button("好的", role: .cancel) {
-                    onCreated(createdTaskIds)
+                    onCreated(createdTasks)
                     onDismiss()
                 }
             } message: {
@@ -160,8 +183,10 @@ struct ThoughtTaskExtractionSheet: View {
                             Image(systemName: row.isSelected ? "checkmark.square.fill" : "square")
                                 .font(.system(size: 18))
                                 .foregroundColor(row.isSelected ? .holoPrimary : .holoTextSecondary)
+                                .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(row.isSelected ? "取消选择任务" : "选择任务")
 
                         TextField("任务内容", text: $row.text)
                             .font(.holoBody)
@@ -202,33 +227,39 @@ struct ThoughtTaskExtractionSheet: View {
     /// 顶部说明文案：根据来源（选中文字 / 整篇想法）动态显示
     private var hintText: String {
         if isFromSelection {
-            return "选中了 \(candidates.count) 段文字，可编辑后确认转为任务。"
+            return "已选文字将创建为一个任务，可先修改任务标题。"
         }
-        return "已自动识别列表内容并勾选，可逐行调整。"
+        return "已自动识别列表内容并勾选，可逐行调整；创建后会在对应原文下方显示任务标识。"
     }
 
     /// 批量创建任务
     private func createTasks() {
-        let picked = candidates
-            .filter { $0.isSelected }
-            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let picked = candidates.compactMap { row -> (row: TaskCandidateRow, title: String)? in
+            guard row.isSelected else { return nil }
+            let title = row.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { return nil }
+            return (row, title)
+        }
 
         guard !picked.isEmpty else { return }
         isCreating = true
 
         var succeeded = 0
-        var taskIds: [UUID] = []
-        for title in picked {
+        var tasks: [CreatedThoughtTask] = []
+        for item in picked {
             do {
                 let task = try TodoRepository.shared.createTask(
-                    title: title,
+                    title: item.title,
                     description: nil,
                     sourceThought: sourceThought,
-                    sourceTextSnippet: isFromSelection ? title : nil
+                    sourceTextSnippet: isFromSelection ? item.title : nil
                 )
                 succeeded += 1
-                taskIds.append(task.id)
+                tasks.append(CreatedThoughtTask(
+                    id: task.id,
+                    title: item.title,
+                    sourceRange: item.row.sourceRange
+                ))
             } catch {
                 continue
             }
@@ -236,7 +267,7 @@ struct ThoughtTaskExtractionSheet: View {
 
         isCreating = false
         createdCount = succeeded
-        createdTaskIds = taskIds
+        createdTasks = tasks
         showSuccess = succeeded > 0
         HapticManager.success()
     }
@@ -251,7 +282,7 @@ struct ThoughtTaskExtractionSheet: View {
 
         do {
             let extractor = ThoughtTaskExtractor()
-            let result = try await extractor.extract(from: rawContent)
+            let result = try await extractor.extract(from: visibleSourceText ?? rawContent)
 
             guard !result.titles.isEmpty else {
                 extractError = true
@@ -259,7 +290,13 @@ struct ThoughtTaskExtractionSheet: View {
             }
 
             // 用 AI 提取的结果替换候选列表，全部预勾选
-            candidates = result.titles.map { TaskCandidateRow(text: $0, isSelected: true) }
+            candidates = result.titles.map { title in
+                TaskCandidateRow(
+                    text: title,
+                    isSelected: true,
+                    sourceRange: Self.uniqueSourceRange(for: title, in: visibleSourceText)
+                )
+            }
             HapticManager.light()
         } catch {
             extractError = true
@@ -270,21 +307,126 @@ struct ThoughtTaskExtractionSheet: View {
 
     /// 把纯文本按行拆成候选行。
     /// - defaultSelected=false（整篇转化）：仅列表型行预勾选
-    /// - defaultSelected=true（选中转化）：用户选中的就是要转的内容，全部预勾选
-    static func buildCandidates(from plainContent: String, defaultSelected: Bool = false) -> [TaskCandidateRow] {
+    /// - defaultSelected=true（选中转化）：整段选区对应一个任务，避免多行选区生成无法逐一标记的任务。
+    static func buildCandidates(
+        from plainContent: String,
+        defaultSelected: Bool = false,
+        sourceRange: NSRange? = nil,
+        visibleSourceText: String? = nil
+    ) -> [TaskCandidateRow] {
+        if defaultSelected {
+            let selectedText = plainContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !selectedText.isEmpty else { return [] }
+            return [TaskCandidateRow(
+                text: selectedText,
+                isSelected: true,
+                sourceRange: sourceRange
+            )]
+        }
+
         let lines = plainContent
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
-        return lines.map { line in
-            let cleaned = Self.stripListMarker(line)
+        let sourceRanges = visibleSourceText.map(Self.lineSourceRanges(in:)) ?? []
+
+        let visibleLines = visibleSourceText?.components(separatedBy: "\n")
+
+        return lines.enumerated().map { index, line in
+            // 原始行负责识别 `-` / `1.` 等列表；展示行使用编辑器实际可见文本，
+            // 这样加粗、颜色和 Token 不会以 Markdown 存储语法出现在任务标题里。
+            let displayLine = visibleLines?.indices.contains(index) == true
+                ? visibleLines?[index] ?? line
+                : MarkdownParser.stripFormatting(line)
+            let cleaned = Self.stripListMarker(displayLine)
             return TaskCandidateRow(
                 text: cleaned,
-                isSelected: defaultSelected || Self.isListLine(line)
+                isSelected: defaultSelected || Self.isListLine(line),
+                sourceRange: sourceRanges.indices.contains(index) ? sourceRanges[index] : nil
             )
         }
         .filter { !$0.text.isEmpty }
+    }
+
+    /// 将编辑器显示文本按非空行切成范围，并排除列表符号，只标记真正的文字。
+    nonisolated private static func lineSourceRanges(in text: String) -> [NSRange] {
+        let nsText = text as NSString
+        var ranges: [NSRange] = []
+        var lineStart = 0
+
+        while lineStart <= nsText.length {
+            let remaining = nsText.length - lineStart
+            let newlineOffset = remaining > 0
+                ? nsText.range(
+                    of: "\n",
+                    options: [],
+                    range: NSRange(location: lineStart, length: remaining)
+                ).location
+                : NSNotFound
+            let lineLength = newlineOffset == NSNotFound ? remaining : newlineOffset
+            let rawLine = nsText.substring(with: NSRange(location: lineStart, length: lineLength))
+            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+
+            if !trimmed.isEmpty {
+                // 这里的偏移必须和 UITextView.selectedRange 一样使用 UTF-16；空格和 Tab
+                // 都是单个 UTF-16 单元，因此逐单元扫描不会被 emoji/CJK 的 Character 数量干扰。
+                var leadingWhitespace = 0
+                while leadingWhitespace < rawLine.utf16.count {
+                    let character = nsText.substring(
+                        with: NSRange(location: lineStart + leadingWhitespace, length: 1)
+                    )
+                    guard character == " " || character == "\t" else { break }
+                    leadingWhitespace += 1
+                }
+                var contentStart = lineStart + leadingWhitespace
+                let contentLength = max(0, rawLine.utf16.count - leadingWhitespace)
+                let contentLine = nsText.substring(with: NSRange(location: contentStart, length: contentLength))
+
+                if let prefixLength = visibleListPrefixLength(in: contentLine) {
+                    contentStart += prefixLength
+                }
+
+                let end = lineStart + lineLength
+                if contentStart < end {
+                    ranges.append(NSRange(location: contentStart, length: end - contentStart))
+                }
+            }
+
+            guard newlineOffset != NSNotFound else { break }
+            lineStart += lineLength + 1
+        }
+
+        return ranges
+    }
+
+    nonisolated private static func visibleListPrefixLength(in line: String) -> Int? {
+        if line.hasPrefix("• ") { return ("• " as NSString).length }
+        if let regex = try? NSRegularExpression(pattern: "^\\d+\\. ") {
+            let range = NSRange(location: 0, length: line.utf16.count)
+            return regex.firstMatch(in: line, range: range)?.range.length
+        }
+        return nil
+    }
+
+    /// 仅在标题在正文中唯一出现时自动建立 AI 结果的来源范围，避免重复句误标。
+    private static func uniqueSourceRange(for title: String, in sourceText: String?) -> NSRange? {
+        guard let sourceText, !title.isEmpty else { return nil }
+        let nsSource = sourceText as NSString
+        var matches: [NSRange] = []
+        var searchLocation = 0
+        while searchLocation < nsSource.length {
+            let searchRange = NSRange(
+                location: searchLocation,
+                length: nsSource.length - searchLocation
+            )
+            let match = nsSource.range(of: title, options: [], range: searchRange)
+            guard match.location != NSNotFound else { break }
+            matches.append(match)
+            searchLocation = NSMaxRange(match)
+        }
+        guard matches.count == 1 else { return nil }
+        return matches[0]
     }
 
     /// 判断是否是列表型行（`-` / `*` / `+` / `[]` / `[x]` / `1.` 等开头）
@@ -315,6 +457,10 @@ struct ThoughtTaskExtractionSheet: View {
             }
         }
         if s.hasPrefix("- ") || s.hasPrefix("* ") || s.hasPrefix("+ ") {
+            s = String(s.dropFirst(2))
+            return s.trimmingCharacters(in: .whitespaces)
+        }
+        if s.hasPrefix("• ") {
             s = String(s.dropFirst(2))
             return s.trimmingCharacters(in: .whitespaces)
         }

@@ -22,9 +22,10 @@ struct ExpandableText: View {
 
     let text: String
     var lineLimit: Int = 5
-    var font: Font = .holoBody
+    /// 想法正文使用系统 Body Regular，与编辑器和详情页共用同一阅读基线。
+    var font: Font = .body
     var color: Color = .holoTextPrimary
-    var lineSpacing: CGFloat = 8
+    var lineSpacing: CGFloat = 6
 
     // MARK: - 状态
 
@@ -84,13 +85,16 @@ struct ExpandableText: View {
             .lineSpacing(lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .hidden()
-            .background(
-                GeometryReader { geo in
-                    Color.clear.onAppear {
-                        fullTextHeight = geo.size.height
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.onAppear {
+                            fullTextHeight = geo.size.height
+                        }
+                        .onChange(of: geo.size.height) { _, newHeight in
+                            fullTextHeight = newHeight
+                        }
                     }
-                }
-            )
+                )
     }
 
     /// 测量文本在指定行数限制下的高度
@@ -101,12 +105,15 @@ struct ExpandableText: View {
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .hidden()
-            .background(
-                GeometryReader { geo in
-                    Color.clear.onAppear {
-                        limitedTextHeight = geo.size.height
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.onAppear {
+                            limitedTextHeight = geo.size.height
+                        }
+                        .onChange(of: geo.size.height) { _, newHeight in
+                            limitedTextHeight = newHeight
+                        }
                     }
-                }
-            )
+                )
     }
 }

@@ -23,6 +23,8 @@ struct ThoughtCardView: View {
 
     let thought: Thought
     var onNavigate: (() -> Void)?
+    /// 双击正文直接进入编辑器；单击仍保留阅读详情入口。
+    var onEdit: (() -> Void)?
     var onTagTap: ((String) -> Void)?
     /// 更多操作：移入主题（可选，由列表页接主题选择器）
     var onMoveToTopic: (() -> Void)?
@@ -57,13 +59,11 @@ struct ThoughtCardView: View {
                 .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .onTapGesture {
-            onNavigate?()
-        }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-            onNavigate?()
-        }
+        // 双击命中整张卡片，短文下方的留白也能直接进入编辑器；单击详情仍只由正文区域处理。
+        .highPriorityGesture(
+            TapGesture(count: 2)
+                .onEnded { onEdit?() }
+        )
     }
 
     // MARK: - 顶部区域
@@ -81,15 +81,19 @@ struct ThoughtCardView: View {
 
             // 更多操作按钮（仅当至少有一个可用操作时才展示）
             if hasAvailableActions {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoTextSecondary)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        showActionSheet = true
-                    }
-                    .accessibilityLabel("更多操作")
-                    .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
+                Button {
+                    HapticManager.light()
+                    showActionSheet = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("更多操作")
+                // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
+                .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
                         if let onMoveToTopic {
                             Button("移入主题") { onMoveToTopic() }
                         }
@@ -145,15 +149,44 @@ struct ThoughtCardView: View {
 
     private var contentView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            ExpandableText(
-                text: thought.plainContent,
+            // 所有卡片内容都走结构化阅读管线；没有 rich JSON 的存量纯文本也先转成 text/tag
+            // 节点，避免列表外层重新走一套 Text/ExpandableText，导致 Markdown、空行和行距漂移。
+            // 长文只在列表做预览，但通过同一套排版测量明确提示“点击查看全文”。
+            ReadOnlyRichTextPreview(
+                nodes: contentNodes,
                 lineLimit: 7
             )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if !thought.sortedAttachments.isEmpty {
                 inlineAttachmentsView
             }
         }
+        // 只读 UITextView 在卡片内不接管触摸，因此不能把“不可交互”泄漏成
+        // VoiceOver 的 disabled 元素。卡片正文本身是进入想法的主入口，显式暴露
+        // 同一份语义文本和按钮动作；底部标签仍保留各自的筛选操作。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("想法内容")
+        .accessibilityValue(MarkdownTextView.accessibilityText(from: contentNodes))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("单击查看详情，双击直接编辑")
+        .onTapGesture {
+            onNavigate?()
+        }
+        .accessibilityAction {
+            onNavigate?()
+        }
+        .accessibilityAction(named: "直接编辑") {
+            onEdit?()
+        }
+    }
+
+    /// 富文本结构化事实源；存量纯文本也通过同一入口转换，保证列表与详情/编辑器同源。
+    private var contentNodes: [HoloContentNode] {
+        RichContentSerializer.nodes(
+            richJSON: thought.richContentJSON,
+            fallbackPlainText: thought.content
+        )
     }
 
     // MARK: - 底部区域

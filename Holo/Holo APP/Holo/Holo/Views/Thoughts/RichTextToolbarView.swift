@@ -4,7 +4,7 @@
 //
 //  观点模块 - 富文本格式工具栏（UIKit inputAccessoryView）
 //  精炼布局：[#] [@] [📷] | [B] [Aa▾] | [≡▾] | [✓]
-//  加粗一键直达；斜体/下划线/颜色收进「文字格式」菜单；列表收进「列表」菜单
+//  加粗一键直达；斜体/下划线/颜色收进「文字样式」菜单；列表收进「列表」菜单
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ import UIKit
 /// Hosting Controller 的尺寸报告与布局在 inputAccessoryView 容器内不可预测
 ///（safeArea 推移、intrinsicContentSize 报不准），导致吸附位置错、图标错位。
 /// 纯 UIKit 下每个元素坐标由 AutoLayout 约束精确写死，是 inputAccessoryView 最标准的用法。
-final class RichTextToolbarAccessoryView: UIView {
+final class RichTextToolbarAccessoryView: UIView, UIGestureRecognizerDelegate {
 
     // MARK: - 按钮点击回调
     var onTag: (() -> Void)?
@@ -26,8 +26,9 @@ final class RichTextToolbarAccessoryView: UIView {
     var onBold: (() -> Void)?
     var onItalic: (() -> Void)?
     var onUnderline: (() -> Void)?
-    /// 颜色：由「文字格式 → 文字颜色」触发浮层，浮层选色后回调实际 hex（nil = 清除）
-    var onColor: ((String?) -> Void)?
+    /// 颜色：由文字样式菜单触发浮层，浮层选色后回调实际 hex。
+    /// 黑色是普通颜色选项，不再提供“重置颜色”这种特殊状态。
+    var onColor: ((String) -> Void)?
     var onImage: (() -> Void)?
     var onUnorderedList: (() -> Void)?
     var onOrderedList: (() -> Void)?
@@ -42,7 +43,7 @@ final class RichTextToolbarAccessoryView: UIView {
         let view = UIView()
         view.layer.cornerRadius = 4.5
         view.layer.borderWidth = 1.5
-        view.layer.borderColor = UIColor(Color.holoCardBackground).cgColor
+        view.layer.borderColor = UIColor(Color.holoNestedCardBackground).cgColor
         view.translatesAutoresizingMaskIntoConstraints = false
         view.isHidden = true
         return view
@@ -51,7 +52,7 @@ final class RichTextToolbarAccessoryView: UIView {
     /// 颜色浮层背景（含浮层本体；关闭即移除）
     private var colorPaletteBackdrop: UIView?
 
-    private static let toolbarHeight: CGFloat = 50
+    private static let toolbarHeight: CGFloat = 46
 
     /// 当前格式状态变化时刷新加粗/格式入口高亮与颜色指示
     var formatState: TypingFormatState = TypingFormatState() {
@@ -77,7 +78,10 @@ final class RichTextToolbarAccessoryView: UIView {
     // MARK: - 布局
 
     private func setup() {
-        backgroundColor = UIColor(Color.holoGlassBackground)
+        // 工具栏是编辑器的一部分，必须使用不透明背景，避免键盘和编辑器底色透出造成视觉脏乱。
+        // 使用独立的不透明嵌套层背景，与白色编辑区拉开边界；不使用毛玻璃或透明度。
+        backgroundColor = UIColor(Color.holoNestedCardBackground)
+        isOpaque = true
         translatesAutoresizingMaskIntoConstraints = false
 
         // 顶部发丝线
@@ -90,7 +94,7 @@ final class RichTextToolbarAccessoryView: UIView {
         let stack = UIStackView()
         stack.axis = .horizontal
         stack.alignment = .center
-        stack.spacing = 6
+        stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
@@ -111,7 +115,7 @@ final class RichTextToolbarAccessoryView: UIView {
         stack.addArrangedSubview(makeButton(icon: "photo", label: "添加图片") { [weak self] in self?.onImage?() })
         stack.addArrangedSubview(makeDivider())
 
-        // 组2：文字格式
+        // 组2：文字样式
         let bold = makeButton(icon: "bold", label: "加粗") { [weak self] in self?.onBold?() }
         boldButton = bold
         stack.addArrangedSubview(bold)
@@ -173,10 +177,12 @@ final class RichTextToolbarAccessoryView: UIView {
         return button
     }
 
-    /// 文字格式入口（菜单）：斜体 / 下划线 / 文字颜色
+    /// 文字样式入口（菜单）：斜体 / 下划线 / 文字颜色
     /// 任一格式激活时入口高亮；颜色生效时右下角显示当前色圆点
     private func makeFormatMenuButton() -> UIButton {
-        let button = makeButton(icon: "textformat", label: "文字格式", action: {})
+        // 不使用 textformat：中文系统下该符号的视觉形态容易被看成“格式”文字。
+        // 画笔更明确表达“编辑文字样式”，同时保留无障碍名称。
+        let button = makeButton(icon: "paintbrush.pointed", label: "文字样式", action: {})
         button.menu = UIMenu(children: [
             UIAction(title: "斜体", image: UIImage(systemName: "italic")) { [weak self] _ in
                 HapticManager.light()
@@ -283,6 +289,10 @@ final class RichTextToolbarAccessoryView: UIView {
         let backdrop = UIView()
         backdrop.translatesAutoresizingMaskIntoConstraints = false
         let tap = UITapGestureRecognizer(target: self, action: #selector(hideColorPalette))
+        // 关闭手势只处理面板外的点击，不能抢走色点按钮的 touchUpInside。
+        // 否则用户看到面板关闭，却没有任何颜色变化，表现为“选色失效”。
+        tap.delegate = self
+        tap.cancelsTouchesInView = false
         backdrop.addGestureRecognizer(tap)
         backdrop.backgroundColor = .clear
         window.addSubview(backdrop)
@@ -304,10 +314,18 @@ final class RichTextToolbarAccessoryView: UIView {
         let selfFrame = self.superview?.convert(self.frame, to: window) ?? .zero
         let anchorMidX = (formatMenuButton?.convert((formatMenuButton?.bounds ?? .zero), to: window).midX) ?? selfFrame.midX
         let paletteX = max(12, min(anchorMidX - size.width / 2, window.bounds.width - size.width - 12))
-        let paletteY = selfFrame.minY - 8 - size.height
+        let paletteY = max(window.safeAreaInsets.top + 8, selfFrame.minY - 8 - size.height)
         palette.frame = CGRect(x: paletteX, y: paletteY, width: size.width, height: size.height)
 
         colorPaletteBackdrop = backdrop
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // 色点及其内部的视觉圆点都属于面板，交给 UIButton 自己处理。
+        guard let palette = colorPaletteBackdrop?.subviews.compactMap({ $0 as? ColorPalettePopover }).first else {
+            return true
+        }
+        return !(touch.view?.isDescendant(of: palette) ?? false)
     }
 
     @objc private func hideColorPalette() {
@@ -318,19 +336,21 @@ final class RichTextToolbarAccessoryView: UIView {
 
 // MARK: - ColorPalettePopover
 
-/// 颜色轻量浮层：8 个预设色圆（2×4）+ 重置按钮
-/// 锚定在键盘工具栏「文字格式」按钮上方，选色后即关
+/// 颜色轻量浮层：9 个预设色圆（3×3）。黑色是普通颜色，不提供重置按钮。
+/// 锚定在键盘工具栏「文字样式」按钮上方，选色后即关
 final class ColorPalettePopover: UIView {
 
-    var onPick: ((String?) -> Void)?
+    var onPick: ((String) -> Void)?
 
     static let preferredWidth: CGFloat = 196
-    static let preferredHeight: CGFloat = 120
+    // 每个色点保留 44pt 触控热区，浮层尺寸随之增加，避免小色点难以点中。
+    static let preferredHeight: CGFloat = 176
 
     /// 预设色（与设计系统一致）
     private static let presetHexes: [String] = [
-        "#F46D38", "#60A5FA", "#22C55E", "#EF4444",
-        "#C084FC", "#EC4899", "#10B981", "#8B5CF6"
+        "#000000", "#F46D38", "#60A5FA",
+        "#22C55E", "#EF4444", "#C084FC",
+        "#EC4899", "#10B981", "#8B5CF6"
     ]
 
     override init(frame: CGRect) {
@@ -346,6 +366,9 @@ final class ColorPalettePopover: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func setup() {
+        // 自定义 UIView 默认不接收触摸；如果不显式打开，点击色点会穿透到全屏遮罩，
+        // 结果是面板关闭了，但 onPick 从未触发，用户会误以为颜色功能失效。
+        isUserInteractionEnabled = true
         backgroundColor = UIColor(Color.holoCardBackground)
         layer.cornerRadius = 14
         layer.borderWidth = 0.5
@@ -355,18 +378,18 @@ final class ColorPalettePopover: UIView {
         layer.shadowRadius = 16
         layer.shadowOffset = CGSize(width: 0, height: 6)
 
-        // 8 色圆 2×4
+        // 9 色圆 3×3
         let grid = UIStackView()
         grid.axis = .vertical
-        grid.spacing = 10
+        grid.spacing = 8
         grid.translatesAutoresizingMaskIntoConstraints = false
         addSubview(grid)
 
-        let columns = 4
+        let columns = 3
         for rowStart in stride(from: 0, to: Self.presetHexes.count, by: columns) {
             let row = UIStackView()
             row.axis = .horizontal
-            row.spacing = 12
+            row.spacing = 8
             let upper = min(rowStart + columns, Self.presetHexes.count)
             for hex in Self.presetHexes[rowStart..<upper] {
                 row.addArrangedSubview(makeSwatch(hex))
@@ -374,25 +397,10 @@ final class ColorPalettePopover: UIView {
             grid.addArrangedSubview(row)
         }
 
-        // 重置按钮
-        let resetButton = UIButton(type: .system)
-        resetButton.setTitle("重置颜色", for: .normal)
-        resetButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .medium)
-        resetButton.setTitleColor(UIColor(Color.holoTextSecondary), for: .normal)
-        resetButton.addAction(UIAction { [weak self] _ in
-            HapticManager.light()
-            self?.onPick?(nil)
-        }, for: .touchUpInside)
-        resetButton.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(resetButton)
-
         NSLayoutConstraint.activate([
             grid.topAnchor.constraint(equalTo: topAnchor, constant: 14),
             grid.centerXAnchor.constraint(equalTo: centerXAnchor),
-
-            resetButton.topAnchor.constraint(equalTo: grid.bottomAnchor, constant: 10),
-            resetButton.centerXAnchor.constraint(equalTo: centerXAnchor),
-            resetButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
+            grid.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14)
         ])
     }
 
@@ -400,17 +408,31 @@ final class ColorPalettePopover: UIView {
         let button = UIButton(type: .system)
         let color = UIColor(Color(hex: hex))
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(equalToConstant: 32).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 32).isActive = true
-        button.layer.cornerRadius = 16
-        button.backgroundColor = color
-        button.layer.borderWidth = 1
-        button.layer.borderColor = UIColor(Color.holoBorder.opacity(0.5)).cgColor
+        // 视觉色点保持 32pt，按钮本身保留 Apple 推荐的 44pt 触控热区。
+        button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+
+        let swatch = UIView()
+        swatch.translatesAutoresizingMaskIntoConstraints = false
+        // 视觉圆点不能成为命中目标，否则会截断父级 UIButton 的 touchUpInside。
+        // 触摸统一交给 44pt 的按钮热区处理，保证点到圆点和点到留白都能选色。
+        swatch.isUserInteractionEnabled = false
+        swatch.layer.cornerRadius = 16
+        swatch.backgroundColor = color
+        swatch.layer.borderWidth = 1
+        swatch.layer.borderColor = UIColor(Color.holoBorder.opacity(0.5)).cgColor
+        button.addSubview(swatch)
+        NSLayoutConstraint.activate([
+            swatch.widthAnchor.constraint(equalToConstant: 32),
+            swatch.heightAnchor.constraint(equalToConstant: 32),
+            swatch.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+            swatch.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+        ])
         button.addAction(UIAction { [weak self] _ in
             HapticManager.light()
             self?.onPick?(hex)
         }, for: .touchUpInside)
-        button.accessibilityLabel = "颜色 \(hex)"
+        button.accessibilityLabel = hex == "#000000" ? "黑色" : "颜色 \(hex)"
         return button
     }
 }

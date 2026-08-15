@@ -35,8 +35,11 @@ struct ThoughtListView: View {
     @State private var showFilterSheet: Bool = false
     @State private var currentFilters: ThoughtFilters? = nil
 
-    /// 选中的想法（用于直接编辑）
+    /// 选中的想法（用于进入详情）
     @State private var selectedThoughtId: UUID? = nil
+
+    /// 双击卡片直接进入编辑器
+    @State private var editingThoughtId: UUID? = nil
 
     /// 所有想法
     @State private var thoughts: [Thought] = []
@@ -141,9 +144,25 @@ struct ThoughtListView: View {
                 thoughtListView
             }
         }
-        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+        // 主列表先进入详情，阅读、引用关系与编辑入口保持同一条产品路径。
+        // 编辑器仍由详情页的「编辑」动作打开，避免列表入口绕过反向链接。
         .fullScreenCover(item: $selectedThoughtId) { thoughtId in
-            ThoughtEditorView(editingThoughtId: thoughtId)
+            ThoughtDetailView(
+                thoughtId: thoughtId,
+                thoughtRepository: ThoughtRepository(),
+                showsDismissButton: true
+            )
+        }
+        .fullScreenCover(item: $editingThoughtId) { thoughtId in
+            ThoughtEditorView(
+                onSave: {
+                    loadThoughts()
+                    loadTags()
+                    loadUnprocessedCount()
+                },
+                editingThoughtId: thoughtId,
+                autoFocusExistingThought: true
+            )
         }
         // ThoughtDetailView 点「问问 Holo」后通知关闭整个 fullScreenCover，
         // 否则 cover 仍盖在 AI 页之上（dismiss 只能 pop 一层 NavigationStack）。
@@ -667,6 +686,13 @@ struct ThoughtListView: View {
                                     } else {
                                         selectedThoughtId = thought.id
                                     }
+                                },
+                                onEdit: {
+                                    // 双击识别晚于单击时，先撤销可能已经排队的详情 cover，
+                                    // 保证最终只呈现编辑器，不出现详情和编辑器叠层。
+                                    selectedThoughtId = nil
+                                    revealedThoughtId = nil
+                                    editingThoughtId = thought.id
                                 },
                                 onTagTap: { tagName in
                                     selectedTagName = ThoughtTagNormalizer.displayName(tagName)

@@ -24,6 +24,8 @@ nonisolated enum RichContentSerializer {
 
     /// @ 引用 Token 显示文字的最大长度（超出截断加省略号，避免行内引用过长）
     static let referenceDisplayMaxLength = 24
+    /// 存量引用缺失标题和快照时的可识别兜底，避免用户只看到无法判断对象的孤立「@」。
+    static let unnamedReferenceDisplay = "未命名想法"
 
     // MARK: - ContentNode[] → JSON
 
@@ -44,7 +46,35 @@ nonisolated enum RichContentSerializer {
         guard let data = json.data(using: .utf8) else {
             throw SerializerError.invalidJSON
         }
-        return try JSONDecoder().decode([HoloContentNode].self, from: data)
+        return normalizedReferenceDisplays(try JSONDecoder().decode([HoloContentNode].self, from: data))
+    }
+
+    /// 兼容早期引用 JSON：旧版本可能没有 snapshot，或只保存了引用 ID 没有 displayText。
+    /// 这类数据不能因为一个可补齐的展示字段缺失而整段降级成普通文本；标题为空时用快照首行恢复可识别的 @ 文案。
+    private static func normalizedReferenceDisplays(_ nodes: [HoloContentNode]) -> [HoloContentNode] {
+        nodes.map { node in
+            guard case .reference(let noteId, let displayText, let snapshot) = node else {
+                return node
+            }
+            return .reference(
+                noteId: noteId,
+                displayText: normalizedReferenceDisplayText(displayText: displayText, snapshot: snapshot),
+                snapshot: snapshot
+            )
+        }
+    }
+
+    /// 引用在所有入口都使用同一套展示名规则：优先标题，其次取快照首行，仍为空时
+    /// 明确显示“未命名想法”。展示字段不包含 @ 前缀，避免不同页面出现 @ 或 @@ 分叉。
+    static func normalizedReferenceDisplayText(displayText: String, snapshot: String) -> String {
+        let candidate = displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? firstLine(fromPlainText: snapshot)
+            : displayText
+        let normalized = candidate.hasPrefix("@")
+            ? String(candidate.dropFirst())
+            : candidate
+        let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? unnamedReferenceDisplay : truncatedReferenceDisplay(trimmed)
     }
 
     /// 宽松解析：JSON 为空或损坏时回退为纯文本节点，保护用户数据不丢

@@ -22,6 +22,8 @@ struct ThoughtDetailView: View {
     @Environment(\.dismiss) var dismiss
     let thoughtId: UUID
     let thoughtRepository: ThoughtRepository
+    /// 从主列表以全屏详情打开时显示关闭按钮；从编辑器的导航栈进入时保留系统返回按钮。
+    var showsDismissButton: Bool = false
 
     /// 当前想法
     @State private var thought: Thought? = nil
@@ -103,6 +105,20 @@ struct ThoughtDetailView: View {
             .navigationTitle("想法详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if showsDismissButton {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel("关闭详情")
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
@@ -138,12 +154,17 @@ struct ThoughtDetailView: View {
             }
             .sheet(isPresented: $showTaskExtraction) {
                 if let thought = thought {
+                    let sourceNodes = renderNodes.isEmpty
+                        ? RichContentSerializer.nodes(fromPlainText: thought.content)
+                        : renderNodes
                     ThoughtTaskExtractionSheet(
                         content: thought.content,
                         sourceThought: thought,
                         isFromSelection: false,
+                        visibleSourceText: MarkdownTextView.visiblePlainText(from: sourceNodes),
                         onDismiss: { showTaskExtraction = false },
-                        onCreated: { _ in
+                        onCreated: { createdTasks in
+                            applyCreatedTasks(createdTasks, to: thought)
                             showTaskExtraction = false
                             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
                         }
@@ -220,12 +241,53 @@ struct ThoughtDetailView: View {
             } else {
                 selectedReferenceId = noteId
             }
-        case .taskMark(_, let taskId, _):
+        case .taskMark(_, let taskId, _, _):
             DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
             dismiss()
         case .text:
             break
         }
+    }
+
+    /// 详情页转任务也必须把任务关系写回正文，保证下划线和编辑器入口一致。
+    private func applyCreatedTasks(_ tasks: [CreatedThoughtTask], to thought: Thought) {
+        let sourceNodes = renderNodes.isEmpty
+            ? RichContentSerializer.nodes(fromPlainText: thought.content)
+            : renderNodes
+        let insertions = tasks.compactMap { task -> TaskMarkInsertion? in
+            guard let sourceRange = task.sourceRange else { return nil }
+            return TaskMarkInsertion(
+                taskId: task.id,
+                displayText: task.title,
+                sourceRange: sourceRange
+            )
+        }
+        guard let markedText = MarkdownTextView.attributedTextByInsertingTaskMarks(
+            insertions,
+            into: MarkdownTextView.makeAttributedText(from: sourceNodes)
+        ) else {
+            loadData()
+            return
+        }
+
+        let markedNodes = MarkdownTextView.serializeNodes(from: markedText)
+        guard let richJSON = try? RichContentSerializer.jsonString(from: markedNodes) else {
+            loadData()
+            return
+        }
+
+        do {
+            _ = try thoughtRepository.update(
+                thought.id,
+                // content 是编辑源文本，必须保留 Markdown 标记；visiblePlainText 只用于
+                // 阅读、复制和任务来源匹配，不能拿来覆盖用户下一次编辑要恢复的格式。
+                content: RichContentSerializer.plainText(from: markedNodes),
+                richContentJSON: .some(richJSON)
+            )
+        } catch {
+            logger.error("详情页任务关系保存失败：\(error.localizedDescription)")
+        }
+        loadData()
     }
 
     // MARK: - 转为任务
@@ -245,19 +307,18 @@ struct ThoughtDetailView: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            // 内容（结构化渲染：含 Token 时走节点管线，否则 Markdown 渲染）
-            if !renderNodes.isEmpty {
+            // 内容统一走结构化阅读管线：即使是存量纯文本，也先转成 text/tag 节点，
+            // 与编辑器共用字号、行距、Markdown 和空行语义，避免详情页另起一套渲染规则。
+            let contentNodes = detailRenderNodes
+            if !contentNodes.isEmpty {
                 ReadOnlyRichTextView(
-                    nodes: renderNodes,
+                    nodes: contentNodes,
                     deletedReferenceIds: deletedReferenceIds,
                     onTokenTap: handleTokenTap
                 )
-            } else if let content = thought?.content, !content.isEmpty {
-                MarkdownRenderer.render(content)
-                    .multilineTextAlignment(.leading)
             } else {
                 Text("")
-                    .font(.holoBody)
+                    .font(.body)
             }
 
             if let thought = thought, !thought.sortedAttachments.isEmpty {
@@ -273,6 +334,15 @@ struct ThoughtDetailView: View {
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
+    }
+
+    /// 结构化内容是事实源；没有 rich JSON 的存量想法也通过同一阅读组件渲染。
+    private var detailRenderNodes: [HoloContentNode] {
+        if !renderNodes.isEmpty {
+            return renderNodes
+        }
+        guard let content = thought?.content, !content.isEmpty else { return [] }
+        return RichContentSerializer.nodes(fromPlainText: content)
     }
 
     // MARK: - 图片附件区域
@@ -424,10 +494,9 @@ struct ThoughtDetailView: View {
 
             VStack(spacing: HoloSpacing.sm) {
                 ForEach(references) { ref in
-                    ReferenceCardView(thought: ref)
-                        .onTapGesture {
-                            selectedReferenceId = ref.id
-                        }
+                    ReferenceCardView(thought: ref) {
+                        selectedReferenceId = ref.id
+                    }
                 }
             }
         }
@@ -458,10 +527,9 @@ struct ThoughtDetailView: View {
 
             VStack(spacing: HoloSpacing.sm) {
                 ForEach(referencedBy) { ref in
-                    ReferenceCardView(thought: ref)
-                        .onTapGesture {
-                            selectedReferenceId = ref.id
-                        }
+                    ReferenceCardView(thought: ref) {
+                        selectedReferenceId = ref.id
+                    }
                 }
             }
         }
@@ -484,7 +552,8 @@ private struct ThoughtDetailSheetView: View {
     var body: some View {
         ThoughtDetailView(
             thoughtId: thoughtId,
-            thoughtRepository: thoughtRepository
+            thoughtRepository: thoughtRepository,
+            showsDismissButton: true
         )
     }
 }
@@ -494,6 +563,7 @@ private struct ThoughtDetailSheetView: View {
 /// 引用卡片组件
 struct ReferenceCardView: View {
     let thought: Thought
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -505,11 +575,15 @@ struct ReferenceCardView: View {
                 Spacer()
             }
 
-            // 内容预览
-            Text(thought.previewText)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .lineLimit(2)
+            // 内容预览也走正文富文本管线，保证关系卡片里的 Markdown、@ 引用、任务标记
+            // 与详情正文/列表卡片使用同一字号、行距和 Token 展示逻辑。
+            ReadOnlyRichTextView(
+                nodes: contentNodes,
+                onTokenTap: { _ in },
+                lineLimit: 2,
+                allowsTokenInteraction: false
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // 标签
             if !thought.tagArray.isEmpty {
@@ -534,6 +608,23 @@ struct ReferenceCardView: View {
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .onTapGesture {
+            onTap?()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
+        .accessibilityHint(onTap == nil ? "" : "双击打开想法")
+        .accessibilityAction {
+            onTap?()
+        }
+    }
+
+    private var contentNodes: [HoloContentNode] {
+        RichContentSerializer.nodes(
+            richJSON: thought.richContentJSON,
+            fallbackPlainText: thought.content
         )
     }
 }
