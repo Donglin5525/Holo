@@ -4,6 +4,9 @@ export const QUOTA_TYPES = Object.freeze({
   naturalLanguageTask: "naturalLanguageTask",
   asr: "asr",
   memoryInsight: "memoryInsight",
+  // 每周生活计划（Life Agent）：定义先行；iOS 第一刀复用 chat 配额（验证期），
+  // 计量接线随付费墙第二刀发版前接入，避免空跑死配置。
+  lifePlan: "lifePlan",
 });
 
 export const QUOTA_POLICY = Object.freeze({
@@ -13,6 +16,7 @@ export const QUOTA_POLICY = Object.freeze({
     [QUOTA_TYPES.naturalLanguageTask]: { limit: 10, period: "day" },
     [QUOTA_TYPES.asr]: { limit: 20, period: "day", maxSeconds: 60 },
     [QUOTA_TYPES.memoryInsight]: { limit: 1, period: "week" },
+    [QUOTA_TYPES.lifePlan]: { limit: 1, period: "week" },
   },
   plus: {
     [QUOTA_TYPES.chat]: { limit: 30, period: "day" },
@@ -20,6 +24,7 @@ export const QUOTA_POLICY = Object.freeze({
     [QUOTA_TYPES.naturalLanguageTask]: { limit: 50, period: "day" },
     [QUOTA_TYPES.asr]: { limit: 50, period: "day", maxSeconds: 300 },
     [QUOTA_TYPES.memoryInsight]: { limit: 1, period: "day" },
+    [QUOTA_TYPES.lifePlan]: { limit: 2, period: "week" },
   },
 });
 

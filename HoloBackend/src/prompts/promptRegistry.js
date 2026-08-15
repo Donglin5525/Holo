@@ -7,7 +7,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 4,                 // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
-  intent_recognition: 26,           // v26: P3 瘦身——删与分流规则重复的 few-shot 3 条，flexible 摘要与 V23 聚合契约对齐
+  intent_recognition: 27,           // v27: 新增 weekly_planning 意图（每周生活计划）；v26 为 P3 瘦身基线
   memory_insight_generation: 10,    // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
@@ -23,6 +23,7 @@ const PROMPT_VERSIONS = {
   agent_loop: 20,                  // v20: dataGapHints 遗漏数据提示 + _search 跨字段搜索
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
+  weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

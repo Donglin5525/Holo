@@ -156,6 +156,17 @@
     },
     {
       "ids": [
+        "weekly_planning"
+      ],
+      "summary": "每周生活计划：帮我规划这一周、做个本周计划、下周该专注什么。建立单个目标不是本意图。",
+      "requiredFields": [],
+      "examples": [
+        "\"帮我规划这一周\" → intent: \"weekly_planning\", extractedData: {}",
+        "\"下周我该专注什么\" → intent: \"weekly_planning\", extractedData: {}"
+      ]
+    },
+    {
+      "ids": [
         "query"
       ],
       "summary": "普通问答或闲聊。",
