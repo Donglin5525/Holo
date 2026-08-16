@@ -328,10 +328,12 @@ extension AddTransactionSheet {
                 try await repository.deleteTransaction(transaction)
                 onSave(nil)
                 dismiss()
+                // 成功路径不把 isDeleting 翻回：交易已删，翻转会触发表单
+                // body 重读已删对象的字段而闪退；仅失败时恢复可交互
             } catch {
-                logger.error("删除失败：\(error.localizedDescription)")
+                logger.error("删除失败: \(error.localizedDescription)")
+                isDeleting = false
             }
-            isDeleting = false
         }
     }
 

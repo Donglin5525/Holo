@@ -294,9 +294,12 @@ struct ChecklistView: View {
         if editingItemId == itemID { cancelEditing() }
         let progressBeforeChange = localProgress
 
+        // 必须先移出本地数组再删除：仓库 save 后被删对象即刻失效，
+        // 此后任何属性访问（包括 removeAll 闭包里的 .id）都会触发 fault 闪退
+        checkItems.removeAll { $0.id == itemID }
+
         do {
             try repository.deleteCheckItem(item)
-            checkItems.removeAll { $0.id == itemID }
             applyProgressChange(from: progressBeforeChange, to: localProgress)
         } catch {
             Self.logger.error("删除子任务失败：\(error.localizedDescription)")

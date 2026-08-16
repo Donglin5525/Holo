@@ -1248,8 +1248,10 @@ struct AddTaskSheet: View {
         displayedChecklistProgress = progressBeforeChange
 
         do {
-            try repository.deleteCheckItem(item)
+            // 先移出本地数组再删除：仓库 save 后被删对象即刻失效，
+            // 此后任何属性访问（包括 removeAll 闭包里的 .id）都会触发 fault 闪退
             checkItems.removeAll { $0.id == itemID }
+            try repository.deleteCheckItem(item)
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
         } catch {
             Self.logger.error("删除子任务失败：\(error.localizedDescription)")
@@ -1711,7 +1713,13 @@ struct AddTaskSheet: View {
                 if selectedListId == list.id {
                     selectedListId = nil
                 }
+                // 清单删除会级联删除其下任务：正在编辑的任务若属于该清单，
+                // 删除后须立即关闭表单，避免 body 继续读取已失效的任务对象
+                let editingTaskBelongsToList = existingTask?.list?.id == list.id
                 try repository.deleteList(list)
+                if editingTaskBelongsToList {
+                    dismiss()
+                }
             }
         } catch {
             Self.logger.error("删除失败: \(error.localizedDescription)")
