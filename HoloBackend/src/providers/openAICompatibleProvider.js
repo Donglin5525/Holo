@@ -4,6 +4,28 @@ export function createOpenAICompatibleProvider(config) {
   return {
     passesThroughSSE: true,
 
+    // P2：OpenAI 兼容 /embeddings 端点（DashScope compatible-mode / 通义 text-embedding-v3）
+    // 返回 { model, vectors }；向量只作客户端候选召回输入，不直接面向用户。
+    async embed(request) {
+      const response = await callEmbeddingsUpstream(config, {
+        model: request.model,
+        input: request.texts,
+      }, request.clientSignal);
+      const json = await response.json();
+      if (!Array.isArray(json?.data) || json.data.length !== request.texts.length) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Upstream embeddings response malformed", 503);
+      }
+      return {
+        model: json.model ?? request.model,
+        vectors: json.data.map((item) => {
+          if (!Array.isArray(item?.embedding)) {
+            throw new GatewayError("MODEL_UNAVAILABLE", "Upstream embedding vector malformed", 503);
+          }
+          return item.embedding;
+        }),
+      };
+    },
+
     async complete(request) {
       const response = await callUpstream(config, {
         ...buildUpstreamBody(request),
@@ -246,8 +268,54 @@ function buildUpstreamBody(request) {
   return body;
 }
 
-async function callUpstream(config, body, clientSignal) {
+// P2：调上游 /embeddings 端点（鉴权/超时/断连治理与 callUpstream 同范式，路径不同）
+async function callEmbeddingsUpstream(config, body, clientSignal) {
   if (!config.apiKey) {
+    throw new GatewayError("UPSTREAM_AUTH_FAILED", "Provider API key is not configured", 503);
+  }
+
+  const controller = new AbortController();
+  if (clientSignal) {
+    if (clientSignal.aborted) {
+      controller.abort();
+    } else {
+      clientSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+
+  try {
+    const response = await fetch(`${config.baseURL.replace(/\/$/, "")}/embeddings`, {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${config.apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      throw new GatewayError("UPSTREAM_AUTH_FAILED", "Upstream authentication failed", 503);
+    }
+    if (!response.ok) {
+      throw new GatewayError("MODEL_UNAVAILABLE", `Upstream returned ${response.status}`, 503);
+    }
+    return response;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new GatewayError("UPSTREAM_TIMEOUT", "Upstream request timed out", 504);
+    }
+    if (error instanceof GatewayError) {
+      throw error;
+    }
+    throw new GatewayError("MODEL_UNAVAILABLE", "Upstream request failed", 503);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callUpstream(config, body, clientSignal) {  if (!config.apiKey) {
     throw new GatewayError("UPSTREAM_AUTH_FAILED", "Provider API key is not configured", 503);
   }
 

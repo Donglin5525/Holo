@@ -1,5 +1,12 @@
 export function createMockChatProvider() {
   return {
+    // P2：mock embedding——同文本确定性同向量（词元 hash 叠加），链路/测试可通但无真实语义
+    async embed(request) {
+      const dimensions = request.dimensions ?? 1024;
+      const vectors = request.texts.map((text) => mockEmbeddingVector(text, dimensions));
+      return { model: request.model ?? "mock-embedding", vectors };
+    },
+
     async complete(request) {
       if (request.purpose === "intent") {
         return mockIntentCompletion(request);
@@ -551,4 +558,22 @@ function buildDirectFinanceConstraints(input) {
   if (input.includes("收入")) parts.push("收入");
   if (input.includes("支出") || input.includes("消费") || input.includes("花")) parts.push("支出");
   return parts.length > 0 ? parts.join(", ") : input;
+}
+
+// P2：确定性 mock 向量——按词元（2-gram）hash 叠加，同文本同向量、共享词元的文本向量更接近，
+// 便于端到端链路测试；无真实语义，生产走 thought_embedding 真模型。
+function mockEmbeddingVector(text, dimensions) {
+  const vector = new Array(dimensions).fill(0);
+  const normalized = String(text ?? "").toLowerCase();
+  for (let i = 0; i < normalized.length - 1; i += 1) {
+    const gram = normalized.slice(i, i + 2);
+    let hash = 2166136261;
+    for (let j = 0; j < gram.length; j += 1) {
+      hash ^= gram.charCodeAt(j);
+      hash = Math.imul(hash, 16777619);
+    }
+    vector[Math.abs(hash) % dimensions] += 1;
+  }
+  const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0)) || 1;
+  return vector.map((v) => v / norm);
 }

@@ -655,6 +655,68 @@ export function createApp(overrides = {}) {
     }
   });
 
+  // P2（方案 §5.2）：想法语义候选召回的 embedding 批量端点。
+  // 鉴权/限流与 chat 端点同范式；独立 purpose 限流桶（默认 20/分、120/天，.env 可调）。
+  // 不做 moderation：正文在 thought_organization 分类时已审核，同一内容不重复消耗审核调用。
+  // 响应不含正文，服务端日志不记录文本与向量内容。
+  app.post("/v1/ai/embeddings", async (context) => {
+    try {
+      const request = await readJson(context);
+      const texts = request?.texts;
+      if (
+        !Array.isArray(texts) || texts.length === 0 || texts.length > 16
+        || texts.some((text) => typeof text !== "string" || text.length === 0 || text.length > 2000)
+      ) {
+        throw new GatewayError("INVALID_REQUEST", "texts must be 1-16 non-empty strings (max 2000 chars each)", 400);
+      }
+      const purpose = request.purpose ?? "thought_embedding";
+      if (purpose !== "thought_embedding") {
+        throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
+      }
+
+      const route = config.routes[purpose];
+      if (!route) {
+        throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
+      }
+
+      const deviceId = getDeviceId(context, config);
+      const requestLimits = {
+        perMinute: route.requestLimits?.perMinute ?? config.limits.chatRequestsPerMinute,
+        perDay: route.requestLimits?.perDay ?? config.limits.chatRequestsPerDay,
+      };
+      const usage = usageStore.consume({
+        deviceId,
+        purpose,
+        minuteLimit: requestLimits.perMinute,
+        dailyLimit: requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const provider = providers.get(route.provider);
+      if (!provider || typeof provider.embed !== "function") {
+        throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
+      }
+
+      const result = await provider.embed({
+        purpose,
+        texts,
+        model: route.model,
+        dimensions: route.dimensions,
+        clientSignal: context.req.raw.signal,
+      });
+      if (result.vectors.length !== texts.length) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Embeddings count mismatch", 503);
+      }
+
+      context.header("Cache-Control", "no-store");
+      return context.json({ model: result.model, dimensions: result.vectors[0]?.length ?? 0, vectors: result.vectors });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   app.post("/v1/asr/transcriptions", async (context) => {
     let quotaReservation = null;
     try {

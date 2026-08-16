@@ -189,6 +189,18 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_ORG_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_ORG_MAX_TOKENS ?? 2048),
     },
+    // P2（方案 docs/thoughts/plans/2026-08-16-想法智能标签端侧治理实施方案.md §5.2）：
+    // 想法语义候选召回的 embedding 通道。向量只作客户端候选池输入（V3 教训：向量永不直接决定用户可见结果）。
+    // 默认 mock 伪向量（链路可通、无语义）；生产需在 .env 配 HOLO_EMBEDDING_PROVIDER=qwen 生效。
+    thought_embedding: {
+      provider: process.env.HOLO_EMBEDDING_PROVIDER ?? "mock",
+      model: process.env.HOLO_EMBEDDING_MODEL ?? "text-embedding-v3",
+      dimensions: Number(process.env.HOLO_EMBEDDING_DIMENSIONS ?? 1024),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_MINUTE ?? 20),
+        perDay: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_DAY ?? 120),
+      },
+    },
     thought_task_extraction: {
       provider: process.env.HOLO_THOUGHT_TASK_EXTRACTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_TASK_EXTRACTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
