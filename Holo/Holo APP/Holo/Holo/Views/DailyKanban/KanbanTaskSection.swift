@@ -101,7 +101,7 @@ struct KanbanTaskSection: View {
             }
         }
         .sheet(isPresented: $showAddSheet) {
-            AddTaskSheet(repository: todoRepo, list: nil)
+            TaskDetailView(repository: todoRepo, list: nil)
         }
         .sheet(item: $selectedTask) { selection in
             if let task = todoRepo.findTask(by: selection.id) {

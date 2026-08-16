@@ -267,7 +267,7 @@ struct HomeView: View {
         // Deep Link / 小组件 - 新建待办
         .sheet(isPresented: $showAddTaskSheet) {
             LazyView {
-                AddTaskSheet(repository: TodoRepository.shared, list: nil)
+                TaskDetailView(repository: TodoRepository.shared, list: nil)
             }
         }
         // Deep Link / 小组件 - 记录想法

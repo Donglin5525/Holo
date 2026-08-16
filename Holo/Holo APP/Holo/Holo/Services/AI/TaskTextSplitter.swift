@@ -3,7 +3,7 @@
 //  Holo
 //
 //  语音/文本 → AI 拆解为 {标题, 子任务列表}
-//  供新建任务页（AddTaskSheet）的语音输入复用，让"说多个事项 → 自动拆成子任务"。
+//  供任务页（TaskDetailView）的语音输入复用，让"说多个事项 → 自动拆成子任务"。
 //  复用现有的意图识别通道（provider.parseUserInputBatch）+ SubtaskParser，
 //  不新建后端 purpose，纯客户端调用。
 //
@@ -25,7 +25,7 @@ struct TaskSplitResult: Equatable {
 /// 调用方零注入成本。底层复用聊天页已在用的意图识别接口（`parseUserInputBatch`），
 /// 拿到 create_task 意图里的 title / subtasks 字段，再用现成的 `SubtaskParser` 切分。
 /// 不走 `ConversationCoordinator`/`IntentRouter`，因为那是"解析+落库"一体的重链路，
-/// 新建任务页只需"解析"，落库交给 AddTaskSheet 自己的保存流程。
+/// 新建任务页只需"解析"，落库交给 TaskDetailView 自己的保存流程。
 @MainActor
 final class TaskTextSplitter {
     private let provider: AIProvider

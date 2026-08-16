@@ -80,7 +80,7 @@ struct TasksView: View {
             todoTabBar
         }
         .sheet(isPresented: $showAddTask) {
-            AddTaskSheet(repository: repository, list: nil)
+            TaskDetailView(repository: repository, list: nil)
         }
     }
 

@@ -65,74 +65,71 @@ struct TaskCardView: View {
                 .buttonStyle(.plain)
                 .disabled(isCompleting)
 
-                // 任务内容（点击导航到详情页）
-                Button(action: { onNavigate?() }) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.title)
-                            .font(.holoBody)
-                            .strikethrough(showsCompleted)
-                            .foregroundColor(showsCompleted ? .holoTextSecondary : .holoTextPrimary)
-                            .lineLimit(2)
+                // 任务内容（整卡可点进任务页，热区由卡片层 onTapGesture 统一承载）
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(task.title)
+                        .font(.holoBody)
+                        .strikethrough(showsCompleted)
+                        .foregroundColor(showsCompleted ? .holoTextSecondary : .holoTextPrimary)
+                        .lineLimit(2)
 
-                        // 描述（截断展示，默认 1 行）
-                        if let desc = task.desc, !desc.isEmpty {
-                            Text(desc)
-                                .font(.holoCaption)
+                    // 描述（截断展示，默认 1 行）
+                    if let desc = task.desc, !desc.isEmpty {
+                        Text(desc)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
+
+                    // 任务元信息（精简：截止日 + 优先级 + 清单，其余进任务页查看）
+                    HStack(spacing: 8) {
+                        // 截止日期
+                        if let dueDate = task.dueDate {
+                            Label(
+                                formatDueDate(dueDate),
+                                systemImage: "clock"
+                            )
+                            .font(.holoTinyLabel)
+                            .foregroundColor(dateColor)
+                        }
+
+                        // 优先级（仅紧急/高）
+                        if task.taskPriority == .urgent || task.taskPriority == .high {
+                            Label(
+                                task.taskPriority.displayTitle,
+                                systemImage: task.taskPriority.iconName
+                            )
+                            .font(.holoTinyLabel)
+                            .foregroundColor(task.taskPriority.color)
+                        }
+
+                        // 重复任务标识
+                        if task.repeatRule != nil {
+                            Image(systemName: "repeat")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                        }
+
+                        // 纪念日来源徽章
+                        if let anniversaryId = task.sourceAnniversaryId {
+                            anniversarySourceBadge(anniversaryId)
+                        }
+
+                        // 清单名称
+                        if let list = task.list {
+                            Text(list.name)
+                                .font(.holoTinyLabel)
                                 .foregroundColor(.holoTextSecondary)
                                 .lineLimit(1)
                         }
 
-                        // 任务元信息（精简：截止日 + 优先级 + 清单，其余进详情页查看）
-                        HStack(spacing: 8) {
-                            // 截止日期
-                            if let dueDate = task.dueDate {
-                                Label(
-                                    formatDueDate(dueDate),
-                                    systemImage: "clock"
-                                )
-                                .font(.holoTinyLabel)
-                                .foregroundColor(dateColor)
-                            }
-
-                            // 优先级（仅紧急/高）
-                            if task.taskPriority == .urgent || task.taskPriority == .high {
-                                Label(
-                                    task.taskPriority.displayTitle,
-                                    systemImage: task.taskPriority.iconName
-                                )
-                                .font(.holoTinyLabel)
-                                .foregroundColor(task.taskPriority.color)
-                            }
-
-                            // 重复任务标识
-                            if task.repeatRule != nil {
-                                Image(systemName: "repeat")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.holoPrimary)
-                            }
-
-                            // 纪念日来源徽章
-                            if let anniversaryId = task.sourceAnniversaryId {
-                                anniversarySourceBadge(anniversaryId)
-                            }
-
-                            // 清单名称
-                            if let list = task.list {
-                                Text(list.name)
-                                    .font(.holoTinyLabel)
-                                    .foregroundColor(.holoTextSecondary)
-                                    .lineLimit(1)
-                            }
-
-                            // 目标归属
-                            if let goal = task.goal {
-                                GoalBadge(goal: goal)
-                            }
+                        // 目标归属
+                        if let goal = task.goal {
+                            GoalBadge(goal: goal)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 // 优先级指示点
                 Circle()
@@ -193,6 +190,12 @@ struct TaskCardView: View {
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        // 整卡热区：留白、元信息、子任务平铺区点按均可进入任务页；
+        // 完成圈 / 子任务勾选 / 纪念日徽章等子视图交互优先消费，不触发跳转
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onNavigate?()
+        }
     }
 
     // MARK: - Helpers

@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 任务模块交互重构方案</title>
+<style>
+  :root {
+    --primary: #F46D38;
+    --primary-light: #FED7AA;
+    --primary-dark: #EA580C;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --text-1: #333333;
+    --text-2: #939393;
+    --border: #F0F0F0;
+    --divider: #F1F5F9;
+    --success: #22C55E;
+    --error: #EF4444;
+    --high: #F59E0B;
+    --urgent: #EF4444;
+    --medium: #EAB308;
+    --low: #9CA3AF;
+    --page-bg: #F6F5F1;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--page-bg);
+    color: var(--text-1);
+    line-height: 1.6;
+  }
+  .page { max-width: 1280px; margin: 0 auto; padding: 40px 32px 120px; }
+
+  /* ===== 通用排版 ===== */
+  .doc-header { text-align: center; padding: 24px 0 8px; }
+  .doc-header h1 { font-size: 30px; font-weight: 700; letter-spacing: 1px; }
+  .doc-header .sub { color: var(--text-2); font-size: 14px; margin-top: 6px; }
+  .doc-header .conclusion {
+    margin: 20px auto 0; max-width: 760px;
+    background: #FFF7F2; border: 1px solid #FBD9C4; border-radius: 14px;
+    padding: 16px 22px; font-size: 15px; text-align: left;
+  }
+  .doc-header .conclusion b { color: var(--primary-dark); }
+
+  section { margin-top: 64px; }
+  .sec-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  .sec-title .num {
+    font-size: 13px; font-weight: 700; color: #fff; background: var(--primary);
+    border-radius: 8px; padding: 2px 10px; letter-spacing: 1px;
+  }
+  .sec-title h2 { font-size: 22px; font-weight: 700; }
+  .sec-desc { color: var(--text-2); font-size: 14px; margin-bottom: 24px; max-width: 860px; }
+
+  /* ===== 诊断卡片 ===== */
+  .diag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .diag-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px 22px;
+  }
+  .diag-card .tag {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    background: #FEE2E2; color: #B91C1C; border-radius: 6px; padding: 2px 10px; margin-bottom: 10px;
+  }
+  .diag-card h3 { font-size: 16px; margin-bottom: 10px; }
+  .diag-row { display: flex; gap: 10px; margin-top: 10px; font-size: 13.5px; }
+  .diag-row .k {
+    flex-shrink: 0; width: 84px; font-weight: 600; color: var(--text-2); font-size: 12.5px;
+    padding-top: 1px;
+  }
+  .diag-row .v { color: var(--text-1); }
+  .diag-row .v code {
+    background: #F5F4F0; border-radius: 4px; padding: 1px 6px; font-size: 12px;
+    font-family: "SF Mono", Menlo, monospace; color: #B45309;
+  }
+
+  /* ===== 流程对比 ===== */
+  .flow-compare { display: grid; grid-template-columns: 1fr 64px 1fr; gap: 0; align-items: stretch; }
+  .flow-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .flow-box.old { border-color: #FCA5A5; background: #FFFBFA; }
+  .flow-box.new { border-color: #86EFAC; background: #F7FEF9; }
+  .flow-box h3 { font-size: 15px; margin-bottom: 4px; }
+  .flow-box .goal { font-size: 12.5px; color: var(--text-2); margin-bottom: 16px; }
+  .flow-steps { display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    border-radius: 10px; font-size: 13.5px; position: relative;
+  }
+  .flow-step .n {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+  .old .flow-step .n { background: #FEE2E2; color: #B91C1C; }
+  .new .flow-step .n { background: #DCFCE7; color: #15803D; }
+  .old .flow-step.waste { color: #B91C1C; background: #FEF2F2; }
+  .old .flow-step.waste::after { content: "多余"; margin-left: auto; font-size: 11px; color: #DC2626; border: 1px solid #FECACA; border-radius: 4px; padding: 0 6px; }
+  .flow-step + .flow-step::before {
+    content: "↓"; position: absolute; top: -13px; left: 20px; color: var(--text-2); font-size: 11px;
+  }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--primary); font-weight: 700; }
+  .flow-stat { margin-top: 14px; text-align: center; font-size: 13px; }
+  .flow-stat b { font-size: 20px; }
+  .old .flow-stat b { color: #DC2626; }
+  .new .flow-stat b { color: #16A34A; }
+
+  .principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+  .principle {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; font-size: 13.5px;
+  }
+  .principle b { display: block; font-size: 14px; margin-bottom: 4px; color: var(--primary-dark); }
+
+  /* ===== 手机框 ===== */
+  .phones { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone-label { font-size: 14px; font-weight: 700; }
+  .phone-label span { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
+  .phone {
+    width: 390px; height: 780px; background: var(--bg);
+    border: 10px solid #1C1C1E; border-radius: 48px; overflow: hidden;
+    position: relative; box-shadow: 0 24px 60px rgba(0,0,0,.14);
+    display: flex; flex-direction: column;
+  }
+  .phone .statusbar {
+    height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; font-size: 13px; font-weight: 600;
+  }
+  .phone .content { flex: 1; overflow-y: auto; overflow-x: hidden; }
+  .phone .content::-webkit-scrollbar { width: 0; }
+
+  /* App 内部通用 */
+  .app-nav {
+    display: flex; align-items: center; padding: 6px 12px; background: var(--bg);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .app-nav .back { font-size: 22px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--text-1); cursor: pointer; }
+  .app-nav .title { flex: 1; text-align: center; font-size: 17px; font-weight: 700; }
+  .app-nav .right { display: flex; gap: 2px; align-items: center; }
+  .app-nav .icon-btn { width: 36px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text-2); }
+  .app-nav .progress-num { font-size: 14px; color: var(--text-2); min-width: 30px; text-align: right; }
+
+  .chips { display: flex; gap: 8px; padding: 6px 16px 10px; overflow-x: auto; background: var(--bg); }
+  .chips::-webkit-scrollbar { height: 0; }
+  .chip {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12.5px; padding: 6px 13px; border-radius: 999px;
+    background: var(--card); color: var(--text-2); border: 1px solid var(--border);
+    cursor: pointer; white-space: nowrap;
+  }
+  .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+  .chip.dashed { border-style: dashed; }
+
+  .t-card {
+    background: var(--card); border-radius: 14px; margin: 0 16px 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.045); cursor: pointer; position: relative;
+    transition: transform .15s;
+  }
+  .t-card:active { transform: scale(.985); }
+  .t-main { display: flex; gap: 12px; padding: 14px 14px; align-items: flex-start; }
+  .check {
+    width: 23px; height: 23px; border-radius: 50%; border: 1.8px solid #C9C9C9;
+    flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; cursor: pointer;
+  }
+  .check.done { background: var(--primary); border-color: var(--primary); }
+  .t-body { flex: 1; min-width: 0; }
+  .t-title { font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .t-title.done { color: var(--text-2); text-decoration: line-through; font-weight: 400; }
+  .t-desc { font-size: 12px; color: var(--text-2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px; font-size: 11px; color: var(--text-2); align-items: center; }
+  .t-meta .m { display: inline-flex; align-items: center; gap: 3px; }
+  .t-meta .due-today { color: var(--primary); font-weight: 600; }
+  .t-meta .due-over { color: var(--error); font-weight: 600; }
+  .t-meta .pri { font-weight: 600; }
+  .t-meta .badge {
+    background: #FDE8F0; color: #DB2777; border-radius: 999px; padding: 1px 8px; font-size: 10.5px;
+  }
+  .pri-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; }
+  .t-sub { border-top: 1px solid var(--divider); padding: 9px 14px; }
+  .t-sub-row { display: flex; gap: 9px; align-items: center; padding: 3px 0; font-size: 12.5px; }
+  .t-sub-row .mini-check {
+    width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid #D4D4D4; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff;
+  }
+  .t-sub-row .mini-check.on { background: var(--success); border-color: var(--success); }
+  .t-sub-row .txt.done { color: var(--text-2); text-decoration: line-through; }
+  .t-sub-more { font-size: 11px; color: var(--primary); margin-top: 3px; }
+
+  .fold-header {
+    display: flex; align-items: center; padding: 14px 18px 6px; font-size: 12px; color: var(--text-2); cursor: pointer;
+  }
+  .fold-header .cnt { margin-left: 8px; }
+  .fold-header .chev { margin-left: auto; }
+
+  .tabbar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 84px;
+    background: var(--card); border-top: 1px solid var(--divider);
+    display: flex; align-items: flex-start; padding-top: 10px; z-index: 10;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--text-2); }
+  .tab .ico { font-size: 20px; }
+  .tab.on { color: var(--primary); font-weight: 600; }
+  .tab.add .ico {
+    width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 22px; margin-top: -18px;
+    box-shadow: 0 6px 14px rgba(244,109,56,.4); font-weight: 600;
+  }
+  .tab.add span { color: var(--primary); }
+
+  /* 标注 */
+  .hotzone {
+    position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+    outline: 2px dashed rgba(244,109,56,.85); outline-offset: -3px;
+    display: none;
+  }
+  .phone.show-hot .hotzone { display: block; }
+  .anno-list { width: 390px; }
+  .anno-item { display: flex; gap: 10px; font-size: 13px; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+  .anno-item .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+
+  /* ===== 任务页（合并页） ===== */
+  .taskpage-card {
+    background: var(--card); border-radius: 14px; margin: 0 16px 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.045); overflow: hidden;
+  }
+  .tp-title-row { display: flex; gap: 12px; padding: 16px 14px 6px; align-items: flex-start; }
+  .tp-title {
+    flex: 1; font-size: 18px; font-weight: 700; line-height: 1.3;
+    background: rgba(244,109,56,.05); border-radius: 8px; padding: 4px 6px; margin: -4px -6px;
+    outline: 1px dashed rgba(244,109,56,.55); outline-offset: 2px; cursor: text;
+  }
+  .repeat-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--primary); background: rgba(244,109,56,.1); border-radius: 999px; padding: 2px 9px; margin: 6px 0 0 35px; }
+  .tp-desc-wrap { padding: 4px 14px 10px; }
+  .tp-desc {
+    font-size: 13.5px; color: var(--text-1); min-height: 44px;
+    background: rgba(244,109,56,.05); border-radius: 8px; padding: 8px 10px;
+    outline: 1px dashed rgba(244,109,56,.55); outline-offset: 2px; cursor: text;
+  }
+  .tp-desc .ph { color: #B9B9B9; }
+  .tp-voice { display: flex; justify-content: flex-end; gap: 8px; padding: 0 14px 12px; align-items: center; }
+  .voice-mic {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.14);
+  }
+  .voice-spark { width: 28px; height: 28px; border-radius: 50%; background: rgba(244,109,56,.12); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 13px; }
+
+  .tp-section-head { display: flex; align-items: center; padding: 12px 14px 4px; font-size: 12px; color: var(--text-2); }
+  .tp-section-head .cnt { margin-left: auto; font-size: 11px; }
+  .tp-progress { height: 4px; border-radius: 3px; background: rgba(147,147,147,.16); margin: 4px 14px 8px; overflow: hidden; }
+  .tp-progress .fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .5s; }
+  .sub-row { display: flex; gap: 11px; align-items: center; padding: 9px 14px; position: relative; }
+  .sub-row + .sub-row { border-top: 1px solid var(--divider); }
+  .sub-row .check2 {
+    width: 20px; height: 20px; border-radius: 50%; border: 1.6px solid #CFCFCF; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; cursor: pointer;
+  }
+  .sub-row .check2.on { background: var(--success); border-color: var(--success); }
+  .sub-row .stxt { flex: 1; font-size: 14px; cursor: text; }
+  .sub-row .stxt.done { color: var(--text-2); text-decoration: line-through; }
+  .sub-row .del-x { color: #C4C4C4; font-size: 15px; cursor: pointer; padding: 4px; visibility: hidden; }
+  .sub-row:hover .del-x { visibility: visible; }
+  .sub-add {
+    display: flex; gap: 11px; align-items: center; padding: 10px 14px;
+    border-top: 1px dashed var(--divider); color: var(--primary); font-size: 14px; cursor: text;
+  }
+  .sub-add input {
+    flex: 1; border: none; outline: none; font-size: 14px; font-family: inherit; background: transparent;
+  }
+  .sub-add input::placeholder { color: #C4C4C4; }
+  .sub-add .plus-btn {
+    margin-left: auto; width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700;
+    background: rgba(244,109,56,.12); color: var(--primary);
+  }
+  .sub-add .plus-btn.ready { background: var(--primary); color: #fff; cursor: pointer; }
+  .sub-empty-hint { padding: 4px 14px 12px; font-size: 11.5px; color: #B9B9B9; }
+
+  .att-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 4px 14px 14px; }
+  .att-thumb { aspect-ratio: 1; border-radius: 10px; background: linear-gradient(135deg,#FED7AA,#FDBA74); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .att-add {
+    aspect-ratio: 1; border-radius: 10px; border: 1.5px dashed #D8D8D8; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px; color: var(--text-2); font-size: 10.5px; cursor: pointer;
+  }
+
+  .prop-row {
+    display: flex; align-items: center; gap: 11px; padding: 12.5px 14px; font-size: 14px; cursor: pointer;
+  }
+  .prop-row + .prop-row { border-top: 1px solid var(--divider); }
+  .prop-row .p-ico { width: 21px; text-align: center; color: var(--text-2); font-size: 15px; }
+  .prop-row .p-name { color: var(--text-1); }
+  .prop-row .p-val { margin-left: auto; color: var(--text-2); font-size: 13px; display: flex; align-items: center; gap: 3px; max-width: 55%; justify-content: flex-end; }
+  .prop-row .p-val .strong { color: var(--primary); font-weight: 600; }
+  .prop-row .p-val .over { color: var(--error); font-weight: 600; }
+  .prop-row .chev { color: #C4C4C4; font-size: 13px; }
+  .prop-row .p-val .pills { display: flex; gap: 5px; }
+  .prop-row .p-val .pill { font-size: 11.5px; padding: 2px 10px; border-radius: 7px; }
+  .source-row { display: flex; gap: 11px; padding: 13px 14px; align-items: center; cursor: pointer; }
+  .source-row .s-ico { color: var(--primary); font-size: 15px; width: 21px; text-align: center; }
+  .source-row .s-body { flex: 1; min-width: 0; }
+  .source-row .s-k { font-size: 12px; color: var(--text-2); }
+  .source-row .s-v { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .tp-toast {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 110px;
+    background: rgba(28,28,30,.88); color: #fff; font-size: 12.5px;
+    border-radius: 999px; padding: 8px 18px; z-index: 20; pointer-events: none;
+    opacity: 0; transition: opacity .3s; white-space: nowrap;
+  }
+  .tp-toast.show { opacity: 1; }
+
+  /* ===== 子任务四步特写 ===== */
+  .subdemo-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .subdemo {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .subdemo .shot {
+    background: var(--bg); padding: 16px; border-bottom: 1px solid var(--border); flex: 1;
+    display: flex; flex-direction: column; justify-content: flex-start; gap: 0;
+  }
+  .subdemo .mini-card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.05); overflow: hidden; }
+  .subdemo .cap { padding: 12px 16px 16px; font-size: 12.5px; color: var(--text-1); }
+  .subdemo .cap b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+  .subdemo .stepno { font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: .5px; }
+  .cursor-blink { display: inline-block; width: 1.5px; height: 16px; background: var(--primary); animation: blink 1s step-end infinite; vertical-align: middle; margin-left: 1px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .kbd {
+    display: inline-block; border: 1px solid #D8D8D8; border-bottom-width: 2.5px; border-radius: 5px;
+    padding: 0 7px; font-size: 11.5px; background: #FAFAF8; margin: 0 2px;
+  }
+
+  /* 可交互演示 */
+  .playground {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; margin-top: 16px;
+  }
+  .playground h4 { font-size: 14px; margin-bottom: 4px; }
+  .playground .hint { font-size: 12.5px; color: var(--text-2); margin-bottom: 16px; }
+  .pg-card { max-width: 420px; background: var(--bg); border-radius: 14px; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+
+  /* ===== 规格表 ===== */
+  table.spec { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 14px; overflow: hidden; font-size: 13.5px; }
+  table.spec th { background: #F7F6F2; text-align: left; padding: 10px 16px; font-size: 12.5px; color: var(--text-2); border-bottom: 1px solid var(--border); }
+  table.spec td { padding: 10px 16px; border-bottom: 1px solid var(--divider); vertical-align: top; }
+  table.spec tr:last-child td { border-bottom: none; }
+  table.spec td.area { font-weight: 600; white-space: nowrap; }
+  .spec .old-tag { color: #DC2626; font-size: 11.5px; background: #FEF2F2; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .spec .new-tag { color: #16A34A; font-size: 11.5px; background: #F0FDF4; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .spec .same-tag { color: var(--text-2); font-size: 11.5px; background: #F5F4F0; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+
+  .check-table td:nth-child(3) { color: var(--text-2); }
+  .check-table .yes { color: #16A34A; font-weight: 700; }
+  .check-table .pos { color: var(--primary-dark); font-weight: 600; }
+
+  .notdo {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px;
+    font-size: 13.5px;
+  }
+  .notdo ul { margin-left: 18px; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+  @media (max-width: 1020px) {
+    .diag-grid, .principles { grid-template-columns: 1fr; }
+    .flow-compare { grid-template-columns: 1fr; }
+    .flow-arrow { transform: rotate(90deg); padding: 12px 0; }
+    .subdemo-steps { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===================== 头部 ===================== -->
+  <div class="doc-header">
+    <h1>任务模块 · 交互重构方案</h1>
+    <div class="sub">2026-08-16 · 基于现有代码逐行梳理 · 不新增功能、不删减功能，只重组交互与界面</div>
+    <div class="conclusion">
+      <b>一句话结论：</b>现在「不好用」的根源不是某个按钮放错了位置，而是<b>信息架构多了一层「只读详情页」</b>——
+      看任务和改任务被拆成两个页面、两层弹窗，导致每个修改都要走 5~7 步；同时子任务录入框把「按钮、输入框、提交方式」三种形态混在一起，用户看不懂。
+      本次重构只做一个核心动作：<b>砍掉只读详情页，把「查看」和「编辑」合并成一个任务页，点进去直接改</b>，其余所有功能原样保留、重新归位。
+    </div>
+  </div>
+
+  <!-- ===================== 一、诊断 ===================== -->
+  <section>
+    <div class="sec-title"><span class="num">01</span><h2>诊断：用户反馈对应的真实根源</h2></div>
+    <p class="sec-desc">下面每一条都对应到代码里的具体位置，不是猜测。「用户感知」是反馈原话，「实际发生」是代码现状。</p>
+    <div class="diag-grid">
+      <div class="diag-card">
+        <span class="tag">反馈 ①</span>
+        <h3>「点卡片没用，只有点字才能进详情」</h3>
+        <div class="diag-row"><span class="k">实际发生</span><span class="v">卡片里只有<b>中间那段文字区域</b>是可点的（代码里只给标题+描述那一块加了点击响应）。卡片的留白边距、右侧小圆点、下方子任务清单区，点上去都没有反应。</span></div>
+        <div class="diag-row"><span class="k">根源</span><span class="v">点击热区只包住文字，没有包住整张卡片。用户点卡片 = 点到了「空气」。</span></div>
+        <div class="diag-row"><span class="k">代码位置</span><span class="v"><code>TaskCardView.swift</code> 中 <code>Button(action: onNavigate)</code> 只包裹标题列</span></div>
+      </div>
+      <div class="diag-card">
+        <span class="tag">反馈 ②</span>
+        <h3>「详情页没法编辑，要再点编辑；详情页没存在必要」</h3>
+        <div class="diag-row"><span class="k">实际发生</span><span class="v">详情页是纯展示（只读），右上角一个「方框加铅笔」小图标才能进编辑页，编辑页又是新弹的一层。<b>详情页展示的 9 个区块，与编辑页的表单几乎一模一样</b>——同一份信息做了两套界面。</span></div>
+        <div class="diag-row"><span class="k">根源</span><span class="v">「看」和「改」被人为切成两页。而且编辑页本身已经是「返回自动保存」，根本不需要一个只读中间页。</span></div>
+        <div class="diag-row"><span class="k">代码位置</span><span class="v"><code>TaskDetailView.swift</code>（474 行只读页）→ sheet 弹出 <code>AddTaskSheet.swift</code>（2078 行编辑表单）</span></div>
+      </div>
+      <div class="diag-card">
+        <span class="tag">反馈 ③</span>
+        <h3>「子任务不知道怎么加」</h3>
+        <div class="diag-row"><span class="k">实际发生</span><span class="v">添加子任务的输入行：<b>三种提交方式并存</b>（按回车 / 点「添加」蓝色小胶囊 / 点别处自动提交）；没输入时提示「输入后添加」——这是解释系统行为的文案，不是教用户「子任务是什么」；每行右侧还常驻一个红色垃圾桶，视觉噪音大又怕误触。</span></div>
+        <div class="diag-row"><span class="k">根源</span><span class="v">一个控件承担了太多形态（像按钮又像输入框），提交规则不唯一，用户没有可以预期的、唯一的动作。</span></div>
+        <div class="diag-row"><span class="k">代码位置</span><span class="v"><code>AddTaskSheet.swift</code> checklistSection（约 1145–1193 行）</span></div>
+      </div>
+      <div class="diag-card">
+        <span class="tag">反馈 ④</span>
+        <h3>「整体不好用」——层级与入口的系统性问题</h3>
+        <div class="diag-row"><span class="k">实际发生</span><span class="v">最深要钻 <b>5 层</b>：任务列表 → 详情弹窗 → 编辑弹窗 → 各种选择器弹窗。新建入口在底部「+」，编辑入口藏在详情页右上角小图标；「保存」按钮和「返回即自动保存」并存，用户不确定返回会不会丢改动；优先级藏在「更多属性」折叠里；「完成圆圈」和「状态菜单」两个入口改同一件事。</span></div>
+        <div class="diag-row"><span class="k">根源</span><span class="v">同一件事多个入口、同一动作多种规则——不是哪一个按钮的问题，是缺少「一个意图一个入口」的整体约束。</span></div>
+        <div class="diag-row"><span class="k">代码位置</span><span class="v"><code>TasksView</code> 容器 + <code>AddTaskSheet</code> 顶部按钮区 / advancedPropertiesSection 折叠</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 二、核心方案与流程 ===================== -->
+  <section>
+    <div class="sec-title"><span class="num">02</span><h2>核心方案：合并「详情」与「编辑」，全模块只有两层</h2></div>
+    <p class="sec-desc">以最高频的操作「改一个任务的标题」为例，对比改动前后的完整动线：</p>
+    <div class="flow-compare">
+      <div class="flow-box old">
+        <h3>现状动线</h3>
+        <div class="goal">目标：把任务标题里的错别字改掉</div>
+        <div class="flow-steps">
+          <div class="flow-step"><span class="n">1</span>列表页，点到任务标题文字</div>
+          <div class="flow-step waste"><span class="n">2</span>进入只读详情页</div>
+          <div class="flow-step"><span class="n">3</span>找到右上角「编辑」小图标，点击</div>
+          <div class="flow-step waste"><span class="n">4</span>弹出编辑表单（第二层弹窗）</div>
+          <div class="flow-step"><span class="n">5</span>点标题输入框，修改文字</div>
+          <div class="flow-step waste"><span class="n">6</span>点「保存」</div>
+          <div class="flow-step"><span class="n">7</span>回到详情页，再点返回 → 回列表</div>
+        </div>
+        <div class="flow-stat"><b>7 步</b> · 其中 3 步是纯中转</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box new">
+        <h3>新动线</h3>
+        <div class="goal">目标：同样把任务标题里的错别字改掉</div>
+        <div class="flow-steps">
+          <div class="flow-step"><span class="n">1</span>列表页，点卡片<b>任意位置</b></div>
+          <div class="flow-step"><span class="n">2</span>进入任务页，标题已可编辑，直接点标题修改</div>
+          <div class="flow-step"><span class="n">3</span>点左上角返回 → <b>自动保存</b>，回列表</div>
+        </div>
+        <div class="flow-stat"><b>3 步</b> · 没有中转</div>
+      </div>
+    </div>
+
+    <div class="principles">
+      <div class="principle"><b>原则一：一个意图，一个入口</b>「看任务」和「改任务」是同一个意图，合并为一个任务页；删除任务收进「···」菜单，不再用大红按钮占着页面底部。</div>
+      <div class="principle"><b>原则二：一个动作，一种规则</b>子任务只有一种添加方式（输入+回车）；返回就是保存，不再有第二个「保存」按钮让人怀疑「返回会不会丢」。</div>
+      <div class="principle"><b>原则三：能平铺的不折叠</b>优先级从「更多属性」折叠中拿出来变成普通一行；时间/提醒/重复本就合并在时间一行，维持不变。</div>
+    </div>
+  </section>
+
+  <!-- ===================== 三、原型 ===================== -->
+  <section>
+    <div class="sec-title"><span class="num">03</span><h2>界面原型</h2></div>
+    <p class="sec-desc">三张原型图：左＝任务列表页（改动最小：整卡可点）；中＝新的「任务页」（原详情页+编辑页合并）；右＝子任务交互的逐步特写。虚线框标注的地方表示「点按可编辑」。</p>
+
+    <div class="phones">
+
+      <!-- ============ 手机1：列表页 ============ -->
+      <div class="phone-wrap">
+        <div class="phone-label">① 任务列表页 <span>· 唯一改动：整卡可点</span></div>
+        <div class="phone show-hot" id="phone-list">
+          <div class="statusbar"><span>9:41</span><span>●●●●● 📶 🔋</span></div>
+          <div class="content" style="padding-bottom: 96px;">
+            <div class="app-nav">
+              <div class="back">‹</div>
+              <div class="title">任务</div>
+              <div class="right"><span class="icon-btn">⌕</span><span class="icon-btn">🔔</span><span class="progress-num">3/5</span></div>
+            </div>
+            <div class="chips">
+              <span class="chip on">📋 全部</span><span class="chip">📥 收件箱</span><span class="chip">☀️ 今日</span><span class="chip">✓ 已完成</span><span class="chip">⚠️ 已过期</span><span class="chip">🔵 工作</span><span class="chip dashed">🗄 归档</span>
+            </div>
+
+            <div class="t-card" onclick="toast('phone-list','整卡任意位置点击 → 进入任务页')">
+              <div class="hotzone"></div>
+              <div class="t-main">
+                <div class="check" onclick="event.stopPropagation();this.classList.toggle('done');this.innerHTML=this.classList.contains('done')?'✓':'';"> </div>
+                <div class="t-body">
+                  <div class="t-title">准备周五产品评审的材料</div>
+                  <div class="t-desc">包括竞品对比、上季度数据和演示 Demo 三部分</div>
+                  <div class="t-meta">
+                    <span class="m due-today">🕐 今天 14:00</span>
+                    <span class="m pri" style="color:var(--high)">🚩 高</span>
+                    <span class="m">🔁</span>
+                    <span class="m">工作</span>
+                  </div>
+                </div>
+                <div class="pri-dot" style="background:var(--high)"></div>
+              </div>
+              <div class="t-sub">
+                <div class="t-sub-row"><span class="mini-check on">✓</span><span class="txt done">拉取上季度留存数据</span></div>
+                <div class="t-sub-row"><span class="mini-check"></span><span class="txt">整理竞品功能对比表</span></div>
+              </div>
+            </div>
+
+            <div class="t-card" onclick="toast('phone-list','整卡任意位置点击 → 进入任务页')">
+              <div class="hotzone"></div>
+              <div class="t-main">
+                <div class="check" onclick="event.stopPropagation();this.classList.toggle('done');this.innerHTML=this.classList.contains('done')?'✓':'';"> </div>
+                <div class="t-body">
+                  <div class="t-title">预约牙医复诊</div>
+                  <div class="t-meta"><span class="m">🕐 明天 09:30</span><span class="m">生活</span></div>
+                </div>
+                <div class="pri-dot" style="background:var(--low)"></div>
+              </div>
+            </div>
+
+            <div class="t-card" onclick="toast('phone-list','整卡任意位置点击 → 进入任务页')">
+              <div class="hotzone"></div>
+              <div class="t-main">
+                <div class="check" onclick="event.stopPropagation();this.classList.toggle('done');this.innerHTML=this.classList.contains('done')?'✓':'';"> </div>
+                <div class="t-body">
+                  <div class="t-title">给妈妈买生日礼物</div>
+                  <div class="t-meta"><span class="m due-over">🕐 已过期</span><span class="m badge">🎂 妈妈的生日</span></div>
+                </div>
+                <div class="pri-dot" style="background:var(--urgent)"></div>
+              </div>
+            </div>
+
+            <div class="fold-header"><span>最近已完成</span><span class="cnt">3</span><span class="chev">›</span></div>
+            <div class="t-card">
+              <div class="t-main">
+                <div class="check done">✓</div>
+                <div class="t-body"><div class="t-title done">回复设计稿评审意见</div><div class="t-meta"><span class="m">工作</span></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab"><span class="ico">📊</span><span>统计</span></div>
+            <div class="tab on"><span class="ico">☑️</span><span>任务</span></div>
+            <div class="tab"><span class="ico">💝</span><span>纪念日</span></div>
+            <div class="tab add"><span class="ico">＋</span><span>新增</span></div>
+          </div>
+          <div class="tp-toast" id="toast-phone-list"></div>
+        </div>
+        <div class="anno-list">
+          <div class="anno-item"><span class="dot">1</span><span>卡片<b>任意位置</b>点击都进入任务页（原来只有标题文字可点）。完成圈、子任务勾选框仍保持独立点击，互不干扰。</span></div>
+          <div class="anno-item"><span class="dot">2</span><span>筛选、左滑归档/删除、撤回提示条、最近已完成折叠、底部 Tab——<b>全部维持现状</b>，本页只修热区问题。</span></div>
+          <div class="anno-item"><span class="dot">3</span><span>底部「＋」新建任务，进入<b>同一个任务页</b>（空白态、自动聚焦标题），新建和编辑学一次就会。</span></div>
+        </div>
+      </div>
+
+      <!-- ============ 手机2：任务页 ============ -->
+      <div class="phone-wrap">
+        <div class="phone-label">② 任务页（新）<span>· 详情=编辑，点进去直接改</span></div>
+        <div class="phone" id="phone-task">
+          <div class="statusbar"><span>9:41</span><span>●●●●● 📶 🔋</span></div>
+          <div class="content" style="padding-bottom: 30px;">
+            <div class="app-nav">
+              <div class="back" onclick="toast('phone-task','返回即自动保存，无需点保存')">‹</div>
+              <div class="title">任务</div>
+              <div class="right"><span class="icon-btn" onclick="toast('phone-task','菜单：删除任务（破坏性操作收进菜单）')">⋯</span></div>
+            </div>
+
+            <!-- 标题区 -->
+            <div class="taskpage-card">
+              <div class="tp-title-row">
+                <div class="check" style="width:25px;height:25px;margin-top:3px;" onclick="event.stopPropagation();this.classList.toggle('done');this.innerHTML=this.classList.contains('done')?'✓':'';"> </div>
+                <div class="tp-title" onclick="toast('phone-task','标题：点按直接编辑')">准备周五产品评审的材料</div>
+              </div>
+              <div class="repeat-pill">🔁 每周重复</div>
+              <div class="tp-desc-wrap">
+                <div class="tp-desc" onclick="toast('phone-task','描述：点按直接编辑')">包括竞品对比、上季度数据和演示 Demo 三部分</div>
+              </div>
+              <div class="tp-voice">
+                <div class="voice-spark" title="智能总结开关">✨</div>
+                <div class="voice-mic" onclick="toast('phone-task','语音输入：说一段话，自动拆成标题+子任务')">🎤</div>
+              </div>
+            </div>
+
+            <!-- 子任务区 -->
+            <div class="taskpage-card">
+              <div class="tp-section-head">子任务 <span style="margin-left:6px;font-size:11px;color:#B9B9B9">把大任务拆成小步骤</span><span class="cnt" id="pg-cnt">1/3</span></div>
+              <div class="tp-progress"><div class="fill" id="pg-fill" style="width:33%"></div></div>
+              <div id="pg-rows">
+                <div class="sub-row"><span class="check2 on" onclick="toggleSub(this)">✓</span><span class="stxt done" onclick="editSub(this)">拉取上季度留存数据</span><span class="del-x" onclick="delSub(this)">✕</span></div>
+                <div class="sub-row"><span class="check2" onclick="toggleSub(this)"></span><span class="stxt" onclick="editSub(this)">整理竞品功能对比表</span><span class="del-x" onclick="delSub(this)">✕</span></div>
+                <div class="sub-row"><span class="check2" onclick="toggleSub(this)"></span><span class="stxt" onclick="editSub(this)">准备演示 Demo 环境</span><span class="del-x" onclick="delSub(this)">✕</span></div>
+              </div>
+              <div class="sub-add" id="pg-add" onclick="focusSubInput()">
+                <span>＋</span>
+                <input id="pg-input" placeholder="添加子任务" oninput="syncAddBtn()" onkeydown="if(event.key==='Enter'){addSub();}">
+                <span class="plus-btn" id="pg-plus" onclick="addSub()">＋</span>
+              </div>
+            </div>
+
+            <!-- 附件区 -->
+            <div class="taskpage-card">
+              <div class="tp-section-head">附件 <span class="cnt">2</span></div>
+              <div class="att-grid">
+                <div class="att-thumb" onclick="toast('phone-task','点缩略图 → 全屏查看/滑动浏览')">📈</div>
+                <div class="att-thumb">📊</div>
+                <div class="att-add" onclick="toast('phone-task','拍照 / 从相册选择')"><span style="font-size:18px">＋</span><span>添加附件</span></div>
+              </div>
+            </div>
+
+            <!-- 属性区 -->
+            <div class="taskpage-card">
+              <div class="prop-row" onclick="toast('phone-task','时间面板：日期 / 全天 / 提醒 / 重复，与现状一致')">
+                <span class="p-ico">📅</span><span class="p-name">时间</span>
+                <span class="p-val"><span class="strong">今天 14:00</span> · 提醒2项 · 每周<span class="chev">›</span></span>
+              </div>
+              <div class="prop-row" onclick="toast('phone-task','清单选择：可新建/编辑清单，与现状一致')">
+                <span class="p-ico">📁</span><span class="p-name">清单</span>
+                <span class="p-val">🔵 工作<span class="chev">›</span></span>
+              </div>
+              <div class="prop-row" onclick="toast('phone-task','优先级：四档平铺展示，取消原来的折叠')">
+                <span class="p-ico">🚩</span><span class="p-name">优先级</span>
+                <span class="p-val"><span class="pills">
+                  <span class="pill" style="background:#FEE2E2;color:#B91C1C">紧急</span>
+                  <span class="pill" style="background:#FEF3C7;color:#B45309">高 ✓</span>
+                  <span class="pill" style="background:#F5F4F0;color:#57534E">中</span>
+                  <span class="pill" style="background:#F5F4F0;color:#57534E">低</span>
+                </span></span>
+              </div>
+              <div class="prop-row" onclick="toast('phone-task','状态：待办 / 进行中 / 已完成 三态菜单（现有功能保留）')">
+                <span class="p-ico">◐</span><span class="p-name">状态</span>
+                <span class="p-val">🔴 进行中<span class="chev">›</span></span>
+              </div>
+              <div class="prop-row" onclick="toast('phone-task','目标：由目标模块设置，此处展示归属（现状即如此）')">
+                <span class="p-ico">🎯</span><span class="p-name">目标</span>
+                <span class="p-val">Q3 产品发布<span class="chev">›</span></span>
+              </div>
+            </div>
+
+            <!-- 来源（只读） -->
+            <div class="taskpage-card">
+              <div class="source-row" onclick="toast('phone-task','来源追溯：跳回原始想法（只读，现状保留）')">
+                <span class="s-ico">💡</span>
+                <div class="s-body"><div class="s-k">来自想法</div><div class="s-v">「周五评审要提前把材料备齐，重点讲清留存…」</div></div>
+                <span class="chev" style="color:#C4C4C4;font-size:13px">›</span>
+              </div>
+            </div>
+
+            <div style="text-align:center;color:#B9B9B9;font-size:11px;padding:4px 0 10px">返回时自动保存 · 无需点「保存」按钮</div>
+          </div>
+          <div class="tp-toast" id="toast-phone-task"></div>
+        </div>
+        <div class="anno-list">
+          <div class="anno-item"><span class="dot">1</span><span><b>顶部没有「保存」按钮</b>。返回（或下滑关闭）即自动保存——这就是现在编辑页已有的行为，只是去掉了让人犹豫的双出口。</span></div>
+          <div class="anno-item"><span class="dot">2</span><span>标题、描述用虚线框标注「点按即编辑」；属性行（时间/清单/优先级/状态/目标）点行弹选择器，规则统一：<b>点一行，改一件事</b>。</span></div>
+          <div class="anno-item"><span class="dot">3</span><span>右上角「⋯」菜单收纳<b>删除任务</b>。原编辑页底部的大红「删除任务」按钮取消——破坏性操作不该常驻在编辑视图里，防误触。</span></div>
+          <div class="anno-item"><span class="dot">4</span><span>优先级四档直接平铺在属性行里（原「更多属性」折叠取消），少一次点击、少一个折叠概念。</span></div>
+        </div>
+      </div>
+
+      <!-- ============ 手机3：子任务特写 ============ -->
+      <div class="phone-wrap">
+        <div class="phone-label">③ 子任务交互特写 <span>· 四步走，规则唯一</span></div>
+        <div style="width:390px;background:var(--bg);border:10px solid #1C1C1E;border-radius:48px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.14)">
+          <div class="statusbar" style="padding:0 28px;height:44px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600"><span>9:41</span><span>●●●●●</span></div>
+          <div style="padding:10px 14px 20px">
+            <div class="mini-card" style="margin-bottom:12px;background:var(--card);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05);overflow:hidden">
+              <div style="padding:11px 14px 3px;font-size:12px;color:var(--text-2)">子任务 · 把大任务拆成小步骤</div>
+              <div class="sub-add" style="border-top:none">
+                <span style="color:var(--primary);font-weight:700">＋</span>
+                <span style="color:var(--primary);font-size:14px">添加子任务</span>
+              </div>
+              <div style="padding:0 14px 12px;font-size:11px;color:#B9B9B9">第一步：看到的是一行明确的入口，点它开始输入</div>
+            </div>
+            <div class="mini-card" style="margin-bottom:12px;background:var(--card);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05);overflow:hidden">
+              <div style="padding:11px 14px 0;font-size:12px;color:var(--text-2)">子任务</div>
+              <div class="sub-add" style="border-top:none;padding-top:6px">
+                <span style="color:var(--primary);font-weight:700">＋</span>
+                <span style="font-size:14px;color:var(--text-1)">买牛奶<span class="cursor-blink"></span></span>
+                <span class="plus-btn ready" style="margin-left:auto">＋</span>
+              </div>
+              <div style="padding:0 14px 12px;font-size:11px;color:#B9B9B9">第二步：输入后行尾「＋」点亮，<span class="kbd">回车</span> 或点「＋」添加</div>
+            </div>
+            <div class="mini-card" style="margin-bottom:12px;background:var(--card);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05);overflow:hidden">
+              <div style="padding:11px 14px 3px;font-size:12px;color:var(--text-2)">子任务 <span style="float:right;font-size:11px">1/3</span></div>
+              <div class="sub-row" style="padding-top:6px"><span class="check2 on">✓</span><span class="stxt done">买牛奶</span></div>
+              <div class="sub-row"><span class="check2"></span><span class="stxt">买鸡蛋</span></div>
+              <div class="sub-row"><span class="check2"></span><span class="stxt">买面包</span></div>
+              <div class="sub-add"><span style="color:var(--primary);font-weight:700">＋</span><span style="font-size:14px;color:#B9B9B9">继续输入下一条…</span></div>
+              <div style="padding:0 14px 12px;font-size:11px;color:#B9B9B9">第三步：添加后输入框留在原地，<b>连续回车连续加</b>，不用重新点入口</div>
+            </div>
+            <div class="mini-card" style="background:var(--card);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05);overflow:hidden">
+              <div style="padding:11px 14px 3px;font-size:12px;color:var(--text-2)">子任务</div>
+              <div class="sub-row" style="padding-top:6px"><span class="check2"></span><span class="stxt">买鸡蛋</span><span class="del-x" style="visibility:visible;color:#EF4444">✕</span></div>
+              <div class="sub-row"><span class="stxt" style="flex:1"><span style="color:var(--text-1)">买面</span><span class="cursor-blink"></span></span></div>
+              <div class="sub-add"><span style="color:var(--primary);font-weight:700">＋</span><span style="font-size:14px;color:#B9B9B9">添加子任务</span></div>
+              <div style="padding:0 14px 12px;font-size:11px;color:#B9B9B9">第四步：点<b>文字</b>＝原地改名；点<b>圈</b>＝勾选完成；行滑出/悬停出现 ✕＝删除（红色垃圾桶不再常驻）</div>
+            </div>
+          </div>
+        </div>
+        <div class="anno-list">
+          <div class="anno-item"><span class="dot">1</span><span>去掉「输入后添加」提示和「添加」胶囊。<b>唯一的提交动作 = 回车（或行尾＋）</b>，规则只有一种，不再有第二种猜测。</span></div>
+          <div class="anno-item"><span class="dot">2</span><span>输入行回车后<b>保持聚焦</b>继续录下一条；输入为空时再回车自动收起——想加就加，想停就停。</span></div>
+          <div class="anno-item"><span class="dot">3</span><span>区块标题旁一句固定说明「把大任务拆成小步骤」，第一次就看懂子任务是什么；进度条、全部完成时的庆祝动效保留。</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 可交互演示 -->
+    <div class="playground">
+      <h4>👆 可试玩：上面「任务页」原型的子任务区就是真实交互</h4>
+      <div class="hint">点「＋ 添加子任务」行 → 输入文字 → 按<span class="kbd">回车</span>添加；点圈勾选；点文字改名；点行尾 ✕ 删除。下面是独立演示区，可以随便玩：</div>
+      <div class="pg-card">
+        <div class="tp-section-head">子任务 <span style="margin-left:6px;font-size:11px;color:#B9B9B9">把大任务拆成小步骤</span><span class="cnt" id="pg2-cnt">0/0</span></div>
+        <div class="tp-progress" style="display:none" id="pg2-bar"><div class="fill" id="pg2-fill" style="width:0%"></div></div>
+        <div id="pg2-rows"></div>
+        <div class="sub-add" id="pg2-add" onclick="document.getElementById('pg2-input').focus()">
+          <span>＋</span>
+          <input id="pg2-input" placeholder="添加子任务，输入后按回车" oninput="syncAddBtn2()" onkeydown="if(event.key==='Enter'){addSub2()}">
+          <span class="plus-btn" id="pg2-plus" onclick="addSub2()">＋</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 四、交互规格 ===================== -->
+  <section>
+    <div class="sec-title"><span class="num">04</span><h2>交互规格：每个元素的行为定义</h2></div>
+    <p class="sec-desc">开发对照表。标「改」的是本次变化，标「不变」的明确保持现状，避免实现时走样。</p>
+    <table class="spec">
+      <tr><th style="width:110px">区域</th><th style="width:210px">元素</th><th>行为定义</th></tr>
+      <tr><td class="area" rowspan="4">任务列表页</td><td>任务卡片 <span class="new-tag">改</span></td><td>整卡为点击热区（含留白、元信息、子任务平铺区），点按进入任务页。完成圈、子任务勾选框、纪念日来源徽章是卡内独立交互点，点击不触发跳转。</td></tr>
+      <tr><td>左滑操作 <span class="same-tag">不变</span></td><td>左滑露出「归档 / 删除」，逻辑与现状一致。</td></tr>
+      <tr><td>完成与撤回 <span class="same-tag">不变</span></td><td>点完成圈 → 3 秒撤回提示条；重复任务完成生成下一期。逻辑与现状一致。</td></tr>
+      <tr><td>筛选 / 搜索 / 归档入口 <span class="same-tag">不变</span></td><td>顶部筛选胶囊（含清单筛选）、搜索、通知设置、今日进度、归档管理，全部维持现状。</td></tr>
+      <tr><td class="area" rowspan="6">任务页<br><span style="font-weight:400;font-size:11px;color:var(--text-2)">（新页面 =<br>原详情+编辑合并）</span></td><td>返回（左上‹）<span class="new-tag">改</span></td><td>返回即自动保存（沿用现有 autoSave 逻辑）。顶部不再有「保存」按钮。</td></tr>
+      <tr><td>标题 / 描述 <span class="new-tag">改</span></td><td>点按直接编辑（不用先进「编辑模式」）。语音输入、智能总结开关保留在描述区右下角。</td></tr>
+      <tr><td>子任务 <span class="new-tag">改</span></td><td>规则见下方子任务规格。勾选联动父任务完成、进度条、庆祝动效、编辑模式下即时写库——全部保留。</td></tr>
+      <tr><td>属性行（时间/清单/优先级/状态/目标）<span class="new-tag">改</span></td><td>统一为「点一行弹一层选择器」。时间行内含日期/全天/提醒/重复（现状已如此）。优先级取消「更多属性」折叠，平铺四档。</td></tr>
+      <tr><td>附件 <span class="same-tag">不变</span></td><td>缩略图点按全屏浏览；添加入口弹「拍照/相册」。逻辑与现状一致。</td></tr>
+      <tr><td>「⋯」菜单 <span class="new-tag">改</span></td><td>收纳「删除任务」（带确认弹窗，文案与现状一致）。原底部大红删除按钮取消。</td></tr>
+      <tr><td class="area" rowspan="5">子任务</td><td>添加入口 <span class="new-tag">改</span></td><td>区块底部常驻「＋ 添加子任务」行；点按聚焦输入，placeholder「添加子任务，输入后按回车」。</td></tr>
+      <tr><td>提交方式 <span class="new-tag">改</span></td><td>唯一规则：回车（键盘「下一项」）或行尾「＋」按钮。取消「输入后添加」提示文案与独立「添加」胶囊。</td></tr>
+      <tr><td>连续录入 <span class="same-tag">不变</span></td><td>提交后保持聚焦，可连续输入；输入为空时回车/失焦自动收起并清空（防丢字的自动提交逻辑保留）。</td></tr>
+      <tr><td>行内操作 <span class="new-tag">改</span></td><td>点圈＝勾选；点文字＝原地改名（现状已有，保留）；删除改为行滑出删除 + 常驻的红色垃圾桶降为灰色「✕」（仅 Android 风格悬停/编辑态显示——iOS 实现为行左滑删除与「✕」二选一，以实现简洁为准，功能不减）。</td></tr>
+      <tr><td>进度反馈 <span class="same-tag">不变</span></td><td>标题计数「1/3」、进度条、全部完成庆祝动画、子任务全勾自动完成父任务——保留。</td></tr>
+      <tr><td class="area">新建任务</td><td>底部「＋」入口 <span class="new-tag">改</span></td><td>进入同一个任务页（空白态、自动聚焦标题）。返回时：有标题→创建；无标题但填过其他内容→弹「放弃/继续编辑」确认（现状逻辑）；完全空白→直接关闭。</td></tr>
+    </table>
+  </section>
+
+  <!-- ===================== 五、功能保留核对 ===================== -->
+  <section>
+    <div class="sec-title"><span class="num">05</span><h2>功能保留核对表（不新增 · 不删减）</h2></div>
+    <p class="sec-desc">逐项核对现有功能在新方案里的位置。右列全部为「✔ 保留」，只是搬家；没有任何一项被移除，也没有发明新功能。</p>
+    <table class="spec check-table">
+      <tr><th style="width:230px">现有功能</th><th style="width:70px">是否保留</th><th>新方案中的位置</th></tr>
+      <tr><td>任务筛选（全部/收件箱/今日/已完成/已过期/清单）</td><td class="yes">✔</td><td class="pos">列表页筛选胶囊（原地不动）</td></tr>
+      <tr><td>搜索 / 通知设置 / 归档管理 / 今日进度</td><td class="yes">✔</td><td class="pos">列表页顶栏与筛选行（原地不动）</td></tr>
+      <tr><td>左滑归档 / 删除、完成撤回 3 秒提示条</td><td class="yes">✔</td><td class="pos">列表页（原地不动）</td></tr>
+      <tr><td>最近已完成折叠、已完成按周分组</td><td class="yes">✔</td><td class="pos">列表页（原地不动）</td></tr>
+      <tr><td>通知点击深链直达任务</td><td class="yes">✔</td><td class="pos">直达新的任务页（原直达详情页）</td></tr>
+      <tr><td>标题 / 描述编辑、语音输入 + 智能总结</td><td class="yes">✔</td><td class="pos">任务页标题区（点按即编辑）</td></tr>
+      <tr><td>语音说一段话自动拆解为标题+子任务</td><td class="yes">✔</td><td class="pos">任务页语音入口（逻辑不动）</td></tr>
+      <tr><td>截止日期 / 全天 / 提醒 / 重复规则（每周、每月、自定义、结束条件）</td><td class="yes">✔</td><td class="pos">任务页「时间」行 → 日期面板（面板不动）</td></tr>
+      <tr><td>子任务：添加 / 改名 / 勾选 / 删除 / 进度条 / 庆祝动画 / 全勾联动父任务</td><td class="yes">✔</td><td class="pos">任务身子任务区（交互简化，功能不变）</td></tr>
+      <tr><td>附件：拍照 / 相册 / 预览 / 删除（上限 9 张）</td><td class="yes">✔</td><td class="pos">任务页附件区（原地不动）</td></tr>
+      <tr><td>清单选择 / 新建清单 / 编辑清单 / 删除清单</td><td class="yes">✔</td><td class="pos">任务页「清单」行 → 清单选择器（选择器不动）</td></tr>
+      <tr><td>优先级四档（紧急/高/中/低）</td><td class="yes">✔</td><td class="pos">任务页「优先级」行（从折叠改为平铺）</td></tr>
+      <tr><td>状态三态（待办/进行中/已完成）</td><td class="yes">✔</td><td class="pos">任务页「状态」行（菜单不动）</td></tr>
+      <tr><td>目标归属展示、来源想法追溯</td><td class="yes">✔</td><td class="pos">任务页属性区（只读行，现状即如此）</td></tr>
+      <tr><td>纪念日来源徽章跳转纪念日详情</td><td class="yes">✔</td><td class="pos">列表卡片元信息行（原地不动）</td></tr>
+      <tr><td>删除任务（确认弹窗 / 回收站恢复）</td><td class="yes">✔</td><td class="pos">任务页「⋯」菜单（入口收纳，逻辑不动）</td></tr>
+      <tr><td>重复任务完成自动生成下一期</td><td class="yes">✔</td><td class="pos">完成圆圈（逻辑不动）</td></tr>
+      <tr><td>底部 Tab（统计/任务/纪念日/＋）</td><td class="yes">✔</td><td class="pos">TasksView 容器（原地不动）</td></tr>
+      <tr><td>记忆上次选择的清单</td><td class="yes">✔</td><td class="pos">新建任务时的默认清单（逻辑不动）</td></tr>
+    </table>
+  </section>
+
+  <!-- ===================== 六、边界 ===================== -->
+  <section>
+    <div class="sec-title"><span class="num">06</span><h2>明确不做的事</h2></div>
+    <div class="notdo">
+      为了让这次重构「只减复杂度、不加复杂度」，以下事项明确排除在外：
+      <ul>
+        <li><b>不加新功能</b>：不加子任务拖拽排序、不加任务标签、不加批量操作、不加子任务的子任务——这些都是新功能，等重构落地后单独评审。</li>
+        <li><b>不动数据层</b>：Core Data 模型、仓库接口、同步逻辑零改动，纯界面与交互层重构，风险可控。</li>
+        <li><b>不动其他模块</b>：统计页、纪念日、每日看板里的任务卡片、AI 对话里的任务卡、Widget 均不在本次范围（它们各自有自己的入口，后续如需对齐再单独排期）。</li>
+        <li><b>视觉风格不变</b>：沿用现有品牌橙、卡片、圆角、字体体系，本次只重排信息与操作，不做视觉改版。</li>
+      </ul>
+    </div>
+  </section>
+
+  <div style="text-align:center;color:var(--text-2);font-size:12.5px;margin-top:56px">—— 原型确认后开工改代码，实施范围：TaskCardView / TaskListView / TaskDetailView 与 AddTaskSheet 合并重构 ——</div>
+</div>
+
+<script>
+  // toast
+  function toast(phoneId, msg) {
+    const el = document.getElementById('toast-' + phoneId);
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+
+  // ===== 任务页原型的子任务（可交互） =====
+  const pgInput = document.getElementById('pg-input');
+  const pgPlus = document.getElementById('pg-plus');
+  function focusSubInput() { pgInput.focus(); }
+  function syncAddBtn() { pgPlus.classList.toggle('ready', pgInput.value.trim() !== ''); }
+  function refreshPg() {
+    const rows = document.querySelectorAll('#pg-rows .sub-row');
+    const done = document.querySelectorAll('#pg-rows .sub-row .check2.on').length;
+    document.getElementById('pg-cnt').textContent = done + '/' + rows.length;
+    document.getElementById('pg-fill').style.width = (rows.length ? done / rows.length * 100 : 0) + '%';
+    document.getElementById('pg-fill').style.background = (rows.length && done === rows.length) ? 'var(--success)' : 'var(--primary)';
+  }
+  function addSub() {
+    const v = pgInput.value.trim();
+    if (!v) { pgInput.blur(); return; }
+    const row = document.createElement('div');
+    row.className = 'sub-row';
+    row.innerHTML = '<span class="check2" onclick="toggleSub(this)"></span><span class="stxt" onclick="editSub(this)"></span><span class="del-x" onclick="delSub(this)">✕</span>';
+    row.querySelector('.stxt').textContent = v;
+    document.getElementById('pg-rows').appendChild(row);
+    pgInput.value = ''; syncAddBtn(); refreshPg();
+  }
+  function toggleSub(el) {
+    el.classList.toggle('on');
+    el.textContent = el.classList.contains('on') ? '✓' : '';
+    const txt = el.parentElement.querySelector('.stxt');
+    txt.classList.toggle('done', el.classList.contains('on'));
+    refreshPg();
+  }
+  function delSub(el) { el.closest('.sub-row').remove(); refreshPg(); }
+  function editSub(el) { toast('phone-task', '点文字 = 原地改名（现有交互保留）'); }
+  refreshPg();
+
+  // ===== 独立演示区 =====
+  const in2 = document.getElementById('pg2-input');
+  const plus2 = document.getElementById('pg2-plus');
+  function syncAddBtn2() { plus2.classList.toggle('ready', in2.value.trim() !== ''); }
+  function refreshPg2() {
+    const rows = document.querySelectorAll('#pg2-rows .sub-row');
+    const done = document.querySelectorAll('#pg2-rows .sub-row .check2.on').length;
+    document.getElementById('pg2-cnt').textContent = done + '/' + rows.length;
+    const bar = document.getElementById('pg2-bar');
+    bar.style.display = rows.length ? 'block' : 'none';
+    const fill = document.getElementById('pg2-fill');
+    fill.style.width = (rows.length ? done / rows.length * 100 : 0) + '%';
+    fill.style.background = (rows.length && done === rows.length) ? 'var(--success)' : 'var(--primary)';
+  }
+  function addSub2() {
+    const v = in2.value.trim();
+    if (!v) { in2.blur(); return; }
+    const row = document.createElement('div');
+    row.className = 'sub-row';
+    row.innerHTML = '<span class="check2" onclick="toggleSub2(this)"></span><span class="stxt" onclick="editSub2(this)"></span><span class="del-x" onclick="delSub2(this)">✕</span>';
+    row.querySelector('.stxt').textContent = v;
+    document.getElementById('pg2-rows').appendChild(row);
+    in2.value = ''; syncAddBtn2(); refreshPg2();
+  }
+  function toggleSub2(el) {
+    el.classList.toggle('on');
+    el.textContent = el.classList.contains('on') ? '✓' : '';
+    el.parentElement.querySelector('.stxt').classList.toggle('done', el.classList.contains('on'));
+    refreshPg2();
+  }
+  function delSub2(el) { el.closest('.sub-row').remove(); refreshPg2(); }
+  function editSub2(el) {
+    const cur = el.textContent;
+    const input = document.createElement('input');
+    input.value = cur;
+    input.style.cssText = 'flex:1;border:none;outline:none;font-size:14px;font-family:inherit;background:transparent';
+    el.replaceWith(input);
+    input.focus(); input.select();
+    const commit = () => {
+      const span = document.createElement('span');
+      span.className = 'stxt' + (input.parentElement.querySelector('.check2').classList.contains('on') ? ' done' : '');
+      span.onclick = function () { editSub2(this); };
+      span.textContent = input.value.trim() || cur;
+      input.replaceWith(span);
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  }
+  refreshPg2();
+</script>
+</body>
+</html>
