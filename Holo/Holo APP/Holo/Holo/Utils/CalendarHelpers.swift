@@ -9,7 +9,8 @@ import Foundation
 
 // MARK: - Date 扩展
 
-extension Date {
+/// 纯日历计算，无 UI 状态；显式 nonisolated 纠正默认主线程隔离误判（供 AI 后台链路等非主线程调用）
+nonisolated extension Date {
     
     /// 获取所在周的周一（中文习惯：周一起始）
     var startOfWeek: Date {
@@ -45,7 +46,7 @@ extension Date {
     var isToday: Bool { Calendar.current.isDateInToday(self) }
     
     func isSameDay(as other: Date) -> Bool {
-        Calendar.current.isDate(self, inSameDayAs: other)
+        startOfDay == other.startOfDay
     }
     
     func isSameMonth(as other: Date) -> Bool {

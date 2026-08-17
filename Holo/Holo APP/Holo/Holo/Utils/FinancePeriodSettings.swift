@@ -21,7 +21,7 @@ final class FinancePeriodSettings: ObservableObject {
 
     // MARK: - Keys
 
-    private static let cycleStartDayKey = "financePeriodBillingCycleStartDay"
+    private nonisolated static let cycleStartDayKey = "financePeriodBillingCycleStartDay"
 
     // MARK: - Properties
 

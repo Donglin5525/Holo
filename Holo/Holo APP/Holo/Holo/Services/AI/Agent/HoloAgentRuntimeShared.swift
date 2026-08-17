@@ -145,7 +145,6 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
         }
         if source == "anniversary.events" {
             // 纪念日是「下一次发生」语义的少量固定事件，不按历史时间窗过滤（过滤会丢未来事件）
-            let reference = Date()
             return await HoloDefaultAnniversaryDataSource().activeAnniversaries().map { record in
                 HoloQueryRow(
                     id: "anniversary-\(record.id.uuidString)",

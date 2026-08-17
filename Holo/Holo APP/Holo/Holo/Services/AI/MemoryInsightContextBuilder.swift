@@ -1073,7 +1073,7 @@ struct MemoryInsightContextBuilder {
         )
 
         // 纪念日事件
-        await Self.collectAnniversaryEvents(
+        Self.collectAnniversaryEvents(
             start: start,
             end: end,
             dateFormatter: dateFormatter,

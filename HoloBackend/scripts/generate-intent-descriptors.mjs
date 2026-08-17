@@ -80,7 +80,7 @@ const fileContent = `//
 
 import Foundation
 
-struct IntentDescriptor {
+nonisolated struct IntentDescriptor {
     /// 同一行合写的意图 rawValue（如 complete_task / delete_task），与后端 intents.json 的 ids 同构
     let ids: [String]
     /// 一句话定义（进提示词，与后端 summary 逐字节一致）

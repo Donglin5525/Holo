@@ -13,7 +13,7 @@
 
 import Foundation
 
-struct BillingCycleCalculator {
+nonisolated struct BillingCycleCalculator {
 
     // MARK: - 月底 cap
 
