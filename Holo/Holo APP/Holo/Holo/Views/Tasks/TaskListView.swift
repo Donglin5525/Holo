@@ -129,10 +129,20 @@ struct TaskListView: View {
     @AppStorage("taskList.selectedPresetFilter") private var selectedPresetFilterRaw: String = "today"
     /// 当前筛选（从持久化恢复）
     @State private var selectedFilter: TaskFilterType = .all
+    /// 排序偏好分两个槽位持久化：主列表与已完成页语义不同（已完成页默认「完成时间·最近在前」）
+    @AppStorage("taskList.sortOption") private var mainSortOptionRaw: String = TaskSortOption.due.rawValue
+    @AppStorage("taskList.sortAscending") private var mainSortAscendingRaw: Bool = true
+    @AppStorage("taskList.completedSortOption") private var completedSortOptionRaw: String = TaskSortOption.completed.rawValue
+    @AppStorage("taskList.completedSortAscending") private var completedSortAscendingRaw: Bool = false
+    /// 当前排序方式与方向（切筛选时从对应槽位装填）
+    @State private var sortOption: TaskSortOption = .due
+    @State private var sortAscending = true
+    /// 排序弹层
+    @State private var showSortSheet = false
     /// 缓存的过滤结果
     @State private var cachedFilteredTasks: [TodoTask] = []
-    /// 手动折叠的时间组（默认折叠集在 onAppear 初始化，之后完全由用户掌控）
-    @State private var collapsedGroups: Set<TaskTimeGroup> = []
+    /// 手动折叠的分组（默认折叠集在 onAppear 初始化，之后完全由用户掌控；key 兼容时间组与优先级组）
+    @State private var collapsedGroups: Set<String> = []
 
     /// 所有清单（包括没有文件夹的）
     private var allLists: [TodoList] {
@@ -231,9 +241,11 @@ struct TaskListView: View {
             default: selectedFilter = .all
             }
             onFilterChanged?(selectedFilter)
+            // 恢复当前筛选对应的排序偏好槽位
+            restoreSortPreference()
             // 首次进入初始化默认折叠集（远期组收起降噪）
             if collapsedGroups.isEmpty {
-                collapsedGroups = Set(TaskTimeGroup.allCases.filter(\.foldsByDefault))
+                collapsedGroups = Set(TaskTimeGroup.allCases.filter(\.foldsByDefault).map(\.rawValue))
             }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1)) {
                 heroAppeared = true
@@ -260,6 +272,8 @@ struct TaskListView: View {
         .onChange(of: selectedFilter) { _, newFilter in
             updateFilteredTasks()
             onFilterChanged?(newFilter)
+            // 切筛选时装填对应槽位的排序偏好（主列表 / 已完成页各一份）
+            restoreSortPreference()
             // 持久化预设筛选（清单筛选不持久化，每次重选）
             switch newFilter {
             case .all: selectedPresetFilterRaw = "all"
@@ -288,6 +302,17 @@ struct TaskListView: View {
                 // 否则用户会被困在 sheet 里无法返回。
                 TaskNotFoundView(onDismiss: { selectedTask = nil })
             }
+        }
+        .sheet(isPresented: $showSortSheet) {
+            TaskSortSheet(
+                availableOptions: availableSortOptions,
+                sortOption: $sortOption,
+                sortAscending: $sortAscending,
+                onPick: { option, ascending in
+                    applySort(option, ascending: ascending)
+                }
+            )
+            .presentationDetents([.medium])
         }
         .sheet(isPresented: $showArchiveManagement) {
             ArchiveManagementView(repository: repository)
@@ -571,63 +596,106 @@ struct TaskListView: View {
     // MARK: - 筛选器
 
     private var filterPickerView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                // 「今日」为第一视图（任务模块最高频视角）
-                filterChip(.today)
-                filterChip(.inbox)
-                filterChip(.all)
-                filterChip(.completed)
+        HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    // 「今日」为第一视图（任务模块最高频视角）
+                    filterChip(.today)
+                    filterChip(.inbox)
+                    filterChip(.all)
+                    filterChip(.completed)
 
-                // 过期：带红色计数角标
-                filterChip(.overdue)
-                    .overlay(alignment: .topTrailing) {
-                        if overdueCount > 0 {
-                            Text("\(overdueCount)")
-                                .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Color.holoError))
-                                .offset(x: 5, y: -5)
-                                .allowsHitTesting(false)
+                    // 过期：带红色计数角标
+                    filterChip(.overdue)
+                        .overlay(alignment: .topTrailing) {
+                            if overdueCount > 0 {
+                                Text("\(overdueCount)")
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1.5)
+                                    .background(Capsule().fill(Color.holoError))
+                                    .offset(x: 5, y: -5)
+                                    .allowsHitTesting(false)
+                            }
                         }
-                    }
 
-                // 清单筛选收纳为单入口
-                listMenuChip
+                    // 清单筛选收纳为单入口
+                    listMenuChip
 
-                // 归档入口
-                Button {
-                    showArchiveManagement = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "archivebox")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("归档")
-                            .font(.holoCaption)
+                    // 归档入口
+                    Button {
+                        showArchiveManagement = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "archivebox")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("归档")
+                                .font(.holoCaption)
+                        }
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(
+                            Capsule()
+                                .fill(Color.holoCardBackground)
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(
+                                            style: StrokeStyle(lineWidth: 1, dash: [4])
+                                        )
+                                        .foregroundColor(.holoDivider)
+                                )
+                        )
                     }
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(
-                        Capsule()
-                            .fill(Color.holoCardBackground)
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(
-                                        style: StrokeStyle(lineWidth: 1, dash: [4])
-                                    )
-                                    .foregroundColor(.holoDivider)
-                            )
-                    )
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, HoloSpacing.xs)
             }
-            .padding(.horizontal, HoloSpacing.xs)
-            .padding(.vertical, HoloSpacing.md)
+
+            // 排序入口固定筛选条右端：不随过滤胶囊滚动、始终可见
+            // （非默认排序时高亮显示当前排法，让排序状态可见、可改）
+            sortChip
         }
+        .padding(.vertical, HoloSpacing.md)
         .background(Color.holoBackground)
+    }
+
+    /// 排序胶囊：默认与过滤胶囊同族样式；用户改过排序后浅橙底 + 橙字显示当前排法
+    private var sortChip: some View {
+        let isDefault = sortOption == contextDefaultSort
+            && sortAscending == contextDefaultSort.defaultAscending
+
+        return Button {
+            showSortSheet = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(isDefault
+                     ? "排序"
+                     : "\(sortOption.title) · \(sortOption.directionLabel(ascending: sortAscending))")
+                    .font(.holoCaption)
+                    .lineLimit(1)
+            }
+            .foregroundColor(isDefault ? .holoTextSecondary : .holoPrimaryDark)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule().fill(
+                    isDefault ? Color.holoCardBackground : Color.holoPrimary.opacity(0.10)
+                )
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    isDefault ? Color.holoDivider : Color.holoPrimary.opacity(0.35),
+                    lineWidth: 1
+                )
+            )
+            // 排序文案随选择变宽，fixedSize 防止胶囊被压成省略号（同清单胶囊）
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
     }
 
     /// 筛选胶囊：选中态为品牌橙渐变实底 + 轻投影（与 Hero 同源语言）
@@ -734,18 +802,17 @@ struct TaskListView: View {
             ? cachedFilteredTasks
             : cachedFilteredTasks.filter { !$0.completed }
 
-        let groups = Dictionary(grouping: groupingTasks, by: { TaskTimeGroup.group(for: $0) })
-
-        ForEach(TaskTimeGroup.allCases, id: \.self) { group in
-            if let members = groups[group], !members.isEmpty {
-                groupHeader(group, count: members.count)
-
-                if !collapsedGroups.contains(group) {
-                    ForEach(sortedInGroup(members), id: \.id) { task in
-                        taskRow(task)
-                    }
-                }
-            }
+        // 排序方案自带分组策略：截止时间→时间分组；优先级→四分组；创建时间→平铺
+        switch sortOption.grouping {
+        case .time:
+            timeGroupedContent(groupingTasks)
+        case .priority:
+            priorityGroupedContent(groupingTasks)
+        case .flat:
+            flatContent(groupingTasks)
+        case .week:
+            // 完成时间排序仅已完成页可选，其他页不会出现；按时间分组兜底
+            timeGroupedContent(groupingTasks)
         }
 
         // 最近已完成折叠抽屉（非今日视图；今日视图的完成卡已直接展示在组内）
@@ -757,42 +824,92 @@ struct TaskListView: View {
         }
     }
 
-    /// 组内排序：截止时间升序，无日期排组尾
-    private func sortedInGroup(_ members: [TodoTask]) -> [TodoTask] {
-        members.sorted { a, b in
-            switch (a.dueDate, b.dueDate) {
-            case (nil, nil):
-                return false
-            case (nil, _):
-                return false
-            case (_, nil):
-                return true
-            default:
-                return a.dueDate! < b.dueDate!
+    /// 时间分组流（现版本结构：组序固定为信息架构，方向只作用于组内排序）
+    @ViewBuilder
+    private func timeGroupedContent(_ groupingTasks: [TodoTask]) -> some View {
+        let groups = Dictionary(grouping: groupingTasks, by: { TaskTimeGroup.group(for: $0) })
+
+        ForEach(TaskTimeGroup.allCases, id: \.self) { group in
+            if let members = groups[group], !members.isEmpty {
+                groupHeader(
+                    id: group.rawValue,
+                    title: group.title,
+                    dotColor: group.dotColor,
+                    count: members.count
+                )
+
+                if !collapsedGroups.contains(group.rawValue) {
+                    ForEach(sortedMembers(members), id: \.id) { task in
+                        taskRow(task)
+                    }
+                }
             }
         }
     }
 
+    /// 优先级分组流：紧急/高/中/低四组，方向翻转组序；同级内按截止时间早→晚
+    @ViewBuilder
+    private func priorityGroupedContent(_ groupingTasks: [TodoTask]) -> some View {
+        let priorities = sortAscending
+            ? TaskPriority.allCasesSorted.reversed()
+            : TaskPriority.allCasesSorted
+
+        ForEach(priorities, id: \.rawValue) { priority in
+            let members = groupingTasks.filter { $0.taskPriority == priority }
+            if !members.isEmpty {
+                groupHeader(
+                    id: "priority-\(priority.rawValue)",
+                    title: priority.displayTitle,
+                    dotColor: priority.color,
+                    count: members.count
+                )
+
+                if !collapsedGroups.contains("priority-\(priority.rawValue)") {
+                    ForEach(sortedMembers(members), id: \.id) { task in
+                        taskRow(task)
+                    }
+                }
+            }
+        }
+    }
+
+    /// 平铺流：不分组，全量按当前排序排
+    @ViewBuilder
+    private func flatContent(_ groupingTasks: [TodoTask]) -> some View {
+        let sorted = sortedMembers(groupingTasks)
+        if !sorted.isEmpty {
+            SectionHeaderView(title: "按\(sortOption.title)排列", count: sorted.count)
+            ForEach(sorted, id: \.id) { task in
+                taskRow(task)
+            }
+        }
+    }
+
+    /// 组内排序：按当前排序方式（空值恒沉底、并列次级兜底由比较器保证）
+    private func sortedMembers(_ members: [TodoTask]) -> [TodoTask] {
+        members.sorted { sortOption.areInOrder($0, $1, ascending: sortAscending) }
+    }
+
     /// 分组头：语义色点 + 组名 + 计数 + 折叠箭头
-    private func groupHeader(_ group: TaskTimeGroup, count: Int) -> some View {
-        let isCollapsed = collapsedGroups.contains(group)
+    private func groupHeader(id: String, title: String, dotColor: Color, count: Int) -> some View {
+        let isCollapsed = collapsedGroups.contains(id)
 
         return Button {
             HapticManager.selection()
             withAnimation(.easeInOut(duration: 0.22)) {
                 if isCollapsed {
-                    collapsedGroups.remove(group)
+                    collapsedGroups.remove(id)
                 } else {
-                    collapsedGroups.insert(group)
+                    collapsedGroups.insert(id)
                 }
             }
         } label: {
             HStack(spacing: 7) {
                 Circle()
-                    .fill(group.dotColor)
+                    .fill(dotColor)
                     .frame(width: 7, height: 7)
 
-                Text(group.title)
+                Text(title)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
 
@@ -826,13 +943,13 @@ struct TaskListView: View {
 
     // MARK: - 已完成 Tab 内容
 
-    /// 已完成 tab：按周分组展示所有已完成任务（现状逻辑）
+    /// 已完成 tab：按周分组展示（周序固定近→远），组内顺序由当前排序决定
     @ViewBuilder
     private var completedTabContent: some View {
         let weekGroups = completedTasksGroupedByWeek
         ForEach(weekGroups, id: \.title) { group in
             SectionHeaderView(title: group.title, count: group.tasks.count)
-            ForEach(group.tasks, id: \.id) { task in
+            ForEach(sortedMembers(group.tasks), id: \.id) { task in
                 taskRow(task)
             }
         }
@@ -1017,6 +1134,47 @@ struct TaskListView: View {
         }
     }
 
+    // MARK: - 排序偏好
+
+    /// 当前上下文的默认排序（主列表=截止时间早→晚，已完成页=完成时间最近在前）
+    private var contextDefaultSort: TaskSortOption {
+        selectedFilter == .completed ? .completed : .due
+    }
+
+    /// 当前筛选下可选的排序方式（完成时间只在已完成页出现并置顶）
+    private var availableSortOptions: [TaskSortOption] {
+        if selectedFilter == .completed {
+            return [.completed, .due, .priority, .created]
+        }
+        return [.due, .priority, .created]
+    }
+
+    /// 从持久化槽位装填当前筛选的排序偏好（主列表与已完成页各一份）
+    private func restoreSortPreference() {
+        if selectedFilter == .completed {
+            sortOption = TaskSortOption(rawValue: completedSortOptionRaw) ?? .completed
+            sortAscending = completedSortAscendingRaw
+        } else {
+            sortOption = TaskSortOption(rawValue: mainSortOptionRaw) ?? .due
+            sortAscending = mainSortAscendingRaw
+        }
+    }
+
+    /// 应用排序选择：立即持久化到当前上下文对应槽位，并带重排动画
+    private func applySort(_ option: TaskSortOption, ascending: Bool) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            sortOption = option
+            sortAscending = ascending
+        }
+        if selectedFilter == .completed {
+            completedSortOptionRaw = option.rawValue
+            completedSortAscendingRaw = ascending
+        } else {
+            mainSortOptionRaw = option.rawValue
+            mainSortAscendingRaw = ascending
+        }
+    }
+
     // MARK: - 空状态
 
     private var emptyStateView: some View {
@@ -1052,11 +1210,9 @@ struct TaskListView: View {
 
     // MARK: - 已完成任务按周分组
 
-    /// 已完成任务按周分组（用于「已完成」tab）
+    /// 已完成任务按周分组（用于「已完成」tab）；组内排序统一交给 sortedMembers
     private var completedTasksGroupedByWeek: [(title: String, tasks: [TodoTask])] {
-        let completedTasks = cachedFilteredTasks
-            .filter { $0.completed }
-            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        let completedTasks = cachedFilteredTasks.filter { $0.completed }
 
         let calendar = Calendar.current
         var groups: [Date: [TodoTask]] = [:]
@@ -1166,6 +1322,180 @@ struct TaskListView: View {
     private func isCompletedRecently(_ task: TodoTask) -> Bool {
         guard let completedAt = task.completedAt else { return false }
         return completedAt >= Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+    }
+}
+
+// MARK: - Task Sort Sheet
+
+/// 排序方式弹层：选项随当前筛选动态增减，即点即生效（不关闭，方便继续调方向）
+/// 视觉语言与记账弹层同源：居中标题 + 左关闭/右完成、卡片白底、行间细分隔线
+private struct TaskSortSheet: View {
+    let availableOptions: [TaskSortOption]
+    @Binding var sortOption: TaskSortOption
+    @Binding var sortAscending: Bool
+    let onPick: (TaskSortOption, Bool) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.sm)
+                .padding(.bottom, HoloSpacing.sm)
+
+            Divider()
+                .overlay(Color.holoDivider)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    ForEach(availableOptions) { option in
+                        optionRow(option)
+                    }
+
+                    directionSection
+
+                    Divider()
+                        .overlay(Color.holoDivider)
+                        .padding(.top, HoloSpacing.md)
+
+                    resetButton
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.xs)
+                .padding(.bottom, HoloSpacing.xl)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // detent 区域整体铺卡片白，杜绝内容不满时露出系统底色的断层
+        .background(Color.holoCardBackground)
+    }
+
+    /// 顶栏：居中标题 + 左关闭 + 右完成（与记账弹层同构）
+    private var topBar: some View {
+        ZStack {
+            Text("排序方式")
+                .font(.holoHeading)
+                .foregroundColor(.holoTextPrimary)
+
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoBackground)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    Text("完成")
+                        .font(.holoBody)
+                        .foregroundColor(.holoPrimary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(height: 44)
+    }
+
+    /// 方向切换：文案随维度说人话
+    private var directionSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("「\(sortOption.title)」的排列方向")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            Picker("", selection: directionBinding) {
+                Text(sortOption.directionLabel(ascending: true)).tag(true)
+                Text(sortOption.directionLabel(ascending: false)).tag(false)
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.top, HoloSpacing.md)
+    }
+
+    /// 恢复当前上下文的默认排序
+    private var resetButton: some View {
+        Button {
+            let defaultOption = availableOptions.first == TaskSortOption.completed
+                ? TaskSortOption.completed
+                : TaskSortOption.due
+            onPick(defaultOption, defaultOption.defaultAscending)
+        } label: {
+            Text("恢复默认排序")
+                .font(.holoBody)
+                .foregroundColor(.holoError)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 方向切换的 binding：切方向时保持当前排序方式
+    private var directionBinding: Binding<Bool> {
+        Binding(
+            get: { sortAscending },
+            set: { ascending in
+                onPick(sortOption, ascending)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func optionRow(_ option: TaskSortOption) -> some View {
+        let isSelected = sortOption == option
+
+        Button {
+            // 换排序方式时方向重置为该维度的直觉默认方向
+            onPick(option, option.defaultAscending)
+        } label: {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Image(systemName: option.icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(isSelected ? Color.holoPrimary.opacity(0.10) : Color.holoBackground)
+                        )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(option.title)
+                            .font(.holoBody.weight(isSelected ? .semibold : .medium))
+                            .foregroundColor(isSelected ? .holoPrimaryDark : .holoTextPrimary)
+                        Text(option.subtitle)
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.holoPrimary)
+                    }
+                }
+                .padding(.vertical, 11)
+                .contentShape(Rectangle())
+
+                // 行间细分隔线，与文字左缘对齐
+                Rectangle()
+                    .fill(Color.holoDivider)
+                    .frame(height: 0.5)
+                    .padding(.leading, 44)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
