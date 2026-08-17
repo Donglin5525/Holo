@@ -219,6 +219,28 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_CATEGORY_INDUCTION_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_CATEGORY_INDUCTION_MAX_TOKENS ?? 2048),
     },
+    // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）：
+    // 两个 purpose 都只输出短结构化 JSON（列号指认 / 科目路径指认），无多步推理需求，
+    // 与 thought_organization 同机制配 reasoningEffort=none。
+    bill_column_mapping: {
+      provider: process.env.HOLO_BILL_COLUMN_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_BILL_COLUMN_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_BILL_COLUMN_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_BILL_COLUMN_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_BILL_COLUMN_MAX_TOKENS ?? 1024),
+    },
+    bill_categorization: {
+      provider: process.env.HOLO_BILL_CATEGORIZATION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_BILL_CATEGORIZATION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_BILL_CATEGORIZATION_TEMPERATURE ?? 0.2),
+      reasoningEffort: process.env.HOLO_BILL_CATEGORIZATION_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_BILL_CATEGORIZATION_MAX_TOKENS ?? 4096),
+      // 一次整年账单的科目匹配会连续打 10~30 次调用，限流桶放宽到与 agent_loop 同档。
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_MINUTE ?? 30),
+        perDay: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_DAY ?? 300),
+      },
+    },
     agent_loop: {
       provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",

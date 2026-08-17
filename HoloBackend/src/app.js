@@ -1215,6 +1215,9 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "agent_loop") return QUOTA_TYPES.deepAnalysis;
   if (purpose === "weekly_plan_generation") return QUOTA_TYPES.lifePlan;
   if (purpose === "finance_action_parser") return QUOTA_TYPES.naturalLanguageFinance;
+  // 账单导入的 AI 列映射/科目匹配与自然语言记账同属财务语义池；
+  // Plus 前置由客户端在首次 AI 调用前把守，此处只兜量（B3：不开无限量桶）。
+  if (purpose === "bill_column_mapping" || purpose === "bill_categorization") return QUOTA_TYPES.naturalLanguageFinance;
   if (purpose === "task_action_parser") return QUOTA_TYPES.naturalLanguageTask;
   if (purpose === "insight") return QUOTA_TYPES.memoryInsight;
   return null;

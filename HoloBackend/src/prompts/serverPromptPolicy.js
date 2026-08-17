@@ -30,6 +30,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   thought_task_extraction: "thought_task_extraction",
   thought_tag_convergence: "thought_tag_convergence",
   category_pattern_induction: "category_pattern_induction",
+  bill_column_mapping: "bill_column_mapping",
+  bill_categorization: "bill_categorization",
   agent_loop: "agent_loop",
 });
 
