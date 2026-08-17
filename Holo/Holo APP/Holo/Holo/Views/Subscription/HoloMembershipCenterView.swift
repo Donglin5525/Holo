@@ -96,9 +96,10 @@ struct HoloMembershipCenterView: View {
                 }
 
                 HStack(spacing: HoloSpacing.sm) {
-                    membershipMetric("HoloAI", entitlementState.isPlusActive ? "30/天" : "3/天")
+                    membershipMetric("HoloAI", entitlementState.isPlusActive ? "30/天" : "15/天")
+                    membershipMetric("深度洞察", entitlementState.isPlusActive ? "10/天" : "2/天")
                     membershipMetric("语音识别", entitlementState.isPlusActive ? "50/天" : "20/天")
-                    membershipMetric("任务", entitlementState.isPlusActive ? "50/天" : "10/天")
+                    membershipMetric("任务", entitlementState.isPlusActive ? "50/天" : "20/天")
                 }
             }
             .padding(18)
@@ -212,10 +213,12 @@ struct HoloMembershipCenterView: View {
     private func displayName(for key: String) -> String {
         switch key {
         case "chat": return "HoloAI"
+        case "deepAnalysis": return "深度洞察"
         case "naturalLanguageFinance": return "智能记账"
         case "naturalLanguageTask": return "智能任务"
         case "asr": return "语音识别"
         case "memoryInsight": return "记忆洞察"
+        case "lifePlan": return "每周计划"
         default: return key
         }
     }

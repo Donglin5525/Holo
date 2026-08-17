@@ -181,7 +181,7 @@ struct PersonalView: View {
                     HStack(spacing: HoloSpacing.sm) {
                         plusFeaturePill(
                             "HoloAI",
-                            value: entitlementState.isPlusActive ? "30/天" : "3/天"
+                            value: entitlementState.isPlusActive ? "30/天" : "15/天"
                         )
                         plusFeaturePill(
                             "语音识别",
@@ -189,7 +189,7 @@ struct PersonalView: View {
                         )
                         plusFeaturePill(
                             "任务",
-                            value: entitlementState.isPlusActive ? "50/天" : "10/天"
+                            value: entitlementState.isPlusActive ? "50/天" : "20/天"
                         )
                     }
 

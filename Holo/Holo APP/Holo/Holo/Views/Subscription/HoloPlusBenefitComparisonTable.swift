@@ -36,8 +36,14 @@ enum HoloPlusBenefits {
         .init(
             icon: "message.badge.waveform",
             name: "HoloAI 对话",
-            freeValue: .text("3 次/天"),
+            freeValue: .text("15 次/天"),
             plusValue: .text("30 次/天")
+        ),
+        .init(
+            icon: "brain.head.profile",
+            name: "深度洞察",
+            freeValue: .text("2 次/天"),
+            plusValue: .text("10 次/天")
         ),
         .init(
             icon: "waveform",
@@ -60,8 +66,14 @@ enum HoloPlusBenefits {
         .init(
             icon: "checklist",
             name: "智能任务",
-            freeValue: .text("10 次/天"),
+            freeValue: .text("20 次/天"),
             plusValue: .text("50 次/天")
+        ),
+        .init(
+            icon: "calendar.badge.clock",
+            name: "每周生活计划",
+            freeValue: .text("1 次/周"),
+            plusValue: .text("2 次/周")
         ),
         .init(
             icon: "memories",

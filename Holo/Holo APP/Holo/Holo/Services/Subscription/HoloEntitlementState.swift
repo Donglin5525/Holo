@@ -55,20 +55,25 @@ final class HoloEntitlementState: ObservableObject {
     }
 
     private static func acceptanceQuotas(for tier: HoloSubscriptionTier) -> [String: HoloQuotaSnapshot] {
+        // 数值与后端 quotaPolicy.js 对齐；仅为冷启动/服务端不可达时的展示兜底
         let limits: [String: Int] = tier == .plus
             ? [
                 "chat": 30,
+                "deepAnalysis": 10,
                 "naturalLanguageFinance": 50,
                 "naturalLanguageTask": 50,
                 "asr": 50,
-                "memoryInsight": 1
+                "memoryInsight": 1,
+                "lifePlan": 2
             ]
             : [
-                "chat": 3,
+                "chat": 15,
+                "deepAnalysis": 2,
                 "naturalLanguageFinance": 20,
-                "naturalLanguageTask": 10,
+                "naturalLanguageTask": 20,
                 "asr": 20,
-                "memoryInsight": 1
+                "memoryInsight": 1,
+                "lifePlan": 1
             ]
 
         return limits.mapValues {

@@ -69,13 +69,15 @@ struct HoloPlusPaywallView: View {
 
     private var benefits: some View {
         VStack(alignment: .leading, spacing: 0) {
-            benefitComparisonRow(icon: "message.badge.waveform", name: "HoloAI", free: "3/天", plus: "30/天")
+            benefitComparisonRow(icon: "message.badge.waveform", name: "HoloAI", free: "15/天", plus: "30/天")
+            CardDivider()
+            benefitComparisonRow(icon: "brain.head.profile", name: "深度洞察", free: "2/天", plus: "10/天")
             CardDivider()
             benefitComparisonRow(icon: "waveform", name: "语音识别", free: "20/天", plus: "50/天")
             CardDivider()
             benefitComparisonRow(icon: "timer", name: "语音时长", free: "60 秒", plus: "5 分钟")
             CardDivider()
-            benefitComparisonRow(icon: "sparkles.rectangle.stack", name: "智能记账+任务", free: "10~20/天", plus: "50/天")
+            benefitComparisonRow(icon: "sparkles.rectangle.stack", name: "智能记账+任务", free: "20/天", plus: "50/天")
             CardDivider()
             benefitComparisonRow(icon: "rectangle.stack.badge.plus", name: "4 类桌面小组件", free: nil, plus: "解锁")
         }
