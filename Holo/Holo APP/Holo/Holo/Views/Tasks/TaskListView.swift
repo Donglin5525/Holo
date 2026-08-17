@@ -61,6 +61,8 @@ struct TaskListView: View {
 
     @ObservedObject var repository: TodoRepository
     let onBack: () -> Void
+    /// 把当前筛选上下文传给外层新增入口，保证新增任务继承当前视图语义。
+    var onFilterChanged: ((TaskFilterType) -> Void)? = nil
 
     /// 任务列表（本地缓存）
     @State private var tasks: [TodoTask] = []
@@ -190,6 +192,7 @@ struct TaskListView: View {
             case "overdue": selectedFilter = .overdue
             default: selectedFilter = .all
             }
+            onFilterChanged?(selectedFilter)
             // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
             guard CoreDataStack.shared.isReady else { return }
             loadTasks()
@@ -211,6 +214,7 @@ struct TaskListView: View {
         }
         .onChange(of: selectedFilter) { _, newFilter in
             updateFilteredTasks()
+            onFilterChanged?(newFilter)
             // 持久化预设筛选（清单筛选不持久化，每次重选）
             switch newFilter {
             case .all: selectedPresetFilterRaw = "all"

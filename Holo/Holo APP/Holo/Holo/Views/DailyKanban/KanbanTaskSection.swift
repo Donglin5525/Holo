@@ -101,7 +101,11 @@ struct KanbanTaskSection: View {
             }
         }
         .sheet(isPresented: $showAddSheet) {
-            TaskDetailView(repository: todoRepo, list: nil)
+            TaskDetailView(
+                repository: todoRepo,
+                list: nil,
+                defaultDueDate: Calendar.current.startOfDay(for: Date())
+            )
         }
         .sheet(item: $selectedTask) { selection in
             if let task = todoRepo.findTask(by: selection.id) {

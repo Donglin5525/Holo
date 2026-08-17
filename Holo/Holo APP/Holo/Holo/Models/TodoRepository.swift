@@ -806,7 +806,16 @@ class TodoRepository: ObservableObject {
             format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate < %@",
             now as NSDate
         )
-        return (try? context.fetch(request)) ?? []
+        // Core Data 只能按存储的原始日期筛选；全天任务存的是当天 00:00，
+        // 因此这里必须再按统一的有效截止时间过滤，避免今天的全天任务被误判为过期。
+        return (try? context.fetch(request))?.filter {
+            TodoTaskDatePolicy.isOverdue(
+                dueDate: $0.dueDate,
+                isAllDay: $0.isAllDay,
+                completed: $0.completed,
+                now: now
+            )
+        } ?? []
     }
 
     /// 获取指定优先级的任务

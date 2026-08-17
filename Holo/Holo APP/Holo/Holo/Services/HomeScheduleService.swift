@@ -164,7 +164,8 @@ class HomeScheduleService: ObservableObject {
             .filter { !$0.completed }
             .sorted { ($0.effectiveDueDate ?? .distantFuture) < ($1.effectiveDueDate ?? .distantFuture) }
         if let task = todayTasks.first {
-            let timeStr = formatTime(task.effectiveDueDate)
+            // 全天任务表达“今天”，不能把统一截止边界 23:59 当成用户设置的具体时刻。
+            let timeStr = task.isAllDay ? "今天" : formatTime(task.effectiveDueDate)
             return (
                 ScheduleCandidate(
                     id: "task:\(task.id.uuidString)",

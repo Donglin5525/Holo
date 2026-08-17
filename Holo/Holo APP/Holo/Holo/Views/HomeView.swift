@@ -854,6 +854,10 @@ struct HomeView: View {
         case .thoughtDetail(let thoughtId):
             pendingThoughtDetailId = thoughtId
             navigateToScreen(.thoughts)
+            // 清掉一次性参数，保证下次跳转同一条想法时仍能触发 onChange。
+            DispatchQueue.main.async {
+                pendingThoughtDetailId = nil
+            }
             deepLinkState.pendingTarget = nil
         case .memoryGallery:
             navigateToScreen(.memoryGallery)

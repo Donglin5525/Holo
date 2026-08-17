@@ -46,6 +46,8 @@ private struct TaskDescriptionHeightPreferenceKey: PreferenceKey {
 struct TaskDetailView: View {
     @ObservedObject var repository: TodoRepository
     let existingTask: TodoTask?
+    /// 新建入口传入的默认截止日期；仅用于区分自动填充和用户主动编辑。
+    let defaultDueDate: Date?
     var onBack: (() -> Void)? = nil
 
     @Environment(\.dismiss) var dismiss
@@ -143,6 +145,7 @@ struct TaskDetailView: View {
     init(task: TodoTask, repository: TodoRepository, onBack: (() -> Void)? = nil) {
         self.repository = repository
         self.existingTask = task
+        self.defaultDueDate = nil
         self.onBack = onBack
 
         _title = State(initialValue: task.title)
@@ -173,13 +176,21 @@ struct TaskDetailView: View {
     }
 
     /// 新建模式：底部「＋」、首页深链、看板进入
-    init(repository: TodoRepository, list: TodoList? = nil) {
+    init(
+        repository: TodoRepository,
+        list: TodoList? = nil,
+        defaultDueDate: Date? = nil
+    ) {
         self.repository = repository
         self.existingTask = nil
+        self.defaultDueDate = defaultDueDate
         self.onBack = nil
 
         let rememberedId = list?.id ?? (UserDefaults.standard.string(forKey: "lastSelectedListId").flatMap { UUID(uuidString: $0) })
         _selectedListId = State(initialValue: rememberedId)
+        _dueDate = State(initialValue: defaultDueDate ?? Date())
+        _hasDueDate = State(initialValue: defaultDueDate != nil)
+        _hasTime = State(initialValue: false)
     }
 
     // MARK: - Body
@@ -378,10 +389,17 @@ struct TaskDetailView: View {
         } else {
             return !title.trimmingCharacters(in: .whitespaces).isEmpty
                 || !description.isEmpty
-                || hasDueDate
+                || hasCustomizedDefaultDueDate
                 || hasRepeat
                 || !pendingCheckItems.isEmpty
         }
+    }
+
+    /// 自动填充的今天日期本身不应让空白新建页弹出“未保存”确认。
+    private var hasCustomizedDefaultDueDate: Bool {
+        guard hasDueDate else { return false }
+        guard let defaultDueDate else { return true }
+        return !Calendar.current.isDate(dueDate, inSameDayAs: defaultDueDate)
     }
 
     private var canSave: Bool {
@@ -1411,28 +1429,39 @@ struct TaskDetailView: View {
     @ViewBuilder
     private func sourceThoughtSection(_ thought: Thought) -> some View {
         VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                Image(systemName: "lightbulb")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 24)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("来自想法")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
-                    Text(thought.firstLine ?? String(thought.content.prefix(30)))
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
+            Button {
+                let thoughtId = thought.id
+                HapticManager.selection()
+                dismiss()
+                // 先关闭任务详情，再交给 HomeView 切到想法模块并打开这条想法。
+                DispatchQueue.main.async {
+                    DeepLinkState.shared.navigate(to: .thoughtDetail(thoughtId: thoughtId))
                 }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "lightbulb")
+                        .font(.system(size: 16))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 24)
 
-                Spacer()
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("来自想法")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                        Text(thought.firstLine ?? String(thought.content.prefix(30)))
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                    }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
             }
+            .buttonStyle(.plain)
 
             // 选中文字转任务时保留的原文选区（任务标题后来改过时仍可追溯来源句）
             if let snippet = existingTask?.sourceTextSnippet, !snippet.isEmpty {

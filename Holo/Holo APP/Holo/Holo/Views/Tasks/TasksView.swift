@@ -51,6 +51,8 @@ struct TasksView: View {
     @State private var selectedTab: TodoTab = .tasks
     @State private var showAddTask: Bool = false
     @State private var showNotificationSettings: Bool = false
+    /// 任务列表当前筛选，用于底部新增按钮继承「今日」或具体清单上下文。
+    @State private var selectedTaskFilter: TaskFilterType = .today
 
     /// 直接使用单例，避免 @StateObject 创建新实例
     private var repository: TodoRepository { TodoRepository.shared }
@@ -66,7 +68,11 @@ struct TasksView: View {
                 case .stats:
                     TaskStatsView(repository: repository, onBack: { close() })
                 case .tasks:
-                    TaskListView(repository: repository, onBack: { close() })
+                    TaskListView(
+                        repository: repository,
+                        onBack: { close() },
+                        onFilterChanged: { selectedTaskFilter = $0 }
+                    )
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })
                 case .add:
@@ -80,8 +86,24 @@ struct TasksView: View {
             todoTabBar
         }
         .sheet(isPresented: $showAddTask) {
-            TaskDetailView(repository: repository, list: nil)
+            TaskDetailView(
+                repository: repository,
+                list: selectedListForNewTask,
+                defaultDueDate: defaultDueDateForNewTask
+            )
         }
+    }
+
+    /// 当前位于具体清单时，新任务直接归入该清单。
+    private var selectedListForNewTask: TodoList? {
+        guard case .list(let listId) = selectedTaskFilter else { return nil }
+        return repository.findList(by: listId)
+    }
+
+    /// 当前位于「今日」时，新任务默认带上今天的全天截止日期。
+    private var defaultDueDateForNewTask: Date? {
+        guard selectedTaskFilter == .today else { return nil }
+        return Calendar.current.startOfDay(for: Date())
     }
 
     // MARK: - 底部 Tab 栏

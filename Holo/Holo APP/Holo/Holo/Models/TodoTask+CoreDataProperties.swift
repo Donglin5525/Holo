@@ -62,34 +62,29 @@ extension TodoTask {
 
     /// 判断是否已过期
     var isOverdue: Bool {
-        guard !completed, let dueDate = effectiveDueDate else { return false }
-        return dueDate < Date()
+        TodoTaskDatePolicy.isOverdue(
+            dueDate: dueDate,
+            isAllDay: isAllDay,
+            completed: completed
+        )
     }
 
     /// 判断是否今天到期
     var isDueToday: Bool {
-        guard let dueDate = dueDate else { return false }
-        return Calendar.current.isDateInToday(dueDate)
+        TodoTaskDatePolicy.isDueToday(dueDate: dueDate)
     }
 
     /// 判断是否明天到期
     var isDueTomorrow: Bool {
-        guard let dueDate = dueDate else { return false }
-        return Calendar.current.isDateInTomorrow(dueDate)
+        TodoTaskDatePolicy.isDueTomorrow(dueDate: dueDate)
     }
 
     /// 有效截止时间（全天任务返回 23:59:59）
     var effectiveDueDate: Date? {
-        guard let dueDate else { return nil }
-        if isAllDay {
-            return Calendar.current.date(
-                bySettingHour: 23,
-                minute: 59,
-                second: 59,
-                of: dueDate
-            )
-        }
-        return dueDate
+        TodoTaskDatePolicy.effectiveDueDate(
+            dueDate: dueDate,
+            isAllDay: isAllDay
+        )
     }
 
     /// 检查清单完成进度

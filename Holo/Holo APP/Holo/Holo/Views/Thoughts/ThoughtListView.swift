@@ -266,6 +266,12 @@ struct ThoughtListView: View {
                 selectedThoughtId = initialThoughtId
             }
         }
+        .onChange(of: initialThoughtId) { _, newValue in
+            // 想法模块已常驻时，任务页再次跳转也要能打开新的详情。
+            if let newValue {
+                selectedThoughtId = newValue
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             // 节流：批量整理每条完成都发通知，合并 500ms 后统一刷新，避免主线程卡顿
             refreshTask?.cancel()
