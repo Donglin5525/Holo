@@ -176,6 +176,8 @@ export function createApp(overrides = {}) {
     ),
     reportStore: contentReportStore,
     db: database.db,
+    acceptanceStore,
+    entitlementResolver,
   });
 
   app.get("/v1/health", (context) => {
@@ -1207,7 +1209,11 @@ function buildSubscriptionStatus(entitlement, quotaStore) {
 }
 
 function quotaTypeForPurpose(purpose) {
-  if (["chat", "analysis", "agent_loop"].includes(purpose)) return QUOTA_TYPES.chat;
+  // chat/analysis 都是单轮对话（聊天页分析模式成本与闲聊相同），共用对话池；
+  // agent_loop 是多轮工具循环（单次 15~25s、多次上游调用），成本高一个量级，独立成池。
+  if (purpose === "chat" || purpose === "analysis") return QUOTA_TYPES.chat;
+  if (purpose === "agent_loop") return QUOTA_TYPES.deepAnalysis;
+  if (purpose === "weekly_plan_generation") return QUOTA_TYPES.lifePlan;
   if (purpose === "finance_action_parser") return QUOTA_TYPES.naturalLanguageFinance;
   if (purpose === "task_action_parser") return QUOTA_TYPES.naturalLanguageTask;
   if (purpose === "insight") return QUOTA_TYPES.memoryInsight;

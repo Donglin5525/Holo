@@ -231,6 +231,13 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    id: 13,
+    description: '权益覆盖表新增有效期列（运营手动开通 Plus 的到期回收，NULL=永久）',
+    up: `
+      ALTER TABLE subscription_acceptance_overrides ADD COLUMN expires_at TEXT;
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

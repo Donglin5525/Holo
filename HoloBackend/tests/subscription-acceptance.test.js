@@ -91,7 +91,9 @@ test("free and plus acceptance modes use isolated quotas and followPurchase rest
   assert.equal(free.tier, "free");
   assert.equal(free.source, "acceptance");
   assert.equal(free.acceptanceMode, "free");
-  assert.equal(free.quotas.chat.limit, 3);
+  assert.equal(free.quotas.chat.limit, 15);
+  assert.equal(free.quotas.deepAnalysis.limit, 2);
+  assert.equal(free.quotas.naturalLanguageTask.limit, 20);
 
   assert.equal((await chat(app, "free-action-1")).status, 200);
   assert.equal((await getStatus(app)).quotas.chat.used, 1);
@@ -145,21 +147,21 @@ test("same action id is idempotent and only successful actions consume quota", a
   assert.equal((await getStatus(successApp)).quotas.chat.used, 1);
 });
 
-test("free chat quota blocks the fourth successful action with structured details", async () => {
+test("free chat quota blocks the action beyond the daily limit with structured details", async () => {
   const { app } = createTestApp();
   await setMode(app, "free");
 
-  for (let index = 0; index < 3; index += 1) {
+  for (let index = 0; index < 15; index += 1) {
     assert.equal((await chat(app, `free-limit-${index}`)).status, 200);
   }
-  const blocked = await chat(app, "free-limit-3");
+  const blocked = await chat(app, "free-limit-15");
   assert.equal(blocked.status, 429);
   const error = (await blocked.json()).error;
   assert.equal(error.code, "QUOTA_EXCEEDED");
   assert.equal(error.quotaType, "chat");
   assert.equal(error.tier, "free");
-  assert.equal(error.limit, 3);
-  assert.equal(error.used, 3);
+  assert.equal(error.limit, 15);
+  assert.equal(error.used, 15);
   assert.equal(error.upgradeAvailable, true);
 });
 
@@ -210,7 +212,7 @@ test("ASR duration and successful action count follow the active tier", async ()
   assert.equal((await getStatus(app)).quotas.asr.used, 1);
 });
 
-test("multiple Agent steps in one run consume one chat action", async () => {
+test("multiple Agent steps in one run consume one deepAnalysis action, not chat", async () => {
   const { app } = createTestApp();
   await setMode(app, "free");
   for (const step of ["step-1", "step-2"]) {
@@ -222,5 +224,43 @@ test("multiple Agent steps in one run consume one chat action", async () => {
     });
     assert.equal(response.status, 200);
   }
-  assert.equal((await getStatus(app)).quotas.chat.used, 1);
+  assert.equal((await getStatus(app)).quotas.deepAnalysis.used, 1);
+  assert.equal((await getStatus(app)).quotas.chat.used, 0);
+});
+
+test("weekly plan generation consumes the lifePlan pool instead of chat", async () => {
+  const { app } = createTestApp();
+  await setMode(app, "free");
+  const response = await chat(app, "weekly-plan-action", { purpose: "weekly_plan_generation" });
+  assert.equal(response.status, 200);
+  const quotas = (await getStatus(app)).quotas;
+  assert.equal(quotas.lifePlan.used, 1);
+  assert.equal(quotas.lifePlan.limit, 1);
+  assert.equal(quotas.chat.used, 0);
+});
+
+test("acceptance override with expiry stops granting tier after it lapses", async () => {
+  const { app, database } = createTestApp();
+  database.db
+    .prepare(
+      `INSERT INTO subscription_acceptance_overrides (device_id, tier, expires_at, updated_at)
+       VALUES (?, 'plus', ?, CURRENT_TIMESTAMP)`,
+    )
+    .run(DEVICE_ID, new Date(Date.now() - 60_000).toISOString());
+
+  const lapsed = await getStatus(app);
+  assert.equal(lapsed.tier, "free");
+  assert.equal(lapsed.source, "backend");
+
+  database.db
+    .prepare(
+      `INSERT INTO subscription_acceptance_overrides (device_id, tier, expires_at, updated_at)
+       VALUES (?, 'plus', ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(device_id) DO UPDATE SET tier = 'plus', expires_at = excluded.expires_at`,
+    )
+    .run(DEVICE_ID, new Date(Date.now() + 86_400_000).toISOString());
+
+  const active = await getStatus(app);
+  assert.equal(active.tier, "plus");
+  assert.equal(active.source, "acceptance");
 });

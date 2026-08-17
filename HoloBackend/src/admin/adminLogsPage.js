@@ -115,6 +115,7 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
       <a href="/admin/reports">举报</a>
       <a href="/admin/ai-metrics">AI 指标</a>
       <a href="/admin/feature-flags">功能开关</a>
+      <a href="/admin/entitlements">权益管理</a>
       <a href="/admin/logout">退出</a>
     </nav>
     <h1>Holo Admin Logs</h1>

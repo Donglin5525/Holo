@@ -10,6 +10,7 @@ import { renderAdminPromptEditorPage, renderAdminPromptsPage, renderAdminPromptH
 import { renderAdminReportsPage } from "./adminReportsPage.js";
 import { renderAdminFeatureFlagsPage } from "./adminFeatureFlagsPage.js";
 import { renderAdminAiMetricsPage } from "./adminAiMetricsPage.js";
+import { buildEntitlementOverview, renderAdminEntitlementsPage } from "./adminEntitlementsPage.js";
 import { getPrompt, getPromptHistory, getPromptVersionEntry, listPrompts, resetPrompt, rollbackPrompt, updatePrompt } from "../prompts/promptRegistry.js";
 
 // 每次调用返回新对象，避免 @hono/node-server 写入 Content-Length 时污染共享引用
@@ -22,7 +23,7 @@ function htmlHeaders() {
   };
 }
 
-export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus, reportStore, featureFlagStore, db }) {
+export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus, reportStore, featureFlagStore, db, acceptanceStore, entitlementResolver }) {
   app.get("/admin/login", (context) => {
     if (!isPasswordLoginEnabled(config)) {
       return adminJson(
@@ -388,6 +389,64 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
       }),
       { headers: htmlHeaders() },
     );
+  });
+
+  // 权益管理：运营手动给设备开/撤 Plus 覆盖（测试期补偿、种子用户），写入即经订阅状态下发生效
+  app.get("/admin/entitlements", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+    const { devices } = buildEntitlementOverview({ db, acceptanceStore, entitlementResolver });
+    return new Response(
+      renderAdminEntitlementsPage({
+        overrides: acceptanceStore.list(),
+        devices,
+        notice: context.req.query("notice") ?? null,
+        error: context.req.query("error") ?? null,
+      }),
+      { headers: htmlHeaders() },
+    );
+  });
+
+  app.post("/admin/entitlements/override", async (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+    const body = new URLSearchParams(await context.req.text());
+    const deviceId = (body.get("deviceId") ?? "").trim();
+    const tier = body.get("tier") ?? "plus";
+    const days = body.get("days");
+    try {
+      if (!deviceId) throw new Error("设备 ID 不能为空");
+      if (tier !== "free" && tier !== "plus") throw new Error("权益只能是 plus 或 free");
+      let expiresAt = null;
+      if (days !== null && days !== "") {
+        const count = Number(days);
+        if (!Number.isInteger(count) || count < 1 || count > 3650) {
+          throw new Error("有效天数须为 1~3650 的整数");
+        }
+        expiresAt = new Date(Date.now() + count * 86400000).toISOString();
+      }
+      acceptanceStore.set(deviceId, tier, expiresAt);
+      console.log(`[Admin] entitlement override ${deviceId} → ${tier}${expiresAt ? ` until ${expiresAt}` : " (永久)"}`);
+      return redirect(`/admin/entitlements?notice=${encodeURIComponent(`已将 ${deviceId.slice(0, 8)}… 设为 ${tier}${expiresAt ? `，${days} 天后到期` : "（永久）"}`)}`);
+    } catch (err) {
+      return redirect(`/admin/entitlements?error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
+  app.post("/admin/entitlements/override/remove", async (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+    const body = new URLSearchParams(await context.req.text());
+    const deviceId = (body.get("deviceId") ?? "").trim();
+    acceptanceStore.clear(deviceId);
+    console.log(`[Admin] entitlement override removed for ${deviceId}`);
+    return redirect(`/admin/entitlements?notice=${encodeURIComponent(`已撤销 ${deviceId.slice(0, 8)}… 的覆盖，回退到按购买记录判定`)}`);
   });
 
   app.get("/admin/reports", (context) => {

@@ -12,9 +12,22 @@ function createTestDatabase() {
   return createDatabase({ dbPath: `:memory:` });
 }
 
+// agent_loop 走免费档 deepAnalysis 2/天，会先于限流拦截；限流类测试用 Plus 覆盖消除额度干扰
+let lastTestDatabase;
+function grantPlus(deviceId) {
+  lastTestDatabase.db
+    .prepare(
+      `INSERT INTO subscription_acceptance_overrides (device_id, tier, updated_at)
+       VALUES (?, 'plus', CURRENT_TIMESTAMP)`,
+    )
+    .run(deviceId);
+}
+
 function createTestApp(overrides = {}) {
-  return createApp({
-    database: createTestDatabase(),
+  const database = overrides.database ?? createTestDatabase();
+  lastTestDatabase = database;
+  const app = createApp({
+    database,
     auth: { enforceAppAttest: false },
     limits: {
       chatRequestsPerMinute: 2,
@@ -31,6 +44,7 @@ function createTestApp(overrides = {}) {
     exposePromptEndpointsForTests: true,
     ...overrides,
   });
+  return app;
 }
 
 function createRecordingAdminLogStore() {
@@ -1055,6 +1069,7 @@ test("agent_loop purpose uses route-specific request limits", async () => {
     stream: false,
     messages: [{ role: "user", content: "分析最近的开销" }],
   });
+  grantPlus("agent-loop-rate-device");
 
   for (let index = 0; index < 3; index += 1) {
     const response = await app.request("/v1/ai/chat/completions", {
