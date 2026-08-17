@@ -32,6 +32,8 @@ struct ImportExportView: View {
     @State private var importResult: BatchImportResult? = nil
     /// 是否显示导入结果弹窗
     @State private var showImportResult = false
+    /// 是否显示账单导出教程
+    @State private var showBillTutorial = false
     
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
@@ -58,9 +60,19 @@ struct ImportExportView: View {
                 icon: "square.and.arrow.down",
                 iconColor: .holoSuccess,
                 title: "导入数据",
-                subtitle: "从 CSV 文件导入交易记录"
+                subtitle: "支持微信/支付宝/银行账单（csv/xlsx/zip）"
             ) {
                 showFilePicker = true
+            }
+
+            // 如何导出账单（图文教程）
+            settingsRow(
+                icon: "questionmark.circle",
+                iconColor: .blue,
+                title: "如何导出账单",
+                subtitle: "微信/支付宝/银行账单的导出步骤"
+            ) {
+                showBillTutorial = true
             }
             
             // 下载导入模板
@@ -96,10 +108,14 @@ struct ImportExportView: View {
         // 文件选择器（导入）
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [UTType.commaSeparatedText, UTType.plainText],
+            allowedContentTypes: ImportExportView.supportedImportTypes,
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result)
+        }
+        // 账单导出教程
+        .sheet(isPresented: $showBillTutorial) {
+            BillExportTutorialSheet()
         }
         // 导入预览 Sheet
         .sheet(isPresented: Binding(
@@ -189,7 +205,16 @@ struct ImportExportView: View {
     }
     
     // MARK: - 操作方法
-    
+
+    /// 导入支持的文件类型：文本账单 + Excel + 压缩包
+    static var supportedImportTypes: [UTType] {
+        var types: [UTType] = [.commaSeparatedText, .plainText, .spreadsheet]
+        let byExtension = ["csv", "txt", "tsv", "xlsx", "zip", "xls"]
+            .compactMap { UTType(filenameExtension: $0) }
+        types.append(contentsOf: byExtension)
+        return types
+    }
+
     /// 下载导入模板
     private func downloadTemplate() {
         let url = DataExportService.shared.generateImportTemplate()
@@ -204,7 +229,7 @@ struct ImportExportView: View {
         importFileURL = csvURL
     }
 
-    /// 处理文件选择结果
+    /// 处理文件选择结果：账单文件先做预处理（zip 解压 / xlsx 转 CSV / xls 拦截引导）
     private func handleFileImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
@@ -217,17 +242,29 @@ struct ImportExportView: View {
             }
             defer { url.stopAccessingSecurityScopedResource() }
 
-            // 把文件复制到临时目录，避免安全域引用在 sheet 生命周期内失效
+            // 把文件复制到临时目录（保留原扩展名），避免安全域引用在 sheet 生命周期内失效
+            let ext = url.pathExtension.lowercased()
             let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("holo_import_\(UUID().uuidString).csv")
+                .appendingPathComponent("holo_import_\(UUID().uuidString).\(ext.isEmpty ? "csv" : ext)")
             do {
                 if FileManager.default.fileExists(atPath: tempURL.path) {
                     try FileManager.default.removeItem(at: tempURL)
                 }
                 try FileManager.default.copyItem(at: url, to: tempURL)
-                importFileURL = tempURL
+
+                // 账单预处理链
+                switch ext {
+                case "zip":
+                    importFileURL = try BillArchiveExtractor.extract(archiveURL: tempURL)
+                case "xlsx":
+                    importFileURL = try BillExcelReader.convertToCSV(url: tempURL)
+                case "xls":
+                    throw ImportError.invalidFormat("暂不支持 xls 老格式。请在电脑上用 Excel 打开后「另存为 .xlsx 或 .csv」，再导入。")
+                default:
+                    importFileURL = tempURL
+                }
             } catch {
-                errorMessage = "无法读取文件：\(error.localizedDescription)"
+                errorMessage = error.localizedDescription
                 showError = true
             }
 

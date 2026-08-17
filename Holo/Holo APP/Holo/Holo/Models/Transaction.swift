@@ -51,6 +51,10 @@ public class Transaction: NSManagedObject {
     @NSManaged public var importFingerprint: String?
     /// 导入时的 updatedAt 快照，撤回时判断用户是否编辑过
     @NSManaged public var importOriginalUpdatedAt: Date?
+    /// 账单导入来源（wechat / alipay / bank:银行名 / csv），供列表筛选与对账
+    @NSManaged public var importSource: String?
+    /// 账单原始交易单号（微信/支付宝全局唯一），同源防重与追溯
+    @NSManaged public var importSourceRef: String?
 
     // MARK: - Computed Properties
 

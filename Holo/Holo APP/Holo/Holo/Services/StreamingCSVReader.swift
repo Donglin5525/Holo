@@ -41,6 +41,34 @@ final class StreamingCSVReader {
     ///   - url: CSV 文件 URL
     ///   - body: 每凑齐一条完整记录时回调（原始字符串，**未做字段拆分**）
     static func enumerateLines(in url: URL, _ body: (String) throws -> Void) throws {
+        try enumerateLines(in: url, maxLines: nil, body)
+    }
+
+    /// 带 readLimit 的枚举：读满 maxLines 条记录后提前返回（表头探测窗口用）
+    static func enumerateLines(in url: URL, maxLines: Int?, _ body: (String) throws -> Void) throws {
+        guard let maxLines else {
+            try enumerateFullFile(in: url, body)
+            return
+        }
+        var emitted = 0
+        do {
+            try enumerateFullFile(in: url) { line in
+                try body(line)
+                emitted += 1
+                if emitted >= maxLines {
+                    throw EarlyStop.sentinel
+                }
+            }
+        } catch let stop as EarlyStop {
+            // 正常的窗口截断，不是错误
+            _ = stop
+        }
+    }
+
+    private enum EarlyStop: Error { case sentinel }
+
+    /// 完整枚举（真正干活的原实现）
+    private static func enumerateFullFile(in url: URL, _ body: (String) throws -> Void) throws {
         guard let fileHandle = try? FileHandle(forReadingFrom: url) else {
             throw ImportError.encodingError
         }

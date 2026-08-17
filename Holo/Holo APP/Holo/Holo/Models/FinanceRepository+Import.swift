@@ -395,10 +395,19 @@ extension FinanceRepository {
         headers: [String],
         expectedTotalRows: Int,
         duplicatePolicy: ImportDuplicatePolicy,
+        billInfo: BillScanInfo? = nil,
+        categoryOverrides: [String: (primary: String, sub: String)] = [:],
+        accountOverrides: [String: String] = [:],
+        defaultAccountName: String? = nil,
+        skipRowIndices: Set<Int> = [],
         onProgress: @escaping (Int, Int) -> Void
     ) async -> BatchImportResult {
         let batchId = UUID()
         let batchSize = 500
+        // 账单来源落库标记（银行带银行名，如 "bank:招商银行"）
+        let importSourceToken: String? = billInfo.map { info in
+            info.source == .bank && info.bankName != nil ? "bank:\(info.bankName!)" : info.source.importSourceToken
+        }
 
         // 在后台 context 执行所有 Core Data 操作
         let bgContext = CoreDataStack.shared.newBackgroundContext()
@@ -427,6 +436,8 @@ extension FinanceRepository {
 
             // 去重：本批次内已写入的指纹集合（防止 CSV 内部重复行）
             var batchFingerprints = Set<String>()
+            // 去重：本批次内已写入的账单交易单号（微信/支付宝同源防重）
+            var batchSourceRefs = Set<String>()
             // 本批次累计计数，用于判断是否该 save
             var batchCount = 0
             // 总行数（用于进度），先扫描一次拿总数
@@ -439,7 +450,6 @@ extension FinanceRepository {
             let totalRows = expectedTotalRows
 
             var dataRowIndex = 0  // 数据行索引（0-based，不含表头）
-            var isFirstLine = true
             var processedCount = 0
 
             // 解析并写入单条记录的闭包
@@ -452,17 +462,59 @@ extension FinanceRepository {
                 while aligned.count < headers.count { aligned.append("") }
                 if aligned.count > headers.count { aligned = Array(aligned.prefix(headers.count)) }
 
-                // 解析这一行
-                let item: ImportTransactionItem
+                // 解析这一行（账单覆盖需要改写科目/账户，用 var）
+                var item: ImportTransactionItem
                 do {
                     item = try DataImportService.shared.parseRowForStream(
                         aligned,
                         mapping: fieldMapping,
-                        template: detectedTemplate
+                        template: detectedTemplate,
+                        billSource: billInfo?.source
                     )
                 } catch {
                     failedItems.append((index: dataRowIndex + 1, error: error.localizedDescription))
                     return
+                }
+
+                // 同源防重（第一层，账单专属）：微信/支付宝交易单号全局唯一，
+                // 同一份账单重复导入时单号全量命中，比指纹更稳（不受用户改分类影响）
+                if case .skipDuplicates = duplicatePolicy, let ref = item.sourceRef, !ref.isEmpty {
+                    if batchSourceRefs.contains(ref) {
+                        skippedDuplicateCount += 1
+                        return
+                    }
+                    let refRequest = Transaction.fetchRequest()
+                    refRequest.predicate = NSPredicate(format: "importSourceRef == %@", ref)
+                    refRequest.fetchLimit = 1
+                    if (try? bgContext.count(for: refRequest)) ?? 0 > 0 {
+                        skippedDuplicateCount += 1
+                        return
+                    }
+                    batchSourceRefs.insert(ref)
+                }
+
+                // 账单专属覆盖：AI 科目匹配 / 账户映射（按对方名与支付方式查找，查不到走原值）。
+                // 在指纹计算前覆盖——指纹必须基于最终落库值，同文件重导才能命中。
+                // 科目覆盖只作用于支出行：AI 匹配用的是支出目录，收入行（转账/红包收入）保持默认分类
+                if billInfo != nil {
+                    let nameIndex = fieldMapping.counterpartyIndex ?? fieldMapping.merchantIndex
+                    let lookupName = nameIndex
+                        .flatMap { row[safe: $0]?.trimmingCharacters(in: .whitespaces) }
+                        .flatMap { $0.isEmpty ? nil : $0 }
+                    if item.type == .expense, let name = lookupName, let override = categoryOverrides[name] {
+                        item.primaryCategory = override.primary
+                        item.subCategory = override.sub
+                    }
+                    if let name = lookupName, let account = accountOverrides[name] {
+                        item.accountName = account
+                    } else if let channelIdx = fieldMapping.accountIndex,
+                              let channel = row[safe: channelIdx]?.trimmingCharacters(in: .whitespaces),
+                              !channel.isEmpty,
+                              let account = accountOverrides[channel] {
+                        item.accountName = account
+                    } else if let defaultAccount = defaultAccountName {
+                        item.accountName = defaultAccount
+                    }
                 }
 
                 // 去重检测（默认跳过重复）
@@ -583,6 +635,9 @@ extension FinanceRepository {
                     accountName: item.accountName
                 )
                 transaction.importOriginalUpdatedAt = now
+                // 账单来源与原始单号（同源防重 + 追溯 + 对账）
+                transaction.importSource = importSourceToken
+                transaction.importSourceRef = item.sourceRef
 
                 successCount += 1
                 batchCount += 1
@@ -593,6 +648,7 @@ extension FinanceRepository {
                         try bgContext.save()
                         bgContext.reset()
                         batchFingerprints.removeAll()
+                        batchSourceRefs.removeAll()
                         batchCount = 0
                         // reset 后缓存失效，重新加载（只加载已有数据，不含本批新建的）
                         // 重建缓存：保留本批次新建的分类/账户（已 reset，需重新 fetch）
@@ -624,15 +680,32 @@ extension FinanceRepository {
             }
 
             // 流式读取文件并逐行处理
+            // 行过滤逻辑必须与扫描阶段完全一致（跳过封面说明行 + 账单状态过滤 + 空行），
+            // 否则预览条数与导入条数会对不上
             do {
+                var absoluteLine = -1
+                var filteredLineIndex = 0  // 过滤后数据行号（1-based，与扫描口径一致）
                 try StreamingCSVReader.enumerateLines(in: url) { line in
-                    if isFirstLine {
-                        isFirstLine = false
-                        // 跳过表头（表头已在扫描阶段处理）
+                    absoluteLine += 1
+                    if absoluteLine <= (billInfo?.headerLineIndex ?? 0) {
+                        // 跳过封面说明行与表头行（扫描阶段已处理）
                         return
                     }
                     let fields = DataImportService.shared.parseCSVLineForStream(line)
-                    processAndWrite(row: fields)
+                    if fields.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) { return }
+                    var aligned = fields
+                    while aligned.count < headers.count { aligned.append("") }
+                    if aligned.count > headers.count { aligned = Array(aligned.prefix(headers.count)) }
+                    if billInfo != nil, BillTemplateDetector.skipReason(forRow: aligned, mapping: fieldMapping) != nil {
+                        return
+                    }
+                    filteredLineIndex += 1
+                    // 软检测判定为疑似重复的行：默认跳过（用户可在预览改判后重算）
+                    if skipRowIndices.contains(filteredLineIndex) {
+                        skippedDuplicateCount += 1
+                        return
+                    }
+                    processAndWrite(row: aligned)
                 }
             } catch {
                 financeImportLogger.error("流式读取文件失败: \(error.localizedDescription)")

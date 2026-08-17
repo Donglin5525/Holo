@@ -580,6 +580,9 @@ enum HoloBackendPurpose: String {
     case agentLoop = "agent_loop"
     case healthInsightGeneration = "health_insight_generation"
     case weeklyPlanGeneration = "weekly_plan_generation"
+    // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
+    case billColumnMapping = "bill_column_mapping"
+    case billCategorization = "bill_categorization"
 }
 
 extension AIActionParserKind {

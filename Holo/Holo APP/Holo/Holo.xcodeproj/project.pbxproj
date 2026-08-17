@@ -54,6 +54,8 @@
 		46A4975C16045AD617FD4D12 /* HoloAgentInputSnapshotStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7172AA6F8A3B20680429BDE /* HoloAgentInputSnapshotStandaloneTests.swift */; };
 		47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */; };
 		4894B94385421E97896FB4AC /* HoloCrossDomainToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16D449DAF8D191541526E586 /* HoloCrossDomainToolTests.swift */; };
+		490F7DBD3033647500155EB1 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000002 /* CoreXLSX */; };
+		490F7DBE3033647500155EB1 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000004 /* ZIPFoundation */; };
 		4B6A953DB90277DC3F7E13F1 /* HoloMemoryAccessPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9072B04A04CEFFDFC02564 /* HoloMemoryAccessPolicyStandaloneTests.swift */; };
 		4D19A0A328F74F68A72C9E57 /* HoloAgentEvalRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49A92723E7D4B2892C4D8BF /* HoloAgentEvalRunner.swift */; };
 		4FA341DFA8EA75735380FEE3 /* EffectiveRecordDayStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3D728A02350F1B7FE3B608 /* EffectiveRecordDayStandaloneTests.swift */; };
@@ -418,6 +420,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				490F7DBE3033647500155EB1 /* ZIPFoundation in Frameworks */,
+				490F7DBD3033647500155EB1 /* CoreXLSX in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -865,6 +869,10 @@
 				49E199F62F54389E0070AE1B /* Holo */,
 			);
 			name = Holo;
+			packageProductDependencies = (
+				B1000000000000000000002 /* CoreXLSX */,
+				B1000000000000000000004 /* ZIPFoundation */,
+			);
 			productName = Holo;
 			productReference = 49E199F42F54389E0070AE1B /* Holo.app */;
 			productType = "com.apple.product-type.application";
@@ -932,6 +940,10 @@
 			);
 			mainGroup = 49E199EB2F54389E0070AE1B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B1000000000000000000001 /* XCLocalSwiftPackageReference "CoreXLSX" */,
+				B1000000000000000000003 /* XCLocalSwiftPackageReference "ZIPFoundation" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 49E199F52F54389E0070AE1B /* Products */;
 			projectDirPath = "";
@@ -1564,6 +1576,28 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B1000000000000000000001 /* XCLocalSwiftPackageReference "CoreXLSX" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/CoreXLSX;
+		};
+		B1000000000000000000003 /* XCLocalSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/ZIPFoundation;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B1000000000000000000002 /* CoreXLSX */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CoreXLSX;
+		};
+		B1000000000000000000004 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 49E199EC2F54389E0070AE1B /* Project object */;
 }

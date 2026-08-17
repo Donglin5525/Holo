@@ -74,7 +74,8 @@ struct HoloApp: App {
                         return
                     }
                     let ext = url.pathExtension.lowercased()
-                    guard ext == "csv" || ext == "txt" || ext == "tsv" else { return }
+                    let supported: Set<String> = ["csv", "txt", "tsv", "xlsx", "zip"]
+                    guard supported.contains(ext) else { return }
                     pendingImportURL = CSVFileURL(url: url)
                 }
                 .fullScreenCover(item: $pendingImportURL) { wrapper in
@@ -274,9 +275,10 @@ struct CSVQuickImportView: View {
     }
 
     private func prepareFile() {
-        // 把外部文件复制到临时目录，避免安全域引用在 sheet 生命周期内失效
+        // 把外部文件复制到临时目录（保留原扩展名），避免安全域引用在 sheet 生命周期内失效
+        let ext = fileURL.pathExtension.lowercased()
         let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("holo_quick_import_\(UUID().uuidString).csv")
+            .appendingPathComponent("holo_quick_import_\(UUID().uuidString).\(ext.isEmpty ? "csv" : ext)")
         if fileURL.startAccessingSecurityScopedResource() {
             defer { fileURL.stopAccessingSecurityScopedResource() }
             do {
@@ -284,9 +286,17 @@ struct CSVQuickImportView: View {
                     try FileManager.default.removeItem(at: tempURL)
                 }
                 try FileManager.default.copyItem(at: fileURL, to: tempURL)
-                safeFileURL = tempURL
+                // 账单预处理：zip 解压 / xlsx 转 CSV（与导入导出页同一条链）
+                switch ext {
+                case "zip":
+                    safeFileURL = try BillArchiveExtractor.extract(archiveURL: tempURL)
+                case "xlsx":
+                    safeFileURL = try BillExcelReader.convertToCSV(url: tempURL)
+                default:
+                    safeFileURL = tempURL
+                }
             } catch {
-                // 复制失败，直接用原 URL 尝试
+                // 复制/预处理失败，直接用原 URL 尝试
                 safeFileURL = fileURL
             }
         } else {

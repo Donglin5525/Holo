@@ -47,6 +47,9 @@ struct ImportPreviewSheet: View {
                         // 检测结果卡片
                         detectionCard(summary)
 
+                        // 账单区块（AI 匹配 / 账户映射 / 疑似重复；仅账单文件显示）
+                        BillImportSection(viewModel: viewModel)
+
                         // 字段映射（可点击编辑）
                         mappingSection(summary)
 

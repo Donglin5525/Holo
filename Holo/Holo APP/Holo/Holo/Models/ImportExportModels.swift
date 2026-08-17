@@ -266,6 +266,35 @@ struct FieldMapping {
     var merchantIndex: Int?
     /// 标签列索引
     var tagsIndex: Int?
+    // MARK: 账单导入扩展列（微信/支付宝/银行账单；普通 CSV 为 nil）
+    /// 交易对方列索引（优先于 merchantIndex 进 note）
+    var counterpartyIndex: Int? = nil
+    /// 交易状态列索引（微信「当前状态」/支付宝「交易状态」/银行「摘要状态」，非成功态默认跳过）
+    var statusIndex: Int? = nil
+    /// 交易单号列索引（微信/支付宝全局唯一单号，同源防重）
+    var refIndex: Int? = nil
+    /// 收入金额列索引（银行「收/支」分列格式；与 amountIndex 互斥使用）
+    var incomeAmountIndex: Int? = nil
+    /// 支出金额列索引（银行「收/支」分列格式；与 amountIndex 互斥使用）
+    var expenseAmountIndex: Int? = nil
+}
+
+/// 账单来源类型（账单智能导入）
+enum BillSourceKind: String {
+    case wechat
+    case alipay
+    case bank
+    case csv
+
+    /// 落库到 Transaction.importSource 的标记
+    var importSourceToken: String {
+        switch self {
+        case .wechat: return "wechat"
+        case .alipay: return "alipay"
+        case .bank: return "bank"
+        case .csv: return "csv"
+        }
+    }
 }
 
 /// 导入模板类型（自动检测 CSV 来源）
@@ -273,17 +302,24 @@ enum ImportTemplate: String, CaseIterable, Identifiable {
     case holo = "HOLO"
     case moze = "MOZE"
     case generic = "通用 CSV"
-    
+    case wechatBill = "微信账单"
+    case alipayBill = "支付宝账单"
+
     var id: String { rawValue }
-    
+
     /// 模板说明
     var description: String {
         switch self {
         case .holo: return "HOLO 导出的 CSV 文件"
         case .moze: return "MOZE 记账 App 导出的 CSV"
         case .generic: return "其他格式，需手动确认映射"
+        case .wechatBill: return "微信支付账单明细（固定格式，自动识别）"
+        case .alipayBill: return "支付宝交易流水明细（固定格式，自动识别）"
         }
     }
+
+    /// 是否为账单类模板（决定是否启用账单规则：状态过滤、不计收支过滤等）
+    var isBillTemplate: Bool { self == .wechatBill || self == .alipayBill }
 }
 
 /// 待导入的单条交易数据（解析后、写入前的中间结构）
@@ -291,11 +327,15 @@ struct ImportTransactionItem {
     let date: Date
     let type: TransactionType
     let amount: Decimal
-    let primaryCategory: String
-    let subCategory: String
-    let accountName: String
-    let note: String?
+    var primaryCategory: String
+    var subCategory: String
+    var accountName: String
+    var note: String?
     let tags: [String]?
+    /// 账单原始交易单号（微信/支付宝全局唯一），同源防重与追溯；普通 CSV 为 nil
+    var sourceRef: String? = nil
+    /// 账单来源标记；普通 CSV 为 nil
+    var source: BillSourceKind? = nil
 }
 
 /// 批量导入结果
@@ -414,6 +454,41 @@ struct ImportScanSummary {
     let categoryPlan: ImportCategoryPlan
     /// 前 N 条解析失败的明细（行号 + 原因）
     let topFailures: [(index: Int, error: String)]
+    /// 账单导入附加信息（微信/支付宝/银行账单时非 nil；普通 CSV 为 nil）
+    var billInfo: BillScanInfo? = nil
+    /// 账单数据行的轻量投影（软检测用；普通 CSV 或超出保护上限时为 nil）
+    var billProjections: [BillRowProjection]? = nil
+}
+
+/// 账单扫描附加信息（账单智能导入）
+struct BillScanInfo {
+    /// 账单来源
+    let source: BillSourceKind
+    /// 来源展示名（"微信账单" / "支付宝账单" / 银行名；AI 列映射识别出银行后会更新）
+    var sourceLabel: String
+    /// 表头行在文件中的行号（0-based）；导入阶段据此跳过封面说明行，与扫描保持一致
+    var headerLineIndex: Int = 0
+    /// 银行账单：从账单头提取的银行名（如"招商银行"），微信/支付宝为 nil
+    var bankName: String? = nil
+    /// 表头行之前跳过的说明行（前 N 行原文，供展示与信息提取）
+    var preambleLines: [String] = []
+    /// 「不计收支」行跳过条数（零钱通/理财通申赎等，非真实消费）
+    var skippedNoFlowCount: Int = 0
+    /// 非成功状态行跳过条数（退款中/交易关闭等）
+    var skippedStatusCount: Int = 0
+    /// 本账单出现过的支付方式（微信/支付宝的「支付方式」列去重，供账户映射）
+    var paymentChannels: [String] = []
+    /// 本账单出现过的交易对方/商品名（去重，供 AI 科目匹配）
+    var counterpartyNames: [String] = []
+}
+
+/// 账单数据行的轻量投影（软检测用；不持有完整条目，内存可控）
+struct BillRowProjection {
+    /// 过滤后的数据行号（1-based，与导入侧行计数口径一致）
+    let row: Int
+    let amount: Decimal
+    let type: TransactionType
+    let date: Date
 }
 
 /// 解析警告

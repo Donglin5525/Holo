@@ -181,8 +181,21 @@ extension CoreDataStack {
         importOriginalUpdatedAt.isOptional = true
         attributes.append(importOriginalUpdatedAt)
 
+        // 账单导入来源与原始单号（账单智能导入：筛选/对账 + 同源防重）
+        let importSource = NSAttributeDescription()
+        importSource.name = "importSource"
+        importSource.attributeType = .stringAttributeType
+        importSource.isOptional = true
+        attributes.append(importSource)
+
+        let importSourceRef = NSAttributeDescription()
+        importSourceRef.name = "importSourceRef"
+        importSourceRef.attributeType = .stringAttributeType
+        importSourceRef.isOptional = true
+        attributes.append(importSourceRef)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
-        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "importBatchId": importBatchId, "importFingerprint": importFingerprint])
+        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef])
         
         // MARK: - Category Entity
         let categoryEntity = NSEntityDescription()

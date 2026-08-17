@@ -113,28 +113,82 @@ class DataImportService {
         var failedCount = 0
 
         var rowIndex = 0  // 数据行索引（0-based，不含表头）
-        var isFirstLine = true
 
-        try StreamingCSVReader.enumerateLines(in: url) { line in
-            if isFirstLine {
-                isFirstLine = false
-                headers = parseCSVLine(line)
-                guard headers.count >= 3 else {
-                    throw ImportError.invalidFormat("表头列数不足，至少需要日期、类型、金额三列")
-                }
-                detectedTemplate = detectTemplate(headers: headers)
-                mapping = overrideMapping ?? generateFieldMapping(headers: headers, template: detectedTemplate)
-                return
+        // 账单 CSV 的表头前有封面说明行（微信约16行、支付宝约24行、银行若干行）：
+        // 先流式预读探测窗口定位真表头，再走主扫描。
+        // 普通 CSV 表头就是第 0 行，探测结果与原行为一致。
+        var probeLines: [String] = []
+        try StreamingCSVReader.enumerateLines(in: url, maxLines: BillTemplateDetector.probeWindow) { line in
+            probeLines.append(line)
+        }
+        guard let probe = BillTemplateDetector.probe(lines: probeLines, splitLine: parseCSVLine),
+              probe.headers.count >= 3 else {
+            throw ImportError.invalidFormat("未找到有效表头（需要包含日期/金额等列名的行，且至少三列）")
+        }
+        headers = probe.headers
+        if probe.template.isBillTemplate {
+            detectedTemplate = probe.template
+        } else {
+            detectedTemplate = detectTemplate(headers: probe.headers)
+        }
+        mapping = overrideMapping ?? generateFieldMapping(headers: probe.headers, template: detectedTemplate)
+
+        // 账单附加信息与来源标记（普通 CSV 为 nil，走原路径）
+        var billInfo: BillScanInfo? = nil
+        let billSource: BillSourceKind?
+        switch detectedTemplate {
+        case .wechatBill:
+            billSource = .wechat
+            billInfo = BillScanInfo(source: .wechat, sourceLabel: "微信账单", headerLineIndex: probe.headerLineIndex, preambleLines: probe.preambleLines)
+        case .alipayBill:
+            billSource = .alipay
+            billInfo = BillScanInfo(source: .alipay, sourceLabel: "支付宝账单", headerLineIndex: probe.headerLineIndex, preambleLines: probe.preambleLines)
+        default:
+            if let bank = probe.bankName {
+                billSource = .bank
+                billInfo = BillScanInfo(source: .bank, sourceLabel: bank, headerLineIndex: probe.headerLineIndex, bankName: bank, preambleLines: probe.preambleLines)
+            } else {
+                billSource = nil
             }
+        }
 
-            rowIndex += 1
-            totalRows += 1
+        var absoluteLine = -1
+        // 账单数据行的轻量投影（软检测用；超过上限放弃软检测，内存优先）
+        var projections: [BillRowProjection] = []
+        try StreamingCSVReader.enumerateLines(in: url) { line in
+            absoluteLine += 1
+            // 封面说明行与表头行都跳过（表头已从探测结果取得）
+            if absoluteLine <= probe.headerLineIndex { return }
 
             let fields = parseCSVLine(line)
+            // 全空行静默跳过（账单尾部汇总行/空行不计入失败）
+            if fields.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) { return }
             // 列数对齐
             var aligned = fields
             while aligned.count < headers.count { aligned.append("") }
             if aligned.count > headers.count { aligned = Array(aligned.prefix(headers.count)) }
+
+            // 账单行过滤：非成功状态（退款/关闭等）与「不计收支」（零钱通/理财申赎）
+            if billSource != nil, let skipReason = BillTemplateDetector.skipReason(forRow: aligned, mapping: mapping) {
+                if skipReason == "不计收支" {
+                    billInfo?.skippedNoFlowCount += 1
+                } else {
+                    billInfo?.skippedStatusCount += 1
+                }
+                return
+            }
+
+            // 行号与总数在过滤后递增——与导入侧行计数口径一致（软检测跳过行依赖此对齐）
+            rowIndex += 1
+            totalRows += 1
+
+            // 收集本账单出现过的支付方式（供账户映射卡片）
+            if let accIdx = mapping.accountIndex,
+               let channel = aligned[safe: accIdx]?.trimmingCharacters(in: .whitespaces),
+               !channel.isEmpty,
+               billInfo?.paymentChannels.contains(channel) != true {
+                billInfo?.paymentChannels.append(channel)
+            }
 
             // 前 5 行采样原始数据
             if sampleRows.count < maxSamples {
@@ -148,9 +202,25 @@ class DataImportService {
                     aligned,
                     mapping: mapping,
                     template: detectedTemplate,
-                    allowDateFallback: true
+                    allowDateFallback: true,
+                    billSource: billSource
                 )
                 parseableCount += 1
+
+                // 账单轻量投影与对方名收集（软检测 / AI 科目匹配的输入）
+                if billSource != nil {
+                    if projections.count < 50_000 {
+                        projections.append(BillRowProjection(row: rowIndex, amount: item.amount, type: item.type, date: item.date))
+                    }
+                    let nameIndex = mapping.counterpartyIndex ?? mapping.merchantIndex
+                    if let nameIdx = nameIndex,
+                       let name = aligned[safe: nameIdx]?.trimmingCharacters(in: .whitespaces),
+                       !name.isEmpty,
+                       billInfo?.counterpartyNames.contains(name) != true,
+                       (billInfo?.counterpartyNames.count ?? 0) < 2_000 {
+                        billInfo?.counterpartyNames.append(name)
+                    }
+                }
 
                 // 累加分类计划
                 incomingPrimaries.insert("\(item.type.rawValue)|\(item.primaryCategory)")
@@ -224,9 +294,6 @@ class DataImportService {
             }
         }
 
-        guard !isFirstLine else {
-            throw ImportError.emptyFile
-        }
         guard totalRows > 0 else {
             throw ImportError.emptyFile
         }
@@ -251,7 +318,9 @@ class DataImportService {
             sampleRows: sampleRows,
             incomingDescriptors: Array(descriptorSet),
             categoryPlan: categoryPlan,
-            topFailures: topFailures
+            topFailures: topFailures,
+            billInfo: billInfo,
+            billProjections: billSource != nil && projections.count < 50_000 ? projections : nil
         )
     }
 
@@ -383,6 +452,10 @@ class DataImportService {
             return mozeFieldMapping(headers: headers)
         case .holo:
             return holoFieldMapping(headers: headers)
+        case .wechatBill:
+            return BillTemplateDetector.wechatFieldMapping(headers: headers)
+        case .alipayBill:
+            return BillTemplateDetector.alipayFieldMapping(headers: headers)
         case .generic:
             return genericFieldMapping(headers: headers)
         }
@@ -594,26 +667,49 @@ class DataImportService {
         _ row: [String],
         mapping: FieldMapping,
         template: ImportTemplate,
-        allowDateFallback: Bool = true
+        allowDateFallback: Bool = true,
+        billSource: BillSourceKind? = nil
     ) throws -> ImportTransactionItem {
-        
+
         // --- 金额解析（唯一必填字段） ---
-        guard let amountIdx = mapping.amountIndex else {
-            throw ImportError.missingField("金额")
-        }
-        let rawAmountStr = row[safe: amountIdx] ?? ""
+        // 银行账单的「收/支分列金额」格式：收入列与支出列各有值时按非空列决定金额与类型
+        var typeOverride: TransactionType?
+        let amount: Decimal
+        let originalDouble: Double
 
-        // 先尝试清洗后解析
-        guard let cleaned = cleanAmount(rawAmountStr) else {
-            throw ImportError.invalidValue("金额无法解析: \(rawAmountStr)")
-        }
-        guard cleaned.value > 0 else {
-            throw ImportError.invalidValue("金额为零")
-        }
-        let amount = Decimal(cleaned.value)
+        if mapping.amountIndex == nil,
+           let incomeIdx = mapping.incomeAmountIndex,
+           let expenseIdx = mapping.expenseAmountIndex {
+            let incomeRaw = row[safe: incomeIdx] ?? ""
+            let expenseRaw = row[safe: expenseIdx] ?? ""
+            if let cleaned = cleanAmount(incomeRaw), cleaned.value > 0 {
+                amount = Decimal(cleaned.value)
+                originalDouble = cleaned.value
+                typeOverride = .income
+            } else if let cleaned = cleanAmount(expenseRaw), cleaned.value > 0 {
+                amount = Decimal(cleaned.value)
+                originalDouble = cleaned.value
+                typeOverride = .expense
+            } else {
+                throw ImportError.invalidValue("收支金额列均为空或为零")
+            }
+        } else {
+            guard let amountIdx = mapping.amountIndex else {
+                throw ImportError.missingField("金额")
+            }
+            let rawAmountStr = row[safe: amountIdx] ?? ""
 
-        // 用于类型推断的带符号金额：括号负数 / 后缀负号 / 前缀负号 都视为负
-        let originalDouble = cleaned.isNegative ? -cleaned.value : cleaned.value
+            // 先尝试清洗后解析
+            guard let cleaned = cleanAmount(rawAmountStr) else {
+                throw ImportError.invalidValue("金额无法解析: \(rawAmountStr)")
+            }
+            guard cleaned.value > 0 else {
+                throw ImportError.invalidValue("金额为零")
+            }
+            amount = Decimal(cleaned.value)
+            // 用于类型推断的带符号金额：括号负数 / 后缀负号 / 前缀负号 都视为负
+            originalDouble = cleaned.isNegative ? -cleaned.value : cleaned.value
+        }
         
         // --- 日期解析 ---
         var date = Date()
@@ -632,9 +728,9 @@ class DataImportService {
             // 日期值为空时静默使用今天（无日期列或空值不算解析失败）
         }
         
-        // --- 类型解析（智能同义词匹配 + 金额正负回退） ---
+        // --- 类型解析（分列金额直接定类型；否则智能同义词匹配 + 金额正负回退） ---
         let typeStr = mapping.typeIndex.flatMap { row[safe: $0] } ?? ""
-        let txType = normalizeTransactionType(typeStr, rawAmount: originalDouble, template: template)
+        let txType = typeOverride ?? normalizeTransactionType(typeStr, rawAmount: originalDouble, template: template)
         
         // --- 分类解析（默认值：根据类型填充） ---
         let rawPrimary = mapping.primaryCategoryIndex.flatMap { row[safe: $0] }?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -647,23 +743,31 @@ class DataImportService {
         let rawAccount = mapping.accountIndex.flatMap { row[safe: $0] }?.trimmingCharacters(in: .whitespaces) ?? ""
         let accountName = rawAccount.isEmpty ? "现金" : rawAccount
         
-        // --- 备注（合并名称 + 商家 + 描述） ---
+        // --- 备注（合并交易对方 + 商家 + 备注 + 描述；账单里对方信息最重要放最前） ---
         var noteParts: [String] = []
-        if let noteIdx = mapping.noteIndex, let v = row[safe: noteIdx], !v.trimmingCharacters(in: .whitespaces).isEmpty {
+        if let counterpartyIdx = mapping.counterpartyIndex, let v = row[safe: counterpartyIdx], !v.trimmingCharacters(in: .whitespaces).isEmpty {
             noteParts.append(v.trimmingCharacters(in: .whitespaces))
         }
         if let merchantIdx = mapping.merchantIndex, let v = row[safe: merchantIdx], !v.trimmingCharacters(in: .whitespaces).isEmpty {
+            noteParts.append(v.trimmingCharacters(in: .whitespaces))
+        }
+        if let noteIdx = mapping.noteIndex, let v = row[safe: noteIdx], !v.trimmingCharacters(in: .whitespaces).isEmpty {
             noteParts.append(v.trimmingCharacters(in: .whitespaces))
         }
         if let descIdx = mapping.descriptionIndex, let v = row[safe: descIdx], !v.trimmingCharacters(in: .whitespaces).isEmpty {
             noteParts.append(v.trimmingCharacters(in: .whitespaces))
         }
         let note = noteParts.isEmpty ? nil : noteParts.joined(separator: " ")
-        
+
         // --- 标签（允许为空） ---
         let tagsStr = mapping.tagsIndex.flatMap { row[safe: $0] } ?? ""
         let tags: [String]? = tagsStr.isEmpty ? nil : tagsStr.components(separatedBy: CharacterSet(charactersIn: ";,")).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        
+
+        // --- 账单单号（同源防重与追溯） ---
+        let sourceRef = mapping.refIndex
+            .flatMap { row[safe: $0]?.trimmingCharacters(in: .whitespaces) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+
         return ImportTransactionItem(
             date: date,
             type: txType,
@@ -672,7 +776,9 @@ class DataImportService {
             subCategory: subCategory,
             accountName: accountName,
             note: note,
-            tags: tags
+            tags: tags,
+            sourceRef: sourceRef,
+            source: billSource
         )
     }
 
@@ -744,9 +850,10 @@ class DataImportService {
     func parseRowForStream(
         _ row: [String],
         mapping: FieldMapping,
-        template: ImportTemplate
+        template: ImportTemplate,
+        billSource: BillSourceKind? = nil
     ) throws -> ImportTransactionItem {
-        return try parseRow(row, mapping: mapping, template: template, allowDateFallback: true)
+        return try parseRow(row, mapping: mapping, template: template, allowDateFallback: true, billSource: billSource)
     }
 
     /// 流式读取阶段的单行 CSV 解析（公开入口，供 FinanceRepository 流式导入复用）
@@ -882,11 +989,13 @@ class DataImportService {
         var fields: [String] = []
         var current = ""
         var inQuotes = false
-        
+        // 分隔符自适应：制表符多于逗号时按 TSV 切分（修复 .tsv 文件整行被当作单列的问题）
+        let separator = Self.pickSeparator(for: line)
+
         for char in line {
             if char == "\"" {
                 inQuotes.toggle()
-            } else if char == "," && !inQuotes {
+            } else if char == separator && !inQuotes {
                 fields.append(current)
                 current = ""
             } else {
@@ -894,8 +1003,17 @@ class DataImportService {
             }
         }
         fields.append(current)
-        
+
         return fields.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    /// 按行内出现频率选择分隔符：制表符占优则视为 TSV
+    private static func pickSeparator(for line: String) -> Character {
+        var commas = 0, tabs = 0
+        for char in line {
+            if char == "," { commas += 1 } else if char == "\t" { tabs += 1 }
+        }
+        return tabs > commas ? "\t" : ","
     }
 }
 
