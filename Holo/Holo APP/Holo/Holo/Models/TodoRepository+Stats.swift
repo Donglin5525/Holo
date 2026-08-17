@@ -14,9 +14,21 @@ extension TodoRepository {
     // MARK: - Statistics
 
     /// 获取今日任务完成进度
+    /// 注意：已完成任务必须计入分母（并计入分子），否则任务一完成就退出统计，
+    /// 进度条会从 100% 跳回 0%。getTodayTasks() 只含未完成任务，不能在这里复用。
     func getTodayTaskProgress() -> (completed: Int, total: Int) {
-        let todayTasks = getTodayTasks()
-        guard !todayTasks.isEmpty else { return (0, 0) }
+        let today = Calendar.current.startOfDay(for: Date())
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+            return (0, 0)
+        }
+
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "deletedFlag == NO AND archived == NO AND dueDate >= %@ AND dueDate < %@",
+            today as NSDate,
+            tomorrow as NSDate
+        )
+        let todayTasks = (try? context.fetch(request)) ?? []
         let completed = todayTasks.filter { $0.completed }.count
         return (completed, todayTasks.count)
     }

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 任务首页视觉改版方案</title>
+<style>
+  :root {
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-grad: linear-gradient(135deg, #F97316, #EA580C);
+    --bg: #FDFCF8;
+    --page-bg: #F6F5F1;
+    --card: #FFFFFF;
+    --t1: #333333;
+    --t2: #939393;
+    --border: #F0F0F0;
+    --divider: #F1F5F9;
+    --success: #22C55E;
+    --error: #EF4444;
+    --info: #3B82F6;
+    --purple: #8B5CF6;
+    --green: #10B981;
+    --pink: #EC4899;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: var(--page-bg); color: var(--t1); line-height: 1.6;
+  }
+  .page { max-width: 1280px; margin: 0 auto; padding: 40px 32px 120px; }
+  .doc-header { text-align: center; padding: 24px 0 8px; }
+  .doc-header h1 { font-size: 30px; font-weight: 700; letter-spacing: 1px; }
+  .doc-header .sub { color: var(--t2); font-size: 14px; margin-top: 6px; }
+  .doc-header .conclusion {
+    margin: 20px auto 0; max-width: 820px; background: #FFF7F2; border: 1px solid #FBD9C4;
+    border-radius: 14px; padding: 16px 22px; font-size: 15px; text-align: left;
+  }
+  .doc-header .conclusion b { color: var(--primary-dark); }
+
+  section { margin-top: 64px; }
+  .sec-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  .sec-title .num { font-size: 13px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 8px; padding: 2px 10px; }
+  .sec-title h2 { font-size: 22px; font-weight: 700; }
+  .sec-desc { color: var(--t2); font-size: 14px; margin-bottom: 24px; max-width: 880px; }
+
+  /* 设计策略卡 */
+  .strategy { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .strat-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; }
+  .strat-card h3 { font-size: 15px; margin-bottom: 10px; }
+  .strat-card .verdict { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 6px; padding: 2px 10px; margin-bottom: 10px; }
+  .verdict.no { background: #FEE2E2; color: #B91C1C; }
+  .verdict.yes { background: #DCFCE7; color: #15803D; }
+  .strat-card p { font-size: 13.5px; color: #4B4B4B; }
+  .strat-card ul { margin: 8px 0 0 18px; font-size: 13px; color: #4B4B4B; display: flex; flex-direction: column; gap: 4px; }
+
+  /* 手机 */
+  .phones { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone-label { font-size: 14px; font-weight: 700; }
+  .phone-label span { font-weight: 400; color: var(--t2); font-size: 12.5px; }
+  .phone {
+    width: 390px; height: 812px; background: var(--bg); border: 10px solid #1C1C1E;
+    border-radius: 48px; overflow: hidden; position: relative; box-shadow: 0 24px 60px rgba(0,0,0,.14);
+    display: flex; flex-direction: column;
+  }
+  .statusbar { height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; font-size: 13px; font-weight: 600; }
+  .content { flex: 1; overflow-y: auto; overflow-x: hidden; }
+  .content::-webkit-scrollbar { width: 0; }
+  .tabbar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 84px; background: var(--card);
+    border-top: 1px solid var(--divider); display: flex; align-items: flex-start; padding-top: 10px; z-index: 10;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--t2); }
+  .tab .ico { font-size: 20px; }
+  .tab.on { color: var(--primary); font-weight: 600; }
+  .tab.add .ico { width: 44px; height: 44px; border-radius: 50%; background: var(--primary-grad); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-top: -18px; box-shadow: 0 6px 14px rgba(244,109,56,.4); font-weight: 600; }
+  .tab.add span { color: var(--primary); }
+
+  /* App nav */
+  .app-nav { display: flex; align-items: center; padding: 6px 12px; position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  .app-nav .back { font-size: 22px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+  .app-nav .title { flex: 1; text-align: center; font-size: 17px; font-weight: 700; }
+  .app-nav .icon-btn { width: 36px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--t2); }
+
+  /* ===== HERO 今日区 ===== */
+  .hero {
+    margin: 4px 16px 12px; padding: 16px 18px; border-radius: 20px; position: relative; overflow: hidden;
+    background: linear-gradient(160deg, #FFF6F0 0%, #FFFFFF 55%);
+    border: 1px solid #FDE4D3;
+  }
+  .hero::after {
+    content: ""; position: absolute; right: -30px; top: -46px; width: 140px; height: 140px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(244,109,56,.10), transparent 70%);
+  }
+  .hero-top { display: flex; align-items: center; justify-content: space-between; }
+  .hero-date { font-size: 12px; color: var(--t2); letter-spacing: .5px; }
+  .hero-main { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
+  .hero-left { flex: 1; min-width: 0; }
+  .hero-kicker { font-size: 12.5px; color: var(--t2); }
+  .hero-num { display: flex; align-items: baseline; gap: 3px; margin-top: 1px; }
+  .hero-num .done { font-size: 40px; font-weight: 800; color: var(--primary); letter-spacing: -1px; line-height: 1.1; }
+  .hero-num .sep, .hero-num .total { font-size: 17px; font-weight: 600; color: var(--t2); }
+  .hero-status { display: flex; gap: 10px; margin-top: 5px; font-size: 12px; color: var(--t2); flex-wrap: wrap; }
+  .hero-status .warn { color: var(--error); font-weight: 600; }
+  .hero-status .ok { color: var(--success); font-weight: 600; }
+  .ring-wrap { width: 74px; height: 74px; flex-shrink: 0; position: relative; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-center .pct { font-size: 15px; font-weight: 800; color: var(--primary); }
+  .hero-bar { height: 6px; border-radius: 3px; background: var(--border); margin-top: 14px; overflow: hidden; }
+  .hero-bar .fill { height: 100%; border-radius: 3px; background: var(--primary-grad); transition: width .6s ease; }
+  .hero-done .hero-kicker, .hero-done .hero-date { color: rgba(255,255,255,.75); }
+  .hero-celebrate {
+    margin: 4px 16px 12px; padding: 18px; border-radius: 20px;
+    background: var(--primary-grad); color: #fff; position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .hero-celebrate .ring-center .pct { color: #fff; }
+  .hero-celebrate .big { font-size: 19px; font-weight: 800; }
+  .hero-celebrate .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
+
+  /* ===== 筛选 chips ===== */
+  .chips { display: flex; gap: 8px; padding: 2px 16px 10px; overflow-x: auto; }
+  .chips::-webkit-scrollbar { height: 0; }
+  .chip {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500;
+    padding: 7px 14px; border-radius: 999px; background: var(--card); color: var(--t2);
+    border: 1px solid var(--border); cursor: pointer; white-space: nowrap; transition: all .15s;
+  }
+  .chip:active { transform: scale(.96); }
+  .chip.on { background: var(--primary-grad); border-color: transparent; color: #fff; font-weight: 600; box-shadow: 0 4px 10px rgba(244,109,56,.28); }
+  .chip .cnt { font-size: 10.5px; font-weight: 700; background: rgba(239,68,68,.12); color: var(--error); border-radius: 999px; padding: 0 6px; margin-left: 2px; }
+  .chip.on .cnt { background: rgba(255,255,255,.25); color: #fff; }
+  .chip.dashed { border-style: dashed; }
+  .chip.sep { visibility: hidden; width: 0; padding: 0; margin: 0; }
+
+  /* ===== 分组头 ===== */
+  .group-head {
+    display: flex; align-items: center; gap: 7px; padding: 14px 18px 8px; cursor: pointer; user-select: none;
+  }
+  .group-head .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .group-head .gname { font-size: 13px; font-weight: 700; color: var(--t1); }
+  .group-head .gcnt { font-size: 11px; font-weight: 600; color: var(--t2); background: var(--border); border-radius: 999px; padding: 0 8px; }
+  .group-head .chev { margin-left: auto; color: #C4C4C4; font-size: 12px; transition: transform .2s; }
+  .group-head.folded .chev { transform: rotate(-90deg); }
+  .group-head .hint { font-size: 11px; color: #B9B9B9; margin-left: 4px; }
+
+  /* ===== 任务卡（新版） ===== */
+  .t-card {
+    background: var(--card); border-radius: 16px; margin: 0 16px 10px; position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05); cursor: pointer; transition: transform .15s;
+    overflow: hidden;
+  }
+  .t-card:active { transform: scale(.985); }
+  .t-stripe { position: absolute; left: 0; top: 10px; bottom: 10px; width: 3.5px; border-radius: 0 3px 3px 0; }
+  .t-main { display: flex; gap: 11px; padding: 13px 14px 10px 17px; align-items: flex-start; }
+  .check {
+    width: 22px; height: 22px; border-radius: 50%; border: 1.8px solid #CFCFCF; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; cursor: pointer;
+    transition: all .2s;
+  }
+  .check.done { background: var(--success); border-color: var(--success); }
+  .t-body { flex: 1; min-width: 0; }
+  .t-title-row { display: flex; align-items: flex-start; gap: 8px; }
+  .t-title { font-size: 15px; font-weight: 600; line-height: 1.35; flex: 1; }
+  .t-title.done { color: var(--t2); text-decoration: line-through; font-weight: 400; }
+  .due-pill {
+    flex-shrink: 0; font-size: 10.5px; font-weight: 700; border-radius: 7px; padding: 3px 8px; margin-top: 1px;
+  }
+  .due-pill.today { background: rgba(244,109,56,.10); color: var(--primary-dark); }
+  .due-pill.over { background: rgba(239,68,68,.09); color: var(--error); }
+  .due-pill.tmrw { background: rgba(59,130,246,.08); color: var(--info); }
+  .t-desc { font-size: 12px; color: var(--t2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--t2); align-items: center; }
+  .t-meta .pri-urgent { background: rgba(239,68,68,.09); color: var(--error); border-radius: 5px; padding: 1px 6px; font-weight: 700; }
+  .t-meta .pri-high { background: rgba(245,158,11,.10); color: #B45309; border-radius: 5px; padding: 1px 6px; font-weight: 700; }
+  .t-meta .badge { background: #FDE8F0; color: #DB2777; border-radius: 999px; padding: 1px 8px; font-size: 10.5px; }
+  .t-meta .m { display: inline-flex; align-items: center; gap: 3px; }
+  .t-sub { border-top: 1px solid var(--divider); padding: 8px 14px 9px 17px; }
+  .t-sub-row { display: flex; gap: 9px; align-items: center; padding: 2.5px 0; font-size: 12.5px; }
+  .t-sub-row .mini-check {
+    width: 15px; height: 15px; border-radius: 4.5px; border: 1.5px solid #D4D4D4; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 9.5px; color: #fff;
+  }
+  .t-sub-row .mini-check.on { background: var(--primary); border-color: var(--primary); }
+  .t-sub-row .txt.done { color: var(--t2); text-decoration: line-through; }
+  .t-sub-foot { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+  .t-sub-foot .cnt { font-size: 10.5px; color: var(--primary); font-weight: 700; }
+  .t-sub-foot .bar { flex: 1; height: 3px; border-radius: 2px; background: var(--divider); overflow: hidden; }
+  .t-sub-foot .bar .fill { height: 100%; background: var(--primary); border-radius: 2px; }
+
+  /* 完成卡片（最近已完成） */
+  .t-card.done-card { opacity: .82; }
+
+  /* 撤回 banner */
+  .undo-banner {
+    margin: 0 16px 10px; background: rgba(28,28,30,.92); color: #fff; border-radius: 14px;
+    padding: 11px 16px; display: flex; align-items: center; gap: 8px; font-size: 13.5px;
+  }
+  .undo-banner .undo { margin-left: auto; color: #FDBA74; font-weight: 700; cursor: pointer; }
+
+  /* 对比区 */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .cmp-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .cmp-box .head { padding: 10px 18px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .cmp-box .head .t { font-size: 11px; font-weight: 600; border-radius: 5px; padding: 1px 8px; }
+  .cmp-box.old .head .t { background: #FEE2E2; color: #B91C1C; }
+  .cmp-box.new .head .t { background: #DCFCE7; color: #15803D; }
+  .cmp-body { padding: 14px 18px 18px; font-size: 13px; display: flex; flex-direction: column; gap: 9px; }
+  .cmp-row { display: flex; gap: 8px; }
+  .cmp-row .k { flex-shrink: 0; width: 76px; color: var(--t2); font-size: 12.5px; }
+  .cmp-row .v b.bad { color: #B91C1C; font-weight: 600; }
+  .cmp-row .v b.good { color: #15803D; font-weight: 600; }
+
+  /* 特写小卡 */
+  .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .detail-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; }
+  .detail-card h4 { font-size: 14px; margin-bottom: 4px; }
+  .detail-card .d { font-size: 12.5px; color: var(--t2); margin-bottom: 14px; }
+  .demo-zone { background: var(--bg); border-radius: 12px; padding: 14px; }
+
+  /* 规格表 */
+  table.spec { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 14px; overflow: hidden; font-size: 13.5px; }
+  table.spec th { background: #F7F6F2; text-align: left; padding: 10px 16px; font-size: 12.5px; color: var(--t2); border-bottom: 1px solid var(--border); }
+  table.spec td { padding: 10px 16px; border-bottom: 1px solid var(--divider); vertical-align: top; }
+  table.spec tr:last-child td { border-bottom: none; }
+  table.spec td.area { font-weight: 600; white-space: nowrap; }
+  .new-tag { color: #16A34A; font-size: 11.5px; background: #F0FDF4; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .same-tag { color: var(--t2); font-size: 11.5px; background: #F5F4F0; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .up-tag { color: #B45309; font-size: 11.5px; background: #FFF7ED; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .check-table .yes { color: #16A34A; font-weight: 700; }
+  .check-table .pos { color: var(--primary-dark); font-weight: 600; }
+
+  @media (max-width: 1020px) {
+    .strategy, .compare, .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-header">
+    <h1>任务首页 · 视觉改版方案</h1>
+    <div class="sub">2026-08-17 · 延续习惯打卡页的设计语言 · 纯视觉与信息层级改版，功能不增不减</div>
+    <div class="conclusion">
+      <b>设计主张：</b>习惯页好看，是因为它有「<b>今天的仪式感</b>」——进度头条、色彩淡染的磁贴、点亮时刻、全部完成的庆祝。
+      任务页要的也是这个感觉，但<b>不能照搬磁贴墙</b>：任务是「有期限的事务流」，标题长、信息密、靠扫读，两列磁贴会截断内容、降低处理效率。
+      所以本次移植的是习惯页的<b>设计基因</b>（进度头、淡彩、点亮、庆祝文案），布局上则让「时间」成为第一视觉维度：
+      <b>顶部「今日」仪表区 + 按时间分组的任务流 + 带清单色身份的精致卡片</b>。
+    </div>
+  </div>
+
+  <!-- ============ 一、设计策略 ============ -->
+  <section>
+    <div class="sec-title"><span class="num">01</span><h2>从习惯页移植什么、不移植什么</h2></div>
+    <p class="sec-desc">先把这个判断说清楚，避免「为了像而像」。</p>
+    <div class="strategy">
+      <div class="strat-card">
+        <span class="verdict no">不移植：两列磁贴墙</span>
+        <h3>任务的信息密度撑不起磁贴</h3>
+        <p>磁贴适合「一个图标+一个名字+一个动作」的习惯；任务单条常带长标题、描述、截止时间、清单、优先级、子任务。两列布局每格只有约 170pt 宽，长标题两行就截断，扫读效率反而下降。任务处理的最佳布局仍是单列卡片流。</p>
+      </div>
+      <div class="strat-card">
+        <span class="verdict yes">移植①：进度头条</span>
+        <h3>「今日进度 7/12」大数字 + 渐变进度条</h3>
+        <p>习惯页的进度头是全页视觉锚点。任务页同款语言，但数据更丰富：右侧加<b>环形进度</b>作仪表感锚点，副行显示「还剩 N 项 · K 项过期」（过期是任务特有的紧迫信号，红色强调）。</p>
+      </div>
+      <div class="strat-card">
+        <span class="verdict yes">移植②：色彩淡染身份</span>
+        <h3>清单色 = 卡片左侧色条 + 时间胶囊色系</h3>
+        <p>习惯磁贴用习惯色淡染出「每块磁贴有自己的颜色身份」。任务卡的等价物：<b>左侧 3.5pt 清单色条</b>（一眼区分归属），时间信息升格为右上角<b>语义色胶囊</b>（今天橙 / 过期红 / 明天蓝）。</p>
+      </div>
+      <div class="strat-card">
+        <span class="verdict yes">移植③：庆祝时刻</span>
+        <h3>「今天全部完成」的仪式感</h3>
+        <p>习惯页全部点亮时切换文案+波浪弹跳。任务页同款：今日清零时，顶部仪表区整块变为<b>品牌橙渐变庆祝卡</b>「今天全部完成 ✨ 享受你的夜晚吧」。这是每天最值得给用户的一秒。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 二、对比 ============ -->
+  <section>
+    <div class="sec-title"><span class="num">02</span><h2>现状 vs 新版：问题清单</h2></div>
+    <div class="compare">
+      <div class="cmp-box old">
+        <div class="head">现状 <span class="t">Boring 的原因</span></div>
+        <div class="cmp-body">
+          <div class="cmp-row"><span class="k">今日进度</span><span class="v">藏在右上角一个小小的「3/5」，<b class="bad">没有存在感</b>，翻页即忘</span></div>
+          <div class="cmp-row"><span class="k">时间维度</span><span class="v">任务平铺一列，<b class="bad">过期/今天/以后混在一起</b>，要自己逐条读小灰字才能分清轻重缓急</span></div>
+          <div class="cmp-row"><span class="k">卡片</span><span class="v">清一色白卡+灰字，<b class="bad">没有任何颜色身份</b>，10 条任务看起来一模一样</span></div>
+          <div class="cmp-row"><span class="k">筛选</span><span class="v">一排小灰胶囊（含所有清单平铺），<b class="bad">又长又平</b>，选中态也不突出</span></div>
+          <div class="cmp-row"><span class="k">完成时刻</span><span class="v">划线变灰，<b class="bad">没有愉悦感</b>，清完一天毫无感觉</span></div>
+        </div>
+      </div>
+      <div class="cmp-box new">
+        <div class="head">新版 <span class="t">对应的解法</span></div>
+        <div class="cmp-body">
+          <div class="cmp-row"><span class="k">今日仪表</span><span class="v">顶部 Hero 区：日期问候 + <b class="good">40pt 大数字 7/12</b> + 环形进度 + 渐变条，过期数红色警示</span></div>
+          <div class="cmp-row"><span class="k">时间分组</span><span class="v"><b class="good">已过期 / 今天 / 明天 / 本周 / 稍后 / 未安排</b> 六组，语义色组头+计数，组可折叠；过期组永远置顶</span></div>
+          <div class="cmp-row"><span class="k">卡片</span><span class="v">左侧<b class="good">清单色色条</b> + 右上角<b class="good">时间语义胶囊</b> + 优先级小胶囊 + 子任务迷你进度条，扫一眼就知道「谁的事、什么时候、多急」</span></div>
+          <div class="cmp-row"><span class="k">筛选</span><span class="v">「今日」提为第一位并作默认视图；过期胶囊带<b class="good">红色计数角标</b>；清单筛选收纳为单个「清单 ▾」入口，不再平铺占满一屏</span></div>
+          <div class="cmp-row"><span class="k">完成时刻</span><span class="v">勾选后卡片<b class="good">轻弹+淡出</b>（撤回条保留）；今日清零时 Hero 整块<b class="good">变橙色庆祝卡</b></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 三、主原型 ============ -->
+  <section>
+    <div class="sec-title"><span class="num">03</span><h2>新任务首页（主原型）</h2></div>
+    <p class="sec-desc">可滚动、可点：试试勾掉几个任务看进度变化，全部完成会触发庆祝卡；点分组头可折叠。</p>
+    <div class="phones">
+      <div class="phone-wrap">
+        <div class="phone-label">任务首页 · 新版 <span>· 点勾选/折叠试试</span></div>
+        <div class="phone" id="phone-main">
+          <div class="statusbar"><span>9:41</span><span>●●●●● 🔋</span></div>
+          <div class="content" id="scroll-main" style="padding-bottom: 96px;">
+            <div class="app-nav">
+              <div class="back">‹</div>
+              <div class="title">任务</div>
+              <div class="right" style="display:flex"><span class="icon-btn">⌕</span><span class="icon-btn">🔔</span></div>
+            </div>
+
+            <!-- HERO -->
+            <div class="hero" id="hero">
+              <div class="hero-top">
+                <span class="hero-date" id="hero-date">8月17日 星期一 · 今天</span>
+              </div>
+              <div class="hero-main">
+                <div class="hero-left">
+                  <div class="hero-kicker">今日进度</div>
+                  <div class="hero-num">
+                    <span class="done" id="hero-done">2</span><span class="sep">/</span><span class="total" id="hero-total">6</span>
+                  </div>
+                  <div class="hero-status" id="hero-status">
+                    <span>还剩 <b id="hero-remain" style="color:var(--primary)">4</b> 项</span>
+                    <span class="warn">1 项已过期</span>
+                  </div>
+                </div>
+                <div class="ring-wrap">
+                  <svg width="74" height="74">
+                    <circle cx="37" cy="37" r="31" fill="none" stroke="#F0E7DF" stroke-width="7"/>
+                    <circle id="ring-arc" cx="37" cy="37" r="31" fill="none" stroke="url(#ringGrad)" stroke-width="7" stroke-linecap="round" stroke-dasharray="194.8" stroke-dashoffset="129.9"/>
+                    <defs>
+                      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#F97316"/><stop offset="100%" stop-color="#EA580C"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="ring-center"><span class="pct" id="ring-pct">33%</span></div>
+                </div>
+              </div>
+              <div class="hero-bar"><div class="fill" id="hero-fill" style="width:33%"></div></div>
+            </div>
+
+            <!-- 筛选 -->
+            <div class="chips">
+              <span class="chip on">☀️ 今日</span>
+              <span class="chip">📥 收件箱</span>
+              <span class="chip">📋 全部</span>
+              <span class="chip">✓ 已完成</span>
+              <span class="chip">⚠️ 过期<span class="cnt">1</span></span>
+              <span class="chip">📁 清单 ▾</span>
+              <span class="chip dashed">🗄 归档</span>
+            </div>
+
+            <!-- 过期组 -->
+            <div class="group-head" onclick="toggleGroup(this)">
+              <span class="dot" style="background:var(--error)"></span>
+              <span class="gname">已过期</span><span class="gcnt">1</span>
+              <span class="chev">›</span>
+            </div>
+            <div class="t-card">
+              <div class="t-stripe" style="background:var(--pink)"></div>
+              <div class="t-main">
+                <div class="check" onclick="toggleTask(this)"> </div>
+                <div class="t-body">
+                  <div class="t-title-row">
+                    <span class="t-title">给妈妈买生日礼物</span>
+                    <span class="due-pill over">过期 2 天</span>
+                  </div>
+                  <div class="t-meta">
+                    <span class="badge">🎂 妈妈的生日</span>
+                    <span class="m">生活</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 今天组 -->
+            <div class="group-head" onclick="toggleGroup(this)">
+              <span class="dot" style="background:var(--primary)"></span>
+              <span class="gname">今天</span><span class="gcnt">4</span>
+              <span class="chev">›</span>
+            </div>
+            <div class="t-card">
+              <div class="t-stripe" style="background:var(--info)"></div>
+              <div class="t-main">
+                <div class="check" onclick="toggleTask(this)"> </div>
+                <div class="t-body">
+                  <div class="t-title-row">
+                    <span class="t-title">准备周五产品评审的材料</span>
+                    <span class="due-pill today">今天 14:00</span>
+                  </div>
+                  <div class="t-desc">包括竞品对比、上季度数据和演示 Demo 三部分</div>
+                  <div class="t-meta">
+                    <span class="pri-high">🚩 高</span>
+                    <span class="m">🔁 每周</span>
+                    <span class="m">工作</span>
+                  </div>
+                </div>
+              </div>
+              <div class="t-sub">
+                <div class="t-sub-row"><span class="mini-check on">✓</span><span class="txt done">拉取上季度留存数据</span></div>
+                <div class="t-sub-row"><span class="mini-check" onclick="toggleMini(this, event)"> </span><span class="txt">整理竞品功能对比表</span></div>
+                <div class="t-sub-row"><span class="mini-check" onclick="toggleMini(this, event)"> </span><span class="txt">准备演示 Demo 环境</span></div>
+                <div class="t-sub-foot">
+                  <span class="cnt">1/3</span>
+                  <div class="bar"><div class="fill" style="width:33%"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="t-card">
+              <div class="t-stripe" style="background:var(--info)"></div>
+              <div class="t-main">
+                <div class="check" onclick="toggleTask(this)"> </div>
+                <div class="t-body">
+                  <div class="t-title-row">
+                    <span class="t-title">跟设计确认首页改版的切图</span>
+                    <span class="due-pill today">今天 18:30</span>
+                  </div>
+                  <div class="t-meta"><span class="m">工作</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="t-card done-card">
+              <div class="t-stripe" style="background:var(--info)"></div>
+              <div class="t-main">
+                <div class="check done">✓</div>
+                <div class="t-body">
+                  <div class="t-title-row">
+                    <span class="t-title done">回复设计稿评审意见</span>
+                    <span class="due-pill today" style="background:rgba(34,197,94,.1);color:var(--success)">已完成 10:02</span>
+                  </div>
+                  <div class="t-meta"><span class="m">工作</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="t-card done-card">
+              <div class="t-main" style="padding-left:17px">
+                <div class="check done">✓</div>
+                <div class="t-body">
+                  <div class="t-title-row">
+                    <span class="t-title done">晨跑 5 公里</span>
+                    <span class="due-pill today" style="background:rgba(34,197,94,.1);color:var(--success)">已完成 07:15</span>
+                  </div>
+                  <div class="t-meta"><span class="m">健康</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 明天组 -->
+            <div class="group-head" onclick="toggleGroup(this)">
+              <span class="dot" style="background:var(--info)"></span>
+              <span class="gname">明天</span><span class="gcnt">1</span>
+              <span class="chev">›</span>
+            </div>
+            <div class="t-card">
+              <div class="t-stripe" style="background:var(--purple)"></div>
+              <div class="t-main">
+                <div class="check" onclick="toggleTask(this)"> </div>
+                <div class="t-body">
+                  <div class="t-title-row">
+                    <span class="t-title">预约牙医复诊</span>
+                    <span class="due-pill tmrw">明天 09:30</span>
+                  </div>
+                  <div class="t-meta"><span class="m">生活</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 稍后组（折叠演示） -->
+            <div class="group-head folded" onclick="toggleGroup(this)">
+              <span class="dot" style="background:#C4C4C4"></span>
+              <span class="gname">本周</span><span class="gcnt">3</span>
+              <span class="hint">已折叠</span>
+              <span class="chev">›</span>
+            </div>
+            <div class="group-children" style="display:none">
+              <div class="t-card"><div class="t-main" style="padding-left:17px"><div class="check" onclick="toggleTask(this)"> </div><div class="t-body"><div class="t-title-row"><span class="t-title">缴季度物业费</span></div><div class="t-meta"><span class="m">📅 8月20日</span><span class="m">生活</span></div></div></div></div>
+            </div>
+
+            <div class="group-head folded" onclick="toggleGroup(this)">
+              <span class="dot" style="background:#E4E4E4"></span>
+              <span class="gname">未安排</span><span class="gcnt">1</span>
+              <span class="hint">已折叠</span>
+              <span class="chev">›</span>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab"><span class="ico">📊</span><span>统计</span></div>
+            <div class="tab on"><span class="ico">☑️</span><span>任务</span></div>
+            <div class="tab"><span class="ico">💝</span><span>纪念日</span></div>
+            <div class="tab add"><span class="ico">＋</span><span>新增</span></div>
+          </div>
+        </div>
+        <div style="width:390px" class="anno-none">
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;margin-top:2px">
+            <b>试试：</b>勾选「准备周五产品评审的材料」——进度实时跳；把今天 4 项全勾掉，看顶部庆祝卡。
+          </div>
+        </div>
+      </div>
+
+      <!-- 第二台：全部完成庆祝态 -->
+      <div class="phone-wrap">
+        <div class="phone-label">今日清零时刻 <span>· 一天中最值得的一秒</span></div>
+        <div class="phone">
+          <div class="statusbar"><span>9:41</span><span>●●●●● 🔋</span></div>
+          <div class="content" style="padding-bottom: 30px;">
+            <div class="app-nav">
+              <div class="back">‹</div>
+              <div class="title">任务</div>
+              <div class="right" style="display:flex"><span class="icon-btn">⌕</span><span class="icon-btn">🔔</span></div>
+            </div>
+
+            <div class="hero-celebrate">
+              <div class="ring-wrap" style="width:64px;height:64px">
+                <svg width="64" height="64">
+                  <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="6"/>
+                  <circle cx="32" cy="32" r="26" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="163.4" stroke-dashoffset="0"/>
+                </svg>
+                <div class="ring-center"><span style="font-size:16px">✓</span></div>
+              </div>
+              <div>
+                <div class="big">今天全部完成 ✨</div>
+                <div class="sub">7 项任务全部清零 · 享受你的夜晚吧</div>
+              </div>
+            </div>
+
+            <div class="chips">
+              <span class="chip on">☀️ 今日</span>
+              <span class="chip">📥 收件箱</span>
+              <span class="chip">📋 全部</span>
+              <span class="chip">✓ 已完成</span>
+              <span class="chip">⚠️ 过期</span>
+              <span class="chip">📁 清单 ▾</span>
+              <span class="chip dashed">🗄 归档</span>
+            </div>
+
+            <!-- 撤回条演示 -->
+            <div style="padding:4px 0">
+              <div class="undo-banner">
+                <span style="color:var(--success)">✓</span> 任务已完成
+                <span class="undo">撤回</span>
+              </div>
+            </div>
+
+            <div class="group-head">
+              <span class="dot" style="background:var(--success)"></span>
+              <span class="gname">今天 · 已完成</span><span class="gcnt">7</span>
+              <span class="chev">›</span>
+            </div>
+            <div class="t-card done-card"><div class="t-main" style="padding-left:17px"><div class="check done">✓</div><div class="t-body"><div class="t-title-row"><span class="t-title done">准备周五产品评审的材料</span></div><div class="t-meta"><span class="m">工作</span></div></div></div></div>
+            <div class="t-card done-card"><div class="t-main" style="padding-left:17px"><div class="check done">✓</div><div class="t-body"><div class="t-title-row"><span class="t-title done">回复设计稿评审意见</span></div><div class="t-meta"><span class="m">工作</span></div></div></div></div>
+            <div class="t-card done-card"><div class="t-main" style="padding-left:17px"><div class="check done">✓</div><div class="t-body"><div class="t-title-row"><span class="t-title done">晨跑 5 公里</span></div><div class="t-meta"><span class="m">健康</span></div></div></div></div>
+
+            <div style="text-align:center;margin-top:26px;color:#B9B9B9;font-size:11.5px">
+              明天还有 3 项等着你 · 今晚好好休息 🌙
+            </div>
+          </div>
+        </div>
+        <div style="width:390px">
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;margin-top:2px">
+            与习惯页「今天全部点亮 ✨」同一语言：整块 Hero 变品牌橙渐变，环变实心打勾。次日预告一句「明天还有 N 项 · 今晚好好休息」收尾，给一天画上句点。
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 四、细节特写 ============ -->
+  <section>
+    <div class="sec-title"><span class="num">04</span><h2>细节特写</h2></div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <h4>卡片解剖</h4>
+        <div class="d">每个元素只回答一个问题</div>
+        <div class="demo-zone">
+          <div class="t-card" style="margin:0">
+            <div class="t-stripe" style="background:var(--info)"></div>
+            <div class="t-main" style="padding-left:17px">
+              <div class="check"></div>
+              <div class="t-body">
+                <div class="t-title-row"><span class="t-title">准备周五产品评审的材料</span><span class="due-pill today">今天 14:00</span></div>
+                <div class="t-meta"><span class="pri-high">🚩 高</span><span class="m">🔁</span><span class="m">工作</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:11.5px;color:var(--t2);margin-top:10px;line-height:1.9">
+            <b>色条</b>＝谁的事（清单色）<br>
+            <b>右上胶囊</b>＝什么时候（今天橙/过期红/明天蓝）<br>
+            <b>勾选圈</b>＝做没做（勾=完成）<br>
+            <b>小胶囊</b>＝多急（仅紧急/高显示）
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <h4>时间胶囊色系</h4>
+        <div class="d">三种状态三色，远期任务不戴胶囊（降噪音）</div>
+        <div class="demo-zone" style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+          <span class="due-pill over" style="font-size:12px">过期 2 天</span>
+          <span class="due-pill today" style="font-size:12px">今天 14:00</span>
+          <span class="due-pill tmrw" style="font-size:12px">明天 09:30</span>
+          <span class="due-pill today" style="font-size:12px;background:rgba(34,197,94,.1);color:var(--success)">已完成 10:02</span>
+          <div style="font-size:11.5px;color:var(--t2)">本周及以后 → 不显示胶囊，归入分组后 meta 行给小字日期即可</div>
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <h4>子任务行升级</h4>
+        <div class="d">平铺可勾选（功能不变），加迷你进度条</div>
+        <div class="demo-zone">
+          <div class="t-sub" style="border:none;padding:0">
+            <div class="t-sub-row"><span class="mini-check on">✓</span><span class="txt done">拉取上季度留存数据</span></div>
+            <div class="t-sub-row"><span class="mini-check"></span><span class="txt">整理竞品功能对比表</span></div>
+            <div class="t-sub-row"><span class="mini-check"></span><span class="txt">准备演示 Demo 环境</span></div>
+            <div class="t-sub-foot"><span class="cnt">1/3</span><div class="bar"><div class="fill" style="width:33%"></div></div></div>
+          </div>
+          <div style="font-size:11.5px;color:var(--t2);margin-top:10px">勾选圈用品牌橙（与父任务完成圈同源）；底部「n/m + 迷你条」与习惯磁贴计数类同款语言</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 五、规格与核对 ============ -->
+  <section>
+    <div class="sec-title"><span class="num">05</span><h2>交互规格</h2></div>
+    <table class="spec">
+      <tr><th style="width:120px">区域</th><th style="width:190px">元素</th><th>行为定义</th></tr>
+      <tr><td class="area" rowspan="2">顶部仪表</td><td>Hero 区 <span class="new-tag">新增视觉</span></td><td>日期行 + 「今日进度 大数字 n/m」+ 环形进度（74pt，品牌橙渐变）+ 渐变进度条 + 状态句（还剩 N 项 · K 项过期，过期红色）。数据口径=现有 todayProgress，无新数据。</td></tr>
+      <tr><td>全部完成态 <span class="new-tag">新增视觉</span></td><td>今日任务清零瞬间，Hero 整块切换为品牌橙渐变庆祝卡「今天全部完成 ✨」+ 完成环打勾 + 「享受你的夜晚吧」；右上角原 3/5 小数字移除（信息已进 Hero）。</td></tr>
+      <tr><td class="area" rowspan="2">筛选</td><td>胶囊顺序与默认 <span class="up-tag">调整</span></td><td>「今日」提为第一位并作为默认视图（原默认「全部」）；其余顺序：收件箱/全部/已完成/过期/清单/归档。过期胶囊带红色计数角标。所有筛选能力不变。</td></tr>
+      <tr><td>清单筛选收纳 <span class="up-tag">调整</span></td><td>各清单不再平铺占行，收纳为「清单 ▾」单个胶囊，点开弹清单选择层（复用现有清单选择器交互）；选中某清单后胶囊显示该清单名与色点。</td></tr>
+      <tr><td class="area" rowspan="3">任务流</td><td>时间分组 <span class="new-tag">新增视觉</span></td><td>按到期时间分组：<b>已过期（红点·置顶）/ 今天（橙点）/ 明天（蓝点）/ 本周 / 稍后 / 未安排</b>；组头=语义色点+组名+计数胶囊+折叠箭头，点组头折叠/展开（记住展开状态）。已完成 tab 维持按周分组（现状）。</td></tr>
+      <tr><td>卡片视觉 <span class="up-tag">升级</span></td><td>左侧 3.5pt 清单色条（无清单=无色条）；时间信息升为右上语义色胶囊；优先级紧急/高显示小色胶囊；子任务区底部加「n/m+迷你进度条」。整卡点击进任务页、左滑归档删除、勾选撤回——全部沿用上一版重构的交互，零变化。</td></tr>
+      <tr><td>组内排序 <span class="same-tag">不变</span></td><td>组内按截止时间升序（同时刻按优先级），与现有排序逻辑一致。</td></tr>
+      <tr><td class="area">最近已完成</td><td>折叠抽屉 <span class="same-tag">不变</span></td><td>非今日视图下的「最近已完成」折叠逻辑保留；今日视图内已完成任务直接显示在「今天」组内（带绿色「已完成 时刻」胶囊），与撤回机制衔接不变。</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <div class="sec-title"><span class="num">06</span><h2>功能保留核对表</h2></div>
+    <p class="sec-desc">视觉改版，功能零增减。</p>
+    <table class="spec check-table">
+      <tr><th style="width:280px">现有功能</th><th style="width:70px">保留</th><th>新版位置</th></tr>
+      <tr><td>筛选（今日/收件箱/全部/已完成/过期/各清单/归档）</td><td class="yes">✔</td><td class="pos">胶囊顺序重排 + 清单收纳为「清单 ▾」，能力不变</td></tr>
+      <tr><td>整卡点击进任务页 / 左滑归档删除 / 完成撤回 3 秒</td><td class="yes">✔</td><td class="pos">沿用上一版重构，零变化</td></tr>
+      <tr><td>子任务平铺直接勾选（卡片上）</td><td class="yes">✔</td><td class="pos">保留，样式升级 + 迷你进度条</td></tr>
+      <tr><td>今日进度数字</td><td class="yes">✔</td><td class="pos">从右上角小字升级为 Hero 大数字 + 环形进度</td></tr>
+      <tr><td>搜索 / 通知设置 / 归档管理入口</td><td class="yes">✔</td><td class="pos">顶栏原位</td></tr>
+      <tr><td>纪念日来源徽章跳转</td><td class="yes">✔</td><td class="pos">卡片 meta 行原位</td></tr>
+      <tr><td>筛选状态持久化</td><td class="yes">✔</td><td class="pos">保留（默认值从「全部」改为「今日」）</td></tr>
+      <tr><td>通知深链直达任务</td><td class="yes">✔</td><td class="pos">不变</td></tr>
+      <tr><td>重复任务 / 状态 / 优先级展示</td><td class="yes">✔</td><td class="pos">卡片 meta 行（优先级升为小胶囊）</td></tr>
+    </table>
+  </section>
+
+  <div style="text-align:center;color:var(--t2);font-size:12.5px;margin-top:56px">—— 确认后开工，实施范围：TaskListView（Hero/分组/筛选）+ TaskCardView（卡片视觉）· 纯客户端 ——</div>
+</div>
+
+<script>
+  // 分组折叠
+  function toggleGroup(head) {
+    head.classList.toggle('folded');
+    let el = head.nextElementSibling;
+    while (el && !el.classList.contains('group-head') && el.className !== '') {
+      if (el.classList.contains('t-card') || el.classList.contains('group-children')) {
+        el.style.display = el.style.display === 'none' ? '' : 'none';
+      }
+      el = el.nextElementSibling;
+    }
+  }
+
+  // 勾选联动 Hero（演示）
+  const TOTAL_TODAY = 6;
+  let doneToday = 2;
+  function refreshHero() {
+    const pct = Math.round(doneToday / TOTAL_TODAY * 100);
+    document.getElementById('hero-done').textContent = doneToday;
+    document.getElementById('hero-remain').textContent = TOTAL_TODAY - doneToday;
+    document.getElementById('ring-pct').textContent = pct + '%';
+    document.getElementById('hero-fill').style.width = pct + '%';
+    // 环形: r=31, 周长 194.8
+    document.getElementById('ring-arc').style.strokeDashoffset = 194.8 * (1 - pct / 100);
+    if (doneToday >= TOTAL_TODAY) {
+      const hero = document.getElementById('hero');
+      hero.style.background = 'linear-gradient(160deg,#F97316,#EA580C)';
+      hero.style.border = '1px solid transparent';
+      hero.querySelectorAll('.hero-kicker,.hero-date,.hero-num .done').forEach(e => e.style.color = '#fff');
+      document.querySelector('.hero-num .sep').style.color = 'rgba(255,255,255,.7)';
+      document.querySelector('.hero-num .total').style.color = 'rgba(255,255,255,.7)';
+      document.getElementById('ring-pct').style.color = '#fff';
+      document.querySelector('.hero-kicker').textContent = '🎉 今天全部完成';
+      document.getElementById('hero-status').innerHTML = '<span style="color:#fff">享受你的夜晚吧</span>';
+    }
+  }
+  function toggleTask(el) {
+    if (el.classList.contains('done')) return;
+    el.classList.add('done'); el.textContent = '✓';
+    const card = el.closest('.t-card');
+    const title = card.querySelector('.t-title');
+    if (title) { title.classList.add('done'); }
+    // 简化演示: 勾掉的算进今日进度
+    const pill = card.querySelector('.due-pill.today');
+    if (pill) {
+      pill.textContent = '已完成'; 
+      pill.style.background = 'rgba(34,197,94,.1)'; pill.style.color = 'var(--success)';
+      doneToday = Math.min(doneToday + 1, TOTAL_TODAY);
+      refreshHero();
+    } else {
+      card.style.opacity = .82;
+    }
+  }
+  function toggleMini(el, ev) {
+    if (ev) ev.stopPropagation();
+    el.classList.toggle('on');
+    el.textContent = el.classList.contains('on') ? '✓' : '';
+    const row = el.parentElement;
+    row.querySelector('.txt').classList.toggle('done', el.classList.contains('on'));
+  }
+</script>
+</body>
+</html>

@@ -153,8 +153,11 @@ struct KanbanTaskSection: View {
     }
 
     private func taskRow(task: TodoTask) -> some View {
-        HStack(spacing: 12) {
-            taskCheckCircle(task: task)
+        // 完成中（撤回窗口内）视觉与已完成一致，避免横幅说已完成、圆圈还是空的
+        let isDone = task.completed || pendingCompletionTaskId == task.id
+
+        return HStack(spacing: 12) {
+            taskCheckCircle(task: task, isDone: isDone)
 
             Button {
                 selectedTask = TaskSelection(id: task.id)
@@ -162,8 +165,8 @@ struct KanbanTaskSection: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(task.title)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
-                        .strikethrough(task.completed)
+                        .foregroundColor(isDone ? .holoTextSecondary : .holoTextPrimary)
+                        .strikethrough(isDone)
 
                     HStack(spacing: 6) {
                         if task.isDailyRitual {
@@ -213,25 +216,25 @@ struct KanbanTaskSection: View {
         .padding(.vertical, 12)
     }
 
-    private func taskCheckCircle(task: TodoTask) -> some View {
+    private func taskCheckCircle(task: TodoTask, isDone: Bool) -> some View {
         Button {
             toggleTask(task)
         } label: {
             ZStack {
                 Circle()
-                    .fill(task.completed ? Color.holoPrimary : Color.clear)
+                    .fill(isDone ? Color.holoPrimary : Color.clear)
                     .frame(width: 22, height: 22)
 
                 Circle()
-                    .stroke(task.completed ? Color.holoPrimary : Color.holoDivider, lineWidth: 2)
+                    .stroke(isDone ? Color.holoPrimary : Color.holoDivider, lineWidth: 2)
                     .frame(width: 22, height: 22)
 
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white)
-                    .opacity(task.completed ? 1 : 0)
+                    .opacity(isDone ? 1 : 0)
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: task.completed)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isDone)
         }
         .buttonStyle(.plain)
     }
@@ -362,6 +365,9 @@ struct KanbanTaskSection: View {
             } catch {
                 Logger(subsystem: "com.holo.app", category: "UI").error("取消完成失败: \(error.localizedDescription)")
             }
+        } else if pendingCompletionTaskId == task.id {
+            // 撤回窗口内再点完成圈 → 撤回完成（与任务列表一致）
+            undoCompletion()
         } else {
             // 未完成 → 走全局 3 秒撤回流程
             todoRepo.startPendingCompletion(for: task)
