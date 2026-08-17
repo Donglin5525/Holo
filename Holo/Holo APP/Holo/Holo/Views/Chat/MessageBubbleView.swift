@@ -41,6 +41,11 @@ struct MessageBubbleView: View {
     var onTransactionModifyCategory: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     /// 举报 AI 生成内容（App Store Guideline 1.2），仅对 AI 消息生效。
     var onReport: ((ChatMessageViewData) -> Void)? = nil
+    /// 周计划卡：快照按台账实时读取（provider 注入，避免逐条查库阻塞渲染）
+    var lifePlanSnapshotProvider: ((ChatMessageViewData) -> LifePlanSnapshot?)? = nil
+    var lifePlanUndoPlanID: UUID? = nil
+    var onLifePlanOpenReview: ((LifePlanSnapshot) -> Void)? = nil
+    var onLifePlanUndo: ((LifePlanSnapshot) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -140,6 +145,17 @@ struct MessageBubbleView: View {
                     PeriodReplayChatCard(message: message) { isExpanded in
                         onPeriodReplayExpansionChanged?(message, isExpanded)
                     }
+                } else {
+                    bubbleContent
+                }
+            } else if message.messageType == .lifePlan {
+                if let snapshot = lifePlanSnapshotProvider?(message) {
+                    LifePlanChatCard(
+                        snapshot: snapshot,
+                        canUndo: lifePlanUndoPlanID == snapshot.id,
+                        onOpenReview: { onLifePlanOpenReview?(snapshot) },
+                        onUndo: { onLifePlanUndo?(snapshot) }
+                    )
                 } else {
                     bubbleContent
                 }
@@ -285,12 +301,18 @@ struct MessageBubbleView: View {
             .background(Color.holoDivider.opacity(0.5))
             .clipShape(BubbleShape(isUser: true))
         } else {
-            AIReadableResponseView(
-                text: displayText,
-                isStreaming: message.isStreaming && streamingText != nil,
-                isError: message.isError,
-                onRetry: onRetry
-            )
+            VStack(alignment: .leading, spacing: 6) {
+                AIReadableResponseView(
+                    text: displayText,
+                    isStreaming: message.isStreaming && streamingText != nil,
+                    isError: message.isError,
+                    onRetry: onRetry
+                )
+                // 记忆引用署名：流式结束后按持久化数据展示，不参与流式重绘
+                if !message.isStreaming, let memoryCount = message.memoryAttributionCount {
+                    MemoryAttributionBadge(count: memoryCount, memoryIDs: message.memoryAttributionIDs)
+                }
+            }
         }
     }
 

@@ -230,7 +230,7 @@ nonisolated enum HoloMemoryReceiptStore {
         do {
             let repository = try await HoloMemoryRuntime.shared.repository()
             pendingCount = try await repository.query(.all).filter {
-                $0.state == .candidate && $0.userDecision == .none
+                HoloMemoryUserVisibility.isPendingConfirmation($0)
             }.count
         } catch {
             pendingCount = 0

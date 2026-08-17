@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆长廊 · 周历网格 泳道改造 + 双指缩放 · 交互原型</title>
+<style>
+/* ============ 展示台 ============ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+body{
+  background:radial-gradient(1200px 600px at 50% -100px,#23252c 0%,#141518 55%);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  color:#e8e9ec;min-height:100vh;padding:48px 24px 80px;
+}
+.stage-head{text-align:center;margin-bottom:32px}
+.stage-head h1{font-size:26px;font-weight:700;letter-spacing:.5px}
+.stage-head p{font-size:14px;color:#9a9ca6;margin-top:10px;line-height:1.8}
+.stage-head b{color:#f4a377;font-weight:600}
+.stage{display:flex;flex-direction:column;align-items:center;gap:28px}
+
+/* ============ 控制条 ============ */
+.controls{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:center}
+.ctl-group{display:flex;align-items:center;gap:8px}
+.ctl-label{font-size:12px;color:#8b8d97}
+.seg{display:flex;background:#1f2126;border:1px solid #33363d;border-radius:10px;padding:3px;gap:2px}
+.seg button{
+  border:none;background:transparent;color:#9a9ca6;font-size:13px;font-weight:500;
+  padding:6px 14px;border-radius:7px;cursor:pointer;transition:all .18s;font-family:inherit;
+}
+.seg button.on{background:#F46D38;color:#fff;font-weight:600}
+.zoom-chip{
+  font-size:12px;color:#f4a377;background:rgba(244,109,56,.12);
+  border:1px solid rgba(244,109,56,.35);border-radius:99px;padding:4px 12px;cursor:pointer;
+}
+.hint{font-size:12px;color:#7c7e88;text-align:center;line-height:1.7}
+
+/* ============ iPhone 外框 ============ */
+.phone{
+  width:375px;height:812px;transform:scale(.92);transform-origin:top center;
+  background:#1b1c20;border-radius:56px;padding:11px;
+  box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 0 3px rgba(255,255,255,.18);
+  flex:0 0 auto;
+}
+.screen{position:relative;width:100%;height:100%;border-radius:46px;overflow:hidden;background:#FDFCF8;display:flex;flex-direction:column}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#111;border-radius:20px;z-index:60}
+.statusbar{height:54px;flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 6px;font-size:15px;font-weight:600;color:#333;z-index:50}
+.batt{width:25px;height:12px;border:1.5px solid #333;border-radius:4px;position:relative;display:inline-block}
+.batt::after{content:"";position:absolute;inset:1.5px;right:6px;background:#333;border-radius:1.5px}
+
+/* ============ App 页面上下文 ============ */
+.app{flex:1;display:flex;flex-direction:column;min-height:0;padding:0 16px}
+.modeSwitch{display:flex;background:#fff;border:1px solid rgba(240,240,240,.55);border-radius:12px;padding:3px;margin-top:6px}
+.modeSwitch span{flex:1;text-align:center;font-size:13px;height:30px;line-height:30px;color:#939393;border-radius:9px}
+.modeSwitch span.on{background:#F46D38;color:#fff;font-weight:600}
+.navbar{display:flex;align-items:center;gap:8px;padding:10px 0 8px}
+.navbar .chev{font-size:17px;color:#939393;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.navbar .title{flex:1;text-align:center;font-size:16px;font-weight:600;color:#333}
+.navbar .todaypill{font-size:12px;color:#C0552A;background:#FDE8DC;padding:5px 10px;border-radius:99px}
+.obstrip{
+  display:flex;align-items:center;gap:7px;font-size:12px;color:#939393;
+  background:#fff;border:1px solid rgba(240,240,240,.55);border-radius:12px;
+  padding:9px 12px;margin-bottom:8px;
+}
+.obstrip .dot{width:7px;height:7px;border-radius:50%;background:#F46D38;flex:0 0 auto}
+.wswitch{display:flex;background:#fff;border:1px solid rgba(240,240,240,.8);border-radius:8px;padding:2px;margin-bottom:10px}
+.wswitch span{flex:1;text-align:center;font-size:11px;height:28px;line-height:28px;color:#939393;border-radius:6px}
+.wswitch span.on{background:#F46D38;color:#fff;font-weight:600}
+
+/* ============ 网格（两种模式由 JS 切换样式） ============ */
+.gridcard{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;transition:background .25s,border-color .25s}
+.gheader{display:flex;height:48px;flex:0 0 auto;position:relative;transition:background .25s}
+.hcell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hcell .wd{font-size:10px;color:#939393;margin-bottom:3px}
+.hcell .dnum{font-size:13px;font-weight:700;color:#333;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;font-family:"SF Pro Rounded",-apple-system,sans-serif}
+.hcell.today .wd{color:#F46D38;font-weight:600}
+.hcell.today .dnum{background:#F46D38;color:#fff}
+.haxis{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:0 0 auto;width:36px;position:relative;cursor:pointer}
+.haxis .ch{font-size:8px;font-weight:700;color:#F46D38}
+.haxis .rng{font-size:8px;font-weight:600;color:#939393}
+.haxis.on{background:rgba(244,109,56,.10);border-radius:8px;margin:4px 2px;width:32px}
+.gmorning{display:flex;height:40px;flex:0 0 auto;position:relative}
+.maxis{width:36px;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.maxis .moon{font-size:9px;color:#939393}
+.maxis .lbl{font-size:8px;font-weight:600;color:#939393}
+.mcell{display:flex;align-items:center;justify-content:center;gap:4px;position:relative}
+.mcell .cnt{font-size:10px;font-weight:700;color:#333;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:99px;padding:0 4px}
+.mcell .arr{font-size:7px;color:#939393}
+.mcell .none{font-size:11px;color:#C9CDD2}
+.gbody{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:none}
+.gbody::-webkit-scrollbar{display:none}
+.gcontent{position:relative}
+.rail{position:absolute;left:0;top:0;bottom:0;width:36px;transition:background .25s}
+.rail .hlabel{position:absolute;right:4px;font-size:10px;color:#939393;font-weight:500}
+.lanes{position:absolute;left:36px;right:0;top:0;bottom:0}
+.lane{position:absolute;top:0;bottom:0}
+.lane-tint{position:absolute;top:0;bottom:0;left:0;right:0;background:rgba(244,109,56,.045)}
+.hline{position:absolute;left:0;right:0;border-top:0.5px solid #F1F5F9}
+.vline{position:absolute;top:0;bottom:0;width:0}
+.evt{
+  position:absolute;left:2px;right:2px;display:flex;align-items:center;
+  padding-left:6px;overflow:hidden;cursor:pointer;
+}
+.evt .t{font-size:10px;font-weight:700;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evt.ovf .t{font-size:8.5px;color:#939393}
+.evt.ovf{padding-left:5px}
+.nowline{position:absolute;left:0;right:0;height:1.5px;background:#F46D38}
+.nowdot{position:absolute;width:7px;height:7px;border-radius:50%;background:#F46D38;left:-3px;margin-top:-3px}
+.legend{display:flex;align-items:center;gap:14px;font-size:11px;color:#939393;padding:8px 2px 12px;flex:0 0 auto}
+.legend .li{display:flex;align-items:center;gap:5px}
+.legend .li i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.legend .zchip{margin-left:auto;font-size:10px;color:#939393;background:rgba(147,147,147,.10);border-radius:99px;padding:3px 9px;cursor:pointer;user-select:none}
+
+/* ============ 设计说明 ============ */
+.notes{width:375px;max-width:92vw}
+.notes summary{cursor:pointer;font-size:14px;font-weight:600;color:#c9cbd3;padding:12px 16px;background:#1c1e23;border:1px solid #2e3138;border-radius:12px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+.notes summary::after{content:"展开 / 收起";font-size:11px;color:#7c7e88;font-weight:400}
+.notes .body{background:#17181c;border:1px solid #2e3138;border-top:none;border-radius:0 0 12px 12px;padding:16px 18px;display:none}
+.notes[open] .body{display:block}
+.notes ol{margin-left:18px;display:flex;flex-direction:column;gap:10px}
+.notes li{font-size:13px;color:#b9bbc3;line-height:1.7}
+.notes li b{color:#e8e9ec}
+.notes .sw{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:2px}
+.notes .why{margin-top:14px;padding-top:12px;border-top:1px solid #2e3138;font-size:12px;color:#8b8d97;line-height:1.8}
+</style>
+</head>
+<body>
+
+<div class="stage-head">
+  <h1>记忆长廊 · 周历网格视图改造</h1>
+  <p>需求一：<b>泳道化</b> —— 给网格加外框和泳道结构，一眼看出「这是一张周历」；需求二：<b>双指缩放</b> —— 捏合缩放时间轴，密集时段不必再点「还有 N 条」。<br>下方可切换「当前样式 / 泳道方案」对比，缩放档位对应 App 里的双指捏合。</p>
+</div>
+
+<div class="stage">
+  <div class="controls">
+    <div class="ctl-group">
+      <span class="ctl-label">样式</span>
+      <div class="seg" id="styleSeg">
+        <button data-s="current" class="on">当前样式</button>
+        <button data-s="swimlane">泳道方案</button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">缩放档位</span>
+      <div class="seg" id="zoomSeg">
+        <button data-z="1" class="on">1.0×</button>
+        <button data-z="1.5">1.5×</button>
+        <button data-z="2">2.0×</button>
+      </div>
+      <span class="zoom-chip" id="zoomChip">1.00×</span>
+    </div>
+  </div>
+  <div class="hint">预览区支持触控板双指捏合 / Ctrl+滚轮 连续缩放 · 双击网格恢复 1.0× · 两种样式都可缩放（两个需求相互独立）</div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="batt"></span></div>
+      <div class="app">
+        <div class="modeSwitch"><span class="on">周历</span><span>月历</span></div>
+        <div class="navbar">
+          <span class="chev">‹</span>
+          <span class="title">8月15日 – 8月17日</span>
+          <span class="chev">›</span>
+          <span class="todaypill">今天</span>
+        </div>
+        <div class="obstrip"><span class="dot"></span>本页 3 天共 22 条记录 · 覆盖 5 个模块</div>
+        <div class="wswitch"><span class="on">网格视图</span><span>列表视图</span></div>
+
+        <div class="gridcard" id="gridcard"></div>
+
+        <div class="legend" id="legend">
+          <span class="li"><i style="background:#F46D38"></i>记账</span>
+          <span class="li"><i style="background:#22C55E"></i>习惯</span>
+          <span class="li"><i style="background:#6366F1"></i>待办</span>
+          <span class="li"><i style="background:#EC4899"></i>想法</span>
+          <span class="zchip" id="legendZoom">缩放 1.00×</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <summary>泳道方案改了什么（6 处）</summary>
+    <div class="body">
+      <ol>
+        <li><b>外框卡片</b>：网格整体套进一张白底卡片 —— 1pt 描边、12pt 圆角、轻微投影，与页面米白底分开，先确立「这是一个组件」。</li>
+        <li><b>表头栏</b>：日期行加灰底（<span class="sw" style="background:#F4F7F9"></span>#F4F7F9）+ 底部 1pt 分隔线，表头和内容从此分层，这是「日历感」的主要来源。</li>
+        <li><b>时间轴导轨</b>：左侧 36pt 时间刻度列加灰底 + 右侧 1pt 描边，与表头左格连成 L 形导轨，刻度不再是「浮在空中的数字」。</li>
+        <li><b>今日泳道</b>：中间列（今天）铺一层 4.5% 橙色淡底，从表头贯穿到卡片底部 —— 三条泳道里哪条是今天，一眼锁定，不用找圆圈。</li>
+        <li><b>泳道分隔线</b>：日与日之间的竖线从 0.5pt <span class="sw" style="background:#F1F5F9;border:1px solid #e5e7eb"></span>#F1F5F9 升级为 1pt <span class="sw" style="background:#EDEEF1;border:1px solid #e5e7eb"></span>#EDEEF1，三条道真正「分开」。</li>
+        <li><b>凌晨摘要收进卡片</b>：原来浮在网格上方的独立小卡，改为卡片内部的一条横带（表头下方），整个周历从此只有一张卡。</li>
+      </ol>
+      <div class="why">
+        为什么现在「一眼看不出是什么」：当前唯一的结构信号是 0.5pt 分隔线，颜色 #F1F5F9 落在米白页面底 #FDFCF8 上对比度只有约 1.07 : 1，肉眼几乎不可见；且没有任何外框和背景层次，内容直接铺在页面上。<br>
+        手势说明：App 内为双指捏合缩放整条时间轴（1.0×–2.6×），事件条高度不变、字号不变，小时行变高后能容纳更多条目 —— 今晚 20 点的 6 条记录在 1.0× 时显示 4 条 +「还有 2 条」，1.5× 起全部直接可见。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ======================= 设计令牌（与 App DesignSystem 一致） ======================= */
+const T = {
+  axisW: 36, headerH: 48, morningH: 40,
+  tier: c => c <= 1 ? 42 : c === 2 ? 57 : c === 3 ? 84 : c === 4 ? 111 : 131,
+  pitch: 27, blockH: 24, ovfH: 17, padMulti: 3, padSingle: 9,
+  mods: {
+    fin: { color: '#F46D38' }, hab: { color: '#22C55E' }, todo: { color: '#6366F1' },
+    tho: { color: '#EC4899' }, hea: { color: '#3B82F6' }
+  }
+};
+
+/* ======================= 演示数据（今天 = 8/16 周日） ======================= */
+const DAYS = [
+  { wd: '周六', d: '15', today: false, morning: { count: 2, mod: 'tho' },
+    events: [
+      { h: 9,  m: 'tho', t: '整理相册思路' },
+      { h: 14, m: 'hab', t: '午后拉伸' },
+      { h: 20, m: 'fin', t: '超市采购' },
+      { h: 20, m: 'tho', t: '灵感速记' }
+    ]},
+  { wd: '周日', d: '16', today: true, morning: { count: 1, mod: 'tho' },
+    events: [
+      { h: 8,  m: 'fin', t: '早餐 · 豆浆油条' },
+      { h: 10, m: 'todo', t: '回复妈妈消息' },
+      { h: 12, m: 'fin', t: '午餐 · 轻食' },
+      { h: 12, m: 'hab', t: '饭后散步' },
+      { h: 12, m: 'todo', t: '取快递' },
+      { h: 14, m: 'tho', t: '产品灵感 · 泳道' },
+      { h: 16, m: 'hab', t: '傍晚跑步' },
+      { h: 16, m: 'hea', t: '心率记录' },
+      { h: 18, m: 'fin', t: '晚餐 · 面馆' },
+      { h: 20, m: 'fin', t: '水果' },
+      { h: 20, m: 'hab', t: '睡前拉伸' },
+      { h: 20, m: 'todo', t: '明日采购单' },
+      { h: 20, m: 'tho', t: '灵感 · 周复盘' },
+      { h: 20, m: 'hea', t: '体重记录' },
+      { h: 20, m: 'fin', t: '打车回家' },
+      { h: 22, m: 'tho', t: '日记速记' }
+    ]},
+  { wd: '周一', d: '17', today: false, morning: null,
+    events: [
+      { h: 9,  m: 'todo', t: '周会准备' },
+      { h: 15, m: 'hab', t: '健身房' }
+    ]}
+];
+
+/* ======================= 状态 ======================= */
+let mode = 'current';   // current | swimlane
+let zoom = 1.0;
+
+/* ======================= 布局计算（与 WeeklyGridAxisProfile / WeeklyGridEventLayout 同构） ======================= */
+function buildProfile() {
+  const hours = [], countsByHour = {};
+  for (let h = 7; h <= 23; h++) countsByHour[h] = 0;
+  DAYS.forEach(d => {
+    const per = {};
+    d.events.forEach(e => per[e.h] = (per[e.h] || 0) + 1);
+    Object.entries(per).forEach(([h, c]) => countsByHour[h] = Math.max(countsByHour[h], c));
+  });
+  let top = 0;
+  for (let h = 7; h <= 23; h++) {
+    const height = Math.round(T.tier(countsByHour[h]) * zoom * 2) / 2;
+    hours.push({ h, top, height });
+    top += height;
+  }
+  return { hours, total: top };
+}
+function capacity(height) {
+  if (height < 27) return 1;
+  return Math.floor((height - 27) / T.pitch) + 1;
+}
+
+/* ======================= 渲染 ======================= */
+const el = (tag, cls, css) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (css) Object.assign(n.style, css);
+  return n;
+};
+
+function render() {
+  const card = document.getElementById('gridcard');
+  card.innerHTML = '';
+  const P = buildProfile();
+  const laneW = (card.clientWidth || 343 - 0 - T.axisW) ? (card.clientWidth - T.axisW) / 3 : 102;
+
+  /* ---- 整体容器 ---- */
+  Object.assign(card.style, mode === 'swimlane' ? {
+    background: '#FFFFFF',
+    border: '1px solid #E9EAEC',
+    borderRadius: '12px',
+    boxShadow: '0 6px 18px rgba(20,22,26,.05)',
+    overflow: 'hidden'
+  } : {
+    background: 'transparent', border: 'none', borderRadius: '0', boxShadow: 'none', overflow: 'visible'
+  });
+
+  /* ---- 1. 表头 ---- */
+  const header = el('div', 'gheader');
+  Object.assign(header.style, mode === 'swimlane'
+    ? { background: '#F4F7F9', borderBottom: '1px solid #E9EAEC' }
+    : { borderBottom: '0.5px solid #F1F5F9' });
+  const hAxis = el('div', 'haxis on');
+  hAxis.title = '展开 / 收起凌晨 0–7 点';
+  hAxis.innerHTML = '<span class="ch">›</span><span class="rng">0–7</span>';
+  if (mode === 'swimlane') Object.assign(hAxis.style, { background: 'transparent', margin: '0', width: '36px', borderRadius: '0' });
+  header.appendChild(hAxis);
+  DAYS.forEach((d, i) => {
+    const c = el('div', 'hcell' + (d.today ? ' today' : ''));
+    c.style.width = laneW + 'px';
+    c.innerHTML = `<span class="wd">${d.wd}${d.today ? ' · 今天' : ''}</span><span class="dnum">${d.d}</span>`;
+    if (mode === 'swimlane' && d.today) {
+      c.style.background = 'rgba(244,109,56,.06)';
+      c.insertAdjacentHTML('beforeend', '<div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:#F46D38"></div>');
+    }
+    if (i > 0) c.style.boxShadow = `inset 1px 0 0 ${mode === 'swimlane' ? '#EDEEF1' : 'rgba(241,245,249,.5)'}`;
+    header.appendChild(c);
+  });
+  card.appendChild(header);
+
+  /* ---- 2. 凌晨摘要行 ---- */
+  const morning = el('div', 'gmorning');
+  if (mode === 'swimlane') {
+    Object.assign(morning.style, { background: '#FFFFFF', borderBottom: '0.5px solid #F0F0F0', marginTop: '0' });
+  } else {
+    Object.assign(morning.style, {
+      background: 'rgba(244,247,249,.82)', border: '0.5px solid rgba(240,240,240,.52)',
+      borderRadius: '8px', margin: '4px 0'
+    });
+  }
+  const mAxis = el('div', 'maxis');
+  if (mode === 'swimlane') mAxis.style.background = '#F4F7F9';
+  mAxis.innerHTML = '<span class="moon">🌙</span><span class="lbl">凌晨</span>';
+  if (mode === 'swimlane') mAxis.style.boxShadow = 'inset -1px 0 0 #E9EAEC';
+  else mAxis.style.boxShadow = 'inset -0.5px 0 0 rgba(241,245,249,.45)';
+  morning.appendChild(mAxis);
+  DAYS.forEach((d, i) => {
+    const c = el('div', 'mcell');
+    c.style.width = laneW + 'px';
+    if (d.morning) {
+      const color = T.mods[d.morning.mod].color;
+      c.innerHTML = `<span class="cnt" style="background:${color}2E">${d.morning.count}</span><span class="arr">›</span>`;
+    } else {
+      c.innerHTML = '<span class="none">—</span>';
+    }
+    if (mode === 'swimlane' && d.today) c.style.background = 'rgba(244,109,56,.04)';
+    if (i > 0) c.style.boxShadow = `inset 1px 0 0 ${mode === 'swimlane' ? '#EDEEF1' : 'rgba(241,245,249,.45)'}`;
+    morning.appendChild(c);
+  });
+  card.appendChild(morning);
+
+  /* ---- 3. 网格主体 ---- */
+  const body = el('div', 'gbody');
+  const content = el('div', 'gcontent');
+  content.style.height = P.total + 'px';
+
+  // 时间轴导轨
+  const rail = el('div', 'rail');
+  if (mode === 'swimlane') { rail.style.background = '#F4F7F9'; rail.style.boxShadow = 'inset -1px 0 0 #E9EAEC'; }
+  else rail.style.boxShadow = 'inset -0.5px 0 0 rgba(241,245,249,.5)';
+  P.hours.forEach(seg => {
+    if ((seg.h - 7) % 2 === 0) {
+      const l = el('div', 'hlabel', { top: (seg.top + 1) + 'px' });
+      l.textContent = seg.h;
+      rail.appendChild(l);
+    }
+  });
+  const l24 = el('div', 'hlabel', { top: (P.total - 11) + 'px' }); l24.textContent = '24'; rail.appendChild(l24);
+  content.appendChild(rail);
+
+  // 泳道容器
+  const lanes = el('div', 'lanes');
+  DAYS.forEach((d, i) => {
+    const lane = el('div', 'lane');
+    lane.style.left = (i * laneW) + 'px';
+    lane.style.width = laneW + 'px';
+    if (d.today && mode === 'swimlane') lane.appendChild(el('div', 'lane-tint'));
+
+    // 小时横线
+    P.hours.forEach(seg => lane.appendChild(el('div', 'hline', { top: seg.top + 'px' })));
+
+    // 事件块
+    const byHour = {};
+    d.events.forEach(e => (byHour[e.h] = byHour[e.h] || []).push(e));
+    Object.keys(byHour).map(Number).sort((a, b) => a - b).forEach(h => {
+      const evts = byHour[h];
+      const seg = P.hours.find(s => s.h === h);
+      const cap = capacity(seg.height);
+      const visible = evts.slice(0, cap);
+      const pad = visible.length <= 1 ? T.padSingle : T.padMulti;
+      visible.forEach((e, idx) => {
+        const b = el('div', 'evt', {
+          top: (seg.top + pad + idx * T.pitch) + 'px',
+          height: T.blockH + 'px',
+          background: T.mods[e.m].color + '24',
+          borderRadius: '6px'
+        });
+        const bar = el('div', '', { position: 'absolute', left: '0', top: '0', bottom: '0', width: '3px', background: T.mods[e.m].color });
+        b.appendChild(bar);
+        b.appendChild(Object.assign(el('span', 't'), { textContent: e.t }));
+        lane.appendChild(b);
+      });
+      const overflow = evts.length - visible.length;
+      if (overflow > 0) {
+        const b = el('div', 'evt ovf', {
+          top: (seg.top + pad + visible.length * T.pitch) + 'px',
+          height: T.ovfH + 'px',
+          background: 'rgba(147,147,147,.07)',
+          borderRadius: '4px'
+        });
+        const bar = el('div', '', { position: 'absolute', left: '0', top: '0', bottom: '0', width: '2px', background: '#939393' });
+        b.appendChild(bar);
+        b.appendChild(Object.assign(el('span', 't'), { textContent: `还有 ${overflow} 条` }));
+        lane.appendChild(b);
+      }
+    });
+
+    // 当前时间线（今天 · 17:24）
+    if (d.today) {
+      const seg = P.hours.find(s => s.h === 17);
+      if (seg) {
+        const y = seg.top + 24 / 60 * seg.height;
+        const line = el('div', 'nowline', { top: y + 'px' });
+        line.appendChild(el('div', 'nowdot'));
+        lane.appendChild(line);
+      }
+    }
+    lanes.appendChild(lane);
+  });
+
+  // 泳道分隔竖线（内部 2 条，不与外框重叠）
+  if (mode === 'swimlane') {
+    for (let i = 1; i < 3; i++) {
+      lanes.appendChild(el('div', 'vline', {
+        left: (i * laneW - 0.5) + 'px', borderLeft: '1px solid #EDEEF1'
+      }));
+    }
+  } else {
+    for (let i = 1; i < 3; i++) {
+      lanes.appendChild(el('div', 'vline', {
+        left: (i * laneW - 0.25) + 'px', borderLeft: '0.5px solid rgba(241,245,249,.5)'
+      }));
+    }
+  }
+
+  content.appendChild(lanes);
+  body.appendChild(content);
+  card.appendChild(body);
+  body.scrollTop = 0;
+
+  document.getElementById('zoomChip').textContent = zoom.toFixed(2) + '×';
+  document.getElementById('legendZoom').textContent = '缩放 ' + zoom.toFixed(2) + '×';
+}
+
+/* ======================= 交互 ======================= */
+function setStyle(s) {
+  mode = s;
+  document.querySelectorAll('#styleSeg button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  render();
+}
+function setZoom(z, snap) {
+  zoom = Math.min(2.6, Math.max(1, snap ? z : Math.round(z * 20) / 20));
+  document.querySelectorAll('#zoomSeg button').forEach(b => b.classList.toggle('on', Math.abs(parseFloat(b.dataset.z) - zoom) < 0.001));
+  render();
+}
+document.getElementById('styleSeg').addEventListener('click', e => { if (e.target.dataset.s) setStyle(e.target.dataset.s); });
+document.getElementById('zoomSeg').addEventListener('click', e => { if (e.target.dataset.z) setZoom(parseFloat(e.target.dataset.z), true); });
+document.getElementById('zoomChip').addEventListener('click', () => setZoom(1, true));
+document.getElementById('legendZoom').addEventListener('click', () => setZoom(1, true));
+
+// 触控板捏合 / Ctrl+滚轮 → 连续缩放
+document.getElementById('gridcard').addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  setZoom(zoom * Math.exp(-e.deltaY * 0.008), false);
+}, { passive: false });
+document.getElementById('gridcard').addEventListener('dblclick', () => setZoom(1, true));
+
+render();
+</script>
+</body>
+</html>

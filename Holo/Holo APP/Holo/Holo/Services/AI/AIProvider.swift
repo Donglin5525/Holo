@@ -48,6 +48,10 @@ protocol AIProvider {
     /// 灵活查询结构化规划
     func completeFlexibleQueryPlan(prompt: String, userContext: UserContext) async throws -> String
 
+    /// 每周计划组装（简单结构化 JSON；声明在协议本体以获得动态派发，
+    /// HoloBackendAIProvider 覆盖为专用 purpose 走 JSON 模式+none 推理档）
+    func completeWeeklyPlan(prompt: String, context: UserContext) async throws -> String
+
     /// 流式对话
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error>
 
@@ -168,6 +172,11 @@ extension AIProvider {
             text += chunk
         }
         return text
+    }
+
+    /// 非流式每周计划生成调用
+    func completeWeeklyPlan(prompt: String, context: UserContext) async throws -> String {
+        try await completeGoalPlanning(prompt: prompt, context: context)
     }
 
     /// 默认实现：将单意图结果包装为 batch

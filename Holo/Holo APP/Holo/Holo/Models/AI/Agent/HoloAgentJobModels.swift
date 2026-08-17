@@ -21,6 +21,8 @@ nonisolated enum HoloAgentTrigger: String, Codable, CaseIterable, Sendable {
     case memoryGalleryRefresh
     case observerTier2
     case healthInsight
+    /// 每周生活计划生成（用户显式触发「规划这周」类意图）
+    case weeklyPlanning
     case debug
 }
 
@@ -197,11 +199,23 @@ nonisolated extension HoloAgentBudget {
         )
     }
 
+    /// 每周生活计划预算：快照汇总性质（非深钻探索），轮次收敛快；
+    /// 输入上限压到 60K，降低大上下文重发触发上游超时的概率。
+    static func weeklyPlanning(now: Date = Date()) -> HoloAgentBudget {
+        HoloAgentBudget(
+            maxLLMRounds: 6, maxToolBatches: 6,
+            maxInputTokens: 60_000, maxOutputTokens: 10_000,
+            maxWallTimeSeconds: 150,
+            consumedLLMRounds: 0, consumedToolBatches: 0,
+            consumedInputTokens: 0, consumedOutputTokens: 0,
+            startedAt: now, updatedAt: now
+        )
+    }
+
     /// Observer Tier2 跟进预算（更克制）
     static func observerFollowUp(now: Date = Date()) -> HoloAgentBudget {
         HoloAgentBudget(
-            maxLLMRounds: 2, maxToolBatches: 2,
-            maxInputTokens: 6_000, maxOutputTokens: 2_000,
+            maxLLMRounds: 2, maxToolBatches: 2,            maxInputTokens: 6_000, maxOutputTokens: 2_000,
             maxWallTimeSeconds: 60,
             consumedLLMRounds: 0, consumedToolBatches: 0,
             consumedInputTokens: 0, consumedOutputTokens: 0,

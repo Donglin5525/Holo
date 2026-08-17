@@ -60,6 +60,9 @@ struct ThoughtKnowledgeTreeView: View {
                 unclassifiedCard
                 discoverRow
                 archivedRow
+
+                // P1：整理设置统一收口入口（东林拍板：后续想法 AI 设置都放这里）
+                organizationSettingsRow
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.sm)
@@ -131,7 +134,7 @@ struct ThoughtKnowledgeTreeView: View {
         } else if orgQueue.dailyLimitHit {
             aiStatusRow(
                 icon: "moon.zzz.fill",
-                text: "今日整理配额已用尽，剩余条目明天自动续做",
+                text: "今日 AI 额度已用尽，剩余条目明天自动续做",
                 badge: nil,
                 action: nil
             )
@@ -418,9 +421,34 @@ struct ThoughtKnowledgeTreeView: View {
         }
         .buttonStyle(.plain)
     }
-}
 
-// MARK: - Preview
+    /// P1：整理设置行（自动分类开关 / 标签治理 / 反馈 Debug 都收口在设置页内）
+    @State private var showOrganizationSettings = false
+
+    private var organizationSettingsRow: some View {
+        Button {
+            showOrganizationSettings = true
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextSecondary)
+                Text("整理设置")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+            }
+            .padding(.horizontal, HoloSpacing.xs)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showOrganizationSettings) {
+            ThoughtOrganizationSettingsView()
+        }
+    }
+}
 
 #Preview {
     Text("ThoughtKnowledgeTreeView 需要 Core Data context")

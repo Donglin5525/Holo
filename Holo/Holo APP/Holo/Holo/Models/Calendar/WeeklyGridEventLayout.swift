@@ -9,7 +9,12 @@ import CoreGraphics
 import Foundation
 
 struct WeeklyGridEventLayout {
-    private static let maximumVisibleEvents = 4
+    /// 单条事件块的固定几何：块高与字号不随缩放变化，缩放只改变每小时能容纳的条数
+    private static let eventPitch: CGFloat = 27
+    private static let eventBlockHeight: CGFloat = 24
+    private static let singleEventTopPadding: CGFloat = 9
+    private static let multiEventTopPadding: CGFloat = 3
+    private static let overflowHeight: CGFloat = 17
 
     struct DisplayItem: Identifiable {
         let id: String
@@ -30,6 +35,13 @@ struct WeeklyGridEventLayout {
     let early: [CalendarEvent]
     let collapsed: [CalendarEvent]
     let displayItems: [DisplayItem]
+
+    /// 该小时高度下能直显的条数。1.0× 时与分档表一一对应
+    /// （42→1、57→2、84→3、111→4、131→4+溢出），不缩放则视觉零回归。
+    static func visibleCapacity(hourHeight: CGFloat) -> Int {
+        guard hourHeight >= eventPitch else { return 1 }
+        return Int((hourHeight - eventPitch) / eventPitch) + 1
+    }
 
     static func layout(events: [CalendarEvent],
                        axisProfile: WeeklyGridAxisProfile,
@@ -53,8 +65,7 @@ struct WeeklyGridEventLayout {
 
         let displayItems = makeDisplayItems(
             from: candidates,
-            axisProfile: axisProfile,
-            maximumVisibleEvents: maximumVisibleEvents
+            axisProfile: axisProfile
         )
 
         return WeeklyGridEventLayout(
@@ -65,8 +76,7 @@ struct WeeklyGridEventLayout {
     }
 
     private static func makeDisplayItems(from events: [CalendarEvent],
-                                         axisProfile: WeeklyGridAxisProfile,
-                                         maximumVisibleEvents: Int) -> [DisplayItem] {
+                                         axisProfile: WeeklyGridAxisProfile) -> [DisplayItem] {
         let calendar = Calendar.current
         let hourlyGroups = Dictionary(grouping: events) { event in
             calendar.component(.hour, from: event.date)
@@ -74,16 +84,17 @@ struct WeeklyGridEventLayout {
 
         return hourlyGroups.keys.sorted().flatMap { hour in
             let hourEvents = (hourlyGroups[hour] ?? []).sorted(by: eventComesBefore)
-            let visibleEvents = Array(hourEvents.prefix(maximumVisibleEvents))
+            let capacity = visibleCapacity(hourHeight: axisProfile.height(for: hour))
+            let visibleEvents = Array(hourEvents.prefix(capacity))
             let hourTop = axisProfile.top(for: hour)
-            let topPadding: CGFloat = visibleEvents.count <= 1 ? 9 : 3
+            let topPadding: CGFloat = visibleEvents.count <= 1 ? singleEventTopPadding : multiEventTopPadding
             var items = visibleEvents.enumerated().map { index, event in
                 DisplayItem(
                     id: "event-\(event.id.uuidString)",
                     module: event.module,
                     events: [event],
-                    top: hourTop + topPadding + CGFloat(index) * 27,
-                    height: 24,
+                    top: hourTop + topPadding + CGFloat(index) * eventPitch,
+                    height: eventBlockHeight,
                     isOverflow: false,
                     overflowCount: 0
                 )
@@ -96,8 +107,8 @@ struct WeeklyGridEventLayout {
                         id: "overflow-\(hour)",
                         module: first.module,
                         events: hourEvents,
-                        top: hourTop + 111,
-                        height: 17,
+                        top: hourTop + topPadding + CGFloat(visibleEvents.count) * eventPitch,
+                        height: overflowHeight,
                         isOverflow: true,
                         overflowCount: overflowCount
                     )

@@ -74,6 +74,10 @@ struct HabitDetailView: View {
     @State private var cachedHabitId: UUID? = nil
     /// 标记是否正在删除或归档当前习惯
     @State private var isDeletingOrArchiving: Bool = false
+    /// 最近 7 天可补签的漏卡日（升序；仅每日打卡型好习惯会有值）
+    @State private var retroEligibleDays: [Date] = []
+    /// 补签弹层目标
+    @State private var retroContext: HabitRetroactiveSheetContext? = nil
     
     // MARK: - Body
     
@@ -82,6 +86,7 @@ struct HabitDetailView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     habitHeader
+                    recoverBanner
                     rangePicker
                     statsSection
                     recordsSection
@@ -167,6 +172,9 @@ struct HabitDetailView: View {
                     }
                 }
             }
+            .sheet(item: $retroContext) { context in
+                HabitRetroactiveSheet(context: context)
+            }
             .alert("确认删除", isPresented: $showDeleteAlert) {
                 Button("取消", role: .cancel) {}
                 Button("删除", role: .destructive) {
@@ -238,6 +246,7 @@ struct HabitDetailView: View {
             // 更新 @State 变量
             records = loadedRecords
             snapshot = s
+            retroEligibleDays = repo.retroactiveEligibleDays(for: habit)
         }
     }
     
@@ -288,6 +297,67 @@ struct HabitDetailView: View {
             }
         }
         .padding(.vertical, HoloSpacing.md)
+    }
+
+    // MARK: - 找回断签横幅（最近 7 天有漏卡时出现）
+
+    @ViewBuilder
+    private var recoverBanner: some View {
+        // 漏卡日列表已按类型/频率/坏习惯过滤，这里只需判空
+        if !retroEligibleDays.isEmpty {
+            let missed = retroEligibleDays
+            Button {
+                retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: nil)
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                            .fill(Color.holoPrimary)
+                            .frame(width: 36, height: 36)
+
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("最近 \(HabitRetroactivePolicy.lookbackDays) 天有 \(missed.count) 天漏卡")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text(missed.count == 1
+                             ? "\(missedDayText(missed[0])) · 补上可恢复连续打卡"
+                             : "最早 \(missedDayText(missed[0])) · 补上可恢复连续打卡")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    Text("找回 ›")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.holoPrimary)
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                        .fill(Color.holoPrimary.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                        .stroke(Color.holoPrimary.opacity(0.22), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func missedDayText(_ day: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M月d日"
+        let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
+        let weekday = weekdays[Calendar.current.component(.weekday, from: day) - 1]
+        return "\(formatter.string(from: day))（周\(weekday)）"
     }
     
     // MARK: - 时间范围选择器
@@ -540,7 +610,7 @@ struct HabitDetailView: View {
                     .foregroundColor(.holoTextSecondary)
             }
             
-            if records.isEmpty {
+            if records.isEmpty && visibleMissedDays.isEmpty {
                 Text("暂无记录")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
@@ -548,8 +618,12 @@ struct HabitDetailView: View {
                     .padding(.vertical, 20)
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(records) { record in
-                        recordRow(record)
+                    ForEach(detailRows) { row in
+                        if let record = row.record {
+                            recordRow(record)
+                        } else if let day = row.missedDay {
+                            missedDayRow(day)
+                        }
                     }
                 }
             }
@@ -558,25 +632,114 @@ struct HabitDetailView: View {
         .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.lg)
     }
-    
-    // MARK: - 记录行
-    
-    private func recordRow(_ record: HabitRecord) -> some View {
-        HStack {
-            Text(record.formattedDate)
+
+    /// 列表行数据：真实记录与漏卡虚拟行按日倒序混排
+    private struct DetailListRow: Identifiable {
+        let id = UUID()
+        let sortKey: Date
+        let record: HabitRecord?
+        let missedDay: Date?
+
+        static func record(_ record: HabitRecord) -> DetailListRow {
+            DetailListRow(sortKey: record.date, record: record, missedDay: nil)
+        }
+
+        static func missedDay(_ day: Date) -> DetailListRow {
+            DetailListRow(sortKey: day, record: nil, missedDay: day)
+        }
+    }
+
+    private var detailRows: [DetailListRow] {
+        let missed = visibleMissedDays
+        guard !missed.isEmpty else { return records.map { DetailListRow.record($0) } }
+        var rows = records.map { DetailListRow.record($0) } + missed.map { DetailListRow.missedDay($0) }
+        rows.sort { $0.sortKey > $1.sortKey }
+        return rows
+    }
+
+    /// 当前展示周期覆盖的漏卡日（周期外的不插行）
+    private var visibleMissedDays: [Date] {
+        guard !retroEligibleDays.isEmpty, let range = effectiveDateRange else { return [] }
+        return retroEligibleDays.filter { range.contains($0) }
+    }
+
+    /// 漏卡虚拟行：未打卡 + 直接补签入口
+    private func missedDayRow(_ day: Date) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "circle.dashed")
+                .font(.system(size: 14))
+                .foregroundColor(.holoError.opacity(0.7))
+
+            Text("\(missedDayText(day)) · 未打卡")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
-            
+
             Spacer()
-            
-            if snapshot.isCheckInType {
-                Image(systemName: record.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundColor(record.isCompleted ? .holoSuccess : .holoTextSecondary)
-            } else if record.valueDouble != nil {
-                Text(record.formattedValue(unit: snapshot.unit))
+
+            Button {
+                retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: day)
+            } label: {
+                Text("补签")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.holoPrimary.opacity(0.1))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
+                .fill(Color.holoPrimary.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
+                        .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 1)
+                )
+        )
+    }
+    
+    // MARK: - 记录行
+
+    private func recordRow(_ record: HabitRecord) -> some View {
+        HStack {
+            if record.isRetroactive {
+                // 补签记录：目标日 + 「补」标记，补签时刻见行尾
+                Text(retroDayText(record))
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
+
+                Text("补")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.holoPrimary.opacity(0.1))
+                    .cornerRadius(HoloRadius.sm)
+
+                Spacer()
+
+                Text("补签于 \(record.retroactiveCreatedAtText)")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            } else {
+                Text(record.formattedDate)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+
+                Spacer()
+
+                if snapshot.isCheckInType {
+                    Image(systemName: record.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 16))
+                        .foregroundColor(record.isCompleted ? .holoSuccess : .holoTextSecondary)
+                } else if record.valueDouble != nil {
+                    Text(record.formattedValue(unit: snapshot.unit))
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                }
             }
         }
         .padding(.vertical, 8)
@@ -591,6 +754,13 @@ struct HabitDetailView: View {
                 Label("删除记录", systemImage: "trash")
             }
         }
+    }
+
+    /// 补签记录的目标日文本（date 归一到当天零点）
+    private func retroDayText(_ record: HabitRecord) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M月d日"
+        return formatter.string(from: record.date)
     }
     
     // MARK: - 操作方法

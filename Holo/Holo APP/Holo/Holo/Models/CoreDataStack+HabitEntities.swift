@@ -191,6 +191,14 @@ extension CoreDataStack {
         recordNote.attributeType = .stringAttributeType
         recordNote.isOptional = true
         habitRecordAttributes.append(recordNote)
+
+        // 补签标记（补签写入的历史记录与当日实时打卡如实区分）
+        let recordIsRetroactive = NSAttributeDescription()
+        recordIsRetroactive.name = "isRetroactive"
+        recordIsRetroactive.attributeType = .booleanAttributeType
+        recordIsRetroactive.isOptional = false
+        recordIsRetroactive.defaultValue = false
+        habitRecordAttributes.append(recordIsRetroactive)
         
         // 创建时间
         let recordCreatedAt = NSAttributeDescription()

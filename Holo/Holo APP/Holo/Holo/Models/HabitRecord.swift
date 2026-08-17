@@ -23,6 +23,8 @@ public class HabitRecord: NSManagedObject {
     @NSManaged public var note: String?
     @NSManaged public var createdAt: Date
     @NSManaged public var habit: Habit?
+    /// 补签标记：date 是补签目标日，createdAt 是实际补签时间
+    @NSManaged public var isRetroactive: Bool
     
     // MARK: - Computed Properties
     
@@ -61,6 +63,13 @@ public class HabitRecord: NSManagedObject {
     /// 所属日期（不含时间部分）
     var dayDate: Date {
         Calendar.current.startOfDay(for: date)
+    }
+
+    /// 补签记录的实际补签时刻（createdAt；date 归到目标日当天零点，不反映补签时间）
+    var retroactiveCreatedAtText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter.string(from: createdAt)
     }
     
     /// 格式化数值显示

@@ -41,6 +41,8 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     case query = "query"
     // 记忆回放类
     case generateMemoryInsight = "generate_memory_insight"
+    // 每周生活计划类
+    case weeklyPlanning = "weekly_planning"
     // 兜底
     case unknown = "unknown"
 }
@@ -76,6 +78,7 @@ extension AIIntent {
         case .queryAnalysis: return "分析卡片"
         case .flexibleDataQuery: return "查询卡片"
         case .generateMemoryInsight: return "已生成回放"
+        case .weeklyPlanning: return "本周重点"
         case .unknown: return "未识别指令"
         case .query: return "查询"
         }

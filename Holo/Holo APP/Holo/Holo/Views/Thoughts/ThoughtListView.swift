@@ -97,6 +97,8 @@ struct ThoughtListView: View {
 
     /// 列表刷新节流任务（避免批量整理时通知风暴拖卡主线程）
     @State private var refreshTask: Task<Void, Never>?
+    /// P0 卡片分级判定：用户认可标签集合（归一化 key），列表层一次查询避免逐卡片 N+1
+    @State private var recognizedTagKeys: Set<String> = []
 
     // MARK: - Computed Properties
 
@@ -336,7 +338,7 @@ struct ThoughtListView: View {
                         .font(.system(size: 11))
                         .foregroundColor(.holoTextSecondary)
 
-                    Text("今日整理配额已用尽，剩余条目明天自动续做")
+                    Text("今日 AI 额度已用尽，剩余条目明天自动续做")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
 
@@ -403,6 +405,8 @@ struct ThoughtListView: View {
         do {
             thoughts = try thoughtRepository.fetchAll()
             currentFilters = nil
+            recognizedTagKeys = Set(thoughtRepository.fetchUserRecognizedTagNames()
+                .map { ThoughtTagNormalizer.key($0) })
         } catch {
             logger.error("加载想法失败：\(error)")
             thoughts = []
@@ -448,7 +452,12 @@ struct ThoughtListView: View {
         do {
             // 如果有搜索文本，使用搜索方法
             if !searchText.isEmpty {
-                thoughts = try thoughtRepository.search(query: searchText, filters: filters)
+                var results = try thoughtRepository.search(query: searchText, filters: filters)
+                // P1（FR-10）：search 谓词不识别整理状态，与非搜索路径同语义做内存过滤
+                if let state = filters.organizationState {
+                    results = results.filter { matchesOrganizationState($0, state: state) }
+                }
+                thoughts = results
             } else {
                 // 否则使用筛选方法加载
                 var allThoughts = try thoughtRepository.fetchAll()
@@ -463,11 +472,39 @@ struct ThoughtListView: View {
                     allThoughts = allThoughts.filter { $0.createdAt <= endOfDay }
                 }
 
+                // P1（FR-10）：整理状态筛选
+                if let state = filters.organizationState {
+                    allThoughts = allThoughts.filter { matchesOrganizationState($0, state: state) }
+                }
+
                 thoughts = allThoughts
             }
         } catch {
             logger.error("加载想法失败：\(error)")
             thoughts = []
+        }
+    }
+
+    /// P1：整理状态匹配（待确认判定复用 Policy，认可集合为列表层缓存）
+    private func matchesOrganizationState(_ thought: Thought, state: OrganizationStateFilter) -> Bool {
+        switch state {
+        case .failed:
+            return thought.organizedStatus == "failed"
+        case .unclassified:
+            return thought.organizedStatus == "organized" && !thought.hasActiveTopic
+        case .pendingConfirmation:
+            // 与卡片「等待确认」同口径：低置信主题 或 含新标签的 AI 建议（D-07′）
+            guard thought.organizedStatus == "organized" else { return false }
+            let lowConfidenceTopic = thought.topicConfidence > 0
+                && thought.topicConfidence < ThoughtRepository.topicConfirmationThreshold
+            if lowConfidenceTopic { return true }
+            let hasNewTag = !thought.visibleAITagNames.isEmpty
+                && ThoughtOrganizationPresentationPolicy.aiTagPresentation(
+                    hasAITagAssignments: true,
+                    aiTagNames: thought.visibleAITagNames,
+                    recognizedTagKeys: recognizedTagKeys
+                ) == .pendingConfirmation
+            return hasNewTag
         }
     }
 
@@ -505,7 +542,7 @@ struct ThoughtListView: View {
             return
         }
         if orgQueue.dailyLimitHit {
-            batchOrganizeNotice = "今日整理配额已用尽，剩余条目明天自动续做"
+            batchOrganizeNotice = "今日 AI 额度已用尽，剩余条目明天自动续做"
             return
         }
         if unprocessedCount == 0 {
@@ -564,7 +601,7 @@ struct ThoughtListView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.holoPrimary)
                     .font(.system(size: 12))
-                Text("后台串行整理，受每日配额限制，会占用今日整理配额（可能影响新想法当天的自动整理）；多余条目会在后续打开 App 时自动续做。")
+                Text("后台串行整理，受每日配额限制，会占用今日 AI 额度（与聊天等共享，可能影响新想法当天的自动整理）；多余条目会在后续打开 App 时自动续做。")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -849,7 +886,8 @@ struct ThoughtListView: View {
                                 onDelete: {
                                     deleteThought(thought)
                                 },
-                                archiveActionTitle: isArchivedView ? "恢复" : "归档"
+                                archiveActionTitle: isArchivedView ? "恢复" : "归档",
+                                recognizedTagKeys: recognizedTagKeys
                             )
                             .contextMenu {
                                 Button {

@@ -53,6 +53,8 @@ final class ConversationCoordinator {
         ]
         guard !executionIntents.contains(intent) else { return false }
         if intent == "query_analysis" { return true }
+        // 每周生活计划：走 Agent 深度分析拿证据与结论，完成后由生成服务组装计划
+        if intent == "weekly_planning" { return true }
         return intent == "flexible_data_query" && HoloAgentDynamicQueryFlags.enabled
     }
 

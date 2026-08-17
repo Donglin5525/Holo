@@ -54,6 +54,7 @@ enum HoloPlusGateContext: Equatable {
     case asrDuration
     case naturalLanguageFinance
     case naturalLanguageTask
+    case habitRetroactiveCheckIn
 
     var title: String {
         switch self {
@@ -81,6 +82,8 @@ enum HoloPlusGateContext: Equatable {
             return "升级 Holo Plus，继续智能记账"
         case .naturalLanguageTask:
             return "升级 Holo Plus，继续智能任务"
+        case .habitRetroactiveCheckIn:
+            return "升级 Holo Plus，无限次补签找回断签"
         }
     }
 }

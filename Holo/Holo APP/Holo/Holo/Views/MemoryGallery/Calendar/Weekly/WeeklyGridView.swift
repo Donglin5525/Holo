@@ -29,6 +29,11 @@ struct WeeklyGridView: View {
 
     @AppStorage("holo.memoryGallery.weeklyGrid.collapseMorning")
     private var collapseMorning: Bool = true
+    /// 双指缩放的时间轴倍率（1 = 默认分档高度），持久化记忆用户偏好
+    @AppStorage("holo.memoryGallery.weeklyGrid.hourScale")
+    private var hourScale: Double = 1
+    /// 捏合开始时的倍率，手势期间以此为基准连续变化
+    @State private var pinchStartScale: Double?
 
     /// 一屏显示的天数
     private let dayCount = 3
@@ -40,6 +45,20 @@ struct WeeklyGridView: View {
     private let timeAxisWidth: CGFloat = 36
     private let dayHeaderHeight: CGFloat = 48
     private let morningSummaryHeight: CGFloat = 40
+    /// 缩放下限即默认密度：再缩小事件块放不下、只会制造更多溢出；上限看清密集时段
+    private let minHourScale: Double = 1
+    private let maxHourScale: Double = 2.6
+
+    private var clampedHourScale: Double {
+        min(maxHourScale, max(minHourScale, hourScale))
+    }
+
+    private func resetHourScale() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            hourScale = 1
+        }
+        pinchStartScale = nil
+    }
 
     private var visibleStartHour: Int {
         collapseMorning ? 7 : startHour
@@ -73,25 +92,33 @@ struct WeeklyGridView: View {
         return WeeklyGridAxisProfile.make(
             eventCountsByDay: countsByDay,
             startHour: visibleStartHour,
-            endHour: endHour
+            endHour: endHour,
+            scale: CGFloat(clampedHourScale)
         )
     }
 
     var body: some View {
         let profile = computeProfile(eventsByDay)
         VStack(spacing: 0) {
-            // 日期格行：钉在顶部；时间轴和事件内容只在下面的纵向视口内滚动。
-            calendarHeader
+            // 泳道卡片：表头、凌晨带、网格主体收进同一张卡；图例留在卡片外
+            VStack(spacing: 0) {
+                calendarHeader
 
-            // 折叠时仅保留一行与日期列严格对齐的凌晨摘要；展开后这一行自然消失。
-            if collapseMorning {
-                morningSummaryRow
-                    .padding(.top, HoloSpacing.xs)
+                // 折叠时仅保留一行与日期列严格对齐的凌晨摘要；展开后这一行自然消失。
+                if collapseMorning {
+                    morningSummaryRow
+                }
+
+                // 时间轴和事件网格共用同一个纵向 ScrollView，滚动后仍保持刻度对齐。
+                gridScroll(profile: profile)
             }
-
-            // 时间轴和事件网格共用同一个纵向 ScrollView，滚动后仍保持刻度对齐。
-            gridScroll(profile: profile)
-                .padding(.top, HoloSpacing.xs)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .stroke(Color.holoBorder, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
 
             legend
                 .padding(.top, HoloSpacing.xs)
@@ -109,24 +136,37 @@ struct WeeklyGridView: View {
 
     // MARK: - 固定日期栏
 
+    /// 泳道分隔线：内部边界 1pt（最外侧边界由卡片描边承担，避免叠成双线）
+    private var laneSeparator: some View {
+        Rectangle()
+            .fill(Color.holoBorder)
+            .frame(width: 1)
+    }
+
     private var calendarHeader: some View {
         GeometryReader { geo in
             let columnWidth = max(0, (geo.size.width - timeAxisWidth) / CGFloat(dayCount))
             HStack(spacing: 0) {
                 morningToggleCell
                     .frame(width: timeAxisWidth, height: dayHeaderHeight)
+                    .background(Color.holoNestedCardBackground)
+                    .overlay(alignment: .trailing) { laneSeparator }
 
-                ForEach(frozenHeaderDays, id: \.self) { day in
+                ForEach(Array(frozenHeaderDays.enumerated()), id: \.element) { index, day in
                     dayHeader(day)
                         .frame(width: columnWidth, height: dayHeaderHeight)
+                        .overlay(alignment: .leading) {
+                            if index > 0 { laneSeparator }
+                        }
                 }
             }
         }
         .frame(height: dayHeaderHeight)
+        .background(Color.holoNestedCardBackground)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.holoDivider.opacity(0.72))
-                .frame(height: 0.5)
+                .fill(Color.holoBorder)
+                .frame(height: 1)
         }
     }
 
@@ -144,15 +184,9 @@ struct WeeklyGridView: View {
             }
             .foregroundColor(collapseMorning ? .holoPrimary : .holoTextSecondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(collapseMorning ? Color.holoPrimary.opacity(0.10) : Color.clear)
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 2)
-        .padding(.vertical, 4)
         .accessibilityLabel(collapseMorning ? "展开凌晨零点到七点" : "收起凌晨零点到七点")
         .accessibilityHint("显示或隐藏凌晨零点到七点的时间轴")
     }
@@ -167,6 +201,10 @@ struct WeeklyGridView: View {
             collapsedHours: collapseMorning ? collapsedMorningHours : nil
         )
         ZStack(alignment: .topLeading) {
+            // 今日泳道：整列淡橙底贯穿全高，滑动翻页时随列移动
+            if Calendar.current.isDateInToday(day) {
+                Color.holoPrimary.opacity(0.045)
+            }
             gridBackground(profile: profile)
             ForEach(layout.displayItems) { item in
                 gridDisplayBlock(item, columnWidth: columnWidth)
@@ -177,36 +215,40 @@ struct WeeklyGridView: View {
             }
         }
         .frame(width: columnWidth, height: profile.totalHeight)
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color.holoDivider.opacity(0.5))
-                .frame(width: 0.5)
-        }
     }
 
     private func dayHeader(_ day: Date) -> some View {
         let isToday = Calendar.current.isDateInToday(day)
+        let weekdayLabel = isToday
+            ? "\(Self.weekdayText(for: day)) · 今天"
+            : Self.weekdayText(for: day)
         return VStack(spacing: 3) {
-            Text(Self.weekdayText(for: day))
+            Text(weekdayLabel)
                 .font(.system(size: 10, weight: isToday ? .semibold : .medium))
                 .foregroundColor(isToday ? .holoPrimary : .holoTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Text(Self.dayText(for: day))
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundColor(isToday ? .white : .holoTextPrimary)
-                .frame(width: 30, height: 30)
+                .frame(width: 24, height: 24)
                 .background {
                     Circle().fill(isToday ? Color.holoPrimary : Color.clear)
                 }
         }
+        .frame(maxWidth: .infinity)
         .frame(height: dayHeaderHeight)
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color.holoDivider.opacity(0.45))
-                .frame(width: 0.5)
+        .background(isToday ? Color.holoPrimary.opacity(0.06) : Color.clear)
+        .overlay(alignment: .bottom) {
+            if isToday {
+                Rectangle()
+                    .fill(Color.holoPrimary)
+                    .frame(height: 2)
+            }
         }
     }
 
-    // MARK: - 凌晨摘要
+    // MARK: - 凌晨摘要（卡片内部横带）
 
     private var morningSummaryRow: some View {
         GeometryReader { geo in
@@ -220,26 +262,27 @@ struct WeeklyGridView: View {
                 }
                 .foregroundColor(.holoTextSecondary)
                 .frame(width: timeAxisWidth, height: morningSummaryHeight)
-                .overlay(alignment: .trailing) {
-                    Rectangle()
-                        .fill(Color.holoDivider.opacity(0.45))
-                        .frame(width: 0.5)
-                }
+                .background(Color.holoNestedCardBackground)
+                .overlay(alignment: .trailing) { laneSeparator }
 
-                ForEach(frozenHeaderDays, id: \.self) { day in
+                ForEach(Array(frozenHeaderDays.enumerated()), id: \.element) { index, day in
                     collapsedMorningCell(for: day)
                         .frame(width: columnWidth, height: morningSummaryHeight)
+                        .overlay(alignment: .leading) {
+                            if index > 0 { laneSeparator }
+                        }
                 }
             }
         }
         .frame(height: morningSummaryHeight)
-        .background(Color.holoNestedCardBackground.opacity(0.82))
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-        .overlay {
-            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                .stroke(Color.holoBorder.opacity(0.52), lineWidth: 0.5)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.holoBorder.opacity(0.5))
+                .frame(height: 0.5)
         }
     }
+
+    // MARK: - 时间轴导轨（左侧灰底竖轨，与表头左格连成 L 形）
 
     private func timeAxis(profile: WeeklyGridAxisProfile) -> some View {
         VStack(spacing: 0) {
@@ -254,6 +297,9 @@ struct WeeklyGridView: View {
                 .foregroundColor(.holoTextSecondary)
                 .frame(width: timeAxisWidth, height: 1, alignment: .bottomTrailing)
         }
+        .frame(maxWidth: .infinity)
+        .background(Color.holoNestedCardBackground)
+        .overlay(alignment: .trailing) { laneSeparator }
     }
 
     private func gridBackground(profile: WeeklyGridAxisProfile) -> some View {
@@ -301,13 +347,13 @@ struct WeeklyGridView: View {
             .frame(maxWidth: .infinity)
             .frame(height: morningSummaryHeight)
             .contentShape(Rectangle())
-            .overlay(alignment: .trailing) {
-                Rectangle()
-                    .fill(Color.holoDivider.opacity(0.45))
-                    .frame(width: 0.5)
-            }
         }
         .buttonStyle(.plain)
+        .background(
+            Calendar.current.isDateInToday(day)
+                ? Color.holoPrimary.opacity(0.04)
+                : Color.clear
+        )
         .disabled(earlyEvents.isEmpty)
         .accessibilityLabel(
             earlyEvents.isEmpty
@@ -327,6 +373,25 @@ struct WeeklyGridView: View {
 
     // MARK: - 可滚动时间网格
 
+    /// 双指捏合缩放整条时间轴；与单指滚动/横向翻页同时识别互不抢占
+    private var hourScalePinchGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                if pinchStartScale == nil {
+                    pinchStartScale = clampedHourScale
+                }
+                hourScale = min(
+                    maxHourScale,
+                    max(minHourScale, (pinchStartScale ?? 1) * value.magnification)
+                )
+            }
+            .onEnded { _ in
+                // 松手圆整到 0.05 步进，避免高度停在亚像素值上
+                hourScale = (clampedHourScale * 20).rounded() / 20
+                pinchStartScale = nil
+            }
+    }
+
     private func gridScroll(profile: WeeklyGridAxisProfile) -> some View {
         GeometryReader { geo in
             let gridWidth = max(0, geo.size.width - timeAxisWidth)
@@ -345,6 +410,24 @@ struct WeeklyGridView: View {
                     .frame(width: gridWidth, height: profile.totalHeight)
                 }
                 .frame(width: geo.size.width, height: profile.totalHeight, alignment: .topLeading)
+            }
+            .simultaneousGesture(hourScalePinchGesture)
+            // 双击重置用 onTapGesture：不能挡住子级横向翻页的跟手性
+            .onTapGesture(count: 2, perform: resetHourScale)
+            .overlay {
+                // 泳道分隔线固定在视口三等分处：可见窗口恒为 3 列等宽，与列边界始终重合，
+                // 且不随横向翻页移动（画在列内会跟着页走）。
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: timeAxisWidth)
+                    ForEach(0..<dayCount, id: \.self) { column in
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .overlay(alignment: .leading) {
+                                if column > 0 { laneSeparator }
+                            }
+                    }
+                }
+                .allowsHitTesting(false)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -457,10 +540,24 @@ struct WeeklyGridView: View {
                     Text(module.displayName)
                 }
             }
+            Spacer(minLength: 0)
+            if abs(clampedHourScale - 1) > 0.001 {
+                Button(action: resetHourScale) {
+                    Text(String(format: "缩放 %.2f×", clampedHourScale))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundColor(.holoPrimary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("当前时间轴缩放 \(String(format: "%.2f", clampedHourScale)) 倍，轻点恢复一倍")
+            }
         }
         .font(.system(size: 11, weight: .medium))
         .foregroundColor(.holoTextSecondary)
         .padding(.top, HoloSpacing.xs)
+        .animation(.easeInOut(duration: 0.2), value: abs(clampedHourScale - 1) > 0.001)
     }
 
     // MARK: - 格式化

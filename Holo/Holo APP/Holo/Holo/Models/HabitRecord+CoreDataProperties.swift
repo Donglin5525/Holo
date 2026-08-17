@@ -68,4 +68,49 @@ extension HabitRecord {
         record.habit = habit
         return record
     }
+
+    // MARK: - 补签（Retroactive）
+
+    /// 创建补签记录：date 归到目标日当天（与逐日谓词对齐），createdAt 记真实补签时间
+    /// 调用方负责落库前校验（窗口、幂等、额度），本方法只负责建对象
+    /// - Parameter day: 补签目标日（应为 startOfDay）
+    static func createRetroactiveCheckIn(
+        in context: NSManagedObjectContext,
+        habit: Habit,
+        on day: Date,
+        note: String? = nil
+    ) -> HabitRecord {
+        let record = HabitRecord(context: context)
+        record.id = UUID()
+        record.habitId = habit.id
+        record.date = day
+        record.isCompleted = true
+        record.value = nil
+        record.note = note
+        record.createdAt = Date()
+        record.isRetroactive = true
+        record.habit = habit
+        return record
+    }
+
+    /// 创建补签数值记录（计数/测量型习惯补签）
+    static func createRetroactiveNumeric(
+        in context: NSManagedObjectContext,
+        habit: Habit,
+        on day: Date,
+        value: Double,
+        note: String? = nil
+    ) -> HabitRecord {
+        let record = HabitRecord(context: context)
+        record.id = UUID()
+        record.habitId = habit.id
+        record.date = day
+        record.isCompleted = false
+        record.value = NSNumber(value: value)
+        record.note = note
+        record.createdAt = Date()
+        record.isRetroactive = true
+        record.habit = habit
+        return record
+    }
 }

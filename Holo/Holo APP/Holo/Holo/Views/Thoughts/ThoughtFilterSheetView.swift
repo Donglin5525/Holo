@@ -21,6 +21,8 @@ struct ThoughtFilterSheetView: View {
     /// 当前筛选条件
     @State private var startDate: Date? = nil
     @State private var endDate: Date? = nil
+    /// P1（FR-10）：整理状态筛选
+    @State private var organizationState: OrganizationStateFilter? = nil
 
     /// 展开状态
     @State private var expandedSection: FilterSection? = .dateRange
@@ -35,6 +37,9 @@ struct ThoughtFilterSheetView: View {
                     VStack(spacing: 16) {
                         // 日期范围筛选
                         dateRangeFilterSection
+
+                        // 整理状态筛选
+                        organizationStateFilterSection
                     }
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.top, HoloSpacing.md)
@@ -127,6 +132,52 @@ struct ThoughtFilterSheetView: View {
         }
     }
 
+    // MARK: - 整理状态筛选（P1 FR-10）
+
+    private var organizationStateFilterSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("整理状态")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+
+                Spacer()
+
+                if organizationState != nil {
+                    Button("清除") {
+                        organizationState = nil
+                    }
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoPrimary)
+                }
+            }
+
+            HStack(spacing: 8) {
+                ForEach(OrganizationStateFilter.allCases, id: \.self) { state in
+                    let isSelected = organizationState == state
+                    Button {
+                        organizationState = isSelected ? nil : state
+                    } label: {
+                        Text(state.rawValue)
+                            .font(.holoCaption)
+                            .foregroundColor(isSelected ? .white : .holoTextPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(isSelected ? Color.holoPrimary : Color.holoCardBackground)
+                            )
+                            .overlay(
+                                Capsule().stroke(Color.holoBorder, lineWidth: 1)
+                            )
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.lg)
+    }
+
     // MARK: - 底部按钮
 
     private var bottomButtons: some View {
@@ -135,6 +186,7 @@ struct ThoughtFilterSheetView: View {
             Button {
                 startDate = nil
                 endDate = nil
+                organizationState = nil
             } label: {
                 Text("重置")
                     .font(.holoLabel)
@@ -150,7 +202,8 @@ struct ThoughtFilterSheetView: View {
                 let filters = ThoughtFilters(
                     mood: nil,
                     startDate: startDate,
-                    endDate: endDate
+                    endDate: endDate,
+                    organizationState: organizationState
                 )
                 onApplyFilters(filters)
                 dismiss()

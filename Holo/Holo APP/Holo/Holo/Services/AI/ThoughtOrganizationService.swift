@@ -75,12 +75,25 @@ final class ThoughtOrganizationService {
         // 3. 构建 prompt 并调用 AI
         let rawResponse: String
         do {
+            // P2：语义候选召回（V3 教训：向量只进候选池，最终判断仍是 LLM + 白名单校验）
+            // shadow 档计算并记录但不注入；off 档不计算
+            let semanticCandidates: ThoughtSemanticCandidateEngine.SemanticCandidates? = await ThoughtSemanticCandidateEngine.candidates(
+                for: thoughtId,
+                content: thoughtContent
+            )
+            let injectSemanticTags = ThoughtSemanticCandidateMode.current == .inject
+                && !(semanticCandidates?.neighborTags.isEmpty ?? true)
+            if let semanticCandidates, !semanticCandidates.neighborTags.isEmpty {
+                logger.info("语义候选（\(ThoughtSemanticCandidateMode.current.rawValue)）：\(semanticCandidates.neighborTags.joined(separator: ","))")
+            }
+
             let messages: [ChatMessageDTO] = [.user(buildOrganizationPayload(
                 thoughtContent: thoughtContent,
                 activeTopics: activeTopicTitles,
                 existingTags: existingTagExamples,
                 recentAITags: recentAITagLeaves,
-                rejectedTags: rejectedTags
+                rejectedTags: rejectedTags,
+                semanticNeighborTags: injectSemanticTags ? semanticCandidates?.neighborTags ?? [] : nil
             ))]
 
             // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
@@ -111,8 +124,32 @@ final class ThoughtOrganizationService {
             activeTopics: activeTopicTitles
         )
         guard !validated.tagPaths.isEmpty else {
-            logger.error("AI 返回的标签均无效，想法：\(thoughtId)")
-            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+            // D-08′：调用成功但有效标签为空 = 正常空分类，不是失败。
+            // 清旧未确认 AI 标签；主题独立判定（有效则照写，无效保持未分类）；写 organized。
+            logger.info("AI 未形成有效标签（正常空分类），想法：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)")
+            do {
+                try repository.replaceUnconfirmedAITagAssignments(
+                    thoughtId: thoughtId,
+                    tagNames: [],
+                    confidence: result.confidence
+                )
+                try TopicRepository().applyClassification(
+                    thoughtId: thoughtId,
+                    topicTitle: validated.topicTitle,
+                    tagPaths: [],
+                    confidence: result.confidence,
+                    reason: result.reason
+                )
+                try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
+            } catch {
+                logger.error("空分类结果写入失败：\(error.localizedDescription)")
+                throw error
+            }
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            // 空分类想法同样进入语义召回池
+            Task.detached(priority: .utility) {
+                await ThoughtSemanticCandidateEngine.ensureEmbedded(thoughtId: thoughtId)
+            }
             return
         }
 
@@ -144,11 +181,27 @@ final class ThoughtOrganizationService {
 
         // 7. 发送数据变更通知，让 UI 刷新
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+
+        // 8. P2：分类成功后异步生成/更新该想法的语义向量（静默失败，不阻塞分类链路）
+        Task.detached(priority: .utility) {
+            await ThoughtSemanticCandidateEngine.ensureEmbedded(thoughtId: thoughtId)
+        }
     }
 
     // MARK: - Reject / Confirm
 
-    /// 拒绝 AI 标签并记录偏好
+    /// 仅拒绝本条（FR-06′）：assignment → rejectedAI，不写全局抑制偏好，不影响未来推荐
+    /// - Parameter assignmentId: 分配 ID
+    func rejectAssignmentCurrentOnly(assignmentId: UUID) {
+        let repository = ThoughtRepository()
+        do {
+            try repository.rejectTagAssignment(assignmentId: assignmentId)
+        } catch {
+            logger.error("仅本条拒绝 AI 标签失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 拒绝 AI 标签并写全局抑制偏好（原语义保留：仅「以后不要推荐」调用，90 天 / 最多 50 条）
     /// - Parameter assignmentId: 分配 ID
     func rejectAndRecord(assignmentId: UUID, tagName: String) {
         let repository = ThoughtRepository()
@@ -246,17 +299,15 @@ final class ThoughtOrganizationService {
             return nil
         }
 
-        // 提取 suggestedTags
-        guard let tags = json["suggestedTags"] as? [String], !tags.isEmpty else {
+        // 提取 suggestedTags：允许空数组（D-08′ 正常空分类），但字段必须存在且类型合法
+        guard let tags = json["suggestedTags"] as? [String] else {
             return nil
         }
 
-        // 过滤空字符串和过长标签
+        // 过滤空字符串和过长标签；过滤后为空同样视为有效空分类（非解析失败）
         let filteredTags = tags
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && $0.count <= 60 }
-
-        guard !filteredTags.isEmpty else { return nil }
 
         let confidence = (json["confidence"] as? Double) ?? 0.5
 
@@ -278,20 +329,25 @@ final class ThoughtOrganizationService {
 
     /// 把用户数据编码成 JSON，避免正文中的自然语言被误当成 Prompt 指令。
     /// recentAITags：近 90 天 AI 标签叶段池，后端 v4 复用硬约束的原料（不传则历史 AI 标签不参与复用，标签易发散）
+    /// semanticNeighborTags：P2 语义近邻标签（可选，后端 v5 prompt 才读取；不传不影响旧版后端）
     private func buildOrganizationPayload(
         thoughtContent: String,
         activeTopics: [String],
         existingTags: [String],
         recentAITags: [String],
-        rejectedTags: [String]
+        rejectedTags: [String],
+        semanticNeighborTags: [String]? = nil
     ) -> String {
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "activeTopics": activeTopics,
             "existingTags": existingTags,
             "recentAITags": recentAITags,
             "rejectedTags": rejectedTags,
             "thoughtContent": thoughtContent
         ]
+        if let semanticNeighborTags, !semanticNeighborTags.isEmpty {
+            payload["semanticNeighborTags"] = semanticNeighborTags
+        }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let json = String(data: data, encoding: .utf8) else {
             return "{\"activeTopics\":[],\"thoughtContent\":\"\"}"

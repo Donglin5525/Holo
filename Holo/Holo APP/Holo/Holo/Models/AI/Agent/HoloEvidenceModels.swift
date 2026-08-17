@@ -64,5 +64,7 @@ nonisolated struct HoloEvidenceRecord: Codable, Identifiable, Equatable, Sendabl
     var generatedAt: Date
     var referencedByJobIDs: [String]
     var referencedByMemoryIDs: [String]
+    /// LifePlan 计划台账引用（计划卡证据溯源；optional 兼容旧账本 JSON）
+    var referencedByLifePlanIDs: [String]? = nil
     var deviceID: String?
 }

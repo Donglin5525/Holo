@@ -164,6 +164,9 @@ struct MemoryGalleryView: View {
                         DailySenseStatusCard(snapshot: snapshot)
                     }
 
+                    // 一起做的计划（LifePlan 台账）：理解档案第三块
+                    LifePlanGallerySection()
+
                     featuredStoriesSection
                 }
                 .padding(.horizontal, HoloSpacing.md)

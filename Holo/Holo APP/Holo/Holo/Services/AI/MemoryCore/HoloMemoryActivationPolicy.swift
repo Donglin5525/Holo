@@ -54,6 +54,23 @@ nonisolated enum HoloMemoryUsefulnessPolicy {
     }
 }
 
+/// 记忆在用户界面的统一可见口径：收件箱计数与长廊列表分组共用同一把尺子，保证两边数字一致。
+nonisolated enum HoloMemoryUserVisibility {
+    static func isVisible(_ record: HoloMemoryRecord) -> Bool {
+        guard HoloMemoryUsefulnessPolicy.isEligible(record) else { return false }
+        if record.userDecision == .rejected { return record.state == .suppressed }
+        guard [HoloMemoryState.candidate, .active, .disputed, .invalidated, .archived].contains(record.state) else {
+            return false
+        }
+        return ![HoloMemoryUserDecision.forgotten, .markedIrrelevant].contains(record.userDecision)
+    }
+
+    /// 「想和你确认的」队列成员：可见且处于待确认状态。
+    static func isPendingConfirmation(_ record: HoloMemoryRecord) -> Bool {
+        isVisible(record) && record.state == .candidate
+    }
+}
+
 nonisolated enum HoloMemoryActivationPolicy {
     static let currentVersion = 3
 

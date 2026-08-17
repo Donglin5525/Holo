@@ -211,12 +211,40 @@ final class HoloBackendAIProvider: AIProvider {
         return content
     }
 
+    /// 每周计划组装：专用 purpose（JSON 模式 + 后端 none 推理档，实测 6-8s）
+    func completeWeeklyPlan(prompt: String, context: UserContext) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .weeklyPlanGeneration)
+    }
+
+    /// P2（方案 §5.3）：批量文本 embedding（/v1/ai/embeddings，purpose=thought_embedding）。
+    /// 向量仅作客户端语义候选召回输入，不直接决定用户可见结果（V3 教训）。
+    /// - Parameter texts: 1-16 条非空文本（每条 ≤2000 字符，由调用方保证）
+    /// - Returns: 与 texts 等长、等维的向量数组
+    func embed(texts: [String]) async throws -> [[Double]] {
+        try ensureDataProcessingConsent()
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/ai/embeddings",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: HoloBackendEmbeddingsRequest(purpose: "thought_embedding", texts: texts)
+        )
+        let completion: APIClient.Response<HoloBackendEmbeddingsResponse> = try await apiClient.sendWithResponse(request)
+        guard completion.value.vectors.count == texts.count else {
+            throw APIError.serverError("Embedding 数量不匹配")
+        }
+        return completion.value.vectors
+    }
+
     /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）。
     /// step 非 nil 且 purpose 为 agentLoop 时按 §8.1 携带 runId/stepId/requestHash（step 幂等）。
     func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose,
               step: HoloAgentLLMRequestRecord? = nil) async throws -> String {
         try ensureDataProcessingConsent()
-        let responseFormat: ResponseFormat? = purpose == .agentLoop ? .jsonObject : nil
+        let responseFormat: ResponseFormat? = (purpose == .agentLoop || purpose == .weeklyPlanGeneration) ? .jsonObject : nil
         let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat, step: step)
         let completion: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
         let response = completion.value
@@ -551,6 +579,7 @@ enum HoloBackendPurpose: String {
     case categoryPatternInduction = "category_pattern_induction"
     case agentLoop = "agent_loop"
     case healthInsightGeneration = "health_insight_generation"
+    case weeklyPlanGeneration = "weekly_plan_generation"
 }
 
 extension AIActionParserKind {
@@ -562,8 +591,19 @@ extension AIActionParserKind {
     }
 }
 
-struct HoloBackendChatCompletionRequest: Encodable {
+// P2：批量 embedding 请求/响应（/v1/ai/embeddings）
+struct HoloBackendEmbeddingsRequest: Encodable {
     let purpose: String
+    let texts: [String]
+}
+
+struct HoloBackendEmbeddingsResponse: Decodable {
+    let model: String
+    let dimensions: Int
+    let vectors: [[Double]]
+}
+
+struct HoloBackendChatCompletionRequest: Encodable {    let purpose: String
     let messages: [ChatMessageDTO]
     let stream: Bool
     let responseFormat: ResponseFormat?

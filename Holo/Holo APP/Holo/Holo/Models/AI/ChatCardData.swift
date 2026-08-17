@@ -36,6 +36,9 @@ nonisolated enum ChatCardData: Equatable {
         guard let data = data else { return nil }
 
         switch intent {
+        case .weeklyPlanning:
+            // 周计划走独立 LifePlanChatCard（.lifePlan 消息类型），不构造领域执行卡
+            return nil
         case .recordExpense:
             guard let amount = data["amount"] else { return nil }
             return .transaction(TransactionCardData(

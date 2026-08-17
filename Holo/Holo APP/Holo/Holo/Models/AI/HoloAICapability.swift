@@ -326,7 +326,10 @@ enum HoloMemoryRolloutStage: String, Codable, CaseIterable, Sendable {
 
 /// 记忆灰度的产品真相源。
 ///
-/// 内部构建默认进入真实召回，正式构建仍停留在内部账号阶段且不命中公开用户。
+/// 2026-08-15 记忆全量开放（东林拍板）：rolloutStage 推进到 full，回答注入不再限于内部账号。
+/// 用户层仍受 memoryAssistedAnsweringEnabled 开关（默认关，用户主动开启）管控。
+/// 注意：kill switch（holo_memory_kill_*）是纯本地 UserDefaults 开关，无服务端下发通道，
+/// 若需对全量用户收敛只能发版回退。
 /// 这里不再依赖某台设备是否碰巧写过 UserDefaults，避免同一版本在不同设备表现不一致。
 struct HoloMemoryRolloutProductPolicy: Equatable, Sendable {
     var rolloutStage: HoloMemoryRolloutStage
@@ -336,13 +339,13 @@ struct HoloMemoryRolloutProductPolicy: Equatable, Sendable {
     static var current: Self {
         #if DEBUG || INTERNAL_DIAGNOSTICS
         return .init(
-            rolloutStage: .internalAccounts,
+            rolloutStage: .full,
             isInternalAccount: true,
             isLimitedRolloutBucket: false
         )
         #else
         return .init(
-            rolloutStage: .internalAccounts,
+            rolloutStage: .full,
             isInternalAccount: false,
             isLimitedRolloutBucket: false
         )

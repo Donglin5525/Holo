@@ -327,6 +327,25 @@ final class ChatViewModel: ObservableObject {
 
                 // 深度 Agent 分流（Phase 6.2）：命中则启动本地 Agent，不走流式分析
                 if processResult.shouldRouteToAgent {
+                    // 周计划：数据充分度前置（不足时不烧 Agent，诚实提示缺什么）
+                    let isWeeklyPlanning = processResult.firstIntent == .weeklyPlanning
+                    if isWeeklyPlanning {
+                        let check = LifePlanGenerationService.checkDataSufficiency()
+                        guard check.sufficient else {
+                            let missing = check.missing.joined(separator: "、")
+                            self.chatRepo?.finalizeMessage(
+                                aiMessageId,
+                                finalContent: "这周你的记录还不够，我先不装懂。\n\n近 7 天还缺：\(missing)。再记几天，我就能给出有依据的本周重点，而不是一份谁都能用的通用计划。",
+                                intent: processResult.firstIntent?.rawValue,
+                                extractedDataJSON: nil,
+                                parsedBatchJSON: nil,
+                                executionBatchJSON: nil,
+                                analysisContextJSON: nil,
+                                rawLogJSON: nil
+                            )
+                            return
+                        }
+                    }
                     self.streamingWatchdogTask?.cancel()
                     self.streamingWatchdogTask = nil
                     self.chatRepo?.setAnalysisLoadingState(
@@ -335,7 +354,7 @@ final class ChatViewModel: ObservableObject {
                         analysisContext: nil
                     )
                     let initialStatus = HoloAgentChatStatus(
-                        title: "Holo 正在深度分析中…",
+                        title: isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…",
                         detail: "可以离开当前页面；系统支持时会继续处理，中止后会保留进度并在回到 App 后恢复。",
                         keepsMessageStreaming: true,
                         showsActivityIndicator: true
@@ -352,7 +371,10 @@ final class ChatViewModel: ObservableObject {
                         }
                     }
                     let rendered = await self.analysisService.runAnalysis(
-                        question: text,
+                        question: isWeeklyPlanning
+                            ? "汇总我最近一周的生活数据快照：任务完成与逾期、习惯打卡、支出结构、睡眠与活动、想法主题；列出其中显著的变化与异常（附数据依据）。不需要深挖单个域，快照汇总即可，供制定本周生活计划使用"
+                            : text,
+                        trigger: isWeeklyPlanning ? .weeklyPlanning : .userQuestion,
                         sourceMessageID: aiMessageId
                     )
                     progressPoller.cancel()
@@ -396,6 +418,14 @@ final class ChatViewModel: ObservableObject {
                                 agentResultJSON: Self.encodeAgentResult(rendered)
                             )
                         }
+                    } else if isWeeklyPlanning {
+                        // 周计划：Agent 分析完成 → 生成服务组装结构化计划 → 计划卡消息
+                        await self.finalizeWeeklyPlanning(
+                            aiMessageId: aiMessageId,
+                            rendered: rendered,
+                            intent: processResult.firstIntent?.rawValue,
+                            userContext: userContext
+                        )
                     } else {
                         // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
                         // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
@@ -460,17 +490,20 @@ final class ChatViewModel: ObservableObject {
                         // 流式结束前补齐最终累积文本，保证 consume 前的可见内容完整
                         self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
 
-                        let resolvedText = self.consumeMemoryUsageMarker(
+                        let markerResult = self.consumeMemoryUsageMarker(
                             from: fullText,
                             availableMemoryIDs: memorySummary.sourceIDs,
                             channel: .analysis
                         )
-                        self.streamingText = resolvedText
+                        self.streamingText = markerResult.cleanText
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
-                            finalContent: resolvedText,
+                            finalContent: markerResult.cleanText,
                             intent: processResult.firstIntent?.rawValue,
-                            extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                            extractedDataJSON: Self.encodeExtractedData(
+                                processResult.firstExtractedData,
+                                usedMemoryIDs: markerResult.usedMemoryIDs
+                            ),
                             parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
                             executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
                             analysisContextJSON: contextJSON,
@@ -508,18 +541,21 @@ final class ChatViewModel: ObservableObject {
                         // 流式结束前补齐最终累积文本，保证 consume 前的可见内容完整
                         self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
 
-                        let resolvedText = self.consumeMemoryUsageMarker(
+                        let markerResult = self.consumeMemoryUsageMarker(
                             from: fullText,
                             availableMemoryIDs: memorySummary.sourceIDs,
                             channel: .chat
                         )
-                        self.streamingText = resolvedText
+                        self.streamingText = markerResult.cleanText
                         // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
-                            finalContent: resolvedText,
+                            finalContent: markerResult.cleanText,
                             intent: processResult.firstIntent?.rawValue,
-                            extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                            extractedDataJSON: Self.encodeExtractedData(
+                                processResult.firstExtractedData,
+                                usedMemoryIDs: markerResult.usedMemoryIDs
+                            ),
                             parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
                             executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
                             rawLogJSON: nil
@@ -608,6 +644,135 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 每周生活计划（LifePlan）
+
+    /// Agent 分析完成后的计划组装与落卡：成功 → .lifePlan 计划卡；降级 → 普通分析卡
+    private func finalizeWeeklyPlanning(
+        aiMessageId: UUID,
+        rendered: HoloRenderedAgentResult,
+        intent: String?,
+        userContext: UserContext
+    ) async {
+        let consumption = analysisService.lastRunConsumption
+        let outcome = await LifePlanGenerationService.shared.generatePlan(
+            agentResult: rendered,
+            jobID: consumption?.jobID ?? "unknown",
+            budget: consumption?.budget,
+            provider: provider,
+            userContext: userContext
+        )
+        switch outcome {
+        case .saved(let snapshot):
+            refreshLifePlanSnapshots()
+            chatRepo?.finalizeMessage(
+                aiMessageId,
+                finalContent: "本周重点已生成（\(snapshot.priorities.count) 个重点 · \(snapshot.actions.count) 张行动卡）",
+                intent: intent,
+                extractedDataJSON: Self.encodeExtractedData(["planID": snapshot.id.uuidString]),
+                parsedBatchJSON: nil,
+                executionBatchJSON: nil,
+                analysisContextJSON: nil,
+                rawLogJSON: nil,
+                messageType: .lifePlan
+            )
+        case .degraded:
+            // 降级：用户先拿到分析（计划版稍后再试），PlanRun 已记录 failedDegraded
+            let fallbackText = [rendered.title, rendered.summary]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            chatRepo?.finalizeMessage(
+                aiMessageId,
+                finalContent: fallbackText + "\n\n（本周计划的结构化版暂时没有生成成功，以上是分析结论，稍后可再试一次）",
+                intent: intent,
+                extractedDataJSON: nil,
+                parsedBatchJSON: nil,
+                executionBatchJSON: nil,
+                analysisContextJSON: nil,
+                rawLogJSON: nil,
+                agentResultJSON: Self.encodeAgentResult(rendered)
+            )
+        case .dataInsufficient:
+            break // 前置检查已拦截，理论上不可达
+        }
+    }
+
+    /// 计划卡实时快照缓存（planID → snapshot），避免消息流渲染逐条查库
+    @Published private(set) var lifePlanSnapshots: [UUID: LifePlanSnapshot] = [:]
+
+    private func refreshLifePlanSnapshots() {
+        var snapshots: [UUID: LifePlanSnapshot] = [:]
+        for message in messages where message.messageType == .lifePlan {
+            if let planIDStr = message.extractedDataDictionary?["planID"],
+               let planID = UUID(uuidString: planIDStr),
+               let snapshot = LifePlanRepository.shared.snapshot(planID: planID) {
+                snapshots[planID] = snapshot
+            }
+        }
+        lifePlanSnapshots = snapshots
+    }
+
+    /// 计划卡快照读取入口（MessageBubbleView 经 ChatView 注入）
+    func lifePlanSnapshot(for message: ChatMessageViewData) -> LifePlanSnapshot? {
+        guard let planIDStr = message.extractedDataDictionary?["planID"],
+              let planID = UUID(uuidString: planIDStr) else { return nil }
+        if let cached = lifePlanSnapshots[planID] { return cached }
+        let snapshot = LifePlanRepository.shared.snapshot(planID: planID)
+        if let snapshot { lifePlanSnapshots[planID] = snapshot }
+        return snapshot
+    }
+
+    /// 计划确认页状态（仿 goalDraftForReview 模式）
+    @Published var lifePlanForReview: LifePlanSnapshot?
+    @Published var showLifePlanReview = false
+    /// 最近一次确认的撤销提示（计划卡/成功提示条提供撤销入口）
+    @Published var lastPlanUndo: (planID: UUID, token: PlanUndoToken)?
+
+    func openLifePlanReview(_ snapshot: LifePlanSnapshot) {
+        lifePlanForReview = snapshot
+        showLifePlanReview = true
+    }
+
+    func finishLifePlanConfirm(
+        planID: UUID,
+        token: PlanUndoToken,
+        createdGoalTitle: String?,
+        createdTaskCount: Int,
+        createdHabitCount: Int
+    ) {
+        refreshLifePlanSnapshots()
+        lastPlanUndo = (planID, token)
+        var summaryParts: [String] = []
+        if createdTaskCount > 0 { summaryParts.append("\(createdTaskCount) 个任务") }
+        if createdHabitCount > 0 { summaryParts.append("\(createdHabitCount) 个习惯") }
+        let summary = summaryParts.isEmpty ? "已确认" : "已创建 " + summaryParts.joined(separator: " · ")
+        chatRepo?.addMessage(
+            role: "assistant",
+            content: "已按你的确认落库：\(summary)。可随时撤销。",
+            messageType: .lifePlan
+        )
+        lifePlanForReview = nil
+        showLifePlanReview = false
+    }
+
+    func undoLifePlanConfirm(planID: UUID, token: PlanUndoToken) {
+        do {
+            try LifePlanRepository.shared.undoConfirm(planID: planID, token: token)
+            refreshLifePlanSnapshots()
+            lastPlanUndo = nil
+            chatRepo?.addMessage(
+                role: "assistant",
+                content: "已撤销本次确认：创建的目标、任务、习惯已删除，行动卡恢复为待确认。",
+                messageType: .lifePlan
+            )
+        } catch {
+            chatRepo?.addMessage(
+                role: "assistant",
+                content: "撤销失败：\(error.localizedDescription)。可手动删除刚创建的内容。",
+                messageType: .lifePlan
+            )
+        }
+    }
+
     // MARK: - Agent 失败降级（P2 R11）
 
     /// Agent 深度分析失败后的兜底：改走 chat 链路直接回答（不带分析卡片形态），
@@ -650,7 +815,7 @@ final class ChatViewModel: ObservableObject {
             guard !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return false
             }
-            let resolvedText = self.consumeMemoryUsageMarker(
+            let markerResult = self.consumeMemoryUsageMarker(
                 from: fullText,
                 availableMemoryIDs: memorySummary.sourceIDs,
                 channel: .chat
@@ -658,9 +823,12 @@ final class ChatViewModel: ObservableObject {
             // intent 落 query（普通问答形态）：渲染回文本气泡而非空态分析卡片
             chatRepo.finalizeMessage(
                 aiMessageId,
-                finalContent: resolvedText,
+                finalContent: markerResult.cleanText,
                 intent: AIIntent.query.rawValue,
-                extractedDataJSON: nil,
+                extractedDataJSON: Self.encodeExtractedData(
+                    nil,
+                    usedMemoryIDs: markerResult.usedMemoryIDs
+                ),
                 parsedBatchJSON: nil,
                 executionBatchJSON: nil,
                 rawLogJSON: nil
@@ -1643,13 +1811,19 @@ final class ChatViewModel: ObservableObject {
     /// 将 extractedData 字典编码为 JSON 字符串
     private static func encodeExtractedData(
         _ data: [String: String]?,
-        flexibleQueryResult: FlexibleQueryResult? = nil
+        flexibleQueryResult: FlexibleQueryResult? = nil,
+        usedMemoryIDs: [String] = []
     ) -> String? {
         var payload = data ?? [:]
         if let flexibleQueryResult,
            let resultData = try? JSONEncoder().encode(flexibleQueryResult),
            let resultJSON = String(data: resultData, encoding: .utf8) {
             payload["flexibleQueryResultJSON"] = resultJSON
+        }
+        // 记忆引用署名：本条回答实际使用的长期记忆，供气泡持久展示
+        if !usedMemoryIDs.isEmpty {
+            payload["memoryUsedCount"] = String(usedMemoryIDs.count)
+            payload["memoryUsedIDs"] = usedMemoryIDs.joined(separator: ",")
         }
         guard !payload.isEmpty else { return nil }
         do {
@@ -1706,11 +1880,12 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// 返回剥离 marker 后的正文 + 实际引用的记忆 ID（供消息持久署名）。
     private func consumeMemoryUsageMarker(
         from text: String,
         availableMemoryIDs: [String],
         channel: HoloMemoryReceiptChannel
-    ) -> String {
+    ) -> (cleanText: String, usedMemoryIDs: [String]) {
         let result = HoloMemoryUsageMarker.parseAndStrip(
             text,
             allowedMemoryIDs: Set(availableMemoryIDs)
@@ -1731,7 +1906,7 @@ final class ChatViewModel: ObservableObject {
                 }
             }
         }
-        return result.cleanText
+        return (result.cleanText, result.usedMemoryIDs)
     }
 
     private func retryConfigurationLoadIfNeeded() async {

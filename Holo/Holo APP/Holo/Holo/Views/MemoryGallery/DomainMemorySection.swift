@@ -85,6 +85,9 @@ struct DomainMemorySection: View {
     @State private var loadError: String?
     @State private var selectedRecord: HoloMemoryRecord?
     @State private var newMemoryIDs: Set<String> = []
+    @State private var workingIDs: Set<String> = []
+    @State private var notice: String?
+    @State private var showsConfirmationQueue = false
     @State private var inboxSnapshot = HoloMemoryInboxSnapshot(
         newMemoryCount: 0,
         pendingConfirmationCount: 0,
@@ -111,7 +114,11 @@ struct DomainMemorySection: View {
                     specialMemoryGroup(
                         title: "想和你确认的",
                         icon: "questionmark.bubble",
-                        records: pendingRecords
+                        records: pendingRecords,
+                        subtitle: "Holo 不太有把握的总结，确认后才会用于回答",
+                        actionTitle: pendingRecords.count > 3 ? "逐条过一遍" : nil,
+                        action: { showsConfirmationQueue = true },
+                        showsQuickConfirm: true
                     )
                 }
                 ForEach(nonemptyGroups) { group in
@@ -126,6 +133,11 @@ struct DomainMemorySection: View {
                 }
             }
         }
+        .overlay(alignment: .top) {
+            if let notice {
+                MemoryNoticeToast(text: notice) { self.notice = nil }
+            }
+        }
         .task { await load() }
         .sheet(item: $selectedRecord) { record in
             NavigationStack {
@@ -133,6 +145,19 @@ struct DomainMemorySection: View {
                     apply(change)
                 }
             }
+        }
+        .sheet(isPresented: $showsConfirmationQueue) {
+            MemoryConfirmationQueueView(
+                onRecordHandled: { id in
+                    Task { await syncRecordByID(id) }
+                },
+                onQueueDrained: {
+                    Task {
+                        inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
+                        showsInboxSummary = !inboxSnapshot.isEmpty
+                    }
+                }
+            )
         }
     }
 
@@ -197,7 +222,11 @@ struct DomainMemorySection: View {
     private func specialMemoryGroup(
         title: String,
         icon: String,
-        records: [HoloMemoryRecord]
+        records: [HoloMemoryRecord],
+        subtitle: String? = nil,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil,
+        showsQuickConfirm: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.xs) {
@@ -208,80 +237,114 @@ struct DomainMemorySection: View {
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoPrimary)
+                }
                 Text("\(records.count) 条")
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextPlaceholder)
             }
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+            }
+
             ForEach(records) { record in
-                memoryCard(record)
+                memoryCard(record, showsQuickConfirm: showsQuickConfirm)
             }
         }
     }
 
-    private func memoryCard(_ record: HoloMemoryRecord) -> some View {
+    private func memoryCard(_ record: HoloMemoryRecord, showsQuickConfirm: Bool = false) -> some View {
         let feedbackBadge = HoloMemoryFeedbackBadge(decision: record.userDecision)
 
-        return Button {
-            selectedRecord = record
-        } label: {
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Text(record.displaySummary)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
-                    .multilineTextAlignment(.leading)
+        // 外层用 onTapGesture 而不是 Button：卡片内嵌「对/不对」按钮，Button 套 Button 会让两个动作同时触发。
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text(record.displaySummary)
+                .font(.holoCaption)
+                .foregroundColor(.holoTextPrimary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if record.state == .candidate
+                || newMemoryIDs.contains(record.id)
+                || record.state == .archived
+                || feedbackBadge != nil {
+                HStack(spacing: 4) {
+                    if record.state == .candidate {
+                        compactStatusBadge("待确认", icon: "questionmark", color: .orange)
+                    } else if newMemoryIDs.contains(record.id) {
+                        compactStatusBadge("新", icon: "sparkles", color: .holoPrimary)
+                    } else if record.state == .archived {
+                        compactStatusBadge("过去", icon: "archivebox", color: .holoTextSecondary)
+                    }
+                    if let badge = feedbackBadge {
+                        HoloMemoryFeedbackBadgeView(badge: badge)
+                    }
+                }
+            }
+
+            HStack(alignment: .top, spacing: HoloSpacing.xs) {
+                Image(systemName: HoloMemoryUserPresentation.durationIcon(for: record))
+                    .frame(width: 14, alignment: .leading)
+
+                Text([
+                    HoloMemoryUserPresentation.durationTitle(for: record),
+                    HoloMemoryUserPresentation.timeRange(for: record),
+                    HoloMemoryUserPresentation.sourceSummary(for: record)
+                ].joined(separator: " · "))
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if record.state == .candidate
-                    || newMemoryIDs.contains(record.id)
-                    || record.state == .archived
-                    || feedbackBadge != nil {
-                    HStack(spacing: 4) {
-                        if record.state == .candidate {
-                            compactStatusBadge("待确认", icon: "questionmark", color: .orange)
-                        } else if newMemoryIDs.contains(record.id) {
-                            compactStatusBadge("新", icon: "sparkles", color: .holoPrimary)
-                        } else if record.state == .archived {
-                            compactStatusBadge("过去", icon: "archivebox", color: .holoTextSecondary)
-                        }
-                        if let badge = feedbackBadge {
-                            HoloMemoryFeedbackBadgeView(badge: badge)
-                        }
-                    }
-                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .font(.holoTinyLabel)
+            .foregroundColor(.holoTextPlaceholder)
 
-                HStack(alignment: .top, spacing: HoloSpacing.xs) {
-                    Image(systemName: HoloMemoryUserPresentation.durationIcon(for: record))
-                        .frame(width: 14, alignment: .leading)
-
-                    Text([
-                        HoloMemoryUserPresentation.durationTitle(for: record),
-                        HoloMemoryUserPresentation.timeRange(for: record),
-                        HoloMemoryUserPresentation.sourceSummary(for: record)
-                    ].joined(separator: " · "))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoTextPlaceholder)
-
-                if let status = HoloMemoryUserPresentation.degradedStatus(for: record) {
-                    Label(status, systemImage: "exclamationmark.circle")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.orange)
+            if showsQuickConfirm {
+                HStack(spacing: HoloSpacing.sm) {
+                    quickConfirmButton(record, accurate: true)
+                    quickConfirmButton(record, accurate: false)
                 }
             }
-            .padding(HoloSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
-            )
+
+            if let status = HoloMemoryUserPresentation.degradedStatus(for: record) {
+                Label(status, systemImage: "exclamationmark.circle")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.orange)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .onTapGesture { selectedRecord = record }
+        .opacity(workingIDs.contains(record.id) ? 0.55 : 1)
+        .disabled(workingIDs.contains(record.id))
+    }
+
+    private func quickConfirmButton(_ record: HoloMemoryRecord, accurate: Bool) -> some View {
+        Button {
+            Task { await quickConfirm(record, accurate: accurate) }
+        } label: {
+            Label(accurate ? "对" : "不对", systemImage: accurate ? "checkmark" : "xmark")
+                .font(.holoCaption)
+                .foregroundColor(accurate ? .holoSuccess : .orange)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, HoloSpacing.sm)
+                .background((accurate ? Color.holoSuccess : Color.orange).opacity(0.09))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         }
         .buttonStyle(.plain)
     }
@@ -301,22 +364,48 @@ struct DomainMemorySection: View {
             .fixedSize()
     }
 
+    private var inboxSubtitle: String {
+        if inboxSnapshot.pendingConfirmationCount > 0 {
+            return "确认后 Holo 回答会更准，几十秒就能清完"
+        }
+        return "Holo 回答时会自动用上这些记忆，下方可随时管理"
+    }
+
     private var inboxSummaryCard: some View {
         HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: "sparkles")
-                .foregroundColor(.holoPrimary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(inboxSnapshot.summaryText)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
-                Text("Holo 会默认使用普通记忆，需要确认的内容暂不会参与回答。")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
+            Button {
+                guard inboxSnapshot.pendingConfirmationCount > 0 else { return }
+                showsConfirmationQueue = true
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(.holoPrimary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(inboxSnapshot.summaryText)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                        Text(inboxSubtitle)
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
 
-            Spacer(minLength: 0)
+                    if inboxSnapshot.pendingConfirmationCount > 0 {
+                        HStack(spacing: 2) {
+                            Text("去确认")
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .font(.holoTinyLabel)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoPrimary)
+                    }
+                }
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             Button {
                 HoloMemoryReceiptStore.markWriteReceiptsRead()
@@ -398,31 +487,75 @@ struct DomainMemorySection: View {
     }
 
     private static func isUserVisible(_ record: HoloMemoryRecord) -> Bool {
-        guard HoloMemoryUsefulnessPolicy.isEligible(record) else { return false }
-        if record.userDecision == .rejected {
-            return record.state == .suppressed
-        }
-        guard [.candidate, .active, .disputed, .invalidated, .archived].contains(record.state) else {
-            return false
-        }
-        return ![.forgotten, .markedIrrelevant].contains(record.userDecision)
+        HoloMemoryUserVisibility.isVisible(record)
     }
 
     private func apply(_ change: HoloMemoryRecordDetailChange) {
         switch change {
         case .updated(let record):
-            newMemoryIDs.remove(record.id)
-            if Self.isUserVisible(record),
-               let index = records.firstIndex(where: { $0.id == record.id }) {
+            syncRecord(record)
+            selectedRecord = record
+        case .removed(let id):
+            newMemoryIDs.remove(id)
+            withAnimation(.easeInOut(duration: 0.25)) {
+                records.removeAll { $0.id == id }
+            }
+            selectedRecord = nil
+        }
+    }
+
+    @MainActor
+    private func quickConfirm(_ record: HoloMemoryRecord, accurate: Bool) async {
+        workingIDs.insert(record.id)
+        do {
+            let repository = try await HoloMemoryRuntime.shared.repository()
+            let service = HoloMemoryFeedbackService(store: repository)
+            _ = try await service.apply(accurate ? .accurate : .inaccurate, to: record.id)
+            if let persisted = try await repository.fetch(id: record.id) {
+                syncRecord(persisted)
+            } else {
+                newMemoryIDs.remove(record.id)
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    records.removeAll { $0.id == record.id }
+                }
+            }
+            refreshInboxSnapshot()
+        } catch {
+            notice = "这次操作没有保存成功，请稍后重试。"
+        }
+        workingIDs.remove(record.id)
+    }
+
+    /// 确认队列里处理完一条后，按最新持久化状态同步本列表。
+    @MainActor
+    private func syncRecordByID(_ id: String) async {
+        guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return }
+        if let persisted = try? await repository.fetch(id: id) {
+            syncRecord(persisted)
+        } else {
+            newMemoryIDs.remove(id)
+            withAnimation(.easeInOut(duration: 0.25)) {
+                records.removeAll { $0.id == id }
+            }
+        }
+        refreshInboxSnapshot()
+    }
+
+    private func syncRecord(_ record: HoloMemoryRecord) {
+        newMemoryIDs.remove(record.id)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            if Self.isUserVisible(record), let index = records.firstIndex(where: { $0.id == record.id }) {
                 records[index] = record
             } else {
                 records.removeAll { $0.id == record.id }
             }
-            selectedRecord = record
-        case .removed(let id):
-            newMemoryIDs.remove(id)
-            records.removeAll { $0.id == id }
-            selectedRecord = nil
+        }
+    }
+
+    private func refreshInboxSnapshot() {
+        Task {
+            inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
+            showsInboxSummary = !inboxSnapshot.isEmpty
         }
     }
 }
@@ -542,7 +675,7 @@ enum HoloMemoryUserPresentation {
 
     static func degradedStatus(for record: HoloMemoryRecord) -> String? {
         if record.state == .candidate {
-            return "确认前不会用于 HoloAI 回答"
+            return "确认后才会用于 HoloAI 回答"
         }
         if record.state == .archived {
             return "这条记忆已经成为过去，不再用于当前回答"

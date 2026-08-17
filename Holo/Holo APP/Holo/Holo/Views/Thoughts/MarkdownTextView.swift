@@ -31,6 +31,8 @@ enum MarkdownEditorAction: Equatable {
     case insertTaskMark(taskId: UUID, displayText: String, sourceRange: NSRange)
     /// 整篇提取多个任务：按原文范围批量插入关系 Token，保证每个任务都能回看作用文字
     case insertTaskMarks([TaskMarkInsertion])
+    /// 工具栏「转为任务」：编辑器内读取当前选区——有选中文字只转选中部分，无选中转整篇
+    case convertToTask
     /// 把当前选中的 Token 转为普通文本（移除标签 / 取消引用）
     case removeSelectedToken
     /// 主动关闭候选面板（保留已输入文字，本次触发不再自动弹出）
@@ -110,8 +112,6 @@ struct MarkdownTextView: UIViewRepresentable {
     var placeholder: String? = nil
     /// 节点模型变化回调（保存时取 richContentJSON 用）
     var onNodesChange: (([HoloContentNode]) -> Void)? = nil
-    /// 点击工具栏「添加图片」按钮的回调（桥接到 inputAccessoryView 内的 UIKit 工具栏）
-    var onAddImage: (() -> Void)? = nil
     /// 键盘工具栏「转为任务」回调：整篇转化入口
     var onConvertToTask: (() -> Void)? = nil
     /// 选区菜单「转为任务」回调：同时传出选中的纯文本和真实 UTF-16 选区
@@ -179,7 +179,10 @@ struct MarkdownTextView: UIViewRepresentable {
         // 关闭 iOS 17+ 非编辑态自动滚动到可见区域：避免候选浮层出现时编辑器意外上滚
         textView.alwaysBounceVertical = false
         let initialNodes = RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: text)
-        textView.attributedText = showHighlight ? Self.makeAttributedText(from: initialNodes) : NSAttributedString(string: text, attributes: Self.baseAttributes)
+        let initialAttributedText = showHighlight
+            ? Self.makeAttributedText(from: initialNodes)
+            : NSAttributedString(string: text, attributes: Self.baseAttributes)
+        textView.attributedText = Self.applyingEditorLineSpacing(to: initialAttributedText)
 
         // 以节点派生文本为准，保证 JSON 场景下绑定与编辑器内容一致。
         // 存量引用可能通过快照补齐标题，必须同步回 Binding；否则 SwiftUI 下一次刷新
@@ -208,8 +211,6 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onFormatStateChange = { state in
             DispatchQueue.main.async {
                 self.formatState = state
-                // 同步刷新 inputAccessoryView 工具栏的加粗按钮高亮
-                context.coordinator.accessoryToolbar?.formatState = state
             }
         }
         context.coordinator.onCaretRectChange = { rect in
@@ -219,44 +220,8 @@ struct MarkdownTextView: UIViewRepresentable {
         }
         context.coordinator.refreshTypingAttributes(for: textView)
 
-        // 将纯 UIKit 工具栏作为 inputAccessoryView 挂到键盘上方。
-        // UIKit 下每个元素坐标由 AutoLayout 精确写死，系统据此在键盘上方留出对应高度空间。
-        let toolbar = RichTextToolbarAccessoryView()
-        toolbar.onTag = { [self] in pendingAction = .insertTriggerCharacter("#") }
-        toolbar.onReference = { [self] in pendingAction = .insertTriggerCharacter("@") }
-        toolbar.onBold = { [self] in pendingAction = .toggleBold }
-        toolbar.onItalic = { [self] in pendingAction = .toggleItalic }
-        toolbar.onUnderline = { [self] in pendingAction = .toggleUnderline }
-        toolbar.onColor = { [self] hex in pendingAction = .setColor(hex: hex) }
-        toolbar.onImage = { onAddImage?() }
-        toolbar.onConvertToTask = {
-            // 点工具栏「转任务」时先检查有没有选中文字：有就只转选中的，没有就转整篇。
-            // 闭包里通过 coordinator 读最新引用（首次渲染快照不会随 SwiftUI 重建更新）。
-            let sel = context.coordinator.hostTextView?.selectedRange ?? NSRange(location: 0, length: 0)
-            if sel.length > 0,
-               let textView = context.coordinator.hostTextView,
-               let sub = textView.attributedText?.attributedSubstring(from: sel) {
-                let visibleSelection = MarkdownTextView.visiblePlainText(
-                    from: MarkdownTextView.serializeNodes(from: sub)
-                )
-                let trimmed = visibleSelection.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    let visibleRange = MarkdownTextView.visibleRange(
-                        forStorageRange: sel,
-                        in: textView.attributedText ?? NSAttributedString()
-                    ) ?? sel
-                    context.coordinator.onConvertSelection?(trimmed, visibleRange)
-                    return
-                }
-            }
-            context.coordinator.onConvertToTask?()
-        }
-        toolbar.onUnorderedList = { [self] in pendingAction = .insertUnorderedList }
-        toolbar.onOrderedList = { [self] in pendingAction = .insertOrderedList }
-        toolbar.formatState = formatState
-        context.coordinator.accessoryToolbar = toolbar
-        context.coordinator.hostTextView = textView
-        textView.inputAccessoryView = toolbar
+        // 工具栏已从 inputAccessoryView 迁到编辑器卡片内部（SwiftUI，见 EditorFormatToolbar）；
+        // 所有工具动作统一走 pendingAction(MarkdownEditorAction) 管线，此处不再挂键盘附属条。
 
         // 占位提示：在 UITextView 内渲染，依据 attributedText 实时显隐（含 IME 组字阶段）
         if let placeholder {
@@ -326,9 +291,9 @@ struct MarkdownTextView: UIViewRepresentable {
         if context.coordinator.lastAppliedSizeCategory != sizeCategory {
             let currentNodes = context.coordinator.nodes
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
-            let attributedText = showHighlight
+            let attributedText = Self.applyingEditorLineSpacing(to: showHighlight
                 ? Self.makeAttributedText(from: currentNodes)
-                : NSAttributedString(string: RichContentSerializer.plainText(from: currentNodes), attributes: Self.baseAttributes)
+                : NSAttributedString(string: RichContentSerializer.plainText(from: currentNodes), attributes: Self.baseAttributes))
             context.coordinator.isProgrammaticChange = true
             textView.attributedText = attributedText
             textView.selectedRange = Self.clampedRange(preservedSelection, for: attributedText.length)
@@ -347,9 +312,9 @@ struct MarkdownTextView: UIViewRepresentable {
             let previousMarkdown = context.coordinator.lastKnownMarkdown
             let newNodes = RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: text)
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
-            let attributedText = showHighlight
+            let attributedText = Self.applyingEditorLineSpacing(to: showHighlight
                 ? Self.makeAttributedText(from: newNodes)
-                : NSAttributedString(string: RichContentSerializer.plainText(from: newNodes), attributes: Self.baseAttributes)
+                : NSAttributedString(string: RichContentSerializer.plainText(from: newNodes), attributes: Self.baseAttributes))
 
             context.coordinator.isProgrammaticChange = true
             textView.attributedText = attributedText
@@ -374,9 +339,9 @@ struct MarkdownTextView: UIViewRepresentable {
            text != context.coordinator.lastKnownMarkdown {
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
             let newNodes = RichContentSerializer.nodes(fromPlainText: text)
-            let attributedText = showHighlight
+            let attributedText = Self.applyingEditorLineSpacing(to: showHighlight
                 ? Self.makeAttributedText(from: newNodes)
-                : NSAttributedString(string: text, attributes: Self.baseAttributes)
+                : NSAttributedString(string: text, attributes: Self.baseAttributes))
             context.coordinator.isProgrammaticChange = true
             textView.attributedText = attributedText
             textView.selectedRange = Self.clampedRange(preservedSelection, for: attributedText.length)
@@ -416,17 +381,13 @@ struct MarkdownTextView: UIViewRepresentable {
         var onNodesChange: (([HoloContentNode]) -> Void)?
         /// 光标 rect 变化回调（编辑器局部坐标系），父视图据此吸附候选浮层
         var onCaretRectChange: ((CGRect) -> Void)?
-        /// 选区菜单「转为任务」回调
-        /// 连同真实选区一起传出，避免确认面板呈现期间 UITextView 选区丢失
-        var onConvertSelection: ((String, NSRange) -> Void)?
-        /// 工具栏「转为任务」（整篇）回调
-        var onConvertToTask: (() -> Void)?
-        /// 候选面板硬件键盘操作回调
-        var onSuggestionCommand: ((SuggestionKeyboardCommand) -> Void)?
-        /// inputAccessoryView 工具栏引用（格式状态变化时同步加粗按钮高亮）
-        weak var accessoryToolbar: RichTextToolbarAccessoryView?
-        /// 宿主 UITextView 弱引用（工具栏回调需要读取当前选区）
-        weak var hostTextView: UITextView?
+    /// 选区菜单「转为任务」回调
+    /// 连同真实选区一起传出，避免确认面板呈现期间 UITextView 选区丢失
+    var onConvertSelection: ((String, NSRange) -> Void)?
+    /// 工具栏「转为任务」（整篇）回调
+    var onConvertToTask: (() -> Void)?
+    /// 候选面板硬件键盘操作回调
+    var onSuggestionCommand: ((SuggestionKeyboardCommand) -> Void)?
 
         /// 占位提示标签（makeUIView 创建，依据编辑器内容实时显隐）
         weak var placeholderLabel: UILabel?
@@ -689,6 +650,25 @@ struct MarkdownTextView: UIViewRepresentable {
                 ], on: textView)
             case .insertTaskMarks(let insertions):
                 insertTaskMarks(insertions, on: textView)
+            case .convertToTask:
+                // 有选中文字只转选中部分，无选中转整篇
+                let selection = textView.selectedRange
+                if selection.length > 0,
+                   let substring = textView.attributedText?.attributedSubstring(from: selection) {
+                    let visibleSelection = MarkdownTextView.visiblePlainText(
+                        from: MarkdownTextView.serializeNodes(from: substring)
+                    )
+                    let trimmed = visibleSelection.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        let visibleRange = MarkdownTextView.visibleRange(
+                            forStorageRange: selection,
+                            in: textView.attributedText ?? NSAttributedString()
+                        ) ?? selection
+                        onConvertSelection?(trimmed, visibleRange)
+                        return
+                    }
+                }
+                onConvertToTask?()
             case .removeSelectedToken:
                 removeSelectedToken(on: textView)
             case .dismissSuggestion:
@@ -757,13 +737,14 @@ struct MarkdownTextView: UIViewRepresentable {
             if typingAttributes[.foregroundColor] == nil {
                 typingAttributes[.foregroundColor] = MarkdownTextView.baseTextColor
             }
-            // 光标行高修正：typingAttributes 里的 paragraphStyle 携带了 lineSpacing=6（用于文字行间距），
-            // 但空行时光标高度由 typingAttributes 决定，额外行间距会把光标撑高约 6pt（比有文字行明显大）。
-            // 这里复制一份并把 lineSpacing 清零，使光标高度仅由字体决定，与有文字行一致。
-            // 已渲染文字的行间距不受影响（那些用完整的 paragraphStyle 存在 attributedText 里）。
+            // 打字属性必须携带编辑态行距：新输入的每个字符都从这里继承样式。
+            // 旧实现为压低空行光标高度把 lineSpacing 清零，导致连续打出的文字全部
+            // 失去行距（明显比已渲染文字挤），保存重进后才恢复。空行光标被行距撑高
+            // 的问题改由 SelfSizingTextView.caretRect(for:) 统一 clamp 光标高度解决。
             if let paragraphStyle = typingAttributes[.paragraphStyle] as? NSParagraphStyle,
-               let mutableStyle = paragraphStyle.mutableCopy() as? NSMutableParagraphStyle {
-                mutableStyle.lineSpacing = 0
+               let mutableStyle = paragraphStyle.mutableCopy() as? NSMutableParagraphStyle,
+               let typingFont = typingAttributes[.font] as? UIFont {
+                mutableStyle.lineSpacing = MarkdownTextView.editorLineSpacing(for: typingFont)
                 typingAttributes[.paragraphStyle] = mutableStyle
             }
             textView.typingAttributes = typingAttributes
@@ -1084,7 +1065,9 @@ struct MarkdownTextView: UIViewRepresentable {
             let pasteNodes = MarkdownTextView.clipboardSafeNodes(from: nodes)
             guard !pasteNodes.isEmpty else { return false }
 
-            let replacement = MarkdownTextView.makeAttributedText(from: pasteNodes)
+            let replacement = MarkdownTextView.applyingEditorLineSpacing(
+                to: MarkdownTextView.makeAttributedText(from: pasteNodes)
+            )
             let requestedRange = MarkdownTextView.clampedRange(
                 textView.selectedRange,
                 for: textView.attributedText.length
@@ -1510,7 +1493,11 @@ struct MarkdownTextView: UIViewRepresentable {
         private func insertToken(type: HoloTokenType, id: UUID, displayText: String, snapshot: String?, on textView: UITextView) {
             guard let trigger = activeTrigger else { return }
 
-            let tokenText = MarkdownTextView.makeTokenAttributedText(type: type, id: id, displayText: displayText, snapshot: snapshot)
+            // Token 自带阅读态的紧凑行距；若 Token 落在行首，该行行距会由它决定，
+            // 插入前统一替换为编辑态行距，避免 Token 行比正文行明显更紧。
+            let tokenText = MarkdownTextView.applyingEditorLineSpacing(
+                to: MarkdownTextView.makeTokenAttributedText(type: type, id: id, displayText: displayText, snapshot: snapshot)
+            )
             let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
             let safeRange = MarkdownTextView.clampedRange(trigger.range, for: mutable.length)
             let taskAwareToken = NSMutableAttributedString(attributedString: tokenText)
@@ -2012,7 +1999,9 @@ struct MarkdownTextView: UIViewRepresentable {
 
 // MARK: - 富文本转换
 
-private extension MarkdownTextView {
+// 注：此 extension 保持 internal（勿改回 private）——HoloTests 的 MarkdownTextViewNodePipelineTests
+// 依赖 makeAttributedText(from: String) / baseAttributes 入口（2026-08-16 恢复，曾被误私有化导致测试 target 编不过）
+extension MarkdownTextView {
     struct RenderStyle {
         var isBold = false
         var isItalic = false
@@ -2044,6 +2033,30 @@ private extension MarkdownTextView {
         let style = NSMutableParagraphStyle()
         style.lineSpacing = 6
         return style
+    }
+
+    /// 编辑态行高基线：行高 = 字号 × 1.5（中文正文的舒适行距）。
+    /// 阅读态（列表卡片/详情页）维持 6pt 的紧凑基线：编辑器优先输入体验，列表优先信息密度。
+    /// 行距按当前字号计算，Dynamic Type 放大后比例不漂移。
+    static func editorLineSpacing(for font: UIFont) -> CGFloat {
+        max(0, font.pointSize * 1.5 - font.lineHeight)
+    }
+
+    /// 把整段富文本的行距统一替换为编辑态基线（保留列表悬挂缩进等其他段落设置）。
+    /// 打字产生的新文字走 typingAttributes；整段重建（初次渲染、Dynamic Type 变化、
+    /// rich JSON 水合、应用内粘贴）走本函数，两条路径保持同一密度。
+    static func applyingEditorLineSpacing(to source: NSAttributedString) -> NSAttributedString {
+        guard source.length > 0 else { return source }
+        let mutable = NSMutableAttributedString(attributedString: source)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        mutable.enumerateAttribute(.paragraphStyle, in: fullRange) { _, range, _ in
+            let segmentFont = (mutable.attribute(.font, at: range.location, effectiveRange: nil) as? UIFont) ?? baseFont
+            guard let style = mutable.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle,
+                  let mutableStyle = style.mutableCopy() as? NSMutableParagraphStyle else { return }
+            mutableStyle.lineSpacing = editorLineSpacing(for: segmentFont)
+            mutable.addAttribute(.paragraphStyle, value: mutableStyle, range: range)
+        }
+        return mutable
     }
 
     fileprivate static func paragraphStyle(forList isList: Bool) -> NSParagraphStyle {
@@ -2352,12 +2365,13 @@ extension MarkdownTextView {
                 range: sourceRange
             )
             mutable.insert(
-                makeTaskMarkAttributedText(
+                // 任务标记与 Token 同理：行首时决定整行行距，用编辑态基线插入
+                applyingEditorLineSpacing(to: makeTaskMarkAttributedText(
                     id: UUID(),
                     taskId: insertion.taskId,
                     displayText: insertion.displayText,
                     sourceLength: sourceRange.length
-                ),
+                )),
                 at: insertLocation
             )
             acceptedRanges.append(sourceRange)
@@ -2603,19 +2617,32 @@ extension MarkdownTextView {
 
     /// Token 行内样式：品牌色文字 + 浅色背景 + 身份属性（类型/实体 ID/展示快照）
     /// isDeleted=true 时渲染为灰色「原记录已删除」（仅引用 Token 使用，保留身份属性供点击取快照）
+    ///
+    /// 视觉规格（正文 17pt 基线）：
+    /// - 字号 15pt medium：比正文小一档，读作「标签」而不是「一段有底色的正文」；
+    /// - baselineOffset 下沉：小字号在正文行框里垂直居中，色块上下不再贴死字形；
+    /// - 首尾各一个同属性空格承担水平留白（背景色随之延伸，等效胶囊的左右 padding）；
+    /// - #/@ 前缀同色 65% 透明度弱化，主体文字保持全色。
+    /// 留白空格只存在于渲染层：序列化与复制都走 holoDisplayText 属性，不会进入存储或外发文本。
     static func makeTokenAttributedText(type: HoloTokenType, id: UUID, displayText: String, snapshot: String?, isDeleted: Bool = false) -> NSAttributedString {
         var attributes = baseAttributes
+        attributes[.font] = UIFontMetrics(forTextStyle: .body)
+            .scaledFont(for: UIFont.systemFont(ofSize: 15, weight: .medium))
+        attributes[.baselineOffset] = NSNumber(value: -1)
+        let tokenColor: UIColor
         if isDeleted {
-            attributes[.foregroundColor] = UIColor(Color.holoTextSecondary)
+            tokenColor = UIColor(Color.holoTextSecondary)
+            attributes[.foregroundColor] = tokenColor
             attributes[.backgroundColor] = UIColor(Color.holoTextSecondary.opacity(0.12))
         } else {
             // 品牌主色用于背景和强调控件；作为浅色模式正文色时对比度偏低。
             // Token 改用深橙，深色模式使用浅橙，既保留品牌识别又保证长标题可读。
-            attributes[.foregroundColor] = UIColor { traits in
+            tokenColor = UIColor { traits in
                 traits.userInterfaceStyle == .dark
                     ? UIColor(Color.holoPrimaryLight)
                     : UIColor(Color.holoPrimaryDark)
             }
+            attributes[.foregroundColor] = tokenColor
             attributes[.backgroundColor] = UIColor(Color.holoPrimary.opacity(0.12))
         }
         attributes[.holoTokenType] = type.rawValue
@@ -2635,7 +2662,15 @@ extension MarkdownTextView {
             )
             : displayText
         let visibleText = isDeleted ? "原记录已删除" : normalizedDisplayText
-        return NSAttributedString(string: "\(prefix)\(visibleText)", attributes: attributes)
+
+        let result = NSMutableAttributedString()
+        result.append(NSAttributedString(string: " ", attributes: attributes))
+        var prefixAttributes = attributes
+        prefixAttributes[.foregroundColor] = tokenColor.withAlphaComponent(0.65)
+        result.append(NSAttributedString(string: prefix, attributes: prefixAttributes))
+        result.append(NSAttributedString(string: visibleText, attributes: attributes))
+        result.append(NSAttributedString(string: " ", attributes: attributes))
+        return result
     }
 
     /// 任务关系 Token：一个不可拆分的「清单图标 + 任务」附件。
@@ -3257,6 +3292,18 @@ private final class SelfSizingTextView: UITextView {
 
     @objc private func dismissSuggestion() {
         onSuggestionCommand?(.dismiss)
+    }
+
+    /// 空行的行框包含行距，光标会随之比有文字的行高出一截（光标落到空行时突然变大）。
+    /// 光标高度统一 clamp 到当前打字字体的行高并垂直居中，与有文字行保持同一节奏；
+    /// 只影响光标显示 rect，文字行距不受影响。
+    override func caretRect(for position: UITextPosition) -> CGRect {
+        var rect = super.caretRect(for: position)
+        let typingFont = (typingAttributes[.font] as? UIFont) ?? font
+        guard let typingFont, rect.height > typingFont.lineHeight + 0.5 else { return rect }
+        rect.origin.y += (rect.height - typingFont.lineHeight) / 2
+        rect.size.height = typingFont.lineHeight
+        return rect
     }
 
     override func layoutSubviews() {

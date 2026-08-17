@@ -476,8 +476,7 @@ struct SettingsView: View {
 
     // MARK: - AI 整理设置
 
-    @AppStorage(ThoughtAIClassificationPolicy.isEnabledKey)
-    private var isThoughtAutoOrganizationEnabled: Bool = true
+    @State private var showThoughtOrganizationSettings = false
 
     private var aiOrganizationSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -493,7 +492,7 @@ struct SettingsView: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
-            // 自动整理想法开关
+            // HoloAI 数据授权（全局 AI 授权，保留在系统设置）
             settingsRow(
                 icon: "hand.raised.square",
                 iconColor: .holoPrimary,
@@ -508,29 +507,18 @@ struct SettingsView: View {
                 }
             }
 
-            // 自动整理想法开关
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("AI 自动分类")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
-
-                    Text(isThoughtAutoOrganizationEnabled
-                         ? "保存后从已启用主题中单选分类，无法判断则进入未归类"
-                         : "新想法不再自动分类；历史标签和手动整理不受影响")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
-
-                Toggle("", isOn: $isThoughtAutoOrganizationEnabled)
-                    .labelsHidden()
-                    .tint(.holoPrimary)
+            // P1（东林拍板）：AI 自动分类开关已迁移至 知识树 → 整理设置，此处不再保留第二开关
+            settingsRow(
+                icon: "slider.horizontal.3",
+                iconColor: .holoPrimary,
+                title: "想法整理设置",
+                subtitle: "自动分类开关与标签治理，已移至想法页的知识树内"
+            ) {
+                showThoughtOrganizationSettings = true
             }
-            .contentShape(Rectangle())
+            .sheet(isPresented: $showThoughtOrganizationSettings) {
+                ThoughtOrganizationSettingsView()
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)

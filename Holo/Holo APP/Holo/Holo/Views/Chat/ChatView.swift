@@ -274,6 +274,20 @@ struct ChatView: View {
                 )
             }
         }
+        .fullScreenCover(isPresented: $viewModel.showLifePlanReview) {
+            if let snapshot = viewModel.lifePlanForReview {
+                LifePlanReviewView(
+                    snapshot: snapshot,
+                    onConfirm: { selection in
+                        confirmLifePlanSelection(selection)
+                    },
+                    onCancel: {
+                        viewModel.lifePlanForReview = nil
+                        viewModel.showLifePlanReview = false
+                    }
+                )
+            }
+        }
     }
 
     // MARK: - Navigation Bar
@@ -531,6 +545,18 @@ struct ChatView: View {
                         },
                         onReport: { msg in
                             reportingMessage = msg
+                        },
+                        lifePlanSnapshotProvider: { msg in
+                            viewModel.lifePlanSnapshot(for: msg)
+                        },
+                        lifePlanUndoPlanID: viewModel.lastPlanUndo?.planID,
+                        onLifePlanOpenReview: { snapshot in
+                            viewModel.openLifePlanReview(snapshot)
+                        },
+                        onLifePlanUndo: { snapshot in
+                            if let undo = viewModel.lastPlanUndo, undo.planID == snapshot.id {
+                                viewModel.undoLifePlanConfirm(planID: undo.planID, token: undo.token)
+                            }
                         }
                     )
                     .equatable()
@@ -815,6 +841,28 @@ struct ChatView: View {
     private func openTransactionDetail(_ message: ChatMessageViewData) {
         guard let transactionId = message.resolveLinkedEntityId(for: .finance) else { return }
         openTransactionDetail(transactionId)
+    }
+
+    /// 计划确认页落库：勾选优先结果→Goal、勾选行动卡→任务/习惯、拒绝→反馈
+    private func confirmLifePlanSelection(_ selection: LifePlanReviewView.LifePlanConfirmSelection) {
+        do {
+            let token = try LifePlanRepository.shared.confirmPlan(
+                planID: selection.planID,
+                selectedPriorityIDs: selection.selectedPriorityIDs,
+                selectedActionIDs: selection.selectedActionIDs,
+                rejections: selection.rejections
+            )
+            viewModel.finishLifePlanConfirm(
+                planID: selection.planID,
+                token: token,
+                createdGoalTitle: nil,
+                createdTaskCount: token.taskIDs.count,
+                createdHabitCount: token.habitIDs.count
+            )
+        } catch {
+            viewModel.lifePlanForReview = nil
+            viewModel.showLifePlanReview = false
+        }
     }
 
     private func openTransactionDetail(_ transactionId: UUID) {

@@ -202,6 +202,10 @@ struct TopicConfirmationQueueView: View {
     private func confirmPlacement(_ thought: Thought) {
         do {
             try thoughtRepository.confirmTopicAssignment(thoughtId: thought.id)
+            ThoughtClassificationFeedbackStore.log(
+                .topicConfirm, thoughtId: thought.id, tagName: "",
+                topicConfidence: thought.topicConfidence
+            )
             HapticManager.light()
             settle(thought.id, confirmed: true)
         } catch {

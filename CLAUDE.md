@@ -152,12 +152,15 @@ Holo 的 AI/ASR 调用已从客户端直连大模型改为经阿里云后端网�
 | 文件 | 说明 |
 |------|------|
 | `src/app.js` | Hono 路由，4 组端点 |
-| `src/config.js` | 模型路由配置（chat/intent/insight 各自独立 provider/model/temperature） |
+| `src/config.js` | 模型路由配置（chat/intent/insight 各自独立 provider/model/temperature/reasoningEffort） |
 | `src/server.js` | Node 服务入口 |
 | `src/errors.js` | GatewayError，中文错误消息 |
 | `src/providers/dashScopeAsrProvider.js` | DashScope ASR WebSocket 转写 |
 | `src/providers/openAICompatibleProvider.js` | 通用 LLM 转发 |
+| `scripts/latency-benchmark.js` | 深度分析链路延迟基准（模拟 agent_loop 各轮输入规模打真实后端） |
 | `src/usage/inMemoryUsageStore.js` | 设备级内存限流 |
+
+**延迟基准（2026-08-16 实测结论，改模型配置前必读）**：agent_loop 单轮 15-25s 与输入大小基本无关（推理固定开销）；**reasoning none 档仅限简单 JSON 输出**（组装/快照），工具轮会输出坏 JSON 被 agent 协议校验拦截；insight 已配 low。**凡是调整 provider/model/reasoningEffort、新增 purpose、或用户反馈「分析慢」，先用 `scripts/latency-benchmark.js` 实测对比再改**（env `BENCH_DEVICE` 轮换设备标识避免费配额），不凭体感下结论。
 
 **API 端点**：`/v1/health` | `/v1/app-attest/challenge` | `/v1/ai/chat/completions` | `/v1/asr/transcriptions`
 

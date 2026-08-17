@@ -51,6 +51,10 @@ struct ThoughtDetailView: View {
 
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
+    /// P0 分级判定：用户认可标签集合（归一化 key）
+    @State private var recognizedTagKeys: Set<String> = []
+    /// P0 重新整理节流（防连点重复入队消耗配额）
+    @State private var retryInFlight: Bool = false
 
     /// 所属主题修改入口（TopicPickerView）
     @State private var showTopicPicker: Bool = false
@@ -90,8 +94,8 @@ struct ThoughtDetailView: View {
                         tagsSection
                     }
 
-                    // AI 归类区域
-                    if !aiAssignments.isEmpty {
+                    // AI 归类区域（P0 三态：建议 / 待确认 / 空分类轻文案）
+                    if shouldShowAISection {
                         aiTagsSection
                     }
 
@@ -141,6 +145,16 @@ struct ThoughtDetailView: View {
                             showEditSheet = true
                         } label: {
                             Label("编辑", systemImage: "square.and.pencil")
+                        }
+
+                        // FR-05′：单条重新整理（failed/已整理均可；skipped 短文本无意义不显示）
+                        if canRetryOrganization {
+                            Button {
+                                retryOrganization()
+                            } label: {
+                                Label("重新整理", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(retryInFlight)
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -205,6 +219,10 @@ struct ThoughtDetailView: View {
                     thoughtId: thoughtId,
                     topicRepository: topicRepository,
                     onAssigned: {
+                        ThoughtClassificationFeedbackStore.log(
+                            .topicChange, thoughtId: thoughtId, tagName: "",
+                            topicConfidence: thought?.topicConfidence
+                        )
                         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
                     },
                     allowsRemove: true
@@ -224,6 +242,9 @@ struct ThoughtDetailView: View {
             references = try thoughtRepository.getReferences(for: thoughtId)
             referencedBy = try thoughtRepository.getReferencedBy(id: thoughtId)
             aiAssignments = (try? thoughtRepository.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
+            // P0 分级判定输入：用户认可标签集合（归一化 key）
+            recognizedTagKeys = Set(thoughtRepository.fetchUserRecognizedTagNames()
+                .map { ThoughtTagNormalizer.key($0) })
             loadRenderNodes()
         } catch {
             logger.error("加载数据失败：\(error)")
@@ -527,10 +548,27 @@ struct ThoughtDetailView: View {
 
     // MARK: - AI 归类区域
 
+    /// P0：AI 归类区显示条件——有可见建议，或已整理但空分类（D-08′ 轻文案，不算失败）
+    private var shouldShowAISection: Bool {
+        !aiAssignments.isEmpty || thought?.organizedStatus == "organized"
+    }
+
+    /// P0 分级：D-06′/D-07′/D-08′ 三态（规则集中在 ThoughtOrganizationPresentationPolicy）
+    private var aiPresentationLevel: ThoughtOrganizationPresentationPolicy.AIClassPresentation {
+        let unconfirmedNames = aiAssignments
+            .filter { $0.source == ThoughtTagAssignment.Source.ai.rawValue }
+            .compactMap { $0.tag?.name }
+        return ThoughtOrganizationPresentationPolicy.aiTagPresentation(
+            hasAITagAssignments: !unconfirmedNames.isEmpty,
+            aiTagNames: unconfirmedNames,
+            recognizedTagKeys: recognizedTagKeys
+        )
+    }
+
     private var aiTagsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
-                Text("AI 归类")
+                Text(aiSectionTitle)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
 
@@ -539,9 +577,22 @@ struct ThoughtDetailView: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            FlowLayout(spacing: HoloSpacing.sm) {
-                ForEach(aiAssignments, id: \.id) { assignment in
-                    aiTagChip(assignment)
+            switch aiPresentationLevel {
+            case .silent:
+                // D-08′：正常空分类，不是失败
+                Text("这条内容暂未形成稳定标签，你可以保持未分类，或稍后重新整理。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            case .weakHint, .pendingConfirmation:
+                FlowLayout(spacing: HoloSpacing.sm) {
+                    ForEach(aiAssignments, id: \.id) { assignment in
+                        aiTagChip(assignment)
+                    }
+                }
+                if aiPresentationLevel == .pendingConfirmation {
+                    Text("含新标签，确认后将进入你的标签库")
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoTextSecondary.opacity(0.7))
                 }
             }
         }
@@ -554,6 +605,14 @@ struct ThoughtDetailView: View {
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
+    }
+
+    private var aiSectionTitle: String {
+        switch aiPresentationLevel {
+        case .pendingConfirmation: return "待确认标签"
+        case .weakHint: return "AI 建议"
+        case .silent: return "AI 整理"
+        }
     }
 
     // MARK: - AI 标签 Chip（带操作按钮）
@@ -577,24 +636,33 @@ struct ThoughtDetailView: View {
                 Button {
                     let service = ThoughtOrganizationService()
                     service.confirmAssignment(assignmentId: assignment.id)
+                    ThoughtClassificationFeedbackStore.log(
+                        .confirm, thoughtId: thoughtId, tagName: tagName,
+                        topicConfidence: thought?.topicConfidence
+                    )
                     loadData()
                 } label: {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.green)
                 }
+                .accessibilityLabel("保留标签 \(ThoughtTagNormalizer.lastSegment(tagName))")
 
-                // 拒绝按钮（删除 AI 标签）
+                // FR-06′：× 默认仅本条不适合，不写全局抑制
                 Button {
-                    guard let tagName = assignment.tag?.name else { return }
                     let service = ThoughtOrganizationService()
-                    service.rejectAndRecord(assignmentId: assignment.id, tagName: tagName)
+                    service.rejectAssignmentCurrentOnly(assignmentId: assignment.id)
+                    ThoughtClassificationFeedbackStore.log(
+                        .rejectCurrent, thoughtId: thoughtId, tagName: tagName,
+                        topicConfidence: thought?.topicConfidence
+                    )
                     loadData()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.red.opacity(0.7))
                 }
+                .accessibilityLabel("不适合这条 \(ThoughtTagNormalizer.lastSegment(tagName))")
             }
         }
         .padding(.horizontal, 8)
@@ -605,6 +673,50 @@ struct ThoughtDetailView: View {
                 : Color.holoTextSecondary.opacity(0.06)
         )
         .cornerRadius(HoloRadius.sm)
+        // FR-06′：全局抑制是更高影响操作，放长按菜单（90 天内不再推荐）
+        .contextMenu {
+            if !isConfirmed {
+                Button(role: .destructive) {
+                    let service = ThoughtOrganizationService()
+                    service.rejectAndRecord(assignmentId: assignment.id, tagName: tagName)
+                    ThoughtClassificationFeedbackStore.log(
+                        .suppressGlobal, thoughtId: thoughtId, tagName: tagName,
+                        topicConfidence: thought?.topicConfidence
+                    )
+                    loadData()
+                } label: {
+                    Label("以后不要推荐 #\(ThoughtTagNormalizer.lastSegment(tagName))", systemImage: "hand.raised")
+                }
+            }
+        }
+    }
+
+    // MARK: - 重新整理（FR-05′）
+
+    /// skipped（<10 字）重试无意义不显示；failed / organized / disabled 均可手动重整
+    private var canRetryOrganization: Bool {
+        guard let status = thought?.organizedStatus else { return false }
+        return status != "skipped" && status != "pending" && status != "processing"
+    }
+
+    private func retryOrganization() {
+        guard !retryInFlight else { return }
+        retryInFlight = true
+        defer { retryInFlight = false }
+
+        do {
+            try thoughtRepository.updateOrganizedStatus(thoughtId: thoughtId, status: "pending")
+        } catch {
+            logger.error("重置整理状态失败：\(error)")
+            return
+        }
+        ThoughtClassificationFeedbackStore.log(
+            .retry, thoughtId: thoughtId, tagName: "",
+            topicConfidence: thought?.topicConfidence
+        )
+        // 状态先置 pending 再入队；旧 ai 建议保留展示，新结果写入时自然替换（方案 L-3）
+        ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thoughtId)
+        loadData()
     }
 
     // MARK: - 引用区域

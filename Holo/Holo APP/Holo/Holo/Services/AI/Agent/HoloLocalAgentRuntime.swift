@@ -89,7 +89,11 @@ actor HoloLocalAgentRuntime {
             trigger: trigger, state: .running, currentStep: .plan,
             createdAt: now, updatedAt: now,
             lastForegroundRunAt: nil, timeRange: resolvedComparison?.current.timeRange ?? Self.resolveQuestionTimeRange(question, referenceDate: now),
-            budget: HoloAgentBudgetSelector.makeBudget(preset: executionConfig.budgetPreset, now: now),
+            // 周计划走专用收紧档：快照汇总非深钻，轮次减半+输入上限压低，
+            // 降低大上下文重发触发上游 30s 切断的概率
+            budget: trigger == .weeklyPlanning
+                ? HoloAgentBudget.weeklyPlanning(now: now)
+                : HoloAgentBudgetSelector.makeBudget(preset: executionConfig.budgetPreset, now: now),
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil,
             referenceDate: now, snapshotCutoffAt: now,
             absoluteDeadline: now.addingTimeInterval(HoloAgentJob.absoluteDeadlineInterval)

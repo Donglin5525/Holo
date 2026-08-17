@@ -35,6 +35,8 @@ enum ChatMessageType: String, Codable, Sendable {
     // 看到此标记的消息不再因为后台 job 仍非终态而把它重新点亮成「还在分析中」，
     // 从根上切断「取消落盘」与「重新进页面同步」之间的竞态。
     case userCancelled
+    // 每周生活计划（extractedData 持久 planID，卡片按台账实时状态渲染）
+    case lifePlan
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
@@ -278,6 +280,21 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     mutating func setExtractedDataJSON(_ json: String?) {
         extractedDataJSON = json
         refreshDerivedState()
+    }
+
+    // MARK: - Memory Attribution（记忆引用署名）
+
+    /// 本条回答实际引用的长期记忆条数（读预算缓存；无引用返回 nil）
+    nonisolated var memoryAttributionCount: Int? {
+        guard let countStr = cachedExtractedDataDictionary?["memoryUsedCount"],
+              let count = Int(countStr), count > 0 else { return nil }
+        return count
+    }
+
+    /// 本条回答实际引用的长期记忆 ID 列表
+    nonisolated var memoryAttributionIDs: [String] {
+        guard let idsStr = cachedExtractedDataDictionary?["memoryUsedIDs"] else { return [] }
+        return idsStr.split(separator: ",").map(String.init)
     }
 
     // MARK: - Analysis Cards

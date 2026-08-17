@@ -34,6 +34,9 @@ struct ThoughtCardView: View {
     var onDelete: (() -> Void)?
     /// 归档操作显示文案（默认「归档」，归档视图下传「恢复」）
     var archiveActionTitle: String = "归档"
+    /// P0 分级判定输入：用户认可标签集合（归一化 key）。
+    /// 列表主入口传入；其他低频调用点不传时降级为「有 ai 标签即待确认」。
+    var recognizedTagKeys: Set<String>? = nil
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
@@ -136,13 +139,40 @@ struct ThoughtCardView: View {
         if thought.organizedStatus == "processing" || thought.organizedStatus == "pending" {
             return ("整理中", "sparkles", .holoPrimary)
         }
+        // P0「等待确认」：含新标签或低置信主题，中性色不算失败（D-07′，规则集中在 Policy）
+        if showsPendingConfirmation {
+            return ("等待确认", "questionmark.circle", .holoTextSecondary)
+        }
         if thought.organizedStatus == "failed" {
             return ("整理失败", "exclamationmark.circle.fill", .holoError)
         }
-        if !thought.visibleAITagNames.isEmpty || thought.organizedStatus == "organized" {
+        if !thought.visibleAITagNames.isEmpty {
             return ("已整理", "checkmark.seal.fill", .holoPrimary)
         }
+        if thought.organizedStatus == "organized" {
+            return ("未归类", "circle.dashed", .holoTextSecondary)
+        }
         return ("待整理", "circle.dotted", .holoTextSecondary)
+    }
+
+    /// 卡片层待确认判定：优先用精确认可集合（D-07′ 新标签语义），降级为「有 ai 标签」
+    private var showsPendingConfirmation: Bool {
+        guard thought.organizedStatus == "organized" else { return false }
+        if let recognizedTagKeys {
+            return ThoughtOrganizationPresentationPolicy.cardShowsPendingConfirmation(
+                organizedStatus: thought.organizedStatus,
+                hasPendingTagConfirmation: ThoughtOrganizationPresentationPolicy.aiTagPresentation(
+                    hasAITagAssignments: !thought.visibleAITagNames.isEmpty,
+                    aiTagNames: thought.visibleAITagNames,
+                    recognizedTagKeys: recognizedTagKeys
+                ) == .pendingConfirmation,
+                topicConfidence: thought.topicConfidence
+            )
+        }
+        // 降级：无认可集合时以「存在 ai 标签或低置信主题」近似
+        let lowConfidenceTopic = thought.topicConfidence > 0
+            && thought.topicConfidence < ThoughtRepository.topicConfirmationThreshold
+        return !thought.visibleAITagNames.isEmpty || lowConfidenceTopic
     }
 
     // MARK: - 内容区域
@@ -195,9 +225,12 @@ struct ThoughtCardView: View {
         HStack(spacing: 0) {
             let tags = thought.tagArray
             let aiTagNames = thought.visibleAITagNames
+            // PRD AC-05：卡片最多展示 3 个标签（手动 ≤2 + AI ≤1），超出以 +N 提示
             let presentation = ThoughtTagPresentation.card(
                 manualNames: tags.map(\.name),
-                aiNames: aiTagNames
+                aiNames: aiTagNames,
+                manualLimit: 2,
+                aiLimit: 1
             )
 
             if !presentation.isEmpty {

@@ -130,6 +130,9 @@ final class IntentRouter {
             )
         case .generateMemoryInsight:
             return await handleGenerateMemoryInsight(result)
+        case .weeklyPlanning:
+            // 周计划在 ConversationCoordinator 分流到 Agent + 生成服务，不落执行路由
+            return RouteResult(text: result.responseText ?? "正在为你规划这一周…")
         }
     }
 

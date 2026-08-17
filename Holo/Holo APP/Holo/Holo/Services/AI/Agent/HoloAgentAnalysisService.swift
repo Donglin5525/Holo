@@ -25,12 +25,20 @@ struct HoloAgentChatStatus: Equatable {
 }
 
 enum HoloAgentChatStatusPresenter {
-    static func status(for job: HoloAgentJob) -> HoloAgentChatStatus {
+    static func status(
+        for job: HoloAgentJob,
+        context: HoloAgentProgressContext = HoloAgentProgressContext(extractedData: nil)
+    ) -> HoloAgentChatStatus {
         switch job.state {
         case .queued, .running:
-            return active("Holo 正在深度分析中…", step: job.currentStep)
+            return active(context.isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…",
+                          step: job.currentStep, context: context)
         case .waitingForLLM:
-            return active("Holo 正在深度分析中…", detail: "正在调用模型继续推理。")
+            return active(
+                context.isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…",
+                detail: stepText("正在调用模型继续推理。", context: context) { "正在继续分析\($0)。\(context.expectedDurationHint)" },
+                context: context
+            )
         case .retrying:
             return active("Holo 正在重试分析…", detail: "刚才的模型输出不完整，正在自动重试。")
         case .waitingForForeground:
@@ -141,25 +149,45 @@ enum HoloAgentChatStatusPresenter {
 
     private static func active(_ title: String,
                                step: HoloAgentStep? = nil,
-                               detail: String? = nil) -> HoloAgentChatStatus {
+                               detail: String? = nil,
+                               context: HoloAgentProgressContext = HoloAgentProgressContext(extractedData: nil)) -> HoloAgentChatStatus {
         HoloAgentChatStatus(
             title: title,
-            detail: detail ?? detailText(for: step),
+            detail: detail ?? detailText(for: step, context: context),
             keepsMessageStreaming: true,
             showsActivityIndicator: true
         )
     }
 
-    private static func detailText(for step: HoloAgentStep?) -> String {
+    /// 步骤文案的动态骨架：有本次分析上下文时组装「正在读取你最近的睡眠数据…」式贴身文案，
+    /// 无上下文退回通用文案（不阻塞、不额外调用）
+    private static func stepText(_ fallback: String, context: HoloAgentProgressContext, build: (String) -> String) -> String {
+        guard let phrase = context.analysisTargetPhrase else { return fallback }
+        return build(phrase)
+    }
+
+    private static func detailText(for step: HoloAgentStep?, context: HoloAgentProgressContext) -> String {
+        // 周计划：按步骤贴合「汇总快照」的叙事
+        if context.isWeeklyPlanning {
+            switch step {
+            case .plan: return "正在规划要看你本周哪些数据。\(context.expectedDurationHint)"
+            case .executeTools: return "正在汇总你本周的任务、习惯、记账与健康快照。\(context.expectedDurationHint)"
+            case .minePatterns: return "正在从本周数据里找显著变化。"
+            case .integrateResults: return "正在确定本周重点。"
+            case .verifyClaims: return "正在核对每个结论的依据。"
+            case .render: return "正在生成本周重点。"
+            default: return context.expectedDurationHint
+            }
+        }
         switch step {
         case .plan:
-            return "正在理解问题并规划需要查看的数据。"
+            return stepText("正在理解问题并规划需要查看的数据。", context: context) { "正在理解你要看\($0)哪方面的变化。\(context.expectedDurationHint)" }
         case .executeTools:
-            return "正在读取本地数据并核对证据。"
+            return stepText("正在读取本地数据并核对证据。", context: context) { "正在读取你\($0)的记录并核对证据。\(context.expectedDurationHint)" }
         case .minePatterns:
-            return "正在从数据里整理模式和变化。"
+            return stepText("正在从数据里整理模式和变化。", context: context) { "正在从你\($0)里找模式和变化。" }
         case .integrateResults:
-            return "正在整合分析结果。"
+            return stepText("正在整合分析结果。", context: context) { "正在把你\($0)的变化整合成结论。" }
         case .verifyClaims:
             return "正在校验结论和依据。"
         case .critique:
@@ -167,7 +195,7 @@ enum HoloAgentChatStatusPresenter {
         case .curateMemory:
             return "正在整理可沉淀的记忆线索。"
         case .render:
-            return "正在生成可阅读的分析结果。"
+            return stepText("正在生成可阅读的分析结果。", context: context) { "正在把\($0)的分析整理成你能看的结果。" }
         case .persistResult:
             return "正在保存分析结果。"
         case .continueOrConclude:
@@ -184,6 +212,9 @@ final class HoloAgentAnalysisService {
     private let logger = Logger(subsystem: "com.holo.app", category: "AgentAnalysis")
     private let runtime: HoloLocalAgentRuntime
     private let scheduler: HoloAgentScheduler
+
+    /// 最近一次成功运行的消耗（jobID + 预算），供 LifePlan PlanRun 成本记录。
+    private(set) var lastRunConsumption: (jobID: String, budget: PlanConsumedBudget)?
 
     init() {
         self.runtime = HoloLocalAgentRuntime.shared
@@ -264,6 +295,16 @@ final class HoloAgentAnalysisService {
             )
         }
         logger.info("[Agent] result claims=\(result.claims.count)")
+        lastRunConsumption = (
+            jobID: finalJob.id,
+            budget: PlanConsumedBudget(
+                llmRounds: finalJob.budget.consumedLLMRounds,
+                toolBatches: finalJob.budget.consumedToolBatches,
+                inputTokens: finalJob.budget.consumedInputTokens,
+                outputTokens: finalJob.budget.consumedOutputTokens,
+                activeRuntimeSeconds: finalJob.consumedActiveRuntime ?? 0
+            )
+        )
         do {
             let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
             return HoloAgentResultRenderer().render(

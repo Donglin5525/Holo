@@ -72,6 +72,10 @@ struct ThoughtEditorView: View {
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
     /// 当前光标在编辑器视图局部坐标系内的 rect（由 MarkdownTextView 上报，候选浮层据此吸附）
     @State private var caretRect: CGRect = .zero
+    /// 键盘（含工具栏）当前遮挡屏幕底部的高度；编辑器据此收缩高度上限，保证光标始终可见
+    @State private var keyboardOverlapHeight: CGFloat = 0
+    /// 工具栏色板显隐；光标活动或候选面板触发时自动关闭
+    @State private var showsColorPalette: Bool = false
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
 
     // MARK: - 转为任务
@@ -130,7 +134,7 @@ struct ThoughtEditorView: View {
                     }
                 }
                 .padding(.horizontal, HoloSpacing.md)
-                .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已移至 inputAccessoryView）
+                .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
             }
             .background(Color.holoBackground)
             // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
@@ -147,8 +151,8 @@ struct ThoughtEditorView: View {
                     thoughtRepository: ThoughtRepository()
                 )
             }
-            // 工具栏已移至 UITextView.inputAccessoryView（键盘正上方），不再需要 SwiftUI 层 safeAreaInset。
-            // safeAreaInset 在 fullScreenCover 下不跟随键盘，inputAccessoryView 由 UIKit 系统保证位置。
+            // 工具栏是编辑器卡片的一部分（见 contentSection 底部的 EditorFormatToolbar），
+            // 不需要 SwiftUI 层 safeAreaInset，也不依赖键盘附属条。
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: dismiss.callAsFunction) {
@@ -227,6 +231,9 @@ struct ThoughtEditorView: View {
         .onAppear {
             loadEditingData()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            updateKeyboardOverlap(note)
+        }
         .onDisappear {
             // 兜底：退出时落库当前内容（防抖任务可能还没触发）。
             // cancel 旧任务避免 dismiss 后的竞争写入。
@@ -239,6 +246,15 @@ struct ThoughtEditorView: View {
         }
         .onChange(of: triggerContext) { _, newValue in
             suggestionViewModel.search(context: newValue, excludingThoughtId: currentThoughtId)
+            if newValue != nil, showsColorPalette {
+                showsColorPalette = false
+            }
+        }
+        // 光标任何活动（点正文、移动光标）都意味着用户离开选色语境，色板随之收起
+        .onChange(of: caretRect) { _, _ in
+            if showsColorPalette {
+                showsColorPalette = false
+            }
         }
         // Token 操作菜单：用 .sheet(item:) 而非 .confirmationDialog。
         // 原因：confirmationDialog（iPhone 上即 actionSheet）呈现时会让 UITextView 失焦，
@@ -475,65 +491,76 @@ struct ThoughtEditorView: View {
 
     // MARK: - Sections
 
-    /// 内容编辑区域
+    /// 内容编辑区域：编辑器是页面主体，不套表单字段的「内容」标题层级。
+    /// 卡片从上到下：正文输入区（弹性高度）→ 附件条 → 工具栏（沉底，与卡片一体）。
     private var contentSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("内容")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-
-            VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                ZStack(alignment: .bottomTrailing) {
-                    MarkdownTextView(
-                        text: $content,
-                        pendingAction: $pendingEditorAction,
-                        dynamicHeight: $editorHeight,
-                        formatState: $typingFormatState,
-                        triggerContext: $triggerContext,
-                        selectedToken: $selectedToken,
-                        caretRect: $caretRect,
-                        autoFocus: !isEditing || autoFocusExistingThought,
-                        // 录音按钮只占底部约 62pt，保留过大的 inset 会让短内容产生
-                        // 一整块不可用空白；长文仍由动态高度自然增长。
-                        textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 72, right: 16),
-                        initialRichJSON: initialRichJSON,
-                        placeholder: "写点什么吧…",
-                        onNodesChange: { newNodes in
-                            editorNodes = newNodes
-                            editorNodesLoaded = true
-                        },
-                        onAddImage: { showAttachmentSourceChoice = true },
-                        onConvertToTask: { startTaskExtraction() },
-                        onConvertSelection: { selectedText, selectedRange in
-                            startTaskExtraction(selectedText: selectedText, selectedRange: selectedRange)
-                        },
-                        onSuggestionCommand: handleSuggestionKeyboardCommand,
-                        suggestionKeyboardEnabled: triggerContext != nil,
-                        suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty
-                        )
-                        .frame(height: max(editorHeight, contentEditorMinimumHeight))
-
-                    voiceInputButton
-                        // 候选面板是当前输入动作的主交互，不能被右下角的语音入口盖住。
-                        // 面板关闭后再恢复语音入口，避免短编辑器里出现“候选能看见但点不到”。
-                        .opacity(triggerContext == nil ? 1 : 0)
-                        .allowsHitTesting(triggerContext == nil)
-                        .padding(.trailing, 18)
-                        .padding(.bottom, 18)
-                }
-                attachmentStrip
-            }
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.md)
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(Color.holoBorder, lineWidth: 1)
+        VStack(alignment: .leading, spacing: 0) {
+            MarkdownTextView(
+                text: $content,
+                pendingAction: $pendingEditorAction,
+                dynamicHeight: $editorHeight,
+                formatState: $typingFormatState,
+                triggerContext: $triggerContext,
+                selectedToken: $selectedToken,
+                caretRect: $caretRect,
+                autoFocus: !isEditing || autoFocusExistingThought,
+                // 语音按钮已收进底部工具栏，正文区不再为悬浮入口预留大片底部空白
+                textContainerInset: UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16),
+                initialRichJSON: initialRichJSON,
+                placeholder: "写点什么吧…",
+                onNodesChange: { newNodes in
+                    editorNodes = newNodes
+                    editorNodesLoaded = true
+                },
+                onConvertToTask: { startTaskExtraction() },
+                onConvertSelection: { selectedText, selectedRange in
+                    startTaskExtraction(selectedText: selectedText, selectedRange: selectedRange)
+                },
+                onSuggestionCommand: handleSuggestionKeyboardCommand,
+                suggestionKeyboardEnabled: triggerContext != nil,
+                suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty
             )
-            // 候选浮层必须挂在卡片的圆角裁剪之后，才能越过短编辑器卡片展示完整列表；
-            // 同时仍以卡片左上角为坐标原点，与 caretRect 保持一致。
-            .overlay(alignment: .topLeading) {
-                suggestionOverlay
-            }
+            .frame(height: editorFrameHeight)
+
+            attachmentStrip
+
+            // 工具栏沉在卡片底部：同底色、同圆角，是输入框自身的一部分而不是键盘附属
+            EditorFormatToolbar(
+                onAction: { action in
+                    pendingEditorAction = action
+                    // 任何格式/插入动作都意味着用户离开选色语境
+                    if showsColorPalette {
+                        showsColorPalette = false
+                    }
+                },
+                onConvertToTask: {
+                    if showsColorPalette { showsColorPalette = false }
+                    pendingEditorAction = .convertToTask
+                },
+                onAddImage: {
+                    if showsColorPalette { showsColorPalette = false }
+                    showAttachmentSourceChoice = true
+                },
+                onVoiceInput: {
+                    if showsColorPalette { showsColorPalette = false }
+                    HapticManager.selection()
+                    showVoiceInput = true
+                },
+                smartSummaryEnabled: $smartSummaryEnabled,
+                formatState: typingFormatState,
+                showsColorPalette: $showsColorPalette
+            )
+        }
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.md)
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        // 候选浮层必须挂在卡片的圆角裁剪之后，才能越过短编辑器卡片展示完整列表；
+        // 同时仍以卡片左上角为坐标原点，与 caretRect 保持一致。
+        .overlay(alignment: .topLeading) {
+            suggestionOverlay
         }
     }
 
@@ -649,41 +676,6 @@ struct ThoughtEditorView: View {
         }
     }
 
-    private var voiceInputButton: some View {
-        HStack(spacing: 16) {
-            Button {
-                HapticManager.selection()
-                showVoiceInput = true
-            } label: {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.holoPrimary)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.16), radius: 8, x: 0, y: 4)
-            }
-            .accessibilityLabel("语音输入")
-            .accessibilityHint("录音并将识别结果插入到当前光标位置")
-
-            Button {
-                smartSummaryEnabled.toggle()
-            } label: {
-                Image(systemName: smartSummaryEnabled ? "sparkles" : "sparkle")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(smartSummaryEnabled ? .holoPrimary : .holoTextSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(
-                        Circle()
-                            .fill(smartSummaryEnabled ? Color.holoPrimary.opacity(0.12) : Color.holoCardBackground)
-                    )
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-            .accessibilityLabel(smartSummaryEnabled ? "关闭智能总结" : "开启智能总结")
-        }
-    }
-
     /// AI 归类区域（只读回显）
     /// 编辑能力（保留/拒绝/重新分类）留待后续与「二次分类」一起设计
     private var aiTagsSection: some View {
@@ -728,6 +720,9 @@ struct ThoughtEditorView: View {
                 Button {
                     let service = ThoughtOrganizationService()
                     service.confirmAssignment(assignmentId: assignment.id)
+                    if let thoughtId = currentThoughtId {
+                        ThoughtClassificationFeedbackStore.log(.confirm, thoughtId: thoughtId, tagName: tagName)
+                    }
                     refreshAIAssignments()
                 } label: {
                     Image(systemName: "checkmark")
@@ -735,10 +730,13 @@ struct ThoughtEditorView: View {
                         .foregroundColor(.holoSuccess)
                 }
 
+                // FR-06′：× 默认仅本条不适合（与详情页一致），不写全局抑制
                 Button {
-                    guard let tagName = assignment.tag?.name else { return }
                     let service = ThoughtOrganizationService()
-                    service.rejectAndRecord(assignmentId: assignment.id, tagName: tagName)
+                    service.rejectAssignmentCurrentOnly(assignmentId: assignment.id)
+                    if let thoughtId = currentThoughtId {
+                        ThoughtClassificationFeedbackStore.log(.rejectCurrent, thoughtId: thoughtId, tagName: tagName)
+                    }
                     refreshAIAssignments()
                 } label: {
                     Image(systemName: "xmark")
@@ -755,6 +753,21 @@ struct ThoughtEditorView: View {
                 : Color.holoTextSecondary.opacity(0.06)
         )
         .cornerRadius(HoloRadius.sm)
+        // FR-06′：全局抑制放长按菜单（90 天内不再推荐）
+        .contextMenu {
+            if !isConfirmed {
+                Button(role: .destructive) {
+                    let service = ThoughtOrganizationService()
+                    service.rejectAndRecord(assignmentId: assignment.id, tagName: tagName)
+                    if let thoughtId = currentThoughtId {
+                        ThoughtClassificationFeedbackStore.log(.suppressGlobal, thoughtId: thoughtId, tagName: tagName)
+                    }
+                    refreshAIAssignments()
+                } label: {
+                    Label("以后不要推荐 #\(tagName)", systemImage: "hand.raised")
+                }
+            }
+        }
     }
 
     /// 刷新 AI 归类标签（确认/拒绝后调用）
@@ -908,14 +921,55 @@ struct ThoughtEditorView: View {
         return try? repo.fetchById(thoughtId)
     }
 
+    private var contentEditorMinimumHeight: CGFloat {
+        // 起步画布给到约屏幕 40%：想法编辑器是「一页纸」的心智，而不是表单里的一个小格子。
+        min(380, UIScreen.main.bounds.height * 0.4)
+    }
+
+    /// 编辑器显示高度：短内容给足起步画布，随内容自然增长；
+    /// 上限为键盘上方可视预算——超出部分由 UITextView 内部滚动承接，
+    /// UIKit 打字时会自动把光标滚进可视区，键盘不再遮住正在输入的文字。
+    private var editorFrameHeight: CGFloat {
+        min(max(editorHeight, contentEditorMinimumHeight), editorHeightBudget)
+    }
+
+    /// 键盘弹起时编辑器卡片必须整体落在键盘上方，底部光标才可见、内部滚动才会跟随光标。
+    /// 预算依次扣除：顶部导航区（状态栏+导航条+页面留白）、卡片内底部工具栏、附件条。
+    private var editorHeightBudget: CGFloat {
+        let attachmentHeight: CGFloat = hasAttachments ? 128 : 0
+        let toolbarHeight: CGFloat = 46
+        return UIScreen.main.bounds.height - keyboardOverlapHeight - 110 - toolbarHeight - attachmentHeight
+    }
+
     private var hasAttachments: Bool {
         isEditing ? !editingAttachments.isEmpty : !pendingImages.isEmpty
     }
 
-    private var contentEditorMinimumHeight: CGFloat {
-        // 短内容从约三行的舒适输入高度开始，避免两行文字被放大成大空卡片。
-        // 有附件时缩小一档，图片缩略图会在编辑区下方承担内容高度。
-        hasAttachments ? 220 : 240
+    // MARK: - 键盘避让
+
+    /// 跟随键盘目标 frame 计算遮挡高度，并同步键盘动画曲线更新（与 ChatView 同一模式）。
+    private func updateKeyboardOverlap(_ note: Notification) {
+        guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+
+        let screenBounds = UIScreen.main.bounds
+        // 只处理贴底的全宽键盘；浮动/分体键盘（iPad）不做避让
+        let isDocked = endFrame.width >= screenBounds.width - 1
+        let overlap = isDocked ? max(0, screenBounds.maxY - endFrame.minY) : 0
+        guard overlap != keyboardOverlapHeight else { return }
+
+        let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        let curveRaw = note.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int
+            ?? UIView.AnimationCurve.easeInOut.rawValue
+        let animation: Animation
+        switch UIView.AnimationCurve(rawValue: curveRaw) {
+        case .easeIn: animation = .easeIn(duration: duration)
+        case .easeOut: animation = .easeOut(duration: duration)
+        case .linear: animation = .linear(duration: duration)
+        default: animation = .easeInOut(duration: duration)
+        }
+        withAnimation(animation) {
+            keyboardOverlapHeight = overlap
+        }
     }
 
     /// 已添加图片的横向缩略图条（带可见删除按钮）

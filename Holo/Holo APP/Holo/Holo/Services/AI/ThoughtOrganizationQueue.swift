@@ -94,6 +94,16 @@ final class ThoughtOrganizationQueue: ObservableObject {
         processNext()
     }
 
+    /// 用户主动重新整理单条想法（FR-05′）
+    /// 与 enqueueBatch 不同：不受自动整理开关限制，但**不**重置 dailyLimitHit——
+    /// 若当日配额已耗尽，静默接受本次入队但 processNext 短路，避免连点重试反复解锁撞 429
+    /// - Parameter thoughtId: 想法 UUID
+    func enqueueManual(thoughtId: UUID) {
+        guard appendIfNotQueued(thoughtId) else { return }
+        logger.info("手动重新整理入队：\(thoughtId)")
+        processNext()
+    }
+
     /// 去重追加（enqueue/enqueueBatch 共用）
     @discardableResult
     private func appendIfNotQueued(_ thoughtId: UUID) -> Bool {

@@ -29,19 +29,19 @@ struct WeeklyGridAxisProfile {
     let totalHeight: CGFloat
 
     /// eventCountsByDay 的每个元素代表一天，字典 key 为小时、value 为该小时事件数。
+    /// scale 为双指缩放倍率（1 = 默认分档高度），整条时间轴等比缩放。
     static func make(eventCountsByDay: [[Int: Int]],
                      startHour: Int,
-                     endHour: Int) -> WeeklyGridAxisProfile {
+                     endHour: Int,
+                     scale: CGFloat = 1) -> WeeklyGridAxisProfile {
         precondition(startHour <= endHour, "周历时间轴起始小时不能晚于结束小时")
 
         var top: CGFloat = 0
         var segments: [HourSegment] = []
 
         for hour in startHour...endHour {
-            let maximumCount = eventCountsByDay
-                .map { $0[hour] ?? 0 }
-                .max() ?? 0
-            let height = height(forEventCount: maximumCount)
+            let maximumCount = eventByDayCount(eventCountsByDay, hour: hour)
+            let height = snapToHalfPoint(height(forEventCount: maximumCount) * scale)
             segments.append(HourSegment(hour: hour, top: top, height: height))
             top += height
         }
@@ -77,5 +77,14 @@ struct WeeklyGridAxisProfile {
         case 4: return fourEventHeight
         default: return overflowHourHeight
         }
+    }
+
+    private static func eventByDayCount(_ eventCountsByDay: [[Int: Int]], hour: Int) -> Int {
+        eventCountsByDay.map { $0[hour] ?? 0 }.max() ?? 0
+    }
+
+    /// 圆整到 0.5pt，避免缩放过程中出现亚像素高度导致刻度线闪烁
+    private static func snapToHalfPoint(_ value: CGFloat) -> CGFloat {
+        (value * 2).rounded() / 2
     }
 }

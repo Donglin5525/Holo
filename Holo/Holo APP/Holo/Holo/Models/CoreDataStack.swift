@@ -130,6 +130,8 @@ nonisolated class CoreDataStack {
         // 纪念日模块使用程序化 Core Data 模型；必须在首屏仓库查询前注册实体。
         entities.append(createAnniversaryEntity())
         entities.append(goalEntity)
+        // LifePlan 计划台账（六对象，ID 外键、无跨域关系）
+        entities.append(contentsOf: createLifePlanEntities())
         model.entities = entities
         return model
     }

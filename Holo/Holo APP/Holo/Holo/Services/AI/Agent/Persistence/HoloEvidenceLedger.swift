@@ -27,7 +27,7 @@ actor HoloEvidenceLedger: HoloEvidenceLedgerProtocol {
         try await store.load()
     }
 
-    /// 按 dedupeKey 去重 upsert：同 key 用新记录覆盖，但引用关系（jobIDs / memoryIDs）与旧记录合并去重。
+    /// 按 dedupeKey 去重 upsert：同 key 用新记录覆盖，但引用关系（jobIDs / memoryIDs / lifePlanIDs）与旧记录合并去重。
     func upsert(_ records: [HoloEvidenceRecord]) async throws {
         try await store.mutate { all in
             for record in records {
@@ -35,9 +35,24 @@ actor HoloEvidenceLedger: HoloEvidenceLedgerProtocol {
                     var merged = record
                     merged.referencedByJobIDs = Self.union(all[index].referencedByJobIDs, record.referencedByJobIDs)
                     merged.referencedByMemoryIDs = Self.union(all[index].referencedByMemoryIDs, record.referencedByMemoryIDs)
+                    merged.referencedByLifePlanIDs = Self.union(all[index].referencedByLifePlanIDs ?? [], record.referencedByLifePlanIDs ?? [])
                     all[index] = merged
                 } else {
                     all.append(record)
+                }
+            }
+        }
+    }
+
+    /// LifePlan 计划落库时登记证据引用：被计划引用的证据不参与孤儿回收。
+    func registerLifePlanReferences(planID: String, evidenceIDs: [String]) async throws {
+        guard !evidenceIDs.isEmpty else { return }
+        try await store.mutate { all in
+            for index in all.indices where evidenceIDs.contains(all[index].id) {
+                var plans = all[index].referencedByLifePlanIDs ?? []
+                if !plans.contains(planID) {
+                    plans.append(planID)
+                    all[index].referencedByLifePlanIDs = plans
                 }
             }
         }
@@ -50,12 +65,14 @@ actor HoloEvidenceLedger: HoloEvidenceLedgerProtocol {
     }
 
     /// 标记「无任何引用 + 早于 date」的证据为 orphaned。
-    /// 已 archived 的不动（终态）；有引用或未过期的不动。
+    /// 已 archived 的不动（终态）；有引用（job / memory / lifePlan）或未过期的不动。
     func markOrphaned(olderThan date: Date) async throws {
         try await store.mutate { all in
             for index in all.indices {
                 let record = all[index]
-                let hasReference = !record.referencedByJobIDs.isEmpty || !record.referencedByMemoryIDs.isEmpty
+                let hasReference = !record.referencedByJobIDs.isEmpty
+                    || !record.referencedByMemoryIDs.isEmpty
+                    || !(record.referencedByLifePlanIDs ?? []).isEmpty
                 if !hasReference && record.generatedAt < date && record.status != .archived {
                     all[index].status = .orphaned
                 }

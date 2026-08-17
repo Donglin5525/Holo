@@ -13,12 +13,94 @@ struct PeriodReplayChatCard: View {
     var onExpansionChanged: ((Bool) -> Void)? = nil
 
     @State private var isExpanded = false
+    /// 本周期范围内的计划台账（对账区块数据源，实时读取）
+    @State private var periodPlans: [LifePlanSnapshot] = []
 
     var body: some View {
         if let payload = message.insightResult {
             realCard(payload: payload)
         } else if message.isStreaming || message.periodReplayJob != nil {
             statusCard
+        }
+    }
+
+    // MARK: - 上周对账（LifePlan）
+
+    /// 该周期有过计划时，回放卡内追加「上周对账」区块：完成情况 + 接受/拒绝清单
+    @ViewBuilder
+    private var planReconciliationSection: some View {
+        if let plan = periodPlans.first {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar.badge.checkmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
+                    Text("上周对账")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Text("\(plan.acceptedActionCount)/\(plan.actions.count) 行动已接受")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                ForEach(plan.priorities) { priority in
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: priorityDecisionIcon(priority.userDecision))
+                            .font(.system(size: 11))
+                            .foregroundColor(priorityDecisionColor(priority.userDecision))
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(priority.outcome)
+                                .font(.system(size: 13))
+                                .foregroundColor(.holoTextPrimary)
+                            if priority.userDecision == "accepted", priority.goalID != nil {
+                                Text("已建为目标")
+                                    .font(.holoLabel)
+                                    .foregroundColor(.holoSuccess)
+                            } else if priority.userDecision == "rejected" {
+                                Text("你未采纳这个重点")
+                                    .font(.holoLabel)
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                        }
+                    }
+                }
+
+                let rejected = plan.actions.filter { $0.status == "rejected" }
+                if !rejected.isEmpty {
+                    Text("拒绝：\(rejected.map(\.payload.displayTitle).joined(separator: "、"))")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(12)
+            .background(Color.holoPrimary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+            .task(id: message.id) {
+                guard periodPlans.isEmpty,
+                      let job = message.periodReplayJob else { return }
+                periodPlans = LifePlanRepository.shared.fetchPlans(
+                    periodStartIn: job.periodStart, job.periodEnd
+                )
+            }
+        }
+    }
+
+    private func priorityDecisionIcon(_ decision: String?) -> String {
+        switch decision {
+        case "accepted", "edited": return "checkmark.circle.fill"
+        case "rejected": return "xmark.circle"
+        default: return "circle.dashed"
+        }
+    }
+
+    private func priorityDecisionColor(_ decision: String?) -> Color {
+        switch decision {
+        case "accepted", "edited": return .holoSuccess
+        case "rejected": return .holoTextSecondary
+        default: return .holoTextSecondary
         }
     }
 
@@ -99,6 +181,9 @@ struct PeriodReplayChatCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+
+                // 上周对账（该周期有计划台账时展示；洞察=发生了什么，对账=承诺兑现如何）
+                planReconciliationSection
 
                 // 默认展示洞察目录；展开后补充正文与证据。
                 if !payload.cards.isEmpty {

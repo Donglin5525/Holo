@@ -321,9 +321,182 @@ class HabitRepository: ObservableObject {
             record.value = NSNumber(value: value)
         }
         record.note = note
-        
+
         try context.save()
         notifyDataChange(habitId: record.habitId)
+    }
+
+    // MARK: - 补签（Retroactive Check-in）
+
+    /// 补签写入结果
+    enum RetroactiveCheckInResult {
+        /// 成功（打卡型附带连续天数恢复前后的值，供 UI 反馈）
+        case success(streakBefore: Int, streakAfter: Int)
+        /// 目标日已有完成记录：幂等返回，不写入不扣额度
+        case alreadyCompleted
+        /// 日期不在可补窗口内（仅最近 7 天的过去日期）
+        case invalidDate
+        /// 免费额度已用完（UI 层接到此结果应走付费墙）
+        case requiresPlus
+    }
+
+    /// 最近 7 天内可补签的日期（升序，元素为 startOfDay）
+    /// - 打卡型：仅每日好习惯返回漏卡日；weekly/monthly 有周期弹性，无「漏卡」概念
+    /// - 数值型：当天无任何记录的日子
+    /// - 坏习惯不参与补签（「补做坏事」无意义）
+    /// - 早于习惯创建日的日子不算漏卡
+    func retroactiveEligibleDays(for habit: Habit) -> [Date] {
+        guard retroactiveSupported(habit) else { return [] }
+        // 打卡型仅每日习惯有「漏卡」概念；weekly/monthly 周期内有弹性，少一天不算漏
+        if habit.isCheckInType && habit.habitFrequency != .daily { return [] }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let createdDay = calendar.startOfDay(for: habit.createdAt)
+
+        // 一次取回窗口内该习惯的全部记录，内存判定逐日是否可补
+        guard let windowStart = calendar.date(byAdding: .day, value: -(HabitRetroactivePolicy.lookbackDays - 1), to: today) else {
+            return []
+        }
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND date >= %@ AND date < %@",
+            habit.id as CVarArg,
+            windowStart as NSDate,
+            today as NSDate
+        )
+        let records = (try? context.fetch(request)) ?? []
+
+        var daysWithCompletion: Set<Date> = []   // 打卡型：该日有完成记录
+        var daysWithAnyRecord: Set<Date> = []    // 数值型：该日有任何记录
+        for record in records {
+            let day = calendar.startOfDay(for: record.date)
+            if record.isCompleted { daysWithCompletion.insert(day) }
+            daysWithAnyRecord.insert(day)
+        }
+
+        var eligible: [Date] = []
+        for offset in stride(from: -(HabitRetroactivePolicy.lookbackDays - 1), through: -1, by: 1) {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            guard day >= createdDay else { continue }
+            if habit.isCheckInType {
+                if !daysWithCompletion.contains(day) { eligible.append(day) }
+            } else {
+                if !daysWithAnyRecord.contains(day) { eligible.append(day) }
+            }
+        }
+        return eligible
+    }
+
+    /// 补签目标日是否落在可补窗口内（最近 7 天的过去日期）
+    func isRetroactiveWindowValid(_ day: Date) -> Bool {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: day)
+        let today = calendar.startOfDay(for: Date())
+        guard dayStart < today else { return false }
+        guard let earliest = calendar.date(byAdding: .day, value: -(HabitRetroactivePolicy.lookbackDays - 1), to: today) else {
+            return false
+        }
+        return dayStart >= earliest
+    }
+
+    /// 预览补签后的连续天数：借助未保存的 pending 记录让既有 streak 算法「看到」补签效果，
+    /// 算完立即删除，不留痕。仅打卡型有意义。
+    func simulateStreakAfterRetroactiveCheckIn(for habit: Habit, on day: Date) -> (before: Int, after: Int) {
+        guard habit.isCheckInType else { return (0, 0) }
+        let before = calculateStreakInfo(for: habit).value
+
+        let pending = HabitRecord.createRetroactiveCheckIn(in: context, habit: habit, on: day)
+        let after = calculateStreakInfo(for: habit).value
+        context.delete(pending)
+
+        return (before, after)
+    }
+
+    /// 执行补签写入（额度校验、幂等、通知都在这）
+    /// - Parameters:
+    ///   - habit: 目标习惯
+    ///   - day: 补签目标日（startOfDay）
+    ///   - value: 数值型补签值（计数型默认 1；打卡型忽略）
+    ///   - note: 备注（可选）
+    @discardableResult
+    func retroactiveCheckIn(
+        for habit: Habit,
+        on day: Date,
+        value: Double? = nil,
+        note: String? = nil
+    ) throws -> RetroactiveCheckInResult {
+        guard retroactiveSupported(habit), isRetroactiveWindowValid(day) else { return .invalidDate }
+        // 早于习惯创建日的日期不可补（那时习惯还不存在）
+        guard day >= Calendar.current.startOfDay(for: habit.createdAt) else { return .invalidDate }
+
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: day)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return .invalidDate }
+
+        // 额度：Plus 无限；免费用尽返回 requiresPlus，由 UI 层弹付费墙
+        let isPlus = HoloEntitlementState.shared.isPlusActive
+        if !isPlus, HabitRetroactiveQuota.remaining() <= 0 {
+            return .requiresPlus
+        }
+
+        let streakBefore = calculateStreakInfo(for: habit).value
+
+        if habit.isCheckInType {
+            // 当天已有完成记录 → 幂等返回
+            let request = HabitRecord.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                habit.id as CVarArg,
+                dayStart as NSDate,
+                dayEnd as NSDate
+            )
+            request.fetchLimit = 1
+            if ((try? context.fetch(request))?.count ?? 0) > 0 {
+                return .alreadyCompleted
+            }
+
+            // 当天存在「取消态」记录（曾打卡又取消）时复用它，保持一天一条的数据形态
+            let existing = HabitRecord.fetchRequest()
+            existing.predicate = NSPredicate(
+                format: "habitId == %@ AND date >= %@ AND date < %@",
+                habit.id as CVarArg,
+                dayStart as NSDate,
+                dayEnd as NSDate
+            )
+            existing.fetchLimit = 1
+            if let canceled = try context.fetch(existing).first {
+                canceled.isCompleted = true
+                canceled.isRetroactive = true
+                if let note, !note.isEmpty { canceled.note = note }
+            } else {
+                _ = HabitRecord.createRetroactiveCheckIn(in: context, habit: habit, on: dayStart, note: note)
+            }
+        } else {
+            // 数值型：计数类默认补 1 次；测量类必须带值
+            let numericValue: Double
+            if let value {
+                numericValue = value
+            } else if habit.isCountType {
+                numericValue = 1
+            } else {
+                return .invalidDate
+            }
+            _ = HabitRecord.createRetroactiveNumeric(in: context, habit: habit, on: dayStart, value: numericValue, note: note)
+        }
+
+        try context.save()
+        if !isPlus { HabitRetroactiveQuota.consume() }
+        notifyDataChange(habitId: habit.id)
+
+        let streakAfter = habit.isCheckInType ? calculateStreakInfo(for: habit).value : 0
+        return .success(streakBefore: streakBefore, streakAfter: streakAfter)
+    }
+
+    /// 该习惯是否支持补签：打卡型/数值型的好习惯（坏习惯不参与）
+    private func retroactiveSupported(_ habit: Habit) -> Bool {
+        guard !habit.isBadHabit else { return false }
+        return habit.isCheckInType || habit.isNumericType
     }
     
     // MARK: - Query Methods

@@ -26,6 +26,7 @@ struct PersonalView: View {
     @State private var showGoalList = false
     @State private var showMemorySettings = false
     @State private var showMemorySummaryCapsule = false
+    @State private var showMemoryConfirmationQueue = false
     @State private var memoryInboxSnapshot = HoloMemoryInboxSnapshot(
         newMemoryCount: 0,
         pendingConfirmationCount: 0,
@@ -98,6 +99,16 @@ struct PersonalView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showMemorySummaryCapsule)
+        .sheet(isPresented: $showMemoryConfirmationQueue) {
+            MemoryConfirmationQueueView(
+                onRecordHandled: { _ in
+                    Task { await refreshMemoryInbox(presentIfAllowed: false) }
+                },
+                onQueueDrained: {
+                    Task { await refreshMemoryInbox(presentIfAllowed: false) }
+                }
+            )
+        }
         .swipeBackToDismiss { dismiss() }
         .onAppear {
             _ = profileService.loadProfile()
@@ -287,8 +298,12 @@ struct PersonalView: View {
         HStack(spacing: HoloSpacing.xs) {
             Button {
                 HoloMemoryReceiptStore.markWriteReceiptsRead()
-                showMemorySettings = true
                 showMemorySummaryCapsule = false
+                if memoryInboxSnapshot.pendingConfirmationCount > 0 {
+                    showMemoryConfirmationQueue = true
+                } else {
+                    showMemorySettings = true
+                }
             } label: {
                 Label(memoryInboxSnapshot.summaryText, systemImage: "brain.head.profile.fill")
                     .font(.system(size: 12, weight: .medium))

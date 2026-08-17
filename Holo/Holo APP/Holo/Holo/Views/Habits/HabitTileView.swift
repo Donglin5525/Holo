@@ -56,6 +56,10 @@ struct HabitTileView: View {
     @State private var appeared: Bool = false
     /// 缓存的 habit ID，避免 onReceive 访问已删除对象
     @State private var cachedHabitId: UUID? = nil
+    /// 补签弹层目标（非 nil 时弹出）
+    @State private var retroContext: HabitRetroactiveSheetContext? = nil
+    /// 最近 7 天可补签天数（长按菜单入口的显隐依据）
+    @State private var retroEligibleCount: Int = 0
     @FocusState private var isValueInputFocused: Bool
 
     @Environment(\.colorScheme) private var colorScheme
@@ -79,6 +83,9 @@ struct HabitTileView: View {
             .onTapGesture { handlePrimaryAction() }
             .sheet(isPresented: $showValueInput) { valueInputSheet }
             .sheet(isPresented: $showCheckInNote) { checkInNoteSheet }
+            .sheet(item: $retroContext) { context in
+                HabitRetroactiveSheet(context: context)
+            }
             .onAppear {
                 cachedHabitId = habit.id
                 loadStatus()
@@ -224,6 +231,7 @@ struct HabitTileView: View {
     }
 
     /// 打卡型：本周点阵（过去完成实色 / 未完成淡色 / 今天描边 / 未来最淡）
+    /// 过去未打卡的日子（漏卡日）显示为虚线空心点＋小加号，点击直接补签
     /// 今日已打卡时行尾提供备注入口（低频操作，不占打卡主路径）
     private var weekDots: some View {
         HStack(spacing: 5) {
@@ -231,15 +239,19 @@ struct HabitTileView: View {
                 let isToday = day == weekPattern.count - 1
                 let hit = day < weekPattern.count && weekPattern[day]
                 let future = day >= weekPattern.count
-                Circle()
-                    .fill(dotFill(hit: hit, future: future))
-                    .frame(width: 6, height: 6)
-                    .overlay(
-                        Circle()
-                            .stroke(isCompleted ? Color.white.opacity(0.6) : habit.habitColor.opacity(0.45), lineWidth: 1)
-                            .frame(width: 8.5, height: 8.5)
-                            .opacity(isToday ? 1 : 0)
-                    )
+                if isRetroactiveDot(day, hit: hit, future: future, isToday: isToday) {
+                    retroactiveDot(day)
+                } else {
+                    Circle()
+                        .fill(dotFill(hit: hit, future: future))
+                        .frame(width: 6, height: 6)
+                        .overlay(
+                            Circle()
+                                .stroke(isCompleted ? Color.white.opacity(0.6) : habit.habitColor.opacity(0.45), lineWidth: 1)
+                                .frame(width: 8.5, height: 8.5)
+                                .opacity(isToday ? 1 : 0)
+                        )
+                }
             }
 
             if isCompleted {
@@ -255,6 +267,59 @@ struct HabitTileView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    // MARK: - 补签入口（点阵漏卡日）
+
+    /// 点阵中的日子是否为「可补签的漏卡日」：
+    /// 每日打卡型好习惯的过去未打卡日（本周点阵的过去日天然落在 7 天补签窗口内）
+    private func isRetroactiveDot(_ day: Int, hit: Bool, future: Bool, isToday: Bool) -> Bool {
+        guard habit.isCheckInType, !habit.isBadHabit, habit.habitFrequency == .daily else { return false }
+        return !hit && !future && !isToday
+    }
+
+    /// 漏卡日的点：虚线空心圆＋习惯色小加号角标
+    private func retroactiveDot(_ day: Int) -> some View {
+        Button {
+            openRetroactiveSheet(day)
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(isCompleted ? Color.white.opacity(0.14) : habit.habitColor.opacity(0.08))
+                    .frame(width: 9, height: 9)
+
+                Circle()
+                    .stroke(
+                        isCompleted ? Color.white.opacity(0.7) : habit.habitColor.opacity(0.5),
+                        style: StrokeStyle(lineWidth: 1, dash: [2, 1.5])
+                    )
+                    .frame(width: 8.5, height: 8.5)
+            }
+            .overlay(alignment: .topTrailing) {
+                Text("+")
+                    .font(.system(size: 7, weight: .heavy))
+                    .foregroundColor(isCompleted ? .white : habit.habitColor)
+                    .offset(x: 3, y: -3.5)
+            }
+            .frame(width: 12, height: 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 本周点阵下标 → 日期（下标 0 = 本周第一天，跟随系统 firstWeekday）
+    private func weekDayDate(_ day: Int) -> Date? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return nil }
+        return calendar.date(byAdding: .day, value: day, to: week.start)
+    }
+
+    /// 从点阵漏卡日打开补签弹层（直进确认卡）
+    private func openRetroactiveSheet(_ day: Int) {
+        guard let date = weekDayDate(day) else { return }
+        HapticManager.light()
+        retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: date)
     }
 
     /// 打卡型：当日记录补/改备注
@@ -501,6 +566,16 @@ struct HabitTileView: View {
                     undoLatestRecord()
                 } label: {
                     Label("撤销今日最近一笔", systemImage: "arrow.uturn.backward")
+                }
+
+                Divider()
+            }
+
+            if retroEligibleCount > 0 {
+                Button {
+                    retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: nil)
+                } label: {
+                    Label("补签漏卡", systemImage: "arrow.counterclockwise.circle")
                 }
 
                 Divider()
@@ -761,6 +836,8 @@ struct HabitTileView: View {
                     latestHistoricalValue = repo.getLatestValue(for: habit)
                 }
             }
+            // 补签入口依据：最近 7 天可补天数（方法内部会过滤类型/坏习惯/频率）
+            retroEligibleCount = repo.retroactiveEligibleDays(for: habit).count
         }
     }
 }

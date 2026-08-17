@@ -576,6 +576,42 @@ class ThoughtRepository {
         return (try? context.fetch(request).map { $0.name }) ?? []
     }
 
+    /// P1 标签治理：统计标签的活跃 assignment 数（删除/合并前展示受影响想法数）
+    /// - Parameter tagName: 标签名（路径或叶子词，按归一化 key 匹配）
+    /// - Returns: 未软删想法上的有效 assignment 数量
+    func countActiveAssignments(tagName: String) -> Int {
+        let key = ThoughtTagNormalizer.key(tagName)
+        guard !key.isEmpty else { return 0 }
+        let request = ThoughtTagAssignment.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "thought.isSoftDeleted == NO AND tag.name != nil"
+        )
+        let all = (try? context.fetch(request)) ?? []
+        return all.filter { ThoughtTagNormalizer.key($0.tag?.name ?? "") == key }.count
+    }
+
+    /// P1 标签治理：「确认采用」= 把该标签下所有 source == ai 的 assignment 批量转为 confirmedAI
+    /// - Parameter tagName: 标签名（按归一化 key 匹配）
+    /// - Returns: 转换的 assignment 数量；出错抛出
+    @discardableResult
+    func confirmAITagAssignments(tagName: String) throws -> Int {
+        let key = ThoughtTagNormalizer.key(tagName)
+        guard !key.isEmpty else { return 0 }
+        let request = ThoughtTagAssignment.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "source == %@ AND thought.isSoftDeleted == NO",
+            ThoughtTagAssignment.Source.ai.rawValue
+        )
+        let pending = (try? context.fetch(request)) ?? []
+        var converted = 0
+        for assignment in pending where ThoughtTagNormalizer.key(assignment.tag?.name ?? "") == key {
+            assignment.source = ThoughtTagAssignment.Source.confirmedAI.rawValue
+            converted += 1
+        }
+        if converted > 0 { try context.save() }
+        return converted
+    }
+
     /// 获取或创建标签（internal 供 RichContent 扩展复用，外部调用方需自行 save）
     /// - Parameter name: 标签名称
     /// - Returns: ThoughtTag 对象
@@ -838,7 +874,7 @@ class ThoughtRepository {
     // MARK: - 待确认池（知识树 v1：低置信主题归属集中确认）
 
     /// 待确认阈值：AI 置信度低于该值的主题归属进待确认池
-    static let topicConfirmationThreshold: Double = 0.75
+    static let topicConfirmationThreshold: Double = ThoughtOrganizationPresentationPolicy.topicConfirmationThreshold
 
     /// 待确认观点：AI 已挂分类主题但把握不足（0 < topicConfidence < 阈值）且已完成整理。
     /// 手动移入/用户确认过的想法置信度为 1，不会出现在这里；
@@ -1434,4 +1470,13 @@ struct ThoughtFilters {
     var startDate: Date?
     var endDate: Date?
     var tags: [String]?
+    /// P1（FR-10）：整理状态筛选
+    var organizationState: OrganizationStateFilter? = nil
+}
+
+/// P1：整理状态筛选项（未选时不筛）
+enum OrganizationStateFilter: String, CaseIterable {
+    case pendingConfirmation = "待确认"
+    case unclassified = "未归类"
+    case failed = "整理失败"
 }

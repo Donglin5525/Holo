@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo · 习惯补签（找回断签）· 功能原型</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+
+  /* ===== Holo 设计 Token（取自 DesignSystem.swift） ===== */
+  :root {
+    --bg: #FDFBF8;
+    --card: #FFFFFF;
+    --card-2: #F7F6F1;
+    --text1: #333333;
+    --text2: #939393;
+    --text3: #C7C7CC;
+    --border: #F0F0F0;
+    --divider: #F1F5F9;
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-soft: #FED7AA;
+    --success: #22C55E;
+    --error: #EF4444;
+    --blue: #3B82F6;
+    --purple: #8B5CF6;
+    --green: #22C55E;
+    --shadow: 0 1px 3px rgba(0,0,0,0.035), 0 8px 8px rgba(0,0,0,0.02);
+  }
+  body.dark {
+    --bg: #1C1C1E;
+    --card: #2C2C2E;
+    --card-2: #3A3A3C;
+    --text1: #F5F5F5;
+    --text2: #939393;
+    --text3: #6B7280;
+    --border: #3A3A3C;
+    --divider: #38383A;
+    --primary: #FF8A50;
+    --primary-dark: #F46D38;
+    --primary-soft: #5A3A28;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: linear-gradient(165deg, #efe7da 0%, #e9eef5 50%, #f1ecf6 100%);
+    min-height: 100vh;
+    padding: 44px 16px 90px;
+    display:flex; flex-direction:column; align-items:center;
+    color: var(--text1);
+    transition: background .4s;
+  }
+  body.dark { background: linear-gradient(165deg,#2a2620 0%,#232833 50%,#26222e 100%); }
+
+  .header { text-align:center; margin-bottom: 4px; }
+  .header h1 { font-size: 22px; font-weight: 750; letter-spacing:-.3px; }
+  .header .sub { font-size: 12.5px; color:#7a7a7a; margin-top:5px; line-height:1.6; }
+
+  /* ===== 顶栏控件 ===== */
+  .controls { display:flex; gap:10px; align-items:center; margin: 20px 0 8px; flex-wrap:wrap; justify-content:center; }
+  .brand-chip {
+    font-size:11px; font-weight:650; color:var(--primary-dark); background:var(--primary-soft);
+    padding:7px 13px; border-radius:20px; letter-spacing:.2px;
+  }
+  body.dark .brand-chip { color:#FF8A50; }
+  .seg {
+    display:flex; background:var(--card); border-radius:22px; padding:4px;
+    box-shadow:0 2px 10px rgba(0,0,0,.08); border:1px solid var(--border);
+  }
+  .seg button {
+    border:none; background:transparent; font-size:12.5px; font-weight:600; color:var(--text2);
+    padding:7px 16px; border-radius:18px; cursor:pointer; transition:.2s; font-family:inherit;
+  }
+  .seg button.on { background:var(--primary); color:#fff; }
+  .theme-toggle {
+    width:40px; height:40px; border-radius:50%; border:1.5px solid var(--border);
+    background:var(--card); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.08); transition:.2s;
+  }
+  .hint-bar {
+    font-size:11.5px; color:#8a8a8a; margin-bottom:26px; text-align:center; line-height:1.7;
+    max-width: 720px;
+  }
+  .hint-bar b { color:var(--primary-dark); font-weight:650; }
+  body.dark .hint-bar b { color:#FF8A50; }
+
+  /* ===== 手机外框 ===== */
+  .stage { display:flex; gap:34px; overflow-x:auto; padding:10px 6px 30px; max-width:100%; }
+  .stage::-webkit-scrollbar { height:6px; }
+  .stage::-webkit-scrollbar-thumb { background:rgba(0,0,0,.15); border-radius:3px; }
+
+  .col { display:flex; flex-direction:column; align-items:center; gap:14px; flex-shrink:0; }
+  .col .tag { font-size:12px; font-weight:700; color:var(--text1); }
+  .col .tag .n {
+    display:inline-flex; width:19px; height:19px; border-radius:50%; background:var(--primary);
+    color:#fff; font-size:11px; align-items:center; justify-content:center; margin-right:6px;
+  }
+  .col .desc { font-size:11px; color:#8a8a8a; max-width:340px; text-align:center; line-height:1.65; }
+
+  .phone {
+    width: 393px; height: 800px;
+    background: var(--bg);
+    border-radius: 54px;
+    border: 12px solid #0e0e10;
+    box-shadow: 0 40px 90px rgba(0,0,0,.25), 0 10px 24px rgba(0,0,0,.1);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+    transition: background .35s;
+  }
+  .notch { position:absolute; top:0; left:50%; transform:translateX(-50%); width:122px; height:32px; background:#0e0e10; border-radius:0 0 19px 19px; z-index:50; }
+  .home-ind { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:var(--text2); opacity:.35; border-radius:3px; z-index:50; }
+
+  .statusbar { height:46px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:10px 30px 0 34px; font-size:15px; font-weight:600; }
+  .statusbar .r { display:flex; gap:6px; align-items:center; font-size:12px; }
+  .navbar { height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:center; position:relative; }
+  .navbar .back { position:absolute; left:6px; color:var(--primary); display:flex; align-items:center; font-size:17px; }
+  .navbar .back .t { font-size:16px; margin-left:1px; }
+  .navbar .title { font-size:17px; font-weight:600; letter-spacing:.3px; }
+  .navbar .plusbtn { position:absolute; right:10px; color:var(--primary); font-size:22px; font-weight:500; }
+
+  .scroll { flex:1; overflow-y:auto; padding:4px 16px 40px; position:relative; }
+  .scroll::-webkit-scrollbar { width:0; }
+
+  /* ===== 今日进度条 ===== */
+  .progress-card { background:var(--card); border-radius:16px; padding:14px; border:1px solid var(--border); box-shadow:var(--shadow); margin-bottom:14px; }
+  .progress-card .row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px; }
+  .progress-card .t { font-size:13px; font-weight:650; }
+  .progress-card .v { font-size:12px; color:var(--text2); }
+  .progress-card .v b { color:var(--primary-dark); font-size:13px; }
+  body.dark .progress-card .v b { color:var(--primary); }
+  .progress-track { height:8px; background:var(--card-2); border-radius:6px; overflow:hidden; }
+  .progress-fill { height:100%; width:0; border-radius:6px; background:linear-gradient(90deg,#FDBA74,var(--primary)); transition:width .8s cubic-bezier(.22,1,.36,1); }
+
+  /* ===== 习惯磁贴 ===== */
+  .tile-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tile {
+    border-radius:16px; padding:14px; min-height:150px; position:relative;
+    display:flex; flex-direction:column; justify-content:space-between; cursor:pointer;
+    transition:transform .15s, box-shadow .2s, background .3s;
+  }
+  .tile:active { transform:scale(.97); }
+  .tile.done { box-shadow:0 6px 16px rgba(0,0,0,.12); }
+  .tile .emoji-chip {
+    width:38px; height:38px; border-radius:50%; background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:19px;
+    box-shadow:0 1px 4px rgba(0,0,0,.08);
+  }
+  .tile.done .emoji-chip { opacity:.95; }
+  .tile .name { font-size:13px; font-weight:650; line-height:1.3; margin-top:8px; }
+  .tile .streak-badge {
+    position:absolute; top:10px; right:10px; font-size:10.5px; font-weight:700;
+    display:flex; align-items:center; gap:2px;
+  }
+  .tile .streak-badge .fire { font-size:11px; }
+
+  /* 本周点阵 */
+  .weekdots { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+  .wd { position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .wd .d { font-size:8.5px; color:var(--text2); font-weight:600; }
+  .wd .dot { width:9px; height:9px; border-radius:50%; }
+  .wd .dot.on { background:var(--c); }
+  .wd .dot.off { background:transparent; border:1.5px solid color-mix(in srgb, var(--c) 30%, transparent); }
+  .wd.miss { cursor:pointer; }
+  .wd.miss .dot {
+    background:color-mix(in srgb, var(--c) 8%, transparent);
+    border:1.5px dashed color-mix(in srgb, var(--c) 45%, transparent);
+    animation:pulse 2.2s infinite;
+  }
+  .wd.miss .retro-plus {
+    position:absolute; top:-3px; right:-5px; width:13px; height:13px; border-radius:50%;
+    background:var(--primary); color:#fff; font-size:9px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+    box-shadow:0 1px 3px rgba(0,0,0,.25);
+  }
+  .wd.today .d { color:var(--primary-dark); }
+  body.dark .wd.today .d { color:var(--primary); }
+  .wd.today .dot { outline:2px solid color-mix(in srgb, var(--c) 22%, transparent); outline-offset:1.5px; }
+  @keyframes pulse {
+    0%,100% { transform:scale(1); } 50% { transform:scale(1.25); }
+  }
+  .retro-hint {
+    margin-top:10px; font-size:10.5px; color:var(--primary-dark); font-weight:600;
+    background:color-mix(in srgb, var(--primary) 8%, transparent);
+    border-radius:8px; padding:5px 8px; display:flex; align-items:center; gap:5px;
+  }
+  body.dark .retro-hint { color:var(--primary); }
+
+  /* ===== Sheet / 遮罩 ===== */
+  .mask {
+    position:absolute; inset:0; background:rgba(0,0,0,.4); opacity:0; pointer-events:none;
+    transition:opacity .3s; z-index:60;
+  }
+  .mask.show { opacity:1; pointer-events:auto; }
+  .sheet {
+    position:absolute; left:0; right:0; bottom:0; background:var(--card);
+    border-radius:22px 22px 0 0; padding:10px 20px 30px; z-index:61;
+    transform:translateY(105%); transition:transform .38s cubic-bezier(.22,1,.36,1);
+    box-shadow:0 -10px 40px rgba(0,0,0,.18);
+  }
+  .sheet.show { transform:translateY(0); }
+  .grabber { width:38px; height:5px; background:var(--divider); border-radius:3px; margin:0 auto 16px; }
+  .sheet h3 { font-size:17px; font-weight:700; text-align:center; }
+  .sheet .sub-title { font-size:12px; color:var(--text2); text-align:center; margin-top:4px; }
+
+  /* 确认卡内容 */
+  .rc-habit { display:flex; align-items:center; gap:12px; background:var(--card-2); border-radius:14px; padding:12px 14px; margin:16px 0 12px; }
+  .rc-habit .icon { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:21px; }
+  .rc-habit .nm { font-size:14.5px; font-weight:700; }
+  .rc-habit .dt { font-size:12px; color:var(--text2); margin-top:2px; }
+  .rc-effect {
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    padding:13px; border-radius:14px; margin-bottom:12px;
+    background:color-mix(in srgb, var(--primary) 7%, transparent);
+  }
+  .rc-effect .side { text-align:center; }
+  .rc-effect .fire { font-size:20px; }
+  .rc-effect .num { font-size:19px; font-weight:800; margin-top:1px; }
+  .rc-effect .num.after { color:var(--primary-dark); }
+  body.dark .rc-effect .num.after { color:var(--primary); }
+  .rc-effect .lab { font-size:9.5px; color:var(--text2); margin-top:1px; }
+  .rc-effect .arrow { font-size:16px; color:var(--text3); }
+  .quota-line {
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    font-size:11.5px; color:var(--text2); margin-bottom:14px;
+  }
+  .quota-line .pills { display:flex; gap:4px; }
+  .quota-line .qp { width:7px; height:7px; border-radius:50%; background:var(--success); }
+  .quota-line .qp.used { background:var(--text3); }
+  .quota-line.plus-tag { color:var(--primary-dark); font-weight:650; }
+  body.dark .quota-line.plus-tag { color:var(--primary); }
+  .btn-main {
+    width:100%; border:none; border-radius:14px; padding:15px; font-size:15.5px; font-weight:700;
+    background:var(--primary); color:#fff; cursor:pointer; font-family:inherit;
+    box-shadow:0 6px 16px color-mix(in srgb, var(--primary) 35%, transparent);
+    transition:.15s;
+  }
+  .btn-main:active { transform:scale(.98); }
+  .btn-ghost {
+    width:100%; border:none; background:transparent; padding:13px; font-size:13.5px;
+    color:var(--text2); cursor:pointer; font-family:inherit; font-weight:600;
+  }
+  .rc-note { font-size:10.5px; color:var(--text3); text-align:center; margin-top:8px; line-height:1.6; }
+
+  /* 日期选择 */
+  .day-strip { display:flex; gap:8px; margin:16px 0 6px; }
+  .day-cell {
+    flex:1; border-radius:14px; padding:10px 2px 9px; text-align:center; cursor:pointer;
+    border:1.5px solid var(--border); background:var(--card); transition:.15s;
+  }
+  .day-cell .w { font-size:10px; color:var(--text2); font-weight:600; }
+  .day-cell .n { font-size:16.5px; font-weight:750; margin-top:2px; }
+  .day-cell.ok:hover { border-color:var(--primary); }
+  .day-cell.sel { background:var(--primary); border-color:var(--primary); }
+  .day-cell.sel .w, .day-cell.sel .n { color:#fff; }
+  .day-cell.dis { opacity:.42; cursor:not-allowed; }
+  .day-cell.dis .mark { font-size:9px; color:var(--success); font-weight:700; }
+  .day-cell.ok .mark { font-size:9px; color:var(--primary-dark); font-weight:700; height:12px; }
+  body.dark .day-cell.ok .mark { color:var(--primary); }
+  .range-note { font-size:10.5px; color:var(--text3); text-align:center; margin:8px 0 14px; line-height:1.6; }
+
+  /* ===== 详情页 ===== */
+  .detail-hero { display:flex; flex-direction:column; align-items:center; padding:6px 0 16px; }
+  .detail-hero .big-icon {
+    width:64px; height:64px; border-radius:20px; background:color-mix(in srgb, var(--blue) 10%, transparent);
+    display:flex; align-items:center; justify-content:center; font-size:32px; margin-bottom:10px;
+  }
+  .detail-hero .nm { font-size:19px; font-weight:750; }
+  .detail-hero .st { font-size:12px; color:var(--text2); margin-top:5px; display:flex; gap:14px; }
+  .detail-hero .st b { color:var(--text1); }
+
+  .recover-banner {
+    display:flex; align-items:center; gap:11px; border-radius:16px; padding:13px 14px; margin-bottom:16px;
+    background:color-mix(in srgb, var(--primary) 8%, transparent);
+    border:1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+    cursor:pointer; transition:.15s;
+  }
+  .recover-banner:active { transform:scale(.985); }
+  .recover-banner .ic {
+    width:36px; height:36px; border-radius:11px; background:var(--primary); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0;
+  }
+  .recover-banner .tx { flex:1; }
+  .recover-banner .l1 { font-size:13px; font-weight:700; }
+  .recover-banner .l2 { font-size:11px; color:var(--text2); margin-top:2px; }
+  .recover-banner .go { color:var(--primary-dark); font-size:13px; font-weight:700; }
+  body.dark .recover-banner .go { color:var(--primary); }
+
+  .sec-title { font-size:13px; font-weight:700; margin:2px 2px 10px; }
+  .rec-list { background:var(--card); border-radius:16px; border:1px solid var(--border); overflow:hidden; }
+  .rec-row { display:flex; align-items:center; gap:12px; padding:13px 14px; border-bottom:1px solid var(--divider); }
+  .rec-row:last-child { border-bottom:none; }
+  .rec-row .mark-ic { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .rec-row .tx { flex:1; }
+  .rec-row .d1 { font-size:12.5px; font-weight:650; display:flex; align-items:center; gap:6px; }
+  .rec-row .d2 { font-size:10.5px; color:var(--text2); margin-top:2px; }
+  .retro-tag {
+    font-size:9px; font-weight:800; color:var(--primary-dark);
+    background:color-mix(in srgb, var(--primary) 10%, transparent);
+    padding:1.5px 6px; border-radius:6px; letter-spacing:.5px;
+  }
+  body.dark .retro-tag { color:var(--primary); }
+
+  /* ===== 付费墙 ===== */
+  .paywall-scroll { flex:1; overflow-y:auto; padding:14px 22px 40px; }
+  .paywall-scroll::-webkit-scrollbar { width:0; }
+  .pw-close { position:absolute; right:16px; top:56px; z-index:5; width:30px; height:30px; border-radius:50%;
+    background:var(--card-2); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--text2); cursor:pointer; }
+  .pw-hero { text-align:center; padding:14px 0 6px; }
+  .pw-emblem {
+    width:76px; height:76px; margin:0 auto 14px; border-radius:24px;
+    background:linear-gradient(135deg,#FDBA74,var(--primary));
+    display:flex; align-items:center; justify-content:center; font-size:34px;
+    box-shadow:0 14px 30px color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+  .pw-hero h2 { font-size:20px; font-weight:800; letter-spacing:-.2px; }
+  .pw-hero .pw-sub { font-size:12.5px; color:var(--text2); margin-top:7px; line-height:1.6; }
+  .pw-hero .pw-sub b { color:var(--primary-dark); }
+  body.dark .pw-hero .pw-sub b { color:var(--primary); }
+
+  .pw-rows { margin:20px 0 6px; display:flex; flex-direction:column; gap:9px; }
+  .pw-row { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:12px 14px; }
+  .pw-row .lab { flex:1; font-size:12.5px; font-weight:650; }
+  .pw-row .free-v { font-size:12px; color:var(--text2); text-decoration:line-through; text-decoration-color:rgba(147,147,147,.6); }
+  .pw-row .plus-v { font-size:13.5px; font-weight:800; color:var(--primary-dark); }
+  body.dark .pw-row .plus-v { color:var(--primary); }
+  .pw-row .chk { color:var(--primary-dark); font-size:13px; font-weight:800; }
+  body.dark .pw-row .chk { color:var(--primary); }
+
+  .pw-price {
+    background:var(--card); border:1.5px solid var(--primary); border-radius:18px; padding:18px 16px;
+    margin:16px 0 10px; position:relative; text-align:center;
+    box-shadow:0 10px 26px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+  .pw-price .rec-chip {
+    position:absolute; top:-10px; left:50%; transform:translateX(-50%);
+    background:var(--primary); color:#fff; font-size:10px; font-weight:750;
+    padding:3.5px 12px; border-radius:12px; letter-spacing:.5px;
+  }
+  .pw-price .p { font-size:30px; font-weight:800; }
+  .pw-price .per { font-size:12.5px; color:var(--text2); font-weight:600; }
+  .pw-price .note { font-size:10px; color:var(--text3); margin-top:6px; }
+
+  .pw-fine { font-size:9.5px; color:var(--text3); text-align:center; line-height:1.7; margin-top:12px; }
+  .pw-links { display:flex; justify-content:center; gap:18px; margin-top:12px; font-size:11px; color:var(--text2); }
+
+  /* ===== 成功屏 ===== */
+  .success-hero { text-align:center; padding:16px 0 8px; }
+  .success-hero .big-check {
+    width:74px; height:74px; margin:0 auto 14px; border-radius:50%;
+    background:color-mix(in srgb, var(--success) 14%, transparent);
+    display:flex; align-items:center; justify-content:center; font-size:34px; color:var(--success);
+    animation:pop .5s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop { 0% { transform:scale(.3); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+  .success-hero h2 { font-size:18px; font-weight:800; }
+  .success-hero .s { font-size:12.5px; color:var(--text2); margin-top:6px; line-height:1.6; }
+  .success-hero .s b { color:var(--primary-dark); }
+  body.dark .success-hero .s b { color:var(--primary); }
+
+  .streak-recover-card {
+    display:flex; align-items:center; justify-content:center; gap:16px; margin:16px 0;
+    background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px;
+  }
+
+  .toast {
+    position:absolute; left:50%; bottom:90px; transform:translateX(-50%) translateY(16px);
+    background:rgba(28,28,28,.92); color:#fff; font-size:12px; font-weight:600;
+    padding:11px 18px; border-radius:22px; display:flex; align-items:center; gap:8px;
+    opacity:0; pointer-events:none; transition:.35s; z-index:70; white-space:nowrap;
+    box-shadow:0 10px 26px rgba(0,0,0,.28);
+  }
+  body.dark .toast { background:rgba(255,255,255,.14); backdrop-filter:blur(10px); }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ===== 底部规则卡 ===== */
+  .rules { max-width:960px; width:100%; margin-top:26px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:860px){ .rules { grid-template-columns:1fr; } }
+  .rule-card { background:var(--card); border-radius:20px; padding:22px 24px; border:1px solid var(--border); box-shadow:var(--shadow); }
+  .rule-card h4 { font-size:14.5px; font-weight:750; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .rule-card h4 .em { font-size:16px; }
+  .rule-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .rule-table th { text-align:left; font-size:11px; color:var(--text2); font-weight:650; padding:7px 8px; border-bottom:1px solid var(--divider); }
+  .rule-table td { padding:9px 8px; border-bottom:1px solid var(--divider); vertical-align:top; line-height:1.55; }
+  .rule-table tr:last-child td { border-bottom:none; }
+  .rule-table .hl { color:var(--primary-dark); font-weight:750; }
+  body.dark .rule-table .hl { color:var(--primary); }
+  .rule-card ul { list-style:none; font-size:12.5px; line-height:1.6; }
+  .rule-card ul li { padding:6px 0 6px 22px; position:relative; color:var(--text1); }
+  .rule-card ul li::before { content:"·"; position:absolute; left:8px; color:var(--primary); font-weight:900; font-size:16px; top:3px; }
+  .rule-card ul li b { font-weight:700; }
+  .rule-card .foot-note { font-size:11px; color:var(--text3); margin-top:12px; line-height:1.7; padding-top:12px; border-top:1px dashed var(--divider); }
+</style>
+</head>
+<body class="">
+
+<div class="header">
+  <h1>习惯 · 补签（找回断签）</h1>
+  <div class="sub">忘了打卡不该毁掉几十天的坚持 —— 补上那一天，🔥 连续打卡自动接回去</div>
+</div>
+
+<div class="controls">
+  <span class="brand-chip">HOLO · 功能原型</span>
+  <div class="seg" id="whoSeg">
+    <button class="on" data-who="free">免费用户 · 本月剩 2 次</button>
+    <button data-who="plus">Plus 用户</button>
+  </div>
+  <button class="theme-toggle" id="themeBtn">🌙</button>
+</div>
+<div class="hint-bar">
+  演示基准日：<b>8月14日（周五）</b> · 场景：「阅读 30 分钟」上周三 8/12 忘了打卡，连续 19 天断成 2 天。
+  <b>屏幕 ① ③ 可交互</b>：点磁贴上周三的空心点、或详情页的「找回打卡」横幅，走一遍完整流程。
+</div>
+
+<div class="stage">
+
+  <!-- ================ 屏1 · 习惯页磁贴墙（入口①） ================ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r"><span>5G</span><span>📶</span><span>🔋</span></span></div>
+      <div class="navbar">
+        <div class="back">‹ <span class="t">首页</span></div>
+        <div class="title">习惯</div>
+        <div class="plusbtn">＋</div>
+      </div>
+      <div class="scroll">
+        <div class="progress-card">
+          <div class="row">
+            <span class="t">今日进度</span>
+            <span class="v"><b>1</b> / 3 已点亮</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width:33%"></div></div>
+        </div>
+
+        <div class="tile-grid">
+          <!-- 阅读磁贴：漏卡可补 -->
+          <div class="tile" id="tile-read" style="--c:#3B82F6; background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.28);">
+            <div>
+              <div class="emoji-chip">📚</div>
+              <div class="name" style="color:#1E3A8A;">阅读 30 分钟</div>
+            </div>
+            <div>
+              <div class="weekdots">
+                <div class="wd"><span class="d">一</span><span class="dot on"></span></div>
+                <div class="wd"><span class="d">二</span><span class="dot on"></span></div>
+                <div class="wd miss" id="missWed" title="点此补签"><span class="d">三</span><span class="dot"></span><span class="retro-plus">＋</span></div>
+                <div class="wd"><span class="d">四</span><span class="dot on"></span></div>
+                <div class="wd today"><span class="d">五</span><span class="dot off"></span></div>
+                <div class="wd"><span class="d">六</span><span class="dot off"></span></div>
+                <div class="wd"><span class="d">日</span><span class="dot off"></span></div>
+              </div>
+              <div class="retro-hint">👆 周三漏卡 · 点空心点补签</div>
+            </div>
+            <div class="streak-badge" style="color:#3B82F6;"><span class="fire">🔥</span><span id="tileStreak">2</span></div>
+          </div>
+
+          <!-- 冥想磁贴：已完成 -->
+          <div class="tile done" style="--c:#8B5CF6; background:#8B5CF6;">
+            <div>
+              <div class="emoji-chip">🧘</div>
+              <div class="name" style="color:#fff;">冥想 10 分钟</div>
+            </div>
+            <div class="weekdots">
+              <div class="wd"><span class="d" style="color:rgba(255,255,255,.6)">一</span><span class="dot on" style="--c:#fff;"></span></div>
+              <div class="wd"><span class="d" style="color:rgba(255,255,255,.6)">二</span><span class="dot on" style="--c:#fff;"></span></div>
+              <div class="wd"><span class="d" style="color:rgba(255,255,255,.6)">三</span><span class="dot on" style="--c:#fff;"></span></div>
+              <div class="wd"><span class="d" style="color:rgba(255,255,255,.6)">四</span><span class="dot on" style="--c:#fff;"></span></div>
+              <div class="wd today"><span class="d" style="color:#fff">五</span><span class="dot on" style="--c:#fff;"></span></div>
+              <div class="wd"><span class="d" style="color:rgba(255,255,255,.6)">六</span><span class="dot off" style="--c:#fff;"></span></div>
+              <div class="wd"><span class="d" style="color:rgba(255,255,255,.6)">日</span><span class="dot off" style="--c:#fff;"></span></div>
+            </div>
+            <div class="streak-badge" style="color:#fff;"><span class="fire">🔥</span><span>46</span></div>
+          </div>
+
+          <!-- 跑步磁贴 -->
+          <div class="tile" style="--c:#22C55E; background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.28);">
+            <div>
+              <div class="emoji-chip">🏃</div>
+              <div class="name" style="color:#14532D;">晨间跑步</div>
+            </div>
+            <div class="weekdots">
+              <div class="wd"><span class="d">一</span><span class="dot on"></span></div>
+              <div class="wd"><span class="d">二</span><span class="dot on"></span></div>
+              <div class="wd"><span class="d">三</span><span class="dot on"></span></div>
+              <div class="wd"><span class="d">四</span><span class="dot off"></span></div>
+              <div class="wd today"><span class="d">五</span><span class="dot off"></span></div>
+              <div class="wd"><span class="d">六</span><span class="dot off"></span></div>
+              <div class="wd"><span class="d">日</span><span class="dot off"></span></div>
+            </div>
+            <div class="streak-badge" style="color:#22C55E;"><span class="fire">🔥</span><span>9</span></div>
+          </div>
+
+          <!-- 喝水磁贴 -->
+          <div class="tile" style="--c:#F59E0B; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.28);">
+            <div>
+              <div class="emoji-chip">💧</div>
+              <div class="name" style="color:#78350F;">喝水 8 杯</div>
+            </div>
+            <div class="weekdots">
+              <div class="wd"><span class="d">一</span><span class="dot on"></span></div>
+              <div class="wd"><span class="d">二</span><span class="dot on"></span></div>
+              <div class="wd"><span class="d">三</span><span class="dot on"></span></div>
+              <div class="wd"><span class="d">四</span><span class="dot on"></span></div>
+              <div class="wd today"><span class="d">五</span><span class="dot off"></span></div>
+              <div class="wd"><span class="d">六</span><span class="dot off"></span></div>
+              <div class="wd"><span class="d">日</span><span class="dot off"></span></div>
+            </div>
+            <div class="streak-badge" style="color:#F59E0B;"><span class="fire">🔥</span><span>31</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mask" id="m1"></div>
+      <div class="sheet" id="s1">
+        <div class="grabber"></div>
+        <div id="s1-body"><!-- 确认卡 / 日期选择 / 付费墙 由 JS 注入 --></div>
+      </div>
+      <div class="toast" id="t1">✅ 已补签 8月12日 · 连续恢复至 19 天</div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="tag"><span class="n">①</span>入口一 · 磁贴点阵（本周内漏卡）</div>
+    <div class="desc">磁贴底部本周点阵中，<b>过去且未打卡的日子</b>显示为虚线空心点＋角标，点它直接弹补签确认。今天与未来的点不可补（今天直接点磁贴打卡）。</div>
+  </div>
+
+  <!-- ================ 屏2 · 补签确认卡 ================ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r"><span>5G</span><span>📶</span><span>🔋</span></span></div>
+      <div class="scroll" style="display:flex; align-items:flex-end; background:var(--bg);">
+        <!-- 下方垫一层模糊的习惯页 -->
+        <div style="width:100%; padding:16px; opacity:.35; filter:blur(1px); pointer-events:none;">
+          <div class="tile-grid">
+            <div class="tile" style="--c:#3B82F6; background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.28); min-height:130px;">
+              <div><div class="emoji-chip">📚</div><div class="name" style="color:#1E3A8A;">阅读 30 分钟</div></div>
+            </div>
+            <div class="tile done" style="--c:#8B5CF6; background:#8B5CF6; min-height:130px;">
+              <div><div class="emoji-chip">🧘</div><div class="name" style="color:#fff;">冥想 10 分钟</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mask show"></div>
+      <div class="sheet show" style="position:absolute; z-index:61;">
+        <div class="grabber"></div>
+        <h3>补签打卡</h3>
+        <div class="sub-title">补上那一天，连续记录自动接回</div>
+        <div class="rc-habit">
+          <div class="icon" style="background:rgba(59,130,246,.12);">📚</div>
+          <div>
+            <div class="nm">阅读 30 分钟</div>
+            <div class="dt">2026年8月12日 · 周三 · 2 天前</div>
+          </div>
+        </div>
+        <div class="rc-effect">
+          <div class="side">
+            <div class="fire">🔥</div>
+            <div class="num">2</div>
+            <div class="lab">当前连续</div>
+          </div>
+          <div class="arrow">➜</div>
+          <div class="side">
+            <div class="fire">🔥</div>
+            <div class="num after">19</div>
+            <div class="lab">补签后</div>
+          </div>
+        </div>
+        <div class="quota-line" id="quota2">
+          <span>本月免费补签</span>
+          <span class="pills"><span class="qp"></span><span class="qp"></span><span class="qp used"></span></span>
+          <span>已用 1 / 3，剩余 2 次</span>
+        </div>
+        <button class="btn-main" style="background:#3B82F6; box-shadow:0 6px 16px rgba(59,130,246,.35);">确认补签</button>
+        <button class="btn-ghost">取消</button>
+        <div class="rc-note">补签记录会带「补」标记，与当日实时打卡如实区分 · 每月 1 日重置免费次数</div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="tag"><span class="n">②</span>补签确认卡</div>
+    <div class="desc">写之前先看清代价与收益：补哪天、🔥 从几恢复到几、<b>免费额度还剩几次</b>（Plus 用户此处显示无限）。确认按钮用习惯本身的颜色。</div>
+  </div>
+
+  <!-- ================ 屏3 · 详情页（入口②主推） ================ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r"><span>5G</span><span>📶</span><span>🔋</span></span></div>
+      <div class="navbar">
+        <div class="back">‹ <span class="t">习惯</span></div>
+        <div class="title">阅读 30 分钟</div>
+        <div class="plusbtn" style="font-size:17px; font-weight:600;">编辑</div>
+      </div>
+      <div class="scroll">
+        <div class="detail-hero">
+          <div class="big-icon">📚</div>
+          <div class="nm">阅读 30 分钟</div>
+          <div class="st">
+            <span>🔥 连续 <b>2</b> 天</span>
+            <span>累计 <b>87</b> 天</span>
+            <span>完成率 <b>82%</b></span>
+          </div>
+        </div>
+
+        <!-- 找回断签横幅：详情页主入口，跨周漏卡也能发现 -->
+        <div class="recover-banner" id="btnRecover">
+          <div class="ic">🩹</div>
+          <div class="tx">
+            <div class="l1">最近 7 天有 1 天漏卡</div>
+            <div class="l2">8月12日（周三）· 补上可恢复连续 19 天</div>
+          </div>
+          <div class="go">找回 ›</div>
+        </div>
+
+        <div class="sec-title">最近记录</div>
+        <div class="rec-list">
+          <div class="rec-row">
+            <div class="mark-ic" style="background:rgba(59,130,246,.12);">✓</div>
+            <div class="tx">
+              <div class="d1">今天 · 8月14日（周五）</div>
+              <div class="d2">08:32 打卡</div>
+            </div>
+          </div>
+          <div class="rec-row">
+            <div class="mark-ic" style="background:rgba(59,130,246,.12);">✓</div>
+            <div class="tx">
+              <div class="d1">昨天 · 8月13日（周四）</div>
+              <div class="d2">07:15 打卡</div>
+            </div>
+          </div>
+          <div class="rec-row">
+            <div class="mark-ic" style="background:rgba(239,68,68,.08); color:#EF4444;">✕</div>
+            <div class="tx">
+              <div class="d1">8月12日（周三）</div>
+              <div class="d2">未打卡 · 可补签（7 天内）</div>
+            </div>
+            <div class="go" style="color:var(--primary-dark); font-size:12px; font-weight:700;">补签</div>
+          </div>
+          <div class="rec-row">
+            <div class="mark-ic" style="background:rgba(59,130,246,.12);">✓</div>
+            <div class="tx">
+              <div class="d1">8月11日（周二）</div>
+              <div class="d2">22:41 打卡</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mask" id="m3"></div>
+      <div class="sheet" id="s3">
+        <div class="grabber"></div>
+        <div id="s3-body"></div>
+      </div>
+      <div class="toast" id="t3">✅ 已补签 8月12日 · 连续恢复至 19 天</div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="tag"><span class="n">③</span>入口二 · 详情页「找回断签」横幅</div>
+    <div class="desc">磁贴点阵只显示本周，<b>跨周的漏卡看不见</b>——所以主入口放在详情页：检测到最近 7 天有漏卡时顶部出现横幅，点「找回」打开日期选择。漏卡那行记录也直接给「补签」按钮。</div>
+  </div>
+
+  <!-- ================ 屏4 · 日期选择 ================ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r"><span>5G</span><span>📶</span><span>🔋</span></span></div>
+      <div class="scroll" style="display:flex; align-items:flex-end;">
+        <div style="width:100%; padding:16px; opacity:.3; filter:blur(1px); pointer-events:none;">
+          <div class="detail-hero">
+            <div class="big-icon">📚</div>
+            <div class="nm">阅读 30 分钟</div>
+          </div>
+          <div class="recover-banner">
+            <div class="ic">🩹</div>
+            <div class="tx"><div class="l1">最近 7 天有 1 天漏卡</div><div class="l2">8月12日（周三）</div></div>
+            <div class="go">找回 ›</div>
+          </div>
+        </div>
+      </div>
+      <div class="mask show"></div>
+      <div class="sheet show" style="position:absolute; z-index:61;">
+        <div class="grabber"></div>
+        <h3>选择补签日期</h3>
+        <div class="sub-title">阅读 30 分钟 · 可补最近 7 天</div>
+        <div class="day-strip">
+          <div class="day-cell dis"><div class="w">五</div><div class="n">7</div><div class="mark">✓ 已打卡</div></div>
+          <div class="day-cell dis"><div class="w">六</div><div class="n">8</div><div class="mark">✓ 已打卡</div></div>
+          <div class="day-cell dis"><div class="w">日</div><div class="n">9</div><div class="mark">✓ 已打卡</div></div>
+          <div class="day-cell dis"><div class="w">一</div><div class="n">10</div><div class="mark">✓ 已打卡</div></div>
+          <div class="day-cell dis"><div class="w">二</div><div class="n">11</div><div class="mark">✓ 已打卡</div></div>
+          <div class="day-cell ok sel"><div class="w">三</div><div class="n">12</div><div class="mark">漏卡</div></div>
+          <div class="day-cell dis"><div class="w">四</div><div class="n">13</div><div class="mark">✓ 已打卡</div></div>
+        </div>
+        <div class="range-note">仅支持补 <b>最近 7 天内</b>的过去日期 · 今天请直接打卡 · 更早的日期无法补签</div>
+        <div class="rc-effect" style="margin-top:4px;">
+          <div class="side">
+            <div class="fire">🔥</div>
+            <div class="num">2</div>
+            <div class="lab">当前连续</div>
+          </div>
+          <div class="arrow">➜</div>
+          <div class="side">
+            <div class="fire">🔥</div>
+            <div class="num after">19</div>
+            <div class="lab">补签后</div>
+          </div>
+        </div>
+        <div class="quota-line">
+          <span>本月免费补签剩余</span><span style="font-weight:800; color:var(--primary-dark);">2</span><span>次</span>
+        </div>
+        <button class="btn-main" style="background:#3B82F6; box-shadow:0 6px 16px rgba(59,130,246,.35);">补签 8月12日</button>
+        <button class="btn-ghost">取消</button>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="tag"><span class="n">④</span>日期选择（从详情页横幅进入）</div>
+    <div class="desc">横向 7 天条：已打卡的日子置灰锁定，漏卡日可选。若 7 天内漏了不止一天，可多选逐日补（每次消耗一次额度）。</div>
+  </div>
+
+  <!-- ================ 屏5 · 付费墙 ================ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar" style="color:#fff; z-index:4; position:relative;"><span>9:41</span><span class="r"><span>5G</span><span>📶</span><span>🔋</span></span></div>
+      <div class="pw-close">✕</div>
+      <div class="paywall-scroll" style="background:linear-gradient(180deg, color-mix(in srgb, var(--primary) 12%, var(--bg)) 0%, var(--bg) 46%);">
+        <div class="pw-hero">
+          <div class="pw-emblem">🩹</div>
+          <h2>无限补签 · 断签不心疼</h2>
+          <div class="pw-sub">本月的 <b>3 次免费补签已用完</b><br>升级 Holo Plus，漏打卡的每一天都能找回来</div>
+        </div>
+
+        <div class="pw-rows">
+          <div class="pw-row">
+            <span class="chk">✓</span>
+            <span class="lab">习惯补签</span>
+            <span class="free-v">每月 3 次</span>
+            <span class="plus-v">无限次</span>
+          </div>
+          <div class="pw-row">
+            <span class="chk">✓</span>
+            <span class="lab">连续打卡记录</span>
+            <span class="free-v">断签无法找回</span>
+            <span class="plus-v">随时找回</span>
+          </div>
+          <div class="pw-row">
+            <span class="chk">✓</span>
+            <span class="lab">HoloAI 额度 · 深度分析 · 记忆洞察</span>
+            <span class="plus-v">全部解锁</span>
+          </div>
+        </div>
+
+        <div class="pw-price">
+          <div class="rec-chip">推荐</div>
+          <div class="p">¥68 <span style="font-size:14px; font-weight:600; color:var(--text2);">/ 年</span></div>
+          <div class="per">折合每月 ¥5.7 · 随时取消</div>
+          <div class="note">* 价格为示意，以 App Store 实际订阅价为准</div>
+        </div>
+
+        <button class="btn-main">升级 Holo Plus</button>
+        <button class="btn-ghost">本次先不补了</button>
+
+        <div class="pw-fine">订阅将通过你的 App Store 账户扣款，到期前 24 小时内自动续订，可随时在「设置 › Apple ID › 订阅」中取消。</div>
+        <div class="pw-links"><span>恢复购买</span><span>权益对比</span><span>服务条款</span></div>
+      </div>
+      <div class="home-ind" style="z-index:52;"></div>
+    </div>
+    <div class="tag"><span class="n">⑤</span>付费墙 · 免费次数用尽时弹出</div>
+    <div class="desc">免费用户第 4 次补签时弹出（复用全局付费墙组件）。<b>购买成功后自动完成刚才那一次补签</b>，不用重新点一遍——这套「续接原操作」机制 App 里已有，直接复用。Plus 用户永远看不到这屏。</div>
+  </div>
+
+  <!-- ================ 屏6 · 成功反馈 ================ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r"><span>5G</span><span>📶</span><span>🔋</span></span></div>
+      <div class="scroll">
+        <div class="success-hero">
+          <div class="big-check">✓</div>
+          <h2>已补签 8月12日（周三）</h2>
+          <div class="s">那一天的漏卡已经补上<br>连续打卡从 <b>2 天恢复到 19 天</b>，月历与统计同步更新</div>
+        </div>
+
+        <div class="streak-recover-card">
+          <div class="side" style="text-align:center;">
+            <div style="font-size:20px;">🔥</div>
+            <div style="font-size:19px; font-weight:800; text-decoration:line-through; color:var(--text3);">2</div>
+          </div>
+          <div style="font-size:16px; color:var(--text3);">➜</div>
+          <div class="side" style="text-align:center;">
+            <div style="font-size:20px;">🔥</div>
+            <div style="font-size:19px; font-weight:800; color:var(--primary-dark);">19</div>
+          </div>
+          <div style="width:1px; height:34px; background:var(--divider);"></div>
+          <div style="font-size:11px; color:var(--text2); line-height:1.6;">磁贴角标、详情页、<br>统计月历已同步</div>
+        </div>
+
+        <div class="sec-title">补签后的记录 · 如实标记</div>
+        <div class="rec-list">
+          <div class="rec-row">
+            <div class="mark-ic" style="background:rgba(59,130,246,.12);">✓</div>
+            <div class="tx">
+              <div class="d1">8月13日（周四）<span class="retro-tag" style="display:none;">补</span></div>
+              <div class="d2">07:15 打卡</div>
+            </div>
+          </div>
+          <div class="rec-row" style="border:1px solid rgba(59,130,246,.3); border-radius:12px; margin:6px 8px; background:rgba(59,130,246,.04);">
+            <div class="mark-ic" style="background:rgba(59,130,246,.16);">✓</div>
+            <div class="tx">
+              <div class="d1">8月12日（周三）<span class="retro-tag">补</span></div>
+              <div class="d2">8月14日 09:20 补签</div>
+            </div>
+          </div>
+          <div class="rec-row">
+            <div class="mark-ic" style="background:rgba(59,130,246,.12);">✓</div>
+            <div class="tx">
+              <div class="d1">8月11日（周二）</div>
+              <div class="d2">22:41 打卡</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="quota-line" style="margin-top:16px;">
+          <span>本月免费补签</span>
+          <span class="pills"><span class="qp"></span><span class="qp used"></span><span class="qp used"></span></span>
+          <span>已用 2 / 3 · 下月 1 日重置</span>
+        </div>
+      </div>
+      <div class="toast show">✅ 已补签 8月12日 · 连续恢复至 19 天</div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="tag"><span class="n">⑥</span>补签成功 · 数据诚实</div>
+    <div class="desc">补签记录带「<b>补</b>」标记并写明补签时间，与实时打卡区分——统计不打折，但 🔥 认回来。额度变化即时可见。</div>
+  </div>
+</div>
+
+<!-- ================ 规则 & 实现说明 ================ -->
+<div class="rules">
+  <div class="rule-card">
+    <h4><span class="em">📐</span>产品规则</h4>
+    <table class="rule-table">
+      <tr><th style="width:88px;">项目</th><th>规则</th></tr>
+      <tr><td><b>Plus 用户</b></td><td><span class="hl">无限次补签</span>，无任何提示直接补</td></tr>
+      <tr><td><b>免费用户</b></td><td>每自然月 <span class="hl">3 次</span>（每月 1 日重置），<b>所有习惯共享</b>这 3 次额度；用尽后补签需升级 Plus</td></tr>
+      <tr><td><b>可补范围</b></td><td>仅<b>最近 7 天内的过去日期</b>；今天/未来不可补（今天直接打卡）；坏习惯不适用</td></tr>
+      <tr><td><b>习惯类型</b></td><td>打卡型一键补；计数型补 1 次；数值型补签时输入当日数值</td></tr>
+      <tr><td><b>数据诚实</b></td><td>补签记录带「补」标记＋补签时间，月历、记录列表、统计均如实区分展示；连续天数按现有算法自动恢复</td></tr>
+      <tr><td><b>入口</b></td><td>① 磁贴本周点阵的漏卡日（本周内）② 详情页「找回断签」横幅（7 天内，跨周也能发现）③ 漏卡记录行的「补签」按钮</td></tr>
+    </table>
+    <div class="foot-note">额度设计为「全局共享 3 次」而非「每个习惯 3 次」：补签救的是偶发遗忘，不是批量修补历史；全局口径让 3 次的珍贵程度与 Plus 的「无限」形成清晰对比。</div>
+  </div>
+
+  <div class="rule-card">
+    <h4><span class="em">🛠</span>实现要点（给开发）</h4>
+    <ul>
+      <li><b>纯客户端改动，无需后端发版</b>：习惯数据本就在本地 Core Data，免费额度也本地记账（UserDefaults 存「当月已用次数」，跨月自动重置）。</li>
+      <li>数据层：HabitRecord 新增 <b>isRetroactive</b> 标记字段；新增带日期参数的补签写入方法（现有 createCheckIn 固定写「今天」，不改它，另开入口）。</li>
+      <li>🔥 连续天数<b>零改动</b>：现有算法逐天查记录，补签写入后自动接回，月历/热力图/统计同步生效。</li>
+      <li>付费墙：新增 HoloPlusGateContext 枚举 case，走现成的 <b>requirePlus(context:resume:)</b> 统一入口——购买成功后自动完成被打断的那次补签，全局 fullScreenCover 付费墙复用，只需补文案。</li>
+      <li>付费墙文案（已定稿见屏⑤）：<b>「无限补签 · 断签不心疼」</b>／副文案「本月的 3 次免费补签已用完，升级 Holo Plus，漏打卡的每一天都能找回来」。</li>
+      <li>防误触：确认卡必须二次确认；同一日期重复补签直接幂等返回（已有记录则不写入、不扣额度）。</li>
+    </ul>
+    <div class="foot-note">风控说明：免费额度本地记账意味着改系统时间/重装可绕过——补签属于「自我记录」场景，无对抗价值，不值得为它上服务端校验；Plus 权益校验本身走订阅系统，额度只是免费侧的配额，可接受。</div>
+  </div>
+</div>
+
+<script>
+  // ===== 全局状态 =====
+  var state = { who: 'free', used: 1 };  // 免费已用1次 → 剩2
+  var $ = function(id){ return document.getElementById(id); };
+
+  // 身份切换
+  document.querySelectorAll('#whoSeg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#whoSeg button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      state.who = b.dataset.who;
+      renderQuota();
+    });
+  });
+
+  // 深浅色
+  $('themeBtn').addEventListener('click', function(){
+    document.body.classList.toggle('dark');
+    this.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  });
+
+  function renderQuota(){
+    var q = $('quota2');
+    if (state.who === 'plus') {
+      q.className = 'quota-line plus-tag';
+      q.innerHTML = '<span>⭐️ Holo Plus · 无限补签</span>';
+    } else {
+      var remain = 3 - state.used;
+      var pills = '';
+      for (var i=0;i<3;i++) pills += '<span class="qp'+(i<remain?'':' used')+'"></span>';
+      q.className = 'quota-line';
+      q.innerHTML = '<span>本月免费补签</span><span class="pills">'+pills+'</span><span>'+(remain>0?('剩余 '+remain+' 次'):'已用完')+'</span>';
+    }
+  }
+
+  // ===== 组件模板 =====
+  function confirmTpl(dateStr, dayStr){
+    var quotaHtml = state.who==='plus'
+      ? '<div class="quota-line plus-tag">⭐️ Holo Plus · 无限补签</div>'
+      : (3-state.used>0
+        ? '<div class="quota-line"><span>本月免费补签</span><span class="pills">'+pills()+'</span><span>剩余 '+(3-state.used)+' 次</span></div>'
+        : '');
+    var btnDisabled = '';
+    var mainBtn = '';
+    if (state.who==='plus' || 3-state.used>0){
+      mainBtn = '<button class="btn-main do" style="background:#3B82F6; box-shadow:0 6px 16px rgba(59,130,246,.35);">确认补签</button>';
+    } else {
+      // 次数用尽 → 直接给升级按钮（走全局付费墙）
+      mainBtn = '<button class="btn-main do-upgrade">⭐️ 升级 Holo Plus 解锁无限补签</button>';
+    }
+    return '<h3>补签打卡</h3><div class="sub-title">补上那一天，连续记录自动接回</div>'
+      + '<div class="rc-habit"><div class="icon" style="background:rgba(59,130,246,.12);">📚</div>'
+      + '<div><div class="nm">阅读 30 分钟</div><div class="dt">2026年'+dateStr+' · '+dayStr+' · 2 天前</div></div></div>'
+      + '<div class="rc-effect">'
+      + '<div class="side"><div class="fire">🔥</div><div class="num">2</div><div class="lab">当前连续</div></div><div class="arrow">➜</div>'
+      + '<div class="side"><div class="fire">🔥</div><div class="num after">19</div><div class="lab">补签后</div></div></div>'
+      + quotaHtml + mainBtn
+      + '<button class="btn-ghost cancel">取消</button>'
+      + (quotaHtml && state.who==='free' ? '' : '')
+      + '<div class="rc-note">补签记录会带「补」标记，与当日实时打卡如实区分 · 每月 1 日重置免费次数</div>';
+  }
+  function pills(){
+    var remain = 3-state.used, s='';
+    for (var i=0;i<3;i++) s += '<span class="qp'+(i<remain?'':' used')+'"></span>';
+    return s;
+  }
+  function paywallMiniTpl(){
+    return '<h3>补签次数已用完</h3><div class="sub-title">本月 3 次免费补签已用完 · 升级 Plus 无限补签</div>'
+      + '<div style="text-align:center; margin:18px 0 14px;">'
+      + '<div style="width:64px;height:64px;margin:0 auto 12px;border-radius:20px;background:linear-gradient(135deg,#FDBA74,#F46D38);display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:0 10px 24px rgba(244,109,56,.4);">🩹</div>'
+      + '<div style="font-size:16px;font-weight:800;">无限补签 · 断签不心疼</div></div>'
+      + '<div class="pw-rows" style="margin:0 0 4px;">'
+      + '<div class="pw-row"><span class="chk">✓</span><span class="lab">习惯补签</span><span class="free-v">每月 3 次</span><span class="plus-v">无限次</span></div>'
+      + '<div class="pw-row"><span class="chk">✓</span><span class="lab">连续打卡</span><span class="free-v">断签找不回</span><span class="plus-v">随时找回</span></div>'
+      + '</div>'
+      + '<button class="btn-main upgrade" style="margin-top:10px;">⭐️ 升级 Holo Plus · ¥68/年</button>'
+      + '<button class="btn-ghost cancel">本次先不补了</button>'
+      + '<div class="rc-note">升级后刚才那次补签会自动完成，无需重新操作 · 价格以 App Store 为准</div>';
+  }
+
+  // ===== Sheet 打开/关闭 =====
+  function openSheet(maskId, sheetId, html, host){
+    $(maskId).classList.add('show');
+    var sh = $(sheetId);
+    $(host).innerHTML = html;
+    sh.classList.add('show');
+    bindSheet(maskId, sheetId, host);
+  }
+  function closeSheet(maskId, sheetId){
+    $(maskId).classList.remove('show');
+    $(sheetId).classList.remove('show');
+  }
+  function bindSheet(maskId, sheetId, host){
+    $(host).querySelectorAll('.cancel').forEach(function(b){
+      b.onclick = function(){ closeSheet(maskId, sheetId); };
+    });
+    var doBtn = $(host).querySelector('.do');
+    if (doBtn) doBtn.onclick = function(){
+      // 免费用尽时不会出现 .do（被升级按钮替代）
+      closeSheet(maskId, sheetId);
+      applySuccess();
+    };
+    var upBtn = $(host).querySelector('.do-upgrade, .upgrade');
+    if (upBtn) upBtn.onclick = function(){
+      // 模拟购买成功 → 直接完成补签
+      closeSheet(maskId, sheetId);
+      applySuccess();
+    };
+    $(maskId).onclick = function(){ closeSheet(maskId, sheetId); };
+  }
+
+  // ===== 成功反馈 =====
+  function applySuccess(){
+    // 点亮周三 + 磁贴🔥
+    var miss = document.getElementById('missWed');
+    if (miss){
+      miss.classList.remove('miss');
+      miss.innerHTML = '<span class="d">三</span><span class="dot on"></span>';
+    }
+    var st = document.getElementById('tileStreak');
+    if (st) st.textContent = '19';
+    var hint = miss && miss.parentElement.parentElement.querySelector('.retro-hint');
+    if (hint) hint.remove();
+    ['t1','t3'].forEach(function(id){
+      var t = document.getElementById(id);
+      if (!t) return;
+      t.classList.add('show');
+      setTimeout(function(){ t.classList.remove('show'); }, 2600);
+    });
+    // 免费用户消耗一次额度
+    if (state.who==='free' && state.used<3) state.used++;
+    renderQuota();
+  }
+
+  // ===== 屏1：点磁贴漏卡点 =====
+  $('missWed').addEventListener('click', function(e){
+    e.stopPropagation();
+    if (state.who==='free' && 3-state.used<=0){
+      openSheet('m1','s1', paywallMiniTpl(), 's1-body');
+    } else {
+      openSheet('m1','s1', confirmTpl('8月12日','周三'), 's1-body');
+    }
+  });
+
+  // ===== 屏3：详情页横幅 → 日期选择 → 确认 =====
+  $('btnRecover').addEventListener('click', function(){
+    openSheet('m3','s3', daysTpl(), 's3-body');
+  });
+  function daysTpl(){
+    var days = [
+      {w:'五',n:'7',s:'done'},{w:'六',n:'8',s:'done'},{w:'日',n:'9',s:'done'},
+      {w:'一',n:'10',s:'done'},{w:'二',n:'11',s:'done'},{w:'三',n:'12',s:'miss'},
+      {w:'四',n:'13',s:'done'}
+    ];
+    var cells = days.map(function(d,i){
+      if (d.s==='done') return '<div class="day-cell dis"><div class="w">'+d.w+'</div><div class="n">'+d.n+'</div><div class="mark">✓ 已打卡</div></div>';
+      return '<div class="day-cell ok sel" data-i="'+i+'"><div class="w">'+d.w+'</div><div class="n">'+d.n+'</div><div class="mark">漏卡</div></div>';
+    }).join('');
+    return '<h3>选择补签日期</h3><div class="sub-title">阅读 30 分钟 · 可补最近 7 天</div>'
+      + '<div class="day-strip">'+cells+'</div>'
+      + '<div class="range-note">仅支持补最近 7 天内的过去日期 · 今天请直接打卡</div>'
+      + '<div class="rc-effect">'
+      + '<div class="side"><div class="fire">🔥</div><div class="num">2</div><div class="lab">当前连续</div></div><div class="arrow">➜</div>'
+      + '<div class="side"><div class="fire">🔥</div><div class="num after">19</div><div class="lab">补签后</div></div></div>'
+      + (state.who==='plus'
+          ? '<div class="quota-line plus-tag">⭐️ Holo Plus · 无限补签</div>'
+          : '<div class="quota-line"><span>本月免费补签</span><span class="pills">'+pills()+'</span><span>'+(3-state.used>0?('剩余 '+(3-state.used)+' 次'):'已用完')+'</span></div>')
+      + '<button class="btn-main do" style="background:#3B82F6; box-shadow:0 6px 16px rgba(59,130,246,.35);">补签 8月12日</button>'
+      + '<button class="btn-ghost cancel">取消</button>';
+  }
+
+  renderQuota();
+</script>
+</body>
+</html>
