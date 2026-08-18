@@ -464,7 +464,9 @@ struct MemoryInsightContextBuilder {
                 totalSpent: budget.totalSpentAmount,
                 progressPercent: budget.progress,
                 isOnTrack: !budget.isOverBudget && !budget.isWarning,
-                warningCategories: warnings
+                warningCategories: warnings,
+                originalBudget: budget.totalOriginalAmount,
+                carryoverDeduction: budget.totalCarryoverDeduction
             )
         }()
 
@@ -505,13 +507,17 @@ struct MemoryInsightContextBuilder {
             // 总预算超支
             if budget.progressPercent >= 1.0 {
                 let progressPercent = Int(budget.progressPercent * 100)
+                // 严格预算模式：说明有效额度里含上期超支结转，AI 才能解释「额度为何变紧」
+                let carryoverEvidence: [String] = budget.carryoverDeduction > 0
+                    ? ["严格模式：有效额度已含上月超支结转 −¥\(budget.carryoverDeduction)", "原始预算 ¥\(budget.originalBudget)"]
+                    : []
                 structuredAnomalies.append(AnomalyObservation(
                     type: .budgetOverrun,
                     severity: .critical,
                     scopeKey: "budget:global",
                     title: "总预算已超支",
                     summary: "总预算使用率 \(progressPercent)%",
-                    evidence: ["总预算 ¥\(budget.totalBudget)", "已支出 ¥\(budget.totalSpent)"],
+                    evidence: ["总预算 ¥\(budget.totalBudget)", "已支出 ¥\(budget.totalSpent)"] + carryoverEvidence,
                     metricValue: budget.progressPercent * 100,
                     baselineValue: 100.0,
                     ratio: nil

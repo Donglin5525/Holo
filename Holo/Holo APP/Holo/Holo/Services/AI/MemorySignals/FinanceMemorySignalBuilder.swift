@@ -22,8 +22,11 @@ nonisolated struct FinanceMemoryBudgetInput: Equatable, Sendable {
     var id: String
     var categoryID: String?
     var categoryName: String
+    /// 有效额度（严格预算模式 = 原始额度 − 上期超支结转），作为偏离判定基准
     var budgetAmount: Double
     var spentAmount: Double
+    /// 严格预算模式：上期超支结转扣减额（0 = 未开启或无结转）
+    var carryoverDeduction: Double
     var revisionDigest: String
 }
 
@@ -118,7 +121,8 @@ nonisolated enum FinanceMemorySignalBuilder {
                 numericFacts: [
                     "budgetAmount": budget.budgetAmount,
                     "spentAmount": budget.spentAmount,
-                    "deviationRatio": budget.spentAmount / budget.budgetAmount
+                    "deviationRatio": budget.spentAmount / budget.budgetAmount,
+                    "carryoverDeduction": budget.carryoverDeduction
                 ],
                 prohibitedInferences: boundaries
             )

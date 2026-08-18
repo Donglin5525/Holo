@@ -43,11 +43,16 @@ nonisolated struct FinanceMonthlyItem: Codable, Equatable, Sendable {
 }
 
 nonisolated struct FinanceBudgetItem: Codable, Equatable, Sendable {
+    /// 有效额度（严格预算模式 = 原始额度 − 上期超支结转）
     let budgetAmount: Decimal
     let spentAmount: Decimal
     let remainingAmount: Decimal
     let utilizationRate: Double
     let periodType: String
+    /// 原始预算额度（与 budgetAmount 相等 = 未开启严格模式或无结转）
+    let originalAmount: Decimal
+    /// 严格预算模式：上期超支结转扣减额（0 = 未开启或无结转）
+    let carryoverDeduction: Decimal
 }
 
 nonisolated struct SubCategoryDetail: Codable, Equatable, Sendable {

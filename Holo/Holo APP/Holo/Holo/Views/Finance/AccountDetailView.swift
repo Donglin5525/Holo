@@ -357,9 +357,9 @@ struct AccountDetailView: View {
             }
             .frame(height: 12)
 
-            // 金额和进度百分比
+            // 金额和进度百分比（分母为严格模式有效额度）
             HStack {
-                Text("\(formatAmount(status.spentAmount)) / \(formatAmount(status.budgetAmount))")
+                Text("\(formatAmount(status.spentAmount)) / \(formatAmount(status.effectiveAmount))")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundColor(.holoTextPrimary)
 
@@ -368,6 +368,16 @@ struct AccountDetailView: View {
                 Text("\(Int(status.progress * 100))%")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(budgetProgressColor(status.progress))
+            }
+
+            // 严格预算模式：让用户看懂「设了 10000 为什么显示 7000」
+            if status.carryoverDeduction > 0 {
+                HStack {
+                    Text("上月超支结转 −\(formatAmount(status.carryoverDeduction)) · 原额度 \(formatAmount(status.budgetAmount))")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextPlaceholder)
+                    Spacer()
+                }
             }
 
             // 剩余信息

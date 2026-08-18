@@ -80,8 +80,9 @@ enum MemorySignalDataAdapter {
                 id: budget.id.uuidString,
                 categoryID: budget.categoryId?.uuidString,
                 categoryName: categoryName,
-                budgetAmount: NSDecimalNumber(decimal: status.budgetAmount).doubleValue,
+                budgetAmount: NSDecimalNumber(decimal: status.effectiveAmount).doubleValue,
                 spentAmount: NSDecimalNumber(decimal: status.spentAmount).doubleValue,
+                carryoverDeduction: NSDecimalNumber(decimal: status.carryoverDeduction).doubleValue,
                 revisionDigest: "\(budget.updatedAt.timeIntervalSince1970)-\(budget.amount.stringValue)-\(status.spentAmount)"
             )
         }

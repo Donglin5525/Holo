@@ -117,6 +117,12 @@ struct KanbanBudgetSection: View {
                         .font(.holoLabel)
                         .foregroundColor(.holoTextSecondary)
                 }
+
+                if let note = data.carryoverNote {
+                    Text(note)
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoTextPlaceholder)
+                }
             }
             Spacer()
         }
@@ -247,7 +253,10 @@ struct KanbanBudgetSection: View {
 
 /// 预算卡片视图数据（统一"全部账户汇总"与"单账户"两种来源）
 private struct BudgetCardData {
+    /// 有效额度（严格模式 = 原始额度 − 上期超支结转），作为展示与超支判定的分母
     let budgetAmount: Decimal
+    let originalAmount: Decimal
+    let carryoverDeduction: Decimal
     let spentAmount: Decimal
     let remainingAmount: Decimal
     let progress: Double
@@ -255,6 +264,8 @@ private struct BudgetCardData {
 
     init(summary: GlobalBudgetSummary) {
         budgetAmount = summary.totalBudgetAmount
+        originalAmount = summary.totalOriginalAmount
+        carryoverDeduction = summary.totalCarryoverDeduction
         spentAmount = summary.totalSpentAmount
         remainingAmount = summary.totalRemainingAmount
         progress = summary.progress
@@ -262,7 +273,9 @@ private struct BudgetCardData {
     }
 
     init(status: BudgetStatus) {
-        budgetAmount = status.budgetAmount
+        budgetAmount = status.effectiveAmount
+        originalAmount = status.budgetAmount
+        carryoverDeduction = status.carryoverDeduction
         spentAmount = status.spentAmount
         remainingAmount = status.remainingAmount
         progress = status.progress
@@ -272,6 +285,14 @@ private struct BudgetCardData {
     var isOverBudget: Bool { progress >= 1.0 }
 
     var overAmount: Decimal { max(0, spentAmount - budgetAmount) }
+
+    /// 严格预算模式：结转扣减说明（nil = 无结转）
+    var carryoverNote: String? {
+        guard carryoverDeduction > 0 else { return nil }
+        let deduction = Self.currencyFormatter.string(from: NSDecimalNumber(decimal: carryoverDeduction)) ?? "¥0"
+        let original = Self.currencyFormatter.string(from: NSDecimalNumber(decimal: originalAmount)) ?? "¥0"
+        return "上月超支结转 −\(deduction) · 原额度 \(original)"
+    }
 
     /// 超支百分比（向上取整，保证只要超支就至少显示 1%），如 progress = 1.12 时为 12
     var overPercent: Int {

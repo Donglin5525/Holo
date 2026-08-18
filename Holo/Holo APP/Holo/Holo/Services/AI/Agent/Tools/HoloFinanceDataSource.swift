@@ -130,6 +130,8 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                     remainingAmount: Self.double($0.totalRemainingAmount),
                     progress: $0.progress,
                     remainingDays: $0.remainingDays,
+                    originalAmount: Self.double($0.totalOriginalAmount),
+                    carryoverDeduction: Self.double($0.totalCarryoverDeduction),
                     warningCategoryNames: warningCategories,
                     categoryBudgets: categoryBudgets
                 )

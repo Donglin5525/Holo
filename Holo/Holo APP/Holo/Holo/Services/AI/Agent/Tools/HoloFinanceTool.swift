@@ -21,11 +21,16 @@ struct HoloFinanceCategoryBudget: Codable, Equatable, Sendable {
 }
 
 struct HoloFinanceBudgetSnapshot: Codable, Equatable, Sendable {
+    /// 有效额度（严格预算模式 = 原始额度 − 上期超支结转）
     var totalAmount: Double
     var spentAmount: Double
     var remainingAmount: Double
     var progress: Double
     var remainingDays: Int
+    /// 原始预算额度（与 totalAmount 相等 = 未开启严格模式或无结转）
+    var originalAmount: Double = 0
+    /// 严格预算模式：上期超支结转扣减额（0 = 未开启或无结转）
+    var carryoverDeduction: Double = 0
     var warningCategoryNames: [String]
     /// 全量分类预算对比明细（不限于 progress >= 0.8 的预警分类）。
     /// 空表示用户未设置任何分类预算。
@@ -530,18 +535,24 @@ struct HoloFinanceTool: HoloDataTool {
         let warningText = budget.warningCategoryNames.isEmpty
             ? ""
             : "；接近或超过预算：\(budget.warningCategoryNames.joined(separator: "、"))"
+        let carryoverText = budget.carryoverDeduction > 0
+            ? "，含上月超支结转扣减 \(Self.moneyText(budget.carryoverDeduction)) 元（原额度 \(Self.moneyText(budget.originalAmount)) 元）"
+            : ""
         var metrics = [
             HoloMetric(metricKey: "finance.budget.total", value: budget.totalAmount, unit: "元", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.budget.spent", value: budget.spentAmount, unit: "元", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.budget.remaining", value: budget.remainingAmount, unit: "元", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.budget.progress", value: budget.progress, unit: "比例", baselineValue: nil, comparison: nil)
         ]
+        if budget.carryoverDeduction > 0 {
+            metrics.append(HoloMetric(metricKey: "finance.budget.carryover", value: budget.carryoverDeduction, unit: "元", baselineValue: budget.originalAmount, comparison: nil))
+        }
         var events = [HoloEvidenceEvent(
             id: "\(request.id)-budget",
             occurredAt: nil,
             metricKey: "finance.budget.remaining",
             metricValue: budget.remainingAmount,
-            excerpt: "本月预算 \(Self.moneyText(budget.totalAmount)) 元，已用 \(Self.moneyText(budget.spentAmount)) 元，剩余 \(Self.moneyText(budget.remainingAmount)) 元，周期剩余 \(budget.remainingDays) 天\(warningText)"
+            excerpt: "本月预算 \(Self.moneyText(budget.totalAmount)) 元（有效额度）\(carryoverText)，已用 \(Self.moneyText(budget.spentAmount)) 元，剩余 \(Self.moneyText(budget.remainingAmount)) 元，周期剩余 \(budget.remainingDays) 天\(warningText)"
         )]
 
         // 分类预算对比：为每个分类产出 budget/spent/remaining/progress 四项指标。

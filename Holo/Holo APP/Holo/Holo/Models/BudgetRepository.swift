@@ -169,42 +169,25 @@ class BudgetRepository {
 
     // MARK: - Budget Status Computation
 
-    /// 计算指定预算的当前状态
+    /// 计算指定预算的当前状态（严格预算模式开启时，progress/remaining 基于「原始额度 − 上一期超支结转」的有效额度）
     func computeBudgetStatus(budget: Budget) -> BudgetStatus? {
         let range = currentPeriodRange(for: budget)
-        let budgetAmount = budget.amount.decimalValue
+        let originalAmount = budget.amount.decimalValue
+        let deduction = carryoverDeduction(for: budget)
+        let effectiveAmount = max(0, originalAmount - deduction)
 
-        // 查询该账户在周期内的支出交易
-        let request = Transaction.fetchRequest()
-
-        if let categoryId = budget.categoryId {
-            // 分类预算：匹配该分类及其子分类的交易
-            request.predicate = NSPredicate(
-                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND (category.id == %@ OR category.parentId == %@)",
-                budget.accountId as CVarArg,
-                range.start as NSDate,
-                range.end as NSDate,
-                TransactionType.expense.rawValue,
-                categoryId as CVarArg,
-                categoryId as CVarArg
-            )
+        let spentAmount = fetchSpentAmount(
+            range: range,
+            accountId: budget.accountId,
+            categoryId: budget.categoryId
+        )
+        let remainingAmount = effectiveAmount - spentAmount
+        let progress: Double
+        if effectiveAmount > 0 {
+            progress = Double(truncating: NSDecimalNumber(decimal: spentAmount / effectiveAmount))
         } else {
-            // 总预算：该账户所有支出交易
-            request.predicate = NSPredicate(
-                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
-                budget.accountId as CVarArg,
-                range.start as NSDate,
-                range.end as NSDate,
-                TransactionType.expense.rawValue
-            )
+            progress = spentAmount > 0 ? 1.0 : 0.0
         }
-
-        let transactions = (try? context.fetch(request)) ?? []
-        let spentAmount = transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-        let remainingAmount = budgetAmount - spentAmount
-        let progress = budgetAmount > 0
-            ? Double(truncating: NSDecimalNumber(decimal: spentAmount / budgetAmount))
-            : 0.0
 
         let cal = Calendar.current
         let remainingDays = max(0, cal.dateComponents([.day], from: Date(), to: range.end).day ?? 0)
@@ -212,7 +195,9 @@ class BudgetRepository {
         return BudgetStatus(
             id: budget.id,
             budget: budget,
-            budgetAmount: budgetAmount,
+            budgetAmount: originalAmount,
+            carryoverDeduction: deduction,
+            effectiveAmount: effectiveAmount,
             spentAmount: spentAmount,
             remainingAmount: remainingAmount,
             progress: progress,
@@ -222,6 +207,38 @@ class BudgetRepository {
             isWarning: progress >= 0.8 && progress < 1.0,
             remainingDays: remainingDays
         )
+    }
+
+    /// 按预算口径统计指定周期内的支出（总预算 = 账户全部支出；分类预算 = 含子分类）
+    private func fetchSpentAmount(
+        range: (start: Date, end: Date),
+        accountId: UUID,
+        categoryId: UUID?
+    ) -> Decimal {
+        let request = Transaction.fetchRequest()
+
+        if let categoryId {
+            request.predicate = NSPredicate(
+                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND (category.id == %@ OR category.parentId == %@)",
+                accountId as CVarArg,
+                range.start as NSDate,
+                range.end as NSDate,
+                TransactionType.expense.rawValue,
+                categoryId as CVarArg,
+                categoryId as CVarArg
+            )
+        } else {
+            request.predicate = NSPredicate(
+                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
+                accountId as CVarArg,
+                range.start as NSDate,
+                range.end as NSDate,
+                TransactionType.expense.rawValue
+            )
+        }
+
+        let transactions = (try? context.fetch(request)) ?? []
+        return transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
     }
 
     /// 计算指定账户的当前总预算状态（便捷方法）
@@ -237,29 +254,28 @@ class BudgetRepository {
 
     // MARK: - Period Range Calculation
 
-    /// 计算预算的当前周期日期范围
+    /// 计算包含 reference 的预算周期日期范围
     /// 使用循环方式避免月末溢出 Bug
-    func currentPeriodRange(for budget: Budget) -> (start: Date, end: Date) {
+    func periodRange(containing reference: Date, for budget: Budget) -> (start: Date, end: Date) {
         let cal = Calendar.current
-        let now = Date()
         var periodStart = cal.startOfDay(for: budget.startDate)
         let component = budget.budgetPeriod.calendarComponent
 
-        // 安全阀：如果 startDate 在未来，直接返回当前周期
-        if periodStart > now {
-            return (periodStart, cal.date(byAdding: component, value: 1, to: periodStart) ?? now)
+        // 安全阀：如果 startDate 在未来，直接返回首个周期
+        if periodStart > reference {
+            return (periodStart, cal.date(byAdding: component, value: 1, to: periodStart) ?? reference)
         }
 
-        // 从 startDate 开始，每次加一个周期长度，找到包含 now 的区间
+        // 从 startDate 开始，每次加一个周期长度，找到包含 reference 的区间
         var iterations = 0
         let maxIterations = 1200 // 约 100 年（月度）
 
         while iterations < maxIterations {
             guard let periodEnd = cal.date(byAdding: component, value: 1, to: periodStart) else {
-                return (periodStart, now)
+                return (periodStart, reference)
             }
 
-            if now < periodEnd {
+            if reference < periodEnd {
                 return (periodStart, periodEnd)
             }
 
@@ -267,15 +283,74 @@ class BudgetRepository {
             iterations += 1
         }
 
-        return (periodStart, now)
+        return (periodStart, reference)
+    }
+
+    /// 计算预算的当前周期日期范围
+    func currentPeriodRange(for budget: Budget) -> (start: Date, end: Date) {
+        periodRange(containing: Date(), for: budget)
+    }
+
+    /// 计算当前周期的上一期范围（严格预算模式结转用）
+    /// 与周期推进同源、逐期记录前一步，避免从当前起点按 -1 回退时月末 clamp 漂移
+    /// 返回 nil 表示预算起始周期即当前周期（无上一期）
+    func previousPeriodRange(for budget: Budget) -> (start: Date, end: Date)? {
+        let cal = Calendar.current
+        let now = Date()
+        var periodStart = cal.startOfDay(for: budget.startDate)
+        guard periodStart <= now else { return nil }
+
+        let component = budget.budgetPeriod.calendarComponent
+        var previousStart: Date?
+        var iterations = 0
+        let maxIterations = 1200
+
+        while iterations < maxIterations {
+            guard let periodEnd = cal.date(byAdding: component, value: 1, to: periodStart) else {
+                return nil
+            }
+
+            if now < periodEnd {
+                return previousStart.map { ($0, periodStart) }
+            }
+
+            previousStart = periodStart
+            periodStart = periodEnd
+            iterations += 1
+        }
+
+        return nil
+    }
+
+    // MARK: - Strict Budget Carryover
+
+    /// 严格预算模式：上一期超支结转额
+    /// 只作用于总预算（分类预算不结转）；超支按上一期原始预算判定（不按有效额度），债务只传导一期；
+    /// 开关按账户粒度；历史不追溯：上一期起点早于该账户开启时间所在周期时不结转
+    func carryoverDeduction(for budget: Budget) -> Decimal {
+        guard budget.categoryId == nil,
+              let enabledAt = FinanceBudgetSettings.shared.enabledAt(for: budget.accountId),
+              let previous = previousPeriodRange(for: budget) else { return 0 }
+
+        let enabledPeriodStart = periodRange(containing: enabledAt, for: budget).start
+        guard previous.start >= enabledPeriodStart else { return 0 }
+
+        let previousSpent = fetchSpentAmount(
+            range: previous,
+            accountId: budget.accountId,
+            categoryId: budget.categoryId
+        )
+        return max(0, previousSpent - budget.amount.decimalValue)
     }
 
     // MARK: - Global Aggregation（首页卡片）
 
-    /// 计算全局总预算状态（跨所有活跃账户聚合）
+    /// 计算全局总预算状态（跨所有活跃账户聚合，各账户有效额度各自结转后求和）
     func computeGlobalTotalBudgetStatus(period: BudgetPeriod) -> GlobalBudgetSummary? {
         let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
-        var totalBudgetAmount: Decimal = 0
+        var totalOriginalAmount: Decimal = 0
+        var totalEffectiveAmount: Decimal = 0
+        var totalCarryoverDeduction: Decimal = 0
         var totalSpentAmount: Decimal = 0
         var minRemainingDays = Int.max
         var hasAnyBudget = false
@@ -286,21 +361,28 @@ class BudgetRepository {
                 continue
             }
             hasAnyBudget = true
-            totalBudgetAmount += status.budgetAmount
+            totalOriginalAmount += status.budgetAmount
+            totalEffectiveAmount += status.effectiveAmount
+            totalCarryoverDeduction += status.carryoverDeduction
             totalSpentAmount += status.spentAmount
             minRemainingDays = min(minRemainingDays, status.remainingDays)
         }
 
         guard hasAnyBudget else { return nil }
 
-        let progress = totalBudgetAmount > 0
-            ? Double(truncating: NSDecimalNumber(decimal: totalSpentAmount / totalBudgetAmount))
-            : 0.0
+        let progress: Double
+        if totalEffectiveAmount > 0 {
+            progress = Double(truncating: NSDecimalNumber(decimal: totalSpentAmount / totalEffectiveAmount))
+        } else {
+            progress = totalSpentAmount > 0 ? 1.0 : 0.0
+        }
 
         return GlobalBudgetSummary(
-            totalBudgetAmount: totalBudgetAmount,
+            totalBudgetAmount: totalEffectiveAmount,
+            totalOriginalAmount: totalOriginalAmount,
+            totalCarryoverDeduction: totalCarryoverDeduction,
             totalSpentAmount: totalSpentAmount,
-            totalRemainingAmount: totalBudgetAmount - totalSpentAmount,
+            totalRemainingAmount: totalEffectiveAmount - totalSpentAmount,
             progress: progress,
             isOverBudget: progress >= 1.0,
             isWarning: progress >= 0.8 && progress < 1.0,

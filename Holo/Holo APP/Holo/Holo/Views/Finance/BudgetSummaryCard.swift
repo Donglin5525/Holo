@@ -22,55 +22,67 @@ struct BudgetSummaryCard: View {
     let warnings: [CategoryBudgetWarning]
 
     var body: some View {
-        HStack(spacing: HoloSpacing.md) {
-            Text("月度预算")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-                .layoutPriority(1)
+        VStack(spacing: 3) {
+            HStack(spacing: HoloSpacing.md) {
+                Text("月度预算")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .layoutPriority(1)
 
-            if summary.isOverBudget {
-                Text("已超支")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.holoError)
-                    .clipShape(Capsule())
+                if summary.isOverBudget {
+                    Text("已超支")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.holoError)
+                        .clipShape(Capsule())
+                        .layoutPriority(1)
+                }
+
+                // 进度条
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.holoBorder.opacity(0.3))
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(
+                                LinearGradient(
+                                    colors: gradientColors(for: summary.progress),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: geo.size.width * min(CGFloat(summary.progress), 1.0))
+                            .overlay {
+                                if summary.isOverBudget {
+                                    OverBudgetStripeOverlay()
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                            }
+                    }
+                }
+                .frame(height: 6)
+
+                Text(summary.isOverBudget
+                     ? "超支 \(NumberFormatter.compactCurrency(summary.totalSpentAmount - summary.totalBudgetAmount))"
+                     : NumberFormatter.compactCurrency(summary.totalBudgetAmount))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(summary.isOverBudget ? .holoError : .holoTextPrimary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
                     .layoutPriority(1)
             }
 
-            // 进度条
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.holoBorder.opacity(0.3))
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(
-                            LinearGradient(
-                                colors: gradientColors(for: summary.progress),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * min(CGFloat(summary.progress), 1.0))
-                        .overlay {
-                            if summary.isOverBudget {
-                                OverBudgetStripeOverlay()
-                                    .clipShape(RoundedRectangle(cornerRadius: 3))
-                            }
-                        }
+            // 严格预算模式：额度被上月超支结转扣减时说明来源
+            if summary.totalCarryoverDeduction > 0 {
+                HStack {
+                    Text("含上月超支结转 −\(NumberFormatter.compactCurrency(summary.totalCarryoverDeduction))")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextPlaceholder)
+                    Spacer()
                 }
             }
-            .frame(height: 6)
-
-            Text(summary.isOverBudget
-                 ? "超支 \(NumberFormatter.compactCurrency(summary.totalSpentAmount - summary.totalBudgetAmount))"
-                 : NumberFormatter.compactCurrency(summary.totalBudgetAmount))
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(summary.isOverBudget ? .holoError : .holoTextPrimary)
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-                .layoutPriority(1)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 10)

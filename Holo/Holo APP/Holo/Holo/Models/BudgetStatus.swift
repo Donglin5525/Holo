@@ -11,10 +11,12 @@ import Foundation
 struct BudgetStatus: Identifiable {
     let id: UUID              // budget.id
     let budget: Budget
-    let budgetAmount: Decimal
+    let budgetAmount: Decimal           // 原始预算额度
+    let carryoverDeduction: Decimal     // 严格预算模式：上一期超支结转扣减（0 = 未开启或无结转）
+    let effectiveAmount: Decimal        // 有效额度 = budgetAmount - carryoverDeduction（下限 0）
     let spentAmount: Decimal
-    let remainingAmount: Decimal
-    let progress: Double      // 0.0 - 1.0+
+    let remainingAmount: Decimal        // = effectiveAmount - spentAmount
+    let progress: Double      // spentAmount / effectiveAmount
     let periodStartDate: Date
     let periodEndDate: Date
     let isOverBudget: Bool    // progress >= 1.0
@@ -24,7 +26,9 @@ struct BudgetStatus: Identifiable {
 
 /// 首页预算总览（跨账户聚合）
 struct GlobalBudgetSummary {
-    let totalBudgetAmount: Decimal
+    let totalBudgetAmount: Decimal         // 各账户有效额度之和
+    let totalOriginalAmount: Decimal       // 各账户原始预算之和
+    let totalCarryoverDeduction: Decimal   // 结转扣减合计
     let totalSpentAmount: Decimal
     let totalRemainingAmount: Decimal
     let progress: Double

@@ -394,11 +394,16 @@ struct MemoryInsightFinanceContext: Codable, Equatable {
 }
 
 struct BudgetPerformanceSummary: Codable, Equatable {
+    /// 有效额度（严格预算模式 = 原始额度 − 上期超支结转）
     let totalBudget: Decimal
     let totalSpent: Decimal
     let progressPercent: Double
     let isOnTrack: Bool
     let warningCategories: [String]
+    /// 原始预算额度（与 totalBudget 相等 = 未开启严格模式或无结转）
+    let originalBudget: Decimal
+    /// 严格预算模式：上期超支结转扣减额（0 = 未开启或无结转）
+    let carryoverDeduction: Decimal
 }
 
 struct MemoryInsightHabitContext: Codable, Equatable {

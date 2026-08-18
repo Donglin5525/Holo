@@ -351,19 +351,8 @@ struct FinanceAnalysisContextBuilder {
         if let weekRange = currentWeekRange,
            start == weekRange.start,
            endExclusive == weekRange.end {
-            if let budget = budgetRepo.getTotalBudget(forAccount: UUID(), period: .week) {
-                let spent = totalExpense
-                let remaining = budget.amount.decimalValue - spent
-                let rate = budget.amount.decimalValue > 0
-                    ? Double(truncating: (spent / budget.amount.decimalValue * 100) as NSDecimalNumber)
-                    : 0
-                return FinanceBudgetItem(
-                    budgetAmount: budget.amount.decimalValue,
-                    spentAmount: spent,
-                    remainingAmount: remaining,
-                    utilizationRate: rate,
-                    periodType: "week"
-                )
+            if let item = budgetPerformanceItem(period: .week, spent: totalExpense, repo: budgetRepo) {
+                return item
             }
         }
 
@@ -371,23 +360,35 @@ struct FinanceAnalysisContextBuilder {
         let currentCycleRange = FinancePeriodSettings.shared.currentCycleRange()
         if start == currentCycleRange.start,
            endExclusive == currentCycleRange.end {
-            if let budget = budgetRepo.getTotalBudget(forAccount: UUID(), period: .month) {
-                let spent = totalExpense
-                let remaining = budget.amount.decimalValue - spent
-                let rate = budget.amount.decimalValue > 0
-                    ? Double(truncating: (spent / budget.amount.decimalValue * 100) as NSDecimalNumber)
-                    : 0
-                return FinanceBudgetItem(
-                    budgetAmount: budget.amount.decimalValue,
-                    spentAmount: spent,
-                    remainingAmount: remaining,
-                    utilizationRate: rate,
-                    periodType: "month"
-                )
+            if let item = budgetPerformanceItem(period: .month, spent: totalExpense, repo: budgetRepo) {
+                return item
             }
         }
 
         return nil
+    }
+
+    /// 跨账户聚合总预算 → 预算表现项（旧实现按随机 UUID 查单账户预算，恒查空）
+    @MainActor
+    private func budgetPerformanceItem(
+        period: BudgetPeriod,
+        spent: Decimal,
+        repo: BudgetRepository
+    ) -> FinanceBudgetItem? {
+        guard let summary = repo.computeGlobalTotalBudgetStatus(period: period) else { return nil }
+        let remaining = summary.totalBudgetAmount - spent
+        let rate = summary.totalBudgetAmount > 0
+            ? Double(truncating: (spent / summary.totalBudgetAmount * 100) as NSDecimalNumber)
+            : 0
+        return FinanceBudgetItem(
+            budgetAmount: summary.totalBudgetAmount,
+            spentAmount: spent,
+            remainingAmount: remaining,
+            utilizationRate: rate,
+            periodType: period.rawValue,
+            originalAmount: summary.totalOriginalAmount,
+            carryoverDeduction: summary.totalCarryoverDeduction
+        )
     }
 
     // MARK: - Sub Category Details

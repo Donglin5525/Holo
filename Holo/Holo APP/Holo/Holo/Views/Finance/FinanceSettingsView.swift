@@ -11,6 +11,7 @@ struct FinanceSettingsView: View {
     let onBack: () -> Void
     @ObservedObject private var displaySettings = FinanceDisplaySettings.shared
     @ObservedObject private var periodSettings = FinancePeriodSettings.shared
+    @ObservedObject private var budgetSettings = FinanceBudgetSettings.shared
 
     var body: some View {
         NavigationStack {
@@ -47,6 +48,9 @@ struct FinanceSettingsView: View {
                 VStack(spacing: HoloSpacing.xl) {
                     // 记账周期模块
                     billingCycleSection
+
+                    // 预算模块
+                    strictBudgetSection
 
                     // 显示设置模块
                     VStack(spacing: 0) {
@@ -254,5 +258,80 @@ private extension FinanceSettingsView {
         }
         let day = periodSettings.billingCycleStartDay
         return "统计按 \(day) 号 → 次月 \(day - 1) 号计算，与信用卡账单对齐"
+    }
+}
+
+// MARK: - 严格预算模式设置（账户粒度）
+
+private extension FinanceSettingsView {
+
+    var strictBudgetSection: some View {
+        let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+        guard !accounts.isEmpty else { return AnyView(EmptyView()) }
+
+        return AnyView(VStack(spacing: 0) {
+            HStack {
+                Text("严格预算模式")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, HoloSpacing.sm)
+
+            VStack(spacing: 0) {
+                ForEach(accounts, id: \.id) { account in
+                    strictModeToggleRow(account)
+                    if account.id != accounts.last?.id {
+                        Divider().padding(.leading, 60)
+                    }
+                }
+
+                Text("超支多少，下个月的预算额度就扣多少（最低扣到 0）；省下的钱不累积，下月不超支就自动恢复原额度。")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextPlaceholder)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.xs)
+                    .padding(.bottom, HoloSpacing.xs)
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+            .padding(.horizontal, HoloSpacing.lg)
+        })
+    }
+
+    private func strictModeToggleRow(_ account: Account) -> some View {
+        HStack {
+            ZStack {
+                Circle()
+                    .fill(account.swiftUIColor.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                Image(systemName: account.icon)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(account.swiftUIColor)
+            }
+
+            Text(account.name)
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+
+            Toggle("", isOn: strictModeBinding(for: account))
+                .labelsHidden()
+                .tint(.holoPrimary)
+        }
+        .padding(.vertical, HoloSpacing.sm)
+    }
+
+    private func strictModeBinding(for account: Account) -> Binding<Bool> {
+        Binding(
+            get: { budgetSettings.isEnabled(for: account.id) },
+            set: { $0 ? budgetSettings.enable(for: account.id) : budgetSettings.disable(for: account.id) }
+        )
     }
 }

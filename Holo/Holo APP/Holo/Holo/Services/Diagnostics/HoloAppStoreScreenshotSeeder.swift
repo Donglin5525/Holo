@@ -504,7 +504,9 @@ enum HoloAppStoreScreenshotSeeder {
                 spentAmount: 1_286.60,
                 remainingAmount: 713.40,
                 utilizationRate: 0.6433,
-                periodType: "monthly"
+                periodType: "monthly",
+                originalAmount: 2_000,
+                carryoverDeduction: 0
             ),
             subCategoryDetails: nil,
             categoryTrends: nil,
