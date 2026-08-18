@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updatedAt": "2026-08-15",
+  "updatedAt": "2026-08-18",
   "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。",
   "intents": [
     {
@@ -20,7 +20,7 @@
       "ids": [
         "record_income"
       ],
-      "summary": "记收入。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（YYYY-MM-DD）。",
+      "summary": "记收入。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（格式同支出）。",
       "requiredFields": [
         "amount"
       ],
@@ -84,7 +84,7 @@
       "ids": [
         "update_goal_field"
       ],
-      "summary": "改目标字段（标题/截止日期/说明等）。填 goalTitle、field（title/deadline/summary/desiredOutcome/motivation）、value。",
+      "summary": "改目标字段。填 goalTitle、field（title/deadline/summary/desiredOutcome/motivation）、value。",
       "requiredFields": [
         "goalTitle",
         "field",
@@ -98,7 +98,7 @@
       "ids": [
         "link_task_to_goal"
       ],
-      "summary": "任务关联到目标。填 taskTitle、goalTitle。",
+      "summary": "任务关联目标。填 taskTitle、goalTitle。",
       "requiredFields": [
         "taskTitle",
         "goalTitle"
@@ -107,9 +107,30 @@
     },
     {
       "ids": [
+        "link_habit_to_goal"
+      ],
+      "summary": "习惯关联目标。填 habitName、goalTitle。",
+      "requiredFields": [
+        "habitName",
+        "goalTitle"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "log_metric_value"
+      ],
+      "summary": "记目标或习惯的数值，填 value；提及目标名/习惯名填 targetHint。",
+      "requiredFields": [
+        "value"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
         "toggle_goal_visibility"
       ],
-      "summary": "切换目标AI可见性。填 goalTitle、enable（true/false）。",
+      "summary": "切换目标AI可见性。填 goalTitle、enable。",
       "requiredFields": [
         "goalTitle",
         "enable"
