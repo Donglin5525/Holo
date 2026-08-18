@@ -333,8 +333,11 @@ struct TaskDetailView: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
-        // 拦截系统 Sheet 下滑关闭，统一走 handleBack 的保存/确认分流
+        // 拦截系统 Sheet 下滑关闭，统一走 handleBack 的保存/确认分流；
+        // 下拉被拦的瞬间由 sheetDismissGuard 回调 handleBack，
+        // 三条关闭路径（返回按钮 / 右滑 / 下拉）行为完全一致
         .interactiveDismissDisabled()
+        .sheetDismissGuard { handleBack() }
         .alert("删除任务", isPresented: $showDeleteTaskAlert) {
             Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {

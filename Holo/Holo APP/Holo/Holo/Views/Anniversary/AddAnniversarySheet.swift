@@ -99,8 +99,9 @@ struct AddAnniversarySheet: View {
         } message: {
             Text("这个纪念日可能已生成关联任务，你想如何处理？")
         }
-        // 始终拦截系统 Sheet 下拉关闭手势，统一交给页面内逻辑判断是否需要确认。
-        .interactiveDismissDisabled()
+        // 无改动时保留系统下拉关闭；有改动时拦下并走 requestDismiss 的确认分流
+        .interactiveDismissDisabled(hasUnsavedChanges)
+        .sheetDismissGuard { requestDismiss() }
     }
 
     // MARK: - 块1：名称

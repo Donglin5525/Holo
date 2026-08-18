@@ -132,8 +132,9 @@ struct AddHabitSheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
-        // 始终拦截系统 Sheet 关闭手势，统一交给页面内逻辑判断是否需要确认。
-        .interactiveDismissDisabled()
+        // 无改动时保留系统下拉关闭；有改动时拦下并走「放弃修改？」确认
+        .interactiveDismissDisabled(hasUnsavedChanges)
+        .sheetDismissGuard { showDismissAlert = true }
     }
 
     // MARK: - 未保存修改检测
