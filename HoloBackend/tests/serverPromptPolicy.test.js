@@ -81,6 +81,22 @@ test("thought organization Prompt enforces user topics and structured output", (
   assert.doesNotMatch(result.messages[0].content, /\{\{existingTagExamples\}\}/);
 });
 
+test("thought task extraction Prompt anchors relative dates and declares prefill fields", () => {
+  createApp({ database: createDatabase({ dbPath: ":memory:" }) });
+  const result = injectServerPrompt("thought_task_extraction", [
+    { role: "user", content: JSON.stringify({ thoughtContent: "明天下午3点前交报告，不急的话顺便订水" }) },
+  ]);
+  assert.ok(result.promptVersion >= 2);
+  // {{todayISODate}} 必须已渲染成具体日期，作为相对日期换算基准
+  assert.match(result.messages[0].content, /今天日期：\d{4}-\d{2}-\d{2}/);
+  assert.doesNotMatch(result.messages[0].content, /\{\{todayISODate\}\}/);
+  // v2 输出契约：对象数组，预填字段齐备
+  assert.match(result.messages[0].content, /"tasks": \[\s*\{ "title"/s);
+  assert.match(result.messages[0].content, /"dueDate"/);
+  assert.match(result.messages[0].content, /"dueTime"/);
+  assert.match(result.messages[0].content, /"priority"/);
+});
+
 test("server renders time variables without exposing raw placeholders upstream", () => {
   const rendered = renderPromptVariables(
     "{{todayISODate}}|{{thirtyDaysAgoDate}}|{{currentYear}}|{{currentTime}}",

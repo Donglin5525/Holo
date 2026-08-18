@@ -18,7 +18,7 @@ const PROMPT_VERSIONS = {
   task_action_parser: 1,
   health_insight_generation: 2,
   thought_organization: 5,                  // v5: 加 semanticNeighborTags 可选字段（P2 语义候选召回，向后兼容旧客户端）；v4: 加 recentAITags 字段 + 标签复用软约束升级为硬约束
-  thought_task_extraction: 1,
+  thought_task_extraction: 2,        // v2: 注入今天日期，输出对象数组（title+dueDate/dueTime/priority 预填，向后兼容旧客户端只读 title）
   thought_tag_convergence: 2,
   agent_loop: 20,                  // v20: dataGapHints 遗漏数据提示 + _search 跨字段搜索
   memory_domain_extraction: 2,
