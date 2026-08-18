@@ -422,7 +422,29 @@ export function createApp(overrides = {}) {
           actionId: quotaActionId,
         };
         const reservation = quotaActionLedgerStore.reserve(quotaReservation);
-        if (!reservation.allowed) throw quotaExceededError(reservation);
+        if (!reservation.allowed) {
+          const quotaError = quotaExceededError(reservation);
+          if (captureAiCallLogs) {
+            const quotaLogId = adminLogStore.startAiCall({
+              deviceId,
+              purpose,
+              provider: route.provider,
+              model: route.model,
+              stream: request.stream === true,
+              request: {
+                messageCount: request.messages.length,
+                messageRoles: request.messages.map((message) => message.role),
+                responseFormat: request.response_format ?? null,
+              },
+            });
+            adminLogStore.finishAiCall(quotaLogId, {
+              status: "quota_exceeded",
+              error: serializeError(quotaError),
+              response: quotaError.details,
+            });
+          }
+          throw quotaError;
+        }
         context.header("X-Holo-Quota-Type", quotaType);
       }
 
@@ -1248,6 +1270,7 @@ function quotaExceededError(snapshot) {
     used: snapshot.used,
     remaining: snapshot.remaining,
     resetAt: snapshot.resetAt,
+    period: snapshot.period,
     upgradeAvailable: snapshot.tier !== "plus",
   });
 }
