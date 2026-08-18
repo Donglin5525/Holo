@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务详情 · 「来自想法」卡片位置调整原型</title>
+<style>
+  :root {
+    --holo-primary: #F46D38;
+    --holo-bg: #FDFCF8;
+    --holo-card: #FFFFFF;
+    --holo-nested: #F4F7F9;
+    --text-primary: #333333;
+    --text-secondary: #939393;
+    --text-placeholder: #9CA3AF;
+    --holo-success: #34C77B;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #EDEBE6;
+    color: var(--text-primary);
+    padding: 32px 20px 60px;
+  }
+
+  .page-header { max-width: 900px; margin: 0 auto 28px; }
+  .page-header h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .page-header p { font-size: 14px; color: #666; line-height: 1.7; }
+
+  .stage {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .phone-label { text-align: center; }
+  .phone-label .tag {
+    display: inline-block;
+    font-size: 13px; font-weight: 600;
+    padding: 4px 12px; border-radius: 999px;
+    margin-bottom: 6px;
+  }
+  .tag.now  { background: #E5E5E5; color: #555; }
+  .tag.new  { background: rgba(244,109,56,.14); color: var(--holo-primary); }
+  .phone-label .sub { font-size: 12.5px; color: #777; }
+
+  .phone {
+    width: 390px;
+    height: 780px;
+    background: var(--holo-bg);
+    border-radius: 44px;
+    border: 10px solid #1C1C1E;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 48px rgba(0,0,0,.18);
+    display: flex;
+    flex-direction: column;
+  }
+  .notch {
+    width: 118px; height: 30px;
+    background: #1C1C1E;
+    border-radius: 0 0 18px 18px;
+    margin: 0 auto;
+    flex-shrink: 0;
+    position: relative; z-index: 5;
+  }
+  .nav {
+    height: 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 18px;
+    background: var(--holo-bg);
+    flex-shrink: 0;
+  }
+  .nav .back { font-size: 21px; font-weight: 600; }
+  .nav .more { font-size: 18px; color: var(--text-primary); padding: 0 6px; }
+
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 18px 40px;
+    display: flex; flex-direction: column; gap: 14px;
+    scrollbar-width: none;
+  }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  .card {
+    background: var(--holo-card);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+
+  /* 标题卡 */
+  .title-row { display: flex; align-items: flex-start; gap: 12px; }
+  .circle {
+    width: 24px; height: 24px;
+    border: 1.6px solid var(--text-secondary);
+    border-radius: 50%;
+    margin-top: 2px; flex-shrink: 0;
+  }
+  .task-title { font-size: 20px; font-weight: 700; line-height: 1.35; }
+  .desc-ph {
+    font-size: 15px; color: var(--text-placeholder);
+    margin-top: 10px; line-height: 1.5;
+  }
+  .voice-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .mic {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--holo-primary);
+    color: #fff; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,.12);
+  }
+  .sparkle {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(244,109,56,.12);
+    color: var(--holo-primary); font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* 想法卡 */
+  .thought-card { position: relative; }
+  .thought-link { display: flex; align-items: center; gap: 12px; width: 100%; }
+  .bulb {
+    font-size: 16px; width: 24px; text-align: center;
+    color: var(--holo-primary); flex-shrink: 0;
+  }
+  .thought-link .meta { flex: 1; min-width: 0; }
+  .thought-link .label { font-size: 15px; color: var(--text-secondary); }
+  .thought-link .first-line {
+    font-size: 13px; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .thought-link .chev { font-size: 13px; color: var(--text-secondary); flex-shrink: 0; }
+  .snippet {
+    margin-top: 8px;
+    font-size: 13px; color: var(--text-secondary);
+    line-height: 1.5;
+    background: var(--holo-bg);
+    border-radius: 10px;
+    padding: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .moved-outline {
+    outline: 2.5px dashed var(--holo-primary);
+    outline-offset: 3px;
+  }
+  .moved-badge {
+    position: absolute; top: -12px; left: 12px;
+    background: var(--holo-primary); color: #fff;
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(244,109,56,.4);
+    z-index: 3;
+  }
+  .ghost-badge {
+    position: absolute; top: -12px; right: 12px;
+    background: #B9B9B9; color: #fff;
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    z-index: 3;
+  }
+
+  /* 子任务 */
+  .check-row { display: flex; align-items: center; gap: 10px; padding: 9px 2px; }
+  .check-row .dot {
+    width: 18px; height: 18px; border: 1.5px solid var(--text-secondary);
+    border-radius: 50%; flex-shrink: 0;
+  }
+  .check-row .txt { font-size: 15px; }
+  .check-row .txt.done { color: var(--text-secondary); text-decoration: line-through; }
+  .add-row { color: var(--holo-primary); font-size: 15px; padding: 9px 2px; font-weight: 500; }
+
+  /* 附件 */
+  .attach-grid { display: flex; gap: 10px; }
+  .attach-thumb {
+    width: 72px; height: 72px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .attach-add {
+    width: 72px; height: 72px; border-radius: 12px;
+    border: 1.5px dashed #CFCFCF; color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; background: var(--holo-nested);
+  }
+
+  /* 属性卡 */
+  .prop-card { padding: 0; overflow: hidden; }
+  .prop-row {
+    display: flex; align-items: center; gap: 10px;
+    min-height: 48px; padding: 6px 14px;
+  }
+  .prop-row + .prop-row { border-top: .5px solid #EFEFEF; }
+  .prop-row .ico { font-size: 15px; color: var(--text-secondary); width: 22px; text-align: center; }
+  .prop-row .name { font-size: 15px; }
+  .prop-row .val {
+    margin-left: auto; font-size: 13px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .prop-row .val.strong { color: var(--text-primary); }
+  .prop-row .val.today { color: var(--holo-primary); font-weight: 600; }
+  .pri-pills { margin-left: auto; display: flex; gap: 5px; }
+  .pri-pill {
+    font-size: 11.5px; font-weight: 500;
+    padding: 4px 9px; border-radius: 7px;
+  }
+  .pri-urgent { color: #E5484D; background: rgba(229,72,77,.12); }
+  .pri-high   { color: #F5A623; background: rgba(245,166,35,.12); }
+  .pri-medium.on { color: #fff; background: #2E7CF6; }
+  .pri-medium:not(.on) { color: #2E7CF6; background: rgba(46,124,246,.12); }
+  .pri-low    { color: #8E8E93; background: rgba(142,142,147,.12); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #34C77B; }
+
+  .autosave {
+    font-size: 11px; color: rgba(147,147,147,.85);
+    text-align: center; padding: 2px 0 8px;
+  }
+
+  /* 手机底部提示条 */
+  .phone-tip {
+    position: absolute; left: 14px; right: 14px; bottom: 14px;
+    background: rgba(28,28,30,.82);
+    color: #fff; font-size: 12.5px;
+    border-radius: 12px;
+    padding: 9px 12px;
+    text-align: center;
+    backdrop-filter: blur(6px);
+    z-index: 10;
+    pointer-events: none;
+  }
+  .phone-tip.warn { background: rgba(120,60,20,.88); }
+  .phone-tip.ok   { background: rgba(28,90,50,.88); }
+
+  .footer-note {
+    max-width: 760px; margin: 40px auto 0;
+    background: #fff; border-radius: 16px;
+    padding: 20px 24px;
+    font-size: 13.5px; line-height: 1.9; color: #444;
+  }
+  .footer-note h3 { font-size: 14.5px; margin-bottom: 8px; color: var(--text-primary); }
+  .footer-note ul { padding-left: 18px; }
+  .footer-note li { margin-bottom: 4px; }
+  .k-new { color: var(--holo-primary); font-weight: 600; }
+  .k-old { color: #888; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>任务详情页 ·「来自想法」卡片位置调整</h1>
+  <p>左右两台手机都可以<b>真实上下滑动</b>。示例场景：你在想法里记了一段话，转成了一条任务（标题被提炼改写过）。<br>
+  唯一的变化：<span class="k-new">「来自想法」卡片从页面最底部上移到标题正下方</span>。卡片本身的样子、内容、点击跳转行为完全不变。</p>
+</div>
+
+<div class="stage">
+
+  <!-- ============ 左：现状 ============ -->
+  <div class="phone-col">
+    <div class="phone-label">
+      <span class="tag now">现状 · 想法卡在最底部</span>
+      <div class="sub">打开后需要往下滑约 2 屏才能看到</div>
+    </div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="nav">
+        <span class="back">‹</span>
+        <span class="more">⋯</span>
+      </div>
+      <div class="scroll">
+
+        <!-- 标题卡 -->
+        <div class="card">
+          <div class="title-row">
+            <div class="circle"></div>
+            <div class="task-title">预约日料店包间 · 周末家庭聚餐</div>
+          </div>
+          <div class="desc-ph">添加描述、完成标准或需要注意的点</div>
+          <div class="voice-row">
+            <div class="mic">🎤</div>
+            <div class="sparkle">✨</div>
+          </div>
+        </div>
+
+        <!-- 子任务 -->
+        <div class="card">
+          <div class="check-row"><div class="dot"></div><div class="txt done">大众点评查餐厅电话</div></div>
+          <div class="check-row"><div class="dot"></div><div class="txt">致电预约周六 18:00 包间</div></div>
+          <div class="check-row"><div class="dot"></div><div class="txt">跟餐厅确认包间最低消费</div></div>
+          <div class="check-row"><div class="dot"></div><div class="txt">把时间地点发到家庭群</div></div>
+          <div class="add-row">＋ 添加子任务</div>
+        </div>
+
+        <!-- 附件 -->
+        <div class="card">
+          <div class="attach-grid">
+            <div class="attach-thumb" style="background:#FDEAD9;">🍣</div>
+            <div class="attach-thumb" style="background:#E8F0FB;">📍</div>
+            <div class="attach-add">＋</div>
+          </div>
+        </div>
+
+        <!-- 属性卡 -->
+        <div class="card prop-card">
+          <div class="prop-row">
+            <span class="ico">📅</span><span class="name">时间</span>
+            <span class="val today">8月22日 周六 18:00 ›</span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">📁</span><span class="name">清单</span>
+            <span class="val">生活 ›</span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">🚩</span><span class="name">优先级</span>
+            <span class="pri-pills">
+              <span class="pri-pill pri-urgent">紧急</span>
+              <span class="pri-pill pri-high">高</span>
+              <span class="pri-pill pri-medium on">中</span>
+              <span class="pri-pill pri-low">低</span>
+            </span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">📶</span><span class="name">状态</span>
+            <span class="val strong"><span class="status-dot"></span>进行中 ▾</span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">🎯</span><span class="name">目标</span>
+            <span class="val">无 ›</span>
+          </div>
+        </div>
+
+        <!-- 想法卡（现状位置） -->
+        <div class="card thought-card">
+          <div class="ghost-badge">👀 在这里 · 很深</div>
+          <div class="thought-link">
+            <span class="bulb">💡</span>
+            <div class="meta">
+              <div class="label">来自想法</div>
+              <div class="first-line">朋友圈刷到的那家新开日料店看着不错，包间好像要提前一周订…</div>
+            </div>
+            <span class="chev">›</span>
+          </div>
+          <div class="snippet">原文：包间好像要提前一周订，这周末约爸妈聚一下记得先订包间</div>
+        </div>
+
+        <div class="autosave">返回时自动保存 · 无需点「保存」按钮</div>
+      </div>
+      <div class="phone-tip warn">👇 想看「我当时的原话」？还要再滑 2 屏到底部</div>
+    </div>
+  </div>
+
+  <!-- ============ 右：改后 ============ -->
+  <div class="phone-col">
+    <div class="phone-label">
+      <span class="tag new">改后 · 想法卡在标题正下方</span>
+      <div class="sub">打开第一屏就能看到，不用滑动</div>
+    </div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="nav">
+        <span class="back">‹</span>
+        <span class="more">⋯</span>
+      </div>
+      <div class="scroll">
+
+        <!-- 标题卡 -->
+        <div class="card">
+          <div class="title-row">
+            <div class="circle"></div>
+            <div class="task-title">预约日料店包间 · 周末家庭聚餐</div>
+          </div>
+          <div class="desc-ph">添加描述、完成标准或需要注意的点</div>
+          <div class="voice-row">
+            <div class="mic">🎤</div>
+            <div class="sparkle">✨</div>
+          </div>
+        </div>
+
+        <!-- 想法卡（新位置） -->
+        <div class="card thought-card moved-outline">
+          <div class="moved-badge">⬆ 上移到这里</div>
+          <div class="thought-link">
+            <span class="bulb">💡</span>
+            <div class="meta">
+              <div class="label">来自想法</div>
+              <div class="first-line">朋友圈刷到的那家新开日料店看着不错，包间好像要提前一周订…</div>
+            </div>
+            <span class="chev">›</span>
+          </div>
+          <div class="snippet">原文：包间好像要提前一周订，这周末约爸妈聚一下记得先订包间</div>
+        </div>
+
+        <!-- 子任务 -->
+        <div class="card">
+          <div class="check-row"><div class="dot"></div><div class="txt done">大众点评查餐厅电话</div></div>
+          <div class="check-row"><div class="dot"></div><div class="txt">致电预约周六 18:00 包间</div></div>
+          <div class="check-row"><div class="dot"></div><div class="txt">跟餐厅确认包间最低消费</div></div>
+          <div class="check-row"><div class="dot"></div><div class="txt">把时间地点发到家庭群</div></div>
+          <div class="add-row">＋ 添加子任务</div>
+        </div>
+
+        <!-- 附件 -->
+        <div class="card">
+          <div class="attach-grid">
+            <div class="attach-thumb" style="background:#FDEAD9;">🍣</div>
+            <div class="attach-thumb" style="background:#E8F0FB;">📍</div>
+            <div class="attach-add">＋</div>
+          </div>
+        </div>
+
+        <!-- 属性卡 -->
+        <div class="card prop-card">
+          <div class="prop-row">
+            <span class="ico">📅</span><span class="name">时间</span>
+            <span class="val today">8月22日 周六 18:00 ›</span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">📁</span><span class="name">清单</span>
+            <span class="val">生活 ›</span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">🚩</span><span class="name">优先级</span>
+            <span class="pri-pills">
+              <span class="pri-pill pri-urgent">紧急</span>
+              <span class="pri-pill pri-high">高</span>
+              <span class="pri-pill pri-medium on">中</span>
+              <span class="pri-pill pri-low">低</span>
+            </span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">📶</span><span class="name">状态</span>
+            <span class="val strong"><span class="status-dot"></span>进行中 ▾</span>
+          </div>
+          <div class="prop-row">
+            <span class="ico">🎯</span><span class="name">目标</span>
+            <span class="val">无 ›</span>
+          </div>
+        </div>
+
+        <div class="autosave">返回时自动保存 · 无需点「保存」按钮</div>
+      </div>
+      <div class="phone-tip ok">✅ 想法原文已可见；点击卡片仍跳转到那条想法</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer-note">
+  <h3>这个原型说明了什么</h3>
+  <ul>
+    <li><b>左（现状）</b>：页面顺序是 标题 → 子任务 → 附件 → 属性设置（时间/清单/优先级/状态/目标）→ <span class="k-old">想法卡垫底</span>。想法转来的任务标题通常被改写过，想回忆「我当时的原话」反而要滑到最底部。</li>
+    <li><b>右（改后）</b>：只把想法卡挪到<span class="k-new">标题卡正下方</span>——看完任务名，下一眼就是它的来源。卡片很矮（两三行），不会挤压任何主信息。</li>
+    <li><b>不受影响的部分</b>：普通任务（不是从想法转来的）不显示这张卡，页面完全不变；卡片内容、样式、点击后跳回想法详情的行为都不变。</li>
+    <li><b>改动成本</b>：代码层面就是把一行代码换个位置，无新增逻辑。</li>
+  </ul>
+</div>
+
+</body>
+</html>

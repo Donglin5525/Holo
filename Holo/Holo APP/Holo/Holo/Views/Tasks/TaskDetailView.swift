@@ -206,13 +206,16 @@ struct TaskDetailView: View {
                     ScrollView {
                         VStack(spacing: HoloSpacing.lg) {
                             titleSection
-                            checklistSection
-                            attachmentSection
-                            propertiesSection
 
+                            // 来源想法紧跟标题：想法转来的任务标题常被改写，
+                            // 原话是高频查看项，不能压在属性设置之后
                             if let thought = existingTask?.sourceThought {
                                 sourceThoughtSection(thought)
                             }
+
+                            checklistSection
+                            attachmentSection
+                            propertiesSection
 
                             autosaveHint
                         }
