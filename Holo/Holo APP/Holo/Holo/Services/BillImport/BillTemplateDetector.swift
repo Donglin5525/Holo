@@ -69,7 +69,8 @@ enum BillTemplateDetector {
 
     /// 表头关键词计分：命中两类以上才认定为表头
     private static func headerScore(_ fields: [String]) -> Int {
-        let normalized = fields.map { normalizeName($0) }
+        // 英文导出表头常见首字母大写（Date/Amount），探测规则需与通用字段映射保持大小写不敏感。
+        let normalized = fields.map { normalizeName($0).lowercased() }
         var score = 0
         if normalized.contains(where: { $0.contains("日期") || $0.contains("时间") || $0.contains("date") }) { score += 1 }
         if normalized.contains(where: { $0.contains("金额") || $0.contains("发生额") || $0.contains("amount") }) { score += 1 }

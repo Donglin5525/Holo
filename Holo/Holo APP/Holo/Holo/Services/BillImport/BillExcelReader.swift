@@ -8,9 +8,9 @@
 //  设计：xlsx 读成行矩阵后转写成严格转义的临时 CSV，之后完全复用现有
 //  扫描/预览/流式导入管线——一条管线保证账单在两种文件形态下行为一致。
 //
-//  日期处理：Excel 的日期本质是「带日期样式的数字序列号」，CoreXLSX 的
-//  cell.dateValue 依据样式还原为 Date；这里统一格式化为 "yyyy-MM-dd HH:mm"
-//  再写 CSV，交由现有 parseDate 解析。金额一律保持原始字符串，不过数值化。
+//  日期处理：Excel 的日期本质是数字序列号，CoreXLSX 的
+//  cell.dateValue 还原为 Date；这里统一格式化为 "yyyy-MM-dd HH:mm"
+//  再写 CSV，交由现有 parseDate 解析。金额和余额保持原始数字文本，交由 cleanAmount 处理。
 //
 
 import Foundation
@@ -68,6 +68,7 @@ enum BillExcelReader {
         let paths = try file.parseWorksheetPaths()
         for path in paths {
             guard let worksheet = try? file.parseWorksheet(at: path) else { continue }
+            let dateColumns = dateColumnIndices(in: worksheet, sharedStrings: sharedStrings)
             var rows: [[String]] = []
             for row in worksheet.sheetData.rows {
                 var cells: [String] = []
@@ -79,7 +80,12 @@ enum BillExcelReader {
                         cells.append("")
                         lastColumn += 1
                     }
-                    cells.append(cellValueText(cell, sharedStrings: sharedStrings, dateFormatter: dateFormatter))
+                    cells.append(cellValueText(
+                        cell,
+                        sharedStrings: sharedStrings,
+                        dateFormatter: dateFormatter,
+                        isDateColumn: dateColumns.contains(column)
+                    ))
                     lastColumn = column
                 }
                 rows.append(cells)
@@ -98,12 +104,20 @@ enum BillExcelReader {
 
     // MARK: - Cell 值转文本
 
-    private static func cellValueText(_ cell: Cell, sharedStrings: SharedStrings?, dateFormatter: DateFormatter) -> String {
-        // 日期样式优先（银行账单的交易日期列）
-        if let date = cell.dateValue {
+    private static func cellValueText(
+        _ cell: Cell,
+        sharedStrings: SharedStrings?,
+        dateFormatter: DateFormatter,
+        isDateColumn: Bool
+    ) -> String {
+        // 只有表头明确表示日期/时间的列才把 Excel 序列号还原为日期。
+        if isDateColumn, let date = cell.dateValue {
             return dateFormatter.string(from: date)
         }
         if let sharedStrings, let text = cell.stringValue(sharedStrings) {
+            return text
+        }
+        if let text = cell.inlineString?.text, !text.isEmpty {
             return text
         }
         // 纯数字（金额列）：保留原始文本表示，交给 cleanAmount 处理
@@ -111,6 +125,45 @@ enum BillExcelReader {
             return raw
         }
         return ""
+    }
+
+    /// 只从同时包含日期和金额语义的表头行识别日期列，避免误读封面说明文字。
+    private static func dateColumnIndices(in worksheet: Worksheet, sharedStrings: SharedStrings?) -> Set<Int> {
+        var result = Set<Int>()
+        for row in worksheet.sheetData.rows {
+            let fields = row.cells.map { cell -> String in
+                if let sharedStrings, let sharedText = cell.stringValue(sharedStrings) {
+                    return sharedText
+                } else if let inlineText = cell.inlineString?.text {
+                    return inlineText
+                } else {
+                    return cell.value ?? ""
+                }
+            }
+
+            let normalizedFields = fields.map {
+                $0.replacingOccurrences(of: " ", with: "")
+                    .replacingOccurrences(of: "　", with: "")
+                    .lowercased()
+            }
+            let hasDateHeader = normalizedFields.contains {
+                $0.contains("日期") || $0.contains("date") || $0.contains("时间") || $0.contains("time")
+            }
+            let hasAmountHeader = normalizedFields.contains {
+                $0.contains("金额") || $0.contains("amount") || $0.contains("支出")
+                    || $0.contains("收入") || $0.contains("余额") || $0.contains("debit")
+                    || $0.contains("credit")
+            }
+            guard hasDateHeader && hasAmountHeader else { continue }
+
+            for (cell, normalized) in zip(row.cells, normalizedFields) {
+                if normalized.contains("日期") || normalized.contains("date")
+                    || normalized.contains("时间") || normalized.contains("time") {
+                    result.insert(columnIndex(cell.reference.description))
+                }
+            }
+        }
+        return result
     }
 
     /// 列引用（如 "B3"）→ 列序号（A=1, B=2 ...）

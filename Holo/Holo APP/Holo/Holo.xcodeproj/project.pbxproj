@@ -181,6 +181,7 @@
 		EECC8C107E3DA5F04356D687 /* HealthInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF705B0F02D71A705C9A58C /* HealthInsightResponseParserTests.swift */; };
 		F03D65A27A93D49503AC5E87 /* ThoughtRepositoryCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E74F0933584105B92897765 /* ThoughtRepositoryCalendarTests.swift */; };
 		F1121D5A8B37409D81782302 /* HoloAgentPersistenceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08747A667360E9485FB9443 /* HoloAgentPersistenceStoreTests.swift */; };
+		F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
 		F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDBA4E276B54BCF52A416D0 /* FlexibleQueryChatCardDataTests.swift */; };
@@ -396,6 +397,7 @@
 		E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightContextBuilderTests.swift; sourceTree = "<group>"; };
 		E7EC208640A3633A9D32798C /* HealthInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightContextBuilderTests.swift; sourceTree = "<group>"; };
 		EC3C97A9EBFDA416A105D738 /* CalendarEventProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarEventProviderTests.swift; sourceTree = "<group>"; };
+		F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceBillImportMatrixStandaloneTests.swift; sourceTree = "<group>"; };
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
@@ -835,6 +837,7 @@
 			isa = PBXGroup;
 			children = (
 				01FEFE4BD64B0BA4926A551E /* AI */,
+				F18A001B2C3D4E5F60718295 /* BillImport */,
 				C07E22030000000000000001 /* Calendar */,
 				8044812C2C9B2F327A4958D4 /* Speech */,
 				7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */,
@@ -846,6 +849,14 @@
 				A27D00040000000000000001 /* Network/APIClientStreamingRecoveryTests.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		F18A001B2C3D4E5F60718295 /* BillImport */ = {
+			isa = PBXGroup;
+			children = (
+				F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */,
+			);
+			path = BillImport;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -941,8 +952,8 @@
 			mainGroup = 49E199EB2F54389E0070AE1B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				B1000000000000000000001 /* XCLocalSwiftPackageReference "CoreXLSX" */,
-				B1000000000000000000003 /* XCLocalSwiftPackageReference "ZIPFoundation" */,
+				B1000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/CoreXLSX" */,
+				B1000000000000000000003 /* XCLocalSwiftPackageReference "Vendor/ZIPFoundation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 49E199F52F54389E0070AE1B /* Products */;
@@ -1162,6 +1173,7 @@
 				1BCF2DB29B3C875332B40EAB /* ScheduleRankerStandaloneTests.swift in Sources */,
 				CA03B6EA19E555C23B7554B9 /* HoloWidgetModelsStandaloneTests.swift in Sources */,
 				9D3BD315D8AFE5BAA409116B /* StandaloneExecutableBridgeTests.swift in Sources */,
+				F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */,
 				28A282186827B2575CB6C45E /* AIReadableResponseParserStandaloneTests.swift in Sources */,
 				01F117E5D9D90390C108F5B8 /* AnalysisReadableTextParserStandaloneTests.swift in Sources */,
 				B0C31EE4F261341972E84802 /* MarkdownAttributedStringRendererStandaloneTests.swift in Sources */,
@@ -1578,11 +1590,11 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		B1000000000000000000001 /* XCLocalSwiftPackageReference "CoreXLSX" */ = {
+		B1000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/CoreXLSX" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/CoreXLSX;
 		};
-		B1000000000000000000003 /* XCLocalSwiftPackageReference "ZIPFoundation" */ = {
+		B1000000000000000000003 /* XCLocalSwiftPackageReference "Vendor/ZIPFoundation" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/ZIPFoundation;
 		};

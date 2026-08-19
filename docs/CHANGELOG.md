@@ -13,6 +13,11 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 账单导入真实样本矩阵验证（一期后续）
+  - 新增六类夹具：微信/支付宝/银行 CSV、边界用例 CSV/TSV（docs/finance/fixtures），及 Excel 多 Sheet、无密码 ZIP 两个二进制样本（outputs/finance-import-validation，.gitignore 只排除检查中间文件）
+  - FinanceBillImportMatrixStandaloneTests 全矩阵测试入库并注册 target，覆盖防重/退款跳过/零金额/非法日期等预期规则
+  - 修正 Excel 金额/余额处理：原始数字文本交由 cleanAmount 统一处理；均为本地模拟数据，不含真实账户信息
+  - 纯客户端无需后端发版
 - **iOS**: 习惯补签 + 补记双通道——找回断签 / 补录事实
   - 补签（找回断签）：7 天窗口内系统判定的漏卡日可补，恢复连续天数；磁贴点阵/详情横幅/记录行三入口
   - 补记（补录事实）：不限窗口、自选日期（习惯创建日～昨天）主动补一条记录，详情页记录列表入口；每周/每月/数值型习惯由此获得补历史能力
