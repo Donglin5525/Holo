@@ -21,6 +21,20 @@ final class MemoryInsightBackgroundService {
     private let retryWeekKey = "holo.weeklyObservation.retry.week"
     private let retryCountKey = "holo.weeklyObservation.retry.count"
     private let retryAfterKey = "holo.weeklyObservation.retry.after"
+    private let automaticQuotaCooldownKey = "holo.memoryInsight.automaticQuotaCooldownUntil"
+    private var foregroundCompensationInFlight = false
+
+    private static let quotaDateFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let quotaDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 
     private init() {}
 
@@ -43,8 +57,11 @@ final class MemoryInsightBackgroundService {
     func scheduleBackgroundTask() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        // 最早执行时间：1 小时后
-        request.earliestBeginDate = Date().addingTimeInterval(3600)
+        // 正常最早 1 小时后；额度耗尽时延后到 resetAt，避免系统唤醒后再次撞 429。
+        request.earliestBeginDate = max(
+            Date().addingTimeInterval(3600),
+            automaticQuotaCooldownUntil() ?? .distantPast
+        )
 
         do {
             try BGTaskScheduler.shared.submit(request)
@@ -78,11 +95,21 @@ final class MemoryInsightBackgroundService {
 
         let repository = MemoryInsightRepository()
 
+        guard canAttemptAutomaticInsight() else {
+            finishBackgroundTask(task)
+            return
+        }
+
         // 上周洞察是产品基础能力，不依赖 legacy 日/月后台生成开关。
         await generatePreviousWeekObservationIfNeeded(
             service: service,
             repository: repository
         )
+
+        guard canAttemptAutomaticInsight() else {
+            finishBackgroundTask(task)
+            return
+        }
 
         guard settings.backgroundAutoGenerationEnabled else {
             task.setTaskCompleted(success: true)
@@ -108,9 +135,19 @@ final class MemoryInsightBackgroundService {
                     )
                     logger.info("后台日洞察生成成功：\(insight.title)")
                 } catch {
+                    if let quotaError = error as? HoloQuotaError {
+                        recordAutomaticQuotaCooldown(quotaError, scope: "后台日洞察")
+                        finishBackgroundTask(task)
+                        return
+                    }
                     logger.error("后台日洞察生成失败：\(error.localizedDescription)")
                 }
             }
+        }
+
+        guard canAttemptAutomaticInsight() else {
+            finishBackgroundTask(task)
+            return
         }
 
         // 生成月度洞察（使用智能回退）
@@ -134,14 +171,21 @@ final class MemoryInsightBackgroundService {
                     )
                     logger.info("后台月度洞察生成成功：\(insight.title)")
                 } catch {
+                    if let quotaError = error as? HoloQuotaError {
+                        recordAutomaticQuotaCooldown(quotaError, scope: "后台月度洞察")
+                        finishBackgroundTask(task)
+                        return
+                    }
                     logger.error("后台月度洞察生成失败：\(error.localizedDescription)")
                 }
             }
         }
 
-        task.setTaskCompleted(success: true)
+        finishBackgroundTask(task)
+    }
 
-        // 调度下一次
+    private func finishBackgroundTask(_ task: BGAppRefreshTask) {
+        task.setTaskCompleted(success: true)
         scheduleBackgroundTask()
     }
 
@@ -150,6 +194,13 @@ final class MemoryInsightBackgroundService {
     /// 前台打开 App 时检查是否需要补生成
     /// 在 MemoryGalleryViewModel.refresh() 或 App 进入前台时调用
     func checkForegroundCompensation() async {
+        guard !foregroundCompensationInFlight else {
+            logger.info("前台自动补偿已在执行，跳过重复触发")
+            return
+        }
+        foregroundCompensationInFlight = true
+        defer { foregroundCompensationInFlight = false }
+
         let settings = MemoryInsightScheduleSettings.shared
         let service = MemoryInsightService.shared
         guard service.isAIConfigured else { return }
@@ -159,6 +210,7 @@ final class MemoryInsightBackgroundService {
             return
         }
         guard !service.isGenerating else { return }
+        guard canAttemptAutomaticInsight() else { return }
 
         let repository = MemoryInsightRepository()
 
@@ -166,6 +218,8 @@ final class MemoryInsightBackgroundService {
             service: service,
             repository: repository
         )
+
+        guard canAttemptAutomaticInsight() else { return }
 
         guard settings.backgroundAutoGenerationEnabled else { return }
 
@@ -188,10 +242,16 @@ final class MemoryInsightBackgroundService {
                     )
                     logger.info("前台补偿日洞察生成成功")
                 } catch {
+                    if let quotaError = error as? HoloQuotaError {
+                        recordAutomaticQuotaCooldown(quotaError, scope: "前台补偿日洞察")
+                        return
+                    }
                     logger.error("前台补偿日洞察生成失败：\(error.localizedDescription)")
                 }
             }
         }
+
+        guard canAttemptAutomaticInsight() else { return }
 
         // 补生成月度洞察（使用智能回退）
         let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
@@ -214,6 +274,10 @@ final class MemoryInsightBackgroundService {
                     )
                     logger.info("前台补偿月度洞察生成成功")
                 } catch {
+                    if let quotaError = error as? HoloQuotaError {
+                        recordAutomaticQuotaCooldown(quotaError, scope: "前台补偿月度洞察")
+                        return
+                    }
                     logger.error("前台补偿月度洞察生成失败：\(error.localizedDescription)")
                 }
             }
@@ -257,6 +321,8 @@ final class MemoryInsightBackgroundService {
             logger.info("上周洞察生成成功：\(insight.title)")
             clearWeeklyRetryState()
             HomeScheduleService.shared.refresh()
+        } catch let quotaError as HoloQuotaError {
+            recordAutomaticQuotaCooldown(quotaError, scope: "上周洞察")
         } catch {
             recordWeeklyFailure(period: period)
             logger.error("上周洞察生成失败，等待下次前台恢复：\(error.localizedDescription)")
@@ -298,5 +364,50 @@ final class MemoryInsightBackgroundService {
         defaults.removeObject(forKey: retryWeekKey)
         defaults.removeObject(forKey: retryCountKey)
         defaults.removeObject(forKey: retryAfterKey)
+    }
+
+    // MARK: - Automatic Quota Cooldown
+
+    /// 自动任务不应在额度耗尽后反复请求；只冷却自动生成，不影响用户主动发起的洞察。
+    private func canAttemptAutomaticInsight(now: Date = Date()) -> Bool {
+        let defaults = UserDefaults.standard
+        if let cooldownUntil = automaticQuotaCooldownUntil() {
+            guard now >= cooldownUntil else {
+                logger.info("自动洞察额度冷却中（至 \(cooldownUntil)），跳过本次请求")
+                return false
+            }
+            defaults.removeObject(forKey: automaticQuotaCooldownKey)
+        }
+
+        // 已刷新过订阅状态时，直接利用本地快照短路；首次冷启动没有快照则允许一次请求。
+        if let quota = HoloEntitlementState.shared.quotas["memoryInsight"], quota.remaining <= 0 {
+            if let resetAt = parseQuotaDate(quota.resetAt), resetAt > now {
+                defaults.set(resetAt, forKey: automaticQuotaCooldownKey)
+            }
+            logger.info("已知记忆洞察额度耗尽，跳过自动生成")
+            return false
+        }
+        return true
+    }
+
+    private func recordAutomaticQuotaCooldown(_ error: HoloQuotaError, scope: String) {
+        let now = Date()
+        let resetAt = parseQuotaDate(error.payload.resetAt)
+        let cooldownUntil = resetAt.flatMap { $0 > now ? $0 : nil }
+            ?? now.addingTimeInterval(60 * 60)
+        UserDefaults.standard.set(cooldownUntil, forKey: automaticQuotaCooldownKey)
+        logger.info(
+            "\(scope)额度耗尽，自动生成冷却至 \(cooldownUntil)：\(error.diagnosticDescription)"
+        )
+    }
+
+    private func automaticQuotaCooldownUntil() -> Date? {
+        UserDefaults.standard.object(forKey: automaticQuotaCooldownKey) as? Date
+    }
+
+    private func parseQuotaDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        return Self.quotaDateFormatterWithFractionalSeconds.date(from: value)
+            ?? Self.quotaDateFormatter.date(from: value)
     }
 }

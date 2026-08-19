@@ -17,6 +17,7 @@ nonisolated struct HoloQuotaErrorResponse: Decodable, Error {
         let used: Int?
         let remaining: Int?
         let resetAt: String?
+        let period: String?
         let upgradeAvailable: Bool?
         let maxSeconds: Double?
         let actualSeconds: Double?
@@ -25,9 +26,20 @@ nonisolated struct HoloQuotaErrorResponse: Decodable, Error {
     let error: Payload
 }
 
-nonisolated enum HoloQuotaError: Error, Equatable {
+nonisolated enum HoloQuotaError: Error, Equatable, LocalizedError {
     case quotaExceeded(payload: HoloQuotaErrorResponse.Payload)
     case asrDurationExceeded(payload: HoloQuotaErrorResponse.Payload)
+
+    var payload: HoloQuotaErrorResponse.Payload {
+        switch self {
+        case .quotaExceeded(let payload), .asrDurationExceeded(let payload):
+            return payload
+        }
+    }
+
+    var code: String {
+        payload.code
+    }
 
     var upgradeAvailable: Bool {
         switch self {
@@ -47,15 +59,36 @@ nonisolated enum HoloQuotaError: Error, Equatable {
             case "memoryInsight": feature = "记忆洞察"
             default: feature = "HoloAI"
             }
+            // 兼容旧版后端：记忆洞察免费额度原本按周、Plus 按日。
+            let period = payload.period ?? (
+                payload.quotaType == "memoryInsight" && payload.tier == "free" ? "week" : "day"
+            )
+            let periodLabel: String
+            switch period {
+            case "week": periodLabel = "本周"
+            case "month": periodLabel = "本月"
+            case "day": periodLabel = "今天"
+            default: periodLabel = "当前"
+            }
             return upgradeAvailable
-                ? "今天的免费\(feature)额度已用完，升级 Holo Plus 可继续使用"
-                : "今天的 \(feature)额度已用完，请在额度重置后再试"
+                ? "\(periodLabel)的免费\(feature)额度已用完，升级 Holo Plus 可继续使用"
+                : "\(periodLabel)的 \(feature)额度已用完，请在额度重置后再试"
         case .asrDurationExceeded(let payload):
             let seconds = Int(payload.maxSeconds ?? 0)
             return upgradeAvailable
                 ? "免费版单次最多识别 \(seconds) 秒，升级 Holo Plus 可识别更长语音"
                 : "单次语音最长可识别 \(seconds) 秒，请缩短录音后重试"
         }
+    }
+
+    /// 面向日志的完整诊断信息；用户提示使用 userMessage，避免丢失额度周期和重置时间。
+    var diagnosticDescription: String {
+        let resetAt = payload.resetAt ?? "unknown"
+        return "\(payload.code) quotaType=\(payload.quotaType ?? "unknown") tier=\(payload.tier ?? "unknown") period=\(payload.period ?? "unknown") used=\(payload.used ?? -1)/\(payload.limit ?? -1) remaining=\(payload.remaining ?? -1) resetAt=\(resetAt)"
+    }
+
+    var errorDescription: String? {
+        userMessage
     }
 
     static func decode(from data: Data) -> HoloQuotaError? {

@@ -220,10 +220,11 @@ final class MemoryInsightService {
         }
         } catch {
             let apiError = error as? APIError
+            let quotaError = error as? HoloQuotaError
             try? repository.saveFailed(
                 insight: insight,
-                errorMessage: error.localizedDescription,
-                category: apiError?.diagnosticCategory ?? String(describing: type(of: error)),
+                errorMessage: quotaError?.userMessage ?? error.localizedDescription,
+                category: quotaError?.code ?? apiError?.diagnosticCategory ?? String(describing: type(of: error)),
                 requestId: apiError?.requestId
             )
             throw error
