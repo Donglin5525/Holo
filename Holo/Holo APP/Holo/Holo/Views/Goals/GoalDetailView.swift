@@ -15,6 +15,8 @@ struct GoalDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var operationError: String?
     @State private var showEditForm = false
+    @State private var showLinkManager = false
+    @State private var showMetricLogSheet = false
 
     init(
         goal: Goal,
@@ -36,6 +38,7 @@ struct GoalDetailView: View {
                 proactiveNudgeToggle
                 taskSection
                 habitSection
+                metricLogSection
                 actionSection
             }
             .padding(HoloSpacing.lg)
@@ -64,6 +67,12 @@ struct GoalDetailView: View {
                 showEditForm = false
             }
         }
+        .sheet(isPresented: $showLinkManager) {
+            GoalLinkManagerSheet(goal: goal)
+        }
+        .sheet(isPresented: $showMetricLogSheet) {
+            GoalMetricLogSheet(goal: goal)
+        }
     }
 
     private func header(_ progress: GoalProgressSummary) -> some View {
@@ -76,9 +85,15 @@ struct GoalDetailView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextSecondary)
             }
-            Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
-                .font(.system(size: 13))
-                .foregroundColor(.holoPrimary)
+            if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
+                metricProgressCard(metric)
+            } else if GoalMetricEvaluator.isHabitSourceUnavailable(goal: goal) {
+                sourceUnavailableRow
+            } else {
+                Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoPrimary)
+            }
             if let desiredOutcome = goal.desiredOutcome, !desiredOutcome.isEmpty {
                 infoLine(icon: "checkmark.seal", label: "期望结果", value: desiredOutcome)
             }
@@ -128,7 +143,7 @@ struct GoalDetailView: View {
 
     private var proactiveNudgeToggle: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Toggle("允许 HoloAI 主动围绕此目标提醒", isOn: Binding(
+            Toggle("允许 HoloAI 主动围绕此目标提醒（含系统通知）", isOn: Binding(
                 get: { goal.allowAIContext && goal.proactiveNudge },
                 set: { newValue in
                     perform {
@@ -152,7 +167,7 @@ struct GoalDetailView: View {
 
     private var taskSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("关联任务").font(.holoBody).fontWeight(.semibold)
+            sectionHeader(title: "关联任务")
             if goal.sortedTasks.isEmpty {
                 Text("暂无关联任务")
                     .font(.holoCaption)
@@ -169,7 +184,7 @@ struct GoalDetailView: View {
 
     private var habitSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("关联习惯").font(.holoBody).fontWeight(.semibold)
+            sectionHeader(title: "关联习惯")
             if goal.sortedHabits.isEmpty {
                 Text("暂无关联习惯")
                     .font(.holoCaption)
@@ -181,6 +196,258 @@ struct GoalDetailView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - 量化目标
+
+    private var unitDisplay: String {
+        goal.metricUnit.map { " \($0)" } ?? ""
+    }
+
+    /// 量化目标头部：大数字进度区（当前值/目标值 + 环形进度 + 预计达成 + 记一笔入口）
+    private func metricProgressCard(_ metric: GoalMetricProgress) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.lg) {
+                GoalMetricRingView(progress: metric.progress)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(metricHeadlineText(metric))
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+
+                    if goal.goalKindEnum == .target {
+                        // 达标型基线视角：已减 2.5 kg / 共 5 kg，而非从 0 起的百分比
+                        Text(metricBaselineText(metric))
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                    } else {
+                        Text("已完成 \(Int((metric.progress * 100).rounded()))%")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            metricForecastLine(metric)
+
+            if goal.metricSourceEnum == .manual {
+                Button {
+                    showMetricLogSheet = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 14))
+                        Text("记一笔")
+                            .font(.holoBody)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.holoPrimary))
+                }
+                .buttonStyle(.plain)
+            } else {
+                metricSourceLabel
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoPrimary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoPrimary.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    /// 大数字行：累积型「128.5 / 300 km」；达标型「72.5 kg · 目标 70」
+    private func metricHeadlineText(_ metric: GoalMetricProgress) -> String {
+        if goal.goalKindEnum == .target {
+            return "\(GoalMetricEvaluator.formatValue(metric.currentValue))\(unitDisplay) · 目标 \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))"
+        }
+        return "\(GoalMetricEvaluator.formatValue(metric.currentValue)) / \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unitDisplay)"
+    }
+
+    private func metricBaselineText(_ metric: GoalMetricProgress) -> String {
+        guard let baseline = goal.baselineValueDouble else { return "" }
+        let target = goal.metricTargetValueDouble ?? 0
+        let verb = target < baseline ? "已减" : "已增"
+        let moved = abs(baseline - metric.currentValue)
+        let total = abs(target - baseline)
+        return "\(verb) \(GoalMetricEvaluator.formatValue(moved))\(unitDisplay) / 共 \(GoalMetricEvaluator.formatValue(total))\(unitDisplay)"
+    }
+
+    /// 预计达成行：已达成 / 按节奏外推 / 低速段不预测
+    @ViewBuilder
+    private func metricForecastLine(_ metric: GoalMetricProgress) -> some View {
+        if metric.isAchieved {
+            forecastLabel(icon: "checkmark.circle.fill", color: .green, text: "已达成目标")
+        } else if let forecast = metric.forecast {
+            let dateText = GoalMetricEvaluator.displayDateFormatter.string(from: forecast.predictedDate)
+            if let meets = forecast.meetsDeadline {
+                if meets {
+                    forecastLabel(icon: "checkmark.circle.fill", color: .green, text: "按当前节奏预计 \(dateText) 达成，赶在截止前")
+                } else {
+                    forecastLabel(icon: "exclamationmark.triangle.fill", color: .orange, text: "照目前进度难以在截止前达成，按当前节奏预计 \(dateText) 达成")
+                }
+            } else {
+                forecastLabel(icon: "chart.line.uptrend.xyaxis", color: .holoPrimary, text: "按当前节奏预计 \(dateText) 达成")
+            }
+        } else {
+            // 进度 <10% 低速段：预测波动大，只提示不输出结论
+            forecastLabel(icon: "leaf", color: .holoTextSecondary, text: "刚起步，多记几笔再看趋势")
+        }
+    }
+
+    private func forecastLabel(icon: String, color: Color, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+            Text(text)
+                .font(.system(size: 13))
+        }
+        .foregroundColor(color)
+    }
+
+    /// 自动源（habit/ledger）的来源标签：可点跳源；
+    /// 自动源不叠加手动补录（单一事实来源），所以不显示「记一笔」
+    @ViewBuilder
+    private var metricSourceLabel: some View {
+        switch goal.metricSourceEnum {
+        case .manual:
+            EmptyView()
+        case .habit:
+            if let habit = GoalMetricEvaluator.sourceHabit(for: goal) {
+                Button {
+                    onOpenLinkedEntity(.habitDetail(habitId: habit.id))
+                } label: {
+                    sourceLabelRow(text: "数据来自：\(habit.name)")
+                }
+                .buttonStyle(.plain)
+            }
+        case .ledger:
+            Button {
+                onOpenLinkedEntity(.finance)
+            } label: {
+                sourceLabelRow(text: "数据来自：账本（按全账本净结余计算，含信用卡负债）")
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func sourceLabelRow(text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "link")
+                .font(.system(size: 12))
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextSecondary)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11))
+                .foregroundColor(.holoTextSecondary.opacity(0.6))
+        }
+    }
+
+    /// habit 源失效（习惯被删/归档）：进度暂停计算，给重新选择数据源的入口
+    private var sourceUnavailableRow: some View {
+        Button {
+            showEditForm = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.orange)
+                Text("数据源习惯已删除或归档，进度暂停计算，点此重新选择")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(HoloSpacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 手动源的记录列表（可删除误记，删除后进度实时重算）
+    @ViewBuilder
+    private var metricLogSection: some View {
+        if goal.isQuantitative && goal.metricSourceEnum == .manual {
+            let logs = repository.getMetricLogs(for: goal)
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                HStack {
+                    Text("记录")
+                        .font(.holoBody)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Text("\(logs.count) 条")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                if logs.isEmpty {
+                    Text("还没有记录，点「记一笔」开始")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                } else {
+                    ForEach(logs, id: \.id) { log in
+                        metricLogRow(log)
+                    }
+                }
+            }
+        }
+    }
+
+    private func metricLogRow(_ log: GoalMetricLog) -> some View {
+        HStack(spacing: HoloSpacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text("\(goal.goalKindEnum == .target ? "" : "+ ")\(GoalMetricEvaluator.formatValue(log.value))\(unitDisplay)")
+                        .font(.holoBody)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoTextPrimary)
+                    Text(GoalMetricEvaluator.displayDateFormatter.string(from: log.date))
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                if let note = log.note, !note.isEmpty {
+                    Text(note)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            Button {
+                perform { try repository.deleteMetricLog(log, for: goal) }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, HoloSpacing.xs)
+    }
+
+    private func sectionHeader(title: String) -> some View {
+        HStack {
+            Text(title).font(.holoBody).fontWeight(.semibold)
+            Spacer()
+            Button("管理") {
+                showLinkManager = true
+            }
+            .font(.holoCaption)
+            .foregroundColor(.holoPrimary)
         }
     }
 
@@ -235,9 +502,40 @@ struct GoalDetailView: View {
     private func perform(_ action: () throws -> Void) {
         do {
             try action()
+            GoalNotificationService.broadcastGoalDataChange()
         } catch {
             operationError = error.localizedDescription
         }
+    }
+}
+
+// MARK: - 量化目标进度环
+
+/// 数字进度的环形呈现（trim 写法对齐 TripleHealthRingView，中心显示百分比）
+private struct GoalMetricRingView: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.holoDivider, lineWidth: 10)
+
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(
+                    Color.holoPrimary,
+                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.45), value: progress)
+
+            Text("\(Int((progress * 100).rounded()))%")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundColor(.holoTextPrimary)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+        }
+        .frame(width: 72, height: 72)
     }
 }
 
@@ -258,7 +556,9 @@ struct GoalEditSheet: View {
     }
 
     private var canSave: Bool {
-        !isSaving && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isSaving
+            && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && GoalEditForm.metricFieldsValid(in: draft)
     }
 
     var body: some View {
@@ -322,6 +622,7 @@ struct GoalEditSheet: View {
                     guard let text = draft.deadlineText, !text.isEmpty else { return .some(nil) }
                     return .some(GoalEditForm.parseDeadlineText(text))
                 }()
+                // 量化字段随表单整体保存：切回过程型时 updateFields 内部清空量化配置
                 try GoalRepository.shared.updateFields(
                     goal,
                     title: draft.title,
@@ -330,9 +631,18 @@ struct GoalEditSheet: View {
                     iconEmoji: draft.iconEmoji,
                     desiredOutcome: draft.desiredOutcome,
                     motivation: draft.motivation,
-                    deadline: parsedDeadline
+                    deadline: parsedDeadline,
+                    goalKind: draft.goalKind,
+                    metricUnit: draft.isQuantitative ? .some(draft.metricUnit) : nil,
+                    metricTargetValue: draft.isQuantitative ? .some(draft.metricTargetValue) : nil,
+                    metricBaselineValue: (draft.isQuantitative && draft.goalKind == .target)
+                        ? .some(draft.metricBaselineValue) : nil,
+                    metricSource: draft.isQuantitative ? draft.metricSource : nil,
+                    sourceHabitId: draft.isQuantitative
+                        ? .some(draft.metricSource == .habit ? draft.sourceHabitId : nil) : nil
                 )
                 isSaving = false
+                GoalNotificationService.broadcastGoalDataChange()
                 onSaved()
                 dismiss()
             } catch {

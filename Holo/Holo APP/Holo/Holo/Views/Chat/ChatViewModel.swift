@@ -757,6 +757,7 @@ final class ChatViewModel: ObservableObject {
     func undoLifePlanConfirm(planID: UUID, token: PlanUndoToken) {
         do {
             try LifePlanRepository.shared.undoConfirm(planID: planID, token: token)
+            GoalNotificationService.broadcastGoalDataChange()
             refreshLifePlanSnapshots()
             lastPlanUndo = nil
             chatRepo?.addMessage(
@@ -1363,6 +1364,205 @@ final class ChatViewModel: ObservableObject {
         }.joined(separator: "\n")
     }
 
+    // MARK: - Pending Goal Choice Confirmation
+
+    /// 待选择目标项谓词（goalChoice 选择卡）
+    private static func isPendingGoalChoiceItem(_ item: AIExecutionItem) -> Bool {
+        item.status == .skipped
+            && item.renderData?["pendingKind"] == "goalChoice"
+            && item.renderData?["confirmationStatus"] == "pending"
+    }
+
+    /// 可确认（含失败重试）的目标选择项
+    private static func isConfirmableGoalChoiceItem(_ item: AIExecutionItem) -> Bool {
+        item.status == .skipped
+            && item.renderData?["pendingKind"] == "goalChoice"
+            && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
+    }
+
+    /// 目标选择卡确认：把选中的 goalId 注入 extractedData 重放路由
+    /// （matchGoal 第一级就是 goalId 精确匹配，天然闭环）。
+    /// 状态机与任务/交易侧同构：pending → confirming → confirmed / failed。
+    func confirmPendingGoalChoice(from message: ChatMessageViewData, itemID: String? = nil, goalId: String) {
+        guard let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  Self.isConfirmableGoalChoiceItem($0) && (itemID == nil || $0.id == itemID)
+              }),
+              batch.items[pendingIndex].renderData != nil else {
+            return
+        }
+
+        let itemId = batch.items[pendingIndex].id
+        guard !confirmingItemIds.contains(itemId) else { return }
+        confirmingItemIds.insert(itemId)
+
+        Task { @MainActor [weak self] in
+            guard let self, let chatRepo = self.chatRepo else {
+                self?.confirmingItemIds.remove(itemId)
+                return
+            }
+
+            do {
+                // 重读最新消息状态，防止过期数据重复确认；failed 也放行（失败卡重试走同一入口）
+                guard let currentBatch = self.latestExecutionBatch(for: message.id),
+                      let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
+                      let currentRenderData = currentItems.renderData,
+                      ["pending", "failed"].contains(currentRenderData["confirmationStatus"] ?? "") else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+
+                // 路由执行前先落 confirming 中间态（对账依据，与任务/交易侧同构）
+                self.persistConfirmationStatus(messageId: message.id, itemId: itemId, status: "confirming")
+
+                var confirmedRenderData = currentRenderData
+                confirmedRenderData["goalId"] = goalId
+
+                let result = ParsedResult(
+                    intent: currentItems.intent,
+                    confidence: 1,
+                    extractedData: confirmedRenderData,
+                    needsClarification: false,
+                    clarificationQuestion: nil,
+                    responseText: nil
+                )
+                let routeResult = try await IntentRouter.shared.route(result)
+                GoalNotificationService.broadcastGoalDataChange()
+
+                confirmedRenderData["confirmationStatus"] = "confirmed"
+                if let entity = routeResult.linkedEntity {
+                    confirmedRenderData["entityType"] = entity.type.rawValue
+                    confirmedRenderData["entityId"] = entity.id.uuidString
+                }
+                if let goalUUID = routeResult.linkedEntity?.id,
+                   let goal = GoalRepository.shared.findGoal(by: goalUUID) {
+                    confirmedRenderData["goalTitle"] = goal.title
+                }
+
+                guard let currentIndex = currentBatch.items.firstIndex(where: { $0.id == itemId }) else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+                var updatedItems = currentBatch.items
+                let pending = updatedItems[currentIndex]
+                updatedItems[currentIndex] = AIExecutionItem(
+                    id: pending.id,
+                    parseItemId: pending.parseItemId,
+                    intent: pending.intent,
+                    status: .success,
+                    summaryText: routeResult.text,
+                    renderData: confirmedRenderData,
+                    linkedEntityType: routeResult.linkedEntity?.type.rawValue,
+                    linkedEntityId: routeResult.linkedEntity?.id.uuidString,
+                    errorText: nil
+                )
+
+                let updatedBatch = AIExecutionBatch(
+                    mode: currentBatch.mode,
+                    items: updatedItems,
+                    finalText: Self.confirmedFinalText(from: updatedItems)
+                )
+
+                chatRepo.updateMessage(message.id, content: updatedBatch.finalText)
+                chatRepo.updateMessageMetadata(
+                    message.id,
+                    intent: message.intent,
+                    extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+                    parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+                    executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+                )
+            } catch {
+                self.writeGoalChoiceError(message: message, itemId: itemId, error: error)
+            }
+
+            self.confirmingItemIds.remove(itemId)
+        }
+    }
+
+    /// 取消目标选择卡：置 cancelled，不执行任何动作
+    func cancelPendingGoalChoice(from message: ChatMessageViewData, itemID: String? = nil) {
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  Self.isPendingGoalChoiceItem($0) && (itemID == nil || $0.id == itemID)
+              }) else {
+            return
+        }
+
+        let pending = batch.items[pendingIndex]
+        guard !confirmingItemIds.contains(pending.id) else { return }
+
+        var renderData = pending.renderData
+        renderData?["confirmationStatus"] = "cancelled"
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: pending.status,
+            summaryText: "已取消",
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: nil
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    /// 目标选择确认失败回写：标记卡片为 failed，候选行可再次点选重试
+    private func writeGoalChoiceError(message: ChatMessageViewData, itemId: String, error: Error) {
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
+              let index = batch.items.firstIndex(where: { $0.id == itemId }) else { return }
+        let item = batch.items[index]
+        guard var renderData = item.renderData else { return }
+
+        renderData["confirmationStatus"] = "failed"
+        renderData["errorText"] = error.localizedDescription
+
+        var updatedItems = batch.items
+        updatedItems[index] = AIExecutionItem(
+            id: item.id,
+            parseItemId: item.parseItemId,
+            intent: item.intent,
+            status: item.status,
+            summaryText: item.summaryText,
+            renderData: renderData,
+            linkedEntityType: item.linkedEntityType,
+            linkedEntityId: item.linkedEntityId,
+            errorText: error.localizedDescription
+        )
+
+        let failedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: failedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
+        )
+        errorMessage = "目标操作失败：\(error.localizedDescription)"
+    }
+
     // MARK: - Pending Transaction Confirmation
 
     func confirmPendingTransaction(from message: ChatMessageViewData, itemID: String? = nil) {
@@ -1898,6 +2098,7 @@ final class ChatViewModel: ObservableObject {
                 memoryIDs: result.usedMemoryIDs,
                 message: notice
             )
+            recordMemoryUsage(result.usedMemoryIDs)
             memoryNotice = notice
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(3))
@@ -1907,6 +2108,34 @@ final class ChatViewModel: ObservableObject {
             }
         }
         return (result.cleanText, result.usedMemoryIDs)
+    }
+
+    /// 使用统计写入：走 repository 专用通道，不进版本链、不触发萃取调度；失败静默（统计非关键数据）。
+    private func recordMemoryUsage(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        Task {
+            guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return }
+            try? await repository.recordUsage(ids: ids, now: Date())
+        }
+    }
+
+    /// 目标规划追问走 chat userContext 注入（含记忆 marker 规则），历史链路没有剥标记——
+    /// 统一在此剥离并把引用计入使用统计，防止 [[HOLO_MEMORY_IDS:]] 原文漏进气泡。
+    private func strippedGoalPlanningText(_ text: String, allowedMemoryIDs: [String]) -> String {
+        let marker = HoloMemoryUsageMarker.parseAndStrip(
+            text,
+            allowedMemoryIDs: Set(allowedMemoryIDs)
+        )
+        if !marker.usedMemoryIDs.isEmpty {
+            HoloMemoryReceiptStore.record(
+                kind: .use,
+                channel: .chat,
+                memoryIDs: marker.usedMemoryIDs,
+                message: "Holo 参考了 \(marker.usedMemoryIDs.count) 条已记住的信息"
+            )
+            recordMemoryUsage(marker.usedMemoryIDs)
+        }
+        return marker.cleanText
     }
 
     private func retryConfigurationLoadIfNeeded() async {
@@ -2015,7 +2244,10 @@ final class ChatViewModel: ObservableObject {
                 if let question = result.assistantText {
                     _ = chatRepo.addMessage(
                         role: "assistant",
-                        content: question,
+                        content: strippedGoalPlanningText(
+                            question,
+                            allowedMemoryIDs: userContext.memorySummary?.sourceIDs ?? []
+                        ),
                         parentMessageId: userMessageId,
                         messageType: .goalPlanning
                     )
@@ -2073,20 +2305,23 @@ final class ChatViewModel: ObservableObject {
                 userContext: userContext,
                 provider: provider
             )
-            activeGoalPlanningSession = result.session
-            if let question = result.assistantText {
-                _ = chatRepo.addMessage(
-                    role: "assistant",
-                    content: question,
-                    parentMessageId: userMessageId,
-                    messageType: .goalPlanning
-                )
-            }
-            if let draft = result.draft {
-                goalDraftForReview = draft
-                let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
-                _ = chatRepo.addMessage(
-                    role: "assistant",
+                activeGoalPlanningSession = result.session
+                if let question = result.assistantText {
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: strippedGoalPlanningText(
+                            question,
+                            allowedMemoryIDs: userContext.memorySummary?.sourceIDs ?? []
+                        ),
+                        parentMessageId: userMessageId,
+                        messageType: .goalPlanning
+                    )
+                }
+                if let draft = result.draft {
+                    goalDraftForReview = draft
+                    let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
                     content: summary,
                     parentMessageId: userMessageId,
                     messageType: .goalPlanning

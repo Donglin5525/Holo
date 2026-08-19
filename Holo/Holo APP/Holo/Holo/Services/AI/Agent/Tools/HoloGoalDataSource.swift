@@ -39,9 +39,36 @@ struct HoloDefaultGoalDataSource: HoloGoalDataSource {
                             id: habit.id.uuidString,
                             name: habit.name
                         )
-                    }
+                    },
+                    metric: Self.metricSnapshot(for: goal)
                 )
             }
         }
+    }
+
+    /// 量化目标指标快照：进度每次展示时实时计算（单一事实来源），非量化/源失效返回 nil
+    @MainActor
+    private static func metricSnapshot(for goal: Goal) -> HoloGoalMetricSnapshot? {
+        guard let progress = GoalMetricEvaluator.evaluate(goal: goal) else { return nil }
+        return HoloGoalMetricSnapshot(
+            kind: goal.goalKindEnum.rawValue,
+            source: goal.metricSourceEnum.rawValue,
+            currentValue: progress.currentValue.rounded(to: 2),
+            targetValue: goal.metricTargetValueDouble ?? 0,
+            unit: goal.metricUnit,
+            progress: progress.progress,
+            isAchieved: progress.isAchieved,
+            predictedDate: progress.forecast?.predictedDate,
+            meetsDeadline: progress.forecast?.meetsDeadline,
+            sourceHabitName: GoalMetricEvaluator.sourceHabit(for: goal)?.name
+        )
+    }
+}
+
+private extension Double {
+    /// 快照数值保留两位小数，避免长浮点进 Agent 证据文本
+    func rounded(to places: Int) -> Double {
+        let divisor = pow(10, Double(places))
+        return (self * divisor).rounded() / divisor
     }
 }

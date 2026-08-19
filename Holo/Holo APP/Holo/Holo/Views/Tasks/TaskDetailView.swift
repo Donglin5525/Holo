@@ -65,6 +65,7 @@ struct TaskDetailView: View {
 
     // ===== 弹层 =====
     @State private var showListPicker = false
+    @State private var showGoalPicker = false
     @State private var showTimeSheet = false
     @State private var showTaskVoiceInput = false
     @State private var pendingTaskVoiceTranscriptToInsert: String? = nil
@@ -261,6 +262,11 @@ struct TaskDetailView: View {
         }
         .sheet(isPresented: $showListPicker) {
             listPickerSheet
+        }
+        .sheet(isPresented: $showGoalPicker) {
+            GoalPickerSheet(currentGoalId: existingTask?.goal?.id) { goal in
+                applyGoalSelection(goal)
+            }
         }
         .sheet(isPresented: $showTimeSheet) {
             dateTimeSheet
@@ -1253,10 +1259,10 @@ struct TaskDetailView: View {
                 statusRow
             }
 
-            // 目标归属（只读，由目标模块设置）
-            if let goal = existingTask?.goal {
+            // 目标归属（可改：弹单选目标 sheet，由 GoalRepository 落库）
+            if existingTask != nil {
                 Divider().padding(.horizontal, 12)
-                goalRow(goal)
+                goalRow
             }
         }
         .background(Color.holoCardBackground)
@@ -1350,26 +1356,49 @@ struct TaskDetailView: View {
         .padding(.vertical, 8)
     }
 
-    private func goalRow(_ goal: Goal) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
-            rowIcon(goal.goalDomain.icon)
+    private var goalRow: some View {
+        Button {
+            showGoalPicker = true
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                rowIcon(existingTask?.goal?.goalDomain.icon ?? "target")
 
-            Text("目标")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                Text("目标")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
 
-            Spacer(minLength: HoloSpacing.md)
+                Spacer(minLength: HoloSpacing.md)
 
-            Text(goal.title)
-                .font(.holoCaption)
-                .foregroundColor(goal.goalDomain.badgeColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .multilineTextAlignment(.trailing)
+                Text(existingTask?.goal?.title ?? "无")
+                    .font(.holoCaption)
+                    .foregroundColor(existingTask?.goal.map { $0.goalDomain.badgeColor } ?? .holoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.trailing)
+
+                rowChevron
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
-        .frame(minHeight: 44)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .buttonStyle(.plain)
+    }
+
+    private func applyGoalSelection(_ goal: Goal?) {
+        guard let task = existingTask else { return }
+        do {
+            if let goal {
+                try GoalRepository.shared.linkTask(task, to: goal)
+            } else if let current = task.goal {
+                try GoalRepository.shared.unlinkTask(task, from: current)
+            }
+            GoalNotificationService.broadcastGoalDataChange()
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            showSaveErrorAlert = true
+        }
     }
 
     private func rowIcon(_ systemName: String) -> some View {

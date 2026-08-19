@@ -179,10 +179,18 @@ struct GoalListView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
-                Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
+                if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
+                    // 量化目标行：数字进度替代六档状态文案
+                    Text(metricRowText(goal: goal, metric: metric))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .lineLimit(1)
+                } else {
+                    Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
             Image(systemName: "chevron.right")
@@ -191,6 +199,17 @@ struct GoalListView: View {
         }
         .padding(HoloSpacing.md)
         .holoCard()
+    }
+
+    /// 「128/300 km」；达标型显示「已减 2.5/5 kg」基线视角
+    private func metricRowText(goal: Goal, metric: GoalMetricProgress) -> String {
+        let unit = goal.metricUnit.map { " \($0)" } ?? ""
+        if goal.goalKindEnum == .target, let baseline = goal.baselineValueDouble {
+            let target = goal.metricTargetValueDouble ?? 0
+            let verb = target < baseline ? "已减" : "已增"
+            return "\(verb) \(GoalMetricEvaluator.formatValue(abs(baseline - metric.currentValue)))/\(GoalMetricEvaluator.formatValue(abs(target - baseline)))\(unit)"
+        }
+        return "\(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unit)"
     }
 
     private func openPendingGoalIfNeeded() {
@@ -204,6 +223,7 @@ struct GoalListView: View {
         DispatchQueue.main.async {
             do {
                 try repository.deleteGoal(id: goalId)
+                GoalNotificationService.broadcastGoalDataChange()
             } catch {
                 operationError = error.localizedDescription
             }
@@ -228,7 +248,9 @@ struct GoalManualCreateSheet: View {
     let onCancel: () -> Void
 
     private var canSave: Bool {
-        !isSaving && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isSaving
+            && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && GoalEditForm.metricFieldsValid(in: draft)
     }
 
     var body: some View {
@@ -358,10 +380,13 @@ struct GoalManualCreateSheet: View {
         isSaving = true
         DispatchQueue.main.async {
             do {
-                let result = try GoalRepository.shared.saveDraft(draft, allowAIContext: allowAIContext)
-                // 手动创建的 source 标记为 manual
-                result.goal.source = "manual"
-                try? CoreDataStack.shared.viewContext.save()
+                // source 在落库时直接标记为 manual（此前先建后补改的绕路写法已移除）
+                let result = try GoalRepository.shared.saveDraft(
+                    draft,
+                    allowAIContext: allowAIContext,
+                    source: "manual"
+                )
+                GoalNotificationService.broadcastGoalDataChange()
                 onSaved(result)
                 dismiss()
             } catch {

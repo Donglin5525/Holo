@@ -481,12 +481,26 @@ final class UserContextBuilder {
         guard !goals.isEmpty else { return nil }
 
         let lines = goals.map { goal -> String in
-            let progress = GoalProgressEvaluator.evaluate(goal: goal)
             let deadlineSuffix: String = {
                 guard let deadline = goal.deadline else { return "" }
                 let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
                 return days >= 0 ? "（还剩 \(days) 天）" : "（已逾期 \(-days) 天）"
             }()
+            // 量化目标：注入当前值/目标值/速率/预测结论（紧凑两行），替代过程型任务习惯摘要
+            if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
+                var line = """
+                - \(goal.title)
+                  - 量化目标\(deadlineSuffix)：当前 \(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(goal.metricUnitText)
+                  - \(Self.quantitativeForecastText(metric: metric))
+                  - 期望结果：\(goal.desiredOutcome ?? "未设定")
+                  - 动机：\(goal.motivation ?? "未设定")
+                """
+                if !goal.proactiveNudge {
+                    line += "\n  - 主动提醒：已关闭——不要主动提起此目标，仅在被问到时参考"
+                }
+                return line
+            }
+            let progress = GoalProgressEvaluator.evaluate(goal: goal)
             var line = """
             - \(goal.title)
               - 状态：\(progress.state.displayName)\(deadlineSuffix)
@@ -508,6 +522,23 @@ final class UserContextBuilder {
 
         \(lines.joined(separator: "\n"))
         """
+    }
+
+    /// 量化目标的预测结论行（供 AI 回答「照这个速度能不能达成」类问题）
+    private static func quantitativeForecastText(metric: GoalMetricProgress) -> String {
+        if metric.isAchieved {
+            return "已达成目标"
+        }
+        guard let forecast = metric.forecast else {
+            return "刚起步或记录不足，暂无法预测达成时间"
+        }
+        let dateText = GoalMetricEvaluator.displayDateFormatter.string(from: forecast.predictedDate)
+        if let meets = forecast.meetsDeadline {
+            return meets
+                ? "按当前节奏预计 \(dateText) 达成，能赶上截止"
+                : "按当前节奏预计 \(dateText) 达成，难以在截止前完成"
+        }
+        return "按当前节奏预计 \(dateText) 达成"
     }
 
     /// 全量纪念日事实行（倒计时升序；repeatYearly 按年换算下一次，非重复的未来显示倒计时、过去的标已过）。

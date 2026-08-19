@@ -410,6 +410,36 @@
       ]
     },
     {
+      "id": "lh01",
+      "text": "把跑步这个习惯加到健康目标里",
+      "acceptable": [
+        "link_habit_to_goal"
+      ]
+    },
+    {
+      "id": "lh02",
+      "text": "每天背单词的习惯算到学英语目标下",
+      "acceptable": [
+        "link_habit_to_goal"
+      ]
+    },
+    {
+      "id": "lm01",
+      "text": "今天跑了5公里",
+      "acceptable": [
+        "log_metric_value",
+        "check_in"
+      ],
+      "note": "数值习惯记录走 log_metric_value；口语上等同给跑步习惯打卡记数，check_in 也可接受"
+    },
+    {
+      "id": "lm02",
+      "text": "读书目标又记了30页",
+      "acceptable": [
+        "log_metric_value"
+      ]
+    },
+    {
       "id": "gv01",
       "text": "把减肥目标对AI隐藏",
       "acceptable": [

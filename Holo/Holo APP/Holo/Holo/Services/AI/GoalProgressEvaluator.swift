@@ -78,7 +78,29 @@ enum GoalProgressEvaluator {
         return "习惯暂无记录"
     }
 
-    private static func averageHabitCompletionRate(habits: [Habit]) -> Double? {
+    /// 综合进度计算：任务 60% + 习惯 40%
+    /// 目标分析上下文与目标风险通知共用同一口径
+    static func overallProgress(
+        taskTotal: Int,
+        taskCompleted: Int,
+        habitTotal: Int,
+        habitAvgRate: Double?
+    ) -> Double? {
+        let hasTasks = taskTotal > 0
+        let hasHabits = habitTotal > 0 && habitAvgRate != nil
+
+        if hasTasks && hasHabits {
+            let taskRate = Double(taskCompleted) / Double(taskTotal)
+            return taskRate * 0.6 + (habitAvgRate ?? 0) * 0.4
+        } else if hasTasks {
+            return Double(taskCompleted) / Double(taskTotal)
+        } else if hasHabits {
+            return habitAvgRate
+        }
+        return nil
+    }
+
+    static func averageHabitCompletionRate(habits: [Habit]) -> Double? {
         guard !habits.isEmpty else { return nil }
         let repo = HabitRepository.shared
         let rates = habits.map { habit in

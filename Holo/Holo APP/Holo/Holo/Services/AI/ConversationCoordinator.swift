@@ -49,7 +49,8 @@ final class ConversationCoordinator {
         let executionIntents: Set<String> = [
             "record_expense", "record_income", "create_task", "complete_task",
             "update_task", "modify_task_items", "delete_task", "check_in",
-            "update_goal_field", "link_task_to_goal", "toggle_goal_visibility"
+            "update_goal_field", "link_task_to_goal", "link_habit_to_goal", "toggle_goal_visibility",
+            "log_metric_value"
         ]
         guard !executionIntents.contains(intent) else { return false }
         if intent == "query_analysis" { return true }
@@ -418,11 +419,46 @@ final class ConversationCoordinator {
                 continue
             }
 
+            // 目标歧义选择卡：goal 写操作命中多个活跃目标时不执行，
+            // 发 N 选 1 卡；用户点选后 ChatViewModel 把 goalId 注入 renderData
+            // 重放路由（matchGoal 第一级就是 goalId 精确匹配，天然闭环）
+            if Self.isGoalWriteIntent(item.intent) {
+                // log_metric_value 用户未指名目标时不弹卡（优先按习惯名匹配记录），
+                // 指名（goalId/targetHint）且命中多个才需要选
+                let goals = item.intent == .logMetricValue
+                    ? IntentRouter.shared.ambiguousGoalCandidatesForMetricLog(from: item.extractedData)
+                    : IntentRouter.shared.ambiguousGoalCandidates(from: item.extractedData)
+                if let goals {
+                    var renderData = item.extractedData ?? [:]
+                    renderData["confirmationStatus"] = "pending"
+                    renderData["pendingKind"] = "goalChoice"
+                    renderData["goalChoiceCandidates"] = Self.encodeGoalChoiceCandidates(goals)
+                    executionItems.append(
+                        AIExecutionItem(
+                            id: UUID().uuidString,
+                            parseItemId: item.id,
+                            intent: item.intent,
+                            status: .skipped,
+                            summaryText: "匹配到多个目标，请选择要\(Self.goalActionLabel(item.intent))的目标",
+                            renderData: renderData.isEmpty ? nil : renderData,
+                            linkedEntityType: nil,
+                            linkedEntityId: nil,
+                            errorText: nil
+                        )
+                    )
+                    continue
+                }
+            }
+
             do {
                 // 透传原始输入文本：LLM 偶尔漏填任务的时间/日期，
                 // IntentRouter 会用 NLDateParser 对原文兜底解析
                 let routeResult = try await intentRouter.route(item.asParsedResult, originalInput: text)
                 let renderData = Self.buildRenderData(from: item, routeResult: routeResult)
+
+                if Self.isGoalWriteIntent(item.intent) || item.intent == .toggleGoalVisibility {
+                    GoalNotificationService.broadcastGoalDataChange()
+                }
 
                 logger.info("[多动作] item=\(item.id) intent=\(item.intent.rawValue) note=\(renderData?["note"] ?? "nil") candidate=\(renderData?["categoryCandidate"] ?? "nil") primary=\(renderData?["primaryCategory"] ?? "nil") sub=\(renderData?["subCategory"] ?? "nil")")
 
@@ -479,6 +515,28 @@ final class ConversationCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    // MARK: goalChoice 选择卡
+
+    /// goal 写操作意图：这些意图的目标匹配歧义走 goalChoice 选择卡（toggle_goal_visibility 仍走文本反问）
+    private static func isGoalWriteIntent(_ intent: AIIntent) -> Bool {
+        intent == .linkTaskToGoal || intent == .linkHabitToGoal || intent == .updateGoalField || intent == .logMetricValue
+    }
+
+    private static func goalActionLabel(_ intent: AIIntent) -> String {
+        switch intent {
+        case .linkTaskToGoal: return "关联任务"
+        case .linkHabitToGoal: return "关联习惯"
+        case .logMetricValue: return "记录数值"
+        default: return "修改"
+        }
+    }
+
+    private static func encodeGoalChoiceCandidates(_ goals: [Goal]) -> String? {
+        let candidates = goals.map { GoalChoiceCandidate(goalId: $0.id.uuidString, title: $0.title) }
+        guard let data = try? JSONEncoder().encode(candidates) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 
     // MARK: Parser 白名单——显式列出允许从 parser 结果写入 renderData 的字段
 

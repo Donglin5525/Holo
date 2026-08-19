@@ -23,6 +23,24 @@ struct HoloGoalLinkedHabitSnapshot: Codable, Equatable, Sendable {
     var name: String
 }
 
+/// 量化目标指标快照（三期 3b）：当前值/目标值/单位/预测结论，与详情页大数字同口径
+struct HoloGoalMetricSnapshot: Codable, Equatable, Sendable {
+    /// cumulative / target
+    var kind: String
+    /// manual / habit / ledger
+    var source: String
+    var currentValue: Double
+    var targetValue: Double
+    var unit: String?
+    var progress: Double
+    var isAchieved: Bool
+    var predictedDate: Date?
+    /// 有截止日时才有结论：true=预计如期达成
+    var meetsDeadline: Bool?
+    /// habit 源习惯名（数据来自哪个习惯）
+    var sourceHabitName: String?
+}
+
 struct HoloGoalToolRecord: Codable, Equatable, Sendable {
     var id: String
     var title: String
@@ -34,6 +52,7 @@ struct HoloGoalToolRecord: Codable, Equatable, Sendable {
     var updatedAt: Date?
     var linkedTasks: [HoloGoalLinkedTaskSnapshot]
     var linkedHabits: [HoloGoalLinkedHabitSnapshot]
+    var metric: HoloGoalMetricSnapshot?
 }
 
 // MARK: - DataSource Protocol
@@ -214,6 +233,19 @@ extension HoloGoalTool {
         // goal.domain 存的是 GoalDomain.rawValue（英文 learning/career…），展示给用户要翻译成中文。
         let domainLabel = GoalDomain(rawValue: goal.domain)?.displayName ?? "其他"
         var parts: [String] = ["目标「\(goal.title)」", "领域：\(domainLabel)"]
+        if let metric = goal.metric {
+            parts.append("量化：当前 \(metric.currentValue)/\(metric.targetValue)\(metric.unit ?? "")")
+            if metric.isAchieved {
+                parts.append("已达成")
+            } else if let predicted = metric.predictedDate {
+                let dateText = displayFormatter.string(from: predicted)
+                if let meets = metric.meetsDeadline {
+                    parts.append(meets ? "预计 \(dateText) 达成（能赶上截止）" : "预计 \(dateText) 达成（难以赶在截止前）")
+                } else {
+                    parts.append("预计 \(dateText) 达成")
+                }
+            }
+        }
         if let deadline = goal.deadline {
             parts.append("截止：\(displayFormatter.string(from: deadline))")
         }

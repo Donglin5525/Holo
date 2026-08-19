@@ -39,6 +39,10 @@ struct MessageBubbleView: View {
     var onTransactionConfirm: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     var onTransactionCancel: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     var onTransactionModifyCategory: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
+    /// goalChoice 选择卡：点选候选目标确认执行
+    var onGoalChoiceSelect: ((ChatMessageViewData, GoalChoiceCardData, GoalChoiceCandidate) -> Void)? = nil
+    /// goalChoice 选择卡取消：不执行动作
+    var onGoalChoiceCancel: ((ChatMessageViewData, GoalChoiceCardData) -> Void)? = nil
     /// 举报 AI 生成内容（App Store Guideline 1.2），仅对 AI 消息生效。
     var onReport: ((ChatMessageViewData) -> Void)? = nil
     /// 周计划卡：快照按台账实时读取（provider 注入，避免逐条查库阻塞渲染）
@@ -386,6 +390,16 @@ struct MessageBubbleView: View {
             } onViewAllTap: {
                 onFlexibleQueryViewAllTap?(queryData)
             }
+        case .goalChoice(let choiceData):
+            GoalChoiceChatCard(
+                data: choiceData,
+                onSelect: { candidate in
+                    onGoalChoiceSelect?(message, choiceData, candidate)
+                },
+                onCancel: {
+                    onGoalChoiceCancel?(message, choiceData)
+                }
+            )
         }
     }
 

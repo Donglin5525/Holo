@@ -351,6 +351,7 @@ struct GoalDraftReviewView: View {
         isSaving = true
         do {
             let result = try GoalRepository.shared.saveDraft(draft, allowAIContext: allowAIContext)
+            GoalNotificationService.broadcastGoalDataChange()
             onSaved(result)
             dismiss()
         } catch {

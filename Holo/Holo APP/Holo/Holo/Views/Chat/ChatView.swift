@@ -111,7 +111,7 @@ struct ChatView: View {
                     Button {
                         HoloMemoryReceiptStore.markWriteReceiptsRead()
                         memoryInboxNotice = nil
-                        DeepLinkState.shared.navigate(to: .memoryGallery)
+                        DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
                     } label: {
                         Label(notice, systemImage: "brain.head.profile.fill")
                             .font(.system(size: 12, weight: .medium))
@@ -543,6 +543,16 @@ struct ChatView: View {
                                 date: TransactionDateResolver.resolve(from: renderData)
                             )
                         },
+                        onGoalChoiceSelect: { msg, choiceData, candidate in
+                            viewModel.confirmPendingGoalChoice(
+                                from: msg,
+                                itemID: choiceData.itemID,
+                                goalId: candidate.goalId
+                            )
+                        },
+                        onGoalChoiceCancel: { msg, choiceData in
+                            viewModel.cancelPendingGoalChoice(from: msg, itemID: choiceData.itemID)
+                        },
                         onReport: { msg in
                             reportingMessage = msg
                         },
@@ -852,6 +862,7 @@ struct ChatView: View {
                 selectedActionIDs: selection.selectedActionIDs,
                 rejections: selection.rejections
             )
+            GoalNotificationService.broadcastGoalDataChange()
             viewModel.finishLifePlanConfirm(
                 planID: selection.planID,
                 token: token,
@@ -924,7 +935,7 @@ struct ChatView: View {
             // HomeView 监听 deepLinkState 变化后自动切换 activeScreen，ChatView 自动隐藏。
             DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
         } else if message.hasLinkedEntity(for: .memoryInsight) {
-            DeepLinkState.shared.navigate(to: .memoryGallery)
+            DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
         }
     }
 
@@ -976,7 +987,7 @@ struct ChatView: View {
             }
         case .habitCheckIn, .mood, .weight:
             break
-        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights, .flexibleQuery:
+        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights, .flexibleQuery, .goalChoice:
             break
         }
     }

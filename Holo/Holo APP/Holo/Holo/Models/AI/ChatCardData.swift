@@ -24,6 +24,7 @@ nonisolated enum ChatCardData: Equatable {
     case analysisComparison(AnalysisComparisonCardData)
     case analysisHighlights(AnalysisHighlightsCardData)
     case flexibleQuery(FlexibleQueryChatCardData)
+    case goalChoice(GoalChoiceCardData)
 
     /// 从 intent + extractedData 构造卡片数据
     /// - Parameters:
@@ -172,8 +173,43 @@ nonisolated enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .completeTask, .updateTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .updateGoalField, .linkTaskToGoal, .toggleGoalVisibility:
+        case .linkTaskToGoal, .linkHabitToGoal, .updateGoalField, .logMetricValue:
+            // 命中多目标歧义时渲染 goalChoice 选择卡；正常执行仍走文本结果
+            return goalChoiceCardData(intent: intent, data: data, itemID: itemID).map { .goalChoice($0) }
+
+        case .completeTask, .updateTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .toggleGoalVisibility:
             return nil
+        }
+    }
+
+    nonisolated private static func goalChoiceCardData(
+        intent: AIIntent,
+        data: [String: String],
+        itemID: String?
+    ) -> GoalChoiceCardData? {
+        guard data["pendingKind"] == "goalChoice",
+              let json = data["goalChoiceCandidates"]?.data(using: .utf8),
+              let candidates = try? JSONDecoder().decode([GoalChoiceCandidate].self, from: json),
+              !candidates.isEmpty else {
+            return nil
+        }
+        return GoalChoiceCardData(
+            actionLabel: Self.goalChoiceActionLabel(intent),
+            subjectTitle: data["taskTitle"] ?? data["habitName"] ?? data["targetHint"] ?? data["goalTitle"],
+            candidates: candidates,
+            itemID: itemID,
+            confirmationStatus: data["confirmationStatus"],
+            selectedGoalTitle: data["goalTitle"],
+            confirmationError: data["errorText"] ?? data["confirmationError"]
+        )
+    }
+
+    nonisolated private static func goalChoiceActionLabel(_ intent: AIIntent) -> String {
+        switch intent {
+        case .linkTaskToGoal: return "关联任务"
+        case .linkHabitToGoal: return "关联习惯"
+        case .logMetricValue: return "记录数值"
+        default: return "修改目标"
         }
     }
 
@@ -564,6 +600,45 @@ nonisolated struct MoodCardData: Equatable {
 nonisolated struct WeightCardData: Equatable {
     let weight: String
     let unit: String
+}
+
+// MARK: - 目标选择卡片数据
+
+/// 目标歧义选择卡候选（goalId + 标题，由 Coordinator 序列化进 renderData）
+nonisolated struct GoalChoiceCandidate: Equatable, Codable, Identifiable, Sendable {
+    let goalId: String
+    let title: String
+
+    var id: String { goalId }
+}
+
+/// 多目标歧义 N 选 1 卡：候选行点选即确认，确认后 goalId 注入 extractedData 重放路由
+nonisolated struct GoalChoiceCardData: Equatable, Sendable {
+    /// 动作词（关联任务 / 关联习惯 / 修改目标）
+    let actionLabel: String
+    /// 被操作对象（任务/习惯名；update_goal_field 场景为 nil）
+    let subjectTitle: String?
+    let candidates: [GoalChoiceCandidate]
+    /// 所属 execution item ID：确认/取消按它定位被操作的卡片
+    let itemID: String?
+    let confirmationStatus: String?
+    /// 确认后选中目标的标题（confirmed 态展示）
+    let selectedGoalTitle: String?
+    let confirmationError: String?
+
+    /// 待选择（含 confirming 中间态与 failed 重试）
+    var requiresConfirmation: Bool {
+        ["pending", "confirming", "failed"].contains(confirmationStatus ?? "")
+    }
+
+    /// 选择路由执行中（按钮禁用；启动对账的中间态标记）
+    var isConfirming: Bool { confirmationStatus == "confirming" }
+
+    /// 确认失败（可重试：候选行可再次点选）
+    var isFailed: Bool { confirmationStatus == "failed" }
+
+    /// 已取消（不执行动作）
+    var isCancelled: Bool { confirmationStatus == "cancelled" }
 }
 
 // MARK: - 分类 SF Symbol 映射
@@ -1095,6 +1170,7 @@ extension TaskCardData: Sendable {}
 extension HabitCheckInCardData: Sendable {}
 extension MoodCardData: Sendable {}
 extension WeightCardData: Sendable {}
+extension GoalChoiceCardData: Sendable {}
 extension AnalysisSummaryCardData: Sendable {}
 extension AnalysisTrendCardData: Sendable {}
 extension AnalysisBreakdownCardData: Sendable {}

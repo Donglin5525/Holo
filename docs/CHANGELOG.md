@@ -13,6 +13,12 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 目标系统 v3 三期——关联收尾（手动关联 + 歧义选择卡）、风险通知、量化目标
+  - 手动关联：任务/习惯详情页新增「归属目标」选择弹层（GoalPickerSheet）；目标详情页统一管理已关联的任务/习惯（GoalLinkManagerSheet）
+  - 歧义选择卡：AI 对目标的写操作命中多个活跃目标时不再猜，改发 N 选 1 卡片（goalChoice），点选后带 goalId 重放执行、取消则不执行
+  - 风险通知：新增 GoalRiskEvaluator + GoalNotificationService，目标落后/临近截止/偏航时本地主动提醒
+  - 量化目标：目标绑定数据源（类型×数据源），GoalMetricLogSheet 手动记数值，或口语「今天跑了 5 公里」由 AI 记（log_metric_value）；AI 还支持把习惯关联到目标（link_habit_to_goal）
+  - 意图注册表与评测语料（seed-v1）同步补齐；⚠️ 后端意图识别需随批发版支持两个新意图，CloudKit 需初始化 GoalMetricLog schema；方案存档于 `docs/_common/plans/2026-08-18-Holo目标系统v3-三期整体方案.md`
 - **iOS**: 记忆长廊两 tab 收敛——撤「明细」tab，资产各归其位（日历=事实层 / 洞察=意义层）
   - 撤明细 tab：与日历（按天分组、点天看当天、逐条事件）和洞察（高光/里程碑叙事）大面积重叠，收敛为「日历 / 洞察」两 tab；热力图按东林要求保留
   - 热力图迁洞察 tab：13 周活跃热力图 + 点选日「当天轨迹」统计卡原样搬到 DailySense 之后（坚持反馈与状态卡同族）

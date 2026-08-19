@@ -116,6 +116,10 @@ final class IntentRouter {
             return try handleUpdateGoalField(result)
         case .linkTaskToGoal:
             return try handleLinkTaskToGoal(result)
+        case .linkHabitToGoal:
+            return try handleLinkHabitToGoal(result)
+        case .logMetricValue:
+            return try handleLogMetricValue(result, originalInput: originalInput)
         case .toggleGoalVisibility:
             return try handleToggleGoalVisibility(result)
         case .createNote:
@@ -603,7 +607,7 @@ final class IntentRouter {
     /// 匹配目标：goalId 精确 > goalTitle 模糊 > 唯一活跃目标。多候选返回 nil（由上层转 pending 卡片）。
     private func matchGoal(from data: [String: String]?) -> GoalMatchResult {
         let repo = GoalRepository.shared
-        let activeGoals = repo.goals.filter { $0.goalStatus == .active }
+        let activeGoals = repo.activeGoals()
 
         // 1. goalId 精确
         if let idStr = data?["goalId"], let uuid = UUID(uuidString: idStr),
@@ -625,6 +629,13 @@ final class IntentRouter {
 
         if activeGoals.isEmpty { return .none }
         return .ambiguous(activeGoals)
+    }
+
+    /// 目标歧义预判（Coordinator 生成 goalChoice 选择卡用）：
+    /// 命中多个活跃目标时返回候选；单命中/无目标返回 nil，走正常路由。
+    func ambiguousGoalCandidates(from data: [String: String]?) -> [Goal]? {
+        guard case .ambiguous(let goals) = matchGoal(from: data) else { return nil }
+        return goals
     }
 
     private func handleUpdateGoalField(_ result: ParsedResult) throws -> RouteResult {
@@ -703,6 +714,36 @@ final class IntentRouter {
         }
     }
 
+    private func handleLinkHabitToGoal(_ result: ParsedResult) throws -> RouteResult {
+        let data = result.extractedData
+        let habitRepo = HabitRepository.shared
+        let activeHabits = habitRepo.activeHabits.filter { !$0.isArchived }
+
+        // 匹配习惯：先精确等值，再双向包含
+        var matchedHabit: Habit?
+        if let habitName = data?["habitName"], !habitName.isEmpty {
+            matchedHabit = activeHabits.first { $0.name == habitName }
+                ?? activeHabits.first { $0.name.contains(habitName) || habitName.contains($0.name) }
+        }
+        guard let habit = matchedHabit else {
+            return RouteResult(text: "没找到对应的习惯，请告诉我具体是哪个习惯。")
+        }
+
+        switch matchGoal(from: data) {
+        case .none:
+            return RouteResult(text: "你还没有正在进行的活跃目标。")
+        case .ambiguous(let goals):
+            return goalDisambiguationResult(goals, action: "关联习惯")
+        case .single(let goal):
+            try GoalRepository.shared.linkHabit(habit, to: goal)
+            return RouteResult(
+                text: "已把「\(habit.name)」关联到目标「\(goal.title)」",
+                habitId: habit.id,
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        }
+    }
+
     private func handleToggleGoalVisibility(_ result: ParsedResult) throws -> RouteResult {
         let data = result.extractedData
         switch matchGoal(from: data) {
@@ -718,6 +759,123 @@ final class IntentRouter {
                 linkedEntity: LinkedEntity(type: .goal, id: goal.id)
             )
         }
+    }
+
+    // MARK: - Log Metric Value（量化目标/数值习惯记一笔，handleRecordWeight 的通用化）
+
+    private func handleLogMetricValue(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
+        guard let value = parseHabitValue(from: result.extractedData) else {
+            return RouteResult(text: "请告诉我要记录的数值，比如「今天跑了 5 公里」「体重 72.4」")
+        }
+        let targetHint = result.extractedData?["targetHint"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        // 1. 指名了量化目标：goalId 精确（goalChoice 重放注入）→ targetHint 模糊
+        switch matchGoalStrict(from: result.extractedData) {
+        case .single(let goal) where goal.isQuantitative:
+            return try recordMetricToGoal(goal, value: value, originalInput: originalInput)
+        case .ambiguous(let goals):
+            return goalDisambiguationResult(goals, action: "记录数值到")
+        case .single(let goal):
+            // 命中过程型目标：数值对它无意义，转而按习惯名匹配（目标与习惯同名的场景兜底）
+            if let habit = matchNumericHabit(named: targetHint) {
+                return try recordMetricToHabit(habit, value: value, originalInput: originalInput)
+            }
+            return RouteResult(
+                text: "「\(goal.title)」是过程型目标，不记录数值。要记到某个数值习惯的话，告诉我习惯名。",
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        case .none:
+            // 2. 没指名目标（或没匹配上）：targetHint 像习惯名 → 匹配数值习惯
+            if let habit = matchNumericHabit(named: targetHint) {
+                return try recordMetricToHabit(habit, value: value, originalInput: originalInput)
+            }
+            return RouteResult(text: "没找到对应的量化目标或数值习惯。可以说「跑向300公里 今天跑了5公里」，或先到习惯模块创建数值习惯。")
+        }
+    }
+
+    /// 命中量化目标后按数据源落库（单一事实来源：habit 源记习惯、manual 源记 GoalMetricLog、ledger 源引导记账）
+    private func recordMetricToGoal(_ goal: Goal, value: Double, originalInput: String?) throws -> RouteResult {
+        switch goal.metricSourceEnum {
+        case .habit:
+            guard let habit = GoalMetricEvaluator.sourceHabit(for: goal) else {
+                return RouteResult(
+                    text: "「\(goal.title)」的数据源习惯已删除或归档，请到目标详情页重新选择数据源。",
+                    linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+                )
+            }
+            let habitResult = try recordMetricToHabit(habit, value: value, originalInput: originalInput)
+            return RouteResult(
+                text: "\(habitResult.text)（已计入目标「\(goal.title)」）",
+                habitId: habitResult.habitId,
+                linkedEntity: habitResult.linkedEntity
+            )
+        case .manual:
+            let note = Self.habitRecordNote(
+                originalInput: originalInput,
+                habitNames: [goal.title],
+                removableTokens: []
+            )
+            try GoalRepository.shared.addMetricLog(for: goal, value: value, note: note)
+            let unit = goal.metricUnitText.isEmpty ? "" : " \(goal.metricUnitText)"
+            return RouteResult(
+                text: "已记录「\(goal.title)」\(GoalMetricEvaluator.formatValue(value))\(unit)",
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        case .ledger:
+            return RouteResult(
+                text: "「\(goal.title)」是存钱目标，进度按账本自动计算。记账请直接记一笔账，比如「发工资了 8000」。",
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        }
+    }
+
+    /// 记到数值习惯（与详情页「数据来自」同源，进度自动跟随）
+    private func recordMetricToHabit(_ habit: Habit, value: Double, originalInput: String?) throws -> RouteResult {
+        let note = Self.habitRecordNote(
+            originalInput: originalInput,
+            habitNames: [habit.name],
+            removableTokens: [String(value), "\(value)\(habit.unitText)", habit.unitText].filter { !$0.isEmpty }
+        )
+        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note)
+        return RouteResult(
+            text: "已记录「\(habit.name)」\(habit.formatValue(value))\(habit.unitText)",
+            habitId: habit.id,
+            linkedEntity: LinkedEntity(type: .habit, id: record.habitId)
+        )
+    }
+
+    /// 按名称匹配活跃数值习惯（先精确等值再双向包含；打卡型习惯不参与）
+    private func matchNumericHabit(named name: String?) -> Habit? {
+        guard let name, !name.isEmpty else { return nil }
+        let numericHabits = HabitRepository.shared.activeHabits.filter { !$0.isArchived && $0.isNumericType }
+        return numericHabits.first { $0.name == name }
+            ?? numericHabits.first { $0.name.contains(name) || name.contains($0.name) }
+    }
+
+    /// 严格目标匹配（log_metric_value 专用）：goalId 精确 / targetHint 模糊，
+    /// 不做「唯一活跃目标」兜底——用户没指名目标时优先按习惯名匹配
+    private func matchGoalStrict(from data: [String: String]?) -> GoalMatchResult {
+        let repo = GoalRepository.shared
+        let activeGoals = repo.activeGoals()
+
+        if let idStr = data?["goalId"], let uuid = UUID(uuidString: idStr),
+           let goal = repo.findGoal(by: uuid) {
+            return .single(goal)
+        }
+        guard let title = data?["targetHint"], !title.isEmpty else { return .none }
+        let exact = activeGoals.filter { $0.title == title }
+        if exact.count == 1 { return .single(exact[0]) }
+        let contains = activeGoals.filter { $0.title.contains(title) || title.contains($0.title) }
+        if contains.count == 1 { return .single(contains[0]) }
+        if contains.count > 1 { return .ambiguous(contains) }
+        return .none
+    }
+
+    /// log_metric_value 的目标歧义预判（Coordinator 发 goalChoice 卡用）：
+    /// 用户指名了目标（goalId/targetHint）且命中多个才弹选择卡，否则走习惯名匹配
+    func ambiguousGoalCandidatesForMetricLog(from data: [String: String]?) -> [Goal]? {
+        guard case .ambiguous(let goals) = matchGoalStrict(from: data) else { return nil }
+        return goals
     }
 
     /// 多目标歧义：返回候选列表（纯文本反问兜底；完整 pending 卡片由 ConversationCoordinator 处理）

@@ -118,8 +118,8 @@ struct GoalAnalysisContextBuilder {
             }
         }
 
-        // 综合进度：任务 60% + 习惯 40%
-        let overallProgress = calculateOverallProgress(
+        // 综合进度：任务 60% + 习惯 40%（口径与目标风险通知共用）
+        let overallProgress = GoalProgressEvaluator.overallProgress(
             taskTotal: taskTotal,
             taskCompleted: taskCompleted,
             habitTotal: habitTotal,
@@ -151,33 +151,10 @@ struct GoalAnalysisContextBuilder {
         )
     }
 
-    /// 综合进度计算：任务 60% + 习惯 40%
-    private func calculateOverallProgress(
-        taskTotal: Int,
-        taskCompleted: Int,
-        habitTotal: Int,
-        habitAvgRate: Double?
-    ) -> Double? {
-        let hasTasks = taskTotal > 0
-        let hasHabits = habitTotal > 0 && habitAvgRate != nil
-
-        if hasTasks && hasHabits {
-            let taskRate = Double(taskCompleted) / Double(taskTotal)
-            return taskRate * 0.6 + (habitAvgRate ?? 0) * 0.4
-        } else if hasTasks {
-            return Double(taskCompleted) / Double(taskTotal)
-        } else if hasHabits {
-            return habitAvgRate
-        }
-        return nil
-    }
-
-    /// 风险判断：deadline < 7 天且进度 < 50%，或习惯完成率 < 30%
+    /// 风险判断：deadline ≤7 天且进度 <50%（与目标风险通知共用），或习惯完成率 <30%
     private func isAtRisk(_ item: GoalProgressItem) -> Bool {
-        if let days = item.daysRemaining, days >= 0, days < 7 {
-            if let progress = item.overallProgress, progress < 0.5 {
-                return true
-            }
+        if GoalRiskEvaluator.isDeadlineRisk(daysRemaining: item.daysRemaining, progress: item.overallProgress) {
+            return true
         }
         if let habitRate = item.linkedHabitAverageRate, habitRate < 0.3 {
             return true
