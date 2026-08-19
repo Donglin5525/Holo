@@ -727,6 +727,8 @@ struct TaskListView: View {
                 Capsule().strokeBorder(isSelected ? Color.clear : Color.holoDivider, lineWidth: 1)
             )
             .shadow(color: isSelected ? Color.holoPrimary.opacity(0.26) : .clear, radius: 6, x: 0, y: 3)
+            // 横向滚动条中的胶囊按内容取宽，避免父级宽度提案裁掉首字符或图标
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
     }
@@ -786,10 +788,11 @@ struct TaskListView: View {
             .overlay(
                 Capsule().strokeBorder(selectedList != nil ? Color.clear : Color.holoDivider, lineWidth: 1)
             )
-            // Menu 换 label 内容时会沿用旧的宽度提案，长清单名会被压成省略号、
-            // 直到下一次重排才恢复；fixedSize 强制按内容取宽，杜绝这一闪变
-            .fixedSize()
+            // Menu 换 label 内容时可能沿用旧的宽度提案；按内容取宽，且在清单切换时重建
+            // Menu，避免旧的短文案布局缓存把新名称的首字符或色点裁掉。
+            .fixedSize(horizontal: true, vertical: false)
         }
+        .id(selectedList?.id)
     }
 
     // MARK: - 时间分组任务流（非完成 tab）

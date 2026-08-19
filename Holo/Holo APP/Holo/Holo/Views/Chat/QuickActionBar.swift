@@ -34,6 +34,8 @@ struct QuickActionBar: View {
                                 : Color.holoPrimary.opacity(0.1)
                         )
                         .cornerRadius(16)
+                        // 能力名称可由配置扩展，横向滚动时不让父级压缩胶囊内容
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                     .disabled(viewModel.isStreaming || !capability.isEnabled)
                     .opacity(capability.isEnabled ? 1.0 : 0.5)

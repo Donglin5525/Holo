@@ -41,6 +41,8 @@ struct HoloFilterChip: View {
                 Capsule()
                     .stroke(isSelected ? Color.clear : Color.holoDivider, lineWidth: 1)
             )
+            // 横向滚动条中的胶囊必须保持内容宽度，避免动态标签被父级压缩裁切
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
     }

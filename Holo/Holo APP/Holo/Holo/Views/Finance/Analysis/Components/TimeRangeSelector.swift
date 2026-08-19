@@ -52,6 +52,8 @@ struct TimeRangeSelector: View {
                     Capsule()
                         .stroke(state.timeRange == .custom ? Color.clear : Color.holoDivider, lineWidth: 1)
                 )
+                // 自定义时间范围入口也保持内容宽度，与共享筛选胶囊一致
+                .fixedSize(horizontal: true, vertical: false)
             }
             .buttonStyle(.plain)
         } else {

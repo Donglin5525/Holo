@@ -193,6 +193,8 @@ extension AddTransactionSheet {
                 Capsule()
                     .stroke(isSelected ? category.swiftUIColor : Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
             )
+            // 最近使用分类名称来自数据，保持胶囊完整宽度后再交给横向滚动条处理
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
     }

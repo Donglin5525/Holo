@@ -101,6 +101,8 @@ struct QuickTagChip: View {
                             .stroke(Color.holoBorder.opacity(0.9), lineWidth: 1)
                     )
             )
+            // 标签内容来自用户数据，横向滚动时按内容取宽，避免首字符被压缩裁掉
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(PlainButtonStyle())
     }
