@@ -18,6 +18,9 @@ enum TodoNotificationCategory {
     static let dailyReminder = "DAILY_REMINDER"
     static let memoryInsight = "MEMORY_INSIGHT"
     static let anniversary = "ANNIVERSARY"
+    static let goalRisk = "GOAL_RISK"
+    static let habitReminder = "HABIT_REMINDER"
+    static let weeklyBrief = "WEEKLY_BRIEF"
 }
 
 enum TodoNotificationAction: String {
@@ -41,12 +44,6 @@ class TodoNotificationService: NSObject, ObservableObject {
     // MARK: - Properties
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TodoNotification")
-    private let dailyReminderId = "holo-daily-reminder"
-
-    /// 任务完成回调（用于通知操作按钮）
-    var onTaskComplete: ((UUID) -> Void)?
-    /// 稍后提醒回调
-    var onTaskSnooze: ((UUID) -> Void)?
 
     // MARK: - Initialization
 
@@ -143,7 +140,34 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
-        UNUserNotificationCenter.current().setNotificationCategories([taskCategory, dailyCategory, memoryInsightCategory, anniversaryCategory])
+        // 目标风险提醒分类（无操作按钮，点击直达目标详情）
+        let goalRiskCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.goalRisk,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        // 习惯打卡提醒（无操作按钮，点击直达习惯页）
+        let habitReminderCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.habitReminder,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        // 周一晨报（无操作按钮，点击打开今日看板的上周小结卡）
+        let weeklyBriefCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.weeklyBrief,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([
+            taskCategory, dailyCategory, memoryInsightCategory,
+            anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory
+        ])
         Self.logger.info("已注册通知分类")
     }
 
@@ -228,70 +252,6 @@ class TodoNotificationService: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Daily Reminder
-
-    /// 设置每日提醒
-    /// - Parameters:
-    ///   - hour: 小时 (0-23)
-    ///   - minute: 分钟 (0-59)
-    func scheduleDailyReminder(at hour: Int, minute: Int) async throws {
-        guard isAuthorized else {
-            throw TodoNotificationError.permissionDenied
-        }
-
-        // 先取消现有的每日提醒
-        cancelDailyReminder()
-
-        let content = UNMutableNotificationContent()
-        content.title = "📋 今日待办"
-        content.body = "查看今天的待办事项"
-        content.sound = .default
-        content.categoryIdentifier = TodoNotificationCategory.dailyReminder
-
-        var dateComponents = DateComponents()
-        dateComponents.hour = hour
-        dateComponents.minute = minute
-
-        let trigger = UNCalendarNotificationTrigger(
-            dateMatching: dateComponents,
-            repeats: true
-        )
-
-        let request = UNNotificationRequest(
-            identifier: dailyReminderId,
-            content: content,
-            trigger: trigger
-        )
-
-        try await UNUserNotificationCenter.current().add(request)
-        Self.logger.info("已设置每日提醒：\(hour):\(String(format: "%02d", minute))")
-    }
-
-    /// 取消每日提醒
-    func cancelDailyReminder() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: [dailyReminderId]
-        )
-        Self.logger.info("已取消每日提醒")
-    }
-
-    /// 检查每日提醒是否已设置
-    func isDailyReminderEnabled() async -> Bool {
-        let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
-        return requests.contains { $0.identifier == dailyReminderId }
-    }
-
-    /// 获取每日提醒时间
-    func getDailyReminderTime() async -> (hour: Int, minute: Int)? {
-        let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
-        guard let request = requests.first(where: { $0.identifier == dailyReminderId }),
-              let trigger = request.trigger as? UNCalendarNotificationTrigger else {
-            return nil
-        }
-        let dateComponents = trigger.dateComponents
-        return (dateComponents.hour ?? 9, dateComponents.minute ?? 0)
-    }
-
     // MARK: - Test Notification
 
     /// 发送测试通知
@@ -355,16 +315,29 @@ class TodoNotificationService: NSObject, ObservableObject {
 
     // MARK: - Handle Notification Actions
 
-    /// 处理任务完成操作
+    /// 处理任务完成操作：通知按钮的语义是「完成」——
+    /// 循环任务按 UI 惯例生成下一实例，普通任务直接完成；
+    /// 仓库负责保存、刷新列表并清除该任务的剩余提醒。
     func handleCompleteTask(taskId: UUID) {
-        Self.logger.info("处理任务完成：\(taskId.uuidString)")
-        onTaskComplete?(taskId)
+        guard let task = TodoRepository.shared.findTask(by: taskId) else {
+            Self.logger.warning("通知完成任务：任务不存在 \(taskId.uuidString)")
+            return
+        }
+        do {
+            if task.repeatRule != nil {
+                _ = try TodoRepository.shared.completeRepeatingTask(task)
+            } else {
+                try TodoRepository.shared.completeTask(task)
+            }
+            Self.logger.info("通知完成任务成功：\(taskId.uuidString)")
+        } catch {
+            Self.logger.error("通知完成任务失败：\(error.localizedDescription)")
+        }
     }
 
     /// 处理稍后提醒操作
     func handleSnoozeTask(taskId: UUID) {
         Self.logger.info("处理稍后提醒：\(taskId.uuidString)")
-        onTaskSnooze?(taskId)
 
         // 创建15分钟后的新提醒
         Task {
@@ -374,9 +347,14 @@ class TodoNotificationService: NSObject, ObservableObject {
 
     /// 创建稍后提醒
     private func scheduleSnoozeReminder(taskId: UUID) async {
+        // 贪睡通知必须带任务名，否则用户不知道在提醒什么；
+        // 任务已被完成或删除时不再打扰
+        guard let task = TodoRepository.shared.findTask(by: taskId),
+              !task.completed, !task.deletedFlag else { return }
+
         let content = UNMutableNotificationContent()
-        content.title = "⏰ 任务提醒"
-        content.body = "您设置的稍后提醒"
+        content.title = "⏰ 稍后提醒"
+        content.body = task.title
         content.sound = .default
         content.categoryIdentifier = TodoNotificationCategory.task
         content.userInfo = ["taskId": taskId.uuidString]
@@ -475,8 +453,25 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
                     try? repository.markRead(insight: insight)
                     DeepLinkState.shared.navigate(to: .memoryInsight(insightId: insight.id))
                 } else {
-                    DeepLinkState.shared.navigate(to: .memoryGallery)
+                    DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
                 }
+            case TodoNotificationCategory.goalRisk:
+                if let goalIdString = userInfo["goalId"] as? String, let goalId = UUID(uuidString: goalIdString) {
+                    Self.logger.info("目标风险通知 Deep Link：\(goalIdString)")
+                    DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
+                }
+            case TodoNotificationCategory.anniversary:
+                if let anniversaryIdString = userInfo["anniversaryId"] as? String,
+                   let anniversaryId = UUID(uuidString: anniversaryIdString) {
+                    Self.logger.info("纪念日通知 Deep Link：\(anniversaryIdString)")
+                    DeepLinkState.shared.navigate(to: .anniversaryDetail(anniversaryId: anniversaryId))
+                }
+            case TodoNotificationCategory.habitReminder:
+                Self.logger.info("习惯提醒 Deep Link")
+                DeepLinkState.shared.navigate(to: .habits)
+            case TodoNotificationCategory.weeklyBrief:
+                Self.logger.info("周一晨报 Deep Link")
+                DeepLinkState.shared.navigate(to: .weeklyBrief)
             default:
                 break
             }

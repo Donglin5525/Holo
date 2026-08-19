@@ -218,12 +218,23 @@ final class HoloReplayDigestService {
         Self.logger.info(
             "开始回填累计摘要（本批 \(batch.count) 期，剩余 \(remaining.count) 期）"
         )
+        var skippedInvalidPayloadCount = 0
         for insight in batch {
             guard activeUserReplayIDs.isEmpty else {
                 Self.logger.info("用户周期回放开始，暂停本批历史摘要回填")
                 break
             }
-            guard let payload = insight.parsedPayload else { continue }
+            guard let payload = insight.parsedPayload else {
+                skippedInvalidPayloadCount += 1
+                var counts = model.backfillFailureCounts ?? [:]
+                counts[insight.id.uuidString, default: 0] += 1
+                model.backfillFailureCounts = counts
+                saveToDisk()
+                Self.logger.error(
+                    "回填跳过不可解析洞察（\(insight.id)，第 \(counts[insight.id.uuidString, default: 0]) 次）：缺少有效 cardsJSON"
+                )
+                continue
+            }
             do {
                 model = try await callConsolidateAI(
                     oldDigest: model,
@@ -261,7 +272,12 @@ final class HoloReplayDigestService {
                 )
             }
         }
-        Self.logger.info("本批回放摘要回填结束（累计 \(self.model.sourceInsightCount) 期）")
+        let skippedSuffix = skippedInvalidPayloadCount > 0
+            ? "，跳过不可解析 \(skippedInvalidPayloadCount) 期"
+            : ""
+        Self.logger.info(
+            "本批回放摘要回填结束（累计 \(self.model.sourceInsightCount) 期\(skippedSuffix)）"
+        )
     }
 
     // MARK: - AI Call

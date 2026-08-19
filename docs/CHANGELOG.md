@@ -13,6 +13,12 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 本地推送通知改造（第 1/2 层）——统一通知中心
+  - 四类提醒各自成体系：每日早报（当天安排）、习惯打卡提醒、周一晨报（看板顶部展示上周小结卡）、AI 回放点名（滚动回放近期记录）
+  - 设置页新增「通知设置」统一入口（NotificationSettingsView）：四类各自开关 + 提醒时间可调
+  - 点通知深链直达对应页面（DeepLinkState 新增 habits/weeklyBrief 路由）；晨报小结卡信号只在本次打开期间有效，手动进看板不残留
+  - AI 回放素材缺失记失败次数，防无限重试；纯本地通知不涉及 APNs
+  - P3 埋点与 P4 真推送（哑弹射架构）按东林决定挂起；方案存档于 `docs/plans/2026-08-18-push-notification-overhaul.md`
 - **iOS**: 记忆感知 P1——AI 用了什么记忆，看得见、点得开
   - 徽章可点：AI 回复上的「用到了你关于 XX 的 N 条记忆」徽章，点击直达长廊洞察 tab 并高亮这些记忆（含证据跳转）
   - 信封锚点分组：注入 AI 的记忆上下文按锚点标签聚簇显示（【关于餐饮】…），上下文更可读（HoloMemoryContextEnvelope + anchorGroupLabel）

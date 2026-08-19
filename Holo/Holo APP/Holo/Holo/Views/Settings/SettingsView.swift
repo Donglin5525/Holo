@@ -477,6 +477,7 @@ struct SettingsView: View {
     // MARK: - AI 整理设置
 
     @State private var showThoughtOrganizationSettings = false
+    @State private var showNotificationSettings = false
 
     private var aiOrganizationSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -518,6 +519,19 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showThoughtOrganizationSettings) {
                 ThoughtOrganizationSettingsView()
+            }
+
+            // 统一通知中心入口（早报/习惯提醒/晨报/AI 回放的完整开关与时间都在这里）
+            settingsRow(
+                icon: "bell.badge",
+                iconColor: .holoPrimary,
+                title: "通知设置",
+                subtitle: "每日早报 · 习惯提醒 · 周一晨报 · AI 回放"
+            ) {
+                showNotificationSettings = true
+            }
+            .sheet(isPresented: $showNotificationSettings) {
+                NotificationSettingsView()
             }
         }
         .padding(.horizontal, HoloSpacing.md)

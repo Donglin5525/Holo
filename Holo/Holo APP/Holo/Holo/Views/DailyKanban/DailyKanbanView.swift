@@ -16,6 +16,9 @@ struct DailyKanbanView: View {
     @ObservedObject private var healthRepo = HealthRepository.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
+    /// 周一晨报入口信号：为 true 时顶部展示上周小结卡（默认 false，手动进看板不显示）
+    var showWeeklyBrief: Bool = false
+
     @State private var editingHabit: Habit? = nil
     @State private var inputValue: String = ""
     @FocusState private var isInputFocused: Bool
@@ -31,6 +34,9 @@ struct DailyKanbanView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
                     headerView
+                    if showWeeklyBrief {
+                        KanbanWeeklyBriefCard()
+                    }
                     KanbanProgressHero(
                         todoRepo: todoRepo,
                         habitRepo: habitRepo,

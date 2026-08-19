@@ -37,6 +37,10 @@ enum DeepLinkTarget: Equatable {
     case goalDetail(goalId: UUID)
     case dailyReminder
     case habitDetail(habitId: UUID)
+    /// 习惯页（习惯打卡提醒点击进入）
+    case habits
+    /// 周一晨报：打开今日看板并展示上周小结卡
+    case weeklyBrief
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
     case transactionDetail(transactionId: UUID)
@@ -50,8 +54,8 @@ enum DeepLinkTarget: Equatable {
     /// 纪念日模块
     case anniversaries
     case anniversaryDetail(anniversaryId: UUID)
-    /// 从 AI Chat 洞察标签跳转到记忆长廊
-    case memoryGallery
+    /// 从 AI Chat 卡片跳转到记忆长廊；focusNewMemories=true 时由长廊切到洞察 Tab 并高亮新记忆
+    case memoryGallery(focusNewMemories: Bool)
     /// 精准打开记忆长廊中的指定洞察
     case memoryInsight(insightId: UUID)
 }

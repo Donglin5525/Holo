@@ -58,6 +58,8 @@ struct HomeView: View {
     /// 是否显示今日看板（保留 cover 形式：它本身就是首页的一个临时展开层，
     /// 不参与跨模块跳转，无需常驻）
     @State private var showDailyKanban: Bool = false
+    /// 周一晨报入口信号：点通知打开看板时置 true，让看板顶部展示上周小结卡
+    @State private var showWeeklyBriefCard: Bool = false
 
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
@@ -225,9 +227,12 @@ struct HomeView: View {
             }
         }
         // 今日看板（Full Screen Cover：临时展开层，不参与跨模块跳转，保留 cover）
-        .fullScreenCover(isPresented: $showDailyKanban) {
+        .fullScreenCover(isPresented: $showDailyKanban, onDismiss: {
+            // 晨报信号只在本次打开期间有效，手动进看板不残留小结卡
+            showWeeklyBriefCard = false
+        }) {
             LazyView {
-                DailyKanbanView()
+                DailyKanbanView(showWeeklyBrief: showWeeklyBriefCard)
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
         }
@@ -330,18 +335,8 @@ struct HomeView: View {
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
         case .memoryGallery:
-            MemoryGalleryView(
-                onNavigateToFinance: {
-                    pendingFinanceAnalysisDeepLink = nil
-                    pendingFinanceEvidenceReviewDeepLink = nil
-                    navigateToScreen(.finance)
-                },
-                onNavigateToChat: { prefillText in
-                    chatPrefillText = prefillText
-                    navigateToScreen(.ai)
-                }
-            )
-            .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            MemoryGalleryView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
         case .health:
             HealthView()
@@ -807,7 +802,11 @@ struct HomeView: View {
                 navigateToScreen(.ai)
             }
             deepLinkState.pendingTarget = nil
-        case .taskDetail, .dailyReminder:
+        case .dailyReminder:
+            // 早报点开直达今日看板：「今天 N 件事」与看板任务区直接衔接
+            showDailyKanban = true
+            deepLinkState.pendingTarget = nil
+        case .taskDetail:
             // pendingTarget 由 TaskListView.handleDeepLink() 消费清除
             if activeScreen != .tasks {
                 navigateToScreen(.tasks)
@@ -820,6 +819,16 @@ struct HomeView: View {
             if activeScreen != .habits {
                 navigateToScreen(.habits)
             }
+        case .habits:
+            if activeScreen != .habits {
+                navigateToScreen(.habits)
+            }
+            deepLinkState.pendingTarget = nil
+        case .weeklyBrief:
+            // 晨报点开直达今日看板：顶部展示上周小结卡（拍板：复用看板，不新建晨报页）
+            showWeeklyBriefCard = true
+            showDailyKanban = true
+            deepLinkState.pendingTarget = nil
         case .finance:
             pendingFinanceAnalysisDeepLink = nil
             pendingFinanceEvidenceReviewDeepLink = nil
@@ -859,9 +868,13 @@ struct HomeView: View {
                 pendingThoughtDetailId = nil
             }
             deepLinkState.pendingTarget = nil
-        case .memoryGallery:
+        case .memoryGallery(let focusNewMemories):
             navigateToScreen(.memoryGallery)
-            deepLinkState.pendingTarget = nil
+            if focusNewMemories {
+                // 聚焦目标由 MemoryGalleryView 在切到洞察 Tab 后消费并清空 pendingTarget。
+            } else {
+                deepLinkState.pendingTarget = nil
+            }
         case .memoryInsight(_):
             // 目标由 MemoryGalleryView 在完成 Tab 切换和洞察展开后消费。
             navigateToScreen(.memoryGallery)

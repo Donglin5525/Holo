@@ -98,6 +98,15 @@ struct HoloApp: App {
                     // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
                     await HoloPeriodReplayCoordinator.shared.appDidLaunch()
 
+                    // 目标风险通知：按当前数据全量重排（文案在排程时固定，iOS 更新后可能清通知）
+                    GoalNotificationService.shared.rescheduleAll()
+
+                    // 每日早报：滚动重排未来 7 天（含旧「每日提醒」一次性迁移）
+                    await DailyBriefScheduler.shared.handleAppActivity()
+                    // 习惯打卡提醒 + 周一晨报：滚动重排
+                    await HabitReminderScheduler.shared.handleAppActivity()
+                    await WeeklyBriefScheduler.shared.handleAppActivity()
+
                     #if DEBUG
                     let appStoreScreenshotModeActive =
                         await HoloAppStoreScreenshotSeeder.runIfRequested()
@@ -185,6 +194,10 @@ struct HoloApp: App {
                     case .active:
                         HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
                         Task {
+                            // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
+                            await DailyBriefScheduler.shared.handleAppActivity()
+                            await HabitReminderScheduler.shared.handleAppActivity()
+                            await WeeklyBriefScheduler.shared.handleAppActivity()
                             await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
                             await HoloReplayDigestService.shared.backfillIfNeeded(
                                 historyRepo: MemoryInsightRepository()
