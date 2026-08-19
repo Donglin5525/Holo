@@ -78,6 +78,10 @@ struct HabitDetailView: View {
     @State private var retroEligibleDays: [Date] = []
     /// 补签弹层目标
     @State private var retroContext: HabitRetroactiveSheetContext? = nil
+    /// 归属目标单选弹层
+    @State private var showGoalPicker: Bool = false
+    @State private var showSaveErrorAlert: Bool = false
+    @State private var saveErrorMessage: String? = nil
     
     // MARK: - Body
     
@@ -172,6 +176,16 @@ struct HabitDetailView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showGoalPicker) {
+                GoalPickerSheet(currentGoalId: habit.goal?.id) { goal in
+                    applyGoalSelection(goal)
+                }
+            }
+            .alert("保存失败", isPresented: $showSaveErrorAlert) {
+                Button("知道了", role: .cancel) {}
+            } message: {
+                Text(saveErrorMessage ?? "")
+            }
             .sheet(item: $retroContext) { context in
                 HabitRetroactiveSheet(context: context)
             }
@@ -249,9 +263,25 @@ struct HabitDetailView: View {
             retroEligibleDays = repo.retroactiveEligibleDays(for: habit)
         }
     }
+
+    /// 应用归属目标选择：nil 表示移除关联；落库后刷新头部快照
+    private func applyGoalSelection(_ goal: Goal?) {
+        do {
+            if let goal {
+                try GoalRepository.shared.linkHabit(habit, to: goal)
+            } else if let current = habit.goal {
+                try GoalRepository.shared.unlinkHabit(habit, from: current)
+            }
+            refreshAll()
+            GoalNotificationService.broadcastGoalDataChange()
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            showSaveErrorAlert = true
+        }
+    }
     
     // MARK: - 习惯信息头部
-    
+
     private var habitHeader: some View {
         VStack(spacing: 12) {
             ZStack {
@@ -281,18 +311,40 @@ struct HabitDetailView: View {
                     .foregroundColor(.holoTextSecondary)
 
                 if let goalTitle = snapshot.goalTitle, let domain = snapshot.goalDomain {
-                    HStack(spacing: 3) {
-                        Image(systemName: domain.icon)
-                            .font(.system(size: 10, weight: .medium))
-                        Text(goalTitle)
-                            .font(.holoCaption)
-                            .lineLimit(1)
+                    Button {
+                        showGoalPicker = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: domain.icon)
+                                .font(.system(size: 10, weight: .medium))
+                            Text(goalTitle)
+                                .font(.holoCaption)
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(domain.badgeColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(domain.badgeColor.opacity(0.12))
+                        .cornerRadius(HoloRadius.sm)
                     }
-                    .foregroundColor(domain.badgeColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(domain.badgeColor.opacity(0.12))
-                    .cornerRadius(HoloRadius.sm)
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        showGoalPicker = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "target")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("关联目标")
+                                .font(.holoCaption)
+                        }
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.holoTextSecondary.opacity(0.1))
+                        .cornerRadius(HoloRadius.sm)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

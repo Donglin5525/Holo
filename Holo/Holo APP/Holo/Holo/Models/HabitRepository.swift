@@ -84,7 +84,15 @@ class HabitRepository: ObservableObject {
     }
     
     // MARK: - Habit CRUD
-    
+
+    /// 根据 ID 查找习惯（目标数据源等跨模块引用用）
+    func findHabit(by id: UUID) -> Habit? {
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
+
     /// 创建新习惯
     /// - Parameters:
     ///   - name: 习惯名称
@@ -638,6 +646,22 @@ class HabitRepository: ObservableObject {
             NSSortDescriptor(key: "date", ascending: false),
             NSSortDescriptor(key: "createdAt", ascending: false)
         ]
+        request.fetchLimit = 1
+
+        return try? context.fetch(request).first?.valueDouble
+    }
+
+    /// 获取指定日期之前的历史最新值（测量类数值型）——量化目标创建时抓基线用
+    func getLatestValue(for habit: Habit, before date: Date) -> Double? {
+        guard habit.isNumericType && !habit.isCountType else { return nil }
+
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND value != nil AND date < %@",
+            habit.id as CVarArg,
+            date as NSDate
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = 1
 
         return try? context.fetch(request).first?.valueDouble
