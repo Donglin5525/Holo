@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 import WebKit
 
 // MARK: - 法律文档查看器
@@ -60,15 +61,36 @@ private struct LegalWebView: UIViewRepresentable {
 
     let htmlContent: String
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.isOpaque = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.navigationDelegate = context.coordinator
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         webView.loadHTMLString(htmlContent, baseURL: nil)
+    }
+
+    /// WKWebView 不认识 mailto 协议，拦截后交给系统唤起邮件 App。
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if let url = navigationAction.request.url, url.scheme?.lowercased() == "mailto" {
+                UIApplication.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
     }
 }
 
@@ -112,6 +134,7 @@ enum LegalHTMLTemplates {
     table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
     th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
     th { background: var(--accent); color: #fff; }
+    a { color: var(--accent); }
     .highlight { background: rgba(0, 122, 255, 0.08); border-radius: 6px; padding: 10px 14px; margin: 12px 0; }
     .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85em; }
     """
@@ -231,7 +254,7 @@ enum LegalHTMLTemplates {
 
     <h2>九、联系我们</h2>
     <ul>
-        <li>邮箱：support@holoapp.cn</li>
+        <li>邮箱：<a href="mailto:\(HoloSupportContact.email)">\(HoloSupportContact.email)</a></li>
         <li>网站：https://holoapp.cn</li>
     </ul>
 
@@ -328,7 +351,7 @@ enum LegalHTMLTemplates {
 
     <h2>十一、联系方式</h2>
     <ul>
-        <li>邮箱：support@holoapp.cn</li>
+        <li>邮箱：<a href="mailto:\(HoloSupportContact.email)">\(HoloSupportContact.email)</a></li>
         <li>网站：https://holoapp.cn</li>
     </ul>
 

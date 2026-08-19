@@ -79,6 +79,12 @@ enum FeedbackContactKind: String, CaseIterable, Identifiable {
     }
 }
 
+/// 对外联系的统一口径（隐私政策/用户协议/反馈成功页共用）。
+enum HoloSupportContact {
+    static let email = "support@holoapp.cn"
+    static var mailtoURL: URL? { URL(string: "mailto:\(email)") }
+}
+
 @MainActor
 final class HoloFeedbackService {
 

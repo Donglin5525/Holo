@@ -20,6 +20,7 @@ private struct FeedbackShot: Identifiable {
 
 struct FeedbackSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     let service: HoloFeedbackService
 
@@ -478,6 +479,21 @@ struct FeedbackSheet: View {
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
+
+            HStack(spacing: 4) {
+                Text("急事也可邮件")
+                    .foregroundColor(.holoTextSecondary)
+                Button {
+                    if let url = HoloSupportContact.mailtoURL {
+                        openURL(url)
+                    }
+                } label: {
+                    Text(HoloSupportContact.email)
+                        .underline()
+                        .foregroundColor(.holoInfo)
+                }
+            }
+            .font(.system(size: 12))
 
             Button {
                 dismiss()
