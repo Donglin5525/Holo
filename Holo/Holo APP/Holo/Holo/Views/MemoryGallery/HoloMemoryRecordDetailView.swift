@@ -21,6 +21,7 @@ struct HoloMemoryRecordDetailView: View {
     @State private var showCorrection = false
     @State private var correctionText = ""
     @State private var showForgetConfirmation = false
+    @State private var selectedEvidence: HoloMemoryEvidenceRef?
 
     let onChange: (HoloMemoryRecordDetailChange) -> Void
 
@@ -58,6 +59,9 @@ struct HoloMemoryRecordDetailView: View {
         }
         .sheet(isPresented: $showCorrection) {
             correctionSheet
+        }
+        .sheet(item: $selectedEvidence) { evidence in
+            evidencePreviewSheet(evidence)
         }
         .confirmationDialog(
             "不再使用这条记忆？",
@@ -145,7 +149,27 @@ struct HoloMemoryRecordDetailView: View {
         }
     }
 
+    @ViewBuilder
     private func evidenceRow(_ evidence: HoloMemoryEvidenceRef) -> some View {
+        // 汇总类证据没有单一出处，保持纯展示；其余可点：有详情页的直达，否则弹出处预览。
+        if evidence.kind == .aggregateSnapshot {
+            evidenceRowContent(evidence)
+        } else {
+            Button {
+                handleEvidenceTap(evidence)
+            } label: {
+                HStack(alignment: .center, spacing: HoloSpacing.xs) {
+                    evidenceRowContent(evidence)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func evidenceRowContent(_ evidence: HoloMemoryEvidenceRef) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: HoloSpacing.xs) {
                 Image(systemName: evidenceIcon(evidence.kind))
@@ -172,6 +196,77 @@ struct HoloMemoryRecordDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+    }
+
+    private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
+        if let target = deepLinkTarget(for: evidence) {
+            dismiss()
+            DeepLinkState.shared.navigate(to: target)
+        } else {
+            selectedEvidence = evidence
+        }
+    }
+
+    /// entityRef 证据的 sourceID 指向原始业务记录；有详情页路由的域直达原记录。
+    private func deepLinkTarget(for evidence: HoloMemoryEvidenceRef) -> DeepLinkTarget? {
+        guard evidence.kind == .entityRef,
+              let sourceID = evidence.sourceID,
+              let uuid = UUID(uuidString: sourceID) else { return nil }
+        switch evidence.sourceDomain {
+        case .finance:
+            return .transactionDetail(transactionId: uuid)
+        case .task:
+            return .taskDetail(taskId: uuid)
+        case .thought:
+            return .thoughtDetail(thoughtId: uuid)
+        case .habit:
+            return .habitDetail(habitId: uuid)
+        case .goal:
+            return .goalDetail(goalId: uuid)
+        default:
+            return nil
+        }
+    }
+
+    private func evidencePreviewSheet(_ evidence: HoloMemoryEvidenceRef) -> some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    Label(
+                        "\(evidence.sourceDomain.userFacingName) · \(evidenceTitle(evidence.kind))",
+                        systemImage: evidenceIcon(evidence.kind)
+                    )
+                    .font(.holoLabel)
+                    .foregroundColor(.holoPrimary)
+
+                    Text(evidence.summary?.isEmpty == false ? evidence.summary! : "这条证据没有留下文字摘要。")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("观察时间：\(evidence.observedAt.formatted(.dateTime.year().month().day()))")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextPlaceholder)
+
+                    Text(evidence.kind == .explicitUserStatement
+                         ? "这是你在对话里明确表达过的内容，Holo 据此形成了这条记忆。"
+                         : "这是 Holo 形成这条记忆时依据的原始记录。")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding(HoloSpacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Color.holoBackground.ignoresSafeArea())
+            .navigationTitle("记忆出处")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { selectedEvidence = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     private var feedbackSection: some View {

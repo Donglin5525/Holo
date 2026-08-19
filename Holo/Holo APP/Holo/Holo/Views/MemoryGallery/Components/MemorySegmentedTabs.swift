@@ -3,7 +3,7 @@
 //  Holo
 //
 //  记忆长廊顶部 Tab 切换器
-//  洞察 / 明细
+//  日历 / 洞察
 //
 
 import SwiftUI
@@ -12,7 +12,6 @@ import SwiftUI
 enum MemoryGalleryTab: String, CaseIterable {
     case calendar = "日历"
     case insight = "洞察"
-    case detail = "明细"
 }
 
 /// 分段 Tab 切换器

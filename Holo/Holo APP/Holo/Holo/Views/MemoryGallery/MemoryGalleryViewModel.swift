@@ -34,12 +34,6 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 错误信息
     @Published var errorMessage: String?
 
-    /// 当前模块筛选
-    @Published var moduleFilter: MemoryModuleFilter = .all
-
-    /// 是否显示筛选器
-    @Published var showFilter: Bool = false
-
     /// 全量记忆数（不受分页与筛选影响）
     @Published var totalMemoryCount: Int = 0
 
@@ -234,12 +228,12 @@ class MemoryGalleryViewModel: ObservableObject {
             var newSections: [TimelineSection] = []
             for dayIndex in startOffset..<endOffset {
                 guard let sectionDate = calendar.date(byAdding: .day, value: -dayIndex, to: today) else { continue }
+                let dayStart = calendar.startOfDay(for: sectionDate)
                 let section = TimelineSectionBuilder.buildSection(
                     date: sectionDate,
-                    items: filteredItems(for: sectionDate),
-                    highlights: filteredHighlights(for: sectionDate),
-                    milestones: filteredMilestones(for: sectionDate),
-                    moduleFilter: moduleFilter
+                    items: items(on: sectionDate),
+                    highlights: cachedHighlights[dayStart] ?? [],
+                    milestones: filteredMilestones(for: sectionDate)
                 )
 
                 // 只添加有节点的 section（至少有日摘要或有高亮/里程碑）
@@ -340,44 +334,14 @@ class MemoryGalleryViewModel: ObservableObject {
 
     // MARK: - Filtering
 
-    /// 设置模块筛选并刷新
-    func setModuleFilter(_ filter: MemoryModuleFilter) async {
-        moduleFilter = filter
-        currentDayOffset = 0
-        await loadData()
-    }
-
-    /// 获取指定日期的筛选后 MemoryItem
-    private func filteredItems(for date: Date) -> [MemoryItem] {
+    /// 获取指定日期的记忆条目（无筛选——模块筛选已随明细 tab 收敛至日历 tab）
+    private func items(on date: Date) -> [MemoryItem] {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: date)
         guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
 
-        let dayItems = cachedItems.filter { item in
+        return cachedItems.filter { item in
             item.date >= dayStart && item.date < dayEnd
-        }
-
-        switch moduleFilter {
-        case .all: return dayItems
-        case .transaction: return dayItems.filter { $0.type == .transaction }
-        case .habitRecord: return dayItems.filter { $0.type == .habitRecord }
-        case .task: return dayItems.filter { $0.type == .task }
-        case .thought: return dayItems.filter { $0.type == .thought }
-        }
-    }
-
-    /// 获取指定日期的筛选后高亮
-    private func filteredHighlights(for date: Date) -> [HighlightData] {
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: date)
-        let highlights = cachedHighlights[dayStart] ?? []
-
-        switch moduleFilter {
-        case .all: return highlights
-        case .transaction: return highlights.filter { $0.sourceModule == .transaction }
-        case .habitRecord: return highlights.filter { $0.sourceModule == .habitRecord }
-        case .task: return highlights.filter { $0.sourceModule == .task }
-        case .thought: return []
         }
     }
 
@@ -766,6 +730,7 @@ class MemoryGalleryViewModel: ObservableObject {
                 emptyReason: result.emptyReason,
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
+                keyInsight: result.keyInsight,
                 contextSources: result.contextSources ?? []
             )
         } catch {

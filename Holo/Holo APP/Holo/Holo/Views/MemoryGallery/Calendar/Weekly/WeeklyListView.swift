@@ -2,7 +2,8 @@
 //  WeeklyListView.swift
 //  Holo
 //
-//  周历列表视图：7 天每天一张卡片，事件 chip 自动换行铺满
+//  周历列表视图：每天一张卡片，事件 chip 自动换行铺满
+//  周间倒序、周内升序，滚到底自动加载上一周（往下滚=向过去翻）
 //  含 WeeklyDayRow 与 WeeklyEventChip
 //
 
@@ -11,22 +12,79 @@ import SwiftUI
 struct WeeklyListView: View {
     let eventsByDay: [DayEvents]
     let isLoading: Bool
+    var isLoadingEarlier = false
+    var hasEarlierWeeks = true
+    var onLoadEarlier: (() -> Void)? = nil
+    /// 当天的里程碑卡（key = startOfDay）
+    var milestonesByDay: [Date: [MilestoneData]] = [:]
+    /// 当天的高光卡（key = startOfDay）
+    var highlightsByDay: [Date: [HighlightData]] = [:]
+    /// 模块筛选激活时隐藏叙事卡（高光为跨模块事件，无法按单模块过滤）
+    var showsNarrative = true
     let onSelect: (CalendarEvent) -> Void
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             if !isLoading && eventsByDay.isEmpty {
-                emptyState
+                VStack(spacing: 0) {
+                    emptyState
+                    // 本周无记录时也要能向过去翻（否则空态死锁，看不到上周数据）
+                    if hasEarlierWeeks {
+                        earlierWeeksFooter
+                    }
+                }
             } else {
                 LazyVStack(spacing: HoloSpacing.sm) {
                     ForEach(eventsByDay) { dayEvents in
                         WeeklyDayRow(dayEvents: dayEvents, onSelect: onSelect)
+                        if showsNarrative {
+                            narrativeCards(for: dayEvents.day)
+                        }
+                    }
+
+                    if hasEarlierWeeks {
+                        earlierWeeksFooter
                     }
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.top, HoloSpacing.sm)
                 .padding(.bottom, HoloSpacing.lg)
             }
+        }
+    }
+
+    /// 当天的里程碑/高光卡：先事实后解读，里程碑在前（与时间线惯例一致）
+    @ViewBuilder
+    private func narrativeCards(for day: Date) -> some View {
+        let dayStart = Calendar.current.startOfDay(for: day)
+        let milestones = milestonesByDay[dayStart] ?? []
+        let highlights = highlightsByDay[dayStart] ?? []
+
+        if !milestones.isEmpty || !highlights.isEmpty {
+            VStack(spacing: HoloSpacing.xs) {
+                ForEach(Array(milestones.enumerated()), id: \.offset) { _, data in
+                    MilestoneNode(data: data)
+                }
+                ForEach(Array(highlights.enumerated()), id: \.offset) { _, data in
+                    GentleHighlightNode(data: data)
+                }
+            }
+        }
+    }
+
+    /// 底部触发器：滚到这里加载上一周；上一周 append 在尾部，无滚动跳动
+    private var earlierWeeksFooter: some View {
+        HStack {
+            Spacer()
+            if isLoadingEarlier {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .holoPrimary))
+            }
+            Spacer()
+        }
+        .frame(height: 44)
+        .onAppear {
+            onLoadEarlier?()
         }
     }
 

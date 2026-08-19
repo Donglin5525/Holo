@@ -82,6 +82,26 @@ final class CalendarViewModel: ObservableObject {
     /// 3 日网格视图：是否正在初次加载
     @Published private(set) var gridIsInitialLoading: Bool = false
 
+    // MARK: - 周历列表无限上翻（往过去累积）
+
+    /// 列表累积事件（[listLoadedStart, anchor 周末]），滚到底加载上一周 append
+    @Published private(set) var listEvents: [CalendarEvent] = []
+
+    /// 列表已累积到的最早周初
+    private var listLoadedStart: Date = Date().startOfWeek
+
+    /// 是否还能往回翻（anchor 周起最多 52 周，与明细时间线 365 天上限对齐）
+    @Published private(set) var listHasEarlierWeeks: Bool = true
+
+    /// 是否正在加载更早的周
+    @Published private(set) var isLoadingEarlier: Bool = false
+
+    /// 周历列表的里程碑卡（key = startOfDay），随累积窗口刷新
+    @Published private(set) var listMilestones: [Date: [MilestoneData]] = [:]
+
+    /// 周历列表的高光卡（key = startOfDay），随累积窗口刷新
+    @Published private(set) var listHighlights: [Date: [HighlightData]] = [:]
+
     private let provider: CalendarEventProvider
 
     init(provider: CalendarEventProvider? = nil) {
@@ -121,12 +141,23 @@ final class CalendarViewModel: ObservableObject {
         return result.events.filter { $0.module == filter }
     }
 
-    /// 周历：按天分组的事件列表（组内升序、组间升序）
+    /// 周历列表：累积事件按天分组（周间倒序、周内升序——往下滚=向过去翻）
     var eventsByDay: [DayEvents] {
         let cal = Calendar.current
-        return Dictionary(grouping: filteredEvents) { cal.startOfDay(for: $0.date) }
+        let filtered: [CalendarEvent]
+        if let filter = moduleFilter {
+            filtered = listEvents.filter { $0.module == filter }
+        } else {
+            filtered = listEvents
+        }
+        return Dictionary(grouping: filtered) { cal.startOfDay(for: $0.date) }
             .map { DayEvents(day: $0.key, events: $0.value.sorted { $0.date < $1.date }) }
-            .sorted { $0.day < $1.day }
+            .sorted { a, b in
+                let weekA = a.day.startOfWeek
+                let weekB = b.day.startOfWeek
+                if weekA != weekB { return weekA > weekB }
+                return a.day < b.day
+            }
     }
 
     /// 月历：按天分组的事件字典（key = startOfDay）
@@ -155,7 +186,67 @@ final class CalendarViewModel: ObservableObject {
     func load() async {
         isLoading = true
         result = await provider.fetchEvents(in: currentRange, todoDimension: todoDimension)
+        if mode == .weekly {
+            // 箭头翻周 = 跳转：列表累积重置为新 anchor 周，再滚再攒
+            listEvents = result.events
+            listLoadedStart = currentRange.start
+            listHasEarlierWeeks = true
+            refreshListNarrative()
+        }
         isLoading = false
+    }
+
+    /// 周历列表滚到底：加载上一周 append 进累积（originID 去重，与网格续载同一惯例）。
+    /// 列表为空时（如本周还没记录）连续向过去找，直到首个非空周或到顶。
+    func loadPreviousWeek() async {
+        guard mode == .weekly, weekViewMode == .list,
+              !isLoadingEarlier, !isLoading, listHasEarlierWeeks else { return }
+        isLoadingEarlier = true
+
+        let anchorWeekStart = CalendarRangeBuilder.weekRange(around: anchor).start
+        let earliestAllowed = anchorWeekStart.addingDays(-7 * 51)
+
+        repeat {
+            let previousRange = CalendarRangeBuilder.weekRange(around: listLoadedStart.addingDays(-1))
+            let fetched = await provider.fetchEvents(in: previousRange, todoDimension: todoDimension)
+
+            var seen = Set(listEvents.map { $0.originID })
+            var merged = listEvents
+            for event in fetched.events where seen.insert(event.originID).inserted {
+                merged.append(event)
+            }
+            listEvents = merged
+            listLoadedStart = previousRange.start
+
+            if previousRange.start <= earliestAllowed {
+                listHasEarlierWeeks = false
+            }
+        } while listEvents.isEmpty && listHasEarlierWeeks
+
+        refreshListNarrative()
+        isLoadingEarlier = false
+    }
+
+    /// 为当前累积窗口检测高光/里程碑（与记忆长廊时间线同一检测器，口径一致）
+    private func refreshListNarrative() {
+        let context = CoreDataStack.shared.viewContext
+        let calendar = Calendar.current
+
+        let days = Array(Set(listEvents.map { calendar.startOfDay(for: $0.date) }))
+        let detected = HighlightDetector.detect(for: days, context: context)
+        var highlights: [Date: [HighlightData]] = [:]
+        for (day, items) in detected where day >= listLoadedStart {
+            highlights[day] = items
+        }
+        listHighlights = highlights
+
+        var milestones: [Date: [MilestoneData]] = [:]
+        for milestone in MilestoneDetector.detect(context: context) {
+            let day = calendar.startOfDay(for: milestone.date)
+            guard day >= listLoadedStart else { continue }
+            milestones[day, default: []].append(milestone.data)
+        }
+        listMilestones = milestones
     }
 
     func switchMode(_ m: Mode) {

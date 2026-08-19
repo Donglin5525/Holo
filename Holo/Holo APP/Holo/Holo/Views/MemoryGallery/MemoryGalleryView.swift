@@ -2,8 +2,8 @@
 //  MemoryGalleryView.swift
 //  Holo
 //
-//  记忆长廊主视图 — 洞察 / 明细结构
-//  洞察（热力图 + AI 回放 + 里程碑高光）/ 明细（完整时间线）
+//  记忆长廊主视图 — 日历 / 洞察 两 tab 结构
+//  日历（周历网格/列表 + 月历，逐条事实）/ 洞察（理解档案 + 热力图 + 回放叙事）
 //
 
 import SwiftUI
@@ -24,17 +24,7 @@ struct MemoryGalleryView: View {
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
-    @State private var isAgentAnalysisExpanded = false
     @ObservedObject private var deepLinkState = DeepLinkState.shared
-
-    /// 跳转记账回调
-    let onNavigateToFinance: (() -> Void)?
-
-    /// 跳转 AI 对话回调（携带预填文本）
-    let onNavigateToChat: ((String) -> Void)?
-
-    /// 选中的记忆条目（用于跳转详情）
-    @State private var selectedMemory: MemoryItem?
 
     #if DEBUG
     /// 是否显示 AI 设置页
@@ -60,9 +50,6 @@ struct MemoryGalleryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.holoBackground.ignoresSafeArea())
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
-        .sheet(item: $selectedMemory) { memory in
-            MemoryDetailView(memory: memory)
-        }
         #if DEBUG
         .sheet(isPresented: $showAISettings) {
             NavigationStack {
@@ -76,8 +63,20 @@ struct MemoryGalleryView: View {
                 selectedTab = .insight
             }
             #endif
+            consumeMemoryFocus()
             await viewModel.refresh()
         }
+        .onChange(of: deepLinkState.pendingTarget) { _, _ in
+            consumeMemoryFocus()
+        }
+    }
+
+    /// 消费「聚焦新记忆」跳转：切到洞察 Tab，新记忆由列表既有的「新」徽章高亮。
+    private func consumeMemoryFocus() {
+        guard case .memoryGallery(let focusNewMemories) = deepLinkState.pendingTarget,
+              focusNewMemories else { return }
+        selectedTab = .insight
+        deepLinkState.pendingTarget = nil
     }
 
     // MARK: - Navigation Bar
@@ -100,22 +99,9 @@ struct MemoryGalleryView: View {
 
             Spacer()
 
-            // 明细 Tab 显示筛选按钮
-            if selectedTab == .detail {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        viewModel.showFilter.toggle()
-                    }
-                } label: {
-                    Image(systemName: viewModel.showFilter ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 20))
-                        .foregroundColor(viewModel.showFilter ? .holoPrimary : .holoTextSecondary)
-                }
-            } else {
-                // 占位保持标题居中
-                Color.clear
-                    .frame(width: 20)
-            }
+            // 占位保持标题居中
+            Color.clear
+                .frame(width: 20)
         }
         .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
         .padding(.horizontal, HoloSpacing.lg)
@@ -132,8 +118,6 @@ struct MemoryGalleryView: View {
             calendarTab
         case .insight:
             insightTab
-        case .detail:
-            detailTab
         }
     }
 
@@ -163,6 +147,9 @@ struct MemoryGalleryView: View {
                        !snapshot.signals.isEmpty {
                         DailySenseStatusCard(snapshot: snapshot)
                     }
+
+                    // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
+                    heatmapSection
 
                     // 一起做的计划（LifePlan 台账）：理解档案第三块
                     LifePlanGallerySection()
@@ -374,128 +361,23 @@ struct MemoryGalleryView: View {
         }
     }
 
-    private func collapsibleInsightLayer<Content: View>(
-        title: String,
-        subtitle: String,
-        icon: String,
-        isExpanded: Binding<Bool>,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    isExpanded.wrappedValue.toggle()
-                }
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28, height: 28)
-                        .background(Color.holoPrimary.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+    // MARK: - 活跃热力图（洞察 Tab）
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text(subtitle)
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextPlaceholder)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
-                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 180 : 0))
-                }
-                .padding(HoloSpacing.md)
-                .contentShape(Rectangle())
+    /// 13 周活跃热力图 + 点选日的「当天轨迹」伴生卡
+    private var heatmapSection: some View {
+        VStack(spacing: HoloSpacing.md) {
+            MemoryHeatmapView(
+                data: viewModel.heatmapData,
+                selectedDate: viewModel.selectedHeatmapDate
+            ) { date in
+                viewModel.selectedHeatmapDate = date
+                Task { await viewModel.ensureWeekLoaded(date) }
             }
-            .buttonStyle(.plain)
 
-            if isExpanded.wrappedValue {
-                VStack(spacing: HoloSpacing.sm) {
-                    content()
-                }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.bottom, HoloSpacing.md)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+            if let selectedDate = viewModel.selectedHeatmapDate {
+                selectedDatePreview(date: selectedDate)
             }
         }
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
-        )
-    }
-
-    // MARK: - 明细 Tab
-
-    @ViewBuilder
-    private var detailTab: some View {
-        if let errorMessage = viewModel.errorMessage {
-            errorView(message: errorMessage)
-        } else if viewModel.isLoading && viewModel.timelineSections.isEmpty {
-            skeletonView
-        } else if viewModel.timelineSections.isEmpty {
-            emptyView
-        } else {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: HoloSpacing.md) {
-                    MemoryHeatmapView(
-                        data: viewModel.heatmapData,
-                        selectedDate: viewModel.selectedHeatmapDate
-                    ) { date in
-                        viewModel.selectedHeatmapDate = date
-                        Task { await viewModel.ensureWeekLoaded(date) }
-                    }
-
-                    if let selectedDate = viewModel.selectedHeatmapDate {
-                        selectedDatePreview(date: selectedDate)
-                    }
-
-                    if viewModel.showFilter {
-                        filterBar
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    timelineList
-                }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.md)
-                .containerRelativeFrame(.horizontal, alignment: .leading)
-            }
-        }
-    }
-
-    // MARK: - Filter Bar
-
-    private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: HoloSpacing.sm) {
-                ForEach(MemoryModuleFilter.allCases) { filter in
-                    FilterChip(
-                        title: filter.displayName,
-                        isSelected: viewModel.moduleFilter == filter
-                    ) {
-                        Task {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                viewModel.moduleFilter = filter
-                            }
-                            await viewModel.setModuleFilter(filter)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, HoloSpacing.lg)
-            .padding(.vertical, HoloSpacing.sm)
-        }
-        .background(Color.holoCardBackground)
     }
 
     // MARK: - Error View
@@ -571,135 +453,6 @@ struct MemoryGalleryView: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
-    // MARK: - Empty View
-
-    private var emptyView: some View {
-        VStack(spacing: HoloSpacing.lg) {
-            VStack(spacing: 0) {
-                Circle()
-                    .strokeBorder(Color.holoTextPlaceholder, style: StrokeStyle(lineWidth: 2, dash: [4]))
-                    .frame(width: 40, height: 40)
-
-                Rectangle()
-                    .fill(Color.holoTextPlaceholder.opacity(0.3))
-                    .frame(width: 2, height: 60)
-                    .padding(.top, -2)
-            }
-
-            VStack(spacing: HoloSpacing.xs) {
-                Text("暂无记录")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-
-                Text("记录你的第一笔，开启记忆长廊")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            if onNavigateToFinance != nil {
-                Button {
-                    onNavigateToFinance?()
-                } label: {
-                    Text("去记账")
-                        .font(.holoBody)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, HoloSpacing.xl)
-                        .padding(.vertical, HoloSpacing.md)
-                        .background(Color.holoPrimary)
-                        .clipShape(Capsule())
-                }
-                .padding(.top, HoloSpacing.sm)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Timeline List
-
-    private var timelineList: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(viewModel.timelineSections) { section in
-                timelineSectionView(for: section)
-                    .id(section.id)
-                    .transition(.opacity)
-            }
-
-            if viewModel.hasMoreData {
-                loadMoreIndicator
-            } else {
-                Text("已加载全部")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPlaceholder)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, HoloSpacing.lg)
-            }
-        }
-    }
-
-    // MARK: - Timeline Section
-
-    @ViewBuilder
-    private func timelineSectionView(for section: TimelineSection) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            TimelineDateHeader(section: section)
-
-            ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color.holoBorder)
-                    .frame(width: 2)
-                    .padding(.leading, 5)
-                    .padding(.top, 12)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(section.nodes) { node in
-                        nodeView(for: node)
-                            .padding(.leading, 22)
-                    }
-                }
-                .padding(.top, 12)
-            }
-        }
-    }
-
-    // MARK: - Node View
-
-    @ViewBuilder
-    private func nodeView(for node: MemoryTimelineNode) -> some View {
-        switch node.data {
-        case .summary(let summaryData):
-            DailySummaryNode(
-                data: summaryData,
-                moduleFilter: viewModel.moduleFilter
-            )
-
-        case .highlight(let highlightData):
-            HighlightNode(data: highlightData)
-                .padding(.leading, 8)
-
-        case .milestone(let milestoneData):
-            MilestoneNode(data: milestoneData)
-        }
-    }
-
-    // MARK: - Load More
-
-    private var loadMoreIndicator: some View {
-        HStack {
-            Spacer()
-            if viewModel.isLoadingMore {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .holoPrimary))
-                    .padding(.vertical, HoloSpacing.md)
-            }
-            Spacer()
-        }
-        .onAppear {
-            Task {
-                await viewModel.loadMore()
-            }
-        }
-    }
-
     // MARK: - Formatter
 
     private func formatExpense(_ value: Decimal) -> String {
@@ -722,35 +475,8 @@ private struct MemoryPreviewStatItem: Identifiable {
     var id: String { label }
 }
 
-// MARK: - Filter Chip
-
-private struct FilterChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.holoCaption)
-                .foregroundColor(isSelected ? .white : .holoTextPrimary)
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.xs)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.holoPrimary : Color.holoGlassBackground)
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(isSelected ? Color.clear : Color.holoBorder, lineWidth: 1)
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
-    MemoryGalleryView(onNavigateToFinance: nil, onNavigateToChat: nil)
+    MemoryGalleryView()
 }

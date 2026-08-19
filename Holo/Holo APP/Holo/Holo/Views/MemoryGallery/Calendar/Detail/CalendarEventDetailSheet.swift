@@ -224,6 +224,8 @@ struct CalendarEventDetailSheet: View {
                             .padding(.vertical, 4)
                             .background(Color.holoPurple.opacity(0.10))
                             .clipShape(Capsule())
+                            // 观点名称来自数据，横向展示时保持胶囊完整宽度
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
             }

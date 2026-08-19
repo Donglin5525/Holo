@@ -18,17 +18,12 @@ enum TimelineSectionBuilder {
         date: Date,
         items: [MemoryItem],
         highlights: [HighlightData],
-        milestones: [MilestoneData],
-        moduleFilter: MemoryModuleFilter
+        milestones: [MilestoneData]
     ) -> TimelineSection {
         var nodes: [MemoryTimelineNode] = []
 
         // 1. 日摘要节点（始终生成，即使部分数据为空）
-        let summaryNode = buildDailySummary(
-            date: date,
-            items: items,
-            moduleFilter: moduleFilter
-        )
+        let summaryNode = buildDailySummary(date: date, items: items)
         nodes.append(summaryNode)
 
         // 2. 里程碑节点（如有）
@@ -60,8 +55,7 @@ enum TimelineSectionBuilder {
     /// 构建日摘要节点
     private static func buildDailySummary(
         date: Date,
-        items: [MemoryItem],
-        moduleFilter: MemoryModuleFilter
+        items: [MemoryItem]
     ) -> MemoryTimelineNode {
         // 计算各模块统计
         let transactions = items.filter { $0.type == .transaction }

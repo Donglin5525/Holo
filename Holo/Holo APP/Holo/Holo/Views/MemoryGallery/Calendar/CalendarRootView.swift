@@ -21,6 +21,8 @@ struct CalendarRootView: View {
             CalendarObservationSummaryView(summary: viewModel.observationSummary)
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.bottom, HoloSpacing.sm)
+            CalendarFilterBar(moduleFilter: $viewModel.moduleFilter)
+                .padding(.bottom, HoloSpacing.sm)
             if viewModel.mode == .weekly { weekListGridSwitch }
             if viewModel.hasFailure { failureBanner }
             content
@@ -60,6 +62,12 @@ struct CalendarRootView: View {
             WeeklyListView(
                 eventsByDay: viewModel.eventsByDay,
                 isLoading: viewModel.isLoading,
+                isLoadingEarlier: viewModel.isLoadingEarlier,
+                hasEarlierWeeks: viewModel.listHasEarlierWeeks,
+                onLoadEarlier: { Task { await viewModel.loadPreviousWeek() } },
+                milestonesByDay: viewModel.listMilestones,
+                highlightsByDay: viewModel.listHighlights,
+                showsNarrative: viewModel.moduleFilter == nil,
                 onSelect: { selectedEvent = $0 }
             )
         case .grid:

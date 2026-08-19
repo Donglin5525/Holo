@@ -38,29 +38,6 @@ enum MemoryItemType: String, CaseIterable {
     }
 }
 
-// MARK: - MemoryModuleFilter
-
-/// 模块筛选类型
-enum MemoryModuleFilter: String, CaseIterable, Identifiable {
-    case all = "all"
-    case transaction = "transaction"
-    case habitRecord = "habitRecord"
-    case task = "task"
-    case thought = "thought"
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .all: return "全部"
-        case .transaction: return "记账"
-        case .habitRecord: return "习惯"
-        case .task: return "待办"
-        case .thought: return "观点"
-        }
-    }
-}
-
 // MARK: - MemoryItem
 
 /// 统一的记忆条目模型

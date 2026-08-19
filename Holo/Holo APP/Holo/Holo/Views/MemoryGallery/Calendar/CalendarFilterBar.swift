@@ -50,6 +50,7 @@ struct CalendarFilterBar: View {
             .padding(.vertical, 5)
             .background(isSelected ? color : color.opacity(0.10))
             .clipShape(Capsule())
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
     }
