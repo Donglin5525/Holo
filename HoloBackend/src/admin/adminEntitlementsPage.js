@@ -176,6 +176,7 @@ export function renderAdminEntitlementsPage({ overrides, devices, notice = null,
       <a href="/admin/ai-metrics">AI 指标</a>
       <a href="/admin/reports">举报</a>
       <a href="/admin/entitlements" class="active">权益管理</a>
+      <a href="/admin/feedback">用户反馈</a>
       <a href="/admin/logout">退出</a>
     </nav>
     <h1>权益管理</h1>

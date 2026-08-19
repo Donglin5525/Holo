@@ -5,25 +5,31 @@ import {
   isPasswordLoginEnabled,
   validateAdminLogin,
 } from "./adminAuth.js";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { renderAdminLoginPage, renderAdminLogsPage } from "./adminLogsPage.js";
 import { renderAdminPromptEditorPage, renderAdminPromptsPage, renderAdminPromptHistoryPage } from "./adminPromptsPage.js";
 import { renderAdminReportsPage } from "./adminReportsPage.js";
+import { renderAdminFeedbackPage } from "./adminFeedbackPage.js";
 import { renderAdminFeatureFlagsPage } from "./adminFeatureFlagsPage.js";
 import { renderAdminAiMetricsPage } from "./adminAiMetricsPage.js";
 import { buildEntitlementOverview, renderAdminEntitlementsPage } from "./adminEntitlementsPage.js";
 import { getPrompt, getPromptHistory, getPromptVersionEntry, listPrompts, resetPrompt, rollbackPrompt, updatePrompt } from "../prompts/promptRegistry.js";
 
 // 每次调用返回新对象，避免 @hono/node-server 写入 Content-Length 时污染共享引用
-function htmlHeaders() {
+function htmlHeaders({ allowImages = false } = {}) {
+  const csp = allowImages
+    ? "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    : "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
   return {
     "content-type": "text/html; charset=UTF-8",
     "cache-control": "no-store",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    "content-security-policy": csp,
     "x-content-type-options": "nosniff",
   };
 }
 
-export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus, reportStore, featureFlagStore, db, acceptanceStore, entitlementResolver }) {
+export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus, reportStore, feedbackStore, featureFlagStore, db, acceptanceStore, entitlementResolver }) {
   app.get("/admin/login", (context) => {
     if (!isPasswordLoginEnabled(config)) {
       return adminJson(
@@ -463,6 +469,88 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
       }),
       { headers: htmlHeaders() },
     );
+  });
+
+  // 用户反馈（设置页「反馈给开发者」）：HTML 列表页 + JSON 对称接口 + 状态流转 + 截图文件
+  app.get("/admin/feedback", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+
+    const category = context.req.query("category") ?? "";
+    const status = context.req.query("status") ?? "";
+    const active = {
+      category: ["suggestion", "issue", "other"].includes(category) ? category : "",
+      status: ["new", "done"].includes(status) ? status : "",
+    };
+    const all = feedbackStore ? feedbackStore.list() : [];
+    const feedbackList = all.filter(
+      (item) =>
+        (!active.category || item.category === active.category) &&
+        (!active.status || item.status === active.status),
+    );
+
+    return new Response(
+      renderAdminFeedbackPage({
+        feedbackList,
+        active,
+        notice: context.req.query("notice") ?? null,
+        error: context.req.query("error") ?? null,
+      }),
+      { headers: htmlHeaders({ allowImages: true }) },
+    );
+  });
+
+  app.get("/v1/admin/feedback", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return adminJson(context, auth.body, auth.status);
+    }
+    return adminJson(context, { feedback: feedbackStore ? feedbackStore.list() : [] });
+  });
+
+  app.post("/admin/feedback/:id/status", async (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+
+    const id = Number(context.req.param("id"));
+    const body = new URLSearchParams(await context.req.text());
+    const status = body.get("status") ?? "";
+    const back = body.get("back") ?? "/admin/feedback";
+    if (!Number.isInteger(id) || id < 1 || !["new", "done"].includes(status)) {
+      return redirect("/admin/feedback?error=" + encodeURIComponent("无效的状态变更请求"));
+    }
+    feedbackStore.markStatus(id, status);
+    console.log(`[Admin] feedback #${id} → ${status}`);
+    const notice = status === "done" ? `反馈 #${id} 已标记处理` : `反馈 #${id} 已恢复未处理`;
+    const joiner = back.includes("?") ? "&" : "?";
+    return redirect(`${back}${joiner}notice=${encodeURIComponent(notice)}`);
+  });
+
+  app.get("/admin/feedback/images/:name", async (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+
+    const name = context.req.param("name");
+    if (!/^[0-9]+-[0-9]+\.jpg$/.test(name)) {
+      return new Response("Not found", { status: 404 });
+    }
+    try {
+      const data = await readFile(join(config.feedbackImagesDir, name));
+      return new Response(data, {
+        headers: {
+          "content-type": "image/jpeg",
+          "cache-control": "private, max-age=86400",
+        },
+      });
+    } catch {
+      return new Response("Not found", { status: 404 });
+    }
   });
 }
 

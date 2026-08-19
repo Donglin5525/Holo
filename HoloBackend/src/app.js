@@ -34,6 +34,7 @@ import { HOLO_PLUS_PRODUCT_IDS } from "./subscription/productIds.js";
 import { createQuotaActionLedgerStore } from "./usage/quotaActionLedgerStore.js";
 import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
 import { createContentReportStore } from "./reports/contentReportStore.js";
+import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
@@ -137,6 +138,8 @@ export function createApp(overrides = {}) {
       contentCaptureEnabled: config.contentCaptureEnabled,
     });
   const contentReportStore = config.contentReportStore ?? createContentReportStore(database.db);
+  const feedbackStore =
+    config.feedbackStore ?? createFeedbackStore(database.db, { imagesDir: config.feedbackImagesDir });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
   const captureAiCallLogs = config.aiCallLogs.enabled;
@@ -175,6 +178,7 @@ export function createApp(overrides = {}) {
       app.agentStepIdempotencyEncryption,
     ),
     reportStore: contentReportStore,
+    feedbackStore,
     db: database.db,
     acceptanceStore,
     entitlementResolver,
@@ -870,6 +874,72 @@ export function createApp(overrides = {}) {
         reason: request.reason.trim(),
         detail,
         contentSnapshot,
+      });
+
+      return context.json({ ok: true });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 用户反馈（设置页「反馈给开发者」）
+  // 鉴权与举报一致：设备标识（X-Holo-Device-Id），无需登录态。
+  // 图片以 base64 数组随 JSON 提交，解码校验 JPEG 魔数后写文件系统（见 feedbackStore）。
+  const FEEDBACK_CATEGORIES = new Set(["suggestion", "issue", "other"]);
+  const FEEDBACK_CONTACT_TYPES = new Set(["wechat", "qq", "email", "phone"]);
+  app.post("/v1/feedback", async (context) => {
+    try {
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+
+      if (!FEEDBACK_CATEGORIES.has(request.category)) {
+        throw new GatewayError("INVALID_REQUEST", "category must be suggestion | issue | other", 400);
+      }
+      if (typeof request.content !== "string" || request.content.trim().length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "content is required", 400);
+      }
+
+      const contactValue = typeof request.contactValue === "string" ? request.contactValue.trim().slice(0, 60) : null;
+      const contactType = typeof request.contactType === "string" ? request.contactType : null;
+      if (contactValue && !FEEDBACK_CONTACT_TYPES.has(contactType)) {
+        throw new GatewayError("INVALID_REQUEST", "contactType must be wechat | qq | email | phone", 400);
+      }
+
+      const rawImages = Array.isArray(request.images) ? request.images : [];
+      if (rawImages.length > 3) {
+        throw new GatewayError("INVALID_REQUEST", "at most 3 images are allowed", 400);
+      }
+      const imageBuffers = rawImages.map((image) => {
+        const buffer = Buffer.from(String(image), "base64");
+        if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) {
+          throw new GatewayError("INVALID_REQUEST", "images must be JPEG data", 400);
+        }
+        if (buffer.length > config.limits.feedbackMaxImageBytes) {
+          throw new GatewayError("IMAGE_TOO_LARGE", "image exceeds size limit", 413);
+        }
+        return buffer;
+      });
+
+      // 复用现有限流桶（rate_limits 表），purpose=feedback 独立计数
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "feedback",
+        minuteLimit: config.limits.feedbackRequestsPerMinute,
+        dailyLimit: config.limits.feedbackRequestsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("FEEDBACK_RATE_LIMITED", "Feedback rate limit exceeded", 429);
+      }
+
+      feedbackStore.create({
+        deviceId,
+        category: request.category,
+        content: request.content.trim().slice(0, 2000),
+        contactType: contactValue ? contactType : null,
+        contactValue,
+        appVersion: typeof request.appVersion === "string" ? request.appVersion.slice(0, 40) : null,
+        osVersion: typeof request.osVersion === "string" ? request.osVersion.slice(0, 40) : null,
+        imageBuffers,
       });
 
       return context.json({ ok: true });

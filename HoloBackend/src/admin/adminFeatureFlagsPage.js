@@ -76,6 +76,7 @@ export function renderAdminFeatureFlagsPage({ flags, notice = null, error = null
       <a href="/admin/ai-metrics">AI 指标</a>
       <a class="active" href="/admin/feature-flags">功能开关</a>
       <a href="/admin/entitlements">权益管理</a>
+      <a href="/admin/feedback">用户反馈</a>
       <a href="/admin/logout">退出</a>
     </nav>
     <h1>功能开关</h1>

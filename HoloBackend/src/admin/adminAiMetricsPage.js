@@ -87,6 +87,7 @@ export function renderAdminAiMetricsPage({ byPurpose, dailyTrend }) {
       <a class="active" href="/admin/ai-metrics">AI 指标</a>
       <a href="/admin/feature-flags">功能开关</a>
       <a href="/admin/entitlements">权益管理</a>
+      <a href="/admin/feedback">用户反馈</a>
       <a href="/admin/logout">退出</a>
     </nav>
     <h1>AI 调用指标</h1>

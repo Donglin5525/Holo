@@ -27,6 +27,11 @@ const DEFAULT_CONFIG = {
     // AI 内容举报（App Store Guideline 1.2）：按设备限流，防止刷举报。
     reportRequestsPerMinute: Number(process.env.HOLO_REPORT_REQUESTS_PER_MINUTE ?? 5),
     reportRequestsPerDay: Number(process.env.HOLO_REPORT_REQUESTS_PER_DAY ?? 20),
+    // 用户反馈（设置页「反馈给开发者」）：比举报更严，反馈无需高频。
+    feedbackRequestsPerMinute: Number(process.env.HOLO_FEEDBACK_REQUESTS_PER_MINUTE ?? 1),
+    feedbackRequestsPerDay: Number(process.env.HOLO_FEEDBACK_REQUESTS_PER_DAY ?? 5),
+    // 单张反馈图片解码后上限（App 端压缩承诺 ≤1MB，留余量），最多 3 张由路由校验。
+    feedbackMaxImageBytes: Number(process.env.HOLO_FEEDBACK_MAX_IMAGE_BYTES ?? 1536 * 1024),
   },
   routes: {
     chat: {
@@ -370,6 +375,9 @@ export function loadConfig(overrides = {}) {
     appleReceiptVerifier: overrides.appleReceiptVerifier,
     providerOverrides: overrides.providerOverrides,
     contentReportStore: overrides.contentReportStore,
+    feedbackStore: overrides.feedbackStore,
+    feedbackImagesDir:
+      overrides.feedbackImagesDir ?? process.env.HOLO_FEEDBACK_IMAGES_DIR ?? "/data/feedback-images",
     contentModeration: overrides.contentModeration,
     agentStepIdempotencyStore: overrides.agentStepIdempotencyStore,
     agentStepIdempotencyEncryptionKey:

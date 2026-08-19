@@ -238,6 +238,29 @@ const MIGRATIONS = [
       ALTER TABLE subscription_acceptance_overrides ADD COLUMN expires_at TEXT;
     `,
   },
+  {
+    id: 14,
+    description: '创建用户反馈表（设置页「反馈给开发者」通道，图片存文件系统）',
+    up: `
+      CREATE TABLE IF NOT EXISTS user_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        category TEXT NOT NULL CHECK (category IN ('suggestion', 'issue', 'other')),
+        content TEXT NOT NULL,
+        contact_type TEXT CHECK (contact_type IN ('wechat', 'qq', 'email', 'phone') OR contact_type IS NULL),
+        contact_value TEXT,
+        images TEXT,
+        app_version TEXT,
+        os_version TEXT,
+        status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'done')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_feedback_created
+        ON user_feedback(created_at);
+      CREATE INDEX IF NOT EXISTS idx_user_feedback_device
+        ON user_feedback(device_id);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {
