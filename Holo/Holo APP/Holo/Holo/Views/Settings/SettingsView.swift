@@ -41,6 +41,7 @@ struct SettingsView: View {
     @State private var isDeletingAccountData = false
     @State private var accountDataDeletionMessage: String?
     @State private var showAbout = false
+    @State private var showFeedback = false
 
     // MARK: - Body
 
@@ -699,6 +700,19 @@ struct SettingsView: View {
                 }
             }
             #endif
+
+            // 反馈给开发者
+            settingsRow(
+                icon: "ellipsis.bubble",
+                iconColor: .holoPrimary,
+                title: "反馈给开发者",
+                subtitle: "建议、问题、吐槽都欢迎，留个联系方式我们能找你"
+            ) {
+                showFeedback = true
+            }
+            .sheet(isPresented: $showFeedback) {
+                FeedbackSheet()
+            }
 
             // 关于
             settingsRow(
