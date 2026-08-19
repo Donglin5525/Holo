@@ -95,7 +95,7 @@ enum HoloAppStoreScreenshotSeeder {
         case .aiActions, .aiAnalysis:
             DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
         case .memoryCalendar, .memoryInsight:
-            DeepLinkState.shared.navigate(to: .memoryGallery)
+            DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
         case .financeStats:
             let range = TimeRange.month.dateRange()
             DeepLinkState.shared.navigate(to: .financeAnalysis(FinanceAnalysisDeepLink(

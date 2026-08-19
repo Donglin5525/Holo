@@ -13,6 +13,12 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 记忆感知 P1——AI 用了什么记忆，看得见、点得开
+  - 徽章可点：AI 回复上的「用到了你关于 XX 的 N 条记忆」徽章，点击直达长廊洞察 tab 并高亮这些记忆（含证据跳转）
+  - 信封锚点分组：注入 AI 的记忆上下文按锚点标签聚簇显示（【关于餐饮】…），上下文更可读（HoloMemoryContextEnvelope + anchorGroupLabel）
+  - 使用记录通道：每条记忆被 AI 读到走 recordUsage 专用通道记使用次数，为后续「哪些记忆真的在起作用」打底
+  - 个人页「新记住 N 件」胶囊从绕道设置页改为直达长廊；深链 .memoryGallery(focusNewMemories:) 相应升级
+  - 目标规划类洞察剥除执行标记；纯客户端无需后端发版；方案存档于 `docs/plans/2026-08-18-memory-perception-plan.md`
 - **iOS**: 目标系统 v3 三期——关联收尾（手动关联 + 歧义选择卡）、风险通知、量化目标
   - 手动关联：任务/习惯详情页新增「归属目标」选择弹层（GoalPickerSheet）；目标详情页统一管理已关联的任务/习惯（GoalLinkManagerSheet）
   - 歧义选择卡：AI 对目标的写操作命中多个活跃目标时不再猜，改发 N 选 1 卡片（goalChoice），点选后带 goalId 重放执行、取消则不执行

@@ -302,7 +302,8 @@ struct PersonalView: View {
                 if memoryInboxSnapshot.pendingConfirmationCount > 0 {
                     showMemoryConfirmationQueue = true
                 } else {
-                    showMemorySettings = true
+                    // 「新记住 N 件」直达长廊洞察 Tab 高亮新记忆，不再绕道设置页。
+                    DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
                 }
             } label: {
                 Label(memoryInboxSnapshot.summaryText, systemImage: "brain.head.profile.fill")

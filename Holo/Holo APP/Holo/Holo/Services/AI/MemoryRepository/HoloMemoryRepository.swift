@@ -98,6 +98,11 @@ protocol HoloMemoryRepository: Sendable {
     /// 用户忘记、清空或原始数据失效时使用；绕过自动合并，但仍执行 Schema 校验。
     func replaceRecordForUserControl(_ record: HoloMemoryRecord) async throws
 
+    /// 记录「记忆参与 AI 回答」的使用统计。专用通道：只改 usageCount/lastUsedAt，
+    /// 不 bump recordVersion、不改 updatedAt、不写 observationKey、不触发萃取调度——
+    /// 避免污染版本链与 userControlIsNewer 合并判定。
+    func recordUsage(ids: [String], now: Date) async throws
+
     /// 仅供版本化迁移的 journal 回滚使用，不得暴露给普通业务调用方。
     func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws
     func hardDeleteRecordForMigration(id: String) async throws

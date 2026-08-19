@@ -161,6 +161,10 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
     var createdAt: Date
     var updatedAt: Date
     var schemaVersion: Int
+    /// 参与 AI 回答的使用统计：不进版本链、不改 updatedAt，由 recordUsage 专用通道写入。
+    /// 必须保持可选型——旧 recordData 缺这两个 key，非可选合成解码会整库失败。
+    var usageCount: Int?
+    var lastUsedAt: Date?
 
     init(
         id: String,
@@ -197,7 +201,9 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         supersedesMemoryID: String? = nil,
         createdAt: Date,
         updatedAt: Date,
-        schemaVersion: Int = 1
+        schemaVersion: Int = 1,
+        usageCount: Int? = nil,
+        lastUsedAt: Date? = nil
     ) {
         self.id = id
         self.scope = scope
@@ -234,6 +240,8 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.schemaVersion = schemaVersion
+        self.usageCount = usageCount
+        self.lastUsedAt = lastUsedAt
     }
 
     func validate() throws {

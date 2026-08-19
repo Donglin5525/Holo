@@ -255,7 +255,7 @@ class HomeScheduleService: ObservableObject {
                         message: "\(periodLabel)洞察：\(title)",
                         protectionUntil: nil
                     ),
-                    .memoryGallery
+                    .memoryGallery(focusNewMemories: false)
                 )
             }
         }

@@ -52,7 +52,8 @@ enum HoloMemorySummaryProvider {
                 title: displayTitle(for: record),
                 aiUseSummary: record.aiUseSummary,
                 useScopeLabels: record.sourceDomains.map(\.rawValue),
-                prohibitedInferences: record.prohibitedInferences
+                prohibitedInferences: record.prohibitedInferences,
+                anchorGroupLabel: anchorGroupLabel(for: record)
             )
         }
         let coverage: HoloMemoryCoverageLevel
@@ -148,5 +149,14 @@ enum HoloMemorySummaryProvider {
         case .profile: return "个人记忆"
         case nil: return "记忆"
         }
+    }
+
+    /// 锚点分组标签：只取信号构建时填好的展示名（如财务分类「餐饮」），
+    /// 没有就返回 nil 按域归组，不硬造标签。
+    nonisolated static func anchorGroupLabel(for record: HoloMemoryRecord) -> String? {
+        record.anchorRefs.first { ref in
+            guard let label = ref.displayLabel else { return false }
+            return !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }?.displayLabel
     }
 }

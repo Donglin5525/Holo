@@ -493,6 +493,40 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
+    func recordUsage(ids: [String], now: Date) async throws {
+        guard !ids.isEmpty else { return }
+        try await withMutationLock {
+            try await recordUsage(ids: ids, now: now, in: .main)
+            try await recordUsage(ids: ids, now: now, in: .sensitive)
+        }
+    }
+
+    /// 使用统计专用写入：只重写 recordData 一列，不动 evidence 行、不碰版本与时间戳，
+    /// 把 CloudKit 同步流量压到最低。记录不存在（已删/已归档）直接跳过。
+    private func recordUsage(ids: [String], now: Date, in storage: Storage) async throws {
+        let context = container(for: storage).newBackgroundContext()
+        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        try await context.perform {
+            let request = NSFetchRequest<HoloMemoryRecordMO>(entityName: "HoloMemoryRecordMO")
+            request.predicate = NSPredicate(format: "stableID IN %@", ids)
+            let objects = try context.fetch(request)
+            guard !objects.isEmpty else { return }
+            for object in objects {
+                guard var record = try? Self.decoder().decode(HoloMemoryRecord.self, from: object.recordData)
+                else { continue }
+                record.usageCount = (record.usageCount ?? 0) + 1
+                record.lastUsedAt = now
+                object.recordData = try Self.encoder().encode(record)
+            }
+            do {
+                try context.save()
+            } catch {
+                context.rollback()
+                throw HoloMemoryRepositoryError.persistenceFailed
+            }
+        }
+    }
+
     /// 用户仅删除当前记忆；不写 tombstone，后续新证据仍可形成同类记忆。
     func deleteRecord(id: String) async throws -> Bool {
         try await withMutationLock {

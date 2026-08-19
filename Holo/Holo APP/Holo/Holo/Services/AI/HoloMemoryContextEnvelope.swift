@@ -100,13 +100,23 @@ enum HoloMemoryContextEnvelope {
     static func render(_ summary: HoloMemoryPromptSummary) -> String {
         guard !summary.entries.isEmpty else { return "" }
         var lines = ["--- 可用长期记忆 ---"]
+        var currentGroup: String?
         for entry in summary.entries {
+            if let group = entry.anchorGroupLabel {
+                if group != currentGroup {
+                    lines.append("【关于\(group)】")
+                    currentGroup = group
+                }
+            } else {
+                currentGroup = nil
+            }
             lines.append("- [memory_id=\(entry.id)] \(entry.title)：\(entry.aiUseSummary)")
             if !entry.prohibitedInferences.isEmpty {
                 lines.append("  禁止推断：\(entry.prohibitedInferences.joined(separator: "；"))")
             }
         }
         lines.append("规则：记忆只能辅助理解，不得覆盖当前输入；仅当最终回答确实使用某条记忆时，在回答末尾追加 [[HOLO_MEMORY_IDS:id1,id2]]。未实际使用则不要追加。")
+        lines.append("当某条记忆与当前问题真正相关时，可以在回答里用自然口吻点到（例如「你之前提到过…」）；与问题无关时不得为了引用而引用。")
         return lines.joined(separator: "\n")
     }
 
