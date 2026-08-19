@@ -62,6 +62,12 @@ nonisolated enum HoloAgentResponseParser {
                     claims[i]["prohibitedInferences"] = Self.stringArray(from: claims[i]["prohibitedInferences"])
                     claims[i]["confidence"] = Self.doubleValue(claims[i]["confidence"]) ?? 0.5
                     if claims[i]["type"] == nil { claims[i]["type"] = "observation" }
+                    // v21：interpretation/keyInsight 非字符串（模型偶发输出对象/数字）时清掉，
+                    // optional 字段 decode 为 nil，不让整轮解析失败。
+                    if let interpretation = claims[i]["interpretation"],
+                       !(interpretation is String) {
+                        claims[i].removeValue(forKey: "interpretation")
+                    }
                     if var metricAssertions = claims[i]["metricAssertions"] as? [[String: Any]] {
                         for j in 0..<metricAssertions.count {
                             if metricAssertions[j]["evidenceIDs"] == nil,
@@ -147,6 +153,9 @@ nonisolated enum HoloAgentResponseParser {
                     }
                 }
                 json["toolRequests"] = requests
+            }
+            if let keyInsight = json["keyInsight"], !(keyInsight is String) {
+                json.removeValue(forKey: "keyInsight")
             }
             if let fixedData = try? JSONSerialization.data(withJSONObject: json),
                let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: fixedData) {

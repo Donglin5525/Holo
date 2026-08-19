@@ -142,8 +142,15 @@ enum HoloProfileSnapshotBuilder {
         let sensitiveBoundaries = extractSectionLines(from: sections, target: .boundaries)
         confidence["sensitiveBoundaries"] = !sensitiveBoundaries.isEmpty
 
-        let parsedCount = confidence.values.filter { $0 }.count
-        logger.debug("Profile snapshot 解析完成：\(parsedCount)/\(confidence.count) 字段成功，sections=\(sections.count)")
+        let parsedFields = confidence
+            .filter { $0.value }
+            .map(\.key)
+            .sorted()
+        let implementedFieldCount = confidence.count - 1 // lifeContext 当前保留字段，尚未接入解析器
+        let parsedCount = parsedFields.count
+        logger.debug(
+            "Profile snapshot 解析完成：\(parsedCount)/\(implementedFieldCount) 已实现字段成功，sections=\(sections.count)，成功字段=\(parsedFields.joined(separator: ","))，lifeContext=未实现"
+        )
 
         return HoloProfileSnapshot(
             rawMarkdown: trimmed,

@@ -33,6 +33,9 @@ nonisolated struct HoloAgentClaim: Codable, Identifiable, Equatable, Sendable {
     var evidenceIDs: [String]
     var prohibitedInferences: [String]
     var confidence: Double
+    /// v21：这条数据在该用户生活里意味着什么的低置信解读（1-2 句）。
+    /// 纯数字复述时为 nil；旧响应无此字段 decode 为 nil。
+    var interpretation: String? = nil
 }
 
 /// agent_loop 单轮 JSON 输出
@@ -47,6 +50,9 @@ nonisolated struct HoloAgentOutput: Codable, Equatable, Sendable {
     /// need_tools/need_more_analysis 阶段为 nil。旧版本响应无此字段，decode 为 nil 兼容。
     var title: String?
     var narrativeSummary: String?
+    /// v21：final_claims 时的跨维度核心发现（≤40 字，综合至少两个维度）。
+    /// 卡片首屏主展示位；无真综合时为 nil。
+    var keyInsight: String? = nil
 }
 
 // MARK: - Answer fulfillment contract
@@ -143,7 +149,8 @@ nonisolated enum HoloAgentAnswerRequestPolicy {
 
     static func promptInstruction(
         question: String,
-        authoritativeRange: HoloAgentTimeRange?
+        authoritativeRange: HoloAgentTimeRange?,
+        taskProfile: HoloAgentTaskProfile
     ) -> String {
         let deliverables = requestedDeliverables(for: question)
             .map(\.rawValue)
@@ -159,6 +166,7 @@ nonisolated enum HoloAgentAnswerRequestPolicy {
         [HOLO_AGENT_ANSWER_CONTRACT_V1]
         用户问题的确定性交付物：\(deliverables)。
         权威查询时间：\(rangeText)。
+        查询画像：\(taskProfile.promptSignalLabel)（本地确定性分类信号，供 HOLO_AGENT_ANALYSIS_MASTERY_V21 分档使用）。
         - 权威查询时间来自用户原话，所有 toolRequest、dynamicPlan、crossDomainPlan 必须使用它，禁止自行缩成“近30天”等其他范围。
         - final_claims 必须先直接回答用户问题，再给最关键证据；不能只罗列指标。
         - 用户要求优化/改善/建议时，必须输出至少一条 type=suggestion 的可执行建议，并用已核验事实解释优先级。

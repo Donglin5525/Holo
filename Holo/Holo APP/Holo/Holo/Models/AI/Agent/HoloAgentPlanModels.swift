@@ -69,6 +69,24 @@ nonisolated enum HoloAgentTaskProfile: String, Equatable, Sendable {
             return true
         }
     }
+
+    /// 注入答案契约的画像信号文案（v21 分析分档的确定性输入）。
+    var promptSignalLabel: String {
+        switch self {
+        case .simpleLookup:
+            return "数数型（simpleLookup）"
+        case .singleDomainAnalysis:
+            return "分析型（singleDomainAnalysis）"
+        case .comparisonAnalysis:
+            return "分析型（comparisonAnalysis）"
+        case .crossDomainAnalysis:
+            return "分析型（crossDomainAnalysis）"
+        case .sensitiveAnalysis:
+            return "分析型（sensitiveAnalysis）"
+        case .observerFollowUp:
+            return "分析型（observerFollowUp）"
+        }
+    }
 }
 
 // MARK: - AgentPlan

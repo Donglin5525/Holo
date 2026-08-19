@@ -91,6 +91,21 @@ struct AgentDeepAnalysisCard: View {
                             .layoutPriority(1)
                         }
 
+                        if let keyInsight = result.keyInsight?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !keyInsight.isEmpty {
+                            HStack(alignment: .top, spacing: 8) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.holoPrimary.opacity(0.55))
+                                    .frame(width: 3)
+                                Text(keyInsight)
+                                    .font(.system(size: 14.5, weight: .semibold))
+                                    .foregroundColor(.holoPrimary.opacity(0.95))
+                                    .lineSpacing(4)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .accessibilityLabel("核心发现")
+                        }
+
                         if let scope = result.scope?.displayLabel {
                             Label(scope, systemImage: "calendar")
                                 .font(.system(size: 11.5, weight: .semibold))

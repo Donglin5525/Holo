@@ -449,6 +449,7 @@ final class PromptManager {
         - 近期对话意图和会话活跃度 → conversation 对应 query；不要请求历史消息原文。
 
         表达边界：
+        - 按答案契约中的「查询画像」分档：数数型直接回答用户要求的指标，不展开、不加建议；分析型按 HOLO_AGENT_ANALYSIS_MASTERY_V21 方法论深度展开（个人基线→偏离→串线→推算→行动数字）。无画像信号时按问题语义判断。
         - 查询类问题直接回答用户要求的指标；除非用户主动询问建议，或数据中存在需要行动的明确风险，否则不要输出 suggestion claim，也不要补空泛“下一步”。
         - 每条 displayText 必须脱离 JSON 和工具上下文后仍能被普通用户直接理解，使用自然中文完整句子。
         - 禁止在 displayText 中输出 metric key、工具名、JSON 字段、公式表达式或类似 health.steps.average、goal_met_days、average = 6990.8 的机器格式。
@@ -462,7 +463,7 @@ final class PromptManager {
         - 当前明确输入永远优先；长期记忆、近期状态只能辅助理解，不能覆盖本轮输入。
 
         输出 JSON Schema：
-        {"status":"need_tools | need_more_analysis | final_claims","title":"string 或 null（final_claims 时给一句话标题，其余状态 null）","narrativeSummary":"string 或 null（final_claims 时给一段自然摘要，其余状态 null）","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[{"metricKey":"string","value":0,"baselineValue":null,"unit":"string 或 null","comparison":"string 或 null","evidenceIDs":["string"]}],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
+        {"status":"need_tools | need_more_analysis | final_claims","title":"string 或 null（final_claims 时给一句话标题，其余状态 null）","narrativeSummary":"string 或 null（final_claims 时给一段自然摘要，其余状态 null）","keyInsight":"string 或 null（final_claims 时给一句跨维度核心发现，≤40字，须综合至少两个维度，无真综合给 null，其余状态 null）","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[{"metricKey":"string","value":0,"baselineValue":null,"unit":"string 或 null","comparison":"string 或 null","evidenceIDs":["string"]}],"evidenceIDs":["string"],"prohibitedInferences":[],"interpretation":"string 或 null（可选：这组数据在该用户生活里意味着什么，1-2句，低置信用像是/可能）","confidence":0.5}],"warnings":[]}
 
         need_tools：需要调用本地工具，必须给出 toolRequests。
         need_more_analysis：已有信息不足以得出结论，需要继续推理。

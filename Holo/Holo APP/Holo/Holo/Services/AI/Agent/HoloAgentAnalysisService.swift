@@ -320,6 +320,7 @@ final class HoloAgentAnalysisService {
                 ),
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
+                keyInsight: result.keyInsight,
                 contextSources: result.contextSources ?? [],
                 dataSamplePreview: Self.makeSamplePreview(from: nil)
             )
@@ -381,6 +382,7 @@ final class HoloAgentAnalysisService {
                             ),
                             requestedDeliverables: result.requestedDeliverables ?? [],
                             narrativeSummary: result.narrativeSummary,
+                            keyInsight: result.keyInsight,
                             contextSources: result.contextSources ?? [],
                             dataSamplePreview: Self.makeSamplePreview(from: nil)
                         )

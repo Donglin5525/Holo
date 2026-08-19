@@ -21,6 +21,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         var title: String
         var body: String
         var accentIndex: Int
+        /// v21：这条数据在用户生活里意味着什么的低置信解读；旧结果为 nil 不展示。
+        var interpretation: String? = nil
     }
 
     struct Evidence: Equatable, Sendable {
@@ -32,6 +34,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var openingTitle: String
     var openingBody: String
     var openingParagraphs: [String]
+    /// v21：跨维度核心发现；开场摘要后的强调展示位，旧结果为 nil 不展示。
+    var keyInsight: String?
     var scopeLabel: String?
     var contextSourceText: String?
     var signalSummaries: [String]
@@ -88,6 +92,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let openingBodyText = !narrativeSummary.isEmpty ? narrativeSummary : resolvedSummary
         self.openingBody = openingBodyText
         self.openingParagraphs = Self.readingParagraphs(from: openingBodyText)
+        let cleanedKeyInsight = Self.clean(result.keyInsight ?? "")
+        self.keyInsight = cleanedKeyInsight.isEmpty ? nil : cleanedKeyInsight
         self.scopeLabel = result.scope?.displayLabel
         self.contextSourceText = result.contextSourceText
         self.signalSummaries = (isFinanceLedgerMode || isHealthMode || !directAnswer.isEmpty)
@@ -160,7 +166,11 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 label: "",
                 title: title,
                 body: body,
-                accentIndex: index
+                accentIndex: index,
+                interpretation: {
+                    let value = clean(section.interpretation ?? "")
+                    return value.isEmpty ? nil : value
+                }()
             )
         }
     }
@@ -502,6 +512,22 @@ struct AgentDeepAnalysisDetailSheet: View {
                         .textSelection(.enabled)
                 }
             }
+
+            if let keyInsight = model.keyInsight {
+                HStack(alignment: .top, spacing: 10) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.holoPrimary.opacity(0.55))
+                        .frame(width: 3)
+                    Text(keyInsight)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoPrimary.opacity(0.95))
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+                .padding(.top, 2)
+                .accessibilityLabel("核心发现")
+            }
         }
         .padding(.horizontal, 4)
         .padding(.bottom, 21)
@@ -652,6 +678,22 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .lineSpacing(7)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+
+            if let interpretation = observation.interpretation {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "ellipsis.bubble")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(accent.opacity(0.72))
+                        .padding(.top, 2.5)
+                    Text(interpretation)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(dark ? Color.white.opacity(0.56) : .holoTextSecondary)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+                .padding(.top, 1)
+            }
         }
         .padding(.leading, 20)
         .padding(.trailing, 18)

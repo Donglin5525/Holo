@@ -16,6 +16,8 @@ nonisolated struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var confidence: Double?
     /// 原始 claim 类型，用于 UI 区分“建议 / 观察 / 能力边界”，旧结果缺失时按观察展示。
     var kind: String? = nil
+    /// v21：这条数据在用户生活里意味着什么的低置信解读；旧 JSON 缺失解码为 nil 不展示。
+    var interpretation: String? = nil
 }
 
 nonisolated struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
@@ -101,6 +103,8 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var recommendations: [HoloRenderedRecommendation]? = nil
     /// v17：LLM 产出的有人味儿自然摘要，供 UI 开场使用。旧消息 JSON 解码为 nil。
     var narrativeSummary: String? = nil
+    /// v21：跨维度核心发现，卡片首屏主展示位。旧消息 JSON 解码为 nil，不展示该槽位。
+    var keyInsight: String? = nil
     /// 本轮实际读取进 Agent 的个人档案与分层记忆来源；旧消息缺失时不展示。
     var contextSources: [HoloAgentContextSourceSummary]? = nil
     /// 本次分析查看的数据样本摘要（最多10条），用于向用户透明展示读取了哪些数据。
@@ -182,6 +186,7 @@ nonisolated struct HoloAgentResultRenderer {
         answerContext: HoloAgentAnswerContext? = nil,
         requestedDeliverables: Set<HoloAgentRequestedDeliverable> = [],
         narrativeSummary: String? = nil,
+        keyInsight: String? = nil,
         contextSources: [HoloAgentContextSourceSummary] = [],
         dataSamplePreview: HoloRenderedDataSamplePreview? = nil
     ) -> HoloRenderedAgentResult {
@@ -249,6 +254,7 @@ nonisolated struct HoloAgentResultRenderer {
             scope: scope,
             recommendations: nil,
             narrativeSummary: narrativeSummary,
+            keyInsight: keyInsight,
             contextSources: contextSources.isEmpty ? nil : contextSources,
             dataSamplePreview: dataSamplePreview
         )
@@ -760,6 +766,7 @@ nonisolated struct HoloAgentResultRenderer {
                         body: body,
                         confidence: claim.confidence,
                         kind: claim.type,
+                        interpretation: claim.interpretation,
                         directAnswer: directAnswer,
                         seenBodies: &seenBodies,
                         output: &output
@@ -783,6 +790,7 @@ nonisolated struct HoloAgentResultRenderer {
                 body: rawBody,
                 confidence: claim.confidence,
                 kind: claim.type,
+                interpretation: claim.interpretation,
                 directAnswer: directAnswer,
                 seenBodies: &seenBodies,
                 output: &output
@@ -844,6 +852,7 @@ nonisolated struct HoloAgentResultRenderer {
         body: String,
         confidence: Double,
         kind: String,
+        interpretation: String? = nil,
         directAnswer: String?,
         seenBodies: inout Set<String>,
         output: inout [HoloRenderedAgentSection]
@@ -862,7 +871,8 @@ nonisolated struct HoloAgentResultRenderer {
             title: uniqueTitle,
             body: body,
             confidence: confidence,
-            kind: kind
+            kind: kind,
+            interpretation: interpretation
         ))
     }
 

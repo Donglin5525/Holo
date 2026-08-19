@@ -153,6 +153,7 @@ actor HoloLocalAgentRuntime {
         conversation.append(Self.answerContractMessage(
             question: question,
             authoritativeRange: job.timeRange,
+            taskProfile: semanticFrame.profile,
             now: now
         ))
         conversation.append(Self.mockUserMessage(question, now))
@@ -644,6 +645,7 @@ actor HoloLocalAgentRuntime {
                                                     generation: generation,
                                                     narrativeTitle: output.title,
                                                     narrativeSummary: output.narrativeSummary,
+                                                    keyInsight: output.keyInsight,
                                                     progressReporter: progressReporter, now: now)
             }
         }
@@ -1318,13 +1320,15 @@ actor HoloLocalAgentRuntime {
     private static func answerContractMessage(
         question: String,
         authoritativeRange: HoloAgentTimeRange?,
+        taskProfile: HoloAgentTaskProfile,
         now: Date
     ) -> HoloAgentMessage {
         HoloAgentMessage(
             role: .system,
             content: HoloAgentAnswerRequestPolicy.promptInstruction(
                 question: question,
-                authoritativeRange: authoritativeRange
+                authoritativeRange: authoritativeRange,
+                taskProfile: taskProfile
             ),
             toolRequestID: nil,
             toolName: nil,
@@ -1615,6 +1619,7 @@ actor HoloLocalAgentRuntime {
         generation: Int? = nil,
         narrativeTitle: String? = nil,
         narrativeSummary: String? = nil,
+        keyInsight: String? = nil,
         progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil,
         now: Date
     ) async throws -> HoloAgentJob {
@@ -1787,6 +1792,7 @@ actor HoloLocalAgentRuntime {
             emptyReason: emptyReason,
             requestedDeliverables: deliverables.isEmpty ? nil : deliverables,
             narrativeSummary: cleanNarrativeSummary,
+            keyInsight: cleanNarrativeText(keyInsight),
             contextSources: contextSources.isEmpty ? nil : contextSources
         )
         // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）

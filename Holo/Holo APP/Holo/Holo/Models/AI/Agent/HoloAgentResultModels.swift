@@ -50,6 +50,9 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     /// v17：LLM 产出的有人味儿自然摘要（final_claims 时），用于详情页开场。
     /// 旧结果反序列化时为 nil，渲染层退回用 directAnswer/summary。
     var narrativeSummary: String? = nil
+    /// v21：跨维度核心发现（final_claims 时），卡片首屏主展示位。
+    /// 旧结果反序列化时为 nil，渲染层不展示该槽位。
+    var keyInsight: String? = nil
     /// 本轮实际预取进 Agent 上下文的个人档案与分层记忆来源。
     /// 仅保存来源和数量，用于结果卡持久披露；旧结果缺失时不展示。
     var contextSources: [HoloAgentContextSourceSummary]? = nil

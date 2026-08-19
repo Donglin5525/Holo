@@ -88,11 +88,11 @@ enum HoloProfilePromptRenderer {
         // Raw Markdown 注入策略：结构化是优化项，原文是底线。
         // 用户主动写的内容（rawMarkdown）无论解析是否成功、无论哪个 purpose，都必须送达 AI。
         if snapshot.hasStructuredData {
-            // 有结构化数据：仅 chat 模式且 token 有余量时补原文（analysis/insight 已有精简结构化）
-            if purpose == .chat {
+            // 有结构化数据时仍为 chat / insight 保留原文补充，避免未覆盖字段被丢掉。
+            if purpose == .chat || purpose == .insight {
                 let usedTokens = estimateTokens(parts.joined(separator: "\n"))
                 let remainingTokens = maxTokenBudget - usedTokens
-                if remainingTokens > 200 {
+                if remainingTokens > 120 {
                     let rawSupplement = renderRawSupplement(snapshot.rawMarkdown, tokenBudget: remainingTokens)
                     if !rawSupplement.isEmpty {
                         parts.append(rawSupplement)
