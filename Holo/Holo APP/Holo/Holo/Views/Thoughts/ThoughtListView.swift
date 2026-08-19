@@ -164,7 +164,12 @@ struct ThoughtListView: View {
                     topicRepository: topicRepository,
                     onNavigateToList: { node in
                         browseMode = "timeline"
+                        // 同值重复赋值不触发 onChange，需手动重载（否则停留在旧数据）
+                        let isSameNode = drawerSelection == node
                         drawerSelection = node
+                        if isSameNode {
+                            reloadByDrawer()
+                        }
                     },
                     onAIOrganize: { onAIOrganize() }
                 )
@@ -402,6 +407,11 @@ struct ThoughtListView: View {
     // MARK: - 数据加载
 
     private func loadThoughts() {
+        // 抽屉筛选生效时保持筛选语义（删除/归档/通知后的刷新也走这里，不能退回全部）
+        if drawerSelection != nil, drawerSelection != .aiOrganize {
+            reloadByDrawer()
+            return
+        }
         do {
             thoughts = try thoughtRepository.fetchAll()
             currentFilters = nil
@@ -421,6 +431,9 @@ struct ThoughtListView: View {
             selectedTagName = nil
         }
         currentFilters = nil
+        // 与 loadThoughts 的全量路径保持同一份 P0 分级判定数据
+        recognizedTagKeys = Set(thoughtRepository.fetchUserRecognizedTagNames()
+            .map { ThoughtTagNormalizer.key($0) })
         do {
             switch drawerSelection {
             case nil, .allNotes:

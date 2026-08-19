@@ -753,6 +753,8 @@ struct ThoughtEditorView: View {
                 : Color.holoTextSecondary.opacity(0.06)
         )
         .cornerRadius(HoloRadius.sm)
+        // 标签名称来自用户/AI数据，横向滚动时保持完整内容宽度
+        .fixedSize(horizontal: true, vertical: false)
         // FR-06′：全局抑制放长按菜单（90 天内不再推荐）
         .contextMenu {
             if !isConfirmed {

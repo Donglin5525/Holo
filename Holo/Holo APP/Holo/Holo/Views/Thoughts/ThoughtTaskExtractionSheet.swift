@@ -15,6 +15,10 @@ struct TaskCandidateRow: Identifiable {
     var isSelected: Bool
     /// 候选行在编辑器可见文本中的作用范围；AI 无法可靠映射时为空。
     var sourceRange: NSRange? = nil
+    /// AI 预填的截止日期与优先级；用户在设置卡统一设置对应字段后不再生效
+    var aiDueDate: Date? = nil
+    var aiDueDateHasTime = false
+    var aiPriority: TaskPriority? = nil
 }
 
 /// 创建任务后的结果，保留它对应的原文范围，供编辑器写入持续可见的关系标识。
@@ -28,7 +32,8 @@ struct CreatedThoughtTask: Equatable {
 ///
 /// 用法：传入想法的纯文本内容（保留换行），面板会按行拆分，
 /// 自动识别列表型内容（`-` / `*` / `[]` / `数字.` 开头）并预勾选，
-/// 用户可逐行增删、编辑文本，确认后批量建任务。
+/// 用户可逐行增删、编辑文本；「任务设置」卡统一确认日期/优先级/清单/提醒
+/// （AI 识别的日期/优先级预填到各行，用户统一设置后覆盖），确认后批量建任务。
 struct ThoughtTaskExtractionSheet: View {
 
     /// 预填的候选行（由调用方拆好传入）
@@ -65,6 +70,9 @@ struct ThoughtTaskExtractionSheet: View {
     @State private var showSuccess = false
     /// 本批创建的任务 ID（供 onCreated 回调传出，调用方据此插入 ✅ 标记）
     @State private var createdTasks: [CreatedThoughtTask] = []
+
+    /// 批量任务设置：截止日期/优先级/所属清单/提醒，统一应用于本批任务
+    @State private var settings = ThoughtTaskBatchSettings()
 
     init(
         content: String,
@@ -175,6 +183,8 @@ struct ThoughtTaskExtractionSheet: View {
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.top, HoloSpacing.sm)
 
+                ThoughtTaskSettingsCard(settings: $settings, selectedRows: selectedCandidates)
+
                 ForEach($candidates) { $row in
                     HStack(spacing: 10) {
                         Button {
@@ -192,6 +202,13 @@ struct ThoughtTaskExtractionSheet: View {
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
                             .textFieldStyle(.plain)
+
+                        if !settings.userTouchedDate, let aiDate = row.aiDueDate {
+                            ThoughtTaskAIBadge(text: ThoughtTaskBadgeFormatter.shortDateLabel(aiDate))
+                        }
+                        if !settings.userTouchedPriority, let aiPriority = row.aiPriority, aiPriority != .medium {
+                            ThoughtTaskAIBadge(text: aiPriority.displayTitle, tint: aiPriority.color)
+                        }
                     }
                     .padding(HoloSpacing.md)
                     .background(Color.holoCardBackground)
@@ -220,16 +237,20 @@ struct ThoughtTaskExtractionSheet: View {
 
     // MARK: - 操作
 
+    private var selectedCandidates: [TaskCandidateRow] {
+        candidates.filter { $0.isSelected && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
     private var selectedCount: Int {
-        candidates.filter { $0.isSelected && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        selectedCandidates.count
     }
 
     /// 顶部说明文案：根据来源（选中文字 / 整篇想法）动态显示
     private var hintText: String {
         if isFromSelection {
-            return "已选文字将创建为一个任务，可先修改任务标题。"
+            return "已选文字将创建为一个任务，可先修改标题，并设置日期、优先级等信息。"
         }
-        return "已自动识别列表内容并勾选，可逐行调整；创建后会在对应原文下方显示任务标识。"
+        return "已自动识别列表内容并勾选，可逐行调整；下方任务设置将统一应用于本批任务。"
     }
 
     /// 批量创建任务
@@ -248,9 +269,15 @@ struct ThoughtTaskExtractionSheet: View {
         var tasks: [CreatedThoughtTask] = []
         for item in picked {
             do {
+                let dueDate = settings.effectiveDueDate(for: item.row)
                 let task = try TodoRepository.shared.createTask(
                     title: item.title,
                     description: nil,
+                    list: settings.selectedList,
+                    priority: settings.effectivePriority(for: item.row),
+                    dueDate: dueDate,
+                    isAllDay: settings.effectiveIsAllDay(for: item.row),
+                    reminders: dueDate != nil && !settings.reminders.isEmpty ? settings.reminders : nil,
                     sourceThought: sourceThought,
                     sourceTextSnippet: isFromSelection ? item.title : nil
                 )
@@ -284,17 +311,21 @@ struct ThoughtTaskExtractionSheet: View {
             let extractor = ThoughtTaskExtractor()
             let result = try await extractor.extract(from: visibleSourceText ?? rawContent)
 
-            guard !result.titles.isEmpty else {
+            guard !result.tasks.isEmpty else {
                 extractError = true
                 return
             }
 
-            // 用 AI 提取的结果替换候选列表，全部预勾选
-            candidates = result.titles.map { title in
+            // 用 AI 提取的结果替换候选列表，全部预勾选；
+            // 日期/优先级预填到各行（用户在设置卡统一设置后覆盖）
+            candidates = result.tasks.map { task in
                 TaskCandidateRow(
-                    text: title,
+                    text: task.title,
                     isSelected: true,
-                    sourceRange: Self.uniqueSourceRange(for: title, in: visibleSourceText)
+                    sourceRange: Self.uniqueSourceRange(for: task.title, in: visibleSourceText),
+                    aiDueDate: task.dueDate,
+                    aiDueDateHasTime: task.dueDateHasTime,
+                    aiPriority: task.priority
                 )
             }
             HapticManager.light()

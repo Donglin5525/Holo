@@ -306,6 +306,7 @@ struct ThoughtCardView: View {
                 .padding(.vertical, 4)
                 .background(tag.tagColor.opacity(0.1))
                 .cornerRadius(HoloRadius.sm)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("按标签 \(tag.name) 筛选")
@@ -330,6 +331,7 @@ struct ThoughtCardView: View {
             .padding(.vertical, 4)
             .background(Color.holoTextSecondary.opacity(0.08))
             .cornerRadius(HoloRadius.sm)
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("按 AI 标签 \(tagName) 筛选")
