@@ -705,7 +705,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 20);
+  assert.equal(prompt.version, 21);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -715,6 +715,14 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   // v17: 新增 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   assert.match(prompt.content, /narrativeSummary/);
   assert.match(prompt.content, /一句话总结这次的发现/);
+  // v21: 分析方法论 + keyInsight/interpretation 输出字段
+  assert.match(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
+  assert.match(prompt.content, /keyInsight/);
+  assert.match(prompt.content, /interpretation/);
+  assert.match(prompt.content, /个人基线/);
+  assert.match(prompt.content, /维度菜单/);
+  assert.match(prompt.content, /社交时差/);
+  assert.match(prompt.content, /按当前节奏推算/);
   assert.match(prompt.content, /health_overview/);
   assert.match(prompt.content, /steps_summary/);
   assert.match(prompt.content, /sleep_summary/);

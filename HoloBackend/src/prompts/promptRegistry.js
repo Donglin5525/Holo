@@ -20,7 +20,7 @@ const PROMPT_VERSIONS = {
   thought_organization: 5,                  // v5: 加 semanticNeighborTags 可选字段（P2 语义候选召回，向后兼容旧客户端）；v4: 加 recentAITags 字段 + 标签复用软约束升级为硬约束
   thought_task_extraction: 2,        // v2: 注入今天日期，输出对象数组（title+dueDate/dueTime/priority 预填，向后兼容旧客户端只读 title）
   thought_tag_convergence: 2,
-  agent_loop: 20,                  // v20: dataGapHints 遗漏数据提示 + _search 跨字段搜索
+  agent_loop: 21,                  // v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
@@ -34,6 +34,7 @@ const PROMPT_CONTRACT_APPENDICES = {
     defaultPrompts._agent_loop_v14_contract,
     defaultPrompts._agent_loop_v15_contract,
     defaultPrompts._agent_loop_v16_contract,
+    defaultPrompts._agent_loop_v21_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],
@@ -87,9 +88,12 @@ function applyPromptContract(type, content) {
   if (!content) return content;
   let normalizedContent = renderIntentSectionMarkers(content);
   if (type === "agent_loop") {
+    // 锚点必须与 defaultPrompts.agent_loop 的 schema 行实际文本逐字一致；
+    // v17 起 schema 行在 status 后插入了 title/narrativeSummary，旧锚点自此静默失配（replace 不生效），
+    // 线上靠 iOS 模板全字段 schema + v11 契约兜底。v21 起锚点随 schema 行同步维护。
     normalizedContent = normalizedContent.replace(
-      '{"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],',
-      '{"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],'
+      '{"status":"need_tools | need_more_analysis | final_claims","title":"string 或 null（final_claims 时给一句话标题，其余状态 null）","narrativeSummary":"string 或 null（final_claims 时给一段自然摘要，其余状态 null）","keyInsight":"string 或 null（final_claims 时给一句跨维度核心发现，≤40字，须综合至少两个维度，无真综合给 null，其余状态 null）","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],',
+      '{"status":"need_tools | need_more_analysis | final_claims","title":"string 或 null（final_claims 时给一句话标题，其余状态 null）","narrativeSummary":"string 或 null（final_claims 时给一段自然摘要，其余状态 null）","keyInsight":"string 或 null（final_claims 时给一句跨维度核心发现，≤40字，须综合至少两个维度，无真综合给 null，其余状态 null）","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],'
     );
   }
   if (type === "memory_insight_generation") {

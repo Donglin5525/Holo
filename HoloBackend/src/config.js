@@ -244,12 +244,15 @@ const DEFAULT_CONFIG = {
     agent_loop: {
       provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
-      temperature: Number(process.env.HOLO_AGENT_LOOP_TEMPERATURE ?? 0.1),
-      maxTokens: Number(process.env.HOLO_AGENT_LOOP_MAX_TOKENS ?? 8192),
-      // DeepSeek 推理模型默认开启 full reasoning，简单问题也要 60-120 秒。
-      // agent_loop 的复杂 JSON 协议需要一定推理能力才能遵循（none 会输出无效格式），
-      // low 模式在 2-5 秒内响应且能正确输出结构化 JSON。
-      reasoningEffort: process.env.HOLO_AGENT_LOOP_REASONING_EFFORT ?? "low",
+      // §depth: 分析深度 v21——温度放宽到 0.2（与 analysis_prompt 对齐，表达不死板）；
+      // effort low→medium：实测（scripts/agent-effort-benchmark.mjs，2026-08-19）v4-flash
+      // 下 medium 与 low 耗时几乎无差（均 ~300ms，无 30s 网关风险），思维链显著更长，
+      // 深度分析是低频高价值场景，没有为延迟压档的理由。
+      temperature: Number(process.env.HOLO_AGENT_LOOP_TEMPERATURE ?? 0.2),
+      // §reasoning-budget: medium 档思维链实测 8.6k-12.2k 字，单轮 completion 可达 ~7k tok；
+      // 8192 有 finish_reason=length 截断风险（replayDigest 同型坑），提至 16384。
+      maxTokens: Number(process.env.HOLO_AGENT_LOOP_MAX_TOKENS ?? 16384),
+      reasoningEffort: process.env.HOLO_AGENT_LOOP_REASONING_EFFORT ?? "medium",
       requestLimits: {
         perMinute: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE ?? 60),
         perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),

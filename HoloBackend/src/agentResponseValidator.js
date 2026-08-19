@@ -77,6 +77,13 @@ export function validateAgentLoopContent(content) {
     if (parsed.narrativeSummary !== undefined && parsed.narrativeSummary !== null) repairs.push("narrativeSummary_defaulted");
     parsed.narrativeSummary = null;
   }
+  // keyInsight（v21）：final_claims 时的跨维度核心发现，门控规则同 title/narrativeSummary。
+  if (isFinalClaims && typeof parsed.keyInsight === "string" && parsed.keyInsight.trim()) {
+    parsed.keyInsight = parsed.keyInsight.trim();
+  } else {
+    if (parsed.keyInsight !== undefined && parsed.keyInsight !== null) repairs.push("keyInsight_defaulted");
+    parsed.keyInsight = null;
+  }
 
   if (!Array.isArray(parsed.toolRequests)) {
     return { valid: false, error: "toolRequests must be an array" };
@@ -313,6 +320,8 @@ function normalizeClaim(claim, index, status, repairs) {
   claim.metricAssertions ??= [];
   claim.evidenceIDs = normalizeStringArray(claim.evidenceIDs ?? claim.evidenceIds);
   claim.prohibitedInferences = normalizeStringArray(claim.prohibitedInferences);
+  // interpretation（v21）：claim 级生活化解读，字符串或 null，其他类型归一化为 null。
+  claim.interpretation = optionalString(claim.interpretation);
   claim.confidence = finiteNumber(claim.confidence) ?? 0.5;
   if (!Array.isArray(claim.metricAssertions)) {
     return `claims[${index}].metricAssertions must be an array`;
