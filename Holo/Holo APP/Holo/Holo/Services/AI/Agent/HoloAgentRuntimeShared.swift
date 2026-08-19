@@ -53,16 +53,21 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                     // 打卡/计数型：count==0 表示"今天没做"，是真实语义，必须保留。
                     if habit.isMeasureType, count.count == 0 { return nil }
                     guard let date = calendar.date(byAdding: .day, value: -count.dayOffset, to: anchorDay) else { return nil }
+                    // 后补条数 >0 时行级标注，让 AI 知道该日含事后补录的记录（行为真实，仅记录时间靠后）
+                    let retroCount = count.retroactiveCount ?? 0
+                    var fields: [String: HoloQueryValue] = [
+                        "date": .date(date),
+                        "value": .number(count.count),
+                        "habit": .text(habit.name),
+                        "polarity": .text(habit.polarity.rawValue)
+                    ]
+                    if retroCount > 0 { fields["retroactiveCount"] = .number(Double(retroCount)) }
+                    let excerptSuffix = retroCount > 0 ? "（其中 \(retroCount) 次后补）" : ""
                     return HoloQueryRow(
                         id: "\(habit.id)-d\(count.dayOffset)",
                         occurredAt: date,
-                        fields: [
-                            "date": .date(date),
-                            "value": .number(count.count),
-                            "habit": .text(habit.name),
-                            "polarity": .text(habit.polarity.rawValue)
-                        ],
-                        excerpt: "\(habit.name) \(count.count) \(unitText)"
+                        fields: fields,
+                        excerpt: "\(habit.name) \(count.count) \(unitText)\(excerptSuffix)"
                     )
                 }
             }

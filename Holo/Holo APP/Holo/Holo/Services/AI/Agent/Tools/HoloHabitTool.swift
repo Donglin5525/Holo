@@ -13,12 +13,16 @@ import Foundation
 struct HoloHabitDailyCount: Codable, Equatable, Sendable {
     var dayOffset: Int
     var count: Double
+    /// 该日后补（补签/补记）的条数；nil=无后补。行为真实发生在该日，仅记录时间靠后。
+    var retroactiveCount: Int? = nil
 }
 
 /// 每日记录备注：dayOffset=0 为最新天。用户手填或 AI 从原话抽取的当日上下文（如「膝盖疼只跑2公里」）。
 struct HoloHabitDailyNote: Codable, Equatable, Sendable {
     var dayOffset: Int
     var note: String
+    /// 采用的记录是否后补；nil=否（兼容旧数据）。
+    var isRetroactive: Bool? = nil
 }
 
 enum HoloHabitPolarity: String, Codable, Sendable {
@@ -118,7 +122,7 @@ struct HoloHabitTool: HoloDataTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: Self.retroactiveWarning(negatives), error: nil
         )
     }
 
@@ -138,7 +142,7 @@ struct HoloHabitTool: HoloDataTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: Self.retroactiveWarning(negatives), error: nil
         )
     }
 
@@ -161,7 +165,7 @@ struct HoloHabitTool: HoloDataTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: Self.retroactiveWarning(positives), error: nil
         )
     }
 
@@ -228,17 +232,18 @@ struct HoloHabitTool: HoloDataTool {
             .map {
                 HoloEvidenceEvent(id: "\(habit.id)-d\($0.dayOffset)", occurredAt: nil,
                                   metricKey: "habit.negative.frequency_change",
-                                  metricValue: $0.count, excerpt: "\(habit.name) 发生 \(Int($0.count)) 次")
+                                  metricValue: $0.count, excerpt: excerptText(habit.name, verb: "发生", count: $0.count, retroactiveCount: $0.retroactiveCount))
             }
     }
 
     /// 记录备注证据：用户自述的行为上下文（如「膝盖疼只跑2公里」），是解释数据波动的关键归因文本
     private static func noteEvents(habit: HoloHabitToolRecord) -> [HoloEvidenceEvent] {
         habit.recentNotes.map { note in
-            HoloEvidenceEvent(id: "\(habit.id)-note-d\(note.dayOffset)", occurredAt: nil,
+            let suffix = note.isRetroactive == true ? "（后补）" : ""
+            return HoloEvidenceEvent(id: "\(habit.id)-note-d\(note.dayOffset)", occurredAt: nil,
                               metricKey: "habit.record.note",
                               metricValue: nil,
-                              excerpt: "\(habit.name)\(note.dayOffset == 0 ? "今天" : "\(note.dayOffset)天前")备注：\(note.note)")
+                              excerpt: "\(habit.name)\(note.dayOffset == 0 ? "今天" : "\(note.dayOffset)天前")备注：\(note.note)\(suffix)")
         }
     }
 
@@ -250,8 +255,28 @@ struct HoloHabitTool: HoloDataTool {
             .map {
                 HoloEvidenceEvent(id: "\(habit.id)-d\($0.dayOffset)", occurredAt: nil,
                                   metricKey: "habit.positive.completion_rate",
-                                  metricValue: $0.count, excerpt: "\(habit.name) 完成 \(Int($0.count)) 次")
+                                  metricValue: $0.count, excerpt: excerptText(habit.name, verb: "完成", count: $0.count, retroactiveCount: $0.retroactiveCount))
             }
+    }
+
+    /// 日粒度证据文本：后补条数 >0 时标注，让 AI 知道该日含事后补录的记录
+    private static func excerptText(_ name: String, verb: String, count: Double, retroactiveCount: Int?) -> String {
+        let base = "\(name) \(verb) \(Int(count)) 次"
+        guard let retroactiveCount, retroactiveCount > 0 else { return base }
+        return "\(base)（其中 \(retroactiveCount) 次后补）"
+    }
+
+    /// 后补语义说明：有后补记录时挂在 warnings，给 AI 正确的解读框架——
+    /// 行为真实发生于该日、统计同等对待；「后补」本身不是当天状态/主动性的证据
+    private static func retroactiveWarning(_ habits: [HoloHabitToolRecord]) -> [HoloToolWarning] {
+        let total = habits.reduce(0) { sum, habit in
+            sum + habit.dailyCounts.reduce(0) { $0 + ($1.retroactiveCount ?? 0) }
+        }
+        guard total > 0 else { return [] }
+        return [HoloToolWarning(
+            code: "habit.retroactive_records",
+            message: "含 \(total) 条后补记录（用户在行为发生后补录）：行为真实发生于该日，仅记录时间靠后，统计意义与实时记录相同；勿将「后补」本身解读为当天状态或主动性的证据。"
+        )]
     }
 
     private static func emptyResult(_ request: HoloToolRequest) -> HoloDataToolResult {

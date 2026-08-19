@@ -11,12 +11,21 @@ import SwiftUI
 
 // MARK: - 弹层上下文
 
+/// 补签/补记两种模式
+/// - sign: 补签（找回断签），7 天窗口内系统判定的漏卡日（磁贴点阵/横幅/记录行入口）
+/// - backfill: 补记（补录事实），不限窗口、用户自选日期（详情页入口）
+enum HabitRetroactiveMode {
+    case sign
+    case backfill
+}
+
 /// 补签弹层入参
 /// - preselectedDay 非 nil（磁贴点阵/记录行入口）：跳过日期选择，直接进确认卡
-/// - preselectedDay 为 nil（详情页横幅/长按菜单入口）：先进日期选择
+/// - preselectedDay 为 nil（详情页横幅/长按菜单/补记入口）：先进日期选择
 struct HabitRetroactiveSheetContext: Identifiable {
     let habit: Habit
     let preselectedDay: Date?
+    var mode: HabitRetroactiveMode = .sign
 
     var id: UUID { habit.id }
 }
@@ -31,7 +40,7 @@ struct HabitRetroactiveSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    /// 窗口内可补的日子（升序）
+    /// 窗口内可补的日子（升序；仅补签模式使用）
     @State private var eligibleDays: [Date] = []
     /// 当前选中的目标日（nil = 日期选择态）
     @State private var selectedDay: Date?
@@ -39,14 +48,26 @@ struct HabitRetroactiveSheet: View {
     @State private var streakPreview: (before: Int, after: Int) = (0, 0)
     /// 测量类补签值
     @State private var inputValue: String = ""
+    /// 补记模式日历选中值
+    @State private var pickedDate: Date = Date()
     @State private var isSubmitting: Bool = false
     @FocusState private var isValueInputFocused: Bool
 
     @ObservedObject private var entitlement = HoloEntitlementState.shared
 
     private var habit: Habit { context.habit }
+    private var mode: HabitRetroactiveMode { context.mode }
 
     private var isPickerMode: Bool { selectedDay == nil }
+
+    /// 补记可选日期范围：习惯创建日 ~ 昨天
+    private var backfillRange: ClosedRange<Date>? {
+        let calendar = Calendar.current
+        let lower = calendar.startOfDay(for: habit.createdAt)
+        let upper = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))
+        guard let upper, lower <= upper else { return nil }
+        return lower...upper
+    }
 
     var body: some View {
         NavigationStack {
@@ -59,7 +80,7 @@ struct HabitRetroactiveSheet: View {
             }
             .padding(HoloSpacing.lg)
             .background(Color.holoBackground)
-            .navigationTitle("补签打卡")
+            .navigationTitle(mode == .backfill ? "补记记录" : "补签打卡")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -78,16 +99,127 @@ struct HabitRetroactiveSheet: View {
         }
         .presentationDetents([.medium, .large])
         .onAppear {
-            eligibleDays = HabitRepository.shared.retroactiveEligibleDays(for: habit)
-            if let day = context.preselectedDay, eligibleDays.contains(Calendar.current.startOfDay(for: day)) {
-                selectDay(day)
+            if mode == .sign {
+                eligibleDays = HabitRepository.shared.retroactiveEligibleDays(for: habit)
+                if let day = context.preselectedDay, eligibleDays.contains(Calendar.current.startOfDay(for: day)) {
+                    selectDay(day)
+                }
+            } else if let range = backfillRange {
+                // 默认落在昨天（不足则钳到范围上/下界）
+                pickedDate = min(max(Date(), range.lowerBound), range.upperBound)
             }
         }
     }
 
     // MARK: - 日期选择态
 
+    @ViewBuilder
     private var pickerContent: some View {
+        if mode == .backfill {
+            backfillPickerContent
+        } else {
+            signPickerContent
+        }
+    }
+
+    // MARK: - 日期选择态（补记：不限窗口）
+
+    private var backfillPickerContent: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            habitHeader(subtitle: "选择要补记的日期 · 最早至习惯创建日")
+
+            if let range = backfillRange {
+                // 快捷 chips：昨天/前天/大前天（创建日之后的才有）
+                HStack(spacing: 8) {
+                    ForEach(quickBackfillDays, id: \.self) { day in
+                        quickDayChip(day)
+                    }
+                    Spacer()
+                }
+
+                DatePicker(
+                    "选择日期",
+                    selection: $pickedDate,
+                    in: range,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                        .fill(Color.holoCardBackground)
+                )
+
+                Spacer(minLength: 0)
+
+                Button {
+                    selectDay(pickedDate)
+                } label: {
+                    Text("下一步")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                                .fill(habit.habitColor)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Text("补记不限时间窗口 · 记录会带「补」标记，与当日实时打卡如实区分")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                // 习惯今天才创建：没有任何可补日期
+                VStack(spacing: 8) {
+                    Image(systemName: "calendar.badge.exclamationmark")
+                        .font(.system(size: 30))
+                        .foregroundColor(.holoTextSecondary)
+                    Text("习惯创建于今天，暂无可补记的日期")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    /// 昨天/前天/大前天（不早于创建日的）
+    private var quickBackfillDays: [Date] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let created = calendar.startOfDay(for: habit.createdAt)
+        return (1...3).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today), day >= created else { return nil }
+            return day
+        }
+    }
+
+    private func quickDayChip(_ day: Date) -> some View {
+        let isPicked = Calendar.current.isDate(pickedDate, inSameDayAs: day)
+        return Button {
+            pickedDate = day
+        } label: {
+            Text(dayAgoText(day))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(isPicked ? .white : .holoTextPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule().fill(isPicked ? habit.habitColor : Color.holoCardBackground)
+                )
+                .overlay(
+                    Capsule().stroke(isPicked ? habit.habitColor : Color.holoBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 日期选择态（补签：7 天窗口漏卡日）
+
+    private var signPickerContent: some View {
         VStack(spacing: HoloSpacing.lg) {
             habitHeader(subtitle: "选择要补的日期 · 仅最近 \(HabitRetroactivePolicy.lookbackDays) 天内")
 
@@ -167,6 +299,17 @@ struct HabitRetroactiveSheet: View {
             if let day = selectedDay {
                 habitHeader(subtitle: "\(dayDisplayText(day, withYear: true)) · 补上后连续记录自动接回")
 
+                // 重选日期：回到日期选择态（补签/补记两模式通用）
+                Button {
+                    selectedDay = nil
+                    streakPreview = (0, 0)
+                } label: {
+                    Label("重选日期", systemImage: "calendar")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(habit.habitColor)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 if habit.isCheckInType {
                     streakEffectCard
                 } else if habit.isCountType {
@@ -182,7 +325,7 @@ struct HabitRetroactiveSheet: View {
 
                 Spacer(minLength: 0)
 
-                Text("补签记录会带「补」标记，与当日实时打卡如实区分 · 免费次数每月 1 日重置")
+                Text("补签/补记的记录会带「补」标记，与当日实时打卡如实区分 · 免费次数每月 1 日重置")
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -300,7 +443,7 @@ struct HabitRetroactiveSheet: View {
                     .foregroundColor(.holoPrimary)
             } else {
                 let remaining = HabitRetroactiveQuota.remaining()
-                Text("本月免费补签")
+                Text("本月免费补签/补记")
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
                 HStack(spacing: 4) {
@@ -321,10 +464,11 @@ struct HabitRetroactiveSheet: View {
     // MARK: - 动作
 
     private var confirmTitle: String {
+        let verb = mode == .backfill ? "补记" : "补签"
         if let day = selectedDay {
-            return "补签 \(shortDayText(day))"
+            return "\(verb) \(shortDayText(day))"
         }
-        return "确认补签"
+        return "确认\(verb)"
     }
 
     /// 测量类必须输入有效数值；其他类型恒可提交
@@ -353,22 +497,27 @@ struct HabitRetroactiveSheet: View {
                 for: habit,
                 on: day,
                 value: value,
-                note: nil
+                note: nil,
+                allowsFullHistory: mode == .backfill
             )
             switch result {
             case .success(let before, let after):
+                let verb = mode == .backfill ? "补记" : "补签"
                 let toast = habit.isCheckInType && after > before
-                    ? "已补签 \(shortDayText(day)) · 连续恢复至 \(after) 天"
-                    : "已补签 \(shortDayText(day))"
+                    ? "已\(verb) \(shortDayText(day)) · 连续恢复至 \(after) 天"
+                    : "已\(verb) \(shortDayText(day))"
                 HoloToastCenter.shared.show(toast, type: .success)
                 onFinished?()
                 dismiss()
             case .alreadyCompleted:
-                HoloToastCenter.shared.show("该日已有打卡记录，无需补签", type: .info)
+                HoloToastCenter.shared.show("该日已有打卡记录，无需重复补", type: .info)
                 onFinished?()
                 dismiss()
             case .invalidDate:
-                HoloToastCenter.shared.show("仅支持补最近 \(HabitRetroactivePolicy.lookbackDays) 天内的日期", type: .warning)
+                let message = mode == .backfill
+                    ? "请选择今天之前的日期"
+                    : "仅支持补最近 \(HabitRetroactivePolicy.lookbackDays) 天内的日期"
+                HoloToastCenter.shared.show(message, type: .warning)
                 onFinished?()
                 dismiss()
             case .requiresPlus:
@@ -411,5 +560,16 @@ struct HabitRetroactiveSheet: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "M月d日"
         return formatter.string(from: day)
+    }
+
+    /// 快捷 chips 文案：昨天 / 前天 / N 天前
+    private func dayAgoText(_ day: Date) -> String {
+        let calendar = Calendar.current
+        let daysAgo = calendar.dateComponents([.day], from: calendar.startOfDay(for: day), to: calendar.startOfDay(for: Date())).day ?? 0
+        switch daysAgo {
+        case 1: return "昨天"
+        case 2: return "前天"
+        default: return "\(daysAgo) 天前"
+        }
     }
 }

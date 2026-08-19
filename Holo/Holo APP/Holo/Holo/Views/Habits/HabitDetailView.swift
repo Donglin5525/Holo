@@ -595,16 +595,33 @@ struct HabitDetailView: View {
     }
     
     // MARK: - 记录列表
-    
+
+    /// 补记入口可见条件：好习惯且创建日早于今天（今天刚创建的习惯没有可补日期）
+    private var canBackfill: Bool {
+        guard !habit.isBadHabit else { return false }
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: habit.createdAt) < calendar.startOfDay(for: Date())
+    }
+
     private var recordsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("记录")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
-                
+
                 Spacer()
-                
+
+                if canBackfill {
+                    Button {
+                        retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: nil, mode: .backfill)
+                    } label: {
+                        Label("补记", systemImage: "plus.circle")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(snapshot.habitColor)
+                    }
+                }
+
                 Text("\(records.count) 条")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)

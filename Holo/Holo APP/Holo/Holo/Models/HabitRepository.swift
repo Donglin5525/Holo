@@ -419,16 +419,25 @@ class HabitRepository: ObservableObject {
     ///   - day: 补签目标日（startOfDay）
     ///   - value: 数值型补签值（计数型默认 1；打卡型忽略）
     ///   - note: 备注（可选）
+    ///   - allowsFullHistory: true = 补记模式，不限 7 天窗口（创建日 ~ 昨天任意一天）
     @discardableResult
     func retroactiveCheckIn(
         for habit: Habit,
         on day: Date,
         value: Double? = nil,
-        note: String? = nil
+        note: String? = nil,
+        allowsFullHistory: Bool = false
     ) throws -> RetroactiveCheckInResult {
-        guard retroactiveSupported(habit), isRetroactiveWindowValid(day) else { return .invalidDate }
+        guard retroactiveSupported(habit) else { return .invalidDate }
         // 早于习惯创建日的日期不可补（那时习惯还不存在）
         guard day >= Calendar.current.startOfDay(for: habit.createdAt) else { return .invalidDate }
+        if allowsFullHistory {
+            // 补记：只要早于今天即可（今天请直接打卡）
+            let calendar = Calendar.current
+            guard calendar.startOfDay(for: day) < calendar.startOfDay(for: Date()) else { return .invalidDate }
+        } else {
+            guard isRetroactiveWindowValid(day) else { return .invalidDate }
+        }
 
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
@@ -624,7 +633,11 @@ class HabitRepository: ObservableObject {
             format: "habitId == %@ AND value != nil",
             habit.id as CVarArg
         )
-        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        // 同日多条（补记修正当日值）时取 createdAt 最新的，保证「后补覆盖前值」确定
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "date", ascending: false),
+            NSSortDescriptor(key: "createdAt", ascending: false)
+        ]
         request.fetchLimit = 1
 
         return try? context.fetch(request).first?.valueDouble

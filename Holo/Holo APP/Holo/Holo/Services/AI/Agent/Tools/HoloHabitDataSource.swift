@@ -64,20 +64,25 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
 
     /// 按 dayOffset（0=参考日）聚合每日计数：计数型累加 value，打卡型 +1；
     /// 测量型（如体重，LATEST 聚合）取当日最后一条记录值，避免一天多次记录被错误累加。
+    /// retroactiveCount 同步统计该日后补（补签/补记）条数，供工具层向 AI 标注。
     private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int, isMeasureType: Bool) -> [HoloHabitDailyCount] {
         let calendar = Calendar.current
         var bucket = [Double](repeating: 0, count: dayCount)
+        var retroBucket = [Int](repeating: 0, count: dayCount)
         if isMeasureType {
-            var latestDateByOffset = [Int: Date]()
+            // 同日多条（后补修正当日值）按 createdAt 取最新：补记记录 date=目标日零点、createdAt=补记时刻，
+            // 按 date 比较会因同日相等退化为「先 fetch 先得」
+            var latestCreatedAtByOffset = [Int: Date]()
             for record in records {
                 guard let value = record.value?.doubleValue else { continue }
                 let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
                 guard dayOffset >= 0, dayOffset < dayCount else { continue }
-                if let existing = latestDateByOffset[dayOffset], existing >= record.date {
+                if let existing = latestCreatedAtByOffset[dayOffset], existing >= record.createdAt {
                     continue
                 }
-                latestDateByOffset[dayOffset] = record.date
+                latestCreatedAtByOffset[dayOffset] = record.createdAt
                 bucket[dayOffset] = value
+                retroBucket[dayOffset] = record.isRetroactive ? 1 : 0
             }
         } else {
             for record in records {
@@ -88,26 +93,29 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                 } else if record.isCompleted {
                     bucket[dayOffset] += 1
                 }
+                if record.isRetroactive { retroBucket[dayOffset] += 1 }
             }
         }
-        return bucket.enumerated().map { HoloHabitDailyCount(dayOffset: $0.offset, count: $0.element) }
+        return bucket.enumerated().map {
+            HoloHabitDailyCount(dayOffset: $0.offset, count: $0.element, retroactiveCount: retroBucket[$0.offset] > 0 ? retroBucket[$0.offset] : nil)
+        }
     }
 
-    /// 收集近期备注（近→早，最多 5 条）：同一天多条时取最新一条
+    /// 收集近期备注（近→早，最多 5 条）：同一天多条时取最新一条（按 createdAt，与聚合口径一致）
     private static func collectNotes(records: [HabitRecord], today: Date, dayCount: Int) -> [HoloHabitDailyNote] {
         let calendar = Calendar.current
-        var latestByOffset: [Int: (date: Date, note: String)] = [:]
+        var latestByOffset: [Int: (createdAt: Date, note: String, isRetroactive: Bool)] = [:]
         for record in records {
             guard let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty else { continue }
             let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
             guard dayOffset >= 0, dayOffset < dayCount else { continue }
-            if let existing = latestByOffset[dayOffset], existing.date >= record.date {
+            if let existing = latestByOffset[dayOffset], existing.createdAt >= record.createdAt {
                 continue
             }
-            latestByOffset[dayOffset] = (record.date, note)
+            latestByOffset[dayOffset] = (record.createdAt, note, record.isRetroactive)
         }
         return latestByOffset
-            .map { HoloHabitDailyNote(dayOffset: $0.key, note: $0.value.note) }
+            .map { HoloHabitDailyNote(dayOffset: $0.key, note: $0.value.note, isRetroactive: $0.value.isRetroactive ? true : nil) }
             .sorted { $0.dayOffset < $1.dayOffset }
             .prefix(5)
             .map { $0 }
