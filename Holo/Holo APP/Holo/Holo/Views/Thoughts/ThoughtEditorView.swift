@@ -202,7 +202,7 @@ struct ThoughtEditorView: View {
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             if smartSummaryEnabled {
                 VoiceInputSheet(
-                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
                     readySubtitle: "确认后插入到观点内容",
                     submitButtonTitle: "插入",
                     resultConfig: VoiceResultConfig(
@@ -218,7 +218,7 @@ struct ThoughtEditorView: View {
                 }
             } else {
                 VoiceInputSheet(
-                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
                     readySubtitle: "确认后插入到观点内容",
                     submitButtonTitle: "插入",
                     transcriptFormatter: formatThoughtVoiceTranscript
@@ -708,7 +708,8 @@ struct ThoughtEditorView: View {
         let isConfirmed = assignment.source == ThoughtTagAssignment.Source.confirmedAI.rawValue
 
         return HStack(spacing: 4) {
-            Text("#\(tagName)")
+            // AI 归类展示归一化后的完整主题路径（#碎碎念/加班），与列表/详情页口径一致
+            Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
                 .font(.holoLabel)
                 .foregroundColor(isConfirmed ? .holoPrimary : .holoTextSecondary)
 

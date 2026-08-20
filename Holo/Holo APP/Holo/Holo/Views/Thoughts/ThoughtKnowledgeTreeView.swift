@@ -3,7 +3,7 @@
 //  Holo
 //
 //  知识树 v1 · 主视图（主题卡片墙）
-//  「时间流 | 知识树」的知识树形态：AI 状态条 + 主题卡片 + 未归类/发现/归档入口
+//  「想法 | 知识树」的知识树形态：AI 状态条 + 主题卡片 + 未归类/发现/归档入口
 //  方案：docs/thoughts/plans/2026-08-15-knowledge-tree-mainline-v1.md §4.2
 //
 
@@ -13,7 +13,7 @@ struct ThoughtKnowledgeTreeView: View {
 
     let thoughtRepository: ThoughtRepository
     let topicRepository: TopicRepository
-    /// 点未归类/已归档：切回时间流并应用筛选（复用抽屉筛选通道）
+    /// 点未归类/已归档：切回想法列表并应用筛选（复用抽屉筛选通道）
     let onNavigateToList: (DrawerNode) -> Void
     /// 点「发现新主题」：触发跨观点归并流程
     let onAIOrganize: () -> Void

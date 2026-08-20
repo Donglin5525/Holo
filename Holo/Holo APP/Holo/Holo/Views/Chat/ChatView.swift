@@ -1034,7 +1034,7 @@ struct ChatView: View {
                 }
             }
         case .voiceInput:
-            VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider()) { transcript in
+            VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .chat)) { transcript in
                 pendingVoiceTranscriptToSend = transcript
                 activeSheet = nil
             }

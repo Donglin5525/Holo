@@ -12,15 +12,18 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
     private let baseURL: String
     private let session: URLSession
     private let deviceIdProvider: () -> String
+    private let requestSource: String?
 
     init(
         baseURL: String = HoloBackendEnvironment.baseURL,
         session: URLSession = .shared,
-        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId }
+        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId },
+        requestSource: String? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         self.deviceIdProvider = deviceIdProvider
+        self.requestSource = requestSource
     }
 
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
@@ -70,6 +73,7 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             locale: locale,
             durationSeconds: duration,
             usageActionId: UUID().uuidString,
+            source: requestSource,
             boundary: boundary
         )
 
@@ -121,6 +125,7 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
         locale: String?,
         durationSeconds: TimeInterval,
         usageActionId: String,
+        source: String?,
         boundary: String
     ) -> Data {
         var body = Data()
@@ -140,6 +145,9 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
 
         appendField("durationSeconds", value: String(durationSeconds), to: &body, boundary: boundary)
         appendField("usageActionId", value: usageActionId, to: &body, boundary: boundary)
+        if let source, !source.isEmpty {
+            appendField("source", value: source, to: &body, boundary: boundary)
+        }
 
         body.appendString("--\(boundary)--\r\n")
         return body

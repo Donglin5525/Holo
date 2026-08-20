@@ -4,7 +4,7 @@
 //
 //  观点模块 - 根视图容器
 //  从首页 fullScreenCover 进入，顶部有返回按钮
-//  知识树 v1：浏览切换收进 ThoughtListView（时间流|知识树），旧侧边抽屉已移除
+//  知识树 v1：浏览切换收进 ThoughtListView（想法|知识树），旧侧边抽屉已移除
 //
 
 import SwiftUI
@@ -84,9 +84,8 @@ struct ThoughtsView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtRequestTagFilter)) { notification in
-            // 编辑器/详情页「查看标签」：列表按该标签路径筛选
+            // 编辑器/详情页「查看标签」：列表按该标签路径筛选（列表视图负责从知识树切回想法列表）
             guard let path = notification.object as? String else { return }
-            UserDefaults.standard.set("timeline", forKey: ThoughtListView.browseModeStorageKey)
             drawerSelection = .aiTag(path)
         }
     }

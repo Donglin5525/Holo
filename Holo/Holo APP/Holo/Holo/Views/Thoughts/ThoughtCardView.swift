@@ -63,10 +63,9 @@ struct ThoughtCardView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         // 双击命中整张卡片，短文下方的留白也能直接进入编辑器；单击详情仍只由正文区域处理。
-        .highPriorityGesture(
-            TapGesture(count: 2)
-                .onEnded { onEdit?() }
-        )
+        // 必须用 onTapGesture：highPriorityGesture 会抢先拦截子视图（「…」按钮、标签 chip）的单击，
+        // 导致这些按钮点按无反应（SwiftUI 手势竞争中子视图应优先）。
+        .onTapGesture(count: 2) { onEdit?() }
     }
 
     // MARK: - 顶部区域
@@ -200,6 +199,9 @@ struct ThoughtCardView: View {
         .accessibilityValue(MarkdownTextView.accessibilityText(from: contentNodes))
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("单击查看详情，双击直接编辑")
+        // 正文区域自带双击声明：双击时 SwiftUI 会先等双击窗口、不再触发下面的单击进详情，
+        // 保证「双击正文直接编辑」与「单击正文进详情」在同一区域共存。
+        .onTapGesture(count: 2) { onEdit?() }
         .onTapGesture {
             onNavigate?()
         }
@@ -319,7 +321,8 @@ struct ThoughtCardView: View {
             onTagTap?(tagName)
         } label: {
             HStack(spacing: 3) {
-                Text("#\(ThoughtTagNormalizer.lastSegment(tagName))")
+                // AI 归类展示完整主题路径（#碎碎念/加班），让「归到了哪」一眼可见；筛选仍用原始路径
+                Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
 

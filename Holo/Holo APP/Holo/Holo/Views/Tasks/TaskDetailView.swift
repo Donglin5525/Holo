@@ -274,7 +274,7 @@ struct TaskDetailView: View {
         .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
             if smartSummaryEnabled {
                 VoiceInputSheet(
-                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
                     readySubtitle: "确认后插入到任务描述",
                     submitButtonTitle: "插入",
                     resultConfig: VoiceResultConfig(
@@ -290,7 +290,7 @@ struct TaskDetailView: View {
                 }
             } else {
                 VoiceInputSheet(
-                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
                     readySubtitle: "确认后插入到任务描述",
                     submitButtonTitle: "插入",
                     transcriptFormatter: formatTaskVoiceTranscript

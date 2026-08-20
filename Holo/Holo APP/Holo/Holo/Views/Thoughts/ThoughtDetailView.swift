@@ -622,7 +622,8 @@ struct ThoughtDetailView: View {
         let isConfirmed = assignment.source == ThoughtTagAssignment.Source.confirmedAI.rawValue
 
         return HStack(spacing: 4) {
-            Text("#\(ThoughtTagNormalizer.lastSegment(tagName))")
+            // AI 归类展示完整主题路径（#碎碎念/加班），与列表卡片口径一致
+            Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
                 .font(.holoLabel)
                 .foregroundColor(isConfirmed ? .holoPrimary : .holoTextSecondary)
 
@@ -646,7 +647,7 @@ struct ThoughtDetailView: View {
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.green)
                 }
-                .accessibilityLabel("保留标签 \(ThoughtTagNormalizer.lastSegment(tagName))")
+                .accessibilityLabel("保留标签 \(ThoughtTagNormalizer.displayPath(tagName))")
 
                 // FR-06′：× 默认仅本条不适合，不写全局抑制
                 Button {
@@ -662,7 +663,7 @@ struct ThoughtDetailView: View {
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.red.opacity(0.7))
                 }
-                .accessibilityLabel("不适合这条 \(ThoughtTagNormalizer.lastSegment(tagName))")
+                .accessibilityLabel("不适合这条 \(ThoughtTagNormalizer.displayPath(tagName))")
             }
         }
         .padding(.horizontal, 8)
@@ -687,7 +688,7 @@ struct ThoughtDetailView: View {
                     )
                     loadData()
                 } label: {
-                    Label("以后不要推荐 #\(ThoughtTagNormalizer.lastSegment(tagName))", systemImage: "hand.raised")
+                    Label("以后不要推荐 #\(ThoughtTagNormalizer.displayPath(tagName))", systemImage: "hand.raised")
                 }
             }
         }

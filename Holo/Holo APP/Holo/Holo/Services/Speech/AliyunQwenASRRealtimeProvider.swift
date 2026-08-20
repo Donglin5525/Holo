@@ -374,7 +374,7 @@ private struct ASRError: Decodable {
 
 enum SpeechRecognitionProviderFactory {
     @MainActor
-    static func makeConfiguredProvider() -> SpeechRecognitionProvider {
-        HoloBackendSpeechRecognitionProvider()
+    static func makeConfiguredProvider(source: SpeechRecognitionSource? = nil) -> SpeechRecognitionProvider {
+        HoloBackendSpeechRecognitionProvider(requestSource: source?.rawValue)
     }
 }

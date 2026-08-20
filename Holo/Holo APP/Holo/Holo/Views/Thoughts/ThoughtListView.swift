@@ -45,14 +45,14 @@ struct ThoughtListView: View {
     @State private var showFilterSheet: Bool = false
     @State private var currentFilters: ThoughtFilters? = nil
 
-    /// 浏览模式：timeline 时间流 / knowledge 知识树（记忆用户偏好）
-    static let browseModeStorageKey = "thoughtsBrowseMode"
-    @AppStorage(browseModeStorageKey) private var browseMode: String = "timeline"
+    /// 浏览模式：timeline 想法 / knowledge 知识树。
+    /// 每次进入固定回到「想法」，不记忆上次的浏览模式（产品要求默认落在想法列表）。
+    @State private var browseMode: String = "timeline"
 
     /// 知识树模式下的主题管理 sheet
     @State private var showTopicManagement: Bool = false
 
-    /// 待确认池（时间流 banner 入口）
+    /// 待确认池（想法列表 banner 入口）
     @State private var showConfirmationQueue: Bool = false
 
     /// 待确认数量（banner 徽章用）
@@ -155,7 +155,7 @@ struct ThoughtListView: View {
             // 顶部导航栏
             headerView
 
-            // 时间流 / 知识树 切换
+            // 想法 / 知识树 切换
             browseModeSegment
 
             if isKnowledgeMode {
@@ -291,7 +291,12 @@ struct ThoughtListView: View {
                 }
             }
         }
-        .onChange(of: drawerSelection) { _, _ in
+        .onChange(of: drawerSelection) { _, newValue in
+            // 外部筛选请求（如编辑器/详情页「查看标签」）只有想法列表能承载；
+            // 用户停在知识树时先切回列表，再执行筛选重载。
+            if newValue != nil, newValue != .aiOrganize, isKnowledgeMode {
+                browseMode = "timeline"
+            }
             reloadByDrawer()
         }
         .onChange(of: orgQueue.isBatchOrganizing) { oldValue, newValue in
@@ -543,7 +548,7 @@ struct ThoughtListView: View {
         loadPendingConfirmationCount()
     }
 
-    /// 加载待确认数量（时间流 banner 徽章）
+    /// 加载待确认数量（想法列表 banner 徽章）
     private func loadPendingConfirmationCount() {
         pendingConfirmationCount = (try? thoughtRepository.fetchThoughtsPendingTopicConfirmation().count) ?? 0
     }
@@ -707,11 +712,11 @@ struct ThoughtListView: View {
         .background(Color.holoBackground)
     }
 
-    // MARK: - 浏览模式切换（时间流 / 知识树）
+    // MARK: - 浏览模式切换（想法 / 知识树）
 
     private var browseModeSegment: some View {
         HStack(spacing: 3) {
-            segmentItem(title: "时间流", icon: "clock.arrow.circlepath", key: "timeline")
+            segmentItem(title: "想法", icon: "lightbulb.fill", key: "timeline")
             segmentItem(title: "知识树", icon: "folder.fill", key: "knowledge")
         }
         .padding(3)

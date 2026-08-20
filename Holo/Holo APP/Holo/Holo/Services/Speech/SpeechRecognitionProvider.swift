@@ -14,6 +14,15 @@ protocol SpeechRecognitionProvider {
     ) async throws -> SpeechRecognitionResult
 }
 
+/// 语音输入的入口标识，随转写请求上报后端。
+/// 后端据此决定是否做中文数字归一化（「一个」→「1个」）——只有 HoloAI 对话需要，
+/// 想法/任务是记录原文的场景，转写结果必须保持用户口述原样。
+enum SpeechRecognitionSource: String {
+    case chat      // HoloAI 对话框
+    case thought   // 想法编辑器
+    case task      // 任务详情
+}
+
 protocol StreamingSpeechRecognitionProvider: SpeechRecognitionProvider {
     func makeStreamingSession(locale: String?) async throws -> SpeechRecognitionStreamingSession
 }
