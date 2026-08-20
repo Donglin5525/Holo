@@ -121,11 +121,12 @@ struct ContentReportSheet: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
+                .background(isSubmitting ? Color.holoPrimary.opacity(0.6) : Color.holoPrimary)
+                .cornerRadius(12)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .background(isSubmitting ? Color.holoPrimary.opacity(0.6) : Color.holoPrimary)
             .foregroundColor(.white)
-            .cornerRadius(12)
             .disabled(isSubmitting)
         }
         .padding(.horizontal, 20)
@@ -193,11 +194,12 @@ struct ContentReportSheet: View {
                     .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
+                    .background(Color.holoPrimary)
+                    .cornerRadius(12)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .background(Color.holoPrimary)
             .foregroundColor(.white)
-            .cornerRadius(12)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 24)

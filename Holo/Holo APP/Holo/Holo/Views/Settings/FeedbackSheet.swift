@@ -60,7 +60,7 @@ struct FeedbackSheet: View {
                 }
             }
         }
-        .background(Color.holoBackground)
+        .presentationBackground(Color.holoBackground)
         .interactiveDismissDisabled(isSubmitting)
     }
 
@@ -154,6 +154,7 @@ struct FeedbackSheet: View {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(isSelected ? Color.holoPrimary : Color.holoDivider, lineWidth: 1.5)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -438,11 +439,12 @@ struct FeedbackSheet: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 48)
+            .background(canSubmit ? Color.holoPrimary : Color.holoDivider.opacity(0.5))
+            .cornerRadius(14)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(canSubmit ? Color.holoPrimary : Color.holoDivider.opacity(0.5))
         .foregroundColor(.white)
-        .cornerRadius(14)
         .disabled(!canSubmit)
     }
 
@@ -502,11 +504,12 @@ struct FeedbackSheet: View {
                     .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
+                    .background(Color.holoPrimary)
+                    .cornerRadius(14)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .background(Color.holoPrimary)
             .foregroundColor(.white)
-            .cornerRadius(14)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 24)

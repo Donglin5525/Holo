@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-20] 反馈/举报面板 iOS 26 按钮热区修复 + 反馈面板底色铺满
+
+### 背景
+- 东林真机验收反馈通道（fde90642 / e892aadc）两连报障：①提交成功页底色不完整；②成功页「好 的」按钮点了没反应、sheet 关不掉。
+
+### 改动
+- **按钮热区修复（5 处，根因同源）**：`.buttonStyle(.plain)` 后把背景/圆角挂在 Button 外面的旧写法，在 iOS 26 下可点区域收缩到文字本身（模拟器实测「好 的」热区仅 36×19pt，占视觉面积 4%）——紫色大条看着能点，点到文字之外全部无效。统一改为背景/圆角移进 label 内 + `.contentShape(Rectangle())`，视觉与热区同源。落点：FeedbackSheet「好 的」/「提交反馈」/类型三选一卡片（加固）、ContentReportSheet「提交举报」/举报成功页「完成」（与反馈同款病，一并根治）。
+- **反馈面板底色铺满**：原 `.background(Color.holoBackground)` 只铺内容区，sheet 底部安全区露出系统默认色（成功页留白多时扎眼），改 `.presentationBackground(Color.holoBackground)` 铺满整个弹出层（SpendingProjectsView 同款惯例）。
+
+### 验证
+- 模拟器 iPhone 17 Pro / iOS 26.3 实测：修复后「好 的」「提交反馈」按钮 AX frame 恢复全宽 48 高（36×19 → 354×48），左右边缘点击全部生效（提交成功/关闭 sheet）；类型卡片边缘切换正常；无崩溃无报错。
+- 纯客户端改动，不涉及后端发版；待真机验收。
+- 已知尾巴：ChatView（活动胶囊）/ AgentDeepAnalysisDetailSheet / WeeklyGridView 三处 `.plain` + 外挂材质背景同款写法未修（当时文件有并行改动在途，避免搅批），已入观察名单下批处理。
+
+---
+
 ## [2026-08-18] 财务严格预算模式——账户粒度超支结转 + AI 全链路理解预算超支
 
 ### 背景
