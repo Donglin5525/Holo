@@ -200,6 +200,11 @@
   .type-badge.doing { background: #FEF9C3; color: #A16207; }
   .report-card .scope { font-size: 13px; font-weight: 700; }
   .report-card .date { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .report-card .ask {
+    font-size: 11.5px; color: var(--text-2); line-height: 1.55;
+    display: flex; gap: 5px; align-items: flex-start; margin-bottom: 6px;
+  }
+  .report-card .ask::before { content: "💬"; font-size: 10px; line-height: 1.6; }
   .report-card .sum {
     font-size: 12.5px; color: #5A5A5A; line-height: 1.6;
     padding-left: 10px; border-left: 2.5px solid var(--primary-light);
@@ -423,6 +428,7 @@
               <span class="scope">近30天</span>
               <span class="date">8/20</span>
             </div>
+            <div class="ask">分析一下我最近的数据趋势</div>
             <div class="sum">连续三周晚间支出上扬，与加班周期高度吻合；周四习惯完成率系统性掉档。</div>
             <div class="foot"><span class="kv">核心发现 ×3 · 观察 ×7 · 证据 ×12</span><span class="arrow">读报告 ›</span></div>
           </div>
@@ -432,9 +438,8 @@
               <span class="scope">近半年</span>
               <span class="date">刚刚</span>
             </div>
-            <div class="sum" style="border-left-color:#F3D9BF;">正在交叉分析你的财务、习惯与任务数据……</div>
-            <div class="progress-track"><div class="progress-fill"></div></div>
-            <div class="live-hint">可以先切回对话继续聊，完成时「报告」会亮红点</div>
+            <div class="sum" style="border-left-color:#F3D9BF;">正在调用模型继续推理，预计还需一小会儿。</div>
+            <div class="live-hint">状态文案与聊天卡同源（无百分比数据，不虚构进度条）<br>可以先切回对话继续聊，完成时「报告」会亮红点</div>
           </div>
           <div class="report-card">
             <div class="top">
@@ -482,6 +487,7 @@
         </div>
         <div class="report-card">
           <div class="top"><span class="type-badge analysis">深度分析</span><span class="scope">近30天</span><span class="date">8/20</span></div>
+          <div class="ask">分析一下我最近的数据趋势</div>
           <div class="sum">连续三周晚间支出上扬，与加班周期高度吻合；周四习惯完成率系统性掉档。</div>
           <div class="foot"><span class="kv">核心发现 ×3 · 观察 ×7</span><span class="arrow">读报告 ›</span></div>
         </div>
@@ -492,6 +498,7 @@
         </div>
         <div class="report-card">
           <div class="top"><span class="type-badge analysis">深度分析</span><span class="scope">近3月</span><span class="date">8/02</span></div>
+          <div class="ask">分析一下我最近三个月的数据趋势</div>
           <div class="sum">「健身后报复性消费」模式首次成形：运动日夜间外卖频次为非运动日 2.4 倍。</div>
           <div class="foot"><span class="kv">核心发现 ×4 · 观察 ×9</span><span class="arrow">读报告 ›</span></div>
         </div>
@@ -645,6 +652,7 @@
               <span style="font-size:12.5px;font-weight:700;">近30天</span>
               <span style="margin-left:auto;font-size:10.5px;color:var(--text-3);">8/20</span>
             </div>
+            <div style="font-size:11.5px;color:var(--text-2);line-height:1.55;margin-bottom:5px;">💬 分析一下我最近的数据趋势</div>
             <div style="font-size:12px;color:#5A5A5A;line-height:1.55;padding-left:9px;border-left:2.5px solid var(--primary-light);">
               连续三周晚间支出上扬，与加班周期高度吻合……
             </div>
