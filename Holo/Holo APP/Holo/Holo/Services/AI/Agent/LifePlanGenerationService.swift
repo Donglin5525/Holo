@@ -19,6 +19,9 @@ final class LifePlanGenerationService {
         case saved(LifePlanSnapshot)
         case dataInsufficient(missingDomains: [String])
         case degraded(reason: String)
+        /// 计划生成额度（lifePlan 池）耗尽：档位终态而非故障，上层据此给出
+        /// 准确文案（不引导重试——重试需先重烧深度分析额度，且重置前必失败）。
+        case quotaExhausted(userMessage: String)
     }
 
     // MARK: - 数据充分度（近 7 天 ≥2 域有有效记录；不满足时不伪装理解）
@@ -67,6 +70,10 @@ final class LifePlanGenerationService {
                     break
                 }
                 lastError = "输出未通过 schema 校验"
+            } catch let error as HoloQuotaError {
+                // 额度耗尽：不重试（必再失败）、不降级成通用「稍后再试」文案。
+                LifePlanRepository.shared.recordDegradedRun(jobID: jobID, budget: budget, now: now)
+                return .quotaExhausted(userMessage: error.userMessage)
             } catch {
                 lastError = error.localizedDescription
             }

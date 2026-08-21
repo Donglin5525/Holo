@@ -17,6 +17,8 @@ struct HoloAgentStartRequest: Sendable {
     var systemTemplate: String = ""
     var toolDescriptions: String = ""
     var sourceMessageID: UUID? = nil
+    /// 非 nil 时从 canonical 父 Result 创建 child Job。
+    var continuation: HoloAgentContinuationRequest? = nil
     var now: Date = Date()
 }
 

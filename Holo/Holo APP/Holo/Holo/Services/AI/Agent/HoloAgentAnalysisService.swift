@@ -43,26 +43,24 @@ enum HoloAgentChatStatusPresenter {
             return active("Holo 正在重试分析…", detail: "刚才的模型输出不完整，正在自动重试。")
         case .waitingForForeground:
             return HoloAgentChatStatus(
-                title: "已暂停，回到 App 后继续",
-                detail: "系统已经收回后台执行时间，Holo 会在回到前台后继续处理。",
+                title: "已暂停 · \(Self.progressText(for: job))未失败",
+                detail: "系统暂时收回了后台执行时间，进度已保存。回到前台后会自动继续，无需重新提问。",
                 keepsMessageStreaming: true,
                 showsActivityIndicator: false
             )
         case .paused:
-            // systemCapacity：系统lease结束导致的暂停（非用户意愿）。
-            // 回前台时由 BackgroundContinuationManager 自动恢复（collectResumableJobs 放行）。
-            // 文案如实告知"自动继续"，不再误导"手动继续"。
+            // 兼容事故版本遗留的 systemCapacity paused；近期用户任务会在回前台时迁移恢复。
             if job.waitReason == .systemCapacity {
                 return HoloAgentChatStatus(
-                    title: "分析已暂停，回到 App 自动继续",
-                    detail: "系统暂时收回后台执行时间。回到 Holo 后会自动接着往下分析。",
+                    title: "已暂停 · \(Self.progressText(for: job))未失败",
+                    detail: "系统暂时收回后台执行时间，进度已保存。回到 Holo 后会自动接着往下分析。",
                     keepsMessageStreaming: true,
                     showsActivityIndicator: false
                 )
             }
             return HoloAgentChatStatus(
-                title: "已暂停，回到 App 后继续",
-                detail: "系统已经收回后台执行时间，Holo 会在回到前台后继续处理。",
+                title: "已暂停 · \(Self.progressText(for: job))未失败",
+                detail: "系统已经收回后台执行时间，进度已保存。回到前台后会自动继续，无需重新提问。",
                 keepsMessageStreaming: true,
                 showsActivityIndicator: false
             )
@@ -77,6 +75,15 @@ enum HoloAgentChatStatusPresenter {
                 showsActivityIndicator: false
             )
         case .failed:
+            // 额度终态单独成文案：付费墙语义（升级入口在消息层渲染），不用「已中断」掩盖。
+            if job.isQuotaExhaustedFailure {
+                return HoloAgentChatStatus(
+                    title: HoloAgentJob.quotaExhaustedSummaryPrefix,
+                    detail: job.quotaExhaustedUserMessage ?? "额度已用完，请在额度重置后再试",
+                    keepsMessageStreaming: false,
+                    showsActivityIndicator: false
+                )
+            }
             return HoloAgentChatStatus(
                 title: "深度分析已中断",
                 detail: job.errorSummary ?? "Agent 没能完成这次分析，请稍后重试。",
@@ -98,6 +105,25 @@ enum HoloAgentChatStatusPresenter {
                 showsActivityIndicator: false
             )
         }
+    }
+
+    /// 暂停/等待态的进度摘要：「已完成 X/Y 轮，」；无预算信息时给空串。
+    private static func progressText(for job: HoloAgentJob) -> String {
+        let completed = job.budget.consumedLLMRounds
+        let total = job.budget.maxLLMRounds
+        guard total > 0, completed > 0 else { return "" }
+        return "已完成 \(completed)/\(total) 轮，"
+    }
+
+    /// 「立即继续」按钮的即时反馈状态：点击瞬间先写进消息，让卡片立刻脱离暂停样式；
+    /// 恢复链拉起后由轮询/同步管道刷成真实的「分析中」进度。
+    static func resumingStatus() -> HoloAgentChatStatus {
+        HoloAgentChatStatus(
+            title: "正在继续分析…",
+            detail: "正在从上次暂停的位置接着跑，无需重新提问。",
+            keepsMessageStreaming: true,
+            showsActivityIndicator: true
+        )
     }
 
     /// waitingForCondition 按 waitReason 给出可解释文案（§7.2：不显示失败）。
@@ -228,8 +254,12 @@ final class HoloAgentAnalysisService {
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
-    func runAnalysis(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                     sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
+    func runAnalysis(
+        question: String,
+        trigger: HoloAgentTrigger = .userQuestion,
+        sourceMessageID: UUID? = nil,
+        continuation: HoloAgentContinuationRequest? = nil
+    ) async -> HoloRenderedAgentResult {
         // 只记录长度，不把用户问题原文写入系统日志（Phase 7 隐私契约）。
         logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public)")
         // 真出错（网络/超时/内部异常）统一走 analysisFailed；额度耗尽走专属 quotaExhausted。
@@ -257,7 +287,8 @@ final class HoloAgentAnalysisService {
                 trigger: trigger,
                 systemTemplate: systemTemplate,
                 toolDescriptions: toolDescriptions,
-                sourceMessageID: sourceMessageID
+                sourceMessageID: sourceMessageID,
+                continuation: continuation
             ))
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
         } catch let error as HoloQuotaError {
@@ -270,7 +301,43 @@ final class HoloAgentAnalysisService {
                 evidenceReferences: [],
                 failure: .quotaExhausted(userMessage: error.userMessage)
             )
+        } catch HoloAgentRuntimeError.continuationParentUnavailable(let reason) {
+            let message = "上一份分析的数据依据已经不可用，请重新发起一次完整分析后再追问。"
+            logger.info("[Agent] 追问父结果不可用 reason=\(reason, privacy: .public)")
+            return HoloRenderedAgentResult(
+                title: "需要重新分析",
+                summary: message,
+                sections: [],
+                evidenceReferences: [],
+                failure: .continuationUnavailable(userMessage: message)
+            )
+        } catch is CancellationError {
+            // 只要同一消息已有持久化 Agent Job，最终展示权就继续属于该 Job。
+            // 系统取消、用户取消、前台恢复和“恢复代次已经完成”都不得再启动普通聊天回答。
+            if await persistedAgentOwnsMessage(sourceMessageID: sourceMessageID) {
+                return HoloRenderedAgentResult(
+                    title: "后台分析已暂停",
+                    summary: "这次分析由已保存的 Agent 任务继续处理。",
+                    sections: [],
+                    evidenceReferences: [],
+                    failure: .executionSuspended
+                )
+            }
+            return fail("[runLoop已取消]")
         } catch {
+            // URLSession 的客户端中止可能以 499/GatewayError 到达这里，而不是
+            // CancellationError。此时前台恢复代次可能已在运行甚至已完成；以落盘 Job 为准，
+            // 不能把相同问题再交给普通 chat，造成普通回答和 Agent 卡片互相覆盖。
+            if await persistedAgentOwnsMessage(sourceMessageID: sourceMessageID) {
+                logger.info("[Agent] 请求异常但持久化 Job 仍拥有消息，交由状态同步 error=\(String(describing: error), privacy: .public)")
+                return HoloRenderedAgentResult(
+                    title: "Agent 分析继续处理中",
+                    summary: "正在同步这次分析的真实状态。",
+                    sections: [],
+                    evidenceReferences: [],
+                    failure: .executionSuspended
+                )
+            }
             return fail("[runLoop异常] \(String(describing: error))")
         }
         guard finalJob.state == .completed else {
@@ -307,7 +374,7 @@ final class HoloAgentAnalysisService {
         )
         do {
             let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
-            return HoloAgentResultRenderer().render(
+            var rendered = HoloAgentResultRenderer().render(
                 claims: result.claims,
                 evidence: evidence,
                 title: result.title,
@@ -316,16 +383,42 @@ final class HoloAgentAnalysisService {
                 emptyReason: result.emptyReason,
                 answerContext: HoloAgentAnswerContext(
                     primaryTimeRange: finalJob.timeRange,
-                    snapshotCutoffAt: finalJob.snapshotCutoffAt ?? finalJob.createdAt
+                    snapshotCutoffAt: finalJob.snapshotCutoffAt ?? finalJob.createdAt,
+                    timeRangeAttribution: finalJob.timeRangeAttribution
+                        ?? result.timeRangeAttribution
                 ),
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
                 keyInsight: result.keyInsight,
                 contextSources: result.contextSources ?? [],
-                dataSamplePreview: Self.makeSamplePreview(from: nil)
+                dataSamplePreview: Self.makeSamplePreview(from: nil),
+                lineage: result.lineage,
+                rootUserQuestion: finalJob.originalUserQuestion
             )
+            rendered.agentJobID = finalJob.id
+            rendered.agentResultID = result.id
+            rendered.lineage = result.lineage
+            rendered.rootUserQuestion = finalJob.originalUserQuestion ?? question
+            return rendered
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
+        }
+    }
+
+    /// 一条消息一份最终答案：Agent Job 一旦建立，除非它明确失败，否则该消息的展示权
+    /// 不得降级给另一条普通聊天请求。completed 也返回 true，让上层从结果仓库回填卡片。
+    private func persistedAgentOwnsMessage(sourceMessageID: UUID?) async -> Bool {
+        guard let sourceMessageID else { return false }
+        do {
+            guard let latestJob = try await runtime.loadChatLinkedJobs()
+                .filter({ $0.sourceMessageID == sourceMessageID })
+                .max(by: { $0.updatedAt < $1.updatedAt }) else {
+                return false
+            }
+            return latestJob.state != .failed
+        } catch {
+            logger.error("[Agent] 判断消息展示权失败: \(String(describing: error), privacy: .public)")
+            return false
         }
     }
 
@@ -364,12 +457,14 @@ final class HoloAgentAnalysisService {
                 preservedStreamingMessageIDs.insert(sourceMessageID)
                 continue
             }
+            // 终态 job 清掉可能残留的「已暂停」对冲通知：通知与结果卡不能各说各话。
+            HoloAgentPauseNotifier.clearPausedNotice(jobID: job.id)
 
             if job.state == .completed {
                 do {
                     if let result = try await runtime.loadResult(jobID: job.id) {
                         let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
-                        let rendered = HoloAgentResultRenderer().render(
+                        var rendered = HoloAgentResultRenderer().render(
                             claims: result.claims,
                             evidence: evidence,
                             title: result.title,
@@ -378,14 +473,22 @@ final class HoloAgentAnalysisService {
                             emptyReason: result.emptyReason,
                             answerContext: HoloAgentAnswerContext(
                                 primaryTimeRange: job.timeRange,
-                                snapshotCutoffAt: job.snapshotCutoffAt ?? job.createdAt
+                                snapshotCutoffAt: job.snapshotCutoffAt ?? job.createdAt,
+                                timeRangeAttribution: job.timeRangeAttribution
+                                    ?? result.timeRangeAttribution
                             ),
                             requestedDeliverables: result.requestedDeliverables ?? [],
                             narrativeSummary: result.narrativeSummary,
                             keyInsight: result.keyInsight,
                             contextSources: result.contextSources ?? [],
-                            dataSamplePreview: Self.makeSamplePreview(from: nil)
+                            dataSamplePreview: Self.makeSamplePreview(from: nil),
+                            lineage: result.lineage,
+                            rootUserQuestion: job.originalUserQuestion
                         )
+                        rendered.agentJobID = job.id
+                        rendered.agentResultID = result.id
+                        rendered.lineage = result.lineage
+                        rendered.rootUserQuestion = job.originalUserQuestion ?? job.userQuestion
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {
                         repository.updateAgentMessageProgress(
@@ -408,6 +511,23 @@ final class HoloAgentAnalysisService {
                 // messageType=.quotaExhausted，回前台恢复时 job 可能处于 .failed 终态，
                 // 若直接 updateAgentMessageProgress 会把额度文案改成"已中断"，丢失升级入口。
                 if repository.messageType(for: sourceMessageID) == .quotaExhausted {
+                    continue
+                }
+                // 额度终态 job 且消息尚未落地（如后台恢复中被拒、前台渲染链中断）：
+                // 就地补落地额度卡片。此前这条路径无人渲染，消息永远停在「分析中」转圈。
+                if job.isQuotaExhaustedFailure {
+                    repository.finalizeMessage(
+                        sourceMessageID,
+                        finalContent: job.quotaExhaustedUserMessage ?? "额度已用完，请在额度重置后再试",
+                        intent: "query_analysis",
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
+                        agentResultJSON: nil,
+                        messageType: .quotaExhausted
+                    )
                     continue
                 }
                 repository.updateAgentMessageProgress(
@@ -437,6 +557,23 @@ final class HoloAgentAnalysisService {
             job.state != .completed,
             repository.messageType(for: sourceMessageID) != .userCancelled
         else { return false }
+        // 绝对截止主动兜底：等待态 job 超过截止后，只有「下一次回前台/启动」的恢复链
+        // 才会检查 deadline；用户停留前台时轮询就地终结，不让转圈无限挂起。
+        // 只处理等待态——running/waitingForLLM 可能有活跃执行在写，轮询侧落终态会互相覆盖。
+        let waitingStates: Set<HoloAgentJobState> = [.queued, .waitingForForeground, .waitingForCondition, .paused]
+        if waitingStates.contains(job.state), job.isPastAbsoluteDeadline() {
+            _ = try? await runtime.failJob(
+                jobID: job.id,
+                reason: "任务已超过截止时限，不再继续"
+            )
+            repository.updateAgentMessageProgress(sourceMessageID, status: HoloAgentChatStatus(
+                title: "深度分析已中断",
+                detail: "任务已超过截止时限，不再继续。请重新发起分析。",
+                keepsMessageStreaming: false,
+                showsActivityIndicator: false
+            ))
+            return false
+        }
         let status = HoloAgentChatStatusPresenter.status(for: job)
         guard status.keepsMessageStreaming else { return false }
         repository.updateAgentMessageProgress(sourceMessageID, status: status)

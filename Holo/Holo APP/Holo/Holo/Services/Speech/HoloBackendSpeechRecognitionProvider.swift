@@ -101,7 +101,7 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
                             )
                         }
                     }
-                    throw SpeechRecognitionError.serverMessage(quotaError.userMessage)
+                    throw SpeechRecognitionError.quotaExhausted(quotaError.userMessage)
                 }
                 throw SpeechRecognitionError.serverMessage("今天的语音识别次数已达上限，稍后再试")
             case 413:

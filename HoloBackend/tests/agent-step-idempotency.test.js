@@ -276,6 +276,30 @@ test("retryable provider failure allows controlled retry, provider called twice"
   assert.equal(calls, 2);
 });
 
+test("client-aborted agent step stays retryable for foreground resume", async () => {
+  let calls = 0;
+  const provider = {
+    async complete() {
+      calls += 1;
+      if (calls === 1) {
+        throw new GatewayError("CLIENT_ABORTED", "client left background execution", 499);
+      }
+      return makeAgentCompletion("agent-completion-after-resume");
+    },
+  };
+  const app = createTestApp(provider);
+  const step = { runId: "run-client-abort", stepId: "llm-3-3", requestHash: "hash-client-abort" };
+
+  const first = await sendAgentStep(app, step);
+  assert.equal(first.status, 499);
+  assert.equal((await first.json()).error.code, "CLIENT_ABORTED");
+
+  const resumed = await sendAgentStep(app, step);
+  assert.equal(resumed.status, 200);
+  assert.equal((await resumed.json()).id, "agent-completion-after-resume");
+  assert.equal(calls, 2);
+});
+
 test("terminal provider failure replays same error without calling provider again", async () => {
   let calls = 0;
   const provider = {

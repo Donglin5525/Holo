@@ -12,6 +12,7 @@
 //    "Holo/Models/AI/Agent/HoloAgentJobModels.swift" \
 //    "Holo/Models/AI/Agent/HoloAgentTimeRange.swift" \
 //    "Holo/Models/AI/Agent/HoloAgentExecutionModels.swift" \
+//    "Holo/Models/AI/Agent/HoloAgentContinuationModels.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentInputSnapshotHasher.swift" \
 //    <本测试> -o /tmp/holo_snapshot_test
 //
@@ -50,13 +51,13 @@ struct HoloAgentInputSnapshotStandaloneTests {
         switch name {
         case "A":
             return HoloAgentInputSnapshot(
-                schemaVersion: 1, jobType: .deepAnalysis,
+                schemaVersion: 2, jobType: .deepAnalysis,
                 userQuestion: "最近睡眠怎么样？", timeRange: nil,
                 referenceDate: fixedTS, snapshotCutoffAt: fixedTS, toolCatalogVersion: 1
             )
         case "B":
             return HoloAgentInputSnapshot(
-                schemaVersion: 1, jobType: .deepAnalysis,
+                schemaVersion: 2, jobType: .deepAnalysis,
                 userQuestion: "上个月钱都花哪儿去了？",
                 timeRange: HoloAgentTimeRange(
                     label: "上月",
@@ -67,7 +68,7 @@ struct HoloAgentInputSnapshotStandaloneTests {
             )
         default: // "C"
             return HoloAgentInputSnapshot(
-                schemaVersion: 1, jobType: .memoryGallerySummary,
+                schemaVersion: 2, jobType: .memoryGallerySummary,
                 userQuestion: nil, timeRange: nil,
                 referenceDate: fixedTS, snapshotCutoffAt: fixedTS, toolCatalogVersion: 1
             )
@@ -94,17 +95,17 @@ struct HoloAgentInputSnapshotStandaloneTests {
     static func test固定向量canonicalJSON与摘要() {
         let a = vectorPayload("A")
         let aJSON = String(data: try! HoloAgentInputSnapshotHasher.canonicalJSONData(for: a), encoding: .utf8)!
-        expect(aJSON == #"{"jobType":"deepAnalysis","referenceDate":"2025-07-04T03:33:20Z","schemaVersion":1,"snapshotCutoffAt":"2025-07-04T03:33:20Z","timeRange":null,"toolCatalogVersion":1,"userQuestion":"最近睡眠怎么样？"}"#,
+        expect(aJSON == #"{"followUpParentResultID":"","jobType":"deepAnalysis","lineageDepth":0,"referenceDate":"2025-07-04T03:33:20Z","schemaVersion":2,"snapshotCutoffAt":"2025-07-04T03:33:20Z","timeRange":null,"toolCatalogVersion":1,"userQuestion":"最近睡眠怎么样？"}"#,
                "A canonical JSON 漂移：\(aJSON)")
-        expect(HoloAgentInputSnapshotHasher.hash(for: a) == "0671ed0d575d32196f99dc5f35d68a1dec4ba2e5b7d5d37d3b4cac7061446f99",
+        expect(HoloAgentInputSnapshotHasher.hash(for: a) == "2f0086fb0da7dfe63f2b8aac43b21ee16d57191548d5644be7d028132bf53c6c",
                "A hash 漂移：\(HoloAgentInputSnapshotHasher.hash(for: a))")
 
         let b = vectorPayload("B")
-        expect(HoloAgentInputSnapshotHasher.hash(for: b) == "78e3b89348c531c658a95c14821e1dea7b0447c443584f31819104a61f876f9d",
+        expect(HoloAgentInputSnapshotHasher.hash(for: b) == "ef71921268624ef05aea3308f95e44f82d67caf4d20f724b1c22818e7d776c19",
                "B hash 漂移：\(HoloAgentInputSnapshotHasher.hash(for: b))")
 
         let c = vectorPayload("C")
-        expect(HoloAgentInputSnapshotHasher.hash(for: c) == "754de95cb8f3dc138e1c19fb055022bcd94b8f68cad03c89af73b46e105ce5aa",
+        expect(HoloAgentInputSnapshotHasher.hash(for: c) == "6eeaca5cc22253c3fe561b471e310f76f8664a2cc8a663a1c10d62ba6c944712",
                "C hash 漂移：\(HoloAgentInputSnapshotHasher.hash(for: c))")
     }
 

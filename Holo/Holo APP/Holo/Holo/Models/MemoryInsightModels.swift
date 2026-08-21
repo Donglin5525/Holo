@@ -217,6 +217,8 @@ enum InsightGenerationState: Equatable {
     case stale              // 有更新数据，旧洞察可刷新
     case needConsent        // AI 数据处理授权未开启
     case failed(String)     // 生成失败
+    /// 洞察额度（memoryInsight 池）耗尽：档位限制非故障，柔和样式展示、不提供重试。
+    case quotaExhausted(String)
 }
 
 // MARK: - Error

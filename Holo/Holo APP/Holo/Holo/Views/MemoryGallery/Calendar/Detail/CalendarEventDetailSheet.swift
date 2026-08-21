@@ -29,6 +29,8 @@ struct CalendarEventDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isOpeningOrigin = false
     @State private var originOpenError: String?
+    /// 原始实体已删除（详情打开时后台回查，直接呈现删除态而非点击才报错）
+    @State private var originDeleted = false
 
     /// 当前事件是否支持「在原模块打开」
     private var supportsOpenInModule: Bool {
@@ -48,7 +50,11 @@ struct CalendarEventDetailSheet: View {
                         topicsCard(topics)
                     }
                     if supportsOpenInModule {
-                        openInModuleButton
+                        if originDeleted {
+                            deletedOriginCard
+                        } else {
+                            openInModuleButton
+                        }
                     }
                 }
                 .padding(HoloSpacing.md)
@@ -61,6 +67,9 @@ struct CalendarEventDetailSheet: View {
                     Button("关闭") { dismiss() }
                 }
             }
+            .task {
+                await checkOriginAlive()
+            }
         }
         .alert("无法打开原记录", isPresented: Binding(
             get: { originOpenError != nil },
@@ -70,6 +79,41 @@ struct CalendarEventDetailSheet: View {
         } message: {
             Text(originOpenError ?? "")
         }
+    }
+
+    /// 详情打开时后台回查来源存活性：删除的记录不伪造「可打开」入口（统一浏览方案 §7.5）
+    private func checkOriginAlive() async {
+        let originID = event.originID
+        let context = CoreDataStack.shared.newBackgroundContext()
+        let exists: Bool = await context.perform {
+            (try? context.existingObject(with: originID)) != nil
+        }
+        originDeleted = !exists
+    }
+
+    // MARK: - 原记录已删除态
+
+    private var deletedOriginCard: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "trash.slash")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.holoTextPlaceholder)
+            Text("原记录已删除")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, HoloSpacing.sm)
+        .padding(.horizontal, HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .fill(Color.holoNestedCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder.opacity(0.6), lineWidth: 1)
+        )
     }
 
     // MARK: - 在原模块打开

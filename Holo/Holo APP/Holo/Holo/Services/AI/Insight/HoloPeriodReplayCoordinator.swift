@@ -68,6 +68,33 @@ final class HoloPeriodReplayCoordinator {
             periodStart: start,
             periodEnd: end
         )
+        // 额度预检（先验票再进场）：洞察额度（memoryInsight 池，免费 1 次/周）为 0 时
+        // 直接落额度卡片，不进「正在生成回放…」转圈态。余量缺失或过期时放行，
+        // 由执行中的额度错误 + markFailed 额度文案兜底。
+        if let remaining = HoloEntitlementState.shared.quotas["memoryInsight"]?.remaining,
+           remaining <= 0 {
+            let quotaMessage = HoloQuotaError.memoryInsightExhaustedMessage(
+                isPlusActive: HoloEntitlementState.shared.isPlusActive
+            )
+            let userMessageId = repository.addMessage(
+                role: "user",
+                content: "生成\(job.periodLabel)回放",
+                messageType: .periodReplay
+            )
+            let assistantMessageId = repository.addStreamingMessage(
+                role: "assistant",
+                parentMessageId: userMessageId,
+                messageType: .periodReplay,
+                extractedDataJSON: nil
+            )
+            repository.finishStreaming(
+                assistantMessageId,
+                finalContent: quotaMessage,
+                messageType: .quotaExhausted
+            )
+            logger.info("[quota-preflight] 洞察额度为 0，直接落额度卡片 period=\(periodType.rawValue)")
+            return
+        }
         let userMessageId = repository.addMessage(
             role: "user",
             content: "生成\(job.periodLabel)回放",
@@ -246,6 +273,7 @@ final class HoloPeriodReplayCoordinator {
                 }
 
                 let category = errorCategory(error)
+                let quotaMessage = (error as? HoloQuotaError)?.userMessage
                 if isNetworkError(error) {
                     job.networkInterruptionCount += 1
                 }
@@ -256,7 +284,7 @@ final class HoloPeriodReplayCoordinator {
                 )
 
                 guard isRecoverable(error) else {
-                    markFailed(messageId: messageId, job: job, category: category)
+                    markFailed(messageId: messageId, job: job, category: category, quotaMessage: quotaMessage)
                     break
                 }
 
@@ -270,7 +298,7 @@ final class HoloPeriodReplayCoordinator {
                             isStreaming: true
                         )
                     } else {
-                        markFailed(messageId: messageId, job: job, category: category)
+                        markFailed(messageId: messageId, job: job, category: category, quotaMessage: quotaMessage)
                     }
                     break
                 }
@@ -329,19 +357,30 @@ final class HoloPeriodReplayCoordinator {
         logger.info("[completed] message=\(messageId.uuidString) attempts=\(completedAttemptCount)")
     }
 
+    /// 额度终态的错误分类标记（errorCategory 专用），markFailed 据此切换文案。
+    private static let quotaExhaustedCategory = "QUOTA_EXHAUSTED"
+
     private func markFailed(
         messageId: UUID,
         job originalJob: HoloPeriodReplayJob,
-        category: String
+        category: String,
+        quotaMessage: String? = nil
     ) {
         var job = originalJob
         job.state = .failed
         job.lastErrorCategory = category
         job.updatedAt = Date()
+        // 额度耗尽是档位限制：如实告知，不引导「点继续生成」（重置前必再失败）。
+        let content: String
+        if category == Self.quotaExhaustedCategory, let quotaMessage {
+            content = quotaMessage
+        } else {
+            content = "这次\(job.periodLabel)回放没有生成完整，点“继续生成”即可接着处理。"
+        }
         repository.updatePeriodReplayJob(
             messageId,
             job: job,
-            content: "这次\(job.periodLabel)回放没有生成完整，点“继续生成”即可接着处理。",
+            content: content,
             isStreaming: false
         )
         logger.error("[terminal] message=\(messageId.uuidString) category=\(category)")
@@ -455,6 +494,9 @@ final class HoloPeriodReplayCoordinator {
     }
 
     private func errorCategory(_ error: Error) -> String {
+        if error is HoloQuotaError {
+            return Self.quotaExhaustedCategory
+        }
         if let apiError = error as? APIError {
             return apiError.diagnosticCategory
         }

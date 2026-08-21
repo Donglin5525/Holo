@@ -55,7 +55,7 @@ struct HoloApp: App {
             _ = ICloudSyncStatusService.shared
         }
 
-        // 监听财务/想法变更，维护桌面小组件使用的轻量快照
+        // 监听财务/想法/习惯/待办/目标/纪念日变更，维护桌面小组件使用的轻量快照
         HoloWidgetSnapshotService.shared.startObserving()
 
         // 监听周期回放生成，异步维护远期累计摘要（失败不影响主流程）
@@ -106,6 +106,9 @@ struct HoloApp: App {
                     // 习惯打卡提醒 + 周一晨报：滚动重排
                     await HabitReminderScheduler.shared.handleAppActivity()
                     await WeeklyBriefScheduler.shared.handleAppActivity()
+                    // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                    await BillDueReminderScheduler.shared.handleAppActivity()
+                    await BudgetOverrunNotificationService.shared.handleAppActivity()
 
                     #if DEBUG
                     let appStoreScreenshotModeActive =
@@ -198,6 +201,9 @@ struct HoloApp: App {
                             await DailyBriefScheduler.shared.handleAppActivity()
                             await HabitReminderScheduler.shared.handleAppActivity()
                             await WeeklyBriefScheduler.shared.handleAppActivity()
+                            // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                            await BillDueReminderScheduler.shared.handleAppActivity()
+                            await BudgetOverrunNotificationService.shared.handleAppActivity()
                             await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
                             await HoloReplayDigestService.shared.backfillIfNeeded(
                                 historyRepo: MemoryInsightRepository()

@@ -8,10 +8,66 @@
 
 import SwiftUI
 
+/// 结果卡「换范围」快捷档。窗口算法与 HoloAgentTimeSemanticResolver 的 L2 规则保持一致，
+/// 但作为 userOverride 显式注入（绕开文本解析层），确定性 100%。
+enum AgentScopeChangePreset: String, CaseIterable, Identifiable {
+    case last30Days
+    case last3Months
+    case last6Months
+    case last1Year
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .last30Days: return "近30天"
+        case .last3Months: return "近3个月"
+        case .last6Months: return "近半年"
+        case .last1Year: return "近1年"
+        }
+    }
+
+    /// 用户可见的换范围话术（会被 FollowUpRouter 识别为 .changeScope 追问）
+    var followUpText: String {
+        switch self {
+        case .last30Days: return "换成最近30天再看"
+        case .last3Months: return "换成近三个月再看"
+        case .last6Months: return "换成近半年再看"
+        case .last1Year: return "换成近一年再看"
+        }
+    }
+
+    func timeRange(asOf reference: Date = Date(), calendar inputCalendar: Calendar = .current) -> HoloAgentTimeRange {
+        var calendar = inputCalendar
+        calendar.locale = Locale(identifier: "zh_CN")
+        let today = calendar.startOfDay(for: reference)
+        let start: Date?
+        switch self {
+        case .last30Days:
+            start = calendar.date(byAdding: .day, value: -29, to: today)
+        case .last3Months:
+            start = calendar.date(byAdding: .month, value: -3, to: today)
+                .flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        case .last6Months:
+            start = calendar.date(byAdding: .month, value: -6, to: today)
+                .flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        case .last1Year:
+            start = calendar.date(byAdding: .year, value: -1, to: today)
+                .flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        }
+        let end = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+        return HoloAgentTimeRange(label: label, start: start, end: end)
+    }
+}
+
 struct AgentDeepAnalysisCard: View {
 
     let message: ChatMessageViewData
     var onTap: (() -> Void)? = nil
+    /// 换范围重查回调；nil 时 scope 行退化为纯展示（详情页等场景）。
+    var onScopeChange: ((AgentScopeChangePreset) -> Void)? = nil
+    /// 暂停态「立即继续」回调；nil 时按钮不显示（详情页等场景）。
+    var onResumePaused: (() -> Void)? = nil
 
     var body: some View {
         if message.isStreaming {
@@ -20,11 +76,74 @@ struct AgentDeepAnalysisCard: View {
         } else if message.metadataState == .loaded, let result = message.agentResult {
             // 已加载且有结果：真实卡片
             realCard(result: result)
-        } else if message.metadataState == .unloaded || message.metadataState == .loading {
-            // 元数据加载中：占位
+        } else if message.metadataState == .unloaded || message.metadataState == .loading {            // 元数据加载中：占位
             placeholderCard
         }
         // .loaded 但 agentResult == nil → 不渲染（退化文本气泡，由 MessageBubbleView 处理）
+    }
+
+    // MARK: - Scope Row
+
+    /// 「已存入报告」回执：报告档案的入口回链。点按经路由切到报告 Tab。
+    /// 用 Menu 而非嵌套 Button——这是本卡内已验证的子级交互模式（与「换范围」一致）。
+    private var archivedReceiptMenu: some View {
+        Menu {
+            Button("在「报告」中查看") {
+                ChatReportTabRouter.shared.openReportTab()
+            }
+        } label: {
+            HStack(spacing: 3.5) {
+                Image(systemName: "tray.full.fill")
+                    .font(.system(size: 9.5, weight: .semibold))
+                Text("已存入报告")
+                    .font(.system(size: 11, weight: .semibold))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundColor(Color.holoPrimary.opacity(0.85))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.holoPrimary.opacity(0.08))
+            .clipShape(Capsule())
+        }
+        .accessibilityLabel("已存入报告，打开报告档案")
+        .accessibilityHint("切换到 Holo AI 页的报告 Tab 查看全部报告")
+    }
+
+    /// 查询范围行：展示「范围 · 起止日期 · 来源」并支持一键换档重查。
+    /// Menu 嵌在外层 Button 内：Menu 的弹出优先于卡片整击（进详情），互不干扰。
+    @ViewBuilder
+    private func scopeRow(_ result: HoloRenderedAgentResult) -> some View {
+        if let scopeText = result.scope?.displayLabel {
+            if let onScopeChange, result.agentJobID != nil, result.agentResultID != nil {
+                Menu {
+                    ForEach(AgentScopeChangePreset.allCases) { preset in
+                        Button(preset.label) {
+                            onScopeChange(preset)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Label(scopeText, systemImage: "calendar")
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.holoTextSecondary.opacity(0.7))
+                    }
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.holoPrimary.opacity(0.05))
+                    .clipShape(Capsule())
+                    .contentShape(Capsule())
+                }
+                .accessibilityLabel("查询范围 \(scopeText)，点按可换时间范围重新分析")
+            } else {
+                Label(scopeText, systemImage: "calendar")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
     }
 
     // MARK: - Real Card
@@ -77,7 +196,9 @@ struct AgentDeepAnalysisCard: View {
                                     .lineLimit(2)
                                     .fixedSize(horizontal: false, vertical: true)
 
-                                Text(hasRecommendations(result) ? "优化建议" : "深度分析")
+                                Text(result.continuationMetadata?.isFollowUp == true
+                                    ? result.continuationMetadata?.shortLabel ?? "继续追问"
+                                    : (hasRecommendations(result) ? "优化建议" : "深度分析"))
                                     .font(.system(size: 10.5, weight: .bold))
                                     .foregroundColor(.holoPrimary.opacity(0.8))
                                     .lineLimit(1)
@@ -106,10 +227,10 @@ struct AgentDeepAnalysisCard: View {
                             .accessibilityLabel("核心发现")
                         }
 
-                        if let scope = result.scope?.displayLabel {
-                            Label(scope, systemImage: "calendar")
-                                .font(.system(size: 11.5, weight: .semibold))
-                                .foregroundColor(.holoTextSecondary)
+                        HStack {
+                            scopeRow(result)
+                            Spacer(minLength: 8)
+                            archivedReceiptMenu
                         }
 
                         if let context = result.contextSourceText {
@@ -154,7 +275,7 @@ struct AgentDeepAnalysisCard: View {
                     }
 
                     HStack(spacing: 6) {
-                        Text("查看完整分析")
+                        Text(result.continuationMetadata?.isFollowUp == true ? "查看完整追问" : "查看完整分析")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.holoPrimary)
                         Image(systemName: "chevron.right")
@@ -171,6 +292,8 @@ struct AgentDeepAnalysisCard: View {
 
     private var loadingCard: some View {
         let status = HoloAgentChatStatusPresenter.display(from: message.content)
+        // 暂停态（无转圈、进度已保存）：放开交互让「立即继续」可点；执行中保持整卡不可点。
+        let isPaused = !status.showsActivityIndicator
         return ChatCardView {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -191,9 +314,31 @@ struct AgentDeepAnalysisCard: View {
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
+
+                if isPaused, let onResumePaused {
+                    Button {
+                        onResumePaused()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("立即继续")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(Color.holoPrimary)
+                        .clipShape(Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                    .accessibilityLabel("立即继续暂停的深度分析")
+                }
             }
         }
-        .allowsHitTesting(false)
+        .allowsHitTesting(isPaused)
     }
 
     // MARK: - Placeholder

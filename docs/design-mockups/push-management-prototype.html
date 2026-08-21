@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo · 推送管理 · 功能原型</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+
+  /* ===== Holo 设计 Token（取自 DesignSystem.swift） ===== */
+  :root {
+    --bg: #FDFBF8;
+    --card: #FFFFFF;
+    --card-2: #F7F6F1;
+    --nested: #F8F5EF;
+    --text1: #333333;
+    --text2: #939393;
+    --text3: #C7C7CC;
+    --border: #F0F0F0;
+    --divider: #F1F1EC;
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-soft: #FED7AA;
+    --ai: #7C5CFC;
+    --ai-soft: #EDE9FE;
+    --success: #22C55E;
+    --error: #EF4444;
+    --shadow: 0 1px 3px rgba(0,0,0,0.035), 0 8px 8px rgba(0,0,0,0.02);
+    --glass: rgba(250, 248, 244, 0.86);
+  }
+  body.dark {
+    --bg: #1C1C1E;
+    --card: #2C2C2E;
+    --card-2: #3A3A3C;
+    --nested: #262628;
+    --text1: #F5F5F5;
+    --text2: #939393;
+    --text3: #6B7280;
+    --border: #3A3A3C;
+    --divider: #38383A;
+    --primary: #FF8A50;
+    --primary-dark: #F46D38;
+    --primary-soft: #5A3A28;
+    --ai: #A78BFA;
+    --ai-soft: #322B45;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --glass: rgba(44, 44, 46, 0.82);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: linear-gradient(165deg, #efe7da 0%, #e9eef5 50%, #f1ecf6 100%);
+    min-height: 100vh;
+    padding: 44px 16px 90px;
+    display:flex; flex-direction:column; align-items:center;
+    color: var(--text1);
+    transition: background .4s;
+  }
+  body.dark { background: linear-gradient(165deg,#2a2620 0%,#232833 50%,#26222e 100%); }
+
+  .header { text-align:center; margin-bottom: 4px; }
+  .header h1 { font-size: 22px; font-weight: 750; letter-spacing:-.3px; }
+  .header .sub { font-size: 12.5px; color:#7a7a7a; margin-top:5px; line-height:1.6; }
+
+  .controls { display:flex; gap:10px; align-items:center; margin: 20px 0 8px; flex-wrap:wrap; justify-content:center; }
+  .brand-chip {
+    font-size:11px; font-weight:650; color:var(--primary-dark); background:var(--primary-soft);
+    padding:7px 13px; border-radius:20px; letter-spacing:.2px;
+  }
+  body.dark .brand-chip { color:#FF8A50; }
+  .theme-toggle {
+    width:40px; height:40px; border-radius:50%; border:1.5px solid var(--border);
+    background:var(--card); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.08); transition:.2s;
+  }
+  .hint-bar {
+    font-size:11.5px; color:#8a8a8a; margin-bottom:26px; text-align:center; line-height:1.7;
+    max-width: 760px;
+  }
+  .hint-bar b { color:var(--primary-dark); font-weight:650; }
+  body.dark .hint-bar b { color:#FF8A50; }
+
+  /* ===== 手机外框 ===== */
+  .stage { display:flex; gap:34px; overflow-x:auto; padding:10px 6px 30px; max-width:100%; }
+  .stage::-webkit-scrollbar { height:6px; }
+  .stage::-webkit-scrollbar-thumb { background:rgba(0,0,0,.15); border-radius:3px; }
+
+  .col { display:flex; flex-direction:column; align-items:center; gap:14px; flex-shrink:0; }
+  .col .tag { font-size:12px; font-weight:700; color:var(--text1); }
+  .col .tag .n {
+    display:inline-flex; width:19px; height:19px; border-radius:50%; background:var(--primary);
+    color:#fff; font-size:11px; align-items:center; justify-content:center; margin-right:6px;
+  }
+  .col .desc { font-size:11px; color:#8a8a8a; max-width:360px; text-align:center; line-height:1.65; }
+
+  .phone {
+    width: 393px; height: 852px; background:#1a1a1c; border-radius: 60px; padding: 10px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.28), inset 0 0 0 2px #34343a; position:relative; flex-shrink:0;
+  }
+  .screen {
+    width:100%; height:100%; background:var(--bg); border-radius:50px; overflow:hidden; position:relative;
+    display:flex; flex-direction:column; transition: background .4s;
+  }
+  .statusbar {
+    height:54px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding: 14px 32px 0; font-size:15px; font-weight:650; color:var(--text1); position:relative; z-index:5;
+  }
+  .island {
+    position:absolute; top:11px; left:50%; transform:translateX(-50%);
+    width:122px; height:34px; background:#000; border-radius:20px; z-index:9;
+  }
+  .content { flex:1; overflow-y:auto; overflow-x:hidden; }
+  .content::-webkit-scrollbar { display:none; }
+  .homebar {
+    height:24px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  }
+  .homebar div { width:134px; height:5px; border-radius:3px; background:var(--text1); opacity:.28; }
+
+  /* ===== 屏内通用 ===== */
+  .navbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 2px 18px 10px; position:sticky; top:0; z-index:4;
+    background: linear-gradient(var(--bg) 78%, transparent);
+  }
+  .navbar .close { font-size:15.5px; color:var(--text2); cursor:pointer; }
+  .navbar .title { font-size:16.5px; font-weight:700; }
+  .navbar .back { font-size:15.5px; color:var(--primary-dark); display:flex; align-items:center; gap:3px; cursor:pointer; }
+  .navbar .placeholder { width:44px; }
+
+  .page { padding: 6px 20px 34px; }
+  .group-head {
+    font-size:12px; font-weight:650; color:var(--text2); margin: 20px 2px 8px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .group-head:first-child { margin-top: 8px; }
+  .group-head .preview-all { font-size:11px; color:var(--text3); font-weight:500; }
+
+  .card {
+    background:var(--card); border-radius:16px; box-shadow: var(--shadow);
+    border: 0.5px solid var(--divider); overflow:hidden;
+  }
+  .card.dim { opacity:.5; pointer-events:none; }
+
+  .row {
+    display:flex; align-items:center; gap:11px; padding: 13px 14px; cursor:pointer; position:relative;
+  }
+  .row.noclick { cursor:default; }
+  .row + .sep, .sep-in { border-top: 0.5px solid var(--divider); margin-left:14px; }
+
+  .ico {
+    width:30px; height:30px; border-radius:9px; background:var(--card-2);
+    display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;
+  }
+  .ico.ai { background:var(--ai-soft); }
+  .row .lbl { font-size:15px; font-weight:550; color:var(--text1); flex:1; display:flex; align-items:center; gap:7px; min-width:0; }
+  .row .val { font-size:14.5px; color:var(--text2); display:flex; align-items:center; gap:2px; flex-shrink:0; }
+  .row .val.time { color:var(--primary-dark); font-weight:600; }
+  .chev { color:var(--text3); font-size:15px; margin-left:1px; font-weight:600; }
+  .summary { font-size:12px; color:var(--text2); flex-shrink:0; max-width:172px; text-align:right; line-height:1.3; }
+  .preview-row {
+    display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer;
+    color:var(--primary-dark); font-size:14.5px; font-weight:600;
+  }
+  .preview-row .ico { background:rgba(244,109,56,.1); }
+
+  .note { font-size:12px; color:var(--text2); line-height:1.65; padding: 11px 14px 12px; border-top:0.5px solid var(--divider); }
+
+  .plus-badge {
+    font-size:9px; font-weight:800; letter-spacing:.5px; color:var(--primary-dark);
+    background:var(--primary-soft); border-radius:5px; padding:2.5px 5.5px; flex-shrink:0;
+  }
+  .new-badge {
+    font-size:9px; font-weight:700; color:#fff; background:var(--primary);
+    border-radius:5px; padding:2.5px 5.5px; flex-shrink:0;
+  }
+
+  .eye {
+    width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:13px; color:var(--text3); cursor:pointer; flex-shrink:0; background:var(--card-2); transition:.15s;
+    user-select:none;
+  }
+  .eye:hover { color:var(--primary-dark); }
+
+  /* Toggle */
+  .tgl {
+    width:50px; height:30px; border-radius:15px; background:#E9E9E4; position:relative; cursor:pointer;
+    transition:background .2s; flex-shrink:0;
+  }
+  body.dark .tgl { background:#4a4a4c; }
+  .tgl::after {
+    content:''; position:absolute; top:2px; left:2px; width:26px; height:26px; border-radius:50%;
+    background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.18); transition:transform .22s;
+  }
+  .tgl.on { background:var(--primary); }
+  .tgl.on::after { transform:translateX(20px); }
+
+  /* chips */
+  .chips { display:flex; gap:8px; padding: 4px 14px 13px; flex-wrap:wrap; }
+  .chip {
+    font-size:12.5px; font-weight:550; color:var(--text2); background:var(--card-2);
+    border:1px solid var(--divider); padding: 6.5px 13px; border-radius:19px; cursor:pointer; transition:.15s;
+  }
+  .chip.on { color:#fff; background:var(--primary); border-color:var(--primary); }
+
+  /* 预览按钮（卡片右上角） */
+  .card-preview {
+    position:absolute; top:9px; right:10px; font-size:11px; color:var(--text3); cursor:pointer;
+    padding:4px 8px; border-radius:12px; z-index:3; user-select:none;
+  }
+  .card-preview:hover { color:var(--primary-dark); }
+
+  /* ===== 习惯行（屏B） ===== */
+  .habit-row .h-ico {
+    width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    font-size:18px; flex-shrink:0;
+  }
+  .habit-row .h-name { font-size:15px; font-weight:600; color:var(--text1); }
+  .habit-row .h-meta { font-size:11.5px; color:var(--text2); margin-top:2.5px; }
+  .habit-row .h-streak { color:var(--primary-dark); font-weight:600; }
+  .habit-row.disabled .h-ico, .habit-row.disabled .h-name { opacity:.45; }
+  .mode-val { font-size:13.5px; color:var(--text2); }
+  .mode-val.solo { color:var(--primary-dark); font-weight:650; }
+  .mode-val.off { color:var(--text3); }
+
+  .rules-card { background:var(--nested); border:0.5px solid var(--divider); border-radius:14px; padding:14px 15px; }
+  .rules-card .r-title { font-size:12px; font-weight:700; color:var(--text1); margin-bottom:8px; }
+  .rules-card .r-item { font-size:12px; color:var(--text2); line-height:1.7; display:flex; gap:7px; }
+  .rules-card .r-item::before { content:'·'; font-weight:800; color:var(--primary-dark); }
+
+  /* ===== 屏C sheet ===== */
+  .sheet-bg { flex:1; position:relative; background:var(--bg); overflow:hidden; }
+  .sheet-dim { position:absolute; inset:0; background:rgba(0,0,0,.32); z-index:1; }
+  .sheet-ghost { padding:70px 24px 0; font-size:12px; color:rgba(255,255,255,.5); line-height:2.1; user-select:none; }
+  .sheet-ghost .g-row { background:rgba(255,255,255,.08); border-radius:10px; height:13px; margin-bottom:13px; }
+
+  .sheet {
+    position:absolute; left:0; right:0; bottom:0; z-index:2; background:var(--card);
+    border-radius:24px 24px 0 0; padding: 8px 20px 26px; box-shadow: 0 -12px 40px rgba(0,0,0,.22);
+  }
+  .grabber { width:38px; height:5px; border-radius:3px; background:var(--text3); opacity:.4; margin:0 auto 14px; }
+  .sheet .s-title { font-size:17px; font-weight:750; text-align:center; margin-bottom:4px; }
+  .sheet .s-sub { font-size:11.5px; color:var(--text3); text-align:center; margin-bottom:16px; }
+  .s-fade { text-align:center; font-size:11px; color:var(--text3); letter-spacing:2px; margin: 4px 0 10px; }
+
+  .opt-card {
+    border:1.5px solid var(--divider); border-radius:14px; padding: 12px 14px; margin-bottom:10px;
+    display:flex; gap:11px; cursor:pointer; transition:.15s; background:var(--card);
+  }
+  .opt-card.on { border-color:var(--primary); background: linear-gradient(0deg, rgba(244,109,56,.05), rgba(244,109,56,.05)); }
+  .radio {
+    width:21px; height:21px; border-radius:50%; border:1.8px solid var(--text3); flex-shrink:0; margin-top:1px;
+    display:flex; align-items:center; justify-content:center; transition:.15s;
+  }
+  .opt-card.on .radio { border-color:var(--primary); }
+  .opt-card.on .radio::after { content:''; width:11px; height:11px; border-radius:50%; background:var(--primary); }
+  .opt-card .o-lbl { font-size:14.5px; font-weight:600; color:var(--text1); }
+  .opt-card .o-sub { font-size:11.5px; color:var(--text2); margin-top:3px; line-height:1.55; }
+  .opt-time-row {
+    display:flex; align-items:center; padding: 10px 14px 2px; margin-left:26px; cursor:pointer;
+  }
+  .opt-time-row .t-lbl { font-size:13.5px; color:var(--text1); flex:1; }
+  .opt-time-row .t-val { font-size:16px; font-weight:700; color:var(--primary-dark); }
+  .sheet-done {
+    margin-top:16px; background:var(--primary); color:#fff; font-size:15.5px; font-weight:650;
+    border:none; border-radius:14px; padding:14px; width:100%; cursor:pointer; font-family:inherit;
+  }
+
+  /* ===== iOS 通知横幅（壳内） ===== */
+  .notif-wrap { position:absolute; top:8px; left:10px; right:10px; z-index:50; pointer-events:none; }
+  .notif {
+    background: var(--glass); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+    border-radius:22px; padding:12px 14px; box-shadow:0 10px 34px rgba(0,0,0,.2);
+    display:flex; gap:10px; align-items:flex-start; cursor:pointer; pointer-events:auto;
+    transform: translateY(-130px); opacity:0; transition: transform .45s cubic-bezier(.2,.9,.3,1.1), opacity .3s;
+    margin-bottom:8px;
+  }
+  .notif.show { transform: translateY(0); opacity:1; }
+  .notif .n-ico {
+    width:37px; height:37px; border-radius:9.5px; background:linear-gradient(135deg,#F46D38,#EA580C);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;
+  }
+  .notif .n-ico span { color:#fff; font-weight:800; font-size:15px; letter-spacing:-.5px; }
+  .notif .n-body { flex:1; min-width:0; }
+  .notif .n-head { display:flex; justify-content:space-between; align-items:baseline; }
+  .notif .n-app { font-size:11px; color:var(--text2); font-weight:600; }
+  .notif .n-time { font-size:11px; color:var(--text2); }
+  .notif .n-title { font-size:13.5px; font-weight:700; color:var(--text1); margin-top:1px; }
+  .notif .n-text { font-size:12.5px; color:var(--text1); opacity:.85; line-height:1.4; margin-top:1px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .notif .n-actions { display:flex; gap:8px; margin-top:10px; }
+  .notif .n-btn {
+    flex:1; text-align:center; font-size:12.5px; font-weight:650; color:var(--primary-dark);
+    background:rgba(244,109,56,.12); border-radius:13px; padding:8px 0;
+  }
+
+  /* ===== 底部弹层（时间选择 / 三选一） ===== */
+  .pop-dim { position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.34); opacity:0; pointer-events:none; transition:.22s; }
+  .pop-dim.show { opacity:1; pointer-events:auto; }
+  .pop {
+    position:absolute; left:0; right:0; bottom:0; z-index:61; background:var(--card);
+    border-radius:22px 22px 0 0; padding: 16px 20px 30px; transform:translateY(105%); transition:transform .32s cubic-bezier(.2,.85,.3,1);
+  }
+  .pop.show { transform:translateY(0); }
+  .pop .p-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .pop .p-title { font-size:15.5px; font-weight:700; }
+  .pop .p-cancel, .pop .p-ok { font-size:14.5px; cursor:pointer; }
+  .pop .p-cancel { color:var(--text2); }
+  .pop .p-ok { color:var(--primary-dark); font-weight:650; }
+
+  .t-chips-label { font-size:11px; font-weight:650; color:var(--text2); margin: 10px 2px 7px; }
+  .t-chips { display:flex; flex-wrap:wrap; gap:7px; }
+  .t-chip {
+    min-width:44px; text-align:center; font-size:12.5px; font-weight:600; color:var(--text2);
+    background:var(--card-2); border-radius:10px; padding:7px 0; cursor:pointer;
+  }
+  .t-chip.on { background:var(--primary); color:#fff; }
+
+  .opt-row { display:flex; align-items:center; gap:12px; padding:15px 6px; cursor:pointer; border-top:0.5px solid var(--divider); }
+  .opt-row:first-of-type { border-top:none; }
+  .opt-row .o-main { flex:1; }
+  .opt-row .o-t { font-size:15px; font-weight:600; color:var(--text1); }
+  .opt-row .o-s { font-size:12px; color:var(--text2); margin-top:2px; }
+  .opt-check { width:22px; height:22px; border-radius:50%; border:1.8px solid var(--text3);
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; }
+  .opt-row.on .opt-check { background:var(--primary); border-color:var(--primary); }
+
+  /* toast */
+  .toast {
+    position:fixed; left:50%; bottom:38px; transform:translateX(-50%) translateY(16px);
+    background:rgba(30,30,32,.92); color:#fff; font-size:12.5px; padding:11px 20px; border-radius:22px;
+    opacity:0; transition:.3s; z-index:200; pointer-events:none; max-width:82vw; text-align:center; line-height:1.5;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* 脉冲高亮（屏间联动提示） */
+  @keyframes pulseA { 0%,100%{ box-shadow:0 0 0 0 rgba(244,109,56,0);} 40%{ box-shadow:0 0 0 7px rgba(244,109,56,.38);} }
+  .pulse { animation: pulseA 1s ease 2; border-radius:16px; }
+
+  @media (max-width: 900px) { .phone { transform: scale(.92); transform-origin: top center; } .col .desc { max-width: 340px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Holo · 推送管理</h1>
+  <div class="sub">通知设置 2.0：四组收敛全部推送 · 新增账单/预算提醒 · 习惯按条设提醒时间</div>
+</div>
+
+<div class="controls">
+  <div class="brand-chip">本期方案原型 · 纯客户端改动</div>
+  <button class="theme-toggle" id="themeBtn" title="深浅色切换">🌙</button>
+</div>
+
+<div class="hint-bar">
+  ①首页每行 =「什么在推 + 几点推 + 开没开」，一屏看完；点任意行进入<b>②详情页</b>（时间精调、说明、<b>👁 预览通知文案</b>都在详情里）。
+  开关可直接拨；点②权限状态行可切换「未授权」看形态。
+</div>
+
+<div class="stage">
+
+  <!-- ============ 屏 A：推送管理主页 ============ -->
+  <div class="col">
+    <div class="tag"><span class="n">1</span>推送管理主页</div>
+    <div class="phone">
+      <div class="screen" id="screenA">
+        <div class="statusbar"><span>9:41</span></div>
+        <div class="island"></div>
+        <div class="notif-wrap" id="notifA"></div>
+
+        <div class="navbar">
+          <div class="close">关闭</div>
+          <div class="title">通知设置</div>
+          <div class="placeholder"></div>
+        </div>
+
+        <div class="content">
+          <div class="page" id="pageA"><!-- JS 渲染 --></div>
+        </div>
+        <div class="homebar"><div></div></div>
+
+        <div class="pop-dim" id="dimA"></div>
+        <div class="pop" id="popA"></div>
+      </div>
+    </div>
+    <div class="desc">设置 →「通知设置」升级：每类推送一行总览（状态+开关），说明与精调收进详情页——点任意行即到第 ② 屏。</div>
+  </div>
+
+  <!-- ============ 屏 B：习惯提醒管理 ============ -->
+  <div class="col">
+    <div class="tag"><span class="n">2</span>推送详情页（示例 = 习惯）</div>
+    <div class="phone">
+      <div class="screen" id="screenB">
+        <div class="statusbar"><span>9:41</span></div>
+        <div class="island"></div>
+        <div class="notif-wrap" id="notifB"></div>
+
+        <div class="navbar">
+          <div class="back" id="detailBack" onclick="backToA()" style="visibility:hidden">‹ 返回</div>
+          <div class="title" id="detailTitle">习惯打卡提醒</div>
+          <div class="placeholder"></div>
+        </div>
+
+        <div class="content">
+          <div class="page" id="pageB"><!-- JS 渲染 --></div>
+        </div>
+        <div class="homebar"><div></div></div>
+
+        <div class="pop-dim" id="dimB"></div>
+        <div class="pop" id="popB"></div>
+      </div>
+    </div>
+    <div class="desc">从①点任意一行进入对应详情：说明（何时发/何时安静）+ 时间精调 + 👁 通知预览。习惯详情最丰富：兜底时间 + 按习惯三选一 + 规则卡。</div>
+  </div>
+
+  <!-- ============ 屏 C：习惯表单 · 提醒区块 ============ -->
+  <div class="col">
+    <div class="tag"><span class="n">3</span>习惯表单 · 提醒区块</div>
+    <div class="phone">
+      <div class="screen" id="screenC">
+        <div class="statusbar"><span>9:41</span></div>
+        <div class="island"></div>
+        <div class="notif-wrap" id="notifC"></div>
+
+        <div class="sheet-bg">
+          <div class="sheet-ghost">
+            <div class="g-row" style="width:46%"></div>
+            <div class="g-row" style="width:72%"></div>
+            <div class="g-row" style="width:58%"></div>
+          </div>
+          <div class="sheet-dim"></div>
+          <div class="sheet">
+            <div class="grabber"></div>
+            <div class="s-title">新建习惯</div>
+            <div class="s-sub">只展示「打卡提醒」区块 · 上方为图标/名称/类型/频率等表单项</div>
+            <div class="s-fade">· · ·</div>
+
+            <div class="group-head" style="margin-top:0">打卡提醒</div>
+            <div id="formOpts"><!-- JS 渲染 --></div>
+            <button class="sheet-done" onclick="toast('原型示意：保存后立即生效')">保存习惯</button>
+          </div>
+        </div>
+
+        <div class="homebar" style="position:absolute;bottom:0;left:0;right:0;z-index:5"><div></div></div>
+        <div class="pop-dim" id="dimC"></div>
+        <div class="pop" id="popC"></div>
+      </div>
+    </div>
+    <div class="desc">新建/编辑习惯时直接选提醒方式，与②同一套三选一；编辑已有习惯时显示当前值。点时间行可改时间。</div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   数据与状态
+========================================================= */
+const state = {
+  auth: true,
+  daily:   { on: true,  time: '08:00' },
+  habitFB: { on: true,  time: '20:30' },
+  weekly:  { on: true,  time: '08:30' },
+  insightW:{ on: false, weekday: '周一', time: '09:00' },
+  insightM:{ on: false, day: 1, time: '09:00' },
+  bill:    { on: true,  advance: 1, time: '09:00' },   // advance: 0 当天 / 1 提前1天 / 3 提前3天
+  budget:  { on: true },
+  habits: [
+    { id:'read',  emoji:'📖', name:'阅读',     color:'#F46D38', streak:17, mode:'solo',   time:'09:00' },
+    { id:'gym',   emoji:'💪', name:'健身',     color:'#3B82F6', streak:5,  mode:'solo',   time:'18:30' },
+    { id:'medi',  emoji:'🧘', name:'冥想',     color:'#8B5CF6', streak:23, mode:'follow' },
+    { id:'water', emoji:'💧', name:'喝水八杯', color:'#06B6D4', streak:9,  mode:'follow' },
+    { id:'words', emoji:'📚', name:'背单词',   color:'#22C55E', streak:31, mode:'solo',   time:'12:30' },
+    { id:'weight',emoji:'⚖️', name:'记录体重', color:'#9CA3AF', streak:12, mode:'none', numeric: true },
+  ],
+  form: { mode: 'solo', time: '09:00' },   // 屏C 表单
+};
+
+/* =========================================================
+   纯逻辑（DOM stub 可测）
+========================================================= */
+function modeLabel(h, fallbackTime) {
+  if (h.numeric) return { text: '数值型', cls: 'off' };
+  if (h.mode === 'solo')   return { text: h.time, cls: 'solo' };
+  if (h.mode === 'follow') return { text: '跟随兜底', cls: '' };
+  return { text: '不提醒', cls: 'off' };
+}
+function advanceLabel(n) {
+  return n === 0 ? '当天早上' : (n === 1 ? '提前 1 天' : '提前 3 天');
+}
+function soloCount(habits) {
+  return habits.filter(h => h.mode === 'solo').length;
+}
+function followCount(habits) {
+  return habits.filter(h => !h.numeric && h.mode === 'follow').length;
+}
+
+/* 各类推送的预览文案 */
+const NOTIFS = {
+  daily:   { title: '早上好，今天 4 件事',       text: '最要紧：准备周会材料（14:00 截止）· 1 件已过期' },
+  habitFB: { title: '3 个习惯还没打卡',          text: '冥想、喝水八杯、背单词今天还没打卡，坚持住别断了' },
+  habitSolo:{ title: '该阅读了 📖',              text: '「阅读」今天还没打卡 · 已连续 17 天，今天别断了' },
+  weekly:  { title: '上周小结 · 新的一周',        text: '完成 12 件事 · 打卡 5 天｜本周重点：完成产品评审方案' },
+  insightW:{ title: '上周记忆已准备好 ✨',        text: '打开 Holo，查看 AI 为你整理的上周回放' },
+  insightM:{ title: '上月记忆已准备好 ✨',        text: '打开 Holo，查看 AI 为你整理的 7 月回放' },
+  bill:    { title: '房租明天到期 🧾',            text: '周期账单 ¥2,800 · 明天扣款，记得留足余额' },
+  budget:  { title: '「餐饮」预算超支了',         text: '已花 ¥2,340 · 预算 ¥2,000（超出 17%），回到线内前不再提醒' },
+  goal:    { title: '⚠️ 按当前速度可能赶不上',    text: '「体重减到 68kg」预计 9/12 达成，目标是 9/1，要不要调整节奏？' },
+  task:    { title: '准备周会材料',               text: '今天 14:00 截止', actions: ['完成任务', '15分钟后'] },
+  anniv:   { title: '纪念日快到了 💗',            text: '和小雨在一起 3 周年 · 还有 3 天（10月14日）' },
+};
+
+/* =========================================================
+   屏A（推送管理主页）：一行一类，只做总览
+========================================================= */
+let currentDetail = 'habit';
+
+function insightSummary() {
+  const parts = [];
+  if (state.insightW.on) parts.push('周' + state.insightW.time.slice(0,2) + '点');
+  if (state.insightM.on) parts.push('每月' + state.insightM.day + '日');
+  return parts.length ? parts.join(' · ') : '已关闭';
+}
+
+const ROWS = [
+  { group: '每日 · 每周汇总', key: 'daily',  stateKey: 'daily',  icon: '☀️', name: '每日早报',
+    summary: () => state.daily.on ? '每天 ' + state.daily.time : '已关闭' },
+  { key: 'habit', stateKey: 'habitFB', icon: '✅', name: '习惯打卡提醒',
+    summary: () => state.habitFB.on ? '兜底 ' + state.habitFB.time + ' · ' + soloCount(state.habits) + ' 个单独' : '已关闭' },
+  { key: 'weekly', stateKey: 'weekly', icon: '🏁', name: '周一晨报',
+    summary: () => state.weekly.on ? '周一 ' + state.weekly.time : '已关闭' },
+  { key: 'insight', stateKey: 'insightW', icon: '✨', ai: true, name: 'AI 回放', summary: insightSummary },
+
+  { group: '财务提醒 · 本期新增', key: 'bill', stateKey: 'bill', icon: '🧾', name: '周期账单到期提醒', plus: true,
+    summary: () => state.bill.on ? advanceLabel(state.bill.advance) + ' ' + state.bill.time : '已关闭' },
+  { key: 'budget', stateKey: 'budget', icon: '📊', name: '预算超支提醒',
+    summary: () => state.budget.on ? '超支时提醒一次' : '已关闭' },
+
+  { group: '按条设置的提醒', link: true, icon: '🔔', name: '任务提醒',
+    summary: () => '12 条已设置', toastMsg: '原型示意：跳转 → 任务模块（各任务的提醒在任务详情设置）' },
+  { link: true, icon: '💗', name: '纪念日提醒',
+    summary: () => '3 个已设置', toastMsg: '原型示意：跳转 → 纪念日模块（提前天数在纪念日编辑页设置）' },
+
+  { group: 'AI 主动提醒', link: true, icon: '🎯', ai: true, name: '目标风险提醒',
+    summary: () => '2 个目标已开启', toastMsg: '原型示意：跳转 → 目标列表（开关在每个目标详情页，按目标授权）' },
+];
+
+function renderA() {
+  let h = '';
+
+  /* 权限：一行轻状态，未授权才显眼 */
+  h += `
+  <div class="card" onclick="toggleAuth()" style="cursor:pointer;margin-bottom:4px">
+    <div class="row noclick" style="padding:10px 14px">
+      <div style="font-size:15px">${state.auth ? '✅' : '🚫'}</div>
+      <div class="lbl" style="font-size:13px;font-weight:550;color:var(--text2)">
+        ${state.auth ? '通知权限已开启 · 点此模拟关闭' : '通知权限未开启 · 全部推送无法送达，点此模拟开启'}
+      </div>
+    </div>
+  </div>`;
+
+  let lastGroup = '';
+  ROWS.forEach(r => {
+    if (r.group && r.group !== lastGroup) { h += `<div class="group-head">${r.group}</div>`; lastGroup = r.group; }
+    const sum = r.summary();
+    const sk = r.stateKey;
+    h += `
+    <div class="card ${r.link ? '' : (state.auth ? '' : 'dim')}">
+      <div class="row noclick" ${r.link
+        ? `onclick="toast('${r.toastMsg}')"`
+        : `onclick="openDetail('${r.key}')"`}>
+        <div class="ico ${r.ai ? 'ai' : ''}">${r.icon}</div>
+        <div class="lbl">${r.name}${r.plus ? '<span class="plus-badge">PLUS</span>' : ''}</div>
+        <div class="summary">${sum}</div>
+        ${r.link
+          ? '<span class="chev">›</span>'
+          : `<div class="tgl ${state[sk].on ? 'on' : ''}" onclick="event.stopPropagation();toggleKey('${sk}')"></div>`}
+      </div>
+    </div>`;
+  });
+
+  /* 测试：弱化小行 */
+  h += `<div class="group-head" style="margin-top:26px">测试</div>
+  <div style="text-align:center;font-size:12px;color:var(--text3);cursor:pointer;padding:4px" onclick="showNotif('A','daily')">发送测试通知</div>`;
+
+  document.getElementById('pageA').innerHTML = h;
+}
+
+/* 点行进详情（并排原型 = 渲染到屏B + 脉冲提示） */
+function openDetail(key) {
+  currentDetail = key;
+  renderDetail();
+  const phone = document.querySelectorAll('.phone')[1];
+  if (phone) { phone.classList.remove('pulse'); void phone.offsetWidth; phone.classList.add('pulse'); }
+}
+function backToA() { toast('原型为并排展示 · 返回即回到第 ① 屏'); }
+
+/* =========================================================
+   屏B：推送详情页（说明 + 精调 + 预览，按 currentDetail 渲染）
+========================================================= */
+const DETAILS = {
+  daily:  { title: '每日早报', icon: '☀️', intro: '每天早上一条通知：今天几件事、最要紧的是哪件、有没有已过期的。当天没有待办时保持安静，不会打扰。', preview: 'daily' },
+  weekly: { title: '周一晨报', icon: '🏁', intro: '每周一一条通知：上周完成几件事、打卡几天、本周重点是什么，点开直达今日看板。上周没有任何记录时保持安静。', preview: 'weekly' },
+  budget: { title: '预算超支提醒', icon: '📊', intro: '某个预算超支的当天提醒一次；回到预算线内之前不再重复，之后再超支才会再提醒——不会天天念叨。', preview: 'budget' },
+};
+
+function detailRow(onclick, inner) {
+  return `<div class="sep-in row noclick" onclick="${onclick || ''}">${inner}</div>`;
+}
+function timeRowHTML(lbl, val, onclick) {
+  return `<div class="ico">🕘</div><div class="lbl">${lbl}</div><div class="val time">${val}</div>`;
+}
+
+function renderDetail() {
+  const k = currentDetail;
+  let h = '';
+
+  if (k === 'habit') {
+    document.getElementById('detailTitle').textContent = '习惯打卡提醒';
+    const fb = state.habitFB;
+    h += `
+    <div class="rules-card" style="margin-top:8px">
+      <div style="font-size:12.5px;line-height:1.75;color:var(--text2)">没单独设时间的习惯，会在<b style="color:var(--text1)">兜底时间</b>收到一条汇总提醒；当天全部打卡完成不打扰，文案带连续天数。</div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="row noclick">
+        <div class="ico">🌙</div>
+        <div class="lbl">兜底汇总提醒</div>
+        <div class="tgl ${fb.on ? 'on' : ''}" onclick="toggleKey('habitFB')"></div>
+      </div>
+      ${fb.on ? detailRow(`openTime('B','habitFB')`, timeRowHTML('兜底时间', fb.time)) : ''}
+    </div>
+    <div class="group-head">按习惯设置 <span style="font-weight:500;color:var(--text3)">点任意习惯修改</span></div>
+    <div class="card">`;
+    state.habits.forEach((hb, i) => {
+      const m = modeLabel(hb);
+      h += `
+      ${i > 0 ? '<div class="sep-in"></div>' : ''}
+      <div class="row habit-row ${hb.numeric ? 'disabled' : ''}" ${hb.numeric ? '' : `onclick="openHabitSheet('${hb.id}')"`}>
+        <div class="h-ico" style="background:${hb.color}22">${hb.emoji}</div>
+        <div class="lbl" style="flex-direction:column;align-items:flex-start;gap:0">
+          <div class="h-name">${hb.name}</div>
+          <div class="h-meta">${hb.numeric ? '数值型 · 不参与提醒' : `<span class="h-streak">🔥 ${hb.streak} 天</span> · 每天打卡`}</div>
+        </div>
+        ${hb.numeric ? '' : `<div class="mode-val ${m.cls}">${m.text}</div><div class="chev" style="margin-left:4px">›</div>`}
+      </div>`;
+    });
+    h += `</div>
+    <div class="rules-card" style="margin-top:16px">
+      <div class="r-title">提醒规则</div>
+      <div class="r-item">单独设了时间的习惯按自己的时间提醒，当天不再进兜底汇总——同一习惯一天最多提醒一次。</div>
+      <div class="r-item">当天已打卡的习惯不会收到任何提醒。</div>
+      <div class="r-item">只有打卡型习惯能设提醒（数值型如「记录体重」不提醒）。</div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="preview-row" onclick="showNotif('B','habitFB')">👁 预览 · 多个习惯的兜底通知</div>
+      <div class="sep-in"></div>
+      <div class="preview-row" onclick="showNotif('B','habitSolo')">👁 预览 · 单独时间的通知</div>
+    </div>`;
+
+  } else if (k === 'insight') {
+    document.getElementById('detailTitle').textContent = 'AI 回放';
+    h += `
+    <div class="rules-card" style="margin-top:8px">
+      <div style="font-size:12.5px;line-height:1.75;color:var(--text2)">AI 会把你的上周 / 上月记录整理成回放，生成后通知你查看。周 / 月可以分别开关。</div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="row noclick">
+        <div class="ico ai">✨</div>
+        <div class="lbl">每周提醒我生成周回放</div>
+        <div class="tgl ${state.insightW.on ? 'on' : ''}" onclick="toggleKey('insightW')"></div>
+      </div>
+      ${state.insightW.on ? detailRow(`toast('周几沿用现有 Picker，原型略')`, timeRowHTML('提醒时间', state.insightW.weekday + ' ' + state.insightW.time)) : ''}
+      <div class="sep-in row noclick">
+        <div class="ico ai">🗓</div>
+        <div class="lbl">每月提醒我生成月回放</div>
+        <div class="tgl ${state.insightM.on ? 'on' : ''}" onclick="toggleKey('insightM')"></div>
+      </div>
+      ${state.insightM.on ? detailRow(`toast('日期沿用现有 Picker，原型略')`, timeRowHTML('提醒时间', '每月' + state.insightM.day + '日 ' + state.insightM.time)) : ''}
+    </div>
+    <div class="card" style="margin-top:14px"><div class="preview-row" onclick="showNotif('B','insightW')">👁 预览 · 周回放通知</div>
+      <div class="sep-in"></div>
+      <div class="preview-row" onclick="showNotif('B','insightM')">👁 预览 · 月回放通知</div>
+    </div>`;
+
+  } else if (k === 'bill') {
+    document.getElementById('detailTitle').textContent = '周期账单到期提醒';
+    h += `
+    <div class="rules-card" style="margin-top:8px">
+      <div style="font-size:12.5px;line-height:1.75;color:var(--text2)">房租、订阅等周期账单，到期前提醒一次，点开可快速记一笔。仅 Plus 账户可用（随周期账单功能）。</div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="row noclick">
+        <div class="ico">🧾</div>
+        <div class="lbl">到期提醒 <span class="plus-badge">PLUS</span></div>
+        <div class="tgl ${state.bill.on ? 'on' : ''}" onclick="toggleKey('bill')"></div>
+      </div>
+      ${state.bill.on ? `
+      <div class="chips" style="border-top:0.5px solid var(--divider)">
+        ${[0,1,3].map(n => `<div class="chip ${state.bill.advance === n ? 'on' : ''}" onclick="setAdvance(${n})">${advanceLabel(n)}</div>`).join('')}
+      </div>
+      <div class="sep-in row noclick" style="border-top:none">
+        <div class="ico">🕘</div><div class="lbl">提醒时间</div>
+        <div class="val time" onclick="openTime('B','bill')">${state.bill.time}</div>
+      </div>` : ''}
+    </div>
+    <div class="card" style="margin-top:14px"><div class="preview-row" onclick="showNotif('B','bill')">👁 预览 · 到期提醒通知</div></div>`;
+
+  } else {
+    /* daily / weekly / budget：开关 + 时间 + 说明 + 预览 */
+    const d = DETAILS[k];
+    const s = state[k];
+    document.getElementById('detailTitle').textContent = d.title;
+    h += `
+    <div class="rules-card" style="margin-top:8px">
+      <div style="font-size:12.5px;line-height:1.75;color:var(--text2)">${d.intro}</div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="row noclick">
+        <div class="ico">${d.icon}</div>
+        <div class="lbl">${d.title}</div>
+        <div class="tgl ${s.on ? 'on' : ''}" onclick="toggleKey('${k}')"></div>
+      </div>
+      ${s.on && k !== 'budget' ? detailRow(`openTime('B','${k}')`, timeRowHTML(k === 'weekly' ? '提醒时间' : '提醒时间', (k === 'weekly' ? '周一 ' : '') + s.time)) : ''}
+    </div>
+    <div class="card" style="margin-top:14px"><div class="preview-row" onclick="showNotif('B','${d.preview}')">👁 预览 · 通知样式</div></div>`;
+  }
+
+  document.getElementById('pageB').innerHTML = h;
+}
+
+/* =========================================================
+   渲染 · 屏C（习惯表单提醒区块）
+========================================================= */
+function renderC() {
+  const f = state.form;
+  const fbTime = state.habitFB.time;
+  const opts = [
+    { key:'follow', lbl:'跟随兜底提醒', sub:`每天 ${fbTime} 与其他没单独设时间的习惯一起汇总提醒` },
+    { key:'solo',   lbl:'设单独提醒时间', sub:'到点单独提醒这一个习惯（推荐给有固定时段的习惯）' },
+    { key:'none',   lbl:'不提醒', sub:'这个习惯不接收任何打卡提醒' },
+  ];
+  let h = '';
+  opts.forEach(o => {
+    h += `
+    <div class="opt-card ${f.mode === o.key ? 'on' : ''}" onclick="setFormMode('${o.key}')">
+      <div class="radio"></div>
+      <div style="flex:1">
+        <div class="o-lbl">${o.lbl}</div>
+        <div class="o-sub">${o.sub}</div>
+        ${o.key === 'solo' && f.mode === 'solo' ? `
+        <div class="opt-time-row" onclick="event.stopPropagation();openFormTime()">
+          <div class="t-lbl">提醒时间</div>
+          <div class="t-val">${f.time}</div>
+        </div>` : ''}
+      </div>
+    </div>`;
+  });
+  document.getElementById('formOpts').innerHTML = h;
+}
+
+/* =========================================================
+   交互
+========================================================= */
+function toggleKey(key) {
+  state[key].on = !state[key].on;
+  renderA(); renderDetail(); renderC();
+}
+function toggleAuth() {
+  state.auth = !state.auth;
+  toast(state.auth ? '已切换为「已授权」' : '已切换为「未授权」— 推送开关呈现禁用形态');
+  renderA();
+}
+function setAdvance(n) { state.bill.advance = n; renderA(); renderDetail(); }
+function setFormMode(m) { state.form.mode = m; renderC(); }
+
+/* toast */
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* 通知横幅 */
+function showNotif(screen, key) {
+  const n = NOTIFS[key];
+  if (!n) return;
+  const wrap = document.getElementById('notif' + screen);
+  const el = document.createElement('div');
+  el.className = 'notif';
+  el.innerHTML = `
+    <div class="n-ico"><span>Holo</span></div>
+    <div class="n-body">
+      <div class="n-head"><span class="n-app">Holo</span><span class="n-time">现在</span></div>
+      <div class="n-title">${n.title}</div>
+      <div class="n-text">${n.text}</div>
+      ${n.actions ? `<div class="n-actions">${n.actions.map(a => `<div class="n-btn">${a}</div>`).join('')}</div>` : ''}
+    </div>`;
+  el.onclick = () => hideNotif(el);
+  wrap.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  setTimeout(() => hideNotif(el), 4200);
+}
+function hideNotif(el) {
+  el.classList.remove('show');
+  setTimeout(() => el.remove(), 400);
+}
+
+/* 底部弹层（时间选择） */
+let pickerCtx = null;   // { screen, apply(hour,min) }
+function openTime(screen, key) {
+  const cur = state[key].time;
+  const parts = cur.split(':').map(Number);
+  pickerCtx = { screen, key };
+  openPicker(screen, '提醒时间', parts[0], parts[1]);
+}
+function openFormTime() {
+  const parts = state.form.time.split(':').map(Number);
+  pickerCtx = { screen: 'C', key: 'form' };
+  openPicker('C', '提醒时间', parts[0], parts[1]);
+}
+function openPicker(screen, title, hour, minute) {
+  const hours = []; for (let i = 0; i < 24; i++) hours.push(i);
+  const mins = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+  if (!mins.includes(minute)) mins.push(minute), mins.sort((a,b)=>a-b);
+  const pop = document.getElementById('pop' + screen);
+  pop.innerHTML = `
+    <div class="p-head">
+      <div class="p-cancel" onclick="closePop('${screen}')">取消</div>
+      <div class="p-title">${title}</div>
+      <div class="p-ok" onclick="confirmPicker()">确定</div>
+    </div>
+    <div class="t-chips-label">小时</div>
+    <div class="t-chips">${hours.map(hh => `<div class="t-chip ${hh === hour ? 'on' : ''}" data-h="${hh}">${String(hh).padStart(2,'0')}</div>`).join('')}</div>
+    <div class="t-chips-label">分钟</div>
+    <div class="t-chips">${mins.map(mm => `<div class="t-chip ${mm === minute ? 'on' : ''}" data-m="${mm}">${String(mm).padStart(2,'0')}</div>`).join('')}</div>`;
+  pop._hour = hour; pop._minute = minute;
+  pop.querySelectorAll('[data-h]').forEach(c => c.onclick = () => {
+    pop._hour = +c.dataset.h;
+    pop.querySelectorAll('[data-h]').forEach(x => x.classList.toggle('on', x === c));
+  });
+  pop.querySelectorAll('[data-m]').forEach(c => c.onclick = () => {
+    pop._minute = +c.dataset.m;
+    pop.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === c));
+  });
+  document.getElementById('dim' + screen).classList.add('show');
+  pop.classList.add('show');
+}
+function confirmPicker() {
+  if (!pickerCtx) return closePop(pickerCtxScreen());
+  const pop = document.getElementById('pop' + pickerCtx.screen);
+  const t = String(pop._hour).padStart(2,'0') + ':' + String(pop._minute).padStart(2,'0');
+  if (pickerCtx.key === 'form') state.form.time = t;
+  else state[pickerCtx.key].time = t;
+  closePop(pickerCtx.screen);
+  renderA(); renderDetail(); renderC();
+}
+function pickerCtxScreen() { return pickerCtx ? pickerCtx.screen : 'A'; }
+function closePop(screen) {
+  document.getElementById('dim' + screen).classList.remove('show');
+  document.getElementById('pop' + screen).classList.remove('show');
+}
+
+/* 习惯三选一弹层 */
+function openHabitSheet(id) {
+  const hb = state.habits.find(x => x.id === id);
+  if (!hb) return;
+  const fbTime = state.habitFB.time;
+  const opts = [
+    { key:'none',   t:'不提醒这个习惯',    s:'关闭后既不单独提醒、也不进兜底汇总' },
+    { key:'follow', t:'跟随兜底提醒',      s:`每天 ${fbTime} 与其他习惯一起汇总提醒` },
+    { key:'solo',   t:'设单独提醒时间',    s:'选完后再选具体时间' },
+  ];
+  const pop = document.getElementById('popB');
+  pop.innerHTML = `
+    <div class="p-head">
+      <div class="p-cancel" onclick="closePop('B')">取消</div>
+      <div class="p-title">${hb.emoji} ${hb.name} · 打卡提醒</div>
+      <div class="p-ok" onclick="confirmHabit('${id}')">确定</div>
+    </div>
+    ${opts.map(o => `
+      <div class="opt-row ${hb.mode === o.key ? 'on' : ''}" data-mode="${o.key}">
+        <div class="o-main"><div class="o-t">${o.t}</div><div class="o-s">${o.s}</div></div>
+        <div class="opt-check">${hb.mode === o.key ? '✓' : ''}</div>
+      </div>`).join('')}`;
+  pop._mode = hb.mode; pop._habitId = id;
+  pop.querySelectorAll('[data-mode]').forEach(r => r.onclick = () => {
+    pop._mode = r.dataset.mode;
+    pop.querySelectorAll('[data-mode]').forEach(x => {
+      x.classList.toggle('on', x === r);
+      x.querySelector('.opt-check').textContent = (x === r) ? '✓' : '';
+    });
+  });
+  document.getElementById('dimB').classList.add('show');
+  pop.classList.add('show');
+}
+function confirmHabit(id) {
+  const pop = document.getElementById('popB');
+  const hb = state.habits.find(x => x.id === id);
+  hb.mode = pop._mode;
+  if (pop._mode === 'solo' && !hb.time) hb.time = '09:00';
+  closePop('B');
+  renderDetail(); renderA();
+  if (pop._mode === 'solo') toast(`已设单独时间 ${hb.time} · 可点该习惯行再调整`);
+}
+
+/* 深浅色 */
+document.getElementById('themeBtn').onclick = function () {
+  document.body.classList.toggle('dark');
+  this.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+};
+
+/* 初始渲染 */
+renderA(); renderDetail(); renderC();
+</script>
+</body>
+</html>

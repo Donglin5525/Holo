@@ -60,7 +60,8 @@ struct WeeklyGridAxisProfileStandaloneTests {
         testCumulativeOffsetsAndMinutePosition()
         testEventsRemainIndividuallyVisibleWithinLimit()
         testOverflowContainsCompleteHourList()
-        print("WeeklyGridAxisProfileStandaloneTests passed (5 cases)")
+        testScaledExtremeOverflowStaysInsideHour()
+        print("WeeklyGridAxisProfileStandaloneTests passed (6 cases)")
     }
 
     private static func testHeightTiers() {
@@ -142,6 +143,28 @@ struct WeeklyGridAxisProfileStandaloneTests {
         expectWeeklyGridAxis(overflow?.events.count == 6, "溢出入口应携带该小时完整事件清单")
         expectWeeklyGridAxis(overflow?.top == 111 && overflow?.height == 17,
                "溢出入口应落在 131pt 封顶小时内")
+    }
+
+    private static func testScaledExtremeOverflowStaysInsideHour() {
+        let events = (0..<20).map { index in
+            event(.thought, hour: 18, minute: index, title: "密集记录 \(index + 1)", idSuffix: 100 + index)
+        }
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[18: events.count]],
+            startHour: 18,
+            endHour: 18,
+            scale: 2.6
+        )
+
+        let layout = WeeklyGridEventLayout.layout(events: events, axisProfile: profile)
+        let hourBottom = profile.height(for: 18)
+        let overflow = layout.displayItems.last
+
+        expectWeeklyGridAxis(layout.displayItems.allSatisfy { $0.top + $0.height <= hourBottom },
+               "最大缩放和极端密度下，明细与溢出入口都不能越过当前小时")
+        expectWeeklyGridAxis(overflow?.isOverflow == true, "极端密度应保留完整清单入口")
+        expectWeeklyGridAxis(overflow?.events.count == events.count,
+               "极端密度的溢出入口仍应携带该小时完整事件清单")
     }
 
     private static func event(_ module: CalendarModule,

@@ -53,6 +53,8 @@ struct TasksView: View {
     @State private var showNotificationSettings: Bool = false
     /// 任务列表当前筛选，用于底部新增按钮继承「今日」或具体清单上下文。
     @State private var selectedTaskFilter: TaskFilterType = .today
+    /// 小组件/通知深链：纪念日目标落到待办模块时切到纪念日 Tab（此前 pendingTarget 无人消费）
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     /// 直接使用单例，避免 @StateObject 创建新实例
     private var repository: TodoRepository { TodoRepository.shared }
@@ -82,6 +84,10 @@ struct TasksView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        .onAppear { handleDeepLink() }
+        .onChange(of: deepLinkState.pendingTarget) { _, _ in
+            handleDeepLink()
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             todoTabBar
         }
@@ -91,6 +97,19 @@ struct TasksView: View {
                 list: selectedListForNewTask,
                 defaultDueDate: defaultDueDateForNewTask
             )
+        }
+    }
+
+    /// 纪念日深链（小组件 + 通知提醒）：切到纪念日 Tab 并消费目标。
+    /// 任务详情目标仍由 TaskListView.handleDeepLink() 消费，这里只处理纪念日。
+    private func handleDeepLink() {
+        guard let target = deepLinkState.pendingTarget else { return }
+        switch target {
+        case .anniversaries, .anniversaryDetail:
+            selectedTab = .anniversary
+            deepLinkState.pendingTarget = nil
+        default:
+            break
         }
     }
 

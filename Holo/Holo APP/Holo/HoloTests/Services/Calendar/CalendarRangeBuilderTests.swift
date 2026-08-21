@@ -20,11 +20,6 @@ final class CalendarRangeBuilderTests: XCTestCase {
         return Calendar.current.date(from: c) ?? Date()
     }
 
-    @MainActor
-    func test_calendarViewModel默认打开周历网格视图() {
-        XCTAssertEqual(CalendarViewModel.defaultWeekViewMode, .grid, "周历首屏应默认展示时间轴网格，贴近日历原型")
-    }
-
     // MARK: - weekRange（周一首）
 
     func test_weekRange周中输入返回周一首区间() {

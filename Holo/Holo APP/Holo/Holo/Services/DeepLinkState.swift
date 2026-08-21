@@ -133,6 +133,14 @@ private extension DeepLinkTarget {
             self = .addTask
         case .thoughtDetail(let id):
             self = .thoughtDetail(thoughtId: id)
+        case .habits:
+            self = .habits
+        case .tasks:
+            self = .tasks
+        case .goalDetail(let id):
+            self = .goalDetail(goalId: id)
+        case .anniversaries:
+            self = .anniversaries
         }
     }
 }

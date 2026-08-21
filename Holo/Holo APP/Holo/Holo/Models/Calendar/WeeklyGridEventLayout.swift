@@ -84,7 +84,19 @@ struct WeeklyGridEventLayout {
 
         return hourlyGroups.keys.sorted().flatMap { hour in
             let hourEvents = (hourlyGroups[hour] ?? []).sorted(by: eventComesBefore)
-            let capacity = visibleCapacity(hourHeight: axisProfile.height(for: hour))
+            let hourHeight = axisProfile.height(for: hour)
+            let rawCapacity = visibleCapacity(hourHeight: hourHeight)
+            // 放大时间轴后单小时可能容纳十余条记录；一旦仍有溢出，需要先为“还有 N 条”
+            // 入口预留高度，否则极限密度下最后一行会越过本小时边界。
+            let capacity: Int
+            if hourEvents.count > rawCapacity {
+                let capacityWithOverflow = Int(
+                    floor((hourHeight - multiEventTopPadding - overflowHeight) / eventPitch)
+                )
+                capacity = max(1, min(rawCapacity, capacityWithOverflow))
+            } else {
+                capacity = rawCapacity
+            }
             let visibleEvents = Array(hourEvents.prefix(capacity))
             let hourTop = axisProfile.top(for: hour)
             let topPadding: CGFloat = visibleEvents.count <= 1 ? singleEventTopPadding : multiEventTopPadding

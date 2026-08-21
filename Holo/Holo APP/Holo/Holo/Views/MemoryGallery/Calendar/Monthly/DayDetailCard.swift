@@ -2,7 +2,7 @@
 //  DayDetailCard.swift
 //  Holo
 //
-//  月历选中当天的详情卡：平铺当天全部事件，按模块分组
+//  月历选中日的「记忆时刻」预览：与日回放共用同一份聚合语义和卡片语言。
 //
 
 import SwiftUI
@@ -10,114 +10,120 @@ import SwiftUI
 struct DayDetailCard: View {
     let day: Date
     let events: [CalendarEvent]
+    let onSelect: (CalendarEvent) -> Void
+    let onSelectGroup: ([CalendarEvent]) -> Void
+    /// 切到日档连续回放该日；无记录时不显示。
+    var onReplay: (() -> Void)? = nil
+
+    private var moments: [DailyReplayMoment] {
+        DailyReplayPresentation.moments(from: events)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             header
-            ForEach(groupedModules, id: \.module.rawValue) { group in
-                moduleSection(group)
+
+            if moments.isEmpty {
+                emptyState
+            } else {
+                ForEach(moments) { moment in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(moment.timeText)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.holoTextSecondary)
+                            .monospacedDigit()
+                            .frame(width: 42, alignment: .trailing)
+                            .padding(.top, 14)
+
+                        DailyReplayEventCard(
+                            moment: moment,
+                            onSelect: onSelect,
+                            onSelectGroup: onSelectGroup
+                        )
+                    }
+                }
             }
         }
-        .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
     }
-
-    // MARK: - 衍生
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.xs) {
-            Text(headerDateText)
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-            if events.isEmpty {
-                Text("· 无记录")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            } else {
-                Text("· \(events.count) 条")
-                    .font(.holoCaption)
+        HStack(alignment: .center, spacing: HoloSpacing.sm) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(headerDateText)
+                    .font(.system(size: 18, weight: .semibold, design: .serif))
+                    .foregroundColor(.holoTextPrimary)
+
+                Text(moments.isEmpty ? "这一天很安静" : "\(moments.count) 个记忆时刻")
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
             }
-            Spacer()
-        }
-    }
 
-    /// 按 module 分组，组内按时间升序，组间按 rawValue 稳定排序
-    private var groupedModules: [(module: CalendarModule, events: [CalendarEvent])] {
-        Dictionary(grouping: events) { $0.module }
-            .map { (module: $0.key, events: $0.value.sorted { $0.date < $1.date }) }
-            .sorted { $0.module.rawValue < $1.module.rawValue }
-    }
+            Spacer(minLength: HoloSpacing.sm)
 
-    private func moduleSection(_ group: (module: CalendarModule, events: [CalendarEvent])) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-            HStack(spacing: 5) {
-                Circle().fill(group.module.color).frame(width: 8, height: 8)
-                Text(group.module.displayName)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                Text("· \(group.events.count)")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-            }
-            ForEach(group.events) { event in
-                eventRow(event, module: group.module)
-            }
-        }
-    }
-
-    private func eventRow(_ event: CalendarEvent, module: CalendarModule) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: module.iconName)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(module.color)
-                .frame(width: 24, height: 24)
-                .background(module.color.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(Self.timeText(for: event.date))
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(.holoTextSecondary)
-                    Text(event.title)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
+            if let onReplay {
+                Button(action: onReplay) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("回放这一天")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 11)
+                    .frame(minHeight: 34)
+                    .background(Color.holoPrimary.opacity(0.09))
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                            .stroke(Color.holoPrimary.opacity(0.14), lineWidth: 1)
+                    )
                 }
-                if let detail = event.detail {
-                    Text(detail)
-                        .font(.holoCaption)
-                        .foregroundColor(module.color)
-                        .lineLimit(1)
-                }
+                .buttonStyle(.plain)
+                .accessibilityHint("切换到日视图，从这一天开始连续回看")
             }
-            Spacer()
         }
-        .padding(.vertical, 2)
+        .padding(.bottom, HoloSpacing.sm)
+        .overlay(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [Color.holoPrimary.opacity(0.55), Color.holoBorder.opacity(0.18)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 1)
+        }
+    }
+
+    private var emptyState: some View {
+        Text("没有记录也构成生活的一部分。你可以选择其他日期，或回到今天继续记录。")
+            .font(.system(size: 11, weight: .medium, design: .serif))
+            .foregroundColor(.holoTextPlaceholder)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color.holoCardBackground.opacity(0.32))
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color.holoBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
     private var headerDateText: String {
-        if Calendar.current.isDateInToday(day) { return "今天" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日 EEE"
-        return f.string(from: day)
+        if Calendar.current.isDateInToday(day) { return "今天 · \(Self.weekdayFormatter.string(from: day))" }
+        return Self.dateFormatter.string(from: day)
     }
 
-    private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "HH:mm"
-        return f
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 · EEEE"
+        return formatter
     }()
 
-    private static func timeText(for date: Date) -> String {
-        timeFormatter.string(from: date)
-    }
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
 }

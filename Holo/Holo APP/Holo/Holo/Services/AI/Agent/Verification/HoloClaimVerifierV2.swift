@@ -164,6 +164,83 @@ nonisolated struct HoloClaimVerifierV2 {
         claims.map { verify(claim: $0, evidence: evidence, context: context) }
     }
 
+    /// 对模型的“字段映射错误”做有限、可证明的修复，不放宽真实性门槛：
+    /// - 只处理 observation/correlation 等事实型 claim，建议、预测、诊断、因果结论绝不改写；
+    /// - 只能把单条引用的 assertion 校准为该条 evidence 的确定值/指标/单位；
+    /// - 正文夹带无依据数字时，只用已经引用的结构化 assertion 重新生成事实句。
+    /// 修复后的 claim 仍须完整通过 V2 verifier，不能绕过任何校验维度。
+    static func repairFactualGrounding(
+        claim: HoloAgentClaim,
+        evidence: [HoloEvidenceRecord]
+    ) -> HoloAgentClaim {
+        let repairableTypes: Set<String> = [
+            "observation", "correlation", "comparison", "trend", "pattern", "cross_domain"
+        ]
+        guard repairableTypes.contains(claim.type.lowercased()),
+              !HoloAgentAnswerRequestPolicy.isRecommendationClaim(claim) else {
+            return claim
+        }
+
+        let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var repaired = claim
+        repaired.metricAssertions = claim.metricAssertions.map { assertion in
+            var updated = assertion
+            let cited = assertion.evidenceIDs.compactMap { evidenceByID[$0] }
+                .filter { $0.status == .active }
+            guard !cited.isEmpty else { return updated }
+
+            let evidenceValues = cited.compactMap(\.metricValue)
+            let hasSupportedValue: Bool
+            if let value = assertion.value {
+                let directMatch = evidenceValues.contains { valuesApproximatelyEqual(value, $0) }
+                let sumMatch = evidenceValues.count > 1
+                    && valuesApproximatelyEqual(value, evidenceValues.reduce(0, +))
+                hasSupportedValue = directMatch || sumMatch
+            } else {
+                hasSupportedValue = false
+            }
+
+            // 只有单一引用才能无歧义地校准。若错误数字已经写进正文则不擅自改文案，
+            // 继续交给 verifier 拒绝；本次事故里的 100% 仅存在于 assertion，正文是 14 次。
+            if cited.count == 1,
+               let record = cited.first,
+               let evidenceValue = record.metricValue,
+               (!hasSupportedValue || !metricKeysShareDomain(assertion.metricKey, record.metricKey)),
+               assertion.value.map({ HoloAgentClaimTextGroundingPolicy.containsNumericValue($0, in: claim.displayText) }) != true,
+               sameTopLevelDomain(assertion.metricKey, record.metricKey) {
+                updated.metricKey = record.metricKey
+                updated.value = evidenceValue
+                updated.unit = record.unit
+                updated.baselineValue = record.baselineValue
+                updated.comparison = record.comparison ?? assertion.comparison
+            } else if cited.count == 1,
+                      let record = cited.first,
+                      hasSupportedValue,
+                      !metricKeysShareDomain(assertion.metricKey, record.metricKey),
+                      sameTopLevelDomain(assertion.metricKey, record.metricKey) {
+                // 数值正确但模型套错固定 metricKey（如 control_rate 引 daily_cigarettes）。
+                updated.metricKey = record.metricKey
+                updated.unit = record.unit
+            }
+            return updated
+        }
+
+        if !HoloAgentClaimTextGroundingPolicy.unsupportedNumbers(in: repaired, evidence: evidence).isEmpty {
+            let rebuilt = repaired.metricAssertions.compactMap {
+                HoloMetricSemanticCatalog.sentence(
+                    metricKey: $0.metricKey,
+                    value: $0.value,
+                    unit: $0.unit,
+                    comparison: $0.comparison
+                )
+            }
+            if !rebuilt.isEmpty {
+                repaired.displayText = rebuilt.joined(separator: "；")
+            }
+        }
+        return repaired
+    }
+
     // MARK: - 校验维度实现
 
     private func checkEvidenceExists(
@@ -211,8 +288,8 @@ nonisolated struct HoloClaimVerifierV2 {
             )
         }
         for assertion in claim.metricAssertions {
-            for evID in assertion.evidenceIDs {
-                guard let record = evidenceByID[evID] else { continue }
+            let citedRecords = assertion.evidenceIDs.compactMap { evidenceByID[$0] }
+            for record in citedRecords {
                 // metricKey 不要求逐字相等：dynamic_query 产出的 evidence metricKey 是
                 // "dynamic.health.steps.average_sleep.all" 这种动态格式，而 LLM claim 用的是
                 // 固定名 "health.steps.average"。只要两者属于同一数据域（核心 token 重叠）即可。
@@ -220,9 +297,21 @@ nonisolated struct HoloClaimVerifierV2 {
                 if !Self.metricKeysShareDomain(assertion.metricKey, record.metricKey) {
                     return HoloDimensionCheck(dimension: .metricRecomputable, passed: false, severity: .critical, detail: "metricKey 数据域不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)")
                 }
-                if let value = assertion.value, let evidenceValue = record.metricValue,
-                   !Self.valuesApproximatelyEqual(value, evidenceValue) {
-                    return HoloDimensionCheck(dimension: .metricRecomputable, passed: false, severity: .critical, detail: "value 不一致：claim=\(value) evidence=\(evidenceValue)")
+            }
+            if let value = assertion.value {
+                let evidenceValues = citedRecords.compactMap(\.metricValue)
+                let directMatch = evidenceValues.contains { Self.valuesApproximatelyEqual(value, $0) }
+                // 一个 assertion 可以明确引用多个同指标 evidence 组成聚合值，例如
+                // “烟 2 笔 + 酒 1 笔 = 烟酒 3 笔”。此前逐条要求等于 3 会误杀有效结论。
+                let sumMatch = evidenceValues.count > 1
+                    && Self.valuesApproximatelyEqual(value, evidenceValues.reduce(0, +))
+                if !evidenceValues.isEmpty, !directMatch, !sumMatch {
+                    return HoloDimensionCheck(
+                        dimension: .metricRecomputable,
+                        passed: false,
+                        severity: .critical,
+                        detail: "value 无法由引用 evidence 复算：claim=\(value) evidence=\(evidenceValues)"
+                    )
                 }
             }
         }
@@ -244,6 +333,16 @@ nonisolated struct HoloClaimVerifierV2 {
         let evidenceTokens = coreTokens(evidenceKey)
         let meaningful = claimTokens.intersection(evidenceTokens).subtracting(["all", "unknown"])
         return meaningful.count >= 2
+    }
+
+    private static func sameTopLevelDomain(_ lhs: String, _ rhs: String) -> Bool {
+        func domain(_ key: String) -> String? {
+            let parts = key.split(separator: ".").map(String.init)
+            if parts.first == "dynamic" { return parts.dropFirst().first }
+            return parts.first
+        }
+        guard let lhsDomain = domain(lhs), let rhsDomain = domain(rhs) else { return false }
+        return lhsDomain == rhsDomain
     }
 
     /// value 近似相等判断：容忍 LLM 对数字的合理取整（如 7999.8 写成 8000、6.8 写成 7）。

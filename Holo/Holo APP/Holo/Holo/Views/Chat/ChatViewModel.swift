@@ -38,6 +38,8 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var hasEarlierSessions: Bool = false
     @Published private(set) var isLoadingEarlierSession: Bool = false
     @Published private(set) var earlierHistoryLoadFailed: Bool = false
+    /// 用户从某份 Agent Result 发起的短时追问锚点；发送、取消或离开页面后清空。
+    @Published var continuationDraft: HoloAgentContinuationDraft?
 
     // MARK: - Private
 
@@ -144,6 +146,30 @@ final class ChatViewModel: ObservableObject {
         logger.info("AI 已配置为 Holo 后端网关")
     }
 
+    // MARK: - Paused Agent Jobs Resume
+
+    /// Chat 页兜底：存在暂停态（waitingForForeground/paused）的 Agent job 时拉起恢复链。
+    /// 生命周期事件（回前台/解锁/冷启动）的恢复各有条件，一旦错过时机任务会一直停在
+    /// 「已暂停」；页面就绪是用户注意力所在，此处兜底最可靠。
+    /// Scheduler 唯一执行权 + manager 内部 cancel 旧任务，重复调用无副作用。
+    func resumePausedAgentJobsIfNeeded() {
+        guard !isStreaming else { return }
+        HoloBackgroundContinuationManager.shared.resumePausedJobsForChatAppearance()
+    }
+
+    /// 暂停卡片「立即继续」按钮的手动入口（与自动兜底同一条恢复链）。
+    /// 点击瞬间先把消息置为「正在继续分析…」——状态走消息管道立即上屏，
+    /// 不等恢复链跑完才变样；之后由轮询/同步刷成真实进度。
+    func resumePausedAgentJobs(sourceMessageID: UUID? = nil) {
+        if let sourceMessageID, let repo = chatRepo {
+            repo.updateAgentMessageProgress(
+                sourceMessageID,
+                status: HoloAgentChatStatusPresenter.resumingStatus()
+            )
+        }
+        HoloBackgroundContinuationManager.shared.resumePausedJobsForChatAppearance()
+    }
+
     private func bootstrapChatRepositoryIfNeeded() {
         guard chatRepo == nil, repositoryBootstrapTask == nil else { return }
 
@@ -170,6 +196,7 @@ final class ChatViewModel: ObservableObject {
                 let preserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
                     .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
                 await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: preserved)
+                self.resumePausedAgentJobsIfNeeded()
             }
         }
     }
@@ -260,6 +287,223 @@ final class ChatViewModel: ObservableObject {
         isConfigured = true
     }
 
+    // MARK: - Agent Continuation
+
+    /// 从已完成的 Result 建立输入栏锚点。只保存身份和展示摘要，
+    /// 真正执行时由 Runtime 重新读取 canonical Job / Result / Evidence。
+    func startContinuation(from result: HoloRenderedAgentResult) {
+        guard result.failure == nil,
+              let parentJobID = result.agentJobID,
+              let parentResultID = result.agentResultID else {
+            errorMessage = "这份历史分析缺少可追溯依据，请重新发起一次分析。"
+            return
+        }
+
+        continuationDraft = HoloAgentContinuationDraft(
+            parentJobID: parentJobID,
+            parentResultID: parentResultID,
+            rootUserQuestion: result.rootUserQuestion
+                ?? result.question
+                ?? result.title,
+            parentDomains: Array(Set(
+                result.evidenceReferences.compactMap { $0.sourceModule?.rawValue }
+            )).sorted(),
+            parentRecommendations: (result.recommendations ?? []).map {
+                HoloAgentContinuationDraft.RecommendationRef(
+                    id: $0.id,
+                    title: $0.title,
+                    body: $0.body
+                )
+            },
+            relation: .explain
+        )
+        errorMessage = nil
+    }
+
+    func clearContinuationDraft() {
+        continuationDraft = nil
+    }
+
+    /// 结果卡「换范围」：以显式窗口重跑同一分析（.changeScope 追问）。
+    /// 范围由 UI 直接注入（userOverride），不经文本解析，确定性 100%；
+    /// 聊天里会落一条「换成近半年再看」的用户消息，链路与手动追问完全一致。
+    func changeAnalysisScope(from result: HoloRenderedAgentResult, preset: AgentScopeChangePreset) async {
+        guard result.failure == nil,
+              let parentJobID = result.agentJobID,
+              let parentResultID = result.agentResultID else {
+            errorMessage = "这份历史分析缺少可追溯依据，请重新发起一次分析。"
+            return
+        }
+        continuationDraft = HoloAgentContinuationDraft(
+            parentJobID: parentJobID,
+            parentResultID: parentResultID,
+            rootUserQuestion: result.rootUserQuestion
+                ?? result.question
+                ?? result.title,
+            parentDomains: Array(Set(
+                result.evidenceReferences.compactMap { $0.sourceModule?.rawValue }
+            )).sorted(),
+            parentRecommendations: (result.recommendations ?? []).map {
+                HoloAgentContinuationDraft.RecommendationRef(
+                    id: $0.id,
+                    title: $0.title,
+                    body: $0.body
+                )
+            },
+            relation: .changeScope,
+            overrideTimeRange: preset.timeRange()
+        )
+        errorMessage = nil
+        inputText = preset.followUpText
+        await sendMessage()
+    }
+
+    /// 显式锚定优先；没有锚定时，只在 4 小时内且包含明确承接词时自动继承最近 Result。
+    /// “执行建议”交回原有动作确认链，避免分析 Agent 绕过确认直接改数据。
+    private func resolvedContinuationDraft(for text: String, now: Date = Date()) -> HoloAgentContinuationDraft? {
+        if var explicitDraft = continuationDraft {
+            let relation = HoloAgentFollowUpRouter.classify(
+                followUpText: text,
+                parent: HoloAgentFollowUpParentContext(
+                    parentDomains: explicitDraft.parentDomains,
+                    hasRecommendations: !explicitDraft.parentRecommendations.isEmpty
+                )
+            )
+            switch relation {
+            case .newTopic:
+                continuationDraft = nil
+                return nil
+            case .executeFromResult:
+                explicitDraft.relation = .executeFromResult
+            case .ambiguous:
+                // 用户已主动点击“继续追问”，不要因为句子短而丢失锚点。
+                explicitDraft.relation = .explain
+            default:
+                explicitDraft.relation = relation
+            }
+            return explicitDraft
+        }
+
+        // 隐式承接只允许锚定“最近一条已完成的助手回复”。如果中间已经有普通聊天，
+        // 即使四小时内存在更早的 Agent Result，也不能跨过新话题回捞旧结果。
+        guard let parentMessage = messages.reversed().first(where: {
+            $0.role == "assistant" && !$0.isStreaming
+        }), let result = parentMessage.agentResult,
+              result.failure == nil,
+              result.agentJobID != nil,
+              result.agentResultID != nil else {
+            return nil
+        }
+
+        var draft = HoloAgentContinuationDraft(
+            parentJobID: result.agentJobID ?? "",
+            parentResultID: result.agentResultID ?? "",
+            rootUserQuestion: result.rootUserQuestion ?? result.question ?? result.title,
+            parentDomains: Array(Set(
+                result.evidenceReferences.compactMap { $0.sourceModule?.rawValue }
+            )).sorted(),
+            parentRecommendations: (result.recommendations ?? []).map {
+                HoloAgentContinuationDraft.RecommendationRef(
+                    id: $0.id,
+                    title: $0.title,
+                    body: $0.body
+                )
+            }
+        )
+        let relation = HoloAgentFollowUpRouter.implicitRelation(
+            text: text,
+            parent: HoloAgentFollowUpParentContext(
+                parentDomains: draft.parentDomains,
+                hasRecommendations: !draft.parentRecommendations.isEmpty
+            ),
+            parentCompletedAt: parentMessage.timestamp,
+            now: now
+        )
+        guard let relation else { return nil }
+        draft.relation = relation
+        return draft
+    }
+
+    /// “执行建议”只转换成待确认的任务草案，不直接落库。
+    /// 多条建议且用户未指明序号时先做确定性澄清，避免替用户猜。
+    private func recommendationActionCommand(
+        for draft: HoloAgentContinuationDraft,
+        userText: String
+    ) -> String? {
+        guard let recommendation = selectedRecommendation(in: draft, userText: userText) else {
+            return nil
+        }
+        return """
+        创建一个待办草案，标题是“\(recommendation.title)”，补充说明是“\(recommendation.body)”。
+        这条草案来自上一份分析建议；必须走现有确认流程，用户确认前不得写入任何数据。
+        """
+    }
+
+    private func selectedRecommendation(
+        in draft: HoloAgentContinuationDraft,
+        userText: String
+    ) -> HoloAgentContinuationDraft.RecommendationRef? {
+        let recommendations = draft.parentRecommendations
+        guard !recommendations.isEmpty else { return nil }
+        if recommendations.count == 1 { return recommendations[0] }
+
+        let normalized = userText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let exact = recommendations.first(where: {
+            !$0.title.isEmpty && normalized.contains($0.title.lowercased())
+        }) {
+            return exact
+        }
+
+        let ordinalMarkers: [[String]] = [
+            ["第一条", "第1条", "第 1 条", "建议1", "建议 1", "1号建议"],
+            ["第二条", "第2条", "第 2 条", "建议2", "建议 2", "2号建议"],
+            ["第三条", "第3条", "第 3 条", "建议3", "建议 3", "3号建议"],
+            ["第四条", "第4条", "第 4 条", "建议4", "建议 4", "4号建议"],
+            ["第五条", "第5条", "第 5 条", "建议5", "建议 5", "5号建议"]
+        ]
+        for (index, markers) in ordinalMarkers.enumerated()
+            where index < recommendations.count
+                && markers.contains(where: normalized.contains) {
+            return recommendations[index]
+        }
+        return nil
+    }
+
+    private func recommendationSelectionClarification(
+        for draft: HoloAgentContinuationDraft
+    ) -> ConversationProcessResult {
+        let titles = draft.parentRecommendations.prefix(5).enumerated().map {
+            "\($0.offset + 1). \($0.element.title)"
+        }.joined(separator: "\n")
+        return ConversationProcessResult(
+            finalText: "这份分析有多条建议，请告诉我要执行哪一条，例如“执行第 2 条”。\n\n\(titles)",
+            parsedBatch: nil,
+            executionBatch: nil,
+            firstIntent: nil,
+            firstExtractedData: nil,
+            shouldStreamChat: false,
+            analysisContext: nil,
+            flexibleQueryResult: nil,
+            shouldRouteToAgent: false
+        )
+    }
+
+    private func safeActionHandoffFailure() -> ConversationProcessResult {
+        ConversationProcessResult(
+            finalText: "我没能把这条建议可靠地转换成可确认的操作。你可以说“把第 2 条创建成待办”。",
+            parsedBatch: nil,
+            executionBatch: nil,
+            firstIntent: nil,
+            firstExtractedData: nil,
+            shouldStreamChat: false,
+            analysisContext: nil,
+            flexibleQueryResult: nil,
+            shouldRouteToAgent: false
+        )
+    }
+
     // MARK: - Send Message
 
     func sendMessage() async {
@@ -307,6 +551,7 @@ final class ChatViewModel: ObservableObject {
 
         currentTask = Task { [weak self] in
             guard let self = self else { return }
+            var keepsAgentMessageActive = false
 
             do {
                 // 构建上下文，并注入「最近对话关联的任务」（modify_task_items 意图识别 + taskId 补全）
@@ -315,18 +560,87 @@ final class ChatViewModel: ObservableObject {
 
                 // ENERGY: 锁定检查预留位
 
-                // 通过 Coordinator 处理（支持多动作）
-                let processResult = try await self.coordinator.process(
-                    text: text,
-                    userContext: userContext,
-                    provider: self.provider
-                )
+                // 用户明确从 Result 发起或当前会话存在高置信承接词时，
+                // 直接进 Agent，不再让一次意图识别失败切断追问链。
+                let resolvedContinuation = self.resolvedContinuationDraft(for: text)
+                if resolvedContinuation != nil {
+                    self.continuationDraft = nil
+                }
+                let continuation = resolvedContinuation?.relation == .executeFromResult
+                    ? nil
+                    : resolvedContinuation
+                let processResult: ConversationProcessResult
+                if continuation != nil {
+                    processResult = ConversationProcessResult(
+                        finalText: "",
+                        parsedBatch: nil,
+                        executionBatch: nil,
+                        firstIntent: .queryAnalysis,
+                        firstExtractedData: nil,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        shouldRouteToAgent: true
+                    )
+                } else if let actionDraft = resolvedContinuation,
+                          actionDraft.relation == .executeFromResult {
+                    if let actionCommand = self.recommendationActionCommand(
+                        for: actionDraft,
+                        userText: text
+                    ) {
+                        let handoff = try await self.coordinator.process(
+                            text: actionCommand,
+                            userContext: userContext,
+                            provider: self.provider
+                        )
+                        // 结果建议的执行面只允许“单个创建待办”进入现有确认卡。
+                        // 如果模型把建议正文误识别成删除、记账、多动作或查询，一律拒绝交付。
+                        let isSingleTaskDraft = handoff.parsedBatch?.items.count == 1
+                            && handoff.firstIntent == .createTask
+                            && !handoff.shouldRouteToAgent
+                            && !handoff.shouldStreamChat
+                        processResult = isSingleTaskDraft
+                            ? handoff
+                            : self.safeActionHandoffFailure()
+                    } else {
+                        processResult = self.recommendationSelectionClarification(for: actionDraft)
+                    }
+                } else {
+                    // 通过 Coordinator 处理（支持多动作）
+                    processResult = try await self.coordinator.process(
+                        text: text,
+                        userContext: userContext,
+                        provider: self.provider
+                    )
+                }
                 try Task.checkCancellation()
 
                 // ENERGY: 能量检查预留位
 
                 // 深度 Agent 分流（Phase 6.2）：命中则启动本地 Agent，不走流式分析
                 if processResult.shouldRouteToAgent {
+                    // 额度预检（先验票再进场）：deepAnalysis 池余量为 0 时直接落地付费墙卡片，
+                    // 不进「分析中」转圈态。余量在每次 AI 请求成功后自动刷新，一般准确；
+                    // 数据缺失（nil）或刚好过期时放行，由后端拦截 + 终态额度卡片兜底。
+                    if let remaining = HoloEntitlementState.shared.quotas["deepAnalysis"]?.remaining,
+                       remaining <= 0 {
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: HoloQuotaError.deepAnalysisExhaustedMessage(
+                                isPlusActive: HoloEntitlementState.shared.isPlusActive
+                            ),
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: nil,
+                            messageType: .quotaExhausted
+                        )
+                        self.concludeStreamingSession(aiMessageId: aiMessageId)
+                        return
+                    }
                     // 周计划：数据充分度前置（不足时不烧 Agent，诚实提示缺什么）
                     let isWeeklyPlanning = processResult.firstIntent == .weeklyPlanning
                     if isWeeklyPlanning {
@@ -343,6 +657,7 @@ final class ChatViewModel: ObservableObject {
                                 analysisContextJSON: nil,
                                 rawLogJSON: nil
                             )
+                            self.concludeStreamingSession(aiMessageId: aiMessageId)
                             return
                         }
                     }
@@ -375,7 +690,8 @@ final class ChatViewModel: ObservableObject {
                             ? "汇总我最近一周的生活数据快照：任务完成与逾期、习惯打卡、支出结构、睡眠与活动、想法主题；列出其中显著的变化与异常（附数据依据）。不需要深挖单个域，快照汇总即可，供制定本周生活计划使用"
                             : text,
                         trigger: isWeeklyPlanning ? .weeklyPlanning : .userQuestion,
-                        sourceMessageID: aiMessageId
+                        sourceMessageID: aiMessageId,
+                        continuation: isWeeklyPlanning ? nil : continuation?.request
                     )
                     progressPoller.cancel()
                     try Task.checkCancellation()
@@ -394,30 +710,44 @@ final class ChatViewModel: ObservableObject {
                             agentResultJSON: nil,
                             messageType: .quotaExhausted
                         )
-                    } else if case .analysisFailed = rendered.failure {
-                        // P2 R11：Agent 失败自动降级——改走 chat 直接重答，用户先拿到答案；
-                        // 降级流也失败时再落原「深度分析出错」卡片（两层兜底）
-                        let degraded = await self.runChatFallbackStream(
-                            aiMessageId: aiMessageId,
-                            text: text,
-                            userContext: userContext
+                    } else if case .continuationUnavailable(let userMessage)? = rendered.failure {
+                        // 父结果不可用时不能降级成普通聊天后声称已经承接；
+                        // 诚实告知用户需要重新分析。
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: userMessage,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: nil
                         )
-                        if !degraded {
-                            let fallbackText = [rendered.title, rendered.summary]
-                                .filter { !$0.isEmpty }
-                                .joined(separator: "\n")
-                            self.chatRepo?.finalizeMessage(
-                                aiMessageId,
-                                finalContent: fallbackText,
-                                intent: processResult.firstIntent?.rawValue,
-                                extractedDataJSON: nil,
-                                parsedBatchJSON: nil,
-                                executionBatchJSON: nil,
-                                analysisContextJSON: nil,
-                                rawLogJSON: nil,
-                                agentResultJSON: Self.encodeAgentResult(rendered)
-                            )
-                        }
+                    } else if case .executionSuspended = rendered.failure {
+                        // 系统结束的是后台执行租约，不是用户任务本身。保留同一条 Agent 消息和
+                        // 停止入口，等待前台恢复链从 checkpoint 继续；不得额外发普通 chat。
+                        let preserved = await self.analysisService.syncRecoverableChatMessages(repository: self.chatRepo)
+                        // 恢复代次可能已在原请求返回前完成。只有同步后仍是活跃态才继续转圈；
+                        // completed 已回填为卡片时必须立即结束 streaming，避免 UI 假性卡住。
+                        keepsAgentMessageActive = preserved.contains(aiMessageId)
+                    } else if case .analysisFailed = rendered.failure {
+                        // 深度分析失败必须诚实落为可重试的 Agent 卡片。普通 chat 没有同一套
+                        // 数据读取与证据校验能力，拿它兜底会制造“看似回答、实际无依据”的双答案。
+                        let fallbackText = [rendered.title, rendered.summary]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n")
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: fallbackText,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: Self.encodeAgentResult(rendered)
+                        )
                     } else if isWeeklyPlanning {
                         // 周计划：Agent 分析完成 → 生成服务组装结构化计划 → 计划卡消息
                         await self.finalizeWeeklyPlanning(
@@ -445,6 +775,27 @@ final class ChatViewModel: ObservableObject {
                         )
                     }
                 } else if processResult.shouldStreamChat {
+                    // 发前预检：chat 池余量为 0 时不再发起流式请求（省一次必败的
+                    // 网络往返和转圈等待），直接落额度卡片。余量缺失（nil）放行，
+                    // 由后端拦截 + 934 行额度终态卡片兜底。
+                    if let remaining = HoloEntitlementState.shared.quotas["chat"]?.remaining,
+                       remaining <= 0 {
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: HoloQuotaError.chatExhaustedMessage(
+                                isPlusActive: HoloEntitlementState.shared.isPlusActive
+                            ),
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            messageType: .quotaExhausted
+                        )
+                        self.concludeStreamingSession(aiMessageId: aiMessageId)
+                        return
+                    }
                     if let analysisContext = processResult.analysisContext {
                         // 立即设置 intent + analysisContext → 渲染 loading 卡片
                         self.chatRepo?.setAnalysisLoadingState(
@@ -603,6 +954,7 @@ final class ChatViewModel: ObservableObject {
 
                 // 配额耗尽走专属提示：档位限制不是系统错误，用 quotaExhausted 类型标记，
                 // 渲染层据此展示柔和的额度卡片 + 「了解 Holo Plus」入口，而非红色错误样式。
+                // 不提前 return：跳过末尾收尾会被 watchdog 300s 覆盖成「AI 响应超时」。
                 if let quotaError = error as? HoloQuotaError {
                     self.errorMessage = quotaError.userMessage
                     self.chatRepo?.finalizeMessage(
@@ -614,33 +966,47 @@ final class ChatViewModel: ObservableObject {
                         executionBatchJSON: nil,
                         messageType: .quotaExhausted
                     )
-                    return
-                }
-
-                let userMessage = HoloAIUserErrorMapper.message(for: error)
-                self.errorMessage = userMessage
-
-                // 保留已接收的部分内容，追加错误提示而非完全覆盖
-                let partialContent = self.streamingText
-                let finalContent: String
-                if partialContent.isEmpty {
-                    finalContent = userMessage
                 } else {
-                    finalContent = partialContent + "\n\n处理中断：\(userMessage)"
-                }
+                    let userMessage = HoloAIUserErrorMapper.message(for: error)
+                    self.errorMessage = userMessage
 
-                self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
+                    // 保留已接收的部分内容，追加错误提示而非完全覆盖
+                    let partialContent = self.streamingText
+                    let finalContent: String
+                    if partialContent.isEmpty {
+                        finalContent = userMessage
+                    } else {
+                        finalContent = partialContent + "\n\n处理中断：\(userMessage)"
+                    }
+
+                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
+                }
             }
 
             if self.activeStreamingMessageID == aiMessageId {
-                self.isStreaming = false
-                self.streamingText = ""
-                self.streamingStatusHint = nil
-                self.streamingWatchdogTask?.cancel()
-                self.streamingWatchdogTask = nil
-                self.currentTask = nil
-                self.activeStreamingMessageID = nil
+                self.concludeStreamingSession(
+                    aiMessageId: aiMessageId,
+                    keepsAgentActive: keepsAgentMessageActive
+                )
             }
+        }
+    }
+
+    /// sendMessage 各退出路径的统一收尾（watchdog/任务/流式状态）。
+    /// 提前 return 的分支（额度预检、周计划数据不足）若跳过收尾，
+    /// watchdog 会在 300s 后把已落地的卡片覆盖成「AI 响应超时」，且 isStreaming 挂起。
+    private func concludeStreamingSession(aiMessageId: UUID, keepsAgentActive: Bool = false) {
+        guard activeStreamingMessageID == aiMessageId else { return }
+        streamingStatusHint = nil
+        streamingWatchdogTask?.cancel()
+        streamingWatchdogTask = nil
+        currentTask = nil
+        if keepsAgentActive {
+            isStreaming = true
+        } else {
+            isStreaming = false
+            streamingText = ""
+            activeStreamingMessageID = nil
         }
     }
 
@@ -683,6 +1049,23 @@ final class ChatViewModel: ObservableObject {
             chatRepo?.finalizeMessage(
                 aiMessageId,
                 finalContent: fallbackText + "\n\n（本周计划的结构化版暂时没有生成成功，以上是分析结论，稍后可再试一次）",
+                intent: intent,
+                extractedDataJSON: nil,
+                parsedBatchJSON: nil,
+                executionBatchJSON: nil,
+                analysisContextJSON: nil,
+                rawLogJSON: nil,
+                agentResultJSON: Self.encodeAgentResult(rendered)
+            )
+        case .quotaExhausted(let userMessage):
+            // 计划生成额度（lifePlan 池，免费 1 次/周）耗尽：分析结论照常交付，附注写明原因；
+            // 不用「稍后再试」措辞——重试要先重烧深度分析额度，且额度重置前必失败。
+            let fallbackText = [rendered.title, rendered.summary]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            chatRepo?.finalizeMessage(
+                aiMessageId,
+                finalContent: fallbackText + "\n\n（\(userMessage)，本周的分析结论已在上面）",
                 intent: intent,
                 extractedDataJSON: nil,
                 parsedBatchJSON: nil,
@@ -771,72 +1154,6 @@ final class ChatViewModel: ObservableObject {
                 content: "撤销失败：\(error.localizedDescription)。可手动删除刚创建的内容。",
                 messageType: .lifePlan
             )
-        }
-    }
-
-    // MARK: - Agent 失败降级（P2 R11）
-
-    /// Agent 深度分析失败后的兜底：改走 chat 链路直接回答（不带分析卡片形态），
-    /// 让用户先拿到答案。等待期间用卡片文案提示「正在直接回答」；
-    /// 返回 false 表示降级流也失败（调用方落回「深度分析出错」卡片）。
-    private func runChatFallbackStream(
-        aiMessageId: UUID,
-        text: String,
-        userContext: UserContext
-    ) async -> Bool {
-        guard let chatRepo = self.chatRepo else { return false }
-        chatRepo.updateAgentMessageProgress(
-            aiMessageId,
-            status: HoloAgentChatStatus(
-                title: "深度分析未完成，正在直接回答…",
-                detail: "本次不生成分析卡片，改用对话方式回答。",
-                keepsMessageStreaming: true,
-                showsActivityIndicator: true
-            )
-        )
-        do {
-            let historyDTOs = await chatRepo.loadRecentDTOsAsync(limit: 20)
-            let memorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
-                purpose: nil,
-                queryText: text,
-                requireQueryMatch: true,
-                consumer: .chat
-            )
-            var contextualUserContext = userContext
-            contextualUserContext.memorySummary = memorySummary
-            let stream = self.provider.chatStreaming(
-                messages: historyDTOs,
-                userContext: contextualUserContext
-            )
-            var fullText = ""
-            for try await chunk in stream {
-                try Task.checkCancellation()
-                fullText += chunk
-            }
-            guard !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return false
-            }
-            let markerResult = self.consumeMemoryUsageMarker(
-                from: fullText,
-                availableMemoryIDs: memorySummary.sourceIDs,
-                channel: .chat
-            )
-            // intent 落 query（普通问答形态）：渲染回文本气泡而非空态分析卡片
-            chatRepo.finalizeMessage(
-                aiMessageId,
-                finalContent: markerResult.cleanText,
-                intent: AIIntent.query.rawValue,
-                extractedDataJSON: Self.encodeExtractedData(
-                    nil,
-                    usedMemoryIDs: markerResult.usedMemoryIDs
-                ),
-                parsedBatchJSON: nil,
-                executionBatchJSON: nil,
-                rawLogJSON: nil
-            )
-            return true
-        } catch {
-            return false
         }
     }
 
@@ -2220,6 +2537,26 @@ final class ChatViewModel: ObservableObject {
             await ensureChatRepositoryReady()
             guard let chatRepo else { return }
 
+            // 额度预检（先验票再进场）：目标规划与日常对话共用 chat 池，
+            // 一次完整流程最多 3 轮追问 + 1 次草案生成。
+            // - 余量连「一问一草案」（2 次）都撑不起 → 落付费墙卡片，不进问答流程；
+            // - 余量跑不满 3 轮 → 按余量压缩追问轮数（宁可少问，不在用户认真作答后中途断）；
+            // - 余量数据缺失（nil）→ 放行默认轮数，由后端拦截 + 额度卡片兜底。
+            var planningMaxTurns = GoalPlanningSession.defaultMaxTurns
+            if let remaining = HoloEntitlementState.shared.quotas["chat"]?.remaining {
+                guard remaining > 1 else {
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: HoloQuotaError.goalPlanningExhaustedMessage(
+                            isPlusActive: HoloEntitlementState.shared.isPlusActive
+                        ),
+                        messageType: .quotaExhausted
+                    )
+                    return
+                }
+                planningMaxTurns = max(1, min(GoalPlanningSession.defaultMaxTurns, remaining - 1))
+            }
+
             let userMessageId: UUID?
             if let seedText, !seedText.isEmpty {
                 userMessageId = chatRepo.addMessage(role: "user", content: seedText, messageType: .goalPlanning)
@@ -2238,7 +2575,8 @@ final class ChatViewModel: ObservableObject {
                 let result = try await goalPlanningCoordinator.start(
                     seedText: seedText,
                     userContext: userContext,
-                    provider: provider
+                    provider: provider,
+                    maxTurns: planningMaxTurns
                 )
                 activeGoalPlanningSession = result.session
                 if let question = result.assistantText {
@@ -2265,6 +2603,9 @@ final class ChatViewModel: ObservableObject {
             } catch {
                 if let quotaError = error as? HoloQuotaError {
                     errorMessage = quotaError.userMessage
+                    // 额度按天重置是确定终态：会话不能继续占用聊天入口，
+                    // 否则后续普通消息仍会被路由成规划回答、反复触发额度报错。
+                    activeGoalPlanningSession = nil
                     _ = chatRepo.addMessage(
                         role: "assistant",
                         content: quotaError.userMessage,
@@ -2330,6 +2671,9 @@ final class ChatViewModel: ObservableObject {
         } catch {
             if let quotaError = error as? HoloQuotaError {
                 errorMessage = quotaError.userMessage
+                // 同 startGoalPlanning：额度终态必须释放会话，让聊天入口回到普通对话，
+                // 不能让用户后续每条消息都被当成规划回答反复撞额度墙。
+                activeGoalPlanningSession = nil
                 _ = chatRepo.addMessage(
                     role: "assistant",
                     content: quotaError.userMessage,

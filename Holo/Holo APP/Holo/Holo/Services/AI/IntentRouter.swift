@@ -1474,6 +1474,11 @@ final class IntentRouter {
                 text = "生成回放失败：\(error.localizedDescription)。请稍后重试。"
             }
             return RouteResult(text: text)
+        } catch let error as HoloQuotaError {
+            // 额度耗尽：文案已含周期与升级指引，不接「请稍后重试」——
+            // 重置前重试必失败，误导用户反复尝试。
+            logger.info("Chat 触发洞察生成因额度终止：\(error.diagnosticDescription)")
+            return RouteResult(text: error.userMessage)
         } catch {
             logger.error("Chat 触发洞察生成失败：\(error.localizedDescription)")
             return RouteResult(

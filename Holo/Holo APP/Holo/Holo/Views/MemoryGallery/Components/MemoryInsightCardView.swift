@@ -25,6 +25,7 @@ struct MemoryInsightCardView: View {
     @State private var isExpanded: Bool = false
     @State private var showFeedbackSheet: Bool = false
     @State private var showActionConfirmation: Bool = false
+    @State private var actionErrorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -115,7 +116,7 @@ struct MemoryInsightCardView: View {
                 .buttonStyle(PlainButtonStyle())
                 .padding(.top, HoloSpacing.xs)
                 .alert(action.title, isPresented: $showActionConfirmation) {
-                    Button("确认") {
+                    Button(actionConfirmationTitle(action)) {
                         executeAction(action)
                     }
                     Button("取消", role: .cancel) {}
@@ -147,6 +148,16 @@ struct MemoryInsightCardView: View {
                     moduleHint: card.moduleHint
                 )
             }
+        }
+        .alert("操作未完成", isPresented: Binding(
+            get: { actionErrorMessage != nil },
+            set: { if !$0 { actionErrorMessage = nil } }
+        )) {
+            Button("知道了", role: .cancel) {
+                actionErrorMessage = nil
+            }
+        } message: {
+            Text(actionErrorMessage ?? "请稍后重试。")
         }
     }
 
@@ -239,33 +250,37 @@ struct MemoryInsightCardView: View {
         }
     }
 
+    private func actionConfirmationTitle(_ action: InsightActionCandidate) -> String {
+        if case .reflectionQuestion = action.payload {
+            return "去 HoloAI 继续"
+        }
+        return "确认"
+    }
+
     private func executeAction(_ action: InsightActionCandidate) {
         switch action.payload {
         case .taskDraft(let title, let dueDate, let priority):
-            createTask(title: title, dueDate: dueDate, priority: priority)
-            // P2 集成：action 执行后记录 Outcome Review（不写因果）
-            HoloOutcomeReviewStore.shared.recordExecution(
-                actionID: action.id,
-                sourceCardID: action.cardId,
-                targetMetricKey: "task.completed",
-                actionExecuted: true
-            )
+            if createTask(title: title, dueDate: dueDate, priority: priority) {
+                // 只有真实落库成功才记为已执行。
+                HoloOutcomeReviewStore.shared.recordExecution(
+                    actionID: action.id,
+                    sourceCardID: action.cardId,
+                    targetMetricKey: "task.completed",
+                    actionExecuted: true
+                )
+            } else {
+                actionErrorMessage = "任务没有创建成功，已保留当前页面，请稍后重试。"
+            }
         case .reflectionQuestion:
             if let prompt = MemoryInsightActionPromptBuilder.chatPrefill(for: action, card: card) {
                 onContinueInChat?(prompt)
             }
-            HoloOutcomeReviewStore.shared.recordExecution(
-                actionID: action.id,
-                sourceCardID: action.cardId,
-                targetMetricKey: "thought.count",
-                actionExecuted: true
-            )
         default:
             break
         }
     }
 
-    private func createTask(title: String, dueDate: Date?, priority: Int16?) {
+    private func createTask(title: String, dueDate: Date?, priority: Int16?) -> Bool {
         let context = CoreDataStack.shared.viewContext
         let task = TodoTask(context: context)
         task.id = UUID()
@@ -275,6 +290,12 @@ struct MemoryInsightCardView: View {
         task.priority = priority ?? 0
         task.dueDate = dueDate
         task.createdAt = Date()
-        try? context.save()
+        do {
+            try context.save()
+            return true
+        } catch {
+            context.rollback()
+            return false
+        }
     }
 }

@@ -28,8 +28,8 @@ struct MonthlyCalendarView: View {
         VStack(spacing: HoloSpacing.xs) {
             weekdayHeader
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7),
-                spacing: 6
+                columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: 7),
+                spacing: 5
             ) {
                 ForEach(monthCells, id: \.self) { day in
                     MonthCell(
@@ -44,13 +44,20 @@ struct MonthlyCalendarView: View {
                 }
             }
         }
+        .padding(10)
+        .background(Color.holoCardBackground.opacity(0.46))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.46), lineWidth: 1)
+        )
     }
 
     private var weekdayHeader: some View {
         HStack(spacing: 0) {
             ForEach(weekdays, id: \.self) { w in
                 Text(w)
-                    .font(.holoTinyLabel)
+                    .font(.system(size: 10, weight: .semibold, design: .serif))
                     .foregroundColor(.holoTextSecondary)
                     .frame(maxWidth: .infinity)
             }

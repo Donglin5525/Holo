@@ -1003,6 +1003,26 @@ final class ChatMessageRepository: ObservableObject {
         messages.removeAll { $0.id == messageId }
     }
 
+    /// 删除一份报告对应的对话消息（回答消息 + 它的提问气泡），并发布快照
+    /// 驱动聊天页同步移除。报告 Tab 的档案列表由调用方先行移除（界面先清、库后删）。
+    func deleteReportMessages(reportMessageID: UUID) {
+        guard let message = messageForUpdate(reportMessageID) else { return }
+        let parentID = message.parentMessageId
+
+        var removedIDs: Set<UUID> = [reportMessageID]
+        context.delete(message)
+        liveMessageCache.removeValue(forKey: reportMessageID)
+
+        if let parentID, let parent = messageForUpdate(parentID) {
+            context.delete(parent)
+            liveMessageCache.removeValue(forKey: parentID)
+            removedIDs.insert(parentID)
+        }
+
+        save()
+        messages.removeAll { removedIDs.contains($0.id) }
+    }
+
     /// 清除所有消息
     func clearAllMessages() {
         let request = ChatMessage.fetchRequest()
@@ -1294,6 +1314,257 @@ final class ChatMessageRepository: ObservableObject {
             }
         } catch {
             logger.error("保存消息失败：\(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 报告档案（Holo AI「报告」Tab）
+
+    /// 报告档案行的轻量 DTO：只携带列表所需字段。
+    /// 深度分析的完整结果（含证据链的大 JSON）在后台解码为摘要后立即丢弃，
+    /// 完整报告延迟到进详情页时再按消息 ID 取。
+    struct ReportArchiveDTO: Identifiable, Equatable, Sendable {
+        enum Kind: String, Sendable {
+            case deepAnalysis
+            case periodReplay
+        }
+
+        let id: UUID
+        let kind: Kind
+        let timestamp: Date
+        let title: String?
+        /// 用户发起时的原始提问（深度分析；回放为 nil）。档案卡先显示提问再显示结论。
+        let question: String?
+        /// 摘要三级退让：keyInsight → narrativeSummary → directAnswer
+        let summary: String?
+        /// 深度分析的查询范围文案；回放为周期文案
+        let scopeLabel: String?
+        let observationCount: Int
+        let evidenceCount: Int
+        /// 正常完成但结论为空的提示文案；有结论时为 nil。
+        /// 失败的分析不进档案——失败态由聊天流的消息卡承载，档案只收真报告。
+        let issueText: String?
+    }
+
+    /// 归档只收已完成的报告；生成中的卡片由 ChatViewModel 的消息流派生（冷启动可恢复）。
+    func loadReportArchiveAsync(limit: Int = 20, offset: Int = 0) async -> [ReportArchiveDTO] {
+        await CoreDataStack.shared.waitUntilReady()
+
+        let queryAnalysisIntent = "query_analysis"
+        let replayType = ChatMessageType.periodReplay.rawValue
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "timestamp", "messageType", "agentResultJSON",
+                        "extractedDataJSON", "content"
+                    ]
+                    request.predicate = NSPredicate(
+                        format: "((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType
+                    )
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = limit
+                    request.fetchOffset = offset
+
+                    let dicts = try context.fetch(request)
+                    return dicts.compactMap { dict -> ReportArchiveDTO? in
+                        guard let id = dict["id"] as? UUID,
+                              let timestamp = dict["timestamp"] as? Date else { return nil }
+
+                        if (dict["messageType"] as? String) == replayType {
+                            return Self.makeReplayArchiveDTO(
+                                id: id,
+                                timestamp: timestamp,
+                                jobJSON: dict["extractedDataJSON"] as? String,
+                                content: dict["content"] as? String
+                            )
+                        }
+
+                        guard let json = dict["agentResultJSON"] as? String,
+                              let data = json.data(using: .utf8),
+                              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
+                              // 失败（额度耗尽/出错/被中断）不是报告，不进档案
+                              rendered.failure == nil
+                        else { return nil }
+
+                        let summary = rendered.keyInsight
+                            ?? rendered.narrativeSummary
+                            ?? rendered.directAnswer
+                        return ReportArchiveDTO(
+                            id: id,
+                            kind: .deepAnalysis,
+                            timestamp: timestamp,
+                            title: rendered.title.isEmpty ? nil : rendered.title,
+                            question: ChatMessageRepository.cleanOptionalText(rendered.question ?? rendered.rootUserQuestion),
+                            summary: summary?.isEmpty == true ? nil : summary,
+                            scopeLabel: rendered.scope?.displayLabel,
+                            observationCount: rendered.sections.count,
+                            evidenceCount: rendered.evidenceReferences.count,
+                            issueText: rendered.emptyReason.map(Self.emptyReasonText)
+                        )
+                    }
+                }
+            }.value
+        } catch {
+            logger.error("加载报告档案失败：\(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// 报告详情入口：按消息 ID 取完整消息快照（含完整分析结果）。
+    /// 单行按索引 ID 查询，直接走主上下文（ViewData 的初始化限定 MainActor）。
+    @MainActor
+    func loadMessageViewData(id: UUID) -> ChatMessageViewData? {
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        guard let message = try? context.fetch(request).first else { return nil }
+        return ChatMessageViewData(message: message)
+    }
+
+    private static func makeReplayArchiveDTO(
+        id: UUID,
+        timestamp: Date,
+        jobJSON: String?,
+        content: String?
+    ) -> ReportArchiveDTO? {
+        let summary = content?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == true ? nil : content
+        return ReportArchiveDTO(
+            id: id,
+            kind: .periodReplay,
+            timestamp: timestamp,
+            title: "周期回放",
+            question: nil,
+            summary: summary,
+            scopeLabel: HoloPeriodReplayJob(json: jobJSON).map { Self.replayPeriodLabel($0) },
+            observationCount: 0,
+            evidenceCount: 0,
+            issueText: nil
+        )
+    }
+
+    private static func cleanOptionalText(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    /// 报告搜索：SQLite 层先用 CONTAINS 粗筛（agentResultJSON/content 含关键词），
+    /// 再在内存里对解码后的报告做精确匹配——覆盖 提问/标题/摘要/正文（观察与建议全文）。
+    /// 回放按消息 content 匹配。命中正文时该报告仍按列表卡展示（摘要是核心发现）。
+    func searchReportArchive(keyword: String) async -> [ReportArchiveDTO] {
+        let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        await CoreDataStack.shared.waitUntilReady()
+
+        let queryAnalysisIntent = "query_analysis"
+        let replayType = ChatMessageType.periodReplay.rawValue
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "timestamp", "messageType", "agentResultJSON",
+                        "extractedDataJSON", "content"
+                    ]
+                    request.predicate = NSPredicate(
+                        format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@)) AND isStreaming == NO",
+                        queryAnalysisIntent, trimmed, replayType, trimmed
+                    )
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = 50
+
+                    let dicts = try context.fetch(request)
+                    return dicts.compactMap { dict -> ReportArchiveDTO? in
+                        guard let id = dict["id"] as? UUID,
+                              let timestamp = dict["timestamp"] as? Date else { return nil }
+
+                        if (dict["messageType"] as? String) == replayType {
+                            guard let content = dict["content"] as? String,
+                                  content.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+                            else { return nil }
+                            return Self.makeReplayArchiveDTO(
+                                id: id,
+                                timestamp: timestamp,
+                                jobJSON: dict["extractedDataJSON"] as? String,
+                                content: content
+                            )
+                        }
+
+                        guard let json = dict["agentResultJSON"] as? String,
+                              let data = json.data(using: .utf8),
+                              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
+                              rendered.failure == nil,
+                              Self.reportMatches(rendered, keyword: trimmed)
+                        else { return nil }
+
+                        let summary = rendered.keyInsight
+                            ?? rendered.narrativeSummary
+                            ?? rendered.directAnswer
+                        return ReportArchiveDTO(
+                            id: id,
+                            kind: .deepAnalysis,
+                            timestamp: timestamp,
+                            title: rendered.title.isEmpty ? nil : rendered.title,
+                            question: ChatMessageRepository.cleanOptionalText(rendered.question ?? rendered.rootUserQuestion),
+                            summary: summary?.isEmpty == true ? nil : summary,
+                            scopeLabel: rendered.scope?.displayLabel,
+                            observationCount: rendered.sections.count,
+                            evidenceCount: rendered.evidenceReferences.count,
+                            issueText: rendered.emptyReason.map(Self.emptyReasonText)
+                        )
+                    }
+                }
+            }.value
+        } catch {
+            logger.error("搜索报告档案失败：\(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// 报告文本匹配范围：提问 / 标题 / 摘要三级 / 正文（观察小节标题+全文）。
+    private static func reportMatches(_ rendered: HoloRenderedAgentResult, keyword: String) -> Bool {
+        var haystacks: [String] = [
+            rendered.question ?? "",
+            rendered.rootUserQuestion ?? "",
+            rendered.title,
+            rendered.keyInsight ?? "",
+            rendered.narrativeSummary ?? "",
+            rendered.directAnswer ?? "",
+            rendered.summary
+        ]
+        haystacks.append(contentsOf: rendered.sections.map { "\($0.title) \($0.body)" })
+        return haystacks.contains { text in
+            text.range(of: keyword, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+    }
+
+    private static func replayPeriodLabel(_ job: HoloPeriodReplayJob) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        let range = "\(formatter.string(from: job.periodStart))–\(formatter.string(from: job.periodEnd))"
+        switch job.periodType {
+        case .daily: return "日回放 · \(range)"
+        case .weekly: return "上周 · \(range)"
+        case .monthly: return "上月 · \(range)"
+        case .quarterly: return "上季度 · \(range)"
+        case .custom: return range
+        }
+    }
+
+    private static func emptyReasonText(_ reason: HoloAgentEmptyReason) -> String {
+        switch reason {
+        case .noData:
+            return "所选范围内没有可用数据"
+        case .unverifiable:
+            return "数据未通过校验，暂无可靠结论"
         }
     }
 }

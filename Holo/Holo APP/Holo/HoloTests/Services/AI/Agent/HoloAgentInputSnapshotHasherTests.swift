@@ -17,7 +17,7 @@ final class HoloAgentInputSnapshotHasherTests: XCTestCase {
 
     private func vectorA() -> HoloAgentInputSnapshot {
         HoloAgentInputSnapshot(
-            schemaVersion: 1, jobType: .deepAnalysis,
+            schemaVersion: 2, jobType: .deepAnalysis,
             userQuestion: "最近睡眠怎么样？", timeRange: nil,
             referenceDate: fixedTS, snapshotCutoffAt: fixedTS, toolCatalogVersion: 1
         )
@@ -25,7 +25,7 @@ final class HoloAgentInputSnapshotHasherTests: XCTestCase {
 
     private func vectorB() -> HoloAgentInputSnapshot {
         HoloAgentInputSnapshot(
-            schemaVersion: 1, jobType: .deepAnalysis,
+            schemaVersion: 2, jobType: .deepAnalysis,
             userQuestion: "上个月钱都花哪儿去了？",
             timeRange: HoloAgentTimeRange(
                 label: "上月",
@@ -38,7 +38,7 @@ final class HoloAgentInputSnapshotHasherTests: XCTestCase {
 
     private func vectorC() -> HoloAgentInputSnapshot {
         HoloAgentInputSnapshot(
-            schemaVersion: 1, jobType: .memoryGallerySummary,
+            schemaVersion: 2, jobType: .memoryGallerySummary,
             userQuestion: nil, timeRange: nil,
             referenceDate: fixedTS, snapshotCutoffAt: fixedTS, toolCatalogVersion: 1
         )
@@ -49,14 +49,14 @@ final class HoloAgentInputSnapshotHasherTests: XCTestCase {
     func test固定向量A_canonicalJSON与hash() throws {
         let jsonData = try HoloAgentInputSnapshotHasher.canonicalJSONData(for: vectorA())
         let json = try XCTUnwrap(String(data: jsonData, encoding: .utf8))
-        XCTAssertEqual(json, #"{"jobType":"deepAnalysis","referenceDate":"2025-07-04T03:33:20Z","schemaVersion":1,"snapshotCutoffAt":"2025-07-04T03:33:20Z","timeRange":null,"toolCatalogVersion":1,"userQuestion":"最近睡眠怎么样？"}"#)
+        XCTAssertEqual(json, #"{"followUpParentResultID":"","jobType":"deepAnalysis","lineageDepth":0,"referenceDate":"2025-07-04T03:33:20Z","schemaVersion":2,"snapshotCutoffAt":"2025-07-04T03:33:20Z","timeRange":null,"toolCatalogVersion":1,"userQuestion":"最近睡眠怎么样？"}"#)
         XCTAssertEqual(HoloAgentInputSnapshotHasher.hash(for: vectorA()),
-                       "0671ed0d575d32196f99dc5f35d68a1dec4ba2e5b7d5d37d3b4cac7061446f99")
+                       "2f0086fb0da7dfe63f2b8aac43b21ee16d57191548d5644be7d028132bf53c6c")
     }
 
     func test固定向量B_含timeRange() {
         XCTAssertEqual(HoloAgentInputSnapshotHasher.hash(for: vectorB()),
-                       "78e3b89348c531c658a95c14821e1dea7b0447c443584f31819104a61f876f9d")
+                       "ef71921268624ef05aea3308f95e44f82d67caf4d20f724b1c22818e7d776c19")
     }
 
     func test固定向量C_可选值为null显式编码() throws {
@@ -65,7 +65,7 @@ final class HoloAgentInputSnapshotHasherTests: XCTestCase {
         XCTAssertTrue(json.contains(#""userQuestion":null"#), "nil 可选值应显式编码为 null：\(json)")
         XCTAssertTrue(json.contains(#""timeRange":null"#), "nil 可选值应显式编码为 null：\(json)")
         XCTAssertEqual(HoloAgentInputSnapshotHasher.hash(for: vectorC()),
-                       "754de95cb8f3dc138e1c19fb055022bcd94b8f68cad03c89af73b46e105ce5aa")
+                       "6eeaca5cc22253c3fe561b471e310f76f8664a2cc8a663a1c10d62ba6c944712")
     }
 
     // MARK: - 确定性与环境无关性

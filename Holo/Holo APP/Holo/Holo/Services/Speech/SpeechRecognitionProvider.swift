@@ -44,6 +44,8 @@ enum SpeechRecognitionError: LocalizedError, Equatable {
     case emptyTranscript
     case networkFailure
     case serverMessage(String)
+    /// 识别额度（asr 池）耗尽：档位终态，不提供「重试识别」（重置前必再失败）。
+    case quotaExhausted(String)
 
     var errorDescription: String? {
         switch self {
@@ -54,6 +56,8 @@ enum SpeechRecognitionError: LocalizedError, Equatable {
         case .networkFailure:
             return "识别失败，请检查网络后重试"
         case .serverMessage(let message):
+            return message
+        case .quotaExhausted(let message):
             return message
         }
     }

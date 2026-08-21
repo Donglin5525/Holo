@@ -2,9 +2,9 @@
 //  CalendarViewModel.swift
 //  Holo
 //
-//  日历视图 ViewModel：周历 / 月历共用，驱动取数与导航。
+//  日历视图 ViewModel：focusedDate 单一事实源，日/周/月三档全部从它派生。
+//  数据通道统一为 timelineEvents 滑动窗口（±60 天预载 + 边缘续载），三档共用，不再按档位分通道取数。
 //  init 零 I/O（只注入 Repository 引用），取数由 View.task 触发（CLAUDE.md 约定）。
-//  P2：加 moduleFilter（按模块过滤）+ todoDimension（待办时间维度）。
 //
 
 import Foundation
@@ -13,94 +13,72 @@ import Combine
 import CoreData
 import os.log
 
-/// 周历单日聚合（按天分组的事件）
-struct DayEvents: Identifiable, Equatable {
-    let day: Date               // startOfDay
-    let events: [CalendarEvent]
-    var id: Date { day }
-}
-
-/// 周历视图模式（P2：列表 / 网格）
-enum WeekViewMode: Hashable {
-    case list
-    case grid
-}
-
-/// 月历色块形式（P2：热力色深 / 数字徽章）
+/// 月历色块形式（热力色深 / 数字徽章）——MonthlyCalendarView 显示形式参数
 enum MonthCellStyle: Hashable {
     case heatmap
     case badge
 }
 
+/// 日历时间刻度（L1 三档合一）：日=单日回放、周=本周七天网格、月=热力月历。
+/// 三档是同一段生活记录的三种观察距离，共享同一个聚焦日期。
+enum CalendarScale: String, CaseIterable {
+    /// 按日看：单日回放
+    case day
+    /// 按周看：多日时间网格（本周七天，三日可视窗口）
+    case week
+    /// 按月看：热力月历
+    case month
+
+    var displayName: String {
+        switch self {
+        case .day: return "日"
+        case .week: return "周"
+        case .month: return "月"
+        }
+    }
+}
+
 @MainActor
 final class CalendarViewModel: ObservableObject {
 
-    static let defaultWeekViewMode: WeekViewMode = .grid
+    // MARK: - 单一事实源（统一浏览方案 §6.1）
 
-    enum Mode: Hashable {
-        case weekly
-        case monthly
-    }
+    /// 聚焦日期：日档回放它、周档高亮它所在周、月历锚定它所在月。
+    /// 页面上不再有 anchor / gridCenterDay / selectedDay 等平行日期状态，全部由它派生。
+    @Published var focusedDate: Date = Calendar.current.startOfDay(for: Date())
 
-    /// 当前选定日（周/月各算区间）
-    @Published var anchor: Date = Date()
+    @Published var scale: CalendarScale = .day
 
-    /// 当前模式
-    @Published var mode: Mode = .weekly
-
-    /// 月历选中的天（详情卡用）
-    @Published var selectedDay: Date?
-
-    /// 聚合结果（含每模块加载状态，失败不静默）
-    @Published private(set) var result: CalendarEventsResult = .empty
-
-    /// 是否正在加载
-    @Published private(set) var isLoading: Bool = false
-
-    /// P2 模块筛选（nil = 全部）
+    /// 模块筛选（nil = 全部），三档间保持
     @Published var moduleFilter: CalendarModule? = nil
 
-    /// P2 待办时间维度（完成/到期/计划）
+    /// 待办时间维度（完成/到期）
     @Published var todoDimension: TodoTimeDimension = .completed
 
-    /// P2 周历视图模式（列表 / 网格）
-    @Published var weekViewMode: WeekViewMode = defaultWeekViewMode
+    // MARK: - 时间线数据通道（日/周/月共享）
 
-    /// P2 月历色块形式（热力 / 徽章）
-    @Published var monthCellStyle: MonthCellStyle = .heatmap
+    /// 预载到内存的原始事件（未筛选）：切日/切周/翻月直接取，不边滑边查库；
+    /// 切换 moduleFilter 即时过滤，不用重查
+    @Published private(set) var timelineEvents: [CalendarEvent] = []
 
-    /// 3 日网格视图：当前中心日（今天/选中日落在中间列）
-    @Published var gridCenterDay: Date = Date()
+    /// 最近一次拉取的模块加载状态（失败不静默，三档共用）
+    @Published private(set) var timelineResult: CalendarEventsResult = .empty
 
-    /// 3 日网格视图：预载到内存的原始事件（未筛选）
-    /// 滑动时直接取，不边滑边查库；切换 moduleFilter 即时过滤，不用重查
-    @Published private(set) var gridRawEvents: [CalendarEvent] = []
+    /// 已加载的数据范围（接近边缘自动续载）
+    private var loadedRange: DateInterval?
 
-    /// 3 日网格视图：已加载的数据范围（接近边缘自动续载）
-    private var gridLoadedRange: DateInterval?
+    /// 是否正在初次加载
+    @Published private(set) var isInitialLoading: Bool = false
 
-    /// 3 日网格视图：是否正在初次加载
-    @Published private(set) var gridIsInitialLoading: Bool = false
+    /// 预载半径（天）：窗口内切日/切周/翻月即时显示缓存数据
+    private let preloadHalfSpanDays = 60
+    /// 距边缘剩余天数低于此值时触发续载
+    private let edgeMarginDays = 14
 
-    // MARK: - 周历列表无限上翻（往过去累积）
+    // MARK: - 周叙事（高光/里程碑，周档摘要卡轻量入口消费）
 
-    /// 列表累积事件（[listLoadedStart, anchor 周末]），滚到底加载上一周 append
-    @Published private(set) var listEvents: [CalendarEvent] = []
-
-    /// 列表已累积到的最早周初
-    private var listLoadedStart: Date = Date().startOfWeek
-
-    /// 是否还能往回翻（anchor 周起最多 52 周，与明细时间线 365 天上限对齐）
-    @Published private(set) var listHasEarlierWeeks: Bool = true
-
-    /// 是否正在加载更早的周
-    @Published private(set) var isLoadingEarlier: Bool = false
-
-    /// 周历列表的里程碑卡（key = startOfDay），随累积窗口刷新
-    @Published private(set) var listMilestones: [Date: [MilestoneData]] = [:]
-
-    /// 周历列表的高光卡（key = startOfDay），随累积窗口刷新
-    @Published private(set) var listHighlights: [Date: [HighlightData]] = [:]
+    @Published private(set) var weekHighlights: [HighlightData] = []
+    @Published private(set) var weekMilestones: [MilestoneData] = []
 
     private let provider: CalendarEventProvider
 
@@ -113,275 +91,270 @@ final class CalendarViewModel: ObservableObject {
         )
     }
 
-    // MARK: - 区间与标题
+    // MARK: - 区间与标题（全部从 focusedDate 派生）
 
-    var currentRange: DateInterval {
-        switch mode {
-        case .weekly:  return CalendarRangeBuilder.weekRange(around: anchor)
-        case .monthly: return CalendarRangeBuilder.monthRange(anchor)
-        }
-    }
+    var currentWeekRange: DateInterval { CalendarRangeBuilder.weekRange(around: focusedDate) }
+    var currentMonthRange: DateInterval { CalendarRangeBuilder.monthRange(focusedDate) }
 
-    var title: String {
-        switch mode {
-        case .weekly:
-            let range = CalendarRangeBuilder.weekRange(around: anchor)
-            let last = range.end.addingTimeInterval(-1)
-            return "\(Self.rangeFormatter.string(from: range.start)) – \(Self.rangeFormatter.string(from: last))"
-        case .monthly:
-            return Self.monthFormatter.string(from: anchor)
-        }
-    }
-
-    // MARK: - 衍生数据（按 moduleFilter 过滤）
-
-    /// 当前筛选下的事件
-    private var filteredEvents: [CalendarEvent] {
-        guard let filter = moduleFilter else { return result.events }
-        return result.events.filter { $0.module == filter }
-    }
-
-    /// 周历列表：累积事件按天分组（周间倒序、周内升序——往下滚=向过去翻）
-    var eventsByDay: [DayEvents] {
+    /// 本周七天（周一首）：周档网格渲染与翻页的唯一日期数据源
+    var currentWeekDays: [Date] {
         let cal = Calendar.current
-        let filtered: [CalendarEvent]
-        if let filter = moduleFilter {
-            filtered = listEvents.filter { $0.module == filter }
-        } else {
-            filtered = listEvents
-        }
-        return Dictionary(grouping: filtered) { cal.startOfDay(for: $0.date) }
-            .map { DayEvents(day: $0.key, events: $0.value.sorted { $0.date < $1.date }) }
-            .sorted { a, b in
-                let weekA = a.day.startOfWeek
-                let weekB = b.day.startOfWeek
-                if weekA != weekB { return weekA > weekB }
-                return a.day < b.day
-            }
+        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: currentWeekRange.start) }
     }
 
-    /// 月历：按天分组的事件字典（key = startOfDay）
+    /// 回正按钮按观察尺度命名，避免月档仍写「今天」造成动作语义不清。
+    var todayLabel: String {
+        switch scale {
+        case .day: return "今天"
+        case .week: return "本周"
+        case .month: return "本月"
+        }
+    }
+
+    /// 是否已处在当前期（「今天/本周」置灰免点）
+    var isAtCurrentPeriod: Bool {
+        switch scale {
+        case .day:  return Calendar.current.isDateInToday(focusedDate)
+        case .week: return CalendarRangeBuilder.weekRange(around: focusedDate).contains(Date())
+        case .month: return Calendar.current.isDate(focusedDate, equalTo: Date(), toGranularity: .month)
+        }
+    }
+
+    /// 未来导航限制：记忆长廊只回看已经发生的生活，三档都不翻到当前期之后。
+    var canStepForward: Bool {
+        !isAtCurrentPeriod
+    }
+
+    var hasFailure: Bool { timelineResult.hasFailure }
+
+    // MARK: - 筛选派生数据
+
+    private var filteredTimeline: [CalendarEvent] {
+        guard let filter = moduleFilter else { return timelineEvents }
+        return timelineEvents.filter { $0.module == filter }
+    }
+
+    /// 日档：聚焦日当天事件（已筛选）
+    var focusedDayEvents: [CalendarEvent] {
+        let range = CalendarRangeBuilder.dayRange(focusedDate)
+        return filteredTimeline.filter { CalendarRangeBuilder.contains($0.date, in: range) }
+    }
+
+    /// 周档网格 / 日档日期珠：按天分组的筛选事件（key = startOfDay）
+    var eventsByDay: [Date: [CalendarEvent]] {
+        let cal = Calendar.current
+        return Dictionary(grouping: filteredTimeline) { cal.startOfDay(for: $0.date) }
+    }
+
+    /// 月档：本月按天分组（key = startOfDay）
     var monthEventsByDay: [Date: [CalendarEvent]] {
+        let range = currentMonthRange
         let cal = Calendar.current
-        return Dictionary(grouping: filteredEvents) { cal.startOfDay(for: $0.date) }
+        let inMonth = filteredTimeline.filter { CalendarRangeBuilder.contains($0.date, in: range) }
+        return Dictionary(grouping: inMonth) { cal.startOfDay(for: $0.date) }
     }
 
-    /// 月历选中天的详情事件
-    var selectedDayEvents: [CalendarEvent] {
-        guard let day = selectedDay else { return [] }
-        return monthEventsByDay[Calendar.current.startOfDay(for: day)] ?? []
+    /// 月档当天详情卡（聚焦日）事件
+    var selectedDayEvents: [CalendarEvent] { focusedDayEvents }
+
+    /// 当前观察尺度内的筛选后事件。时间章节、观察摘要与主体内容统一使用这份事实。
+    var currentPeriodEvents: [CalendarEvent] {
+        switch scale {
+        case .day:
+            return focusedDayEvents
+        case .week:
+            return filteredTimeline.filter { CalendarRangeBuilder.contains($0.date, in: currentWeekRange) }
+        case .month:
+            return filteredTimeline.filter { CalendarRangeBuilder.contains($0.date, in: currentMonthRange) }
+        }
     }
 
-    var observationSummary: CalendarObservationSummary {
-        CalendarObservationSummary.make(
-            events: filteredEvents,
-            scope: mode == .weekly ? .week : .month
+    /// 周/月时间章节：大时间标题与证据合并，不再额外堆一行日期标题和统计卡。
+    var chapterPresentation: MemoryTimeChapterPresentation {
+        let events = currentPeriodEvents
+        let calendar = Calendar.current
+        let activeDayCount = Set(events.map { calendar.startOfDay(for: $0.date) }).count
+        let momentCount = Dictionary(grouping: events) { calendar.startOfDay(for: $0.date) }
+            .values
+            .reduce(0) { $0 + DailyReplayPresentation.moments(from: $1).count }
+        let reliable = events.filter(\.hasReliableTime).sorted { $0.date < $1.date }
+        let range: DateInterval
+        let chapterScale: MemoryTimeChapterScale
+
+        switch scale {
+        case .day:
+            range = CalendarRangeBuilder.dayRange(focusedDate)
+            chapterScale = .day
+        case .week:
+            range = currentWeekRange
+            chapterScale = .week
+        case .month:
+            range = currentMonthRange
+            chapterScale = .month
+        }
+
+        return MemoryTimeChapterPresentation.make(
+            scale: chapterScale,
+            focusedDate: focusedDate,
+            periodStart: range.start,
+            periodEnd: range.end,
+            eventCount: events.count,
+            momentCount: momentCount,
+            activeDayCount: activeDayCount,
+            firstEventDate: reliable.first?.date,
+            lastEventDate: reliable.last?.date,
+            isCurrentPeriod: isAtCurrentPeriod
         )
     }
 
-    var hasFailure: Bool { result.hasFailure }
+    /// 日档日期珠的模块提示（key = startOfDay → 当天出现过的模块集合）
+    var dayModuleHints: [Date: Set<CalendarModule>] {
+        let cal = Calendar.current
+        var hints: [Date: Set<CalendarModule>] = [:]
+        for event in filteredTimeline {
+            hints[cal.startOfDay(for: event.date), default: []].insert(event.module)
+        }
+        return hints
+    }
+
+    /// 日档日期珠拖动轻提示的计数（key = startOfDay → 当天事件数）
+    var dayEventCounts: [Date: Int] {
+        let cal = Calendar.current
+        return Dictionary(grouping: filteredTimeline) { cal.startOfDay(for: $0.date) }
+            .mapValues(\.count)
+    }
+
+    // MARK: - 观察摘要（按档位口径：日=当天、周=本周、月=本月）
+
+    var observationSummary: CalendarObservationSummary {
+        switch scale {
+        case .day:
+            return CalendarObservationSummary.make(
+                events: focusedDayEvents,
+                scope: .day,
+                moduleFilter: moduleFilter
+            )
+        case .week:
+            return CalendarObservationSummary.make(events: currentPeriodEvents, scope: .week)
+        case .month:
+            return CalendarObservationSummary.make(events: currentPeriodEvents, scope: .month)
+        }
+    }
 
     // MARK: - 加载
 
-    func load() async {
-        isLoading = true
-        result = await provider.fetchEvents(in: currentRange, todoDimension: todoDimension)
-        if mode == .weekly {
-            // 箭头翻周 = 跳转：列表累积重置为新 anchor 周，再滚再攒
-            listEvents = result.events
-            listLoadedStart = currentRange.start
-            listHasEarlierWeeks = true
-            refreshListNarrative()
+    /// 进日历页时调用：预载聚焦日 ±60 天到内存
+    func loadInitial() async {
+        guard loadedRange == nil else { return }       // 已预载过，不重复
+        isInitialLoading = true
+        await fetchTimeline(around: focusedDate)
+        isInitialLoading = false
+        refreshWeekNarrative()
+    }
+
+    /// 聚焦日接近已加载边缘时续载（剩余 < 14 天触发）
+    func ensureTimelineData(around center: Date) {
+        guard let loaded = loadedRange else { return }
+        let cal = Calendar.current
+        let dayBeforeEdge = cal.date(byAdding: .day, value: edgeMarginDays, to: loaded.start) ?? loaded.start
+        let dayAfterEdge = cal.date(byAdding: .day, value: -edgeMarginDays, to: loaded.end) ?? loaded.end
+        if center < dayBeforeEdge || center >= dayAfterEdge {
+            Task { await fetchTimeline(around: center) }
         }
-        isLoading = false
     }
 
-    /// 周历列表滚到底：加载上一周 append 进累积（originID 去重，与网格续载同一惯例）。
-    /// 列表为空时（如本周还没记录）连续向过去找，直到首个非空周或到顶。
-    func loadPreviousWeek() async {
-        guard mode == .weekly, weekViewMode == .list,
-              !isLoadingEarlier, !isLoading, listHasEarlierWeeks else { return }
-        isLoadingEarlier = true
-
-        let anchorWeekStart = CalendarRangeBuilder.weekRange(around: anchor).start
-        let earliestAllowed = anchorWeekStart.addingDays(-7 * 51)
-
-        repeat {
-            let previousRange = CalendarRangeBuilder.weekRange(around: listLoadedStart.addingDays(-1))
-            let fetched = await provider.fetchEvents(in: previousRange, todoDimension: todoDimension)
-
-            var seen = Set(listEvents.map { $0.originID })
-            var merged = listEvents
-            for event in fetched.events where seen.insert(event.originID).inserted {
-                merged.append(event)
-            }
-            listEvents = merged
-            listLoadedStart = previousRange.start
-
-            if previousRange.start <= earliestAllowed {
-                listHasEarlierWeeks = false
-            }
-        } while listEvents.isEmpty && listHasEarlierWeeks
-
-        refreshListNarrative()
-        isLoadingEarlier = false
+    /// 下拉刷新/失败重试：刷新时间线窗口（三档共用一个通道）
+    func refreshForCurrentScale() async {
+        await fetchTimeline(around: focusedDate)
+        refreshWeekNarrative()
     }
 
-    /// 为当前累积窗口检测高光/里程碑（与记忆长廊时间线同一检测器，口径一致）
-    private func refreshListNarrative() {
-        let context = CoreDataStack.shared.viewContext
-        let calendar = Calendar.current
+    /// 取数：以 center 为中心取 ±60 天，与已加载窗口合并（按 originID 去重）。
+    /// 续载 = 扩展窗口取并集，不是覆盖替换——避免滑动中途把屏幕上看得到的事件刷没。
+    /// originID 是原始 Core Data 实体 ID，同一条记录稳定不变，可可靠判重。
+    private func fetchTimeline(around center: Date) async {
+        let cal = Calendar.current
+        guard let fetchStart = cal.date(byAdding: .day, value: -preloadHalfSpanDays, to: cal.startOfDay(for: center)),
+              let fetchEnd = cal.date(byAdding: .day, value: preloadHalfSpanDays, to: cal.startOfDay(for: center)) else { return }
+        let fetchRange = DateInterval(start: fetchStart, end: fetchEnd)
+        let fetched = await provider.fetchEvents(in: fetchRange, todoDimension: todoDimension)
 
-        let days = Array(Set(listEvents.map { calendar.startOfDay(for: $0.date) }))
-        let detected = HighlightDetector.detect(for: days, context: context)
-        var highlights: [Date: [HighlightData]] = [:]
-        for (day, items) in detected where day >= listLoadedStart {
-            highlights[day] = items
+        let newStart = loadedRange.map { min($0.start, fetchRange.start) } ?? fetchRange.start
+        let newEnd = loadedRange.map { max($0.end, fetchRange.end) } ?? fetchRange.end
+        loadedRange = DateInterval(start: newStart, end: newEnd)
+        timelineResult = fetched
+
+        var seen = Set(timelineEvents.map { $0.originID })
+        var merged = timelineEvents
+        for ev in fetched.events where seen.insert(ev.originID).inserted {
+            merged.append(ev)
         }
-        listHighlights = highlights
-
-        var milestones: [Date: [MilestoneData]] = [:]
-        for milestone in MilestoneDetector.detect(context: context) {
-            let day = calendar.startOfDay(for: milestone.date)
-            guard day >= listLoadedStart else { continue }
-            milestones[day, default: []].append(milestone.data)
-        }
-        listMilestones = milestones
+        timelineEvents = merged
     }
 
-    func switchMode(_ m: Mode) {
-        guard mode != m else { return }
-        mode = m
-        Task { await load() }
-    }
+    // MARK: - 周叙事（高光/里程碑，与记忆长廊时间线同一检测器，口径一致）
 
-    func setModuleFilter(_ filter: CalendarModule?) {
-        moduleFilter = filter
-    }
+    private func refreshWeekNarrative() {
+        let week = currentWeekRange
+        let cal = Calendar.current
+        let days = (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: week.start) }
 
-    func setTodoDimension(_ d: TodoTimeDimension) {
-        todoDimension = d
-        Task { await load() }
+        let detected = HighlightDetector.detect(for: days, context: CoreDataStack.shared.viewContext)
+        weekHighlights = days.flatMap { detected[cal.startOfDay(for: $0)] ?? [] }
+
+        weekMilestones = MilestoneDetector.detect(context: CoreDataStack.shared.viewContext)
+            .filter { CalendarRangeBuilder.contains($0.date, in: week) }
+            .map(\.data)
     }
 
     // MARK: - 导航
 
-    func goToPrev() {
-        anchor = step(by: -1)
-        Task { await load() }
+    /// 切换时间刻度：聚焦日期保持不变（统一浏览方案 §6.2 切换规则）
+    func switchScale(_ s: CalendarScale) {
+        guard scale != s else { return }
+        scale = s
+        ensureTimelineData(around: focusedDate)
+        if s == .week { refreshWeekNarrative() }
     }
 
-    func goToNext() {
-        anchor = step(by: 1)
-        Task { await load() }
+    /// 箭头步进：日 ±1 天、周 ±1 周、月 ±1 月，全部只改 focusedDate
+    func step(by delta: Int) {
+        let cal = Calendar.current
+        let today = Date()
+        let component: Calendar.Component = scale == .month ? .month : (scale == .week ? .weekOfYear : .day)
+        guard var next = cal.date(byAdding: component, value: delta, to: focusedDate) else { return }
+        next = cal.startOfDay(for: next)
+
+        // 未来限制：任何尺度都不越过当前期。
+        if delta > 0 && next > today {
+            next = cal.startOfDay(for: today)
+        }
+        guard !cal.isDate(next, inSameDayAs: focusedDate) else { return }
+
+        focusedDate = next
+        ensureTimelineData(around: next)
+        if scale == .week { refreshWeekNarrative() }
     }
 
+    /// 回到今天/本周/本月：聚焦日期归位，不切档
     func goToToday() {
-        anchor = Date()
-        selectedDay = Date()
-        Task { await load() }
+        focusedDate = Calendar.current.startOfDay(for: Date())
+        ensureTimelineData(around: focusedDate)
+        if scale == .week { refreshWeekNarrative() }
     }
 
-    func selectDay(_ day: Date) {
-        selectedDay = day
+    /// 聚焦某一天（月历点日期 / 周网格点日期头 / 日档日期珠切日）。
+    /// 只改聚焦日期，不切档不翻页——下钻由明确的「回放这一天」动作触发。
+    func focusDay(_ day: Date) {
+        let next = Calendar.current.startOfDay(for: day)
+        guard next != Calendar.current.startOfDay(for: focusedDate) else { return }
+        focusedDate = next
+        ensureTimelineData(around: next)
     }
 
-    // MARK: - 3 日网格视图导航与数据
-
-    /// 网格标题：显示中心日（如「8月10日 周一」）
-    var gridTitle: String {
-        Self.gridTitleFormatter.string(from: gridCenterDay)
+    /// 月档「回放这一天」：保持日期，切到日档
+    func enterDayReplay() {
+        scale = .day
     }
 
-    /// 网格视图：当前筛选下的按天事件字典（key = startOfDay）
-    var gridEventsByDay: [Date: [CalendarEvent]] {
-        let cal = Calendar.current
-        let filtered = gridFilteredEvents
-        return Dictionary(grouping: filtered) { cal.startOfDay(for: $0.date) }
-    }
-
-    /// 网格箭头：按天步进（+1 往后一天，-1 往前一天）
-    func gridStep(by delta: Int) {
-        let next = Calendar.current.date(byAdding: .day, value: delta, to: gridCenterDay) ?? gridCenterDay
-        gridCenterDay = next
-        gridEnsureData(around: next)
-    }
-
-    /// 回到今天
-    func gridGoToToday() {
-        gridCenterDay = Date()
-        gridEnsureData(around: Date())
-    }
-
-    /// 进网格视图时调用：预载中心日 ±60 天到内存
-    func gridLoadInitial() async {
-        if gridLoadedRange != nil { return }       // 已预载过，不重复
-        gridIsInitialLoading = true
-        await gridFetch(center: Date(), halfSpanDays: 60)
-        gridIsInitialLoading = false
-    }
-
-    /// 滑动接近边缘时续载（剩余 < 14 天触发）
-    func gridEnsureData(around center: Date) {
-        guard let loaded = gridLoadedRange else { return }
-        let cal = Calendar.current
-        let dayBeforeEdge = cal.date(byAdding: .day, value: 14, to: loaded.start) ?? loaded.start
-        let dayAfterEdge = cal.date(byAdding: .day, value: -14, to: loaded.end) ?? loaded.end
-        if center < dayBeforeEdge || center >= dayAfterEdge {
-            Task { await gridFetch(center: center, halfSpanDays: 60) }
-        }
-    }
-
-    /// 取数：以 center 为中心取 ±halfSpanDays 天，与已加载数据合并（按 originID 去重）。
-    /// 续载 = 扩展窗口（取并集），不是覆盖替换 —— 避免滑动中途把屏幕上看得到的事件刷没。
-    /// originID 是原始 Core Data 实体 ID，同一条记录稳定不变，可可靠判重。
-    private func gridFetch(center: Date, halfSpanDays: Int) async {
-        let cal = Calendar.current
-        guard let fetchStart = cal.date(byAdding: .day, value: -halfSpanDays, to: cal.startOfDay(for: center)),
-              let fetchEnd = cal.date(byAdding: .day, value: halfSpanDays, to: cal.startOfDay(for: center)) else { return }
-        let fetchRange = DateInterval(start: fetchStart, end: fetchEnd)
-        let fetched = await provider.fetchEvents(in: fetchRange, todoDimension: todoDimension)
-
-        let newStart = gridLoadedRange.map { min($0.start, fetchRange.start) } ?? fetchRange.start
-        let newEnd = gridLoadedRange.map { max($0.end, fetchRange.end) } ?? fetchRange.end
-        gridLoadedRange = DateInterval(start: newStart, end: newEnd)
-
-        var seen = Set(gridRawEvents.map { $0.originID })
-        var merged = gridRawEvents
-        for ev in fetched.events where seen.insert(ev.originID).inserted {
-            merged.append(ev)
-        }
-        gridRawEvents = merged
-    }
-
-    private var gridFilteredEvents: [CalendarEvent] {
-        guard let filter = moduleFilter else { return gridRawEvents }
-        return gridRawEvents.filter { $0.module == filter }
-    }
-
-    private func step(by delta: Int) -> Date {
-        let component: Calendar.Component = (mode == .weekly) ? .weekOfYear : .month
-        return Calendar.current.date(byAdding: component, value: delta, to: anchor) ?? anchor
-    }
-
-    // MARK: - 格式化
-
-    private static let rangeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日"
-        return f
-    }()
-    private static let monthFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "yyyy年M月"
-        return f
-    }()
-    private static let gridTitleFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日 EEE"
-        return f
-    }()
 }

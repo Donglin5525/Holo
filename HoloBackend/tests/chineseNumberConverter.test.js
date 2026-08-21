@@ -96,9 +96,12 @@ function createAsrTestApp(transcript, overrides = {}) {
   });
 }
 
-async function postTranscript(app) {
+async function postTranscript(app, source = null) {
   const body = new FormData();
   body.set("audio", new Blob(["voice-bytes"], { type: "audio/wav" }), "voice.wav");
+  if (source) {
+    body.set("source", source);
+  }
   const response = await app.request("/v1/asr/transcriptions", {
     method: "POST",
     headers: { "x-holo-device-id": "device-number-conv" },
@@ -120,4 +123,22 @@ test("开关关闭时不对转写结果做数字归一化", async () => {
   });
   const json = await postTranscript(app);
   assert.equal(json.text, "今天午饭花了二十元");
+});
+
+test("HoloAI 对话入口（source=chat）维持中文数字归一化", async () => {
+  const app = createAsrTestApp("买了一个杯子");
+  const json = await postTranscript(app, "chat");
+  assert.equal(json.text, "买了1个杯子");
+});
+
+test("想法入口（source=thought）保留口述原文", async () => {
+  const app = createAsrTestApp("买了一个杯子，加了三小时班");
+  const json = await postTranscript(app, "thought");
+  assert.equal(json.text, "买了一个杯子，加了三小时班");
+});
+
+test("任务入口（source=task）保留口述原文", async () => {
+  const app = createAsrTestApp("买了一个杯子");
+  const json = await postTranscript(app, "task");
+  assert.equal(json.text, "买了一个杯子");
 });

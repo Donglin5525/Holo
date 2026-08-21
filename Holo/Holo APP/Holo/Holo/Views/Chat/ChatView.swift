@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ChatView: View {
 
@@ -50,6 +51,22 @@ struct ChatView: View {
     @State private var keyboardOverlap: CGFloat = 0
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
+    // MARK: 页内双 Tab（对话 / 报告）——设计文档 §4.1
+
+    private enum ChatPageTab {
+        case chat
+        case report
+    }
+
+    @State private var selectedPageTab: ChatPageTab = .chat
+    /// 报告 pane 首次切换才构建（聊天页性能保护），之后常驻不销毁
+    @State private var hasVisitedReportTab = false
+    @StateObject private var reportViewModel = ChatReportTabViewModel()
+    /// 报告详情（全屏）：报告 Tab 档案行 / 聊天分析卡 / 长廊门卡三处共用
+    @State private var agentDetailMessage: ChatMessageViewData?
+    /// 回放阅读版（全屏）：报告 Tab 档案行进入
+    @State private var replayReaderMessage: ChatMessageViewData?
+
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
     var opensVoiceInputOnAppear: Bool = false
@@ -87,7 +104,8 @@ struct ChatView: View {
                     unconfiguredView
                 } else if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
                     // 已连接、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
-                    chatContent
+                    pageTabBar
+                    pageTabContent
                 } else if !viewModel.isConfigured {
                     // 服务不可用兜底
                     unconfiguredView
@@ -103,6 +121,7 @@ struct ChatView: View {
             updateKeyboardOverlap(note)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) {
+            viewModel.clearContinuationDraft()
             close()
         }
         .overlay(alignment: .top) {
@@ -167,6 +186,12 @@ struct ChatView: View {
         .task {
             await viewModel.setup()
             await loadMemoryInboxNoticeIfNeeded()
+            reportViewModel.bind(chatViewModel: viewModel)
+            // 跨模块请求切报告 Tab（聊天卡回执 / 长廊门卡）：常驻页用 onReceive 消费，
+            // 首次创建时补消费冷启动前发出的请求
+            if ChatReportTabRouter.shared.consumePendingRequest() {
+                switchToReportTab()
+            }
             #if DEBUG
             if HoloAppStoreScreenshotSeeder.requestedRoute == .aiAnalysis,
                let message = viewModel.messages.last(where: {
@@ -181,6 +206,11 @@ struct ChatView: View {
             if opensVoiceInputOnAppear {
                 activeSheet = .voiceInput
             }
+        }
+        .onReceive(ChatReportTabRouter.shared.$requestTicket.dropFirst()) { _ in
+            // dropFirst：@Published 订阅时会先回放当前值，不滤掉会把
+            // 「进入页面」误判成一次跳转请求，导致默认落在报告 Tab。
+            switchToReportTab()
         }
         .task(id: viewModel.hasLoadedMessages) {
             await revealInitialConversationIfReady()
@@ -261,6 +291,39 @@ struct ChatView: View {
                 Task { await viewModel.startPeriodReplay(periodType: periodType, start: start, end: end) }
             }
         }
+        // 报告详情：从 activeSheet 枚举迁出为独立全屏层（设计文档 §4.3）。
+        // 迁移原因：详情从「下拉即关的浮层」升级为正式全屏页；独立 item 绑定 +
+        // onDismiss 复位，不与既有 5 sheet + 3 cover 的状态机互相干扰。
+        .fullScreenCover(item: $agentDetailMessage, onDismiss: {
+            agentDetailMessage = nil
+        }) { message in
+            if let result = message.agentResult {
+                AgentDeepAnalysisDetailSheet(
+                    result: result,
+                    onFinanceDrilldown: { drilldown in
+                        let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
+                        DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
+                            title: normalizedKeyword.map { "\($0)数据依据" } ?? "财务数据依据",
+                            label: drilldown.label,
+                            keyword: normalizedKeyword,
+                            start: drilldown.start,
+                            end: drilldown.end,
+                            baselineStart: drilldown.baselineStart,
+                            baselineEnd: drilldown.baselineEnd,
+                            sourceEvidenceID: drilldown.sourceEvidenceID
+                        )))
+                        // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
+                    },
+                    onContinueFollowUp: {
+                        viewModel.startContinuation(from: result)
+                    }
+                )
+            }
+        }
+        .fullScreenCover(item: $replayReaderMessage) { message in
+            ReportReplayReaderView(message: message)
+        }
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
                 GoalDraftReviewView(
@@ -295,6 +358,7 @@ struct ChatView: View {
     private var chatNavBar: some View {
         HStack {
             Button {
+                viewModel.clearContinuationDraft()
                 close()
             } label: {
                 Image(systemName: "xmark")
@@ -374,6 +438,108 @@ struct ChatView: View {
             }
         }
         .padding()
+    }
+
+    // MARK: - 页内双 Tab（对话 / 报告）
+
+    private var pageTabBar: some View {
+        HStack(spacing: 0) {
+            pageTabButton(.chat, title: "对话", showsDot: false)
+            pageTabButton(.report, title: "报告", showsDot: reportViewModel.hasUnreadReport)
+        }
+        .frame(width: 190)
+        .padding(3)
+        .background(Color.holoTextSecondary.opacity(0.09), in: Capsule())
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+    }
+
+    private func pageTabButton(_ tab: ChatPageTab, title: String, showsDot: Bool) -> some View {
+        let isSelected = selectedPageTab == tab
+        return Button {
+            guard selectedPageTab != tab else { return }
+            if tab == .report {
+                switchToReportTab()
+            } else {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    selectedPageTab = .chat
+                }
+                reportViewModel.markHidden()
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.holoCardBackground : .clear, in: Capsule())
+                .overlay(alignment: .topTrailing) {
+                    if showsDot {
+                        Circle()
+                            .fill(Color.holoPrimary)
+                            .frame(width: 7, height: 7)
+                            .offset(x: -6, y: 3)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// 两 Tab 常驻不销毁（照搬记忆长廊 tabContent 模式）：
+    /// 切走仅隐藏，聊天侧滚动位置与输入态跨切换存活。
+    /// 报告 pane 延迟到首次切换才构建，避免加重聊天首帧。
+    private var pageTabContent: some View {
+        ZStack {
+            chatContent
+                .opacity(selectedPageTab == .chat ? 1 : 0)
+                .allowsHitTesting(selectedPageTab == .chat)
+                .accessibilityHidden(selectedPageTab != .chat)
+
+            if hasVisitedReportTab {
+                ChatReportTabView(
+                    viewModel: reportViewModel,
+                    onOpenEntry: { entry in
+                        openReportEntry(entry)
+                    },
+                    onLaunchInChat: {
+                        // 空态橱窗 CTA：切回对话并预填话术，发送确认权在用户
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            selectedPageTab = .chat
+                        }
+                        reportViewModel.markHidden()
+                        viewModel.inputText = "分析一下我最近的数据趋势"
+                    }
+                )
+                .opacity(selectedPageTab == .report ? 1 : 0)
+                .allowsHitTesting(selectedPageTab == .report)
+                .accessibilityHidden(selectedPageTab != .report)
+            }
+        }
+    }
+
+    private func switchToReportTab() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            selectedPageTab = .report
+        }
+        hasVisitedReportTab = true
+        reportViewModel.markSeen()
+        Task { await reportViewModel.reload() }
+        // 隐藏的聊天 pane 不会自动释放第一响应者，切走时手动收起键盘
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+        )
+    }
+
+    /// 档案行点击分流：深度分析 → 全屏报告详情；周期回放 → 全屏阅读版。
+    private func openReportEntry(_ entry: ChatMessageRepository.ReportArchiveDTO) {
+        guard let message = reportViewModel.loadReportMessage(id: entry.id) else { return }
+        switch entry.kind {
+        case .deepAnalysis:
+            agentDetailMessage = message
+        case .periodReplay:
+            replayReaderMessage = message
+        }
     }
 
     // MARK: - Chat Content
@@ -487,7 +653,14 @@ struct ChatView: View {
                         },
                         onAgentDeepAnalysisTap: {
                             guard message.agentResult != nil else { return }
-                            activeSheet = .agentDeepAnalysis(message)
+                            agentDetailMessage = message
+                        },
+                        onAgentScopeChange: { preset in
+                            guard let result = message.agentResult else { return }
+                            Task { await viewModel.changeAnalysisScope(from: result, preset: preset) }
+                        },
+                        onAgentResumePaused: {
+                            viewModel.resumePausedAgentJobs(sourceMessageID: message.id)
                         },
                         onPeriodReplayExpansionChanged: { _, isExpanded in
                             guard !isExpanded else { return }
@@ -1015,24 +1188,6 @@ struct ChatView: View {
             }
         case .analysisDetail(let message):
             AnalysisDetailSheet(message: message)
-        case .agentDeepAnalysis(let message):
-            if let result = message.agentResult {
-                AgentDeepAnalysisDetailSheet(result: result) { drilldown in
-                    let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
-                    DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
-                        title: normalizedKeyword.map { "\($0)数据依据" } ?? "财务数据依据",
-                        label: drilldown.label,
-                        keyword: normalizedKeyword,
-                        start: drilldown.start,
-                        end: drilldown.end,
-                        baselineStart: drilldown.baselineStart,
-                        baselineEnd: drilldown.baselineEnd,
-                        sourceEvidenceID: drilldown.sourceEvidenceID
-                    )))
-                    // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
-                }
-            }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .chat)) { transcript in
                 pendingVoiceTranscriptToSend = transcript
@@ -1071,7 +1226,6 @@ private enum ChatSheet: Identifiable {
     #endif
     case editTransaction(Transaction)
     case analysisDetail(ChatMessageViewData)
-    case agentDeepAnalysis(ChatMessageViewData)
     case voiceInput
 
     var id: String {
@@ -1086,8 +1240,6 @@ private enum ChatSheet: Identifiable {
             return "editTransaction-\(transaction.id)"
         case .analysisDetail(let message):
             return "analysisDetail-\(message.id)"
-        case .agentDeepAnalysis(let message):
-            return "agentDeepAnalysis-\(message.id)"
         case .voiceInput:
             return "voiceInput"
         }

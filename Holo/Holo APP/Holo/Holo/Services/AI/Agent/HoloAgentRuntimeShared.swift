@@ -262,7 +262,7 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
 extension HoloLocalAgentRuntime {
     /// 全 App 共享的生产 Agent runtime（真实后端 LLM + Memory 工具）。
     /// 同时服务后台续跑（Phase 5.1）与对话深度分析（Phase 6.2）。
-    /// 生产 dataSource 已覆盖 10 类核心域工具 + 3 类结构/反馈增强工具。
+    /// 生产 dataSource 已覆盖 11 类用户数据域 + 5 类反馈/引用/项目/跨域/探查工具。
     /// 生产装配放此处（而非 Factory），避免 standalone test 拉 Factory 时引入后端重依赖。
     @MainActor
     static let shared: HoloLocalAgentRuntime = {
@@ -291,13 +291,13 @@ extension HoloLocalAgentRuntime {
             HoloDynamicToolDecorator(base: HoloConversationTool(dataSource: HoloDefaultConversationDataSource()), catalog: HoloAgentDynamicCatalogs.conversation, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloAnniversaryTool(dataSource: HoloDefaultAnniversaryDataSource()), catalog: HoloAgentDynamicCatalogs.anniversary, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloInsightTool(dataSource: HoloDefaultInsightDataSource()), catalog: HoloAgentDynamicCatalogs.insight, dataSource: dynamicDataSource),
-            // 第一梯队增强工具：纯叠加，不进 requiredToolNames / 动态数据集，避免破坏覆盖断言
+            // 用户可见能力同样属于发布契约，不再以“增强非必需”规避覆盖校验。
             HoloFeedbackTool(dataSource: HoloDefaultFeedbackDataSource()),
             HoloThoughtReferenceTool(dataSource: HoloDefaultThoughtReferenceDataSource()),
             HoloProjectTool(dataSource: HoloDefaultProjectDataSource()),
             HoloCrossDomainTool(dataSource: dynamicDataSource),
             // 数据探查工具：让模型在写 dynamicPlan 前先看到用户实际有哪些数据（习惯名/类型等），
-            // 避免盲猜数据归属（如把体重猜到 profile）。不进 requiredToolNames（增强非必需）。
+            // 避免盲猜数据归属（如把体重猜到 profile）。
             HoloDiscoverTool()
         ]
         assert(

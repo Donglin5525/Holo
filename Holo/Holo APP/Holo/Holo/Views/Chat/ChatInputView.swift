@@ -22,55 +22,103 @@ struct ChatInputView: View {
     }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            // 输入框
-            TextField("输入消息...", text: $viewModel.inputText, axis: .vertical)
-                .lineLimit(1...5)
-                .textFieldStyle(.plain)
-                .font(.holoBody)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+        VStack(spacing: 7) {
+            if let draft = viewModel.continuationDraft {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 27, height: 27)
+                        .background(Color.holoPrimary.opacity(0.10))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("继续追问这份分析")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.holoPrimary)
+                        Text(draft.rootUserQuestion)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        viewModel.clearContinuationDraft()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("取消承接上一份分析")
+                }
+                .padding(.leading, 10)
+                .padding(.trailing, 5)
+                .padding(.vertical, 6)
                 .background(Color.holoCardBackground)
-                .cornerRadius(20)
-                .onSubmit {
-                    // 流式中发送按钮已切换为停止键；回车不允许并发发送第二条消息
-                    guard !viewModel.isStreaming else { return }
-                    Task { await viewModel.sendMessage() }
-                }
-
-            Button {
-                onVoiceInputTap()
-            } label: {
-                Image(systemName: "mic.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(voiceButtonColor)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(Color.holoPrimary.opacity(0.16), lineWidth: 1)
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .disabled(viewModel.isStreaming)
-            .accessibilityLabel("语音输入")
 
-            // 发送/停止按钮
-            if viewModel.isStreaming {
+            HStack(alignment: .bottom, spacing: 12) {
+                // 输入框
+                TextField("输入消息...", text: $viewModel.inputText, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.plain)
+                    .font(.holoBody)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.holoCardBackground)
+                    .cornerRadius(20)
+                    .onSubmit {
+                        // 流式中发送按钮已切换为停止键；回车不允许并发发送第二条消息
+                        guard !viewModel.isStreaming else { return }
+                        Task { await viewModel.sendMessage() }
+                    }
+
                 Button {
-                    viewModel.cancelStreaming()
+                    onVoiceInputTap()
                 } label: {
-                    Image(systemName: "stop.circle.fill")
+                    Image(systemName: "mic.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(voiceButtonColor)
                 }
-            } else {
-                Button {
-                    Task { await viewModel.sendMessage() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(sendButtonColor)
+                .disabled(viewModel.isStreaming)
+                .accessibilityLabel("语音输入")
+
+                // 发送/停止按钮
+                if viewModel.isStreaming {
+                    Button {
+                        viewModel.cancelStreaming()
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.holoError)
+                    }
+                    .accessibilityLabel("停止生成")
+                } else {
+                    Button {
+                        Task { await viewModel.sendMessage() }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(sendButtonColor)
+                    }
+                    .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("发送消息")
                 }
-                .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.holoBackground)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.continuationDraft != nil)
     }
 
     private var sendButtonColor: Color {

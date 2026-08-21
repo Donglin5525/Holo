@@ -39,6 +39,16 @@ import { createContentModerationService } from "./moderation/contentModerationSe
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
+// 对客户端仍是普通 JSON 响应；网关到上游内部改用流式拉取，
+// 避免长结构化任务在首字节前被 30s 网络空闲墙切断。
+const INTERNAL_STREAM_COMPLETION_PURPOSES = new Set([
+  "agent_loop",
+  "insight",
+  "memory_observer",
+  "memory_domain_extraction",
+  "memory_cross_domain_fusion",
+]);
+
 function buildAdminReleaseStatus(config, agentStepEncryption) {
   return {
     ok: true,
@@ -582,11 +592,9 @@ export function createApp(overrides = {}) {
         const deterministicIntentResult = purpose === "intent"
           ? buildDeterministicIntentCompletion(upstreamRequest.messages, route.model)
           : null;
-        // agent_loop / insight 用流式拉取（provider 支持时），避免非流式长生成被 30s
-        // 网络空闲墙切断。insight（周期回放）常有长 reasoning + 长结构化输出，首字节
-        // 延迟高，非流式 30s 内可能一个字节都拿不到。返回结构与 complete() 一致，
-        // 下游（校验/幂等/日志）无感。
-        const useStream = (isAgentLoop || purpose === "insight")
+        // 长结构化任务用流式拉取（provider 支持时）。返回结构与
+        // complete() 一致，下游的校验、幂等、审核和日志契约不变。
+        const useStream = INTERNAL_STREAM_COMPLETION_PURPOSES.has(purpose)
           && typeof provider.completeViaStream === "function";
         const upstreamComplete = useStream
           ? provider.completeViaStream.bind(provider)
@@ -806,7 +814,14 @@ export function createApp(overrides = {}) {
           mimeType: audio.type,
           locale: formData.get("locale")?.toString() ?? null,
         });
-        if (config.asr.chineseNumberConversionEnabled && typeof result.text === "string") {
+        // 中文数字归一化（"一个"→"1个"）只服务 HoloAI 对话输入（LLM 解析量词/时间更稳）；
+        // 想法/任务是记录原文的场景，保留用户口述原样。未携带 source 的旧客户端维持全量转换。
+        const asrSource = formData.get("source")?.toString() ?? null;
+        if (
+          config.asr.chineseNumberConversionEnabled &&
+          (asrSource === null || asrSource === "chat") &&
+          typeof result.text === "string"
+        ) {
           result.text = normalizeChineseNumbers(result.text);
         }
         if (logId) {
@@ -1528,7 +1543,7 @@ function acquireAgentStep(store, identity, ttlSeconds) {
 /** 5xx/429 与非 GatewayError 视为可重试；其余 4xx 为终态失败 */
 function isRetryableAgentStepError(error) {
   if (error instanceof GatewayError) {
-    return error.status >= 500 || error.status === 429;
+    return error.code === "CLIENT_ABORTED" || error.status >= 500 || error.status === 429;
   }
   return true;
 }

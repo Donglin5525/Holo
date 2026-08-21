@@ -82,6 +82,9 @@ struct HabitDetailView: View {
     @State private var showGoalPicker: Bool = false
     @State private var showSaveErrorAlert: Bool = false
     @State private var saveErrorMessage: String? = nil
+    /// 打卡提醒（仅打卡型；改动即保存）
+    @State private var reminderMode: HabitReminderMode = .follow
+    @State private var reminderTime: Date = Date()
     
     // MARK: - Body
     
@@ -93,6 +96,9 @@ struct HabitDetailView: View {
                     recoverBanner
                     rangePicker
                     statsSection
+                    if snapshot.isCheckInType {
+                        reminderSection
+                    }
                     recordsSection
                 }
                 .padding(.horizontal, HoloSpacing.lg)
@@ -261,7 +267,33 @@ struct HabitDetailView: View {
             records = loadedRecords
             snapshot = s
             retroEligibleDays = repo.retroactiveEligibleDays(for: habit)
+
+            // 打卡提醒状态同步（与已存值一致时 onChange 不触发，不会回写）
+            if habit.isCheckInType {
+                reminderMode = habit.habitReminderMode
+                var timeComps = DateComponents()
+                timeComps.hour = Int(habit.reminderHour)
+                timeComps.minute = Int(habit.reminderMinute)
+                reminderTime = Calendar.current.date(from: timeComps) ?? reminderTime
+            }
         }
+    }
+
+    /// 打卡提醒改动即保存（与已存值相同时跳过，避免刷新回环）
+    private func saveReminderSettings() {
+        let calendar = Calendar.current
+        let newTime = (
+            hour: calendar.component(.hour, from: reminderTime),
+            minute: calendar.component(.minute, from: reminderTime)
+        )
+        guard reminderMode != habit.habitReminderMode
+            || newTime.hour != Int(habit.reminderHour)
+            || newTime.minute != Int(habit.reminderMinute) else { return }
+
+        try? HabitRepository.shared.updateHabit(habit, updates: HabitUpdates(
+            reminderMode: reminderMode,
+            reminderTime: newTime
+        ))
     }
 
     /// 应用归属目标选择：nil 表示移除关联；落库后刷新头部快照
@@ -646,6 +678,24 @@ struct HabitDetailView: View {
         .frame(maxWidth: .infinity)
     }
     
+    // MARK: - 打卡提醒（打卡型，改动即保存）
+
+    private var reminderSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("打卡提醒")
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+
+            HabitReminderModePicker(mode: $reminderMode, time: $reminderTime)
+                .onChange(of: reminderMode) { _, _ in
+                    saveReminderSettings()
+                }
+                .onChange(of: reminderTime) { _, _ in
+                    saveReminderSettings()
+                }
+        }
+    }
+
     // MARK: - 记录列表
 
     /// 补记入口可见条件：好习惯且创建日早于今天（今天刚创建的习惯没有可补日期）

@@ -24,6 +24,8 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onAgentDeepAnalysisTap: (() -> Void)? = nil
+    var onAgentScopeChange: ((AgentScopeChangePreset) -> Void)? = nil
+    var onAgentResumePaused: (() -> Void)? = nil
     var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
@@ -167,6 +169,10 @@ struct MessageBubbleView: View {
                 if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
                     AgentDeepAnalysisCard(message: message) {
                         onAgentDeepAnalysisTap?()
+                    } onScopeChange: { preset in
+                        onAgentScopeChange?(preset)
+                    } onResumePaused: {
+                        onAgentResumePaused?()
                     }
                 } else if message.analysisContext != nil {
                     AnalysisCompactChatCard(message: message) {

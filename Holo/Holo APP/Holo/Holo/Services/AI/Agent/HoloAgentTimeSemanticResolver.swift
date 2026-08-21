@@ -13,6 +13,9 @@ nonisolated enum HoloAgentTimeSemanticKind: String, Equatable, Sendable {
     case currentWeek
     case previousWeek
     case recentDays
+    /// L2 通用组合规则：「近/最近/过去 + 半/数字 + 天/周/月/年」。
+    /// 词表（L1）覆盖不了的「数量×单位」表达由这里确定性换算，不再静默落入默认窗口。
+    case relativeSpan
     case explicitMonth
     case explicitYear
     case currentYear
@@ -105,6 +108,12 @@ nonisolated enum HoloAgentTimeSemanticResolver {
 
         if let lexical = earliestLexicalMatch(in: normalized) {
             return resolveLexical(lexical, today: today, calendar: calendar)
+        }
+
+        // L2 通用组合规则必须在 explicitMonth 之前：带「近/最近/过去」前缀时，
+        // 相对语义（近3个月）要压过绝对月份（"3月"），否则「近3月」会被误读成今年3月。
+        if let span = resolveRelativeSpan(in: normalized, today: today, calendar: calendar) {
+            return span
         }
 
         if let explicitMonth = resolveExplicitMonth(in: normalized, today: today, calendar: calendar) {
@@ -202,6 +211,80 @@ nonisolated enum HoloAgentTimeSemanticResolver {
               let start = calendar.date(byAdding: .day, value: -(days - 1), to: today),
               let end = calendar.date(byAdding: .day, value: 1, to: today) else { return nil }
         return scope(kind: .recentDays, matchedText: matchedText, label: "近\(days)天", start: start, end: end)
+    }
+
+    // MARK: - L2 通用组合规则
+
+    /// 「（近/最近/过去）+（半/阿拉伯数字/中文数字）+（个）?（天/日/周/星期/月/年）」。
+    /// 例：近半年 → 近 6 个日历月；近3个月/近三个月 → 近 3 个日历月；近一年 → 近 1 个日历年。
+    /// 只接滚动语义前缀（近/最近/过去）；「前一个月」已被词表映射为上一自然月，不在此处理。
+    /// 「最近N天」由 L1 词表正则先命中，此处实际承接的是周/月/年与「半年」。
+    private static func resolveRelativeSpan(in text: String, today: Date, calendar: Calendar) -> HoloAgentResolvedTimeScope? {
+        let pattern = #"(最近|近|过去)(半|[0-9]{1,3}|[一二三四五六七八九十]{1,2})(个)?(天|日|周|星期|月|年)"#
+        guard let match = firstRegexMatch(pattern: pattern, in: text),
+              match.captures.count >= 3,
+              let unitRaw = match.captures.last else { return nil }
+
+        let countText = match.captures[1]
+        // 「半」按单位折算：半年=6个月、半月=15天；「半天/半周」不是统计窗口语义，不收
+        let halfMonth = (countText == "半" && (unitRaw == "月" || unitRaw == "年"))
+        let count: Int
+        if halfMonth {
+            count = unitRaw == "年" ? 6 : 15
+        } else if countText == "半" {
+            return nil
+        } else if let arabic = Int(countText) {
+            count = arabic
+        } else if let chinese = chineseNumber(countText) {
+            count = chinese
+        } else {
+            return nil
+        }
+        guard count > 0, count <= 366 else { return nil }
+
+        let matchedText = match.matchedText
+        let start: Date?
+        if halfMonth {
+            // 半年 = 6 个日历月；半月 = 15 天
+            if unitRaw == "年" {
+                start = calendar.date(byAdding: .month, value: -6, to: today).flatMap {
+                    calendar.date(byAdding: .day, value: 1, to: $0)
+                }
+            } else {
+                start = calendar.date(byAdding: .day, value: -14, to: today)
+            }
+        } else {
+            switch unitRaw {
+            case "天", "日":
+                start = calendar.date(byAdding: .day, value: -(count - 1), to: today)
+            case "周", "星期":
+                start = calendar.date(byAdding: .day, value: -(count * 7 - 1), to: today)
+            case "月":
+                // 近 N 个月 = 从今天回退 N 个日历月的那天起（含今天），滚动窗口而非自然月对齐
+                start = calendar.date(byAdding: .month, value: -count, to: today).flatMap {
+                    calendar.date(byAdding: .day, value: 1, to: $0)
+                }
+            case "年":
+                start = calendar.date(byAdding: .year, value: -count, to: today).flatMap {
+                    calendar.date(byAdding: .day, value: 1, to: $0)
+                }
+            default:
+                return nil
+            }
+        }
+        guard let start, let end = calendar.date(byAdding: .day, value: 1, to: today) else { return nil }
+        let label = matchedText
+            .replacingOccurrences(of: "星期", with: "周")
+        return scope(kind: .relativeSpan, matchedText: matchedText, label: label, start: start, end: end)
+    }
+
+    /// 中文数字 → 整数（一~十二；更复杂的组合交给 LLM 兜底层）。
+    private static func chineseNumber(_ text: String) -> Int? {
+        let simple: [String: Int] = [
+            "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+            "六": 6, "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12
+        ]
+        return simple[text]
     }
 
     private static func resolveExplicitMonth(in text: String, today: Date, calendar: Calendar) -> HoloAgentResolvedTimeScope? {

@@ -77,8 +77,9 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 每日状态快照
     @Published var dailySenseSnapshot: DailySenseSnapshot?
 
-    /// Agent 深度分析结果（Phase 6.3，agentMemoryGalleryEnabled 灰度）；nil 时回退旧 insight。
-    @Published var agentRenderedResult: HoloRenderedAgentResult?
+    /// 最新一份报告（报告门卡数据源）：与 Holo AI 报告 Tab 档案同一条查询，
+    /// 门卡永远显示档案第一行，一个家两个门、数据同源。
+    @Published private(set) var latestReportEntry: ChatMessageRepository.ReportArchiveDTO?
 
     /// AI 洞察刷新今日剩余次数（AI 回放「重新生成」配额）。
     @Published var insightRefreshRemaining: Int = MemoryInsightRefreshQuota.maxPerDay
@@ -181,6 +182,7 @@ class MemoryGalleryViewModel: ObservableObject {
         computeHeatmapData()
         await loadData()
         await loadInsights()
+        await loadLatestReportEntry()
         if quota.canRefresh() {
             await refreshInsight(force: true)
         }
@@ -645,11 +647,6 @@ class MemoryGalleryViewModel: ObservableObject {
             return
         }
 
-        // Agent 深度分析结果（Phase 6.3，灰度）：flag 开时读取展示，nil 时继续走旧 insight
-        if MemoryInsightService.shouldReadAgentResults {
-            await loadAgentRenderedResult()
-        }
-
         // 周洞察固定读取上一完整自然周。
         let weeklyPeriod = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
         let weekStart = weeklyPeriod.start
@@ -714,29 +711,12 @@ class MemoryGalleryViewModel: ObservableObject {
         }
     }
 
-    /// 读取最近一条 Agent 深度分析结果并渲染（Phase 6.3，agentMemoryGalleryEnabled 灰度）。
-    /// 当前展示 claims 文本；evidence 引用渲染待后续接入 evidence 读取。
-    /// §5.5：store 读失败不展示旧/伪结果，置空并记录日志。
-    private func loadAgentRenderedResult() async {
-        let runtime = HoloLocalAgentRuntime.shared
-        do {
-            guard let result = try await runtime.loadLatestResult() else {
-                agentRenderedResult = nil
-                return
-            }
-            let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
-            agentRenderedResult = HoloAgentResultRenderer().render(
-                claims: result.claims, evidence: evidence, title: result.title,
-                emptyReason: result.emptyReason,
-                requestedDeliverables: result.requestedDeliverables ?? [],
-                narrativeSummary: result.narrativeSummary,
-                keyInsight: result.keyInsight,
-                contextSources: result.contextSources ?? []
-            )
-        } catch {
-            NSLog("[Agent] 记忆长廊读取 Agent 结果失败: \(String(describing: error))")
-            agentRenderedResult = nil
-        }
+    /// 报告门卡：取报告档案的最新一条（与 Holo AI 报告 Tab 同源）。
+    /// 无报告时门卡不展示——新用户的能力教育由报告 Tab 的空态橱窗承担。
+    private func loadLatestReportEntry() async {
+        latestReportEntry = await ChatMessageRepository.shared
+            .loadReportArchiveAsync(limit: 1)
+            .first
     }
 
     /// 生成上一完整周 AI 回放
@@ -802,6 +782,17 @@ class MemoryGalleryViewModel: ObservableObject {
         forceRefresh: Bool = false
     ) async {
         guard insightGenerationState != .generating else { return }
+        // 洞察额度预检（免费 1 次/周）：为 0 时直接落额度终态，不进转圈。
+        // 余量缺失或过期时放行，由后端拦截 + quotaExhausted catch 兜底。
+        if let remaining = HoloEntitlementState.shared.quotas["memoryInsight"]?.remaining,
+           remaining <= 0 {
+            insightGenerationState = .quotaExhausted(
+                HoloQuotaError.memoryInsightExhaustedMessage(
+                    isPlusActive: HoloEntitlementState.shared.isPlusActive
+                )
+            )
+            return
+        }
         insightGenerationState = .generating
         await Task.yield()
 
@@ -839,6 +830,9 @@ class MemoryGalleryViewModel: ObservableObject {
             default:
                 insightGenerationState = .failed(error.localizedDescription)
             }
+        } catch let error as HoloQuotaError {
+            // 洞察额度耗尽：档位终态非故障，柔和样式展示额度文案，不提供重试。
+            insightGenerationState = .quotaExhausted(error.userMessage)
         } catch {
             insightGenerationState = .failed(error.localizedDescription)
         }

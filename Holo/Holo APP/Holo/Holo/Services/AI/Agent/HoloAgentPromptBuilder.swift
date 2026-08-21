@@ -36,10 +36,17 @@ nonisolated enum HoloAgentPromptBuilder {
                              timestamp: Date(timeIntervalSince1970: 0), tokenEstimate: nil)
         ]
         messages.append(contentsOf: conversationState)
-        messages.append(
-            HoloAgentMessage(role: .user, content: userQuestion, toolRequestID: nil, toolName: nil,
-                             timestamp: Date(timeIntervalSince1970: 0), tokenEstimate: nil)
-        )
+        // initial checkpoint 已持久化原始 user message；每轮再追加一次会让同一问题随轮次重复，
+        // 增加 token 和模型困惑。只有旧 checkpoint 缺少用户消息时才补齐。
+        let hasCanonicalUserQuestion = conversationState.contains {
+            $0.role == .user && $0.content == userQuestion
+        }
+        if !hasCanonicalUserQuestion {
+            messages.append(
+                HoloAgentMessage(role: .user, content: userQuestion, toolRequestID: nil, toolName: nil,
+                                 timestamp: Date(timeIntervalSince1970: 0), tokenEstimate: nil)
+            )
+        }
         return messages
     }
 }

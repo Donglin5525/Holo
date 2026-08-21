@@ -104,6 +104,8 @@ class HabitRepository: ObservableObject {
     ///   - targetValue: 目标数值（数值型）
     ///   - unit: 单位（数值型）
     ///   - aggregationType: 聚合类型（数值型）
+    ///   - reminderMode: 打卡提醒模式（仅打卡型参与提醒，默认跟随兜底）
+    ///   - reminderTime: 单独提醒时间（solo 模式使用，默认 09:00）
     /// - Returns: 新建的习惯
     @discardableResult
     func createHabit(
@@ -116,12 +118,14 @@ class HabitRepository: ObservableObject {
         targetValue: Double? = nil,
         unit: String? = nil,
         aggregationType: HabitAggregationType = .sum,
-        isBadHabit: Bool = false
+        isBadHabit: Bool = false,
+        reminderMode: HabitReminderMode = .follow,
+        reminderTime: (hour: Int, minute: Int) = (hour: 9, minute: 0)
     ) throws -> Habit {
         if !isReady { setup() }
         // 计算新的排序顺序
         let maxSortOrder = activeHabits.map { $0.sortOrder }.max() ?? -1
-        
+
         let habit = Habit.create(
             in: context,
             name: name,
@@ -134,7 +138,9 @@ class HabitRepository: ObservableObject {
             unit: unit,
             aggregationType: aggregationType,
             isBadHabit: isBadHabit,
-            sortOrder: maxSortOrder + 1
+            sortOrder: maxSortOrder + 1,
+            reminderMode: reminderMode,
+            reminderTime: reminderTime
         )
         
         try context.save()
@@ -158,6 +164,8 @@ class HabitRepository: ObservableObject {
         if let unit = updates.unit { habit.unit = unit }
         if let aggregationType = updates.aggregationType { habit.aggregationType = aggregationType.rawValue }
         if let isBadHabit = updates.isBadHabit { habit.isBadHabit = isBadHabit }
+        if let reminderMode = updates.reminderMode { habit.habitReminderMode = reminderMode }
+        if let reminderTime = updates.reminderTime { habit.reminderTime = reminderTime }
         
         habit.updatedAt = Date()
         
@@ -1087,6 +1095,10 @@ struct HabitUpdates {
     var unit: String?
     var aggregationType: HabitAggregationType?
     var isBadHabit: Bool?
+    /// 打卡提醒模式（nil = 不更新）
+    var reminderMode: HabitReminderMode?
+    /// 单独提醒时间（nil = 不更新）
+    var reminderTime: (hour: Int, minute: Int)?
 }
 
 // MARK: - Statistics Models

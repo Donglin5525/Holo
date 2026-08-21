@@ -1182,3 +1182,57 @@ test("memory purpose gateway preserves valid and invalid JSON fixtures for local
     assert.ok(Array.isArray(parsed.candidates), purpose);
   }
 });
+
+test("memory domain extraction uses internal streaming while preserving JSON response", async () => {
+  let completeCalls = 0;
+  let streamCalls = 0;
+  const provider = {
+    async complete() {
+      completeCalls += 1;
+      throw new Error("memory extraction should prefer completeViaStream");
+    },
+    async completeViaStream(request) {
+      streamCalls += 1;
+      return {
+        id: "memory-stream-fixture",
+        provider: "fixture",
+        model: request.model,
+        choices: [{
+          index: 0,
+          message: {
+            role: "assistant",
+            content: JSON.stringify({ candidates: [], counterEvidence: [], supersedes: [] }),
+          },
+          finish_reason: "stop",
+        }],
+      };
+    },
+  };
+  const app = createTestApp({
+    providerOverrides: [["memory-stream", provider]],
+    routes: {
+      memory_domain_extraction: {
+        provider: "memory-stream", model: "memory-stream-model", temperature: 0, maxTokens: 2048,
+      },
+    },
+  });
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "memory-stream-device",
+    },
+    body: JSON.stringify({
+      purpose: "memory_domain_extraction",
+      stream: false,
+      messages: [{ role: "user", content: "{\"schemaVersion\":1}" }],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(streamCalls, 1);
+  assert.equal(completeCalls, 0);
+  const parsed = JSON.parse((await response.json()).choices[0].message.content);
+  assert.deepEqual(parsed.candidates, []);
+});

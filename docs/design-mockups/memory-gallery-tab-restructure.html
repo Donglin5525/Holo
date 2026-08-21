@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆长廊 · 顶栏重构方案（交互原型）</title>
+<style>
+  /* ============ Holo 设计 token（与 App DesignSystem.swift 对齐） ============ */
+  :root {
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-light: #FED7AA;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --nested: #F7F5F0;
+    --text: #333333;
+    --text-2: #939393;
+    --text-3: #BDBDBD;
+    --border: #F0F0F0;
+    --divider: rgba(0,0,0,0.06);
+    --finance: #F46D38;
+    --habit: #22C55E;
+    --todo: #6366F1;
+    --thought: #EC4899;
+    --success: #22C55E;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #EDEAE4; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    padding: 28px 32px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 页面级排版 ============ */
+  .page-head { max-width: 1760px; margin: 0 auto 24px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .page-head .sub { font-size: 13px; color: var(--text-2); margin-bottom: 16px; }
+  .diagnosis { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .diag-card {
+    flex: 1; min-width: 320px;
+    background: #FFF8F3; border: 1px solid #FFD9C4; border-radius: var(--radius-md);
+    padding: 14px 16px; font-size: 13px; line-height: 1.75;
+  }
+  .diag-card b.tag { display:inline-block; margin-right:6px; padding:1px 8px; border-radius:99px; background:#FEE2E2; color:#DC2626; font-size:11px; font-weight:600; vertical-align: 1px; }
+  .diag-card.fix b.tag { background:#DCFCE7; color:#16A34A; }
+  .diag-card .t { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; }
+
+  .phones { display: flex; gap: 28px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; }
+  .phone-col { flex: 0 0 auto; width: 375px; }
+  .phone-col .col-head { margin-bottom: 10px; }
+  .col-head .name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+    background: var(--primary); color: #fff;
+  }
+  .badge.gray { background: #E5E2DC; color: #6B6B6B; }
+  .col-head .hint { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+
+  .notes {
+    margin-top: 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px 14px; font-size: 12.5px; line-height: 1.8; color: #4A4A4A;
+  }
+  .notes .nt { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .notes ul { padding-left: 18px; }
+  .notes li + li { margin-top: 2px; }
+  .notes .good { color: #15803D; }
+  .notes .bad { color: #DC2626; }
+
+  /* ============ 手机壳 ============ */
+  .phone {
+    width: 375px; height: 760px;
+    background: var(--bg); border-radius: 40px; border: 8px solid #1D1B18;
+    overflow: hidden; position: relative;
+    box-shadow: 0 20px 44px rgba(0,0,0,0.16);
+    display: flex; flex-direction: column;
+  }
+  .statusbar {
+    height: 34px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 24px 0; font-size: 12px; font-weight: 600; color: var(--text);
+  }
+  .statusbar .right { display: flex; gap: 5px; align-items: center; }
+  .statusbar .batt { width: 20px; height: 10px; border: 1px solid rgba(0,0,0,0.35); border-radius: 3px; position: relative; }
+  .statusbar .batt::after { content: ""; position: absolute; left: 1.5px; top: 1.5px; bottom: 1.5px; width: 60%; background: #333; border-radius: 1px; }
+
+  .content-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+
+  /* ============ App 内通用件 ============ */
+  .navbar {
+    display: flex; align-items: center; padding: 2px 16px 6px; min-height: 40px;
+  }
+  .navbar .back { font-size: 19px; color: var(--text); width: 24px; }
+  .navbar .title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; }
+  .navbar .ph { width: 24px; }
+
+  .seg {
+    display: flex; background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.06);
+    border-radius: var(--radius-md); padding: 3px; gap: 0;
+  }
+  .seg button {
+    flex: 1; border: 0; background: transparent; height: 28px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer; font-family: inherit;
+    transition: all .15s ease; white-space: nowrap;
+  }
+  .seg button.on { background: var(--primary); color: #fff; font-weight: 600; }
+  .page-tabs { margin: 2px 24px 4px; }
+
+  .mini-seg {
+    display: inline-flex; background: var(--nested); border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 9px; padding: 2px;
+  }
+  .mini-seg button {
+    border: 0; background: transparent; height: 24px; padding: 0 10px; border-radius: 7px;
+    font-size: 12px; font-weight: 500; color: var(--text-2); cursor: pointer; font-family: inherit;
+    transition: all .15s ease;
+  }
+  .mini-seg button.on { background: var(--primary); color: #fff; font-weight: 600; }
+
+  .navrow {
+    display: flex; align-items: center; gap: 6px; padding: 6px 16px 2px;
+  }
+  .navrow .chev {
+    width: 28px; height: 28px; border: 0; background: transparent; color: var(--text-2);
+    font-size: 14px; font-weight: 700; cursor: pointer; border-radius: 8px; font-family: inherit;
+  }
+  .navrow .chev:active { background: rgba(0,0,0,0.05); }
+  .navrow .date-title{
+    flex: 1; text-align: center; font-size: 14px; font-weight: 600; color: var(--text);
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .today-btn {
+    border: 0; font-family: inherit; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--primary-dark);
+    background: var(--primary-light); padding: 4px 10px; border-radius: 99px; flex: 0 0 auto;
+  }
+
+  .chips { display: flex; gap: 6px; padding: 6px 16px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    border: 0; font-family: inherit; cursor: pointer; flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 99px;
+    color: var(--c, var(--text-2)); background: color-mix(in srgb, var(--c, #939393) 10%, transparent);
+    transition: all .15s ease;
+  }
+  .chip.on { background: var(--c, var(--text-2)); color: #fff; }
+  .chip .ic { font-size: 10px; }
+
+  .sum-card {
+    margin: 6px 16px 2px; padding: 8px 10px; border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--primary) 7%, #fff);
+    border: 1px solid color-mix(in srgb, var(--primary) 14%, transparent);
+    display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.55;
+  }
+  .sum-card .ic {
+    width: 20px; height: 20px; flex: 0 0 auto; border-radius: 99px; background: color-mix(in srgb, var(--primary) 14%, transparent);
+    display: flex; align-items: center; justify-content: center; font-size: 11px;
+  }
+  .sum-card b { font-size: 12.5px; display: block; }
+  .sum-card span { color: var(--text-2); font-size: 11px; }
+
+  /* ============ 日（3日网格泳道） ============ */
+  .grid-head { display: grid; grid-template-columns: 34px 1fr 1fr 1fr; padding: 0 12px 4px; }
+  .grid-head .gh { text-align: center; font-size: 11px; color: var(--text-2); line-height: 1.5; }
+  .grid-head .gh b { display: block; font-size: 12.5px; color: var(--text); font-weight: 600; }
+  .grid-head .gh.today-col b { color: var(--primary); }
+  .grid-canvas { position: relative; margin: 0 12px; }
+  .grid-hours { position: absolute; inset: 0; pointer-events: none; }
+  .grid-hours i {
+    position: absolute; left: 0; right: 0; border-top: 1px solid var(--divider);
+    font-size: 9.5px; color: var(--text-3); font-style: normal; padding-left: 0;
+  }
+  .grid-hours i span { position: relative; top: -6px; left: 0; }
+  .grid-cols { position: relative; margin-left: 34px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .gcol { position: relative; background: rgba(0,0,0,0.015); border-radius: 8px; overflow: hidden; }
+  .gev {
+    position: absolute; left: 3px; right: 3px; border-radius: 6px; padding: 3px 5px; overflow: hidden;
+    font-size: 10px; line-height: 1.3; color: #fff; font-weight: 500; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .gev small { display: block; opacity: 0.85; font-weight: 400; }
+  .morning {
+    margin: 0 12px 6px 46px; padding: 5px 8px; border-radius: 8px; background: var(--nested);
+    border: 1px dashed rgba(0,0,0,0.08); font-size: 10.5px; color: var(--text-2);
+  }
+
+  /* ============ 周（列表） ============ */
+  .day-group { padding: 0 16px; }
+  .day-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 2px 6px; }
+  .day-head .dd { font-size: 14px; font-weight: 700; }
+  .day-head .dw { font-size: 11.5px; color: var(--text-2); }
+  .day-head .cnt { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .ev-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 9px 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; cursor: pointer;
+  }
+  .ev-ic {
+    width: 30px; height: 30px; border-radius: 9px; flex: 0 0 auto; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--c) 13%, transparent);
+  }
+  .ev-main { flex: 1; min-width: 0; }
+  .ev-main .t { font-size: 13px; font-weight: 600; }
+  .ev-main .m { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+  .ev-amt { font-size: 13px; font-weight: 700; color: var(--c); }
+  .narr-card {
+    margin: 4px 2px 8px; border-radius: var(--radius-md); padding: 10px 12px;
+    background: linear-gradient(135deg, #FFF7EF, #FDEFE3); border: 1px solid #FFDFC4;
+    font-size: 12px; line-height: 1.6;
+  }
+  .narr-card b { font-size: 12.5px; }
+  .narr-card span { color: #B45309; }
+  .load-earlier { text-align: center; font-size: 11.5px; color: var(--text-3); padding: 14px 0 20px; }
+
+  /* ============ 月（热力月历） ============ */
+  .month-wrap { padding: 4px 16px 0; }
+  .m-week { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+  .m-week span { text-align: center; font-size: 10.5px; color: var(--text-3); }
+  .m-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .m-cell {
+    aspect-ratio: 1; border-radius: 9px; position: relative; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-2);
+  }
+  .m-cell.other { opacity: 0.35; }
+  .m-cell.sel { outline: 2px solid var(--primary); outline-offset: 1.5px; font-weight: 700; color: var(--text); }
+  .m-legend { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-2); padding: 8px 2px 2px; }
+  .m-legend .d { width: 8px; height: 8px; border-radius: 99px; }
+  .day-detail { margin-top: 8px; }
+
+  /* ============ 洞察 tab ============ */
+  .insight-wrap { padding: 8px 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .i-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 13px 14px; }
+  .i-card .h { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; margin-bottom: 8px; }
+  .i-card .h .ic { color: var(--primary); font-size: 13px; }
+  .profile-line { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.65; margin-bottom: 7px; }
+  .profile-line .pi {
+    flex: 0 0 auto; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; margin-top: 1px;
+    background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--c);
+  }
+  .heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 9px); gap: 3px; margin-top: 2px; }
+  .heat i { width: 9px; height: 9px; border-radius: 2.5px; }
+  .heat-foot { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-3); margin-top: 6px; }
+  .plan-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--divider); font-size: 12.5px; }
+  .plan-row:first-of-type { border-top: 0; }
+  .plan-row .st { margin-left: auto; font-size: 11px; color: var(--success); background: #DCFCE7; padding: 2px 8px; border-radius: 99px; }
+  .plan-row .st.doing { color: var(--primary-dark); background: var(--primary-light); }
+
+  /* ============ A2/L1/L2 双行导航 ============ */
+  .nav2 { padding: 4px 16px 2px; }
+  .nav2 .l1 { display: flex; align-items: center; gap: 6px; }
+  .nav2 .chev {
+    width: 30px; height: 30px; border: 0; background: transparent; color: var(--text-2);
+    font-size: 14px; font-weight: 700; cursor: pointer; border-radius: 8px; font-family: inherit;
+  }
+  .nav2 .chev:active { background: rgba(0,0,0,0.05); }
+  /* 档位段撑满箭头之间，不做收缩小胶囊 */
+  .nav2 .mini-seg { flex: 1; display: flex; }
+  .nav2 .mini-seg button { flex: 1; height: 30px; font-size: 13px; }
+  .nav2 .l2 {
+    text-align: center; font-size: 13px; font-weight: 600; color: var(--text-2);
+    padding: 4px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .today-btn.off { opacity: 0.45; }
+
+  /* ============ L 版：页 tab 并入标题栏（iOS 灰底白滑块轻样式） ============ */
+  .navbar .nav-tabs {
+    display: flex; background: rgba(0,0,0,0.055); border-radius: 9px; padding: 2px;
+  }
+  .navbar .nav-tabs button {
+    border: 0; background: transparent; height: 24px; padding: 0 13px; border-radius: 7px;
+    font-size: 12px; font-weight: 500; color: var(--text-2); cursor: pointer; font-family: inherit;
+    transition: all .15s ease;
+  }
+  .navbar .nav-tabs button.on {
+    background: #fff; color: var(--text); font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.14);
+  }
+
+  /* ============ L1 轻量筛选：未选中无底色，选中才亮 ============ */
+  .chips.lite .chip { background: transparent; }
+  .chips.lite .chip:active { background: rgba(0,0,0,0.05); }
+  .chips.lite .chip.on { background: color-mix(in srgb, var(--c, #939393) 14%, transparent); }
+
+  /* ============ L2 筛选收纳：标题行右侧「全部 ▾」下拉 ============ */
+  .l2-row { display: flex; align-items: center; padding: 4px 0 2px; }
+  .l2-row .l2t {
+    flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-2);
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fdd { position: relative; flex: 0 0 auto; }
+  .fdd-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid rgba(0,0,0,0.10); background: transparent; border-radius: 99px;
+    font-family: inherit; font-size: 12px; font-weight: 600; color: var(--text);
+    padding: 4px 11px; cursor: pointer;
+  }
+  .fdd-btn .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--text-3); }
+  .fdd-btn.tinted { border-color: color-mix(in srgb, var(--c) 45%, transparent); color: var(--c); }
+  .fdd-btn.tinted .dot { background: var(--c); }
+  .fdd-menu {
+    position: absolute; top: 34px; right: 0; z-index: 30; min-width: 132px;
+    background: rgba(30,28,26,0.96); border-radius: 12px; padding: 5px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.3); display: none;
+  }
+  .fdd-menu.open { display: block; }
+  .fdd-menu button {
+    display: flex; width: 100%; align-items: center; gap: 8px; border: 0; background: transparent;
+    color: rgba(255,255,255,0.85); font-family: inherit; font-size: 13px; padding: 8px 12px;
+    border-radius: 8px; cursor: pointer;
+  }
+  .fdd-menu button.on { color: #fff; background: var(--primary); }
+  .fdd-menu button .ck { margin-left: auto; opacity: 0; font-size: 11px; }
+  .fdd-menu button.on .ck { opacity: 1; }
+
+  /* ============ 现状标注 ============ */
+  .prob-ring { position: relative; }
+  .prob-ring::after {
+    content: ""; position: absolute; inset: -3px -4px; border: 1.5px dashed rgba(220,38,38,0.55); border-radius: 12px; pointer-events: none;
+  }
+  .crowd-badge {
+    position: absolute; left: 10px; margin-top: -9px; z-index: 5;
+    width: 18px; height: 18px; border-radius: 99px; background: #DC2626; color: #fff;
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(220,38,38,0.4);
+  }
+
+  .foot-note {
+    max-width: 1760px; margin: 26px auto 0; font-size: 12.5px; color: var(--text-2); line-height: 1.9;
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px;
+  }
+  .foot-note b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>记忆长廊 · 头部减负细化稿</h1>
+  <div class="sub">方案 A（日·周·月三档合一）+ 双行导航已定。本轮解决「头部看着一坨」：减负三档梯度（控件块 7 → 5 → 4 → 3），全部可点击。左一为现状对照。</div>
+  <div class="diagnosis">
+    <div class="diag-card">
+      <div class="t"><span class="tag">问题 1</span>洞察 → 日历 切换卡顿</div>
+      现在的写法是「切到洞察时，把日历整页销毁；切回来时重新建」。重建那一刻要一口气做三件重活：<b>重新拉当前一周 + 预载前后 60 天（4 个模块各查一遍库）+ 重建 3 日泳道网格</b>，全部挤在切换动画的同一帧里，所以肉眼可见地顿一下。<br>
+      <b>修法与布局无关、不用选：</b>两个 tab 都常驻不销毁（切走只是隐藏），切回来零加载，卡顿直接消失。
+    </div>
+    <div class="diag-card fix">
+      <div class="t"><span class="tag">问题 2</span>四层切换器叠罗汉</div>
+      页内控件从上到下叠了四层（见左一手机上的红色标号）：<b>①周历/月历 → ②翻页导航 → ③模块筛选 → ④网格视图/列表视图</b>，加上页级 tab 与摘要卡，头部合计 6 行，内容区被压掉近 1/3。<br>
+      关键洞察：「网格视图」其实是<b>按日看</b>（3 日泳道），「列表视图」是<b>按周看</b>，它们和「月历」本质是同一件事——<b>时间刻度（日/周/月）</b>。三档合一后，两个切换器变一个。<br>
+      <b>已拍板（2026-08-19）：</b>采用方案 A；「标题缩短为 8月17日 – 23日」的妥协被否决——标题保持完整显示，通过重新分工解决拥挤。<br>
+      <b>本轮新诊断——「一坨」的三个来源：</b>①「日历|洞察」满宽大分段是全场最重控件，只为两个选项占了整行；②五个彩色筛选胶囊常驻头部，颜色噪音最大却是个中低频操作；③原型此前切洞察 tab 时误挂日历控件（App 实际不会），本轮已修。
+    </div>
+  </div>
+</div>
+
+<div class="phones" id="phones"></div>
+
+<div class="foot-note">
+  <b>命名对照：</b>「网格视图」= 日档（3 日泳道，支持双指缩放）·「列表视图」= 周档（无限上翻 + 叙事卡）·「月历」= 月档（热力格 + 当日详情）。三档都保留现有全部能力，只是合并入口。<br>
+  <b>定死的设计规则：</b>日期标题<b>完整显示、永不缩写、永不截断</b>（缩短标题的方案已被否决）。<br>
+  <b>两版通用改动：</b>观察摘要卡（「这周过得挺稳」）从固定头部迁入内容区顶部，随滚动离场，再让出一行空间；模块筛选条保留现状。<br>
+  <b>技术注记：</b>无论最终选双行还是置顶，卡顿修复（tab 常驻 + 视图模型上提共用）随本次重构一并落地；日档预载的 ±60 天数据在切 tab 后直接复用，不再重查。
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 纯逻辑核心（日期一律走时间戳数字，禁止 Date + number 拼接） ================= */
+
+  var DAY_MS = 86400000;
+  var WEEK_CN = ['日', '一', '二', '三', '四', '五', '六'];
+
+  function startOfDay(ts) {
+    var d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime(); // number
+  }
+  function today() { return startOfDay(Date.now()); }
+  function addDays(ts, n) { return startOfDay(ts) + n * DAY_MS; }
+  /** 周一作为一周之始（与 App zh_CN 历法一致） */
+  function startOfWeek(ts) {
+    var d = new Date(startOfDay(ts));
+    var wd = (d.getDay() + 6) % 7; // 周一=0
+    return startOfDay(ts) - wd * DAY_MS;
+  }
+  function fmtMD(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  }
+  function fmtDayTitle(ts) { return fmtMD(ts) + ' 周' + WEEK_CN[new Date(ts).getDay()]; }
+  function fmtWeekTitle(ts) {
+    var s = startOfWeek(ts);
+    return fmtMD(s) + ' – ' + fmtMD(s + 6 * DAY_MS);
+  }
+  function fmtMonthTitle(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+  }
+  /** 按档位步进：day ±1 天 / week ±1 周 / month ±1 月 */
+  function stepCenter(scale, center, delta) {
+    if (scale === 'day') return addDays(center, delta);
+    if (scale === 'week') return addDays(center, delta * 7);
+    var d = new Date(center);
+    return startOfDay(new Date(d.getFullYear(), d.getMonth() + delta, 1).getTime());
+  }
+  function titleFor(scale, center) {
+    if (scale === 'day') return fmtDayTitle(center);
+    if (scale === 'week') return fmtWeekTitle(center);
+    return fmtMonthTitle(center);
+  }
+  function applyFilter(events, filter) {
+    if (!filter) return events.slice();
+    return events.filter(function (e) { return e.mod === filter; });
+  }
+
+  /* ================= 示例数据 ================= */
+
+  var MODS = {
+    finance: { name: '记账', icon: '💳', color: '#F46D38' },
+    habit:   { name: '习惯', icon: '✅', color: '#22C55E' },
+    todo:    { name: '待办', icon: '☑️', color: '#6366F1' },
+    thought: { name: '想法', icon: '💡', color: '#EC4899' }
+  };
+
+  /** d: 相对今天的偏移天；h: 开始小时；dur: 时长小时 */
+  var EVENTS = [
+    { d: -1, h: 9,    dur: 1,   mod: 'finance', title: '咖啡', meta: '¥28 · 餐饮' },
+    { d: -1, h: 11,   dur: 1,   mod: 'todo',    title: '需求评审', meta: '已完成' },
+    { d: -1, h: 19,   dur: 1,   mod: 'habit',   title: '夜跑 5km', meta: '连续 12 天' },
+    { d: 0,  h: 7.5,  dur: 0.5, mod: 'habit',   title: '冥想 10min', meta: '已完成' },
+    { d: 0,  h: 9,    dur: 1.5, mod: 'todo',    title: '写周报', meta: '进行中' },
+    { d: 0,  h: 12,   dur: 1,   mod: 'finance', title: '午餐', meta: '¥35 · 餐饮' },
+    { d: 0,  h: 15,   dur: 1,   mod: 'thought', title: '推送文案灵感', meta: '想法' },
+    { d: 0,  h: 20,   dur: 1,   mod: 'habit',   title: '阅读 30min', meta: '已完成' },
+    { d: 1,  h: 10,   dur: 1,   mod: 'finance', title: '地铁通勤', meta: '¥4 · 交通' },
+    { d: 1,  h: 16,   dur: 2,   mod: 'todo',    title: '健身 + 复健', meta: '已计划' }
+  ];
+
+  /* ================= 内容渲染器（日 / 周 / 月 / 洞察） ================= */
+
+  var HOUR_TOP = 7, HOUR_BOTTOM = 22, HOUR_PX = 34;
+
+  function evBlocksHTML(offsetDays, filter) {
+    var t = today();
+    var html = '';
+    EVENTS.forEach(function (e, i) {
+      if (e.d !== offsetDays) return;
+      if (filter && e.mod !== filter) return;
+      var top = (e.h - HOUR_TOP) * HOUR_PX;
+      var hpx = e.dur * HOUR_PX - 4;
+      html += '<div class="gev" data-ev="' + i + '" style="top:' + top + 'px;height:' + hpx +
+        'px;background:' + MODS[e.mod].color + '">' + e.title +
+        (hpx >= 30 ? '<small>' + e.meta + '</small>' : '') + '</div>';
+    });
+    return html;
+  }
+
+  function renderDayGrid(state) {
+    var t = today();
+    var dayNames = ['昨天', '今天', '明天'];
+    var heads = '';
+    for (var i = -1; i <= 1; i++) {
+      var ts = addDays(state.center, i);
+      var isToday = ts === t;
+      heads += '<div class="gh' + (isToday ? ' today-col' : '') + '"><b>' + dayNames[i + 1] +
+        '</b>' + (new Date(ts).getMonth() + 1) + '/' + new Date(ts).getDate() + '</div>';
+    }
+    var hours = '';
+    for (var h = HOUR_TOP; h <= HOUR_BOTTOM; h += 2) {
+      hours += '<i style="top:' + ((h - HOUR_TOP) * HOUR_PX) + 'px"><span>' +
+        (h < 10 ? '0' + h : h) + ':00</span></i>';
+    }
+    var canvasH = (HOUR_BOTTOM - HOUR_TOP) * HOUR_PX;
+    var cols = '';
+    for (var c = -1; c <= 1; c++) {
+      cols += '<div class="gcol" style="height:' + canvasH + 'px">' + evBlocksHTML(c, state.filter) + '</div>';
+    }
+    return '<div style="padding-top:8px">' +
+      '<div class="grid-head"><div></div>' + heads + '</div>' +
+      '<div class="morning">🌙 凌晨 0–7 点 · 2 条记录（轻点展开）</div>' +
+      '<div class="grid-canvas" style="height:' + canvasH + 'px">' +
+      '<div class="grid-hours">' + hours + '</div>' +
+      '<div class="grid-cols">' + cols + '</div>' +
+      '</div>' +
+      '<div style="text-align:center;font-size:10.5px;color:var(--text-3);padding:10px 0 20px">← 左右滑动逐日翻页 · 双指缩放时间轴 →</div>' +
+      '</div>';
+  }
+
+  function renderWeekList(state) {
+    var ws = startOfWeek(state.center);
+    var html = '<div class="day-group">';
+    for (var i = 6; i >= 0; i--) { // 新在上旧在下（无限上翻）
+      var ts = addDays(ws, i);
+      var isToday = ts === today();
+      var dayEvents = applyFilter(EVENTS.filter(function (e) { return e.d === i - (today() - ws) / DAY_MS; }), state.filter);
+      html += '<div class="day-head"><span class="dd">' + fmtMD(ts) + '</span>' +
+        '<span class="dw">周' + WEEK_CN[new Date(ts).getDay()] + (isToday ? ' · 今天' : '') + '</span>' +
+        '<span class="cnt">' + dayEvents.length + ' 条</span></div>';
+      if (i === 3) {
+        html += '<div class="narr-card">🏅 <b>里程碑</b> · 连续记账 <span>30 天</span><br>这周你对咖啡的支出明显下降，比上月少了 38%。</div>';
+      }
+      if (dayEvents.length === 0) {
+        html += '<div class="ev-row" style="justify-content:center;color:var(--text-3);font-size:12px">当天无记录</div>';
+      }
+      dayEvents.forEach(function (e) {
+        var m = MODS[e.mod];
+        html += '<div class="ev-row" data-ev="' + EVENTS.indexOf(e) + '" style="--c:' + m.color + '">' +
+          '<div class="ev-ic">' + m.icon + '</div>' +
+          '<div class="ev-main"><div class="t">' + e.title + '</div><div class="m">' +
+          (e.h < 10 ? '0' + Math.floor(e.h) : Math.floor(e.h)) + ':' + (e.h % 1 ? '30' : '00') + ' · ' + e.meta + '</div></div>' +
+          (e.mod === 'finance' ? '<div class="ev-amt">' + e.meta.split(' · ')[0] + '</div>' : '') +
+          '</div>';
+      });
+    }
+    html += '</div><div class="load-earlier">上滑加载更早的周 · 最多回看 52 周</div>';
+    return html;
+  }
+
+  /** 月历热力格（冷蓝色阶，与 App 一致） */
+  var COOL = ['#F6F8FB', '#EAF2FF', '#D9ECFF', '#CFE7F7', '#C8DDF8'];
+  function renderMonth(state) {
+    var d = new Date(state.center);
+    var first = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    var daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    var lead = (new Date(first).getDay() + 6) % 7; // 周一开头空几格
+    var cells = '';
+    for (var i = 0; i < lead; i++) cells += '<div class="m-cell other"></div>';
+    for (var day = 1; day <= daysInMonth; day++) {
+      var ts = addDays(first, day - 1);
+      var lvl = (day * 7 + Math.floor(day / 3)) % 5; // 确定性伪随机，避免每次渲染跳变
+      var sel = state.monthSel !== undefined ? ts === state.monthSel : ts === today();
+      cells += '<div class="m-cell' + (sel ? ' sel' : '') + '" data-act="msel" data-ts="' + ts +
+        '" style="background:' + COOL[lvl] + '">' + day + '</div>';
+    }
+    var detail = state.monthSel !== undefined ? state.monthSel : today();
+    var detailEvents = applyFilter(EVENTS.filter(function (e) {
+      return addDays(today(), e.d) === detail;
+    }), state.filter);
+
+    var detailHTML = '';
+    if (detailEvents.length === 0) {
+      detailHTML = '<div class="ev-row" style="justify-content:center;color:var(--text-3);font-size:12px">当天无记录</div>';
+    }
+    detailEvents.forEach(function (e) {
+      var m = MODS[e.mod];
+      detailHTML += '<div class="ev-row" style="--c:' + m.color + '">' +
+        '<div class="ev-ic">' + m.icon + '</div>' +
+        '<div class="ev-main"><div class="t">' + e.title + '</div><div class="m">' + e.meta + '</div></div></div>';
+    });
+
+    return '<div class="month-wrap">' +
+      '<div style="display:flex;align-items:center;margin:2px 0 6px"><span style="font-size:11px;font-weight:600;color:var(--success);background:#DCFCE7;padding:2px 8px;border-radius:99px">✓ 记录完整度 92%</span></div>' +
+      '<div class="m-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>' +
+      '<div class="m-grid">' + cells + '</div>' +
+      '<div class="m-legend"><span>少</span><i class="d" style="background:' + COOL[0] + '"></i><i class="d" style="background:' + COOL[2] + '"></i><i class="d" style="background:' + COOL[4] + '"></i><span>多</span><span style="margin-left:auto">色深 = 活跃度</span></div>' +
+      '<div class="day-detail"><div class="day-head" style="padding-top:10px"><span class="dd">' + fmtDayTitle(detail) + '</span></div>' + detailHTML + '</div>' +
+      '</div>';
+  }
+
+  var WARM = ['#F5F2ED', '#F5F2ED', '#FFD6C7', '#FFB499', '#FF9B7A', '#FF8C66'];
+  function renderInsight() {
+    var heat = '';
+    for (var w = 0; w < 13; w++) {
+      for (var r = 0; r < 7; r++) {
+        var lvl = (w * 5 + r * 3 + 1) % 6;
+        heat += '<i style="background:' + WARM[lvl] + '"></i>';
+      }
+    }
+    return '<div class="insight-wrap">' +
+      '<div class="i-card"><div class="h"><span class="ic">🪞</span>Holo 眼中的你</div>' +
+      '<div class="profile-line" style="--c:#F46D38"><span class="pi">消费</span>近 30 天餐饮占比下降，通勤支出稳定，开始有结余意识。</div>' +
+      '<div class="profile-line" style="--c:#22C55E"><span class="pi">习惯</span>夜跑坚持 12 周，是你最稳的一条习惯线。</div>' +
+      '<div class="profile-line" style="--c:#6366F1"><span class="pi">待办</span>周三完成率最高，周五的活最容易拖到下周。</div>' +
+      '</div>' +
+      '<div class="i-card"><div class="h"><span class="ic">🔥</span>活跃热力图</div>' +
+      '<div class="heat">' + heat + '</div>' +
+      '<div class="heat-foot"><span>13 周前</span><span>本周 · 记录 96 天</span></div></div>' +
+      '<div class="i-card"><div class="h"><span class="ic">🤝</span>一起做的计划</div>' +
+      '<div class="plan-row">🏃 减脂 5kg 小计划<span class="st doing">进行中 · 第 4 周</span></div>' +
+      '<div class="plan-row">📖 每月读 2 本书<span class="st">已完成</span></div></div>' +
+      '<div class="i-card"><div class="h"><span class="ic">🔖</span>可回看的片段</div>' +
+      '<div class="narr-card" style="margin:0 0 6px">🏅 <b>连续记账 30 天</b><span> · 8月15日</span></div>' +
+      '<div class="narr-card" style="margin:0">✨ <b>一天完成 9 项待办</b><span> · 8月8日</span></div></div>' +
+      '</div>';
+  }
+
+  /* ================= 头部渲染（按方案变体） ================= */
+
+  function pageTabsHTML(state) {
+    return '<div class="seg page-tabs">' +
+      '<button data-act="tab" data-v="calendar" class="' + (state.tab === 'calendar' ? 'on' : '') + '">日历</button>' +
+      '<button data-act="tab" data-v="insight" class="' + (state.tab === 'insight' ? 'on' : '') + '">洞察</button></div>';
+  }
+
+  function chipsHTML(state, lite) {
+    var chips = '<button class="chip' + (!state.filter ? ' on' : '') + '" data-act="filter" data-v="" style="--c:#939393">全部</button>';
+    Object.keys(MODS).forEach(function (k) {
+      chips += '<button class="chip' + (state.filter === k ? ' on' : '') + '" data-act="filter" data-v="' + k +
+        '" style="--c:' + MODS[k].color + '"><span class="ic">' + MODS[k].icon + '</span>' + MODS[k].name + '</button>';
+    });
+    return '<div class="chips' + (lite ? ' lite' : '') + '">' + chips + '</div>';
+  }
+
+  /** L2：筛选收纳为标题行右侧下拉（选项复用 data-act="filter"） */
+  function filterDDHTML(state) {
+    var cur = state.filter ? MODS[state.filter] : null;
+    var btnCls = 'fdd-btn' + (cur ? ' tinted' : '');
+    var style = cur ? ' style="--c:' + cur.color + '"' : '';
+    var label = cur ? cur.name : '全部';
+    var items = '<button data-act="filter" data-v="" class="' + (!state.filter ? 'on' : '') + '">全部 <span class="ck">✓</span></button>';
+    Object.keys(MODS).forEach(function (k) {
+      items += '<button data-act="filter" data-v="' + k + '" class="' + (state.filter === k ? 'on' : '') + '">' +
+        MODS[k].name + ' <span class="ck">✓</span></button>';
+    });
+    return '<span class="fdd"><button class="' + btnCls + '" data-act="fdd"' + style + '>' +
+      '<span class="dot"></span>' + label + ' ▾</button>' +
+      '<div class="fdd-menu' + (state.filterDD ? ' open' : '') + '">' + items + '</div></span>';
+  }
+
+  function sumCardHTML() {
+    return '<div class="sum-card"><div class="ic">✨</div><div><b>这周过得挺稳</b><span>记录 18 条 · 夜跑 2 次 · 结余 ¥412</span></div></div>';
+  }
+
+  /** 日|周|月 三档迷你切换器（A 两版共用） */
+  function scaleSegHTML(state) {
+    return '<span class="mini-seg">' +
+      '<button data-act="scale" data-v="day" class="' + (state.scale === 'day' ? 'on' : '') + '">日</button>' +
+      '<button data-act="scale" data-v="week" class="' + (state.scale === 'week' ? 'on' : '') + '">周</button>' +
+      '<button data-act="scale" data-v="month" class="' + (state.scale === 'month' ? 'on' : '') + '">月</button>' +
+      '</span>';
+  }
+
+  function todayLabelFor(scale) { return scale === 'week' ? '本周' : '今天'; }
+
+  /** 是否已处在当前期（此时「今天」置灰） */
+  function isAtCurrentPeriod(state) {
+    return titleFor(state.scale, state.center) === titleFor(state.scale, today());
+  }
+
+  /** A 优化版：双行导航——第一行 ‹ 档位（撑满）› + 今天，第二行完整标题独占整行 */
+  function navRowA2HTML(state) {
+    return '<div class="nav2">' +
+      '<div class="l1">' +
+      '<button class="chev" data-act="prev">‹</button>' +
+      scaleSegHTML(state) +
+      '<button class="chev" data-act="next">›</button>' +
+      '<button class="today-btn' + (isAtCurrentPeriod(state) ? ' off' : '') + '" data-act="today">' + todayLabelFor(state.scale) + '</button>' +
+      '</div>' +
+      '<div class="l2">' + titleFor(state.scale, state.center) + '</div>' +
+      '</div>';
+  }
+
+  /** L2 极简版：导航行同 A2，第二行 = 完整标题 + 右侧筛选下拉 */
+  function navRowL2HTML(state) {
+    return '<div class="nav2">' +
+      '<div class="l1">' +
+      '<button class="chev" data-act="prev">‹</button>' +
+      scaleSegHTML(state) +
+      '<button class="chev" data-act="next">›</button>' +
+      '<button class="today-btn' + (isAtCurrentPeriod(state) ? ' off' : '') + '" data-act="today">' + todayLabelFor(state.scale) + '</button>' +
+      '</div>' +
+      '<div class="l2-row"><span class="l2t">' + titleFor(state.scale, state.center) + '</span>' + filterDDHTML(state) + '</div>' +
+      '</div>';
+  }
+
+  /** 现状版头部：两层大切换器 + 网格/列表开关 */
+  function legacyChromeHTML(state) {
+    var isWeekly = state.legacyMode === 'weekly';
+    var navTitle = isWeekly ? fmtWeekTitle(state.center) : fmtMonthTitle(state.center);
+    var weekSwitch = '';
+    if (isWeekly) {
+      weekSwitch = '<div style="margin:0 24px 6px;position:relative" class="prob-ring"><span class="crowd-badge">④</span>' +
+        '<div class="seg"><button data-act="lgrid" class="' + (state.legacyWeek === 'grid' ? 'on' : '') + '">网格视图</button>' +
+        '<button data-act="llist" class="' + (state.legacyWeek === 'list' ? 'on' : '') + '">列表视图</button></div></div>';
+    }
+    return pageTabsHTML(state) +
+      '<div style="margin:0 24px 4px;position:relative" class="prob-ring"><span class="crowd-badge">①</span>' +
+      '<div class="seg"><button data-act="lweekly" class="' + (isWeekly ? 'on' : '') + '">周历</button>' +
+      '<button data-act="lmonthly" class="' + (!isWeekly ? 'on' : '') + '">月历</button></div></div>' +
+      '<div class="navrow" style="position:relative"><span class="crowd-badge" style="left:2px">②</span>' +
+      '<button class="chev" data-act="prev">‹</button>' +
+      '<span class="date-title">' + navTitle + '</span>' +
+      '<button class="chev" data-act="next">›</button>' +
+      '<button class="today-btn" data-act="today">' + (isWeekly ? '本周' : '今天') + '</button></div>' +
+      sumCardHTML() +
+      '<div style="position:relative"><span class="crowd-badge" style="left:4px">③</span>' + chipsHTML(state) + '</div>' +
+      weekSwitch;
+  }
+
+  /* ================= 手机实例 ================= */
+
+  function contentFor(state) {
+    if (state.tab === 'insight') return renderInsight();
+    var scale = state.scale;
+    if (scale === 'day') return sumCardHTML() + renderDayGrid(state);
+    if (scale === 'week') return sumCardHTML() + renderWeekList(state);
+    return sumCardHTML() + renderMonth(state);
+  }
+
+  /** 顶部标题栏：L1/L2 右侧是并入的页级 tab */
+  function navbarHTML(state, variant) {
+    var right = '<span class="ph"></span>';
+    if (variant === 'L1' || variant === 'L2') {
+      right = '<span class="nav-tabs">' +
+        '<button data-act="tab" data-v="calendar" class="' + (state.tab === 'calendar' ? 'on' : '') + '">日历</button>' +
+        '<button data-act="tab" data-v="insight" class="' + (state.tab === 'insight' ? 'on' : '') + '">洞察</button>' +
+        '</span>';
+    }
+    return '<div class="navbar"><span class="back">‹</span><span class="title">记忆长廊</span>' + right + '</div>';
+  }
+
+  function phoneHTML(variant, state) {
+    // 洞察 tab 只有页级 tab，没有日期导航与筛选（头部随内容性质变化）
+    var cal = state.tab === 'calendar';
+    var chrome = '';
+    if (variant === 'current') {
+      chrome = cal ? legacyChromeHTML(state) : pageTabsHTML(state);
+    } else if (variant === 'A2') {
+      chrome = cal ? pageTabsHTML(state) + navRowA2HTML(state) + chipsHTML(state) : pageTabsHTML(state);
+    } else if (variant === 'L1') {
+      chrome = cal ? navRowA2HTML(state) + chipsHTML(state, true) : '';
+    } else if (variant === 'L2') {
+      chrome = cal ? navRowL2HTML(state) : '';
+    }
+    return '<div class="statusbar"><span>9:41</span><span class="right"><span>􀙇</span><span>􀛨</span><span class="batt"></span></span></div>' +
+      navbarHTML(state, variant) +
+      chrome +
+      '<div class="content-scroll">' + contentFor(state) + '</div>';
+  }
+
+  var phones = [];
+
+  function createPhone(container, variant, initScale) {
+    var root = document.createElement('div');
+    root.className = 'phone';
+    root.setAttribute('data-variant', variant);
+    container.appendChild(root);
+
+    var state;
+    if (variant === 'current') {
+      state = { tab: 'calendar', legacyMode: 'weekly', legacyWeek: 'grid', center: today(), filter: null };
+      // 现状的「网格/列表/月历」映射到统一的 scale，便于复用渲染器
+      state.scale = state.legacyMode === 'weekly' ? (state.legacyWeek === 'grid' ? 'day' : 'week') : 'month';
+    } else {
+      state = { tab: 'calendar', scale: initScale || 'week', center: today(), filter: null, filterDD: false };
+    }
+
+    function render() {
+      if (variant === 'current') {
+        state.scale = state.legacyMode === 'weekly'
+          ? (state.legacyWeek === 'grid' ? 'day' : 'week')
+          : 'month';
+      }
+      root.innerHTML = phoneHTML(variant, state);
+    }
+
+    root.addEventListener('click', function (ev) {
+      var el = ev.target.closest('[data-act]');
+      if (!el) return;
+      var act = el.getAttribute('data-act');
+      if (act === 'tab') {
+        state.tab = el.getAttribute('data-v');
+      } else if (act === 'scale') {
+        state.scale = el.getAttribute('data-v');
+        state.monthSel = undefined;
+      } else if (act === 'filter') {
+        var v = el.getAttribute('data-v');
+        state.filter = v === '' ? null : v;
+        state.filterDD = false;
+      } else if (act === 'fdd') {
+        state.filterDD = !state.filterDD;
+      } else if (act === 'prev') {
+        state.center = stepCenter(state.scale, state.center, -1);
+        state.monthSel = undefined;
+      } else if (act === 'next') {
+        state.center = stepCenter(state.scale, state.center, 1);
+        state.monthSel = undefined;
+      } else if (act === 'today') {
+        state.center = today();
+        state.monthSel = undefined;
+      } else if (act === 'lweekly') {
+        state.legacyMode = 'weekly';
+        state.legacyWeek = 'grid';
+      } else if (act === 'lmonthly') {
+        state.legacyMode = 'monthly';
+      } else if (act === 'lgrid') {
+        state.legacyMode = 'weekly';
+        state.legacyWeek = 'grid';
+      } else if (act === 'llist') {
+        state.legacyMode = 'weekly';
+        state.legacyWeek = 'list';
+      } else if (act === 'msel') {
+        state.monthSel = Number(el.getAttribute('data-ts'));
+      }
+      render();
+    });
+
+    render();
+    phones.push({ variant: variant, state: state });
+  }
+
+  /* ================= 页面装配 ================= */
+
+  function initAll() {
+    var host = document.getElementById('phones');
+    var specs = [
+      { cls: 'col-current', label: '现状', badge: '对照', badgeCls: 'gray',
+        hint: '当前线上结构：①-④四层控件层叠，内容区被压。',
+        notes: '<div class="nt">问题在这里</div><ul>' +
+          '<li>四个控件层（①周/月 ②翻页 ③筛选 ④网格/列表）<b>占满 6 行</b>，内容首屏只剩约 2/3。</li>' +
+          '<li>「网格视图 / 列表视图 / 月历」其实是<b>三种时间刻度</b>，却拆成两层两个名字，新用户要学两跳。</li>' +
+          '<li>「网格视图」四个字占一整行，但信息量只有「按日看」三个字。</li></ul>' },
+      { cls: 'col-a2', label: 'A2 · 双行导航', badge: '上轮基准', badgeCls: 'gray',
+        variant: 'A2', init: 'week',
+        hint: '已定的 A 细化版：页 tab 独占一行 + 双行导航 + 原样筛选条。',
+        notes: '<div class="nt">定位：上轮推荐，本轮的对比基准</div><ul>' +
+          '<li>行数已从 6 减到 4，但「日历|洞察」仍是满宽重控件、筛选仍是五个彩色胶囊，<b>视觉重量没降</b>——这就是「还是一坨」的来源。</li>' +
+          '<li>右侧两列在它基础上继续减负，功能一件不少。</li></ul>' },
+      { cls: 'col-l1', label: 'L1 · 轻头部', badge: '推荐', badgeCls: '',
+        variant: 'L1', init: 'week',
+        hint: '页 tab 并进标题栏右侧（灰底轻样式），筛选条去掉底色只留选中态。试试切洞察 tab——头部自动收干净。',
+        notes: '<div class="nt">减负点：结构不动，视觉减重</div><ul>' +
+          '<li class="good">「日历|洞察」从满宽橙色大分段 → 标题栏右侧灰底小分段（iOS 系统样式），<b>省一整行</b>且视觉重量降一半。</li>' +
+          '<li class="good">筛选胶囊去掉未选中底色，只剩图标+文字，<b>选中才亮色</b>——颜色只服务当前状态。</li>' +
+          '<li class="good">切到洞察 tab 时日期导航与筛选整组消失，洞察页天然干净。</li>' +
+          '<li class="bad">页 tab 小了、离拇指远了一截；标题「记忆长廊」与 tab 同行，左侧信息密度略升。</li></ul>' },
+      { cls: 'col-l2', label: 'L2 · 极简', badge: '', badgeCls: '',
+        variant: 'L2', init: 'week',
+        hint: '在 L1 基础上，筛选收进标题行右侧「全部 ▾」下拉（点开试试）。头部只剩两行。',
+        notes: '<div class="nt">减负点：筛选收纳，头部到底</div><ul>' +
+          '<li class="good">头部只剩标题栏 + 导航行两块，<b>内容首屏最大</b>；筛选入口贴着日期标题，语义是「当前视角的条件」。</li>' +
+          '<li class="good">筛选选中后胶囊变色显示模块色，一眼可辨当前筛了什么。</li>' +
+          '<li class="bad">筛选从一步变两步（点开 → 选），「记账的人常按模块翻」这类习惯会慢半拍。</li>' +
+          '<li class="bad">下拉菜单盖住内容顶部一瞬，不如平铺 chips 直接。</li></ul>' }
+    ];
+
+    specs.forEach(function (s) {
+      var col = document.createElement('div');
+      col.className = 'phone-col ' + s.cls;
+      col.innerHTML = '<div class="col-head"><div class="name">' + s.label +
+        (s.badge ? '<span class="badge ' + s.badgeCls + '">' + s.badge + '</span>' : '') +
+        '</div><div class="hint">' + s.hint + '</div></div><div class="phone-slot"></div>' +
+        '<div class="notes">' + s.notes + '</div>';
+      host.appendChild(col);
+      createPhone(col.querySelector('.phone-slot'), s.variant || 'current', s.init);
+    });
+  }
+
+  /* ================= 导出核心供测试 & 启动 ================= */
+
+  var core = {
+    DAY_MS: DAY_MS,
+    startOfDay: startOfDay,
+    today: today,
+    addDays: addDays,
+    startOfWeek: startOfWeek,
+    fmtDayTitle: fmtDayTitle,
+    fmtWeekTitle: fmtWeekTitle,
+    fmtMonthTitle: fmtMonthTitle,
+    stepCenter: stepCenter,
+    titleFor: titleFor,
+    applyFilter: applyFilter
+  };
+
+  if (typeof window !== 'undefined') {
+    window.MGCore = core;
+    if (typeof document !== 'undefined' && document.getElementById) {
+      initAll();
+    }
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = core;
+  }
+})();
+</script>
+</body>
+</html>

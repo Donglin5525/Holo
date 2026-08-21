@@ -123,3 +123,35 @@ test("agent SSE finish_reason=length 必须按 token 截断失败", async () => 
     (error) => error?.code === "TRUNCATED_MODEL_RESPONSE",
   );
 });
+
+test("agent SSE 客户端断开必须标记 CLIENT_ABORTED，不能污染上游故障统计", async () => {
+  const originalFetch = globalThis.fetch;
+  const clientController = new AbortController();
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"部分"}}]}\n\n'));
+        clientController.signal.addEventListener("abort", () => {
+          controller.error(new DOMException("This operation was aborted", "AbortError"));
+        }, { once: true });
+      },
+    }),
+  });
+
+  try {
+    const provider = createOpenAICompatibleProvider({
+      baseURL: "https://upstream.invalid",
+      apiKey: "test-key",
+    });
+    const pending = provider.completeViaStream({
+      ...request(),
+      clientSignal: clientController.signal,
+    });
+    clientController.abort();
+    await assert.rejects(pending, (error) => error?.code === "CLIENT_ABORTED" && error?.status === 499);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

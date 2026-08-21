@@ -15,6 +15,10 @@ struct HoloWidgetsBundle: WidgetBundle {
         HoloQuickActionsWidget()
         HoloFinanceWidget()
         HoloThoughtMemoryWidget()
+        HoloHabitWidget()
+        HoloTodoWidget()
+        HoloGoalWidget()
+        HoloAnniversaryWidget()
     }
 }
 

@@ -29,6 +29,10 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         var label: String
         var summary: String
         var drilldown: HoloRenderedFinanceDrilldown?
+        /// 计算口径（确定性公式原文）；旧结果为 nil
+        var formula: String? = nil
+        /// 对比基线可读描述；无基线为 nil
+        var baselineText: String? = nil
     }
 
     var openingTitle: String
@@ -59,7 +63,10 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let resolvedSummary = !directAnswer.isEmpty
             ? directAnswer
             : (summary.isEmpty ? "本期暂无显著观察" : summary)
-        let hasContent = !result.sections.isEmpty || !directAnswer.isEmpty
+        // 建议是一级交付物；只有建议而没有观察 section 的结果也不能误显示为空状态。
+        let hasContent = !result.sections.isEmpty
+            || !directAnswer.isEmpty
+            || result.recommendations?.isEmpty == false
         let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
         let isHealthMode = result.evidenceReferences.contains { $0.sourceModule == .health }
         let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
@@ -111,7 +118,9 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             return Evidence(
                 label: ref.financeDrilldown == nil ? labelPrefix : "\(labelPrefix) · 点按核对",
                 summary: Self.clean(ref.summary),
-                drilldown: ref.financeDrilldown
+                drilldown: ref.financeDrilldown,
+                formula: ref.formula,
+                baselineText: ref.baselineText
             )
         }
         let cleanedCoverage = Self.clean(result.coverageText ?? "")
@@ -370,6 +379,7 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     let result: HoloRenderedAgentResult
     var onFinanceDrilldown: ((HoloRenderedFinanceDrilldown) -> Void)?
+    var onContinueFollowUp: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var isEvidenceExpanded = false
@@ -402,6 +412,69 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         .background(sheetBackground)
         .presentationDetents([.medium, .large])
+        // 全屏形态（fullScreenCover）的返回栏：下拉关闭不可用时保证明确的退出路径
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoTextSecondary.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("返回")
+
+                Spacer()
+
+                VStack(spacing: 1) {
+                    Text("深度分析")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.holoTextPrimary)
+
+                    if let scopeText = result.scope?.displayLabel {
+                        Text(scopeText)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                Color.clear
+                    .frame(width: 32, height: 32)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+        }
+        .safeAreaInset(edge: .bottom) {
+            if result.agentJobID != nil,
+               result.agentResultID != nil,
+               let onContinueFollowUp {
+                Button {
+                    dismiss()
+                    onContinueFollowUp()
+                } label: {
+                    Label("继续追问这份分析", systemImage: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.holoPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 23)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+                .background(.ultraThinMaterial)
+                .accessibilityHint("回到输入框并承接当前分析的结论与数据依据")
+            }
+        }
     }
 
     private var emptyState: some View {
@@ -463,7 +536,9 @@ struct AgentDeepAnalysisDetailSheet: View {
                     .background(Color.holoPrimary.opacity(0.12))
                     .clipShape(Circle())
 
-                Text("深度分析")
+                Text(result.continuationMetadata?.isFollowUp == true
+                    ? result.continuationMetadata?.shortLabel ?? "继续追问"
+                    : "深度分析")
                     .font(.system(size: 19, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
             }
@@ -878,6 +953,21 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .foregroundColor(.holoTextPrimary.opacity(0.78))
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // 计算口径与对比基线：让「这个数怎么来的」可核对，不只给结果。
+            // 口径优先显示人话翻译，括号内保留公式原文供精确核对。
+            if let formula = evidence.formula {
+                let readable = HoloEvidenceFormulaPresentation.text(formula)
+                Text(readable == formula ? "口径：\(formula)" : "口径：\(readable)（\(formula)）")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.holoTextSecondary.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let baselineText = evidence.baselineText {
+                Label(baselineText, systemImage: "arrow.left.arrow.right.square")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.holoTextSecondary.opacity(0.9))
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

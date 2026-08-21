@@ -121,6 +121,29 @@ extension CoreDataStack {
         habitSortOrder.isOptional = false
         habitSortOrder.defaultValue = 0
         habitAttributes.append(habitSortOrder)
+
+        // 打卡提醒模式：follow=跟随兜底提醒, solo=单独时间, none=不提醒（仅打卡型参与提醒）
+        let habitReminderMode = NSAttributeDescription()
+        habitReminderMode.name = "reminderMode"
+        habitReminderMode.attributeType = .stringAttributeType
+        habitReminderMode.isOptional = false
+        habitReminderMode.defaultValue = "follow"
+        habitAttributes.append(habitReminderMode)
+
+        // 单独提醒时间（solo 模式使用，默认 09:00）
+        let habitReminderHour = NSAttributeDescription()
+        habitReminderHour.name = "reminderHour"
+        habitReminderHour.attributeType = .integer16AttributeType
+        habitReminderHour.isOptional = false
+        habitReminderHour.defaultValue = 9
+        habitAttributes.append(habitReminderHour)
+
+        let habitReminderMinute = NSAttributeDescription()
+        habitReminderMinute.name = "reminderMinute"
+        habitReminderMinute.attributeType = .integer16AttributeType
+        habitReminderMinute.isOptional = false
+        habitReminderMinute.defaultValue = 0
+        habitAttributes.append(habitReminderMinute)
         
         // 创建时间
         let habitCreatedAt = NSAttributeDescription()

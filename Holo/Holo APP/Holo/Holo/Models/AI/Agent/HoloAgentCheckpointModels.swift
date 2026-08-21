@@ -45,6 +45,8 @@ nonisolated struct HoloAgentCheckpoint: Codable, Identifiable, Equatable, Sendab
     /// 的稳定 SHA-256（§5.1），恢复时对比判断「继续还是重新规划」；
     /// 旧 Swift `Hasher` 十进制值（非 64 位 hex）为 legacy，不得用于拒绝恢复（§十 Phase 1 任务 2）。
     var inputSnapshotHash: String?
+    /// 生成 inputSnapshotHash 时使用的 schema 版本；nil 表示 v1/旧数据。
+    var inputSnapshotSchemaVersion: Int? = nil
     /// checkpoint 修订号（§5.3）：每个 LLM step 的 prepared 落盘时递增，用于构造稳定 stepID。
     var revision: Int?
     /// 本 checkpoint 由哪个 execution generation 写入（§5.3，诊断用）。

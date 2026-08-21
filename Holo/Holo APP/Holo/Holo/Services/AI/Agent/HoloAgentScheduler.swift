@@ -37,7 +37,8 @@ actor HoloAgentScheduler {
 
     /// 租约注册表（§6.3）：jobID → 当前租约（foreground/legacyBackground）。
     private var activeLeases: [String: any HoloAgentExecutionLease] = [:]
-    /// 后台期间是否有租约被系统 expiration（回前台时决定是否走恢复链）。
+    /// 后台期间是否有租约被系统结束（legacy expiration 或 continued system end）。
+    /// 回前台时据此决定是否真正重启 runLoop，而不只是刷新界面。
     private var didExpireInBackground = false
 
     private var jobStore: HoloAgentJobStore { runtime.jobStore }
@@ -105,6 +106,7 @@ actor HoloAgentScheduler {
             question: request.question,
             trigger: request.trigger,
             sourceMessageID: request.sourceMessageID,
+            continuation: request.continuation,
             now: request.now
         )
         do {
@@ -413,6 +415,16 @@ actor HoloAgentScheduler {
         event.jobID = jobID
         await eventRecorder.record(event)
         await pause(jobID: jobID, reason: .backgroundTimeExpired)
+        // 暂停对冲通知：后台时间到期时用户不在 App，锁屏上没有任何 Holo 侧信号；
+        // 用准确术语（已暂停·未失败·将自动继续）主动告知，避免下次打开 App 前瞎猜。
+        if let pausedJob = try? await jobStore.load().first(where: { $0.id == jobID }) {
+            HoloAgentPauseNotifier.notifyPaused(
+                jobID: jobID,
+                reason: .backgroundTimeExpired,
+                completedRounds: pausedJob.budget.consumedLLMRounds,
+                totalRounds: pausedJob.budget.maxLLMRounds
+            )
+        }
         // 孤儿兜底：磁盘 running 状态但无活跃 Task 的 job 一并标记
         do {
             try await runtime.pauseForBackground()
@@ -422,8 +434,8 @@ actor HoloAgentScheduler {
     }
 
     /// §9.5 系统结束 continued task（expiration/取消，按「不可区分」保守路径）：
-    /// 结束本次 execution lease，job 进 paused 并记录来源（waitReason=.systemCapacity），
-    /// 不自动悄悄复活（paused 不参与 resumeEligibleJobs）；用户回前台由恢复链/明确动作接管。
+    /// 结束本次 execution lease，job 进入 waitingForForeground 并记录来源。
+    /// 这表示“本次后台承载失败，但用户任务仍可恢复”；回前台必须真正重启 runLoop。
     private func continuedLeaseDidEnd(jobID: String, executionToken: UUID) async {
         // expiration 回调跨 MainActor → Scheduler actor 异步投递；若期间同一 job 已由
         // 新 generation 接管，旧 lease 绝不能清掉或取消新执行。
@@ -439,17 +451,33 @@ actor HoloAgentScheduler {
         )
         event.jobID = jobID
         await eventRecorder.record(event)
+        didExpireInBackground = true
         if let task = activeTasks[jobID] {
             task.cancel()
             removeActiveTaskRegistration(jobID: jobID)
         }
         do {
-            _ = try await runtime.suspendJob(
+            let pausedJob = try await runtime.pauseJob(
                 jobID: jobID,
-                reason: "系统结束了持续后台执行，回到 App 后可以手动继续",
+                reason: .systemCapacity,
                 now: Date()
             )
-            logger.log("[Agent] continued 执行权被系统结束，job 已暂停待手动继续 jobID=\(jobID, privacy: .public)")
+            logger.log("[Agent] continued 执行权被系统结束，job 等待回前台自动恢复 jobID=\(jobID, privacy: .public)")
+            // 系统收回 CP 只能以失败样式闭合锁屏卡片（API 仅有 success: Bool），
+            // 那条「失败」记录会留在锁屏上——立即补发准确术语的对冲通知，用户
+            // 点亮屏幕时两条信号并存且通知更新更晚、可点击直达。
+            var rounds = pausedJob
+            if rounds == nil {
+                rounds = try? await jobStore.load().first(where: { $0.id == jobID })
+            }
+            if let rounds {
+                HoloAgentPauseNotifier.notifyPaused(
+                    jobID: jobID,
+                    reason: .systemCapacity,
+                    completedRounds: rounds.budget.consumedLLMRounds,
+                    totalRounds: rounds.budget.maxLLMRounds
+                )
+            }
         } catch {
             logger.error("[Agent] continued 结束落盘失败 jobID=\(jobID, privacy: .public) error=\(String(describing: error), privacy: .public)")
         }
@@ -461,7 +489,11 @@ actor HoloAgentScheduler {
         job: HoloAgentJob,
         executionToken: UUID
     ) async -> (lease: any HoloAgentExecutionLease, reporter: @Sendable (HoloAgentProgressSnapshot) async -> Void)? {
-        guard await continuedEligibility(for: job),
+        // 系统一旦结束过该 Job 的 Continued Processing，请求会在锁屏界面保留失败记录。
+        // 回前台恢复同一 Job 时只用前台租约，不重复提交同 identifier 的系统任务，避免出现
+        // 一条“任务失败”与一条“正在整理证据”并存。之后再次进后台仍由 legacy 租约承接。
+        guard job.waitReason != .systemCapacity,
+              await continuedEligibility(for: job),
               let client = await resolvedContinuedClient() else { return nil }
         let continued = await HoloAgentContinuedProcessingLease(
             jobID: job.id,
@@ -541,6 +573,10 @@ actor HoloAgentScheduler {
                     logger.error("[Agent] 恢复 job 失败 jobID=\(job.id, privacy: .public) error=\(String(describing: error), privacy: .public)")
                     await recordResumeFailure(jobID: job.id, error: error, now: now)
                 }
+            } catch is HoloQuotaError {
+                // 额度终态已在 runLoop 内落盘（errorSummary 带付费墙文案，状态同步据此
+                // 渲染额度卡片）；recordResumeFailure 会覆盖该文案为通用「恢复失败」，跳过。
+                logger.log("[Agent] 恢复因额度耗尽终止 jobID=\(job.id, privacy: .public)")
             } catch is CancellationError {
                 // 有意取消（pause/cancel），不算失败
                 logger.log("[Agent] 恢复被取消 jobID=\(job.id, privacy: .public)")
@@ -614,6 +650,11 @@ actor HoloAgentScheduler {
     private func inputSnapshotMatches(_ job: HoloAgentJob, now: Date) async throws -> Bool {
         let currentHash = HoloAgentInputSnapshotHasher.hash(for: job)
         guard let checkpoint = try await runtime.latestCheckpointForJob(jobID: job.id) else { return true }
+        // schema 升级不能把升级前创建的未完成任务误判为输入变化；先按当前 schema 重建。
+        if (checkpoint.inputSnapshotSchemaVersion ?? 1) < HoloAgentInputSnapshotHasher.currentSchemaVersion {
+            try await runtime.refreshStableInputSnapshotHash(jobID: job.id, hash: currentHash, now: now)
+            return true
+        }
         guard let stored = checkpoint.inputSnapshotHash,
               HoloAgentInputSnapshotHasher.isStableHash(stored) else {
             // 旧 checkpoint（无 hash / legacy Hasher 值）：不得用于拒绝恢复，重建稳定 hash

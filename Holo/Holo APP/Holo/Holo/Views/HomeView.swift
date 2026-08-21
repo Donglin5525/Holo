@@ -851,8 +851,10 @@ struct HomeView: View {
             navigateToScreen(.tasks)
             deepLinkState.pendingTarget = nil
         case .anniversaries:
+            // pendingTarget 由 TasksView.handleDeepLink() 消费：切到纪念日 Tab 后清除
             navigateToScreen(.tasks)
         case .anniversaryDetail:
+            // 同上；详情 ID 的展开暂不直开，先落到纪念日列表
             navigateToScreen(.tasks)
         case .addTask:
             showAddTaskSheet = true

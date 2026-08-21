@@ -32,6 +32,7 @@ struct HoloAgentPromptBuilderTests {
         test包含脱敏证据()
         test不包含完整敏感原文()
         test包含会话状态()
+        test已有原始问题时不重复追加()
         print("HoloAgentPromptBuilderTests passed")
     }
 
@@ -87,5 +88,23 @@ struct HoloAgentPromptBuilderTests {
             evidence: [], conversationState: conversation, userQuestion: "q"
         )
         expect(combined(messages).contains("CONVERSATION_MARKER_42"), "应包含会话状态")
+    }
+
+    private static func test已有原始问题时不重复追加() {
+        let question = "最近睡眠怎么样？"
+        let conversation = [
+            HoloAgentMessage(role: .user, content: question,
+                             toolRequestID: nil, toolName: nil,
+                             timestamp: Date(timeIntervalSince1970: 1), tokenEstimate: nil),
+            HoloAgentMessage(role: .assistant, content: "正在分析",
+                             toolRequestID: nil, toolName: nil,
+                             timestamp: Date(timeIntervalSince1970: 2), tokenEstimate: nil)
+        ]
+        let messages = HoloAgentPromptBuilder.build(
+            systemTemplate: "你是 Agent", toolDescriptions: "",
+            evidence: [], conversationState: conversation, userQuestion: question
+        )
+        let occurrences = messages.filter { $0.role == .user && $0.content == question }.count
+        expect(occurrences == 1, "原始问题已在 checkpoint 时，每轮 Prompt 不得重复追加")
     }
 }

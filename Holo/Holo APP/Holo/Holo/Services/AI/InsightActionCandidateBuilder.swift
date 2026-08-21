@@ -51,13 +51,13 @@ struct InsightActionCandidateBuilder {
         if card.type == .task || card.moduleHint == "task" {
             if context?.tasks.overdueCount ?? 0 >= 3 {
                 return InsightActionCandidate(
-                    id: UUID().uuidString,
+                    id: "insight-action:\(card.id):task-overdue-cleanup",
                     cardId: card.id,
                     type: .createTask,
                     title: "创建清理待办任务",
                     payload: .taskDraft(
                         title: "20 分钟清理逾期待办",
-                        dueDate: Date(),
+                        dueDate: Calendar.current.startOfDay(for: Date()),
                         priority: nil
                     ),
                     confidence: 0.8
@@ -70,7 +70,7 @@ struct InsightActionCandidateBuilder {
             let patternType = card.patternType ?? ""
             if patternType == "habit_break" || card.title.contains("断连") {
                 return InsightActionCandidate(
-                    id: UUID().uuidString,
+                    id: "insight-action:\(card.id):habit-break-reflection",
                     cardId: card.id,
                     type: .reflectionQuestion,
                     title: "回顾断连原因",
@@ -85,11 +85,11 @@ struct InsightActionCandidateBuilder {
             let patternType = card.patternType ?? ""
             if patternType == "spending_increase" {
                 return InsightActionCandidate(
-                    id: UUID().uuidString,
+                    id: "insight-action:\(card.id):spending-reflection",
                     cardId: card.id,
-                    type: .budgetReminder,
-                    title: "设置消费提醒",
-                    payload: .budgetReminderDraft(categoryId: nil, amount: nil),
+                    type: .reflectionQuestion,
+                    title: "分析消费偏离原因",
+                    payload: .reflectionQuestion("这次消费偏离主要来自哪些类别？请结合数据帮我找出最值得调整的一项。"),
                     confidence: 0.6
                 )
             }
@@ -99,7 +99,7 @@ struct InsightActionCandidateBuilder {
         let patternType = card.patternType ?? ""
         if patternType == "recovery" {
             return InsightActionCandidate(
-                id: UUID().uuidString,
+                id: "insight-action:\(card.id):recovery-reflection",
                 cardId: card.id,
                 type: .reflectionQuestion,
                 title: "记录恢复经验",

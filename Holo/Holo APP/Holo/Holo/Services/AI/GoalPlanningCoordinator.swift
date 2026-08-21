@@ -15,8 +15,9 @@ struct GoalPlanningTurnResult: Equatable {
 
 @MainActor
 final class GoalPlanningCoordinator {
-    func start(seedText: String?, userContext: UserContext, provider: AIProvider) async throws -> GoalPlanningTurnResult {
-        let session = GoalPlanningSession.fresh(seedText: seedText)
+    func start(seedText: String?, userContext: UserContext, provider: AIProvider,
+               maxTurns: Int = GoalPlanningSession.defaultMaxTurns) async throws -> GoalPlanningTurnResult {
+        let session = GoalPlanningSession.fresh(seedText: seedText, maxTurns: maxTurns)
         return try await nextQuestionOrDraft(session: session, userContext: userContext, provider: provider)
     }
 

@@ -23,8 +23,10 @@ struct HoloWidgetModelsStandaloneTests {
         testDeepLinkParsesVoiceEntry()
         testDeepLinkParsesFinanceAnalysis()
         testDeepLinkBuildsQuickActionURLs()
+        testDeepLinkParsesSecondBatchEntries()
         testFinanceSnapshotComparesBudgetAgainstTimeProgress()
         testThoughtMemorySnapshotProtectsPrivateContentByDefault()
+        testHabitSnapshotComputesRemaining()
         try testSnapshotStoreRoundTripsJSON()
         print("HoloWidgetModels standalone tests passed")
     }
@@ -43,6 +45,18 @@ struct HoloWidgetModelsStandaloneTests {
         expect(HoloWidgetDeepLink.parse(URL(string: "holo://finance/add")!) == .addTransaction, "记一笔深链不应被影响")
     }
 
+    private static func testDeepLinkParsesSecondBatchEntries() {
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://habits")!) == .habits, "习惯小组件深链应解析为 holo://habits")
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://tasks")!) == .tasks, "待办小组件深链应解析为 holo://tasks")
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://tasks/new")!) == .addTask, "加待办深链不应被 holo://tasks 覆盖")
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://goals/detail?id=11111111-1111-1111-1111-111111111111")!)
+                == .goalDetail(id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!),
+            "目标小组件深链应解析为带 id 的目标详情"
+        )
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://anniversaries")!) == .anniversaries, "纪念日小组件深链应解析为 holo://anniversaries")
+    }
+
     private static func testDeepLinkBuildsQuickActionURLs() {
         expect(HoloWidgetQuickAction.askHolo.deepLink.absoluteString == "holo://ai", "问 Holo 深链不正确")
         expect(HoloWidgetQuickAction.addTransaction.deepLink.absoluteString == "holo://finance/add", "记一笔深链不正确")
@@ -57,12 +71,28 @@ struct HoloWidgetModelsStandaloneTests {
             monthBudget: 1_000,
             dayOfMonth: 14,
             daysInMonth: 30,
+            weekExpense: nil,
+            topCategories: nil,
             updatedAt: Date(timeIntervalSince1970: 0)
         )
 
         expect(snapshot.budgetProgress == 0.62, "预算进度应等于本月支出 / 本月预算")
         expect(abs(snapshot.timeProgress - 0.4667) < 0.001, "时间进度应等于当前日期 / 当月天数")
         expect(snapshot.budgetStatus == .aheadOfTime, "预算进度明显快于时间进度时应提醒")
+    }
+
+    private static func testHabitSnapshotComputesRemaining() {
+        let snapshot = HoloWidgetHabitSnapshot(
+            completedToday: 3,
+            totalToday: 5,
+            longestStreakText: "34天",
+            habits: [],
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        expect(snapshot.remainingCount == 2, "剩余习惯数应等于总数减已完成")
+        expect(HoloWidgetHabitSnapshot.empty().remainingCount == 0, "空数据时剩余数应为 0")
+        expect(HoloWidgetGoalSnapshot.empty().goal == nil, "无进行中目标时快照应为空态")
     }
 
     private static func testThoughtMemorySnapshotProtectsPrivateContentByDefault() {

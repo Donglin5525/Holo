@@ -9,7 +9,7 @@
 //  - 标题固定通用文案，副标题只显示通用阶段（§7.4：不出现用户问题/健康指标/金额/工具摘要）；
 //  - finish 立即 setTaskCompleted；提前完成直接补齐进度，不伪造中间百分比；
 //  - 系统结束（expiration/取消）按 §9.5「不可区分」保守路径：结束本次 lease，
-//    回调 Scheduler 落 paused + 来源，不自动复活（真机 spike 待办见 onSystemEnded 注释）。
+//    回调 Scheduler 落 waitingForForeground + 来源，回前台从 checkpoint 恢复。
 //
 
 import Foundation
@@ -154,7 +154,7 @@ final class HoloAgentContinuedProcessingLease: HoloAgentExecutionLease {
 
     /// §9.5：系统结束（expiration/取消）。真机 spike 待办：当前 SDK/真机上系统取消与资源
     /// expiration 是否可区分尚未验证，按「不可区分」保守路径——结束本次 execution lease，
-    /// 回调 Scheduler 落 paused + 来源，不自动悄悄复活；用户回前台由恢复链/明确动作接管。
+    /// 回调 Scheduler 落 waitingForForeground + 来源；用户回前台由恢复链接管。
     private func systemDidExpire() {
         guard !didFinish else { return }
         didFinish = true
@@ -163,6 +163,9 @@ final class HoloAgentContinuedProcessingLease: HoloAgentExecutionLease {
         let expiredTask = systemTask
         systemTask = nil
         expiredTask?.expirationHandler = nil
+        // 系统仍会用失败样式闭合被回收的后台任务；副标题明确说明用户 Job 可恢复，
+        // 避免锁屏上的“任务失败”被理解成整份分析已经永久失败。
+        expiredTask?.updateTitle(Self.taskTitle, subtitle: "回到 Holo 后继续分析")
         expiredTask?.setTaskCompleted(success: false)
         onSystemEnded(jobID)
     }

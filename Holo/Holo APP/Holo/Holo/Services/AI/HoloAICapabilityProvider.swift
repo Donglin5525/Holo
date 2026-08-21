@@ -53,7 +53,7 @@ enum HoloAICapabilityProvider {
         if context.onboardingCompleted {
             capabilities.append(HoloAICapability(
                 id: .recentAnalysis,
-                title: "最近分析",
+                title: "深度分析",
                 systemImage: "chart.line.uptrend.xyaxis",
                 isEmphasized: false,
                 isEnabled: true
@@ -85,7 +85,7 @@ enum HoloAICapabilityProvider {
             ),
             HoloAICapability(
                 id: .recentAnalysis,
-                title: "最近分析",
+                title: "深度分析",
                 systemImage: "chart.line.uptrend.xyaxis",
                 isEmphasized: context.hasSufficientData,
                 isEnabled: true

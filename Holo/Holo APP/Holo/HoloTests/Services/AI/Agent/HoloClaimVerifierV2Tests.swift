@@ -20,6 +20,10 @@ struct HoloClaimVerifierV2Tests {
         test无evidence_拒绝()
         testmetricKey不匹配_拒绝()
         testvalue不一致_拒绝()
+        test多证据聚合值_可复算()
+        test事实字段映射错误_按单一证据校准()
+        test事实正文夹带额外数字_重建为有依据文案()
+        test建议数字_不得自动修复()
         test建议夹带无证据数字目标_拒绝()
         test事实文案夹带无证据数字_拒绝()
         test单位不一致_降级()
@@ -114,6 +118,86 @@ struct HoloClaimVerifierV2Tests {
             evidence: [makeEvidence(id: "ev1", value: 5000)]
         )
         expect(result.verdict == .rejected, "value 不一致应拒绝，实际 \(result.verdict)")
+    }
+
+    /// 真实事故回归：烟 2 笔 + 酒 1 笔应支持“烟酒消费 3 笔”，不能逐条拿 3 和 2/1 比。
+    private static func test多证据聚合值_可复算() {
+        let claim = makeClaim(
+            text: "最近烟酒消费共3笔",
+            metricKey: "finance.keyword.count",
+            value: 3,
+            unit: "笔",
+            evidenceIDs: ["smoke", "wine"]
+        )
+        let result = HoloClaimVerifierV2().verify(
+            claim: claim,
+            evidence: [
+                makeEvidence(id: "smoke", metricKey: "finance.keyword.count", value: 2, unit: "笔"),
+                makeEvidence(id: "wine", metricKey: "finance.keyword.count", value: 1, unit: "笔")
+            ]
+        )
+        expect(result.verdict != .rejected, "多条 evidence 的可复算求和不应被拒绝，reasons: \(result.reasons)")
+    }
+
+    /// 真实事故回归：模型正文说“记录14次”，却把 assertion 套成完成率100%。
+    /// 单一 evidence 已明确给出 daily_log_days=14 时，应校准结构字段后再严格验真。
+    private static func test事实字段映射错误_按单一证据校准() {
+        let evidence = makeEvidence(
+            id: "habit-days",
+            metricKey: "dynamic.habit.daily_log_days.all",
+            value: 14,
+            unit: "次",
+            sourceModule: .habit
+        )
+        let original = makeClaim(
+            type: "observation",
+            text: "同一时期每天都有戒烟记录，共14次",
+            metricKey: "habit.positive.completion_rate",
+            value: 100,
+            unit: "%",
+            evidenceIDs: [evidence.id]
+        )
+        let repaired = HoloClaimVerifierV2.repairFactualGrounding(claim: original, evidence: [evidence])
+        expect(repaired.metricAssertions.first?.metricKey == evidence.metricKey, "应采用 evidence 的真实 metricKey")
+        expect(repaired.metricAssertions.first?.value == 14, "应采用 evidence 的真实值 14")
+        expect(repaired.metricAssertions.first?.unit == "次", "应采用 evidence 的真实单位")
+        let result = HoloClaimVerifierV2().verify(claim: repaired, evidence: [evidence])
+        expect(result.verdict != .rejected, "校准后的事实 claim 应通过严格校验，reasons: \(result.reasons)")
+    }
+
+    /// 真实事故回归：正文四个数字里有三个可证、一个无 evidence，不能把整张卡清空；
+    /// 应只用结构化 assertion 重建正文并删除无依据的 750 元。
+    private static func test事实正文夹带额外数字_重建为有依据文案() {
+        let total = makeEvidence(id: "total", metricKey: "finance.total.amount", value: 5743.73, unit: "元")
+        let digital = makeEvidence(id: "digital", metricKey: "finance.category.amount", value: 1524.83, unit: "元")
+        let original = HoloAgentClaim(
+            id: "finance-summary",
+            type: "observation",
+            displayText: "近30天总支出5743.73元，数码1524.83元，另有无依据礼物750元",
+            metricAssertions: [
+                HoloMetricAssertion(metricKey: total.metricKey, value: total.metricValue, baselineValue: nil, unit: total.unit, comparison: nil, evidenceIDs: [total.id]),
+                HoloMetricAssertion(metricKey: digital.metricKey, value: digital.metricValue, baselineValue: nil, unit: digital.unit, comparison: "数码", evidenceIDs: [digital.id])
+            ],
+            evidenceIDs: [total.id, digital.id],
+            prohibitedInferences: [],
+            confidence: 0.8
+        )
+        let repaired = HoloClaimVerifierV2.repairFactualGrounding(claim: original, evidence: [total, digital])
+        expect(!repaired.displayText.contains("750"), "重建正文必须移除无依据数字")
+        let result = HoloClaimVerifierV2().verify(claim: repaired, evidence: [total, digital])
+        expect(result.verdict != .rejected, "保留下来的可证事实不应因一个脏数字整条消失，reasons: \(result.reasons)")
+    }
+
+    private static func test建议数字_不得自动修复() {
+        let evidence = makeEvidence(id: "ev1", value: 12_600)
+        let original = makeClaim(
+            type: "suggestion",
+            text: "建议把预算控制在每月1500元以内",
+            value: 12_600,
+            evidenceIDs: [evidence.id]
+        )
+        let repaired = HoloClaimVerifierV2.repairFactualGrounding(claim: original, evidence: [evidence])
+        expect(repaired == original, "建议和个性化目标不得由自动修复器改写或洗白")
     }
 
     private static func test建议夹带无证据数字目标_拒绝() {

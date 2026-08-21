@@ -21,6 +21,8 @@ enum TodoNotificationCategory {
     static let goalRisk = "GOAL_RISK"
     static let habitReminder = "HABIT_REMINDER"
     static let weeklyBrief = "WEEKLY_BRIEF"
+    static let billDue = "TODO_BILL_DUE"
+    static let budgetOverrun = "TODO_BUDGET_OVERRUN"
 }
 
 enum TodoNotificationAction: String {
@@ -164,9 +166,26 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
+        // 周期账单到期提醒（无操作按钮，点击直达记一笔）
+        let billDueCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.billDue,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        // 预算超支提醒（无操作按钮，点击直达财务页）
+        let budgetOverrunCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.budgetOverrun,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
         UNUserNotificationCenter.current().setNotificationCategories([
             taskCategory, dailyCategory, memoryInsightCategory,
-            anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory
+            anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory,
+            billDueCategory, budgetOverrunCategory
         ])
         Self.logger.info("已注册通知分类")
     }
@@ -472,6 +491,12 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             case TodoNotificationCategory.weeklyBrief:
                 Self.logger.info("周一晨报 Deep Link")
                 DeepLinkState.shared.navigate(to: .weeklyBrief)
+            case TodoNotificationCategory.billDue:
+                Self.logger.info("账单到期通知 Deep Link")
+                DeepLinkState.shared.navigate(to: .addTransaction)
+            case TodoNotificationCategory.budgetOverrun:
+                Self.logger.info("预算超支通知 Deep Link")
+                DeepLinkState.shared.navigate(to: .finance)
             default:
                 break
             }

@@ -314,7 +314,8 @@ nonisolated enum HoloMetricSemanticCatalog {
         formatter.minimumFractionDigits = 0
 
         let needsInteger = value.rounded() == value ||
-            unit == "步" || unit == "天" || unit == "晚" || unit == "次" || unit == "条" || unit == "项"
+            unit == "步" || unit == "天" || unit == "晚" || unit == "次" || unit == "笔" ||
+            unit == "支" || unit == "条" || unit == "项"
         if needsInteger {
             formatter.maximumFractionDigits = 0
         } else if metricKey.contains("amount") || unit == "元" {

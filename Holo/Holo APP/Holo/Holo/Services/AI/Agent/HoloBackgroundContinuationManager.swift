@@ -140,6 +140,13 @@ final class HoloBackgroundContinuationManager {
         resumeAndSyncRecoveredJobs(trigger: .foreground)
     }
 
+    /// Chat 页兜底恢复入口：页面每次就绪时调用。生命周期事件（回前台/解锁/冷启动）
+    /// 的恢复依赖内存标志或单次时机，一旦错过（如冷启动那次网络未就绪）任务会一直
+    /// 停在「已暂停」。Scheduler 唯一执行权保证重复调用不会拉起双份执行。
+    func resumePausedJobsForChatAppearance() {
+        resumeAndSyncRecoveredJobs(trigger: .foreground)
+    }
+
     /// 恢复未完成 job 并同步 Chat 状态。§6.1：恢复统一走 Scheduler 唯一执行权（resumeEligibleJobs）。
     private func resumeAndSyncRecoveredJobs(trigger: HoloAgentResumeTrigger, reconcileFirst: Bool = false) {
         resumeTask?.cancel()

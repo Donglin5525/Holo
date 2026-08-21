@@ -48,7 +48,7 @@ export function createOpenAICompatibleProvider(config) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value } = await readUpstreamChunk(reader, request.clientSignal);
         if (done) {
           break;
         }
@@ -91,7 +91,7 @@ export function createOpenAICompatibleProvider(config) {
       };
 
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value } = await readUpstreamChunk(reader, request.clientSignal);
         if (done) {
           break;
         }
@@ -252,6 +252,23 @@ function extractSSEData(frame) {
   return dataLines.join("\n").trim();
 }
 
+/// 读取上游流时区分“客户端已断开”和“上游自身失败”。fetch 在收到响应头后已经返回，
+/// 后续 reader.read() 的 AbortError 不会经过 callUpstream 的 catch；若不在这里归一，
+/// iOS 系统回收后台任务会被错误统计成 UPSTREAM_ERROR。
+async function readUpstreamChunk(reader, clientSignal) {
+  try {
+    return await reader.read();
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      if (clientSignal?.aborted) {
+        throw new GatewayError("CLIENT_ABORTED", "Client disconnected before completion", 499);
+      }
+      throw new GatewayError("UPSTREAM_TIMEOUT", "Upstream stream was aborted", 504);
+    }
+    throw error;
+  }
+}
+
 /// 构建上游请求体的公共字段；reasoning_effort 仅在配置了时传递（DeepSeek 推理开关）。
 /// agent_loop 设为 "none" 可关闭推理模式，响应从 60-120 秒降到 2-5 秒。
 function buildUpstreamBody(request) {
@@ -304,6 +321,9 @@ async function callEmbeddingsUpstream(config, body, clientSignal) {
     return response;
   } catch (error) {
     if (error.name === "AbortError") {
+      if (clientSignal?.aborted) {
+        throw new GatewayError("CLIENT_ABORTED", "Client disconnected before completion", 499);
+      }
       throw new GatewayError("UPSTREAM_TIMEOUT", "Upstream request timed out", 504);
     }
     if (error instanceof GatewayError) {
@@ -352,6 +372,9 @@ async function callUpstream(config, body, clientSignal) {  if (!config.apiKey) {
     return response;
   } catch (error) {
     if (error.name === "AbortError") {
+      if (clientSignal?.aborted) {
+        throw new GatewayError("CLIENT_ABORTED", "Client disconnected before completion", 499);
+      }
       throw new GatewayError("UPSTREAM_TIMEOUT", "Upstream request timed out", 504);
     }
 

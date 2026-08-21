@@ -47,6 +47,10 @@ struct AddHabitSheet: View {
     @State private var unit: String = ""
     @State private var selectedAggregationType: HabitAggregationType = .sum
     @State private var isBadHabit: Bool? = nil
+
+    // 打卡提醒（仅打卡型；solo 模式的时刻，默认 09:00）
+    @State private var reminderMode: HabitReminderMode = .follow
+    @State private var reminderTime: Date = Self.defaultReminderTime
     
     @State private var showIconPicker: Bool = false
     @State private var isSaving: Bool = false
@@ -58,6 +62,14 @@ struct AddHabitSheet: View {
     
     /// 是否为编辑模式
     private var isEditing: Bool { editingHabit != nil }
+
+    /// solo 模式默认时刻 09:00
+    private static let defaultReminderTime: Date = {
+        var comps = DateComponents()
+        comps.hour = 9
+        comps.minute = 0
+        return Calendar.current.date(from: comps) ?? Date()
+    }()
     
     // MARK: - Body
     
@@ -78,7 +90,12 @@ struct AddHabitSheet: View {
                     if selectedType == .numeric {
                         aggregationTypeSection
                     }
-                    
+
+                    // 打卡提醒（仅打卡型）
+                    if selectedType == .checkIn {
+                        reminderSection
+                    }
+
                     // 频率选择
                     frequencySection
                     
@@ -143,11 +160,21 @@ struct AddHabitSheet: View {
     private var hasUnsavedChanges: Bool {
         if let habit = editingHabit {
             // 编辑模式：比较与原始习惯的差异
-            return name != habit.name
+            var changed = name != habit.name
                 || selectedIcon != habit.icon
                 || selectedColor != habit.color
                 || selectedType.rawValue != habit.type
                 || selectedFrequency.rawValue != habit.frequency
+
+            // 打卡型：提醒模式/时间改动也算未保存修改
+            if selectedType == .checkIn {
+                let calendar = Calendar.current
+                changed = changed
+                    || reminderMode != habit.habitReminderMode
+                    || calendar.component(.hour, from: reminderTime) != Int(habit.reminderHour)
+                    || calendar.component(.minute, from: reminderTime) != Int(habit.reminderMinute)
+            }
+            return changed
         } else {
             // 新增模式：检查是否输入了内容
             return !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -180,6 +207,14 @@ struct AddHabitSheet: View {
             }
             if let u = habit.unit {
                 unit = u
+            }
+
+            if habit.isCheckInType {
+                reminderMode = habit.habitReminderMode
+                var comps = DateComponents()
+                comps.hour = Int(habit.reminderHour)
+                comps.minute = Int(habit.reminderMinute)
+                reminderTime = Calendar.current.date(from: comps) ?? Self.defaultReminderTime
             }
         } else if let draft = prefill {
             name = draft.name
@@ -294,23 +329,35 @@ struct AddHabitSheet: View {
     }
     
     // MARK: - 聚合类型选择（数值型）
-    
+
     private var aggregationTypeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("数值类型")
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
-            
+
             Picker("数值类型", selection: $selectedAggregationType) {
                 ForEach(HabitAggregationType.allCases) { type in
                     Text(type.displayName).tag(type)
                 }
             }
             .pickerStyle(.segmented)
-            
+
             Text(selectedAggregationType.description)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    // MARK: - 打卡提醒选择（打卡型）
+
+    private var reminderSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("打卡提醒")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            HabitReminderModePicker(mode: $reminderMode, time: $reminderTime)
         }
     }
     
@@ -463,6 +510,13 @@ struct AddHabitSheet: View {
         let tv = Double(targetValue)
         let u = unit.isEmpty ? nil : unit
         let badHabit = isBadHabit ?? false
+        let calendar = Calendar.current
+        // 打卡提醒仅打卡型有意义；数值型不参与提醒，走默认值/不更新
+        let isCheckIn = selectedType == .checkIn
+        let reminderTimeComponents = (
+            hour: calendar.component(.hour, from: reminderTime),
+            minute: calendar.component(.minute, from: reminderTime)
+        )
 
         do {
             if let habit = editingHabit {
@@ -476,7 +530,9 @@ struct AddHabitSheet: View {
                     targetValue: tv,
                     unit: u,
                     aggregationType: selectedAggregationType,
-                    isBadHabit: isBadHabit
+                    isBadHabit: isBadHabit,
+                    reminderMode: isCheckIn ? reminderMode : nil,
+                    reminderTime: isCheckIn ? reminderTimeComponents : nil
                 ))
             } else {
                 // 新增模式
@@ -490,7 +546,9 @@ struct AddHabitSheet: View {
                     targetValue: tv,
                     unit: u,
                     aggregationType: selectedAggregationType,
-                    isBadHabit: badHabit
+                    isBadHabit: badHabit,
+                    reminderMode: isCheckIn ? reminderMode : .follow,
+                    reminderTime: reminderTimeComponents
                 )
             }
             

@@ -56,6 +56,11 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     /// 本轮实际预取进 Agent 上下文的个人档案与分层记忆来源。
     /// 仅保存来源和数量，用于结果卡持久披露；旧结果缺失时不展示。
     var contextSources: [HoloAgentContextSourceSummary]? = nil
+    /// 查询窗口的来源与原文依据（词表/通用规则/模型解析/用户点选/默认）。
+    /// 供结果卡 scope 位生成分型披露文案；旧结果缺失时按旧格式展示。
+    var timeRangeAttribution: HoloAgentTimeRangeAttribution? = nil
+    /// 连续追问血统；旧结果缺失时按独立 root 处理。
+    var lineage: HoloAgentLineage? = nil
 }
 
 /// 空结论的原因。区分两类失败，用于精准提示用户。

@@ -19,6 +19,17 @@ extension NumberFormatter {
         return formatter
     }()
 
+    /// 去尾零货币格式化器（通知文案用）：¥15 / ¥15.5 / ¥1,234.56
+    static let currencyTrimmed: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "CNY"
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+
     /// 紧凑货币格式化（万/亿单位），用于空间受限场景
     /// - ¥9,999.00 → ¥9,999.00（万元以下保持原样）
     /// - ¥100,000.00 → ¥10.0万

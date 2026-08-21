@@ -2,8 +2,8 @@
 //  MemoryGalleryView.swift
 //  Holo
 //
-//  记忆长廊主视图 — 日历 / 洞察 两 tab 结构
-//  日历（周历网格/列表 + 月历，逐条事实）/ 洞察（理解档案 + 热力图 + 回放叙事）
+//  记忆长廊主视图 — 日历 / 洞察 两 tab（L1 轻头部：tab 并入标题栏右侧 + 两 tab 常驻不销毁）
+//  日历（日/周/月三档时间刻度，逐条事实）/ 洞察（理解档案 + 热力图 + 回放叙事）
 //
 
 import SwiftUI
@@ -35,15 +35,11 @@ struct MemoryGalleryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部导航栏
+            // 顶部导航栏（右侧并入页级 tab，L1 轻头部）
             navigationBar
 
-            // Tab 切换器
-            MemorySegmentedTabs(selectedTab: $selectedTab)
-                .padding(.top, HoloSpacing.xs)
-                .padding(.bottom, HoloSpacing.xs)
-
-            // 主内容区
+            // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
+            // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -89,39 +85,56 @@ struct MemoryGalleryView: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返回")
 
             Spacer()
 
             Text("记忆长廊")
-                .font(.holoHeading)
+                .font(.system(size: 20, weight: .semibold, design: .serif))
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
 
-            // 占位保持标题居中
-            Color.clear
-                .frame(width: 20)
+            // 页级 tab 并入标题栏右侧（替代原满宽大分段）
+            MemoryNavbarTabs(selectedTab: $selectedTab)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.vertical, HoloSpacing.md)
+        .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
+        .padding(.horizontal, HoloSpacing.sm)
         .background(Color.holoBackground)
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                colors: [Color.holoBorder.opacity(0), Color.holoBorder.opacity(0.42), Color.holoBorder.opacity(0)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 0.5)
+        }
     }
 
     // MARK: - Tab Content
 
-    @ViewBuilder
+    /// 两 tab 常驻：隐藏而非销毁。若用 switch 切换，CalendarRootView 的
+    /// @StateObject 会随切走释放、切回重建，触发 ±60 天全量重载 —— 切换动画同帧
+    /// 跑四模块取数 + 泳道重建，即此前「洞察切回日历肉眼可见卡顿」的根因。
     private var tabContent: some View {
-        switch selectedTab {
-        case .calendar:
+        ZStack {
             calendarTab
-        case .insight:
+                .opacity(selectedTab == .calendar ? 1 : 0)
+                .allowsHitTesting(selectedTab == .calendar)
+                .accessibilityHidden(selectedTab != .calendar)
+
             insightTab
+                .opacity(selectedTab == .insight ? 1 : 0)
+                .allowsHitTesting(selectedTab == .insight)
+                .accessibilityHidden(selectedTab != .insight)
         }
     }
 
-    // MARK: - 日历 Tab（P1A 周历列表）
+    // MARK: - 日历 Tab（日回放 / 周网格 / 月月历）
 
     private var calendarTab: some View {
         CalendarRootView()
@@ -137,30 +150,96 @@ struct MemoryGalleryView: View {
             errorView(message: errorMessage)
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: HoloSpacing.lg) {
-                    // 用户只看到可理解的记忆结论与控制，不暴露内部评分参数。
-                    DomainMemorySection()
+                VStack(spacing: 0) {
+                    insightChapterHeader
 
-                    // Daily Sense 状态卡片
-                    if InsightFeatureFlags.dailySenseEnabled,
-                       let snapshot = viewModel.dailySenseSnapshot,
-                       !snapshot.signals.isEmpty {
-                        DailySenseStatusCard(snapshot: snapshot)
+                    VStack(spacing: HoloSpacing.lg) {
+                        // 报告门卡（一个家两个门）：最新一份报告的轻入口，直达 Holo AI 报告 Tab。
+                        // 无报告时不展示，长廊对无报告用户保持零噪音。
+                        if let reportEntry = viewModel.latestReportEntry {
+                            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                                sectionHeading(title: "它看懂了你", icon: "sparkles")
+                                ReportDoorCard(entry: reportEntry) {
+                                    DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
+                                    ChatReportTabRouter.shared.openReportTab()
+                                }
+                            }
+                        }
+
+                        // 用户只看到可理解的记忆结论与控制，不暴露内部评分参数。
+                        DomainMemorySection()
+
+                        // Daily Sense 状态卡片
+                        if InsightFeatureFlags.dailySenseEnabled,
+                           let snapshot = viewModel.dailySenseSnapshot,
+                           !snapshot.signals.isEmpty {
+                            DailySenseStatusCard(snapshot: snapshot)
+                        }
+
+                        // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
+                        heatmapSection
+
+                        // 一起做的计划（LifePlan 台账）：理解档案第三块
+                        LifePlanGallerySection()
+
+                        featuredStoriesSection
                     }
-
-                    // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
-                    heatmapSection
-
-                    // 一起做的计划（LifePlan 台账）：理解档案第三块
-                    LifePlanGallerySection()
-
-                    featuredStoriesSection
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.bottom, HoloSpacing.lg)
                 }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.md)
                 .containerRelativeFrame(.horizontal, alignment: .leading)
             }
         }
+    }
+
+    /// 洞察与日/周/月共用「章节开场」语法：一个大主题、一句解释、一行事实证据。
+    private var insightChapterHeader: some View {
+        HStack(spacing: 12) {
+            Text("理解")
+                .font(.system(size: 42, weight: .medium, design: .serif))
+                .foregroundColor(.holoTextPrimary)
+                .tracking(-2)
+                .frame(minWidth: 78, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Holo 看见的你")
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .foregroundColor(.holoTextPrimary)
+                Text("\(viewModel.totalRecordedDays) 天生活证据 · \(viewModel.totalMemoryCount) 条记录")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.holoPrimary)
+                .frame(width: 34, height: 34)
+                .background(Color.holoPrimary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .frame(minHeight: 92)
+        .background(
+            LinearGradient(
+                colors: [Color.holoBackground.opacity(0.99), Color.holoBackground.opacity(0.94)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .overlay(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [Color.holoPrimary.opacity(0.68), Color.holoPrimary.opacity(0)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 104, height: 1)
+            .padding(.leading, HoloSpacing.md)
+        }
+        .padding(.bottom, HoloSpacing.md)
+        .accessibilityElement(children: .combine)
     }
 
     /// 选中日期预览卡片

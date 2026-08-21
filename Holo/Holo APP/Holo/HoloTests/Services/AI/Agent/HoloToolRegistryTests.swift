@@ -137,19 +137,20 @@ struct HoloToolRegistryTests {
 
     private static func test生产覆盖契约包含全部用户语义工具() {
         let expected: Set<String> = [
-            "conversation", "finance", "goal", "habit", "health",
-            "insight", "memory", "profile", "task", "thought"
+            "anniversary", "conversation", "cross_domain", "discover", "feedback",
+            "finance", "goal", "habit", "health", "insight", "memory", "profile",
+            "project", "task", "thought", "thought_reference"
         ]
         expect(
             Set(HoloAgentToolCoverage.requiredToolNames) == expected,
-            "生产工具覆盖契约应包含 10 个用户语义工具"
+            "生产工具覆盖契约应包含全部 16 个已发布工具"
         )
     }
 
     private static func test动态目录覆盖全部用户数据域() {
         let domains = Set(HoloAgentToolCoverage.requiredDynamicDatasets.map { $0.split(separator: ".").first.map(String.init) ?? "" })
-        let expected: Set<String> = ["conversation", "finance", "goal", "habit", "health", "insight", "memory", "profile", "task", "thought"]
-        expect(domains == expected, "动态目录覆盖契约必须覆盖全部 10 个用户数据域")
+        let expected: Set<String> = ["anniversary", "conversation", "finance", "goal", "habit", "health", "insight", "memory", "profile", "task", "thought"]
+        expect(domains == expected, "动态目录覆盖契约必须覆盖全部 11 个用户数据域")
         expect(HoloAgentToolCoverage.requiredDynamicDatasets.contains("health.sleep"), "健康睡眠必须进入动态目录")
         expect(HoloAgentToolCoverage.requiredDynamicDatasets.contains("conversation.metadata"), "对话只允许受控元数据目录")
     }

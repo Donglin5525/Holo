@@ -65,12 +65,6 @@ struct CalendarEventProvider {
         return Self.aggregate(partials: [finance, habit, todo, thought])
     }
 
-    /// 拉取某一天的日历事件（月历当天详情用）
-    func fetchDaySummary(_ date: Date,
-                         todoDimension: TodoTimeDimension = .completed) async -> CalendarEventsResult {
-        await fetchEvents(in: CalendarRangeBuilder.dayRange(date), todoDimension: todoDimension)
-    }
-
     // MARK: - 聚合（纯函数，单测入口）
 
     static func aggregate(partials: [Partial]) -> CalendarEventsResult {
@@ -91,13 +85,33 @@ struct CalendarEventProvider {
         do {
             let txns = try await financeRepo.getTransactions(from: range.start, to: range.end)
             let events: [CalendarEvent] = txns.map { txn in
-                let amountString = NumberFormatter.currency.string(from: txn.amount as NSDecimalNumber) ?? ""
-                let sign = txn.transactionType == .expense ? "-" : "+"
+                let categoryName = txn.category?.name ?? "未分类"
+                let note = txn.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let genericCategories = Set(["其他", "未分类"])
+                let fallbackTitle = txn.transactionType == .expense ? "一笔支出" : "一笔收入"
+                let title = note.isEmpty
+                    ? (genericCategories.contains(categoryName) ? fallbackTitle : categoryName)
+                    : note
+
+                var contextParts: [String] = []
+                if title != categoryName { contextParts.append(categoryName) }
+                if let remark = txn.remark?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !remark.isEmpty,
+                   remark != title {
+                    contextParts.append(remark)
+                }
+                if let account = txn.account, !account.isDefault {
+                    contextParts.append(account.name)
+                }
+
                 return CalendarEvent(
                     module: .finance,
                     date: txn.date,
-                    title: txn.category?.name ?? "未分类",
-                    detail: "\(sign)\(amountString)",
+                    title: title,
+                    detail: txn.formattedAmountWithSign,
+                    context: contextParts.isEmpty ? nil : contextParts.joined(separator: " · "),
+                    numericValue: txn.amountAsDecimal,
+                    valueDirection: txn.transactionType == .expense ? .negative : .positive,
                     originID: txn.objectID
                 )
             }

@@ -92,7 +92,8 @@ struct StructuredDomainMemorySignalsTests {
             previousTransactions: [],
             budgets: [.init(
                 id: "budget-1", categoryID: "food", categoryName: "餐饮",
-                budgetAmount: 1_000, spentAmount: 1_300, revisionDigest: "budget-r2"
+                budgetAmount: 1_000, spentAmount: 1_300,
+                carryoverDeduction: 0, revisionDigest: "budget-r2"
             )],
             windowStart: now.addingTimeInterval(-30 * 86_400),
             windowEnd: now

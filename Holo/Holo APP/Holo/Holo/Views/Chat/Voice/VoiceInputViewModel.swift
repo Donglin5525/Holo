@@ -35,6 +35,8 @@ enum VoiceInputError: Equatable {
     case networkFailure
     case interrupted
     case serverMessage(String)
+    /// 识别额度（asr 池）耗尽：档位终态，不提供重试（重置前必再失败）。
+    case quotaExhausted(String)
 
     var message: String {
         switch self {
@@ -54,6 +56,8 @@ enum VoiceInputError: Equatable {
             return "录音被中断，可以继续或完成"
         case .serverMessage(let message):
             return message
+        case .quotaExhausted(let message):
+            return message
         }
     }
 
@@ -61,7 +65,7 @@ enum VoiceInputError: Equatable {
         switch self {
         case .networkFailure, .transcriptionTimedOut, .serverMessage:
             return true
-        case .microphonePermissionDenied, .recordingTooShort, .recordingFailed, .emptyTranscript, .interrupted:
+        case .quotaExhausted, .microphonePermissionDenied, .recordingTooShort, .recordingFailed, .emptyTranscript, .interrupted:
             return false
         }
     }
@@ -134,6 +138,15 @@ final class VoiceInputViewModel: ObservableObject {
     }
 
     func startRecording() async {
+        // asr 次数预检：额度用完时直接失败，避免用户录满整段语音后转写才被拒。
+        // 余量缺失（nil）时放行，由后端拦截 + quotaExhausted 错误兜底。
+        if let remaining = HoloEntitlementState.shared.quotas["asr"]?.remaining,
+           remaining <= 0 {
+            state = .failed(.quotaExhausted(
+                HoloQuotaError.asrExhaustedMessage(isPlusActive: HoloEntitlementState.shared.isPlusActive)
+            ))
+            return
+        }
         transcriptionTask?.cancel()
         audioAppendTask?.cancel()
         streamingSession?.cancel()
@@ -555,6 +568,8 @@ final class VoiceInputViewModel: ObservableObject {
                 return .networkFailure
             case .serverMessage(let message):
                 return .serverMessage(message)
+            case .quotaExhausted(let message):
+                return .quotaExhausted(message)
             }
         }
 

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo · 用户反馈通道 · 交互原型</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+
+  /* ===== Holo 设计 Token（取自 DesignSystem.swift） ===== */
+  :root {
+    --bg: #FDFBF8;
+    --card: #FFFFFF;
+    --card-2: #F7F6F1;
+    --text1: #333333;
+    --text2: #939393;
+    --text3: #C7C7CC;
+    --border: #F0F0F0;
+    --divider: #F1F5F9;
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-soft: #FED7AA;
+    --success: #22C55E;
+    --error: #EF4444;
+    --blue: #3B82F6;
+    --purple: #8B5CF6;
+    --wechat: #07C160;
+    --shadow: 0 1px 3px rgba(0,0,0,0.035), 0 8px 8px rgba(0,0,0,0.02);
+  }
+  body.dark {
+    --bg: #1C1C1E;
+    --card: #2C2C2E;
+    --card-2: #3A3A3C;
+    --text1: #F5F5F5;
+    --text2: #939393;
+    --text3: #6B7280;
+    --border: #3A3A3C;
+    --divider: #38383A;
+    --primary: #FF8A50;
+    --primary-dark: #F46D38;
+    --primary-soft: #5A3A28;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: linear-gradient(165deg, #efe7da 0%, #e9eef5 50%, #f1ecf6 100%);
+    min-height: 100vh;
+    padding: 44px 16px 90px;
+    display:flex; flex-direction:column; align-items:center;
+    color: var(--text1);
+    transition: background .4s;
+  }
+  body.dark { background: linear-gradient(165deg,#2a2620 0%,#232833 50%,#26222e 100%); }
+
+  .header { text-align:center; margin-bottom: 4px; }
+  .header h1 { font-size: 22px; font-weight: 750; letter-spacing:-.3px; }
+  .header .sub { font-size: 12.5px; color:#7a7a7a; margin-top:5px; line-height:1.6; }
+
+  .controls { display:flex; gap:10px; align-items:center; margin: 20px 0 8px; flex-wrap:wrap; justify-content:center; }
+  .brand-chip {
+    font-size:11px; font-weight:650; color:var(--primary-dark); background:var(--primary-soft);
+    padding:7px 13px; border-radius:20px; letter-spacing:.2px;
+  }
+  body.dark .brand-chip { color:#FF8A50; }
+  .theme-toggle {
+    width:40px; height:40px; border-radius:50%; border:1.5px solid var(--border);
+    background:var(--card); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.08); transition:.2s;
+  }
+  .hint-bar {
+    font-size:11.5px; color:#8a8a8a; margin-bottom:26px; text-align:center; line-height:1.7;
+    max-width: 760px;
+  }
+  .hint-bar b { color:var(--primary-dark); font-weight:650; }
+  body.dark .hint-bar b { color:#FF8A50; }
+
+  /* ===== 手机外框 ===== */
+  .stage { display:flex; gap:34px; overflow-x:auto; padding:10px 6px 30px; max-width:100%; }
+  .stage::-webkit-scrollbar { height:6px; }
+  .stage::-webkit-scrollbar-thumb { background:rgba(0,0,0,.15); border-radius:3px; }
+
+  .col { display:flex; flex-direction:column; align-items:center; gap:14px; flex-shrink:0; }
+  .col .tag { font-size:12px; font-weight:700; color:var(--text1); }
+  .col .tag .n {
+    display:inline-flex; width:19px; height:19px; border-radius:50%; background:var(--primary);
+    color:#fff; font-size:11px; align-items:center; justify-content:center; margin-right:6px;
+  }
+  .col .desc { font-size:11px; color:#8a8a8a; max-width:340px; text-align:center; line-height:1.65; }
+
+  .phone {
+    width: 393px; height: 800px;
+    background: var(--bg);
+    border-radius: 54px;
+    border: 12px solid #0e0e10;
+    box-shadow: 0 40px 90px rgba(0,0,0,.25), 0 10px 24px rgba(0,0,0,.1);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+    transition: background .35s;
+  }
+  .notch { position:absolute; top:0; left:50%; transform:translateX(-50%); width:122px; height:32px; background:#0e0e10; border-radius:0 0 19px 19px; z-index:50; }
+  .home-ind { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:var(--text2); opacity:.35; border-radius:3px; z-index:50; }
+
+  .statusbar { height:46px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:10px 30px 0 34px; font-size:15px; font-weight:600; }
+  .statusbar .r { display:flex; gap:6px; align-items:center; font-size:12px; }
+  .navbar { height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:center; position:relative; }
+  .navbar .back { position:absolute; left:6px; color:var(--primary); display:flex; align-items:center; font-size:17px; }
+  .navbar .back .t { font-size:16px; margin-left:1px; }
+  .navbar .title { font-size:17px; font-weight:600; letter-spacing:.3px; }
+
+  .scroll { flex:1; overflow-y:auto; padding:4px 16px 40px; position:relative; }
+  .scroll::-webkit-scrollbar { width:0; }
+
+  /* ===== 屏1：设置页 ===== */
+  .settings-sec { margin-bottom:16px; }
+  .settings-sec .sec-label { font-size:12px; font-weight:650; color:var(--text2); margin:0 2px 8px; letter-spacing:.3px; }
+  .settings-card { background:var(--card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow); overflow:hidden; }
+  .srow { display:flex; align-items:center; gap:12px; padding:13px 14px; border-bottom:1px solid var(--divider); position:relative; }
+  .srow:last-child { border-bottom:none; }
+  .srow .ic {
+    width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    font-size:15px; flex-shrink:0;
+  }
+  .srow .tx { flex:1; }
+  .srow .t1 { font-size:13.5px; font-weight:600; }
+  .srow .t2 { font-size:10.5px; color:var(--text2); margin-top:2px; }
+  .srow .chev { color:var(--text3); font-size:14px; }
+  .srow.hl {
+    background:color-mix(in srgb, var(--primary) 6%, transparent);
+    border:1.5px dashed color-mix(in srgb, var(--primary) 55%, transparent);
+    border-radius:12px; margin:4px 6px; padding-left:8px;
+    animation: hlBreath 2.4s infinite;
+  }
+  @keyframes hlBreath {
+    0%,100% { box-shadow:0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent); }
+    50% { box-shadow:0 0 0 5px color-mix(in srgb, var(--primary) 10%, transparent); }
+  }
+  .srow.hl .t1 { color:var(--primary-dark); }
+  body.dark .srow.hl .t1 { color:var(--primary); }
+  .new-dot {
+    position:absolute; top:11px; right:34px; width:8px; height:8px; border-radius:50%;
+    background:var(--primary); 
+  }
+
+  /* ===== 屏2/3：反馈 Sheet ===== */
+  .sheet-full { flex:1; display:flex; flex-direction:column; padding:12px 18px 26px; position:relative; overflow-y:auto; }
+  .sheet-full::-webkit-scrollbar { width:0; }
+  .grabber { width:38px; height:5px; background:var(--divider); border-radius:3px; margin:0 auto 14px; flex-shrink:0; }
+  .sheet-title { font-size:18px; font-weight:750; text-align:center; }
+  .sheet-subtitle { font-size:11.5px; color:var(--text2); text-align:center; margin-top:4px; margin-bottom:18px; }
+
+  .f-label { font-size:12.5px; font-weight:650; margin:0 2px 9px; display:flex; align-items:baseline; gap:6px; }
+  .f-label .req { font-size:9.5px; color:var(--primary-dark); font-weight:700; background:color-mix(in srgb, var(--primary) 9%, transparent); padding:1px 6px; border-radius:5px; }
+  body.dark .f-label .req { color:var(--primary); }
+  .f-label .opt { font-size:9.5px; color:var(--text2); font-weight:600; background:var(--card-2); padding:1px 6px; border-radius:5px; }
+  .f-block { margin-bottom:16px; }
+
+  /* 类型选择卡片 */
+  .ftype-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+  .ftype {
+    border-radius:14px; border:1.5px solid var(--border); background:var(--card);
+    padding:12px 6px 10px; text-align:center; cursor:pointer; transition:.18s;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .ftype .fi { font-size:22px; transition:transform .18s; line-height:1; }
+  .ftype .ft { font-size:11.5px; font-weight:650; color:var(--text2); }
+  .ftype:hover { border-color:color-mix(in srgb, var(--primary) 40%, transparent); }
+  .ftype.on {
+    border-color:var(--primary);
+    background:color-mix(in srgb, var(--primary) 7%, var(--card));
+    box-shadow:0 4px 12px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  .ftype.on .fi { transform:scale(1.18); }
+  .ftype.on .ft { color:var(--primary-dark); }
+  body.dark .ftype.on .ft { color:var(--primary); }
+
+  /* 内容输入 */
+  .editor-wrap {
+    background:var(--card); border:1.5px solid var(--border); border-radius:14px;
+    padding:12px 14px 8px; transition:border-color .2s;
+  }
+  .editor-wrap:focus-within { border-color:var(--primary); }
+  .editor-wrap.err { border-color:var(--error); }
+  textarea.feditor {
+    width:100%; height:118px; border:none; outline:none; resize:none; background:transparent;
+    font-family:inherit; font-size:13.5px; line-height:1.65; color:var(--text1);
+  }
+  textarea.feditor::placeholder { color:var(--text3); font-size:13px; }
+  .count-row { display:flex; justify-content:flex-end; padding:4px 2px 2px; }
+  .count { font-size:10.5px; color:var(--text3); font-variant-numeric:tabular-nums; }
+  .count.over { color:var(--error); font-weight:700; }
+
+  /* 截图上传 */
+  .shots-row { display:flex; gap:9px; flex-wrap:wrap; }
+  .shot { position:relative; }
+  .shot-img {
+    width:66px; height:88px; border-radius:10px; border:1px solid var(--border);
+    overflow:hidden; display:flex; flex-direction:column; background:var(--card);
+    box-shadow:var(--shadow);
+  }
+  .shot-a { background:#FFF9F4; }
+  .shot-a .sa-top { height:16px; background:var(--primary); opacity:.88; flex-shrink:0; }
+  .shot-a .sa-row { height:5px; background:#E8E2D9; border-radius:3px; margin:6px 7px 0; flex-shrink:0; }
+  .shot-a .sa-row.w60 { width:60%; } .shot-a .sa-row.w80 { width:80%; }
+  .shot-b { background:#F3FAF3; padding:6px; }
+  .shot-b .sb-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+  .shot-b .sb-cell { border-radius:4px; background:var(--success); opacity:.5; }
+  .shot-b .sb-cell:nth-child(2){ opacity:.18; } .shot-b .sb-cell:nth-child(3){ opacity:.32; } .shot-b .sb-cell:nth-child(4){ opacity:.62; }
+  .shot-del {
+    position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; border:none;
+    background:var(--text1); color:#fff; font-size:10px; line-height:1; cursor:pointer; z-index:2;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,.25);
+  }
+  .shot-add {
+    width:66px; height:88px; border-radius:10px; border:1.5px dashed var(--text3);
+    background:transparent; font-size:20px; color:var(--text3); cursor:pointer; font-family:inherit;
+    transition:.15s; display:flex; align-items:center; justify-content:center; font-weight:300;
+  }
+  .shot-add:hover { border-color:var(--primary); color:var(--primary); }
+  .shot-add:disabled { opacity:.35; cursor:not-allowed; }
+  .shot-hint { font-size:10px; color:var(--text3); margin-top:8px; line-height:1.6; }
+
+  /* admin 图片与放大查看 */
+  .fb-shots { display:flex; gap:8px; margin-top:9px; }
+  .fb-shot { cursor:zoom-in; }
+  .fb-shot .shot-img { width:52px; height:70px; transition:.15s; }
+  .fb-shot:hover .shot-img { transform:translateY(-2px); box-shadow:0 6px 16px rgba(0,0,0,.15); }
+  .lightbox {
+    position:fixed; inset:0; z-index:90; background:rgba(0,0,0,.82);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    opacity:0; pointer-events:none; transition:.25s;
+  }
+  .lightbox.show { opacity:1; pointer-events:auto; }
+  .lightbox .lb-card { transform:scale(.92); transition:.25s; }
+  .lightbox.show .lb-card { transform:scale(1); }
+  .lightbox .lb-card .shot-img { width:216px; height:288px; border-radius:16px; }
+  .lightbox .lb-card .sa-top { height:52px; }
+  .lightbox .lb-card .sa-row { height:16px; margin:20px 22px 0; border-radius:5px; }
+  .lightbox .lb-card .sb-grid { gap:12px; }
+  .lightbox .lb-card .sb-cell { border-radius:10px; }
+  .lightbox .lb-tip { color:rgba(255,255,255,.65); font-size:11px; }
+
+  /* 联系方式：输入框内嵌类型切换 */
+  .contact-card { background:var(--card); border:1.5px solid var(--border); border-radius:14px; padding:5px 12px 10px; }
+  .contact-field { display:flex; align-items:center; gap:9px; min-height:44px; }
+  .ctype-chip {
+    display:flex; align-items:center; gap:5px; border:none; cursor:pointer; font-family:inherit;
+    background:var(--card-2); border-radius:9px; padding:7px 10px; font-size:12px; font-weight:650;
+    color:var(--text1); transition:.15s; flex-shrink:0;
+  }
+  .ctype-chip:active { transform:scale(.95); }
+  .ctype-chip .car { font-size:9px; color:var(--text2); margin-left:1px; }
+  .vline { width:1px; height:22px; background:var(--divider); flex-shrink:0; }
+  input.cinput {
+    flex:1; border:none; outline:none; background:transparent; font-family:inherit;
+    font-size:13.5px; color:var(--text1); padding:4px 0; min-width:0;
+  }
+  input.cinput::placeholder { color:var(--text3); font-size:12px; }
+
+  /* iOS 风格类型菜单 */
+  .menu-mask {
+    position:absolute; inset:0; z-index:80; background:rgba(0,0,0,.14);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .menu-mask.show { opacity:1; pointer-events:auto; }
+  .ctype-menu {
+    position:absolute; top:calc(100% + 7px); left:6px; z-index:81; width:164px;
+    background:color-mix(in srgb, var(--card) 90%, transparent);
+    backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+    border-radius:13px; box-shadow:0 12px 40px rgba(0,0,0,.24), 0 0 0 .5px rgba(0,0,0,.08);
+    padding:5px; transform:scale(.85); transform-origin:top left; opacity:0; pointer-events:none;
+    transition:.18s cubic-bezier(.2,1.2,.4,1);
+  }
+  .ctype-menu.show { transform:scale(1); opacity:1; pointer-events:auto; }
+  .mopt {
+    display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:9px;
+    font-size:13px; font-weight:600; cursor:pointer; color:var(--text1); transition:.1s;
+  }
+  .mopt:hover { background:color-mix(in srgb, var(--primary) 7%, transparent); }
+  .mopt .mi { font-size:15px; }
+  .mopt .chk { margin-left:auto; color:var(--primary); font-size:12px; font-weight:800; opacity:0; }
+  .mopt.on .chk { opacity:1; }
+  .contact-hint {
+    display:flex; gap:5px; align-items:flex-start; font-size:10.5px; color:var(--text2);
+    line-height:1.6; margin-top:8px;
+  }
+  .contact-hint .h-ic { font-size:11px; flex-shrink:0; margin-top:.5px; }
+  .contact-hint b { color:var(--wechat); font-weight:650; }
+
+  /* 诊断信息条 */
+  .diag-bar {
+    display:flex; gap:8px; align-items:flex-start; border-radius:12px; padding:9px 12px;
+    background:color-mix(in srgb, var(--blue) 5%, var(--card));
+    border:1px solid color-mix(in srgb, var(--blue) 14%, transparent);
+    margin-bottom:16px;
+  }
+  .diag-bar .ic { font-size:13px; flex-shrink:0; margin-top:.5px; }
+  .diag-bar .tx { font-size:10.5px; color:var(--text2); line-height:1.6; }
+  .diag-bar .tx b { color:var(--text1); font-weight:650; }
+  .diag-chips { display:flex; gap:5px; margin-top:5px; flex-wrap:wrap; }
+  .dchip {
+    font-size:9px; font-weight:600; color:var(--blue); background:color-mix(in srgb, var(--blue) 8%, transparent);
+    padding:2px 7px; border-radius:6px; font-variant-numeric:tabular-nums;
+  }
+
+  /* 提交按钮 */
+  .btn-main {
+    width:100%; border:none; border-radius:14px; padding:15px; font-size:15.5px; font-weight:700;
+    background:var(--primary); color:#fff; cursor:pointer; font-family:inherit;
+    box-shadow:0 6px 16px color-mix(in srgb, var(--primary) 35%, transparent);
+    transition:.15s; margin-top:2px;
+  }
+  .btn-main:active { transform:scale(.98); }
+  .btn-main:disabled {
+    background:var(--card-2); color:var(--text3); box-shadow:none; cursor:not-allowed;
+  }
+  .btn-main .spin {
+    display:inline-block; width:15px; height:15px; border:2px solid rgba(255,255,255,.35);
+    border-top-color:#fff; border-radius:50%; vertical-align:-2.5px; margin-right:8px;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* 成功态 */
+  .success-view {
+    position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:0 34px; z-index:70;
+    opacity:0; pointer-events:none; transition:opacity .3s;
+  }
+  .success-view.show { opacity:1; pointer-events:auto; }
+  .ok-circle {
+    width:82px; height:82px; border-radius:50%; background:color-mix(in srgb, var(--primary) 10%, transparent);
+    display:flex; align-items:center; justify-content:center; margin-bottom:20px;
+    animation:popIn .5s cubic-bezier(.2,1.6,.4,1) both;
+  }
+  @keyframes popIn { from { transform:scale(.3); opacity:0; } to { transform:scale(1); opacity:1; } }
+  .ok-circle svg { width:40px; height:40px; }
+  .ok-circle path {
+    stroke:var(--primary); stroke-width:5.5; fill:none; stroke-linecap:round; stroke-linejoin:round;
+    stroke-dasharray:60; stroke-dashoffset:60;
+    animation:draw .45s .25s ease-out forwards;
+  }
+  @keyframes draw { to { stroke-dashoffset:0; } }
+  .success-view .st { font-size:19px; font-weight:750; }
+  .success-view .sd { font-size:12.5px; color:var(--text2); margin-top:9px; text-align:center; line-height:1.75; }
+  .success-view .sd b { color:var(--wechat); font-weight:650; }
+  .success-view .btn-main { margin-top:30px; }
+
+  /* ===== 管理后台（浏览器窗口） ===== */
+  .admin-wrap { margin-top:8px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .admin-wrap .tag { font-size:12px; font-weight:700; color:var(--text1); }
+  .admin-wrap .tag .n {
+    display:inline-flex; width:19px; height:19px; border-radius:50%; background:var(--primary);
+    color:#fff; font-size:11px; align-items:center; justify-content:center; margin-right:6px;
+  }
+  .admin-wrap .desc { font-size:11px; color:#8a8a8a; max-width:760px; text-align:center; line-height:1.65; }
+  .browser {
+    width: 960px; max-width:100%;
+    border-radius:14px; overflow:hidden; border:1px solid rgba(0,0,0,.12);
+    box-shadow:0 30px 70px rgba(0,0,0,.22), 0 8px 20px rgba(0,0,0,.08);
+    background:var(--card);
+  }
+  .browser-bar {
+    height:42px; background:var(--card-2); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; padding:0 14px; gap:12px; flex-shrink:0;
+  }
+  .lights { display:flex; gap:7px; }
+  .lights i { width:11px; height:11px; border-radius:50%; display:block; }
+  .lights i:nth-child(1){ background:#FF5F57; } .lights i:nth-child(2){ background:#FEBC2E; } .lights i:nth-child(3){ background:#28C840; }
+  .addr {
+    flex:1; background:var(--card); border:1px solid var(--border); border-radius:8px;
+    font-size:11.5px; color:var(--text2); padding:5px 12px; font-family:ui-monospace,Menlo,monospace;
+  }
+  .admin-body { padding:20px 24px 26px; }
+
+  .admin-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .admin-head .t { font-size:17px; font-weight:750; }
+  .admin-head .stats { display:flex; gap:8px; }
+  .astat {
+    font-size:11px; font-weight:650; padding:5px 11px; border-radius:9px;
+  }
+  .astat.hot { color:var(--primary-dark); background:color-mix(in srgb, var(--primary) 9%, transparent); }
+  body.dark .astat.hot { color:var(--primary); }
+  .astat.ok { color:var(--success); background:color-mix(in srgb, var(--success) 10%, transparent); }
+
+  .admin-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .afilter {
+    border:1.5px solid var(--border); background:var(--card); color:var(--text2);
+    font-family:inherit; font-size:11.5px; font-weight:600; padding:6px 13px; border-radius:18px; cursor:pointer; transition:.15s;
+  }
+  .afilter:hover { border-color:color-mix(in srgb, var(--primary) 40%, transparent); }
+  .afilter.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .afilter-sep { width:1px; background:var(--border); margin:2px 4px; }
+
+  .fb-card {
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:14px 16px; margin-bottom:11px; box-shadow:var(--shadow); transition:.2s;
+  }
+  .fb-card.unread { border-left:3px solid var(--primary); }
+  .fb-card.done-item { opacity:.72; }
+  .fb-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .fb-cat { font-size:10px; font-weight:750; padding:2.5px 8px; border-radius:6px; letter-spacing:.3px; }
+  .fb-cat.sugg { color:#7C3AED; background:color-mix(in srgb, var(--purple) 10%, transparent); }
+  .fb-cat.issue { color:var(--primary-dark); background:color-mix(in srgb, var(--primary) 10%, transparent); }
+  body.dark .fb-cat.issue { color:var(--primary); }
+  .fb-cat.other { color:var(--text2); background:var(--card-2); }
+  .fb-time { font-size:10.5px; color:var(--text3); font-variant-numeric:tabular-nums; }
+  .fb-status { margin-left:auto; font-size:10px; font-weight:700; padding:2.5px 9px; border-radius:6px; }
+  .fb-status.new { color:var(--primary-dark); background:color-mix(in srgb, var(--primary) 10%, transparent); }
+  body.dark .fb-status.new { color:var(--primary); }
+  .fb-status.done { color:var(--success); background:color-mix(in srgb, var(--success) 11%, transparent); }
+  .fb-content { font-size:12.5px; line-height:1.7; color:var(--text1); }
+  .fb-meta { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--divider); align-items:center; }
+  .fb-meta .m { font-size:10.5px; color:var(--text2); display:flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; }
+  .fb-meta .m .k { color:var(--text3); }
+  .fb-contact {
+    display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+    padding:3px 10px; border-radius:7px; font-variant-numeric:tabular-nums;
+  }
+  .fb-contact.wx { color:var(--wechat); background:color-mix(in srgb, var(--wechat) 9%, transparent); }
+  .fb-contact.qq { color:#12B7F5; background:color-mix(in srgb, #12B7F5 11%, transparent); }
+  .fb-contact.em { color:var(--blue); background:color-mix(in srgb, var(--blue) 9%, transparent); }
+  .fb-contact.ph { color:var(--primary-dark); background:color-mix(in srgb, var(--primary) 9%, transparent); }
+  body.dark .fb-contact.ph { color:var(--primary); }
+  .fb-act {
+    margin-left:auto; border:none; font-family:inherit; font-size:10.5px; font-weight:700; cursor:pointer;
+    padding:5px 13px; border-radius:8px; transition:.15s;
+    color:var(--primary-dark); background:color-mix(in srgb, var(--primary) 9%, transparent);
+  }
+  body.dark .fb-act { color:var(--primary); }
+  .fb-act:active { transform:scale(.96); }
+  .fb-card.done-item .fb-act { color:var(--text3); background:var(--card-2); cursor:default; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Holo · 用户反馈通道</h1>
+  <div class="sub">设置页入口 → 反馈表单 → 提交成功 → 管理后台查看 · 全链路交互原型</div>
+</div>
+
+<div class="controls">
+  <span class="brand-chip">Holo · Feedback</span>
+  <button class="theme-toggle" onclick="document.body.classList.toggle('dark')" title="切换深色模式">🌓</button>
+</div>
+<div class="hint-bar">
+  表单<b>可交互</b>：点类型卡片、打字（按钮会点亮）、<b>点「＋」加截图/「✕」删截图（最多3张）</b>、点输入框左侧「💬 微信 ▾」切换 微信/QQ/邮箱/手机（手机档自动切数字键盘）、点提交看成功态。<br>
+  下方管理后台：<b>点缩略图可放大查看截图</b>、点「标记已处理」；提交时自动附带 App 版本、系统版本、设备标识，后台按类型/状态筛选、联系方式四色徽章。
+</div>
+
+<div class="stage">
+
+  <!-- ============ 屏1：设置页入口 ============ -->
+  <div class="col">
+    <div class="tag"><span class="n">1</span>入口 · 设置页</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r">📶 🔋</span></div>
+      <div class="navbar"><span class="back">‹ <span class="t">设置</span></span><span class="title">设置</span></div>
+      <div class="scroll">
+        <div class="settings-sec">
+          <div class="sec-label">存储</div>
+          <div class="settings-card">
+            <div class="srow">
+              <div class="ic" style="background:color-mix(in srgb,var(--blue) 10%,transparent)">💾</div>
+              <div class="tx"><div class="t1">iCloud 同步</div><div class="t2">2.4 GB / 5 GB</div></div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-sec">
+          <div class="sec-label">其他</div>
+          <div class="settings-card">
+            <div class="srow">
+              <div class="ic" style="background:color-mix(in srgb,var(--purple) 10%,transparent)">⭐️</div>
+              <div class="tx"><div class="t1">给 Holo 评分</div><div class="t2">如果 Holo 帮到了你</div></div>
+              <span class="chev">›</span>
+            </div>
+            <div class="srow hl">
+              <div class="new-dot"></div>
+              <div class="ic" style="background:color-mix(in srgb,var(--primary) 12%,transparent)">💬</div>
+              <div class="tx">
+                <div class="t1">反馈给开发者</div>
+                <div class="t2">建议、问题、吐槽都欢迎，留个联系方式我们能找你</div>
+              </div>
+              <span class="chev" style="color:var(--primary)">›</span>
+            </div>
+            <div class="srow">
+              <div class="ic" style="background:var(--card-2)">ℹ️</div>
+              <div class="tx"><div class="t1">关于 Holo</div><div class="t2">版本 1.0.0</div></div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-sec">
+          <div class="sec-label">账户</div>
+          <div class="settings-card">
+            <div class="srow">
+              <div class="ic" style="background:color-mix(in srgb,var(--error) 9%,transparent)">🚪</div>
+              <div class="tx"><div class="t1">退出登录</div></div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="desc">「其他」分组新增一行，与「评分」「关于」并列。副标题直接把「能留微信」说出口，提高留联系方式的比例。</div>
+  </div>
+
+  <!-- ============ 屏2：反馈表单 ============ -->
+  <div class="col">
+    <div class="tag"><span class="n">2</span>反馈表单（可交互）</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r">📶 🔋</span></div>
+      <div class="navbar"><span class="back">‹ <span class="t">设置</span></span><span class="title">反馈给开发者</span></div>
+      <div class="sheet-full">
+        <div class="grabber"></div>
+        <div class="sheet-title">反馈给开发者</div>
+        <div class="sheet-subtitle">每一条反馈我们都会认真读</div>
+
+        <div class="f-block">
+          <div class="f-label">反馈类型 <span class="req">必选</span></div>
+          <div class="ftype-row" id="ftypeRow">
+            <div class="ftype on" data-v="suggestion"><span class="fi">💡</span><span class="ft">功能建议</span></div>
+            <div class="ftype" data-v="issue"><span class="fi">🛠</span><span class="ft">问题反馈</span></div>
+            <div class="ftype" data-v="other"><span class="fi">📮</span><span class="ft">其他</span></div>
+          </div>
+        </div>
+
+        <div class="f-block">
+          <div class="f-label">详细描述 <span class="req">必填</span></div>
+          <div class="editor-wrap" id="editorWrap">
+            <textarea class="feditor" id="feditor" maxlength="500" placeholder="说说你的想法，或者遇到了什么问题…&#10;越具体我们越好改进（比如在哪个页面、做了什么操作）"></textarea>
+            <div class="count-row"><span class="count" id="fcount">0 / 500</span></div>
+          </div>
+        </div>
+
+        <div class="f-block">
+          <div class="f-label">截图 <span class="opt">选填 · 最多 3 张</span></div>
+          <div class="shots-row" id="shotsRow">
+            <div class="shot">
+              <div class="shot-img shot-a">
+                <div class="sa-top"></div>
+                <div class="sa-row w80"></div><div class="sa-row w60"></div>
+                <div class="sa-row"></div><div class="sa-row w60"></div>
+              </div>
+              <button class="shot-del" onclick="removeShot(this)">✕</button>
+            </div>
+            <button class="shot-add" id="shotAdd" onclick="addShot()">＋</button>
+          </div>
+          <div class="shot-hint">遇到问题时，一张截图最能说明情况；图片会<b>自动去除位置信息</b></div>
+        </div>
+
+        <div class="f-block">
+          <div class="f-label">联系方式 <span class="opt">选填</span></div>
+          <div class="contact-card">
+            <div class="contact-field">
+              <button class="ctype-chip" onclick="toggleMenu()">
+                <span id="ctypeIc">💬</span><span id="ctypeName">微信</span><span class="car">▾</span>
+              </button>
+              <span class="vline"></span>
+              <input class="cinput" id="cinput" placeholder="微信号，方便我们找到你" maxlength="60">
+            </div>
+            <div class="contact-hint">
+              <span class="h-ic">💡</span>
+              <span>留下联系方式，你的建议被采纳、或问题修复时，我们能<b>第一时间找到你</b></span>
+            </div>
+            <div class="ctype-menu" id="ctypeMenu">
+              <div class="mopt on" data-v="wechat" onclick="pickType(this)"><span class="mi">💬</span>微信<span class="chk">✓</span></div>
+              <div class="mopt" data-v="qq" onclick="pickType(this)"><span class="mi">🐧</span>QQ<span class="chk">✓</span></div>
+              <div class="mopt" data-v="email" onclick="pickType(this)"><span class="mi">✉️</span>邮箱<span class="chk">✓</span></div>
+              <div class="mopt" data-v="phone" onclick="pickType(this)"><span class="mi">📱</span>手机<span class="chk">✓</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diag-bar">
+          <span class="ic">⚙️</span>
+          <div class="tx">
+            将自动附带以下信息，<b>仅用于定位问题</b>，不用于其他用途
+            <div class="diag-chips">
+              <span class="dchip">App 1.0.0</span>
+              <span class="dchip">iOS 18.5</span>
+              <span class="dchip">设备 8F3…D21</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-main" id="submitBtn" disabled onclick="submitFeedback()">提交反馈</button>
+        <div class="menu-mask" id="menuMask" onclick="closeMenu()"></div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="desc">类型三选一（卡片式）；描述必填带字数；<b>截图选填最多3张</b>（＋添加、✕删除，单张自动压缩）；联系方式微信/QQ/邮箱/手机四类切换<b>藏在输入框内部</b>；底部透明展示诊断信息。内容较多时可上下滚动。</div>
+  </div>
+
+  <!-- ============ 屏3：提交成功 ============ -->
+  <div class="col">
+    <div class="tag"><span class="n">3</span>提交成功态</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r">📶 🔋</span></div>
+      <div class="sheet-full" style="position:relative; overflow:hidden;">
+        <!-- 表单层（提交后遮住） -->
+        <div class="grabber" style="opacity:.35"></div>
+        <div style="text-align:center; margin-top:40%; color:var(--text3); font-size:12.5px;">（表单提交后…）</div>
+
+        <!-- 成功层 -->
+        <div class="success-view show">
+          <div class="ok-circle">
+            <svg viewBox="0 0 40 40"><path d="M9 21 L17 29 L31 12"/></svg>
+          </div>
+          <div class="st">已收到你的反馈</div>
+          <div class="sd">
+            我们会认真阅读每一条反馈<br>
+            如需进一步沟通，会通过你留下的<b>联系方式</b>与你联系
+          </div>
+          <button class="btn-main" onclick="resetForm()">好 的</button>
+        </div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+    <div class="desc">成功页整页切换，对勾描边动画；文案强调「会通过你留下的联系方式找你」，让用户觉得留联系方式有价值。点「好的」可在屏2重置表单再玩一遍。</div>
+  </div>
+</div>
+
+<!-- ============ 管理后台 ============ -->
+<div class="admin-wrap">
+  <div class="tag"><span class="n">4</span>管理后台 · 用户反馈（SSH 隧道访问，可交互）</div>
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="addr">localhost:8787/admin/feedback 🔒</div>
+    </div>
+    <div class="admin-body">
+      <div class="admin-head">
+        <div class="t">用户反馈</div>
+        <div class="stats">
+          <span class="astat hot">今日 +3</span>
+          <span class="astat hot">未处理 4</span>
+          <span class="astat ok">累计 27</span>
+        </div>
+      </div>
+      <div class="admin-filters" id="adminFilters">
+        <button class="afilter on" data-cat="all">全部</button>
+        <button class="afilter" data-cat="suggestion">功能建议</button>
+        <button class="afilter" data-cat="issue">问题反馈</button>
+        <button class="afilter" data-cat="other">其他</button>
+        <span class="afilter-sep"></span>
+        <button class="afilter on" data-st="all">全部状态</button>
+        <button class="afilter" data-st="new">未处理</button>
+        <button class="afilter" data-st="done">已处理</button>
+      </div>
+
+      <div id="fbList">
+        <div class="fb-card unread" data-cat="suggestion" data-st="new">
+          <div class="fb-top">
+            <span class="fb-cat sugg">💡 功能建议</span>
+            <span class="fb-time">2026-08-19 14:32</span>
+            <span class="fb-status new">未处理</span>
+          </div>
+          <div class="fb-content">希望周历视图能支持双指缩放，现在固定的格子在小屏上看一天的内容有点挤。另外如果能在月历上直接看到某天有没有记录就更完美了。</div>
+          <div class="fb-shots">
+            <div class="fb-shot" onclick="showLightbox('a')" title="点击放大">
+              <div class="shot-img shot-a">
+                <div class="sa-top"></div>
+                <div class="sa-row w80"></div><div class="sa-row w60"></div>
+                <div class="sa-row"></div><div class="sa-row w60"></div>
+              </div>
+            </div>
+            <div class="fb-shot" onclick="showLightbox('b')" title="点击放大">
+              <div class="shot-img shot-b">
+                <div class="sb-grid">
+                  <div class="sb-cell"></div><div class="sb-cell"></div>
+                  <div class="sb-cell"></div><div class="sb-cell"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="fb-meta">
+            <span class="m"><span class="k">联系方式</span><span class="fb-contact wx">💬 holofan_2026</span></span>
+            <span class="m"><span class="k">App</span>1.0.0</span>
+            <span class="m"><span class="k">系统</span>iOS 18.5</span>
+            <span class="m"><span class="k">设备</span>8F3…D21</span>
+            <button class="fb-act" onclick="markDone(this)">标记已处理</button>
+          </div>
+        </div>
+
+        <div class="fb-card unread" data-cat="issue" data-st="new">
+          <div class="fb-top">
+            <span class="fb-cat issue">🛠 问题反馈</span>
+            <span class="fb-time">2026-08-19 11:07</span>
+            <span class="fb-status new">未处理</span>
+          </div>
+          <div class="fb-content">从习惯页进入补签的时候偶尔会闪退，重新打开后打卡记录还在。iPhone 15 Pro，最近两天出现过三次。</div>
+          <div class="fb-meta">
+            <span class="m"><span class="k">联系方式</span><span class="m">未留</span></span>
+            <span class="m"><span class="k">App</span>1.0.0</span>
+            <span class="m"><span class="k">系统</span>iOS 18.5</span>
+            <span class="m"><span class="k">设备</span>A29…77C</span>
+            <button class="fb-act" onclick="markDone(this)">标记已处理</button>
+          </div>
+        </div>
+
+        <div class="fb-card unread" data-cat="issue" data-st="new">
+          <div class="fb-top">
+            <span class="fb-cat issue">🛠 问题反馈</span>
+            <span class="fb-time">2026-08-19 09:45</span>
+            <span class="fb-status new">未处理</span>
+          </div>
+          <div class="fb-content">账单导入支付宝年度账单后，有几笔退款没有正确冲抵，导致月支出虚高。</div>
+          <div class="fb-meta">
+            <span class="m"><span class="k">联系方式</span><span class="fb-contact ph">📱 13800138866</span></span>
+            <span class="m"><span class="k">App</span>1.0.0</span>
+            <span class="m"><span class="k">系统</span>iOS 17.6</span>
+            <span class="m"><span class="k">设备</span>D41…9B2</span>
+            <button class="fb-act" onclick="markDone(this)">标记已处理</button>
+          </div>
+        </div>
+
+        <div class="fb-card unread" data-cat="suggestion" data-st="new">
+          <div class="fb-top">
+            <span class="fb-cat sugg">💡 功能建议</span>
+            <span class="fb-time">2026-08-18 22:18</span>
+            <span class="fb-status new">未处理</span>
+          </div>
+          <div class="fb-content">买断版什么时候出？不愿意按月订阅，可以接受一次性付更高的价格。</div>
+          <div class="fb-meta">
+            <span class="m"><span class="k">联系方式</span><span class="fb-contact qq">🐧 1032456789</span></span>
+            <span class="m"><span class="k">App</span>0.9.9</span>
+            <span class="m"><span class="k">系统</span>iOS 18.5</span>
+            <span class="m"><span class="k">设备</span>55E…0A3</span>
+            <button class="fb-act" onclick="markDone(this)">标记已处理</button>
+          </div>
+        </div>
+
+        <div class="fb-card done-item" data-cat="other" data-st="done">
+          <div class="fb-top">
+            <span class="fb-cat other">📮 其他</span>
+            <span class="fb-time">2026-08-17 20:03</span>
+            <span class="fb-status done">已处理</span>
+          </div>
+          <div class="fb-content">用了两周，记账和习惯打卡的体验比之前用的 App 好很多，来夸一下。希望继续保持更新节奏！</div>
+          <div class="fb-meta">
+            <span class="m"><span class="k">联系方式</span><span class="fb-contact em">✉️ eric.dev@example.com</span></span>
+            <span class="m"><span class="k">App</span>0.9.9</span>
+            <span class="m"><span class="k">系统</span>iOS 18.5</span>
+            <span class="m"><span class="k">设备</span>CC7…4F8</span>
+            <button class="fb-act" onclick="return false;">已处理</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="desc">照现有「举报」页模式新增：未读卡片左侧橙色竖条；联系方式按类型<b>四色徽章</b>（微信绿/QQ蓝/邮箱蓝/手机橙）一眼识别；<b>截图缩略图点击放大</b>；一键标记已处理；顶部统计 + 按类型/状态筛选。数据仅你自己可见。</div>
+</div>
+
+<!-- 截图放大查看 -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('show')">
+  <div class="lb-card" id="lbCard"></div>
+  <div class="lb-tip">点击任意处关闭</div>
+</div>
+
+<script>
+  /* ===== 屏2：截图上传（模拟） ===== */
+  var shotCount = 1;
+  function addShot() {
+    if (shotCount >= 3) return;
+    shotCount++;
+    var shot = document.createElement('div');
+    shot.className = 'shot';
+    shot.innerHTML = '<div class="shot-img shot-b"><div class="sb-grid"><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div></div></div><button class="shot-del" onclick="removeShot(this)">✕</button>';
+    document.getElementById('shotsRow').insertBefore(shot, document.getElementById('shotAdd'));
+    if (shotCount >= 3) document.getElementById('shotAdd').disabled = true;
+  }
+  function removeShot(btn) {
+    btn.closest('.shot').remove();
+    shotCount--;
+    document.getElementById('shotAdd').disabled = false;
+  }
+
+  /* ===== admin：截图放大查看 ===== */
+  var shotTpl = {
+    a: '<div class="shot-img shot-a"><div class="sa-top"></div><div class="sa-row w80"></div><div class="sa-row w60"></div><div class="sa-row"></div><div class="sa-row w60"></div><div class="sa-row"></div></div>',
+    b: '<div class="shot-img shot-b"><div class="sb-grid"><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div><div class="sb-cell"></div></div></div>'
+  };
+  function showLightbox(kind) {
+    document.getElementById('lbCard').innerHTML = shotTpl[kind];
+    document.getElementById('lightbox').classList.add('show');
+  }
+
+  /* ===== 屏2：表单交互 ===== */
+  var ftypes = document.querySelectorAll('#ftypeRow .ftype');
+  ftypes.forEach(function (el) {
+    el.addEventListener('click', function () {
+      ftypes.forEach(function (x) { x.classList.remove('on'); });
+      el.classList.add('on');
+    });
+  });
+
+  var editor = document.getElementById('feditor');
+  var fcount = document.getElementById('fcount');
+  var submitBtn = document.getElementById('submitBtn');
+  editor.addEventListener('input', function () {
+    var n = editor.value.length;
+    fcount.textContent = n + ' / 500';
+    fcount.classList.toggle('over', n > 500);
+    submitBtn.disabled = n === 0;
+  });
+
+  /* 联系方式：输入框内嵌类型切换（iOS Menu 风格） */
+  var ctypeCfg = {
+    wechat: { ic: '💬', name: '微信', ph: '微信号，方便我们找到你', max: 60, numeric: false },
+    qq:     { ic: '🐧', name: 'QQ',   ph: '你的 QQ 号', max: 20, numeric: true },
+    email:  { ic: '✉️', name: '邮箱', ph: '邮箱地址，如 name@example.com', max: 60, numeric: false },
+    phone:  { ic: '📱', name: '手机', ph: '11 位手机号', max: 11, numeric: true }
+  };
+  var cinput = document.getElementById('cinput');
+  function toggleMenu() {
+    document.getElementById('ctypeMenu').classList.toggle('show');
+    document.getElementById('menuMask').classList.toggle('show');
+  }
+  function closeMenu() {
+    document.getElementById('ctypeMenu').classList.remove('show');
+    document.getElementById('menuMask').classList.remove('show');
+  }
+  function pickType(el) {
+    var c = ctypeCfg[el.dataset.v];
+    document.querySelectorAll('.mopt').forEach(function (x) { x.classList.remove('on'); });
+    el.classList.add('on');
+    document.getElementById('ctypeIc').textContent = c.ic;
+    document.getElementById('ctypeName').textContent = c.name;
+    cinput.placeholder = c.ph;
+    cinput.maxLength = c.max;
+    cinput.inputMode = c.numeric ? 'numeric' : 'text';
+    closeMenu();
+  }
+
+  var submitting = false;
+  function submitFeedback() {
+    if (submitting || submitBtn.disabled) return;
+    closeMenu();
+    submitting = true;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spin"></span>提交中…';
+    setTimeout(function () {
+      var phone2 = document.querySelectorAll('.phone')[1];
+      var sv = phone2.querySelector('.success-view');
+      sv.classList.add('show');
+      submitBtn.innerHTML = '提交反馈';
+      submitting = false;
+    }, 900);
+  }
+
+  function resetForm() {
+    var phone2 = document.querySelectorAll('.phone')[1];
+    phone2.querySelector('.success-view').classList.remove('show');
+    closeMenu();
+    editor.value = '';
+    fcount.textContent = '0 / 500';
+    cinput.value = '';
+    submitBtn.disabled = true;
+  }
+
+  /* ===== 屏4：管理后台交互 ===== */
+  var catState = 'all', stState = 'all';
+  function applyAdminFilter() {
+    document.querySelectorAll('#fbList .fb-card').forEach(function (card) {
+      var ok = (catState === 'all' || card.dataset.cat === catState) &&
+               (stState === 'all' || card.dataset.st === stState);
+      card.style.display = ok ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('#adminFilters .afilter').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var group = btn.dataset.cat !== undefined ? 'cat' : 'st';
+      var key = group === 'cat' ? 'data-cat' : 'data-st';
+      document.querySelectorAll('#adminFilters .afilter[' + key + ']').forEach(function (x) {
+        x.classList.remove('on');
+      });
+      btn.classList.add('on');
+      if (group === 'cat') { catState = btn.dataset.cat; } else { stState = btn.dataset.st; }
+      applyAdminFilter();
+    });
+  });
+
+  function markDone(btn) {
+    var card = btn.closest('.fb-card');
+    if (card.classList.contains('done-item')) return;
+    card.classList.remove('unread');
+    card.classList.add('done-item');
+    card.dataset.st = 'done';
+    card.querySelector('.fb-status').className = 'fb-status done';
+    card.querySelector('.fb-status').textContent = '已处理';
+    btn.textContent = '已处理';
+    applyAdminFilter();
+  }
+</script>
+</body>
+</html>

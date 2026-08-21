@@ -7,7 +7,7 @@
 //  - 资格矩阵（版本/trigger/consent/开关/已有 P0 持有）
 //  - .fail 策略：接纳→continued 租约接管同 job 单 Task；拒绝→回落 foreground/legacy
 //  - 进度单调不回退、提前完成补齐、副标题无敏感内容
-//  - 系统取消 → paused + 来源，不自动复活；明确动作接管
+//  - 系统取消 → waitingForForeground + 来源；回前台自动从 checkpoint 恢复
 //  - 开关依赖：step 幂等关 → continued 不可开
 //
 
@@ -547,9 +547,9 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         )
     }
 
-    /// §9.5：系统取消 → job 落 paused + 来源（waitReason=.systemCapacity），不自动复活；明确动作接管。
+    /// 真实事故回归：系统结束 continued 后，Job 必须进入可恢复等待态；回前台自动继续。
     @MainActor
-    func testContinued_系统取消落paused不自动复活() async throws {
+    func testContinued_系统取消后回前台自动恢复() async throws {
         enableContinuedFlags()
         let dir = makeTempDir()
         // LLM 挂起：让系统取消发生在执行中
@@ -557,6 +557,10 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         let fixture = makeFixture(dir: dir, llm: hangingLLM)
         let client = FakeContinuedClient()
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime, continuedClient: client)
+        let manager = HoloBackgroundContinuationManager(
+            runtime: fixture.runtime,
+            scheduler: scheduler
+        )
         let now = Date()
         let job = try await fixture.runtime.startAnalysisJob(question: "q", now: now)
 
@@ -572,17 +576,17 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
 
         let systemCompleted = await waitUntil { task.completedSuccess == false }
         XCTAssertTrue(systemCompleted, "expiration handler 必须向系统回报失败完成")
+        XCTAssertEqual(task.updates.last?.subtitle, "回到 Holo 后继续分析")
 
-        let paused = await waitUntil {
+        let waiting = await waitUntil {
             let stored = try? await fixture.jobStore.load().first { $0.id == job.id }
-            return stored?.state == .paused
+            return stored?.state == .waitingForForeground
         }
-        XCTAssertTrue(paused, "系统取消后 job 应落 paused")
+        XCTAssertTrue(waiting, "系统取消后 job 应落 waitingForForeground，而不是永久 paused")
         let stored = try await fixture.jobStore.load().first { $0.id == job.id }
         XCTAssertEqual(stored?.waitReason, .systemCapacity)
-        XCTAssertNotNil(stored?.errorSummary, "必须记录来源（不静默）")
 
-        // 不自动复活：resumeEligibleJobs 不接 paused
+        // 先让旧 generation 响应取消并退出，再允许恢复代次直接完成。
         await hangingLLM.release()
         do {
             _ = try await run
@@ -590,17 +594,54 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         } catch {
             // CancellationError 为预期
         }
-        let resumed = try await scheduler.resumeEligibleJobs(
-            trigger: .foreground, systemTemplate: "s", toolDescriptions: "t", now: now
-        )
-        XCTAssertEqual(resumed, 0, "paused 不得自动复活")
-
-        // 用户明确动作（runOrAttach）可接管继续
         await hangingLLM.setHangNext(false)
-        let continued = try await scheduler.runOrAttach(
-            jobID: job.id, reason: .foregroundReturn, systemTemplate: "s", toolDescriptions: "t", now: now
+        manager.appWillEnterForeground()
+        let completed = await waitUntil {
+            let current = try? await fixture.jobStore.load().first { $0.id == job.id }
+            return current?.state == .completed
+        }
+        XCTAssertTrue(completed, "回前台后恢复链必须真正重启 runLoop 并完成同一 Job")
+        XCTAssertEqual(
+            client.submitted.count,
+            1,
+            "系统已结束的同一 Job 回前台恢复时不得再次登记 continued，否则锁屏会同时残留失败与进行中任务"
         )
-        XCTAssertEqual(continued.state, .completed, "明确动作接管后应从断点完成")
+    }
+
+    /// 兼容事故版本已经落盘的 paused+systemCapacity：只恢复截止前的用户任务，
+    /// 用户主动暂停与过期任务仍不得自动复活。
+    func testContinued_事故版本Paused仅在安全边界内恢复() async throws {
+        let dir = makeTempDir()
+        let fixture = makeFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]))
+        let now = Date()
+
+        let interrupted = try await fixture.runtime.startAnalysisJob(question: "q", now: now)
+        _ = try await fixture.runtime.suspendJob(
+            jobID: interrupted.id,
+            reason: "旧版本系统容量中断",
+            now: now
+        )
+        let fresh = try await fixture.runtime.collectResumableJobs(now: now)
+        XCTAssertTrue(fresh.contains { $0.id == interrupted.id })
+
+        var userPaused = try await fixture.runtime.startAnalysisJob(question: "q2", now: now)
+        userPaused.state = .paused
+        userPaused.waitReason = .userPaused
+        try await fixture.jobStore.upsert(userPaused)
+        let safe = try await fixture.runtime.collectResumableJobs(now: now)
+        XCTAssertFalse(safe.contains { $0.id == userPaused.id }, "用户主动暂停不得自动恢复")
+
+        let afterDeadline = now.addingTimeInterval(HoloAgentJob.absoluteDeadlineInterval + 1)
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
+        let resumedCount = try await scheduler.resumeEligibleJobs(
+            trigger: .foreground,
+            now: afterDeadline
+        )
+        XCTAssertEqual(resumedCount, 0, "超过绝对截止的旧暂停任务不得复活")
+
+        let storedJobs = try await fixture.jobStore.load()
+        let expiredJob = try XCTUnwrap(storedJobs.first { $0.id == interrupted.id })
+        XCTAssertEqual(expiredJob.state, .failed, "过期任务必须明确收敛，不能永久显示暂停")
     }
 
     /// 非用户发起 job（Observer trigger）即使开关全开也不提交 continued 请求。

@@ -48,8 +48,10 @@ final class MockCandidateReconcileRepository: HoloMemoryRepository, @unchecked S
     }
     func recordUsage(ids: [String], now: Date) async throws {
         for id in ids {
-            records[id]?.usageCount = (records[id]?.usageCount ?? 0) + 1
-            records[id]?.lastUsedAt = now
+            guard var record = records[id] else { continue }
+            record.usageCount = (record.usageCount ?? 0) + 1
+            record.lastUsedAt = now
+            records[id] = record
         }
     }
     func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws {

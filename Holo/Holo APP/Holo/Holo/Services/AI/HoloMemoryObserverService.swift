@@ -269,7 +269,9 @@ final class HoloMemoryObserverService {
             timingFitness: 0.6,
             interruptionCost: 0.4,
             repetitionPenalty: estimateRepetitionPenalty(lastTier2RunAt: lastTier2RunAt, now: now),
-            userAuthorized: true
+            // 用户允许本地 AI 分析不等于允许主动打扰；
+            // Observer 可以存储高价值结果，但不得伪造通知授权。
+            userAuthorized: false
         )
         let proactivityScore = HoloAgentProactivityScorer.score(proactivitySignal)
         // 只有 store 或 notify 档才值得触发深度分析；watch/ignore 保留观察

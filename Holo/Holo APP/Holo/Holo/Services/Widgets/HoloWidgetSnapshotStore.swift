@@ -26,6 +26,22 @@ nonisolated struct HoloWidgetSnapshotStore {
         try write(snapshot, fileName: HoloWidgetSharedContainer.thoughtMemoryFileName)
     }
 
+    func writeHabit(_ snapshot: HoloWidgetHabitSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.habitFileName)
+    }
+
+    func writeTodo(_ snapshot: HoloWidgetTodoSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.todoFileName)
+    }
+
+    func writeGoal(_ snapshot: HoloWidgetGoalSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.goalFileName)
+    }
+
+    func writeAnniversary(_ snapshot: HoloWidgetAnniversarySnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.anniversaryFileName)
+    }
+
     func writeEntitlement(_ snapshot: HoloWidgetEntitlementSnapshot) throws {
         try write(snapshot, fileName: HoloWidgetSharedContainer.entitlementFileName)
     }
@@ -40,6 +56,22 @@ nonisolated struct HoloWidgetSnapshotStore {
 
     func readThoughtMemory() -> HoloWidgetThoughtMemorySnapshot? {
         read(HoloWidgetThoughtMemorySnapshot.self, fileName: HoloWidgetSharedContainer.thoughtMemoryFileName)
+    }
+
+    func readHabit() -> HoloWidgetHabitSnapshot? {
+        read(HoloWidgetHabitSnapshot.self, fileName: HoloWidgetSharedContainer.habitFileName)
+    }
+
+    func readTodo() -> HoloWidgetTodoSnapshot? {
+        read(HoloWidgetTodoSnapshot.self, fileName: HoloWidgetSharedContainer.todoFileName)
+    }
+
+    func readGoal() -> HoloWidgetGoalSnapshot? {
+        read(HoloWidgetGoalSnapshot.self, fileName: HoloWidgetSharedContainer.goalFileName)
+    }
+
+    func readAnniversary() -> HoloWidgetAnniversarySnapshot? {
+        read(HoloWidgetAnniversarySnapshot.self, fileName: HoloWidgetSharedContainer.anniversaryFileName)
     }
 
     func readEntitlement() -> HoloWidgetEntitlementSnapshot? {

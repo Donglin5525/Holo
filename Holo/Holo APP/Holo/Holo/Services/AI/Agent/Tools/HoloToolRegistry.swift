@@ -12,15 +12,20 @@ nonisolated enum HoloAgentToolCoverage {
     static let requiredToolNames = [
         "anniversary",
         "conversation",
+        "cross_domain",
+        "discover",
         "finance",
+        "feedback",
         "goal",
         "habit",
         "health",
         "insight",
         "memory",
         "profile",
+        "project",
         "task",
-        "thought"
+        "thought",
+        "thought_reference"
     ]
     static let requiredDynamicDatasets: Set<String> = [
         "anniversary.events", "conversation.metadata", "finance.transactions", "goal.progress.daily",

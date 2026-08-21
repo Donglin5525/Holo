@@ -35,6 +35,47 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var summary: String
     var financeDrilldown: HoloRenderedFinanceDrilldown?
     var sourceModule: HoloEvidenceSourceModule? = nil
+    /// 计算口径（证据记录的确定性公式，如 pearson(left,right)）；旧结果缺失时为 nil。
+    var formula: String? = nil
+    /// 对比基线的可读描述（基线值 + 基线窗口 + 对比方向）；无基线时为 nil。
+    var baselineText: String? = nil
+}
+
+/// 证据公式的用户可读翻译。证据计算全部发生在本地工具层（HoloDataTool 等），
+/// 公式词表封闭、由本目录跟进——不在后端做，也不做开放式机器翻译。
+nonisolated enum HoloEvidenceFormulaPresentation {
+    /// 已知分析方法公式的完整人话；未命中时尝试聚合模式，仍不中则原样返回。
+    static func text(_ formula: String) -> String {
+        let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch trimmed {
+        case "pearson(left,right)":
+            return "皮尔逊相关：两侧指标按日对齐后计算相关系数（只说明关联，不说明因果）"
+        case "average(right where left < threshold)":
+            return "阈值筛选：取左侧指标低于阈值的天，算右侧指标均值，与全期均值对比"
+        case "average(high)-average(low)",
+             "average(right|left>=threshold)-average(right|left<threshold)":
+            return "分组对比：按左侧指标高低分两组，比较右侧均值之差（只说明差异，不说明因果）"
+        case "opening_balance + posted_income - posted_expense":
+            return "期初余额 + 已入账收入 − 已入账支出"
+        default:
+            return aggregationText(trimmed) ?? trimmed
+        }
+    }
+
+    /// 聚合模式 `op(field)`：sum(amount) → 按「amount」字段合计。
+    private static func aggregationText(_ formula: String) -> String? {
+        guard let open = formula.firstIndex(of: "("),
+              let close = formula.lastIndex(of: ")"),
+              open < close else { return nil }
+        let op = String(formula[formula.startIndex..<open])
+        let field = String(formula[formula.index(after: open)..<close])
+        let operations = [
+            "sum": "合计", "average": "均值", "count": "计数",
+            "max": "最大值", "min": "最小值", "median": "中位数"
+        ]
+        guard let operation = operations[op], !field.isEmpty else { return nil }
+        return "按「\(field)」字段计算\(operation)"
+    }
 }
 
 /// Job 在开始执行时冻结的权威答案上下文。
@@ -42,6 +83,8 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
 nonisolated struct HoloAgentAnswerContext: Equatable, Sendable {
     var primaryTimeRange: HoloAgentTimeRange?
     var snapshotCutoffAt: Date?
+    /// 查询窗口来源（词表/规则/模型/用户点选/默认）；nil 按旧数据格式展示。
+    var timeRangeAttribution: HoloAgentTimeRangeAttribution? = nil
 }
 
 /// 可持久化的主分析范围，供摘要卡与详情页共同展示。
@@ -50,16 +93,42 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
     var start: Date?
     var end: Date?
     var snapshotCutoffAt: Date?
+    /// 查询窗口来源；旧消息 JSON 缺失时为 nil，退回旧格式。
+    var attribution: HoloAgentTimeRangeAttribution? = nil
 
     var displayLabel: String {
-        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let end, let snapshotCutoffAt, end > snapshotCutoffAt else {
-            return trimmed
+        var trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { trimmed = "本期" }
+        let provenance = attribution?.provenance
+        // 带原文依据时优先展示用户的话（「近半年」），比内部 label 更贴近用户心智
+        if let matched = attribution?.matchedText?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !matched.isEmpty,
+           !trimmed.contains(matched) {
+            trimmed = matched
         }
+        if provenance == .unspecified {
+            trimmed = "默认范围"
+        }
+        // 滚动窗口（近半年/模型解析/用户点选）的起止是算出来的，用户不知道具体日期，必须晒出来；
+        // 词表命中的自然周期（本月/上月/今年）边界不言自明，不加冗余。
+        let needsDateSpan = provenance != nil && provenance != .lexical
+        if needsDateSpan, let start, let end {
+            trimmed += "（\(Self.shortDate(start))–\(Self.shortDate(end))）"
+        }
+        if let end, let snapshotCutoffAt, end > snapshotCutoffAt {
+            trimmed += " · 截至\(Self.shortDate(snapshotCutoffAt))"
+        }
+        if provenance == .unspecified {
+            trimmed += " · 未指定时间，按默认范围"
+        }
+        return trimmed
+    }
+
+    private static func shortDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "M月d日"
-        return "\(trimmed) · 截至\(formatter.string(from: snapshotCutoffAt))"
+        return formatter.string(from: date)
     }
 }
 
@@ -82,6 +151,10 @@ nonisolated enum HoloRenderedAgentFailure: Codable, Sendable, Equatable {
     case quotaExhausted(userMessage: String)
     /// 分析出错（网络/超时/内部异常）——提示重试
     case analysisFailed
+    /// 系统收回后台执行时间；同一 Job 已保存进度，回前台恢复，不触发普通聊天降级。
+    case executionSuspended
+    /// 父结果已失效或被清理，不能伪装成已承接的追问。
+    case continuationUnavailable(userMessage: String)
 }
 
 nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
@@ -110,6 +183,12 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     /// 本次分析查看的数据样本摘要（最多10条），用于向用户透明展示读取了哪些数据。
     /// 仅在 dynamic_query 附带样本时填充；旧消息 JSON 解码为 nil。
     var dataSamplePreview: HoloRenderedDataSamplePreview? = nil
+    /// 连续追问展示与下一轮锚定所需的最小身份；旧消息缺失时不展示追问入口。
+    var continuationMetadata: HoloRenderedContinuationMetadata? = nil
+    var agentJobID: String? = nil
+    var agentResultID: String? = nil
+    var lineage: HoloAgentLineage? = nil
+    var rootUserQuestion: String? = nil
 
     var contextSourceText: String? {
         let labels = (contextSources ?? []).compactMap(\.displayLabel)
@@ -188,7 +267,9 @@ nonisolated struct HoloAgentResultRenderer {
         narrativeSummary: String? = nil,
         keyInsight: String? = nil,
         contextSources: [HoloAgentContextSourceSummary] = [],
-        dataSamplePreview: HoloRenderedDataSamplePreview? = nil
+        dataSamplePreview: HoloRenderedDataSamplePreview? = nil,
+        lineage: HoloAgentLineage? = nil,
+        rootUserQuestion: String? = nil
     ) -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let assertions = claims.flatMap(\.metricAssertions)
@@ -231,7 +312,9 @@ nonisolated struct HoloAgentResultRenderer {
                     id: evidenceID,
                     summary: Self.readableEvidenceSummary(record),
                     financeDrilldown: Self.financeDrilldown(for: record),
-                    sourceModule: record.sourceModule
+                    sourceModule: record.sourceModule,
+                    formula: Self.cleanOptional(record.formula),
+                    baselineText: Self.baselineText(for: record)
                 ))
             }
         }
@@ -368,6 +451,16 @@ nonisolated struct HoloAgentResultRenderer {
             rangeLabel: rangeLabel,
             evidenceByID: evidenceByID
         )
+        if let lineage {
+            result.continuationMetadata = HoloRenderedContinuationMetadata(
+                relationRawValue: lineage.relationRawValue,
+                shortLabel: lineage.relation.shortLabel,
+                rootUserQuestion: rootUserQuestion,
+                isFollowUp: lineage.lineageDepth > 0
+            )
+            result.lineage = lineage
+            result.rootUserQuestion = rootUserQuestion
+        }
         return Self.deliverVerified(result, evidence: evidence, coverage: coverage, composed: composed)
     }
 
@@ -629,12 +722,14 @@ nonisolated struct HoloAgentResultRenderer {
         context: HoloAgentAnswerContext?,
         evidence: [HoloEvidenceRecord]
     ) -> HoloRenderedAnswerScope? {
+        // unspecified（无解析结果、按数据源默认窗口）也要生成 scope：静默降级从此在卡片上可见
         if let range = context?.primaryTimeRange {
             return HoloRenderedAnswerScope(
                 label: nonEmpty(range.label) ?? "本期",
                 start: range.start,
                 end: range.end,
-                snapshotCutoffAt: context?.snapshotCutoffAt
+                snapshotCutoffAt: context?.snapshotCutoffAt,
+                attribution: context?.timeRangeAttribution
             )
         }
         guard let range = evidence.compactMap(\.timeRange).first else { return nil }
@@ -642,7 +737,8 @@ nonisolated struct HoloAgentResultRenderer {
             label: nonEmpty(range.label) ?? "本期",
             start: range.start,
             end: range.end,
-            snapshotCutoffAt: context?.snapshotCutoffAt
+            snapshotCutoffAt: context?.snapshotCutoffAt,
+            attribution: context?.timeRangeAttribution
         )
     }
 
@@ -1050,6 +1146,46 @@ nonisolated struct HoloAgentResultRenderer {
         let lower = text.lowercased()
         return rawWords.contains { word in
             lower.contains(word)
+        }
+    }
+
+    private static func cleanOptional(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    /// 证据的对比基线描述：值 + 窗口 + 方向，能拼多全拼多全，缺哪段跳哪段。
+    private static func baselineText(for record: HoloEvidenceRecord) -> String? {
+        guard record.baselineValue != nil || record.baselineTimeRange != nil else { return nil }
+        var parts: [String] = []
+        if let baseline = record.baselineValue {
+            let unit = record.unit ?? ""
+            let comparison = record.comparison.map { "（\($0)）" } ?? ""
+            let valueText = baseline == baseline.rounded()
+                ? String(Int(baseline))
+                : String(format: "%.2f", baseline)
+            parts.append("基线 \(valueText)\(unit)\(comparison)")
+        }
+        if let range = record.baselineTimeRange {
+            let rangeLabel = range.label.isEmpty ? Self.shortRangeLabel(range) : range.label
+            parts.append("基线窗口 \(rangeLabel)")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private static func shortRangeLabel(_ range: HoloAgentTimeRange) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        switch (range.start, range.end) {
+        case let (start?, end?):
+            return "\(formatter.string(from: start))–\(formatter.string(from: end))"
+        case let (start?, nil):
+            return "\(formatter.string(from: start)) 起"
+        case let (nil, end?):
+            return "至 \(formatter.string(from: end))"
+        default:
+            return "全期"
         }
     }
 

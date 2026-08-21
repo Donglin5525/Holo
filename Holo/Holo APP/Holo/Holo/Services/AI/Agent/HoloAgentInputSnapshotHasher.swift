@@ -12,7 +12,7 @@ import CryptoKit
 
 /// Agent 任务的稳定输入快照：只描述「任务输入身份」，不含执行过程数据。
 nonisolated struct HoloAgentInputSnapshot: Codable, Sendable, Equatable {
-    /// 快照结构版本（当前 1）。
+    /// 快照结构版本。
     var schemaVersion: Int
     var jobType: HoloAgentJobType
     var userQuestion: String?
@@ -23,10 +23,14 @@ nonisolated struct HoloAgentInputSnapshot: Codable, Sendable, Equatable {
     var snapshotCutoffAt: Date
     /// 工具目录版本：工具集合语义变化时递增，使旧快照自然失效。
     var toolCatalogVersion: Int
+    /// 追问父结果身份。root Job 为空串；纳入快照防止恢复到错误父结果。
+    var followUpParentResultID: String = ""
+    var lineageDepth: Int = 0
 
     /// 显式编码全部 key（可选值编码为 null），保证 canonical 输出与字段存在性无关。
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, jobType, userQuestion, timeRange, referenceDate, snapshotCutoffAt, toolCatalogVersion
+        case schemaVersion, jobType, userQuestion, timeRange, referenceDate, snapshotCutoffAt,
+             toolCatalogVersion, followUpParentResultID, lineageDepth
     }
 
     func encode(to encoder: Encoder) throws {
@@ -38,6 +42,8 @@ nonisolated struct HoloAgentInputSnapshot: Codable, Sendable, Equatable {
         try container.encode(referenceDate, forKey: .referenceDate)
         try container.encode(snapshotCutoffAt, forKey: .snapshotCutoffAt)
         try container.encode(toolCatalogVersion, forKey: .toolCatalogVersion)
+        try container.encode(followUpParentResultID, forKey: .followUpParentResultID)
+        try container.encode(lineageDepth, forKey: .lineageDepth)
     }
 }
 
@@ -45,7 +51,7 @@ nonisolated struct HoloAgentInputSnapshot: Codable, Sendable, Equatable {
 nonisolated enum HoloAgentInputSnapshotHasher {
 
     /// 当前快照 schema 版本。
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
     /// 工具目录版本（现无独立目录版本概念，固定 1；工具语义变化时手工递增）。
     static let currentToolCatalogVersion = 1
 
@@ -58,7 +64,9 @@ nonisolated enum HoloAgentInputSnapshotHasher {
             timeRange: job.timeRange,
             referenceDate: job.referenceDate ?? job.createdAt,
             snapshotCutoffAt: job.snapshotCutoffAt ?? job.createdAt,
-            toolCatalogVersion: currentToolCatalogVersion
+            toolCatalogVersion: currentToolCatalogVersion,
+            followUpParentResultID: job.lineage?.parentResultID ?? "",
+            lineageDepth: job.lineage?.lineageDepth ?? 0
         )
     }
 

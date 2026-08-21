@@ -29,6 +29,9 @@ public class Habit: NSManagedObject {
     @NSManaged public var isBadHabit: Bool
     @NSManaged public var isArchived: Bool
     @NSManaged public var sortOrder: Int16
+    @NSManaged public var reminderMode: String
+    @NSManaged public var reminderHour: Int16
+    @NSManaged public var reminderMinute: Int16
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
     @NSManaged public var records: NSSet?
@@ -52,6 +55,21 @@ public class Habit: NSManagedObject {
     var habitAggregationType: HabitAggregationType {
         get { HabitAggregationType(rawValue: aggregationType) ?? .sum }
         set { aggregationType = newValue.rawValue }
+    }
+
+    /// 打卡提醒模式（原始值不认识时回落 follow，仅打卡型参与提醒）
+    var habitReminderMode: HabitReminderMode {
+        get { HabitReminderMode(rawValue: reminderMode) ?? .follow }
+        set { reminderMode = newValue.rawValue }
+    }
+
+    /// 单独提醒时间（solo 模式使用）
+    var reminderTime: (hour: Int, minute: Int) {
+        get { (Int(reminderHour), Int(reminderMinute)) }
+        set {
+            reminderHour = Int16(newValue.hour)
+            reminderMinute = Int16(newValue.minute)
+        }
     }
     
     /// 是否为打卡型习惯
@@ -142,3 +160,26 @@ public class Habit: NSManagedObject {
 // MARK: - Identifiable
 
 extension Habit: Identifiable {}
+
+// MARK: - 打卡提醒模式
+
+/// 习惯打卡提醒模式（推送管理 · 习惯按条设提醒时间）
+/// - follow: 跟随兜底提醒，在兜底时间与其他习惯一起汇总提醒
+/// - solo: 单独时间，按习惯自己设置的 reminderTime 单独提醒
+/// - none: 不提醒
+enum HabitReminderMode: String, CaseIterable, Identifiable {
+    case follow = "follow"
+    case solo = "solo"
+    case none = "none"
+
+    var id: String { rawValue }
+
+    /// 显示名称
+    var displayName: String {
+        switch self {
+        case .follow: return "跟随兜底提醒"
+        case .solo: return "设单独提醒时间"
+        case .none: return "不提醒"
+        }
+    }
+}

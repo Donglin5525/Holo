@@ -2,7 +2,7 @@
 //  CalendarHeatmap.swift
 //  Holo
 //
-//  月历色阶：事件数 → 等级 → Holo 冷静色阶
+//  月历色阶：事件数 → 等级 → Holo 暖色活跃度
 //  与热力图区别：0 条=空档，1 条起即有色（月历要体现单条记录）
 //  色值统一来自 DesignSystem 的热力图 token，本文件只保留「事件数→等级」的分级逻辑
 //
@@ -22,9 +22,9 @@ enum CalendarHeatmap {
         }
     }
 
-    /// 等级 → 色值；色阶来源统一走 DesignSystem.holoHeatmapColor（冷蓝）
+    /// 等级 → 色值；色阶来源统一走品牌暖橙，月历和日回放保持同一情绪温度。
     static func color(forLevel level: Int, colorScheme: ColorScheme = .light) -> Color {
-        Color.holoHeatmapColor(level: level, palette: .cool, colorScheme: colorScheme)
+        Color.holoHeatmapColor(level: level, palette: .warm, colorScheme: colorScheme)
     }
 
     /// 事件数 → 色值（便捷）

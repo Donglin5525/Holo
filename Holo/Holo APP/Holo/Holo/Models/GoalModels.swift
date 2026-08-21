@@ -240,6 +240,9 @@ extension GoalDraft {
 }
 
 struct GoalPlanningSession: Identifiable, Equatable {
+    /// 默认追问轮数上限（不含草案生成）。纯常量，nonisolated 供任意上下文引用。
+    nonisolated static let defaultMaxTurns = 3
+
     let id: UUID
     var initialUserText: String?
     var turnCount: Int
@@ -249,12 +252,14 @@ struct GoalPlanningSession: Identifiable, Equatable {
     var status: GoalPlanningStatus
     var draft: GoalDraft?
 
-    static func fresh(seedText: String? = nil) -> GoalPlanningSession {
+    /// - Parameter maxTurns: 追问轮数上限；额度紧张时由入口按 chat 池余量压缩传入，
+    ///   保证流程（追问 + 草案）能在额度内完整走完，而不是中途因额度断裂。
+    static func fresh(seedText: String? = nil, maxTurns: Int = GoalPlanningSession.defaultMaxTurns) -> GoalPlanningSession {
         GoalPlanningSession(
             id: UUID(),
             initialUserText: seedText,
             turnCount: 0,
-            maxTurns: 3,
+            maxTurns: maxTurns,
             answers: seedText.map { [$0] } ?? [],
             mode: .concise,
             status: .collecting,

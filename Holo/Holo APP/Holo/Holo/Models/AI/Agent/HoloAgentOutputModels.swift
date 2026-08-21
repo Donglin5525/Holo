@@ -150,7 +150,8 @@ nonisolated enum HoloAgentAnswerRequestPolicy {
     static func promptInstruction(
         question: String,
         authoritativeRange: HoloAgentTimeRange?,
-        taskProfile: HoloAgentTaskProfile
+        taskProfile: HoloAgentTaskProfile,
+        referenceDate: Date = Date()
     ) -> String {
         let deliverables = requestedDeliverables(for: question)
             .map(\.rawValue)
@@ -160,7 +161,11 @@ nonisolated enum HoloAgentAnswerRequestPolicy {
         if let authoritativeRange {
             rangeText = "\(authoritativeRange.label)；start=\(isoDate(authoritativeRange.start))；end(exclusive)=\(isoDate(authoritativeRange.end))"
         } else {
-            rangeText = "用户未明确指定时间，按工具默认范围并在答案中明确披露"
+            rangeText = "系统未能确定性解析出权威时间。今天是\(todayText(referenceDate))。请先判断用户原话是否包含时间表达："
+                + "若包含（如「近半年」「上上个月」「春天那会儿」），你必须把它解析为具体日期区间，"
+                + "在每个 toolRequest.timeRange 填入 {label:\"原话词(起止日期)\", start: epoch秒, end: epoch秒（开区间）}，"
+                + "所有 dynamicPlan/crossDomainPlan 使用同一窗口，并在 final_claims 中说明「按你的『原话词』查询了起止日期」；"
+                + "若原话确实没有时间语义，按工具默认范围执行，且必须在答案中明确披露「未指定时间范围，按默认范围统计」"
         }
         return """
         [HOLO_AGENT_ANSWER_CONTRACT_V1]
@@ -174,6 +179,13 @@ nonisolated enum HoloAgentAnswerRequestPolicy {
         - 建议正文出现的任何金额、百分比、频次、天数或时长，都必须能由该 claim 的 metricAssertions 和 evidence 复算；没有对应证据时改成不带数字的具体动作。
         - 历史事实只统计 snapshotCutoffAt 之前已经发生的数据；未来计划、未来分期、未来任务不能混入已发生统计。
         """
+    }
+
+    private static func todayText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日 EEEE"
+        return formatter.string(from: date)
     }
 
     private static func isoDate(_ date: Date?) -> String {
@@ -258,6 +270,18 @@ nonisolated enum HoloAgentClaimTextGroundingPolicy {
                 values.append(contentsOf: numericCandidates(in: cleaned))
                 values.append(contentsOf: currencyPrefixedCandidates(in: cleaned))
             }
+            // “近 30 天”这类窗口数字来自 Evidence 自己的时间范围，也属于可核验事实。
+            if let start = record.timeRange?.start, let end = record.timeRange?.end {
+                let days = Calendar(identifier: .gregorian).dateComponents(
+                    [.day],
+                    from: Calendar(identifier: .gregorian).startOfDay(for: start),
+                    to: Calendar(identifier: .gregorian).startOfDay(for: end)
+                ).day
+                if let days, days >= 0 {
+                    values.append(Double(days))
+                    values.append(Double(days + 1))
+                }
+            }
         }
         // 同一 claim 引用多个已校验金额时，允许正文展示可复算占比，
         // 例如“餐饮 25,800 / 总支出 82,400 = 31.3%”。
@@ -302,7 +326,7 @@ nonisolated enum HoloAgentClaimTextGroundingPolicy {
     }
 
     private static func numericCandidates(in text: String) -> [Double] {
-        let pattern = #"([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*[-~～至到]\s*([0-9][0-9,]*(?:\.[0-9]+)?))?\s*(万元|万|元|块|%|％|次|个月|月|天|周|小时|分钟|步)"#
+        let pattern = #"([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*[-~～至到]\s*([0-9][0-9,]*(?:\.[0-9]+)?))?\s*(万元|万|元|块|%|％|次|笔|支|条|项|晚|个月|月|天|周|小时|分钟|步)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let nsRange = NSRange(text.startIndex..., in: text)
         return regex.matches(in: text, range: nsRange).flatMap { match -> [Double] in
@@ -330,5 +354,11 @@ nonisolated enum HoloAgentClaimTextGroundingPolicy {
     private static func approximatelyEqual(_ lhs: Double, _ rhs: Double) -> Bool {
         let tolerance = max(0.51, abs(rhs) * 0.015)
         return abs(lhs - rhs) <= tolerance
+    }
+
+    static func containsNumericValue(_ value: Double, in text: String) -> Bool {
+        let cleaned = removingCalendarDates(from: text)
+        let candidates = numericCandidates(in: cleaned) + currencyPrefixedCandidates(in: cleaned)
+        return candidates.contains { approximatelyEqual(value, $0) }
     }
 }

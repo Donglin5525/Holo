@@ -26,8 +26,9 @@ struct MonthCell: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(!isThisMonth)
-        .opacity(isThisMonth ? 1 : 0.35)
+        .disabled(!isThisMonth || isFuture)
+        .opacity(isThisMonth ? (isFuture ? 0.42 : 1) : 0.35)
+        .accessibilityHint(isFuture ? "未来日期还没有可回看的记忆" : "")
     }
 
     // MARK: - 热力色深（默认）
@@ -35,7 +36,7 @@ struct MonthCell: View {
     private var heatmapBody: some View {
         VStack(spacing: 0) {
             Text("\(Calendar.current.component(.day, from: day))")
-                .font(.system(size: 14, weight: dayWeight, design: .rounded))
+                .font(.system(size: 14, weight: dayWeight, design: .serif))
                 .foregroundColor(dayNumberColor)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.top, 5)
@@ -53,6 +54,7 @@ struct MonthCell: View {
         .background(backgroundColor)
         .overlay(borderOverlay)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        .shadow(color: isSelected ? Color.holoPrimary.opacity(0.13) : Color.clear, radius: 7, x: 0, y: 2)
     }
 
     // MARK: - 数字徽章（P2）
@@ -86,9 +88,9 @@ struct MonthCell: View {
     // MARK: - 共享衍生
 
     private var backgroundColor: Color {
-        isThisMonth
-            ? CalendarHeatmap.color(forCount: events.count, colorScheme: colorScheme)
-            : CalendarHeatmap.color(forLevel: 0, colorScheme: colorScheme)
+        guard isThisMonth else { return Color.holoNestedCardBackground.opacity(0.45) }
+        guard !events.isEmpty else { return Color.holoCardBackground.opacity(0.72) }
+        return CalendarHeatmap.color(forCount: events.count, colorScheme: colorScheme)
     }
 
     /// 徽章色 = 活跃度色深（与热力同色阶，徽章形式仍能看出活跃度）
@@ -102,8 +104,13 @@ struct MonthCell: View {
 
     private var dayNumberColor: Color {
         if !isThisMonth { return .holoTextPlaceholder }
+        if isFuture { return .holoTextPlaceholder }
         if isToday { return .holoPrimary }
         return .holoTextPrimary
+    }
+
+    private var isFuture: Bool {
+        Calendar.current.startOfDay(for: day) > Calendar.current.startOfDay(for: Date())
     }
 
     private var borderOverlay: some View {
@@ -111,7 +118,7 @@ struct MonthCell: View {
             .stroke(
                 isSelected ? Color.holoPrimary :
                 (isToday ? Color.holoPrimary.opacity(0.65) : Color.clear),
-                lineWidth: isSelected ? 2 : (isToday ? 1.5 : 0)
+                lineWidth: isSelected ? 1.5 : (isToday ? 1 : 0)
             )
     }
 
@@ -121,10 +128,10 @@ struct MonthCell: View {
             .sorted { $0.rawValue < $1.rawValue }
         return HStack(spacing: 0) {
             ForEach(modules, id: \.self) { module in
-                Rectangle().fill(module.color)
+                Rectangle().fill(module.color.opacity(0.78))
             }
         }
-        .frame(height: 4)
-        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .frame(height: 2)
+        .clipShape(Capsule())
     }
 }

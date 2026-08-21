@@ -55,6 +55,30 @@ nonisolated enum HoloAgentStep: String, Codable, CaseIterable, Sendable {
     case persistResult
 }
 
+// MARK: - 时间范围来源
+
+/// job.timeRange 是怎么来的。展示层据此生成不同披露文案；静默降级从此消失。
+nonisolated enum HoloAgentTimeRangeProvenance: String, Codable, Equatable, Sendable {
+    /// L1 词表命中（本月/上月/今年…）
+    case lexical
+    /// L2 通用组合规则命中（近半年/近3个月/近一年…）
+    case rule
+    /// L1/L2 未命中，由 LLM 解析用户原话后填入并通过护栏校验
+    case modelResolved
+    /// 用户在结果卡片上点选范围触发重查（显式注入，不经解析层）
+    case userOverride
+    /// 没有任何解析结果，按数据源默认窗口执行——必须向用户披露
+    case unspecified
+
+    var isResolved: Bool { self != .unspecified }
+}
+
+/// 与 provenance 配套的原文依据（如「近半年」），供披露文案「按你的『近半年』」使用。
+nonisolated struct HoloAgentTimeRangeAttribution: Codable, Equatable, Sendable {
+    var provenance: HoloAgentTimeRangeProvenance
+    var matchedText: String?
+}
+
 // MARK: - 任务
 
 nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
@@ -68,6 +92,8 @@ nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var updatedAt: Date
     var lastForegroundRunAt: Date?
     var timeRange: HoloAgentTimeRange?
+    /// timeRange 的来源与原文依据；旧数据 nil 时按 lexical/unspecified 由读取方推断。
+    var timeRangeAttribution: HoloAgentTimeRangeAttribution? = nil
     /// 对比期时间窗口（对比类问题如“本月比上月”时由时间解析器注入；nil 表示非对比类问题或旧数据）。
     var baseline: HoloAgentTimeRange? = nil
     var budget: HoloAgentBudget
@@ -76,6 +102,10 @@ nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var errorSummary: String?
     var deviceID: String?
     var sourceMessageID: UUID? = nil
+    /// 连续追问血统；nil 表示独立 root。创建后不可由模型改写。
+    var lineage: HoloAgentLineage? = nil
+    /// 当前分析链最初的用户问题；child Job 继承 canonical 父 Job 的值。
+    var originalUserQuestion: String? = nil
     /// 证据参照时间（创建 job 时冻结 = createdAt；旧数据 nil，读取方回落 createdAt）。§5.1/§7.3
     var referenceDate: Date? = nil
     /// 数据快照截止（创建 job 时冻结 = createdAt；旧数据 nil，读取方回落 createdAt）。
@@ -89,6 +119,28 @@ nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var activeSegmentStartedAt: Date? = nil
     /// 绝对截止：防止无限等待的兜底（创建时 = createdAt + 上限）；超过后等待转 failed。
     var absoluteDeadline: Date? = nil
+
+    /// 额度耗尽终态标记（errorSummary 前缀协议）：runLoop 收到 HoloQuotaError 落终态时写入，
+    /// 状态同步据此把聊天消息落成额度卡片（付费墙），而不是通用的「已中断」。
+    static let quotaExhaustedSummaryPrefix = "深度分析额度已用完"
+
+    /// errorSummary = 前缀 + 换行 + 用户可读文案。
+    var isQuotaExhaustedFailure: Bool {
+        state == .failed && (errorSummary ?? "").hasPrefix(Self.quotaExhaustedSummaryPrefix)
+    }
+
+    /// 从 errorSummary 提取用户可读额度文案；非额度终态返回 nil。
+    var quotaExhaustedUserMessage: String? {
+        guard isQuotaExhaustedFailure else { return nil }
+        let prefix = Self.quotaExhaustedSummaryPrefix
+        let detail = String((errorSummary ?? "").dropFirst(prefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return detail.isEmpty ? "额度已用完，请在额度重置后再试" : detail
+    }
+
+    static func quotaExhaustedSummary(_ userMessage: String) -> String {
+        "\(quotaExhaustedSummaryPrefix)\n\(userMessage)"
+    }
     /// 当前等待原因（waitingForForeground/waitingForCondition/paused 时非空，恢复执行时清空）。
     var waitReason: HoloAgentWaitReason? = nil
     /// 最近一次恢复/启动原因（诊断用）。

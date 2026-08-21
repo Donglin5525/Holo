@@ -71,8 +71,13 @@ actor HoloLocalAgentRuntime {
 
     /// 创建并启动一个真实深度分析 job；触发来源由入口显式传递，默认是用户对话。
     /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
-    func startAnalysisJob(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                          sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
+    func startAnalysisJob(
+        question: String,
+        trigger: HoloAgentTrigger = .userQuestion,
+        sourceMessageID: UUID? = nil,
+        continuation: HoloAgentContinuationRequest? = nil,
+        now: Date = Date()
+    ) async throws -> HoloAgentJob {
         let resolvedComparison = Self.resolveQuestionComparison(question, referenceDate: now)
 
         // P0-B/P1-A 集成：构建确定性 Semantic Frame，用于任务画像和预算选择。
@@ -81,14 +86,28 @@ actor HoloLocalAgentRuntime {
         let executionConfig = HoloAgentBudgetSelector.selectConfig(
             for: semanticFrame.profile, frame: semanticFrame
         )
+        // L1/L2 命中结果与来源（词表=lexical / 通用组合规则=rule），供卡片披露。
+        // 全未命中时显式落 unspecified：即便后续 L3 模型兜底也未提升（用户原话确无时间语义），
+        // 卡片也会披露「按默认范围」，静默降级从此可见。L3 提升时会覆盖为 modelResolved。
+        let resolvedSingleScope = Self.resolveQuestionScope(question, referenceDate: now)
+        let resolvedRange = resolvedComparison?.current.timeRange ?? resolvedSingleScope?.timeRange
+        let resolvedAttribution: HoloAgentTimeRangeAttribution? = {
+            if let scope = resolvedComparison?.current ?? resolvedSingleScope {
+                return HoloAgentTimeRangeAttribution(
+                    provenance: scope.kind == .relativeSpan ? .rule : .lexical,
+                    matchedText: scope.matchedText
+                )
+            }
+            return HoloAgentTimeRangeAttribution(provenance: .unspecified, matchedText: nil)
+        }()
         // P0-D 版本语义：记录版本元数据用于可观测性归因。
-
-
+        let jobID = UUID().uuidString
         var job = HoloAgentJob(
-            id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
+            id: jobID, type: .deepAnalysis, userQuestion: question,
             trigger: trigger, state: .running, currentStep: .plan,
             createdAt: now, updatedAt: now,
-            lastForegroundRunAt: nil, timeRange: resolvedComparison?.current.timeRange ?? Self.resolveQuestionTimeRange(question, referenceDate: now),
+            lastForegroundRunAt: nil, timeRange: resolvedRange,
+            timeRangeAttribution: resolvedAttribution,
             // 周计划走专用收紧档：快照汇总非深钻，轮次减半+输入上限压低，
             // 降低大上下文重发触发上游 30s 切断的概率
             budget: trigger == .weeklyPlanning
@@ -102,6 +121,55 @@ actor HoloLocalAgentRuntime {
             job.baseline = baseline
         }
         job.sourceMessageID = sourceMessageID
+
+        // 连续追问只认本地 Store 中的 canonical 父 Job/Result；UI 不得直接注入父结论正文。
+        let preparedContinuation: HoloAgentPreparedContinuationContext?
+        if let continuation {
+            guard let parentJob = try await loadJob(continuation.parentJobID),
+                  let parentResult = try await persistence.loadResult(jobID: continuation.parentJobID),
+                  parentResult.id == continuation.parentResultID else {
+                throw HoloAgentRuntimeError.continuationParentUnavailable("父分析已被清理或无法读取")
+            }
+            let parentEvidence = try await persistence.loadEvidence(forIDs: parentResult.evidenceIDs)
+            let prepared = try HoloAgentContinuationContextCompiler.prepare(
+                request: continuation,
+                childJobID: jobID,
+                parentJob: parentJob,
+                parentResult: parentResult,
+                parentEvidence: parentEvidence,
+                now: now
+            )
+            preparedContinuation = prepared
+            job.lineage = prepared.lineage
+            job.originalUserQuestion = prepared.rootUserQuestion
+            switch continuation.relation {
+            case .explain, .drillDown:
+                job.timeRange = parentJob.timeRange
+                job.baseline = parentJob.baseline
+                job.referenceDate = parentJob.referenceDate ?? parentJob.createdAt
+                job.snapshotCutoffAt = parentJob.snapshotCutoffAt ?? parentJob.createdAt
+            case .correct, .crossDomain:
+                if job.timeRange == nil { job.timeRange = parentJob.timeRange }
+                if job.baseline == nil { job.baseline = parentJob.baseline }
+                if continuation.relation == .crossDomain {
+                    job.snapshotCutoffAt = parentJob.snapshotCutoffAt ?? parentJob.createdAt
+                }
+            case .changeScope:
+                // 结果卡片「换范围」入口：UI 显式注入目标窗口，绕开文本解析层，确定性 100%。
+                if let override = continuation.overrideTimeRange {
+                    job.timeRange = override
+                    job.timeRangeAttribution = HoloAgentTimeRangeAttribution(
+                        provenance: .userOverride,
+                        matchedText: nil
+                    )
+                }
+            case .executeFromResult, .newTopic, .ambiguous:
+                break
+            }
+        } else {
+            preparedContinuation = nil
+            job.originalUserQuestion = question
+        }
         let queryService: HoloMemoryQueryService?
         if let memoryQueryService {
             queryService = memoryQueryService
@@ -132,6 +200,9 @@ actor HoloLocalAgentRuntime {
             now: now
         )
         var conversation: [HoloAgentMessage] = []
+        if let preparedContinuation {
+            conversation.append(preparedContinuation.contextMessage)
+        }
         if !memoryEvidence.isEmpty {
             conversation.append(Self.memoryContextMessage(
                 summary: memorySummary,
@@ -157,16 +228,30 @@ actor HoloLocalAgentRuntime {
             now: now
         ))
         conversation.append(Self.mockUserMessage(question, now))
+        var evidenceToPersist = memoryEvidence
+        var checkpointEvidenceIDs = memoryEvidence.map(\.id)
+        if let preparedContinuation, !preparedContinuation.reusableEvidence.isEmpty {
+            let referencedParentEvidence = preparedContinuation.reusableEvidence.map { record -> HoloEvidenceRecord in
+                var updated = record
+                if !updated.referencedByJobIDs.contains(jobID) {
+                    updated.referencedByJobIDs.append(jobID)
+                }
+                return updated
+            }
+            evidenceToPersist.append(contentsOf: referencedParentEvidence)
+            checkpointEvidenceIDs.append(contentsOf: referencedParentEvidence.map(\.id))
+        }
+        checkpointEvidenceIDs = Array(Set(checkpointEvidenceIDs)).sorted()
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
             conversation: conversation,
-            evidenceRecordIDs: memoryEvidence.map(\.id),
+            evidenceRecordIDs: checkpointEvidenceIDs,
             memoryCandidateIDs: memorySummary.sourceIDs,
             now: now,
             inputSnapshotHash: HoloAgentInputSnapshotHasher.hash(for: job)
         )
         job.checkpointID = checkpoint.id
-        try await saveProgress(job: job, evidence: memoryEvidence, checkpoint: checkpoint)
+        try await saveProgress(job: job, evidence: evidenceToPersist, checkpoint: checkpoint)
         await eventRecorder.record(HoloAgentTelemetryEvent(name: .jobCreated, timestamp: now, job: job, versionMetadata: HoloAgentVersionMetadata.current))
         return job
     }
@@ -429,6 +514,19 @@ actor HoloLocalAgentRuntime {
             do {
                 raw = try await llmClient.next(messages: messages, step: stepRecord)
             } catch {
+                // 额度耗尽是确定终态（额度按天重置，短时间内重试必然再失败）：
+                // 先把 job 落成 failed 终态再抛出。否则恢复链路每次回前台都会重新捡起
+                // 非终态 job、再次被额度拒绝、错误被吞，消息永远停在「分析中」转圈。
+                if let quotaError = error as? HoloQuotaError {
+                    try await guardExecutionGeneration(generation, jobID: jobID)
+                    job.state = .failed
+                    job.errorSummary = HoloAgentJob.quotaExhaustedSummary(quotaError.userMessage)
+                    job.waitReason = nil
+                    job.updatedAt = now
+                    job.endActiveSegment(at: now)
+                    try await jobStore.upsert(job)
+                    throw quotaError
+                }
                 // §8.2：STEP_ID_CONFLICT（同一 stepID 不同 payload，协议冲突不可恢复）→ 置 failed
                 if let apiError = error as? APIError, case .stepIdConflict(let message) = apiError {
                     try await guardExecutionGeneration(generation, jobID: jobID)
@@ -534,6 +632,30 @@ actor HoloLocalAgentRuntime {
             case .needTools:
                 if !output.toolRequests.isEmpty {
                     job.budget.consumedToolBatches += 1
+                }
+                // L3 模型时间兜底：L1/L2 都未命中（job.timeRange == nil）而模型按 AnswerContract
+                // 解析出用户原话的时间窗口时，把通过护栏的窗口提升为 job 权威范围。
+                // 后续 requestWithJobScope 会用权威范围统一所有工具请求与计划。
+                if job.timeRange == nil,
+                   let modelRange = HoloAgentModelTimeRangePolicy.firstValidRange(
+                       in: output.toolRequests,
+                       asOf: now
+                   ) {
+                    job.timeRange = modelRange
+                    job.timeRangeAttribution = HoloAgentTimeRangeAttribution(
+                        provenance: .modelResolved,
+                        matchedText: nil
+                    )
+                    // 向对话追加权威时间更新：后续轮次的工具/总结都以它为准，
+                    // final_claims 也据此披露「按你的『…』查询了起止日期」。
+                    checkpoint.conversationState.append(HoloAgentMessage(
+                        role: .system,
+                        content: "[HOLO_AGENT_TIME_RANGE_V1] 系统已采纳模型解析的查询窗口：\(modelRange.label)（start=\(modelRange.start.map(Self.isoText) ?? "nil")，end exclusive=\(modelRange.end.map(Self.isoText) ?? "nil")）。后续所有工具查询与最终结论必须使用该窗口，并在 final_claims 中向用户披露该时间范围。",
+                        toolRequestID: nil,
+                        toolName: nil,
+                        timestamp: now,
+                        tokenEstimate: nil
+                    ))
                 }
                 // §token-bloat fix：记录本轮工具执行前的结果数，便于稍后只发送本轮增量结果，
                 // 而不是把全部历史 completedToolResults 再次序列化进 prompt（原实现每轮 O(N) 增长，
@@ -718,20 +840,29 @@ actor HoloLocalAgentRuntime {
     /// 收集所有非终态 job 的 ID（含 running 孤儿与 waitingForForeground），供 Scheduler 拉起 runLoop。
     /// 与 resumeUnfinishedJobs 的区别：不排除 running（进程被硬杀的孤儿落盘仍是 running）、不修改状态——
     /// 是否真正重启推理由 Scheduler 决定，本方法只负责给出「需要被推进」的 job 清单。
-    /// §5.2：paused（任何 waitReason）一律不自动恢复。曾尝试对 systemCapacity 放行，
-    /// 但会导致所有历史 paused 任务每次进 App 被反复拉起（回归事故），已回滚。
+    /// §5.2：用户主动 paused 不自动恢复。兼容事故版本留下的“近期 userQuestion +
+    /// systemCapacity paused”任务：交给 Scheduler 统一恢复或按绝对截止收敛为失败。
     /// §5.5：枚举场景读失败必须上抛，不得当空库继续。
     func collectResumableJobIDs(now: Date = Date()) async throws -> [String] {
         let jobs = try await jobStore.load()
-        return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }.map(\.id)
+        return jobs.filter { Self.isEligibleForAutomaticResume($0, now: now) }.map(\.id)
     }
 
     /// 收集所有非终态 job（含 running 孤儿），供 Scheduler 排序、限量、拉起 runLoop。
-    /// §5.2：paused 一律不自动恢复（见上方说明）。
+    /// §5.2：用户主动 paused 不自动恢复；仅兼容系统容量中断的用户任务。
     /// §5.5：枚举场景读失败必须上抛，不得当空库继续。
     func collectResumableJobs(now: Date = Date()) async throws -> [HoloAgentJob] {
         let jobs = try await jobStore.load()
-        return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }
+        return jobs.filter { Self.isEligibleForAutomaticResume($0, now: now) }
+    }
+
+    private static func isEligibleForAutomaticResume(_ job: HoloAgentJob, now: Date) -> Bool {
+        guard !terminalStates.contains(job.state) else { return false }
+        guard job.state == .paused else { return true }
+        // 事故版本曾把系统回收误写成 paused。这里仍交给调度器统一收敛：
+        // 未过期则恢复，已过期则明确失败，避免永久停在“分析已暂停”。
+        return job.trigger == .userQuestion
+            && job.waitReason == .systemCapacity
     }
 
     /// 返回某 job 的最新 checkpoint，供 Scheduler 恢复前校验 inputSnapshotHash。
@@ -744,6 +875,7 @@ actor HoloLocalAgentRuntime {
     func refreshStableInputSnapshotHash(jobID: String, hash: String, now: Date = Date()) async throws {
         guard var checkpoint = try await checkpointStore.latestForJob(jobID: jobID) else { return }
         checkpoint.inputSnapshotHash = hash
+        checkpoint.inputSnapshotSchemaVersion = HoloAgentInputSnapshotHasher.currentSchemaVersion
         checkpoint.schemaVersion = checkpoint.schemaVersion ?? 1
         checkpoint.updatedAt = now
         try await checkpointStore.upsert(checkpoint)
@@ -899,12 +1031,20 @@ actor HoloLocalAgentRuntime {
             memoryCandidateIDs: memoryCandidateIDs, retryCountByStep: [:],
             createdAt: now, updatedAt: now,
             schemaVersion: inputSnapshotHash == nil ? nil : 1,
-            inputSnapshotHash: inputSnapshotHash
+            inputSnapshotHash: inputSnapshotHash,
+            inputSnapshotSchemaVersion: inputSnapshotHash == nil
+                ? nil
+                : HoloAgentInputSnapshotHasher.currentSchemaVersion
         )
     }
 
     private static func resolveQuestionTimeRange(_ question: String, referenceDate: Date) -> HoloAgentTimeRange? {
         HoloAgentTimeSemanticResolver.resolve(question, referenceDate: referenceDate)?.timeRange
+    }
+
+    /// 保留完整解析结果（kind + matchedText），供 timeRangeAttribution 区分 L1 词表 / L2 通用规则。
+    private static func resolveQuestionScope(_ question: String, referenceDate: Date) -> HoloAgentResolvedTimeScope? {
+        HoloAgentTimeSemanticResolver.resolve(question, referenceDate: referenceDate)
     }
 
     /// 解析对比类问题（如“本月比上月消费多在哪”）的双时间窗。
@@ -1328,7 +1468,8 @@ actor HoloLocalAgentRuntime {
             content: HoloAgentAnswerRequestPolicy.promptInstruction(
                 question: question,
                 authoritativeRange: authoritativeRange,
-                taskProfile: taskProfile
+                taskProfile: taskProfile,
+                referenceDate: now
             ),
             toolRequestID: nil,
             toolName: nil,
@@ -1508,8 +1649,14 @@ actor HoloLocalAgentRuntime {
         }
     }
 
-    private static func assistantMessage(for output: HoloAgentOutput, now: Date) -> HoloAgentMessage {
-        HoloAgentMessage(role: .assistant, content: output.reasoning, toolRequestID: nil, toolName: nil,
+    /// L3 窗口提升消息里的日期展示（yyyy-MM-dd）。
+    private static func isoText(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter.string(from: date)
+    }
+
+    private static func assistantMessage(for output: HoloAgentOutput, now: Date) -> HoloAgentMessage {        HoloAgentMessage(role: .assistant, content: output.reasoning, toolRequestID: nil, toolName: nil,
                          timestamp: now, tokenEstimate: nil)
     }
 
@@ -1634,7 +1781,10 @@ actor HoloLocalAgentRuntime {
 
         var acceptedClaims: [HoloAgentClaim]
         if useVerifierV2 {
-            let v2Results = HoloClaimVerifierV2().verifyAll(claims: claims, evidence: evidence)
+            let groundedClaims = claims.map {
+                HoloClaimVerifierV2.repairFactualGrounding(claim: $0, evidence: evidence)
+            }
+            let v2Results = HoloClaimVerifierV2().verifyAll(claims: groundedClaims, evidence: evidence)
             // verified + degraded 展示（degraded 带降级文案）；rejected 不展示。
             acceptedClaims = v2Results.compactMap { result -> HoloAgentClaim? in
                 switch result.verdict {
@@ -1667,7 +1817,10 @@ actor HoloLocalAgentRuntime {
             let fallbackEvidence = try await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
             let verifiedFallback: [HoloAgentClaim]
             if useVerifierV2 {
-                let v2FallbackResults = HoloClaimVerifierV2().verifyAll(claims: fallback, evidence: fallbackEvidence)
+                let groundedFallback = fallback.map {
+                    HoloClaimVerifierV2.repairFactualGrounding(claim: $0, evidence: fallbackEvidence)
+                }
+                let v2FallbackResults = HoloClaimVerifierV2().verifyAll(claims: groundedFallback, evidence: fallbackEvidence)
                 verifiedFallback = v2FallbackResults.compactMap { result -> HoloAgentClaim? in
                     switch result.verdict {
                     case .verified:
@@ -1793,7 +1946,9 @@ actor HoloLocalAgentRuntime {
             requestedDeliverables: deliverables.isEmpty ? nil : deliverables,
             narrativeSummary: cleanNarrativeSummary,
             keyInsight: cleanNarrativeText(keyInsight),
-            contextSources: contextSources.isEmpty ? nil : contextSources
+            contextSources: contextSources.isEmpty ? nil : contextSources,
+            timeRangeAttribution: job.timeRangeAttribution,
+            lineage: job.lineage
         )
         // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）
         try await guardExecutionGeneration(generation, jobID: job.id)
@@ -2299,6 +2454,7 @@ enum HoloAgentRuntimeError: Error, LocalizedError {
     case checkpointMissing(String)
     case unknownStep(HoloAgentStep)
     case loopNotConfigured
+    case continuationParentUnavailable(String)
     /// §6.2：执行代次已过期（被新执行取代），拒绝写回
     case staleExecution(jobID: String, generation: Int)
 
@@ -2308,6 +2464,7 @@ enum HoloAgentRuntimeError: Error, LocalizedError {
         case .checkpointMissing(let id): return "找不到任务的可恢复快照：\(id)"
         case .unknownStep(let step): return "mock 序列未覆盖步骤：\(step.rawValue)"
         case .loopNotConfigured: return "Agent Loop 未配置 LLM client 或 tool executor"
+        case .continuationParentUnavailable(let reason): return "无法继续上一份分析：\(reason)"
         case .staleExecution(let id, let generation): return "执行代次已过期，拒绝写回：job=\(id) generation=\(generation)"
         }
     }

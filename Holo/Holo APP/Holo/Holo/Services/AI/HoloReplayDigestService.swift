@@ -254,7 +254,13 @@ final class HoloReplayDigestService {
             } catch {
                 // 撞 429（配额耗尽）：剩余配额一定也不够，立刻 break 整批，
                 // 并写入冷却，避免每次启动/回前台都从头扫一遍再撞墙。
+                // 额度 429 带 quota 错误体时 APIClient 抛 HoloQuotaError 而非
+                // APIError.rateLimited，两种形态都要进冷却。
+                var isQuotaRejection = error is HoloQuotaError
                 if case .rateLimited? = error as? APIError {
+                    isQuotaRejection = true
+                }
+                if isQuotaRejection {
                     model.backfillRateLimitCooldownUntil =
                         Date().addingTimeInterval(Self.backfillRateLimitCooldown)
                     saveToDisk()
