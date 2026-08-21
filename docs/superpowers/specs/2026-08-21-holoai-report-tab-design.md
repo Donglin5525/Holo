@@ -160,7 +160,8 @@ ChatView
 ## 11. 真机验收第一轮修订（2026-08-21，东林反馈七条）
 
 1. **默认落报告页（bug）**：跨模块路由的 `onReceive` 订阅会先回放当前值，把「进入页面」误判为跳转请求；`dropFirst()` 修复，默认严格落对话 Tab。
-2. **证据只给结果不给算法（存量问题）**：`HoloEvidenceRecord` 本就携带 `formula`（确定性公式）与 `baselineValue/comparison/baselineTimeRange`（对比基线），是渲染层丢了。已在证据卡补「口径 / 基线」两行（`HoloRenderedEvidenceReference.formula/baselineText`，旧结果 JSON 解码为 nil 自动隐藏）。公式为英文技术格式（如 `pearson(left,right)`），人话化口径说明如需彻底解决需后端在证据生成时产出中文 methodology 字段——**属后端发版项，已另行告知东林**。
+2. **证据只给结果不给算法（存量问题）**：`HoloEvidenceRecord` 本就携带 `formula`（确定性公式）与 `baselineValue/comparison/baselineTimeRange`（对比基线），是渲染层丢了。已在证据卡补「口径 / 基线」两行（`HoloRenderedEvidenceReference.formula/baselineText`，旧结果 JSON 解码为 nil 自动隐藏）。
+   - **口径人话化（2026-08-22 更正与收尾）**：经架构核实，证据计算全部发生在本地工具层（HoloDataTool / HoloFinanceTool 等），后端 agent_loop 仅承担 LLM 推理代理——**初版「需要后端产出 methodology 字段」的判断有误，无后端改动**。人话化由本地公式目录 `HoloEvidenceFormulaPresentation` 完成：已知分析方法（皮尔逊相关 / 阈值筛选 / 分组对比 / 财务余额式）给完整中文口径，聚合模式 `op(field)` 翻译为「按『字段』计算合计/均值…」，未命中原样回退；显示时人话在前、公式原文括号在后供精确核对。公式词表封闭，新增公式由该目录跟进。
 3. **发起区重设计**：改为居中结构——范围胶囊行 → 发起话术预览 → 居中主按钮 → 额度说明。
 4. **范围点击无反馈**：新增话术预览行「将提问『分析一下我最近三个月的数据趋势』」，点胶囊即时变化。
 5. **报告删除**：档案卡长按 → 确认弹窗 → 删除报告消息 + 对应提问气泡（仓库发布会驱动聊天页同步移除；删除前先清界面数组）。
