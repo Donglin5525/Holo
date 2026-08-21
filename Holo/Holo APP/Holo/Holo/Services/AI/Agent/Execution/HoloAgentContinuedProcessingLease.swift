@@ -158,15 +158,17 @@ final class HoloAgentContinuedProcessingLease: HoloAgentExecutionLease {
     private func systemDidExpire() {
         guard !didFinish else { return }
         didFinish = true
-        completionSuccess = false
+        completionSuccess = true
         // Apple 要求 expiration handler 尽快结束系统任务；只取消本地 runLoop 不足以归还系统资源。
         let expiredTask = systemTask
         systemTask = nil
         expiredTask?.expirationHandler = nil
-        // 系统仍会用失败样式闭合被回收的后台任务；副标题明确说明用户 Job 可恢复，
-        // 避免锁屏上的“任务失败”被理解成整份分析已经永久失败。
+        // 卡片失败样式只属于「任务真失败」（2026-08-22 东林验收反馈：灵动岛定格的
+        // 「失败」卡片先入为主，与 App 内可恢复的暂停状态矛盾且无法清除）。
+        // 系统收回=本次后台承载结束、用户任务可恢复，按正常完成闭合让卡片静默消失；
+        // 暂停语义由对冲通知与 App 内状态传达。
         expiredTask?.updateTitle(Self.taskTitle, subtitle: "回到 Holo 后继续分析")
-        expiredTask?.setTaskCompleted(success: false)
+        expiredTask?.setTaskCompleted(success: true)
         onSystemEnded(jobID)
     }
 

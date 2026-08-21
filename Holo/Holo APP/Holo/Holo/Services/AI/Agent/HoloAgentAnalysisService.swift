@@ -55,7 +55,7 @@ enum HoloAgentChatStatusPresenter {
             return active("Holo 正在重试分析…", detail: "刚才的模型输出不完整，正在自动重试。")
         case .waitingForForeground:
             return HoloAgentChatStatus(
-                title: "已暂停 · \(Self.progressText(for: job))未失败",
+                title: "已暂停 · \(Self.progressText(for: job))进度已保存",
                 detail: "系统暂时收回了后台执行时间，进度已保存。回到前台后会自动继续，无需重新提问。",
                 keepsMessageStreaming: true,
                 showsActivityIndicator: false
@@ -64,14 +64,14 @@ enum HoloAgentChatStatusPresenter {
             // 兼容事故版本遗留的 systemCapacity paused；近期用户任务会在回前台时迁移恢复。
             if job.waitReason == .systemCapacity {
                 return HoloAgentChatStatus(
-                    title: "已暂停 · \(Self.progressText(for: job))未失败",
+                    title: "已暂停 · \(Self.progressText(for: job))进度已保存",
                     detail: "系统暂时收回后台执行时间，进度已保存。回到 Holo 后会自动接着往下分析。",
                     keepsMessageStreaming: true,
                     showsActivityIndicator: false
                 )
             }
             return HoloAgentChatStatus(
-                title: "已暂停 · \(Self.progressText(for: job))未失败",
+                title: "已暂停 · \(Self.progressText(for: job))进度已保存",
                 detail: "系统已经收回后台执行时间，进度已保存。回到前台后会自动继续，无需重新提问。",
                 keepsMessageStreaming: true,
                 showsActivityIndicator: false

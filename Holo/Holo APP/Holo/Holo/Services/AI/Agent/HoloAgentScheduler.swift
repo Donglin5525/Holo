@@ -247,7 +247,8 @@ actor HoloAgentScheduler {
             task.cancel()
             removeActiveTaskRegistration(jobID: jobID)
         }
-        await finishLease(jobID: jobID, success: false)
+        // 取消/被抢占不是失败：CP 卡片按正常样式闭合（静默消失），不留「失败」定格。
+        await finishLease(jobID: jobID, success: true)
         do {
             if source == .superseded {
                 _ = try await runtime.supersedeJob(jobID: jobID, now: now)
@@ -304,7 +305,8 @@ actor HoloAgentScheduler {
             removeActiveTaskRegistration(jobID: jobID)
             logger.log("[Agent] 暂停执行 jobID=\(jobID, privacy: .public) reason=\(reason.rawValue, privacy: .public)")
         }
-        await finishLease(jobID: jobID, success: false)
+        // 暂停不是失败：CP 卡片按正常样式闭合（静默消失），暂停语义由对冲通知传达。
+        await finishLease(jobID: jobID, success: true)
         do {
             _ = try await runtime.pauseJob(jobID: jobID, now: now)
         } catch {
@@ -687,7 +689,13 @@ actor HoloAgentScheduler {
     /// 这是系统取消后快速手动恢复的关键护栏：旧 Task 晚完成不得误结束新 continued lease。
     private func finalizeActiveTask(jobID: String, token: UUID, success: Bool) async {
         guard activeTaskTokens[jobID] == token else { return }
+        // 卡片失败样式只属于「任务真失败」（2026-08-22 东林验收反馈）：让位等待/暂停/
+        // 取消/被抢占都以正常样式闭合 CP 卡片（静默消失），否则灵动岛定格的「失败」
+        // 与 App 内可恢复状态矛盾、且系统卡片无法程序化清除。job 读取失败时保守回退
+        // 传入的 success。
+        var leaseSuccess = success
         if let job = try? await jobStore.load().first(where: { $0.id == jobID }) {
+            leaseSuccess = job.state != .failed
             let name: HoloAgentEventName? = switch job.state {
             case .completed: .jobCompleted
             case .failed: .jobFailed
@@ -695,6 +703,9 @@ actor HoloAgentScheduler {
             default: nil
             }
             if let name {
+                // 终态立即清除可能残留的「已暂停」对冲通知，不等下一次状态同步——
+                // 用户点继续后跑完，通知中心不应再留着暂停提示。
+                HoloAgentPauseNotifier.clearPausedNotice(jobID: jobID)
                 let duration = max(0, Int(job.updatedAt.timeIntervalSince(job.createdAt) * 1_000))
                 await eventRecorder.record(HoloAgentTelemetryEvent(
                     name: name,
@@ -705,10 +716,7 @@ actor HoloAgentScheduler {
                 ))
             } else if activeLeases[jobID]?.kind == .continuedProcessing {
                 // runLoop 持 CP 租约正常让位（网络等待预算耗尽等可恢复等待态）：
-                // finishLease 只能以 success:false 闭合，锁屏系统卡片会定格成「失败」
-                // 样式且此路径没有 continuedLeaseDidEnd 的对冲通知——用户点亮屏幕
-                // 读到「失败」，回 App 却是「等待恢复、可继续」。补发准确术语的
-                // 对冲通知（与系统收回路径同一手段），identifier 按 job 覆盖不堆叠。
+                // 补发准确术语的对冲通知，identifier 按 job 覆盖不堆叠（前台自动抑制）。
                 HoloAgentPauseNotifier.notifyPaused(
                     jobID: jobID,
                     reason: job.waitReason ?? .backgroundTimeExpired,
@@ -718,7 +726,7 @@ actor HoloAgentScheduler {
             }
         }
         removeActiveTaskRegistration(jobID: jobID)
-        await finishLease(jobID: jobID, success: success)
+        await finishLease(jobID: jobID, success: leaseSuccess)
     }
 
     /// Debug 导出只读取租约类型，不暴露系统 task 对象。

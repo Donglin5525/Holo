@@ -229,7 +229,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
         )
         XCTAssertTrue(paused.keepsMessageStreaming)
         XCTAssertFalse(paused.showsActivityIndicator)
-        XCTAssertEqual(paused.title, "已暂停 · 未失败")
+        XCTAssertEqual(paused.title, "已暂停 · 进度已保存")
 
         let failed = HoloAgentChatStatusPresenter.status(
             for: makeJob(state: .failed, step: .executeTools, errorSummary: "网络中断")

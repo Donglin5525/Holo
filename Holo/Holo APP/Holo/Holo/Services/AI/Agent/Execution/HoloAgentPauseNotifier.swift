@@ -31,7 +31,7 @@ nonisolated enum HoloAgentPauseNotifier {
         totalRounds: Int
     ) {
         let content = UNMutableNotificationContent()
-        content.title = "深度分析已暂停，未失败"
+        content.title = "深度分析已暂停 · 进度已保存"
         let progress = totalRounds > 0 ? "已完成 \(completedRounds)/\(totalRounds) 轮，" : ""
         switch reason {
         case .systemCapacity, .backgroundTimeExpired:

@@ -574,8 +574,8 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         let task = try XCTUnwrap(client.lastTask)
         task.expire()
 
-        let systemCompleted = await waitUntil { task.completedSuccess == false }
-        XCTAssertTrue(systemCompleted, "expiration handler 必须向系统回报失败完成")
+        let systemCompleted = await waitUntil { task.completedSuccess == true }
+        XCTAssertTrue(systemCompleted, "系统收回时任务未失败，卡片必须按正常样式闭合（静默消失）而非定格失败")
         XCTAssertEqual(task.updates.last?.subtitle, "回到 Holo 后继续分析")
 
         let waiting = await waitUntil {
