@@ -413,15 +413,6 @@
       <!-- 报告 pane -->
       <div class="pane" id="pane-report" style="display:none;">
         <div class="report-area" style="height: 570px;">
-          <div class="launch-card">
-            <div class="row1">
-              <span class="btn-main">✦ 发起新分析</span>
-              <span class="quota">本月深度洞察剩余 1/2</span>
-            </div>
-            <div class="scopes">
-              <span class="chip on">近30天</span><span class="chip">近3月</span><span class="chip">近半年</span><span class="chip">近1年</span>
-            </div>
-          </div>
           <div class="report-card">
             <div class="top">
               <span class="type-badge analysis">深度分析</span>
@@ -476,15 +467,6 @@
         <div class="page-tab active">报告</div>
       </div>
       <div class="report-area" style="height: 578px;">
-        <div class="launch-card">
-          <div class="row1">
-            <span class="btn-main">✦ 发起新分析</span>
-            <span class="quota">本月深度洞察剩余 1/2</span>
-          </div>
-          <div class="scopes">
-            <span class="chip on">近30天</span><span class="chip">近3月</span><span class="chip">近半年</span><span class="chip">近1年</span>
-          </div>
-        </div>
         <div class="report-card">
           <div class="top"><span class="type-badge analysis">深度分析</span><span class="scope">近30天</span><span class="date">8/20</span></div>
           <div class="ask">分析一下我最近的数据趋势</div>
@@ -721,11 +703,11 @@
 
 <!-- ═══════════════ 动线说明 ═══════════════ -->
 <div class="legend-flow">
-  <div class="lt">发起一份报告的三条路（殊途同归，进同一份档案）</div>
+  <div class="lt">发起一份报告的两条路（殊途同归，进同一份档案；报告 Tab 只读档案不发起）</div>
   <div>
-    <span class="flow-step hot">报告 Tab · 发起新分析</span><span class="flow-arrow">→</span>
     <span class="flow-step">对话胶囊 · 深度分析 / 周期回放</span><span class="flow-arrow">→</span>
-    <span class="flow-step">直接说「分析下我最近」</span>
+    <span class="flow-step">直接说「分析下我最近」</span><span class="flow-arrow">→</span>
+    <span class="flow-step hot">空态 CTA：切回对话预填（不自动发送）</span>
   </div>
   <div style="margin-top:6px;color:#6B6B6B;">
     生成中：报告 Tab 出现实时进度卡，可切回对话继续聊；完成时「报告」Tab 亮红点，聊天流里同步落一张卡（带「已存入报告」回执）。
