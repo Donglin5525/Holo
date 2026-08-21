@@ -92,8 +92,10 @@ struct ChatInputView: View {
                 .disabled(viewModel.isStreaming)
                 .accessibilityLabel("语音输入")
 
-                // 发送/停止按钮
-                if viewModel.isStreaming {
+                // 发送/停止按钮：停止键在「普通流式进行中」或「存在等待/恢复中的 Agent 消息」
+                // 时都要可见——Agent 等待网络/系统资源期间输入框已解锁可发新消息，但用户
+                // 必须始终保有停止入口（cancelStreaming 会取消等待任务并定稿消息）。
+                if viewModel.isStreaming || viewModel.hasActiveStreamingMessage {
                     Button {
                         viewModel.cancelStreaming()
                     } label: {

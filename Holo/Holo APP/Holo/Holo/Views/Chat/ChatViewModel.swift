@@ -23,6 +23,12 @@ final class ChatViewModel: ObservableObject {
         }
     }
     @Published var isStreaming: Bool = false
+    /// 是否存在仍在等待/执行中的 AI 消息（消息级 streaming）。
+    /// Agent 深度分析等待网络/系统资源期间，全局输入锁（isStreaming）已解锁、
+    /// 但停止键必须保持可见（cancelStreaming 取消等待任务并定稿消息）。
+    var hasActiveStreamingMessage: Bool {
+        messages.contains { $0.isStreaming }
+    }
     /// 流式超 90s 未完成时的「AI 还在工作」提示（watchdog 第一段写入，结束/取消时清空）
     @Published var streamingStatusHint: String?
     /// AI 数据处理授权未开启时，点发送触发此提示（替代静默失败）
@@ -241,7 +247,11 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] messages in
                 guard let self else { return }
                 self.messages = Self.annotateTimestampSeparators(messages)
-                self.isStreaming = messages.contains { $0.isStreaming }
+                // 全局 isStreaming（输入锁语义）只由「当前请求」的生命周期管理
+                // （sendMessage 置 true / concludeStreamingSession 收尾），不得从消息级
+                // streaming 重建：Agent 等待网络/前台的消息会把它反复顶回 true，
+                // 把用户锁在聊天框外（最长等到 30 分钟截止）。停止键的可见性
+                // 由 hasActiveStreamingMessage（消息级）覆盖等待场景。
             }
 
         // 同步 hasEarlierSessions
@@ -1001,10 +1011,12 @@ final class ChatViewModel: ObservableObject {
         streamingWatchdogTask?.cancel()
         streamingWatchdogTask = nil
         currentTask = nil
-        if keepsAgentActive {
-            isStreaming = true
-        } else {
-            isStreaming = false
+        // keepsAgentActive 只保留消息级活跃（等待/恢复卡片继续渲染、恢复链回填），
+        // 全局输入框必须解锁：深度分析是可暂停的后台任务，等待网络/系统资源期间
+        // 不应把用户锁在聊天框外（最长可等到 30 分钟截止）。用户此时发起新深度
+        // 分析会按 P0 门控自然抢占旧任务，发普通消息则与后台恢复互不干扰。
+        isStreaming = false
+        if !keepsAgentActive {
             streamingText = ""
             activeStreamingMessageID = nil
         }

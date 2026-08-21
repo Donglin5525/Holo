@@ -601,10 +601,14 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
             return current?.state == .completed
         }
         XCTAssertTrue(completed, "回前台后恢复链必须真正重启 runLoop 并完成同一 Job")
+        // 锁屏高可用（2026-08-22）：被系统收回过的 Job 恢复时【允许重新登记】continued——
+        // 旧卡片已 setTaskCompleted 闭合（失败样式定格为历史记录），重新提交产生新的
+        // 进行中卡片；若不重申请（旧资格门），Job 第一次被收回后永久失去后台执行权，
+        // 之后每次锁屏只剩 legacy 的几十秒，「锁屏不能继续分析」。
         XCTAssertEqual(
             client.submitted.count,
-            1,
-            "系统已结束的同一 Job 回前台恢复时不得再次登记 continued，否则锁屏会同时残留失败与进行中任务"
+            2,
+            "系统收回后回前台恢复时应重新登记 continued，保证后续锁屏仍有后台执行权"
         )
     }
 

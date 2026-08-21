@@ -489,11 +489,14 @@ actor HoloAgentScheduler {
         job: HoloAgentJob,
         executionToken: UUID
     ) async -> (lease: any HoloAgentExecutionLease, reporter: @Sendable (HoloAgentProgressSnapshot) async -> Void)? {
-        // 系统一旦结束过该 Job 的 Continued Processing，请求会在锁屏界面保留失败记录。
-        // 回前台恢复同一 Job 时只用前台租约，不重复提交同 identifier 的系统任务，避免出现
-        // 一条“任务失败”与一条“正在整理证据”并存。之后再次进后台仍由 legacy 租约承接。
-        guard job.waitReason != .systemCapacity,
-              await continuedEligibility(for: job),
+        // 锁屏高可用（2026-08-22）：曾被系统收回 CP 的 job 恢复时【允许重新提交】。
+        // 旧资格门（waitReason != .systemCapacity）会让 job 在第一次被收回后永久失去
+        // 后台执行权——之后每次锁屏只剩 legacy 的几十秒，网络一断任务就停摆，
+        // 这是「锁屏后任务不再推进」的直接根因。重新提交是安全的：
+        // 旧 lease 收回时已 setTaskCompleted 闭合（锁屏上的失败卡片定格为历史记录，
+        // 不会变成“进行中”），同 identifier 的新请求由系统正常接纳；
+        // 活跃卡片的唯一性由 hasActiveContinuedLease（continuedEligibility）保证。
+        guard await continuedEligibility(for: job),
               let client = await resolvedContinuedClient() else { return nil }
         let continued = await HoloAgentContinuedProcessingLease(
             jobID: job.id,
@@ -700,6 +703,18 @@ actor HoloAgentScheduler {
                     durationMilliseconds: duration,
                     errorCode: success ? nil : Self.terminalErrorCode(for: job)
                 ))
+            } else if activeLeases[jobID]?.kind == .continuedProcessing {
+                // runLoop 持 CP 租约正常让位（网络等待预算耗尽等可恢复等待态）：
+                // finishLease 只能以 success:false 闭合，锁屏系统卡片会定格成「失败」
+                // 样式且此路径没有 continuedLeaseDidEnd 的对冲通知——用户点亮屏幕
+                // 读到「失败」，回 App 却是「等待恢复、可继续」。补发准确术语的
+                // 对冲通知（与系统收回路径同一手段），identifier 按 job 覆盖不堆叠。
+                HoloAgentPauseNotifier.notifyPaused(
+                    jobID: jobID,
+                    reason: job.waitReason ?? .backgroundTimeExpired,
+                    completedRounds: job.budget.consumedLLMRounds,
+                    totalRounds: job.budget.maxLLMRounds
+                )
             }
         }
         removeActiveTaskRegistration(jobID: jobID)

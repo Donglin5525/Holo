@@ -229,7 +229,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
         )
         XCTAssertTrue(paused.keepsMessageStreaming)
         XCTAssertFalse(paused.showsActivityIndicator)
-        XCTAssertEqual(paused.title, "已暂停，回到 App 后继续")
+        XCTAssertEqual(paused.title, "已暂停 · 未失败")
 
         let failed = HoloAgentChatStatusPresenter.status(
             for: makeJob(state: .failed, step: .executeTools, errorSummary: "网络中断")
@@ -247,7 +247,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// 不重启推理；job 停在 running，断言终态失败。
     func testResumeAfterKillRestart_reachesTerminal() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
 
         // 第一次运行：创建 job → 进后台暂停（waitingForForeground），模拟进程随后被系统杀掉。
         let run1 = makeLoopFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor())
@@ -280,7 +280,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// §9.6 终态清理：超保留期的终态 job 及其 checkpoint 被删除；非终态 job 保留。
     func testCleanupTerminalJobs_删终态超期job并级联清理checkpoint() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let fixture = makeLoopFixture(
             dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor()
         )
@@ -421,7 +421,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// Phase 2：Scheduler.start 创建 job 并跑完 runLoop，返回终态 job（Chat/Observer 入口经 Scheduler）。
     func testStart_创建job并跑完runLoop返回终态() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let fixture = makeLoopFixture(
             dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor()
         )
@@ -438,7 +438,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// Chat 恢复桥：用户发起的 Agent job 必须带 sourceMessageID，回前台恢复完成后才能回填原消息。
     func testStart_保存sourceMessageID供Chat恢复回填() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let fixture = makeLoopFixture(
             dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor()
         )
@@ -481,43 +481,63 @@ final class HoloAgentSchedulerTests: XCTestCase {
     }
 
     /// 快速回桌面再回来：如果后台时间还没到期，原 runLoop 仍可能在跑，前台恢复不能重复拉起第二条 runLoop。
+    /// 真实链路中 job 创建后即由 Scheduler 启动执行（ChatViewModel → createAndRun），
+    /// 测试补上该启动步骤并用慢响应保持执行跨越后台窗口。
     @MainActor
     func testBackgroundContinuation_未到期快速回前台不重复恢复RunningJob() async throws {
         let dir = makeTempDir()
         let llm = FakeLLM(responses: [
-            #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
-        ])
+            #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
+        ], delayNanos: 300_000_000)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let client = FakeBackgroundTaskClient()
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
         let manager = HoloBackgroundContinuationManager(
             runtime: fixture.runtime,
+            scheduler: scheduler,
             backgroundTaskClient: client
         )
         let job = try await fixture.runtime.startAnalysisJob(question: "q", now: Date())
 
+        async let run = scheduler.runOrAttach(
+            jobID: job.id, reason: .userInitiated, systemTemplate: "s", toolDescriptions: "t"
+        )
+        // 等执行 Task 真正登记（LLM 已被调用）再切后台，对齐真实时序「发问→执行中→切后台」
+        let llmStarted = await waitUntil { await llm.callCount == 1 }
+        XCTAssertTrue(llmStarted)
         manager.appDidEnterBackground()
         manager.appWillEnterForeground()
-        try? await Task.sleep(nanoseconds: 150_000_000)
+        let final = try await run
 
-        let stored = try await fixture.jobStore.load().first { $0.id == job.id }
-        XCTAssertEqual(stored?.state, .running, "后台时间未到期时，回前台只同步状态，不应重复 resume running job")
+        XCTAssertEqual(final.state, .completed, "原执行应自然跑完，不因前后台切换中断")
         let callCount = await llm.callCount
-        XCTAssertEqual(callCount, 0, "快速切回不应额外触发 LLM 调用")
+        XCTAssertEqual(callCount, 1, "快速切回不应额外触发 LLM 调用")
     }
 
     /// 后台时间到期：job 已明确暂停，回前台需要重启 runLoop 并推进到终态。
+    /// 真实链路中 job 创建后即由 Scheduler 启动执行，测试补上该启动步骤。
     @MainActor
     func testBackgroundContinuation_到期后回前台恢复暂停Job() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
-        let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor())
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
+        // 慢响应保持执行跨越「进后台→租约到期」窗口
+        let llm = FakeLLM(responses: [finalClaims], delayNanos: 300_000_000)
+        let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let client = FakeBackgroundTaskClient()
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime, backgroundTaskClient: client)
         let manager = HoloBackgroundContinuationManager(
             runtime: fixture.runtime,
+            scheduler: scheduler,
             backgroundTaskClient: client
         )
         let job = try await fixture.runtime.startAnalysisJob(question: "q", now: Date())
 
+        async let run = scheduler.runOrAttach(
+            jobID: job.id, reason: .userInitiated, systemTemplate: "s", toolDescriptions: "t"
+        )
+        // 等执行 Task 真正登记（LLM 已被调用）再进后台，否则 Scheduler 看不到活跃执行、不申请租约
+        let llmStarted = await waitUntil { await llm.callCount == 1 }
+        XCTAssertTrue(llmStarted, "执行应已启动并挂起在慢响应上")
         manager.appDidEnterBackground()
         // §6.3：等场景租约异步登记后再触发系统到期
         let leaseAttached = await waitUntil { client.activeLeaseCount >= 1 }
@@ -528,6 +548,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
             return stored?.state == .waitingForForeground
         }
         XCTAssertTrue(paused)
+        _ = try? await run  // 被租约到期取消的旧执行以异常收场，属预期
 
         manager.appWillEnterForeground()
         let completed = await waitUntil {
@@ -543,7 +564,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// 不产生第二次 LLM 调用，只 acquire 一次 generation（Phase 0 任务 2 / Phase 2 验收门）。
     func testRunOrAttach_同job并发attach只执行一次() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         // 100ms 慢响应，保证两次调用在执行窗口内重叠
         let llm = FakeLLM(responses: [finalClaims], delayNanos: 100_000_000)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
@@ -572,7 +593,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// 新代次接管后，旧 runLoop 抛 staleExecution，不写 checkpoint/result。
     func testRunLoop_旧generation晚返回不得写回() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -613,7 +634,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// 全程只有一个有效执行、一个 result（§12.3 快速 background → active）。
     func testPause_到期暂停后新代次接管且只有一个result() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -657,7 +678,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// cancel 后：job 落 cancelled 终态、注册表清理、再次 runOrAttach 直接返回终态不重启执行。
     func testCancel_取消后返回cancelled且注册表清理() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -694,32 +715,21 @@ final class HoloAgentSchedulerTests: XCTestCase {
         XCTAssertTrue(results.isEmpty, "取消后不得写入 result")
     }
 
-    /// 用户任务已因断网进入等待态、内存注册表清理后，停止按钮仍必须从持久化层取消它。
+    /// 用户任务已因断网进入等待态、内存注册表清理后（如进程重启），停止按钮仍必须从持久化层取消它。
+    /// 锁屏高可用（2026-08-22）后 runLoop 不再因网络错误退出，等待态改为直接构造持久化 job 模拟
+    /// 「进程重启后残留的等待任务」，取消语义不受影响。
     func testCancelActiveUserQuestions_取消持久化等待任务且不再恢复() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
-        let llm = FakeLLM(
-            responses: [finalClaims],
-            errorsByCallIndex: [0: URLError(.networkConnectionLost)]
-        )
+        let llm = FakeLLM(responses: [])
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
         let now = Date()
-        let job = try await fixture.runtime.startAnalysisJob(question: "q", now: now)
-
-        let waiting = try await scheduler.runOrAttach(
-            jobID: job.id,
-            reason: .userInitiated,
-            systemTemplate: "s",
-            toolDescriptions: "t",
-            now: now
-        )
-        XCTAssertEqual(waiting.state, .waitingForCondition)
-        XCTAssertEqual(waiting.waitReason, .network)
-
+        var waitingJob = makeJob(state: .waitingForCondition, step: .executeTools)
+        waitingJob.waitReason = .network
+        try await fixture.jobStore.upsert(waitingJob)
         let cancelledCount = await scheduler.cancelActiveUserQuestions(now: now)
         XCTAssertEqual(cancelledCount, 1, "持久化等待任务也必须被停止按钮命中")
-        let stored = try await fixture.jobStore.load().first { $0.id == job.id }
+        let stored = try await fixture.jobStore.load().first { $0.id == waitingJob.id }
         XCTAssertEqual(stored?.state, .cancelled)
 
         let resumed = try await scheduler.resumeAndContinue(
@@ -730,7 +740,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
         )
         XCTAssertEqual(resumed, 0, "用户取消的任务不得在恢复扫描中复活")
         let callCount = await llm.callCount
-        XCTAssertEqual(callCount, 1, "取消后不得再次发起 LLM 请求")
+        XCTAssertEqual(callCount, 0, "取消后不得再次发起 LLM 请求")
     }
 
     /// generation CAS：两个并发 acquire 得到递增值，validate 只认最新（§6.1）。
@@ -756,7 +766,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// P0 并发上限：P0 活跃时低优先级（Observer 等）任务不启动，跳过并落盘原因（§2.2/§6.1）。
     func testRunOrAttach_P0活跃时低优任务跳过并落盘原因() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -843,11 +853,14 @@ final class HoloAgentSchedulerTests: XCTestCase {
     }
 
     /// Phase 0 任务 5 / §7.2：锁屏查询健康 → waitingForCondition+deviceUnlock，
-    /// 不产生伪零证据，checkpoint 已保存；解锁后 Scheduler 恢复到终态。
+    /// 不产生伪零证据（被锁的健康工具请求不得留下结果），checkpoint 已保存；解锁后 Scheduler 恢复到终态。
+    /// 注：2026-07-26 起 LLM 循环前的 discover 前置探查会先落一条非健康结果
+    /// （本夹具未注册 discover → toolNotFound）；生产恒注册 discover，落的是真实探查结果。
+    /// 伪零证据不变量针对被锁查询本身：checkpoint 里不得出现 health 工具结果。
     func testRunLoop_健康锁屏进入等待解锁且恢复后完成() async throws {
         let dir = makeTempDir()
         let needTools = #"{"status":"need_tools","reasoning":"查询睡眠","toolRequests":[{"id":"t-sleep","tool":"health","query":"sleep_summary","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [needTools, finalClaims])
         let healthSource = LockableHealthDataSource()
         let executor = HoloToolExecutor(registry: HoloToolRegistry(tools: [HoloHealthTool(dataSource: healthSource)]))
@@ -877,8 +890,11 @@ final class HoloAgentSchedulerTests: XCTestCase {
         XCTAssertNil(first.errorSummary, "锁屏等待不是失败，不得写错误信息")
         let checkpoint = try await checkpointStore.latestForJob(jobID: job.id)
         XCTAssertNotNil(checkpoint, "等待前必须已保存 checkpoint（可恢复断点）")
-        XCTAssertTrue(checkpoint?.completedToolResults.isEmpty == true,
-                      "锁屏不得写入工具结果（伪零证据）")
+        let waitingResults = checkpoint?.completedToolResults ?? []
+        XCTAssertTrue(waitingResults.allSatisfy { $0.tool == "discover" },
+                      "等待解锁的 checkpoint 只允许 discover 前置结果，实际工具：\(waitingResults.map(\.tool))")
+        XCTAssertTrue(waitingResults.filter { $0.tool == "health" }.isEmpty,
+                      "锁屏不得写入健康工具结果（伪零证据）")
         XCTAssertTrue(checkpoint?.evidenceRecordIDs.isEmpty == true, "锁屏不得产生 evidence")
         let evidence = await ledger.load()
         XCTAssertTrue(evidence.isEmpty, "锁屏不得写入 evidence ledger")
@@ -894,10 +910,12 @@ final class HoloAgentSchedulerTests: XCTestCase {
         XCTAssertEqual(callCount, 2, "恢复后从断点继续，共两轮 LLM 调用，实际 \(callCount)")
     }
 
-    /// §7.2：可恢复网络错误 → waitingForCondition+network 落盘（不晾在 running）；恢复后完成。
+    /// §7.2 + 锁屏高可用（2026-08-22）：可恢复网络错误先落盘 waitingForCondition+network
+    /// （不晾在 running、不算失败），随后 runLoop 不退出——就地退避等待并自动重发
+    /// 同一 step（幂等），网络恢复后在第一次执行内推进到终态。
     func testRunLoop_网络错误进入等待网络且恢复后完成() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(
             responses: [finalClaims],
             errorsByCallIndex: [0: URLError(.notConnectedToInternet)]
@@ -910,24 +928,28 @@ final class HoloAgentSchedulerTests: XCTestCase {
         let first = try await scheduler.runOrAttach(
             jobID: job.id, reason: .userInitiated, systemTemplate: "s", toolDescriptions: "t", now: now
         )
-        XCTAssertEqual(first.state, .waitingForCondition)
-        XCTAssertEqual(first.waitReason, .network)
+        XCTAssertEqual(first.state, .completed, "等待期内自动重发（step 幂等），首次执行内完成")
+        XCTAssertNil(first.waitReason)
         XCTAssertNil(first.errorSummary, "可恢复网络等待不是失败")
         let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         XCTAssertNotNil(checkpoint, "等待前必须已保存 checkpoint")
+        var callCount = await llm.callCount
+        XCTAssertEqual(callCount, 2, "网络恢复后自动重发，共两轮 LLM 调用，实际 \(callCount)")
 
-        // 网络恢复：第二次 runOrAttach 走到终态
+        // 终态后再次触发恢复：不得重复执行
         let second = try await scheduler.runOrAttach(
             jobID: job.id, reason: .foregroundReturn, systemTemplate: "s", toolDescriptions: "t", now: now
         )
         XCTAssertEqual(second.state, .completed)
         XCTAssertNil(second.waitReason)
+        callCount = await llm.callCount
+        XCTAssertEqual(callCount, 2, "终态后恢复扫描不得再次发起 LLM 请求")
     }
 
     /// §5.2：新 P0 抢占时旧任务落 superseded 终态（Phase 2 是 cancel 语义，本批改为新终态）。
     func testP0抢占_旧任务落superseded终态() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -1025,7 +1047,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     func testStepIdempotency_请求前持久化record且完成后标记applied() async throws {
         enableStepIdempotency()
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims])
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -1058,7 +1080,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     func testStepIdempotency_请求后崩溃恢复复用同一step() async throws {
         enableStepIdempotency()
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -1107,7 +1129,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
         settings.agentStepIdempotencyEnabled = false
         defer { settings.agentStepIdempotencyEnabled = original }
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims])
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
@@ -1158,7 +1180,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     @MainActor
     func testLease_切后台为活跃job绑定legacy租约_完成立即释放() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], delayNanos: 150_000_000)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let client = FakeBackgroundTaskClient()
@@ -1189,7 +1211,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     @MainActor
     func testLease_expiration取消对应Task并落等待前台无额外checkpoint() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], hangFirstCall: true)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let client = FakeBackgroundTaskClient()
@@ -1231,7 +1253,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     @MainActor
     func testLease_快速前后台同jobAttach不重启() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let llm = FakeLLM(responses: [finalClaims], delayNanos: 200_000_000)
         let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
         let client = FakeBackgroundTaskClient()
@@ -1266,7 +1288,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     /// §6.4/Phase 2 复核：冷启动带旧 generation 的 orphan 由 resumeEligibleJobs 重新 acquire 接管。
     func testLease_冷启动orphan经resumeEligibleJobs新generation接管() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"claim-1","type":"capability_boundary","displayText":"测试结论：样本不足，暂无显著观察","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
         let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor())
         let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
         let now = Date()

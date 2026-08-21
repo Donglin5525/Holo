@@ -15,6 +15,7 @@
 //
 
 import Foundation
+import UIKit
 import UserNotifications
 
 nonisolated enum HoloAgentPauseNotifier {
@@ -50,6 +51,12 @@ nonisolated enum HoloAgentPauseNotifier {
         )
         // 立即投递（无 trigger）；identifier 按 job 固定，多轮暂停只保留最新一条。
         Task {
+            // 前台时用户直接可见 App 内的等待/暂停卡片，横幅+提示音只会构成打扰；
+            // 对冲通知的价值现场在锁屏/后台（那里只有系统失败卡片可看）。
+            let isForeground = await MainActor.run {
+                UIApplication.shared.applicationState == .active
+            }
+            guard !isForeground else { return }
             let granted = await authorizationGranted()
             guard granted else { return }
             try? await UNUserNotificationCenter.current().add(request)

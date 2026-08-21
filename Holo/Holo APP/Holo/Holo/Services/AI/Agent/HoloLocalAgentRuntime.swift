@@ -8,8 +8,11 @@
 //
 
 import Foundation
+import os.log
 
 actor HoloLocalAgentRuntime {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "AgentRuntime")
 
     /// 模块内可访问：HoloBackgroundContinuationManager 装配 ConsistencyReconciler 时需要（§5.4）。
     let persistence: HoloAgentPersistenceManager
@@ -29,6 +32,13 @@ actor HoloLocalAgentRuntime {
 
     /// 终态集合：resume 时遇到这些状态直接返回，不恢复执行。
     private static let terminalStates: Set<HoloAgentJobState> = [.completed, .failed, .cancelled, .superseded]
+
+    /// 网络就地等待（锁屏高可用）：退避起点 3s、单轮封顶 20s、累计预算 90s。
+    /// 预算内租约护持下原地重连（step 幂等重发）；预算耗尽停在 waitingForCondition+network，
+    /// 交恢复链（回前台/解锁/Chat 兜底/网络恢复监听）拉起。
+    static let networkRecoveryBackoffFloorSeconds: Double = 3
+    static let networkRecoveryBackoffCeilingSeconds: Double = 20
+    static let networkRecoveryWaitBudgetSeconds: Double = 90
 
     init(persistence: HoloAgentPersistenceManager,
          jobStore: HoloAgentJobStore,
@@ -460,13 +470,19 @@ actor HoloLocalAgentRuntime {
             )
         }
         var endedOnResponseContractFailure = false
+        // 网络就地等待（2026-08-22 锁屏高可用）：退避与累计等待跨轮保持，
+        // 等满预算前不退出 runLoop、不依赖用户动作。
+        var networkRecoveryBackoffSeconds = Self.networkRecoveryBackoffFloorSeconds
+        var networkRecoveryWaitedSeconds: Double = 0
 
         // §5.2：预算判断改用 active runtime（锁屏/等待/暂停不计入）
         while job.budget.consumedLLMRounds < job.budget.maxLLMRounds,
               !job.isActiveRuntimeExhausted(at: now) {
             try Task.checkCancellation()
             job.state = .waitingForLLM
-            job.updatedAt = now
+            // 每轮真实当前时刻（非 runLoop 入参的固定 now）：多轮长分析中 updatedAt
+            // 若停在启动时刻，前台时长轮换文案的档位会失真、遥测时长被低估。
+            job.updatedAt = Date()
 
             var conversationState = checkpoint.conversationState
             if job.budget.maxLLMRounds - job.budget.consumedLLMRounds == 1 {
@@ -538,14 +554,45 @@ actor HoloLocalAgentRuntime {
                     try await jobStore.upsert(job)
                     return job
                 }
-                // §7.2：可恢复网络错误 → 保存 checkpoint 并进入 waitingForCondition+network，不落失败
+                // §7.2：可恢复网络错误 → 保存 checkpoint 并进入 waitingForCondition+network，不落失败。
+                // 锁屏高可用改造：落盘等待态后不再直接退出 runLoop——只要本执行 Task 仍被
+                // 租约护着（前台/legacy/CP），就地指数退避后自动重发本轮流请求：
+                // step 幂等保证 pending=prepared 且 hash 一致时复用同一 stepID，
+                // 后端返回同一响应，重发不重复扣轮次、不重复执行工具。
+                // 两类终止信号：租约被系统收回 → Task.cancel 打断 Task.sleep 抛
+                // CancellationError（交由暂停语义落 waitingForForeground）；
+                // 等满累计预算仍未恢复 → 停在 waitingForCondition+network，
+                // 由恢复链（回前台/解锁/Chat 兜底/网络恢复监听）拉起。
                 if Self.isRecoverableNetworkError(error) {
-                    return try await enterWaitingForCondition(
+                    let waitedJob = try await enterWaitingForCondition(
                         job: &job, checkpoint: checkpoint,
                         reason: .network,
                         failureSummary: "任务超过截止时限仍未等到网络恢复",
-                        generation: generation, now: now
+                        generation: generation, now: Date()
                     )
+                    if waitedJob.state == .failed { return waitedJob }
+                    try await Task.sleep(nanoseconds: UInt64(networkRecoveryBackoffSeconds * 1_000_000_000))
+                    networkRecoveryWaitedSeconds += networkRecoveryBackoffSeconds
+                    networkRecoveryBackoffSeconds = min(
+                        networkRecoveryBackoffSeconds * 2,
+                        Self.networkRecoveryBackoffCeilingSeconds
+                    )
+                    if networkRecoveryWaitedSeconds >= Self.networkRecoveryWaitBudgetSeconds {
+                        logger.log("[Agent] 网络等待预算耗尽，job 停在等待网络态交恢复链 jobID=\(job.id, privacy: .public)")
+                        return waitedJob
+                    }
+                    if job.isPastAbsoluteDeadline(at: Date()) {
+                        return try await enterWaitingForCondition(
+                            job: &job, checkpoint: checkpoint,
+                            reason: .network,
+                            failureSummary: "任务超过截止时限仍未等到网络恢复",
+                            generation: generation, now: Date()
+                        )
+                    }
+                    // 等待结束回到执行：重开 active segment（enterWaitingForCondition
+                    // 已 end 掉上一段），否则等待后的重试执行时长不会计入预算。
+                    job.beginActiveSegment(at: Date())
+                    continue
                 }
                 // 坏 JSON、SSE 不完整或响应信封解码失败属于单轮契约故障，
                 // 不应直接终止整个用户任务。消耗一次 LLM 轮次后换新 step 纠错重试，
@@ -1158,6 +1205,9 @@ actor HoloLocalAgentRuntime {
         guard let toolExecutor else { return }
         // 仅复杂任务触发探查；simpleLookup/observerFollowUp 保持 fast path
         guard frame.profile != .simpleLookup, frame.profile != .observerFollowUp else { return }
+        // 与 profile 预取同一道门：注册表没有 discover（最小工具集/测试环境）时
+        // 直接跳过，不执行出 toolNotFound 垃圾结果污染 checkpoint。
+        guard await toolExecutor.supportsTool(named: "discover") else { return }
 
         // 映射 frame.domains → discover 的 domain 参数
         // 只对存在探查价值的域触发（habit/health/finance）；其余域（task/goal/thought 等）跳过。
@@ -1269,6 +1319,9 @@ actor HoloLocalAgentRuntime {
         try await guardExecutionGeneration(generation, jobID: job.id)
         try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
         job.endActiveSegment(at: now)
+        // 同一等待会话内（如网络等待的就地退避循环每轮重试落盘）不重置 updatedAt，
+        // 否则时长轮换文案的起点被每次退避刷新、档位永远达不到高档。
+        let sameWaitSession = job.state == .waitingForCondition && job.waitReason == reason
         if job.isPastAbsoluteDeadline(at: now) {
             job.state = .failed
             job.errorSummary = failureSummary
@@ -1278,7 +1331,9 @@ actor HoloLocalAgentRuntime {
             job.waitReason = reason
             job.errorSummary = nil
         }
-        job.updatedAt = now
+        if !sameWaitSession {
+            job.updatedAt = now
+        }
         try await guardExecutionGeneration(generation, jobID: job.id)
         try await jobStore.upsert(job)
         await eventRecorder.record(HoloAgentTelemetryEvent(

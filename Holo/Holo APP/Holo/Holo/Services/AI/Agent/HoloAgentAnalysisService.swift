@@ -27,16 +27,28 @@ struct HoloAgentChatStatus: Equatable {
 enum HoloAgentChatStatusPresenter {
     static func status(
         for job: HoloAgentJob,
-        context: HoloAgentProgressContext = HoloAgentProgressContext(extractedData: nil)
+        context: HoloAgentProgressContext = HoloAgentProgressContext(extractedData: nil),
+        now: Date = Date()
     ) -> HoloAgentChatStatus {
         switch job.state {
         case .queued, .running:
-            return active(context.isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…",
-                          step: job.currentStep, context: context)
+            let title = context.isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…"
+            return active(
+                title,
+                step: job.currentStep,
+                detail: elapsedAwareDetail(for: job, now: now, tiers: [
+                    (45, "这一步用时比平时长，多半在等网络或系统资源，Holo 仍在推进，没有卡住。")
+                ]),
+                context: context
+            )
         case .waitingForLLM:
             return active(
                 context.isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…",
-                detail: stepText("正在调用模型继续推理。", context: context) { "正在继续分析\($0)。\(context.expectedDurationHint)" },
+                detail: elapsedAwareDetail(for: job, now: now, tiers: [
+                    (90, "仍在推进——深度分析一般需要 1~3 分钟。期间可以锁屏或离开 App，进度不会丢。"),
+                    (50, "这一轮要核对的数据比较多，正在逐条比对，很快就有结果。"),
+                    (25, "模型正在深入思考这一轮，Holo 没有卡住，请稍候。")
+                ]) ?? stepText("正在调用模型继续推理。", context: context) { "正在继续分析\($0)。\(context.expectedDurationHint)" },
                 context: context
             )
         case .retrying:
@@ -127,7 +139,8 @@ enum HoloAgentChatStatusPresenter {
     }
 
     /// waitingForCondition 按 waitReason 给出可解释文案（§7.2：不显示失败）。
-    private static func waitingForConditionStatus(for job: HoloAgentJob) -> HoloAgentChatStatus {
+    /// 网络等待叠加时长轮换：让「自动重连」成为可感知的活信号，而不是静止的一句话。
+    private static func waitingForConditionStatus(for job: HoloAgentJob, now: Date = Date()) -> HoloAgentChatStatus {
         let title: String
         let detail: String
         switch job.waitReason {
@@ -136,7 +149,10 @@ enum HoloAgentChatStatusPresenter {
             detail = "设备锁定，解锁后继续读取健康数据。"
         case .network:
             title = "等待网络恢复"
-            detail = "网络连接恢复后，Holo 会继续这次分析。"
+            detail = elapsedAwareDetail(for: job, now: now, tiers: [
+                (45, "网络仍未恢复。一旦恢复 Holo 会立即自动接着分析，进度已保存，可以先去忙别的。"),
+                (15, "还在等待网络恢复，Holo 会自动重连并接着分析，进度已保存。")
+            ]) ?? "网络连接中断，Holo 正在自动重连，无需手动操作。"
         default:
             title = "等待条件满足"
             detail = "条件满足后，Holo 会继续处理这次分析。"
@@ -147,6 +163,22 @@ enum HoloAgentChatStatusPresenter {
             keepsMessageStreaming: true,
             showsActivityIndicator: false
         )
+    }
+
+    /// 长等待的「活信号」文案（锁屏高可用）：按停留在当前状态的时长取最高命中档，
+    /// 未到档位返回 nil（调用方回落到既有 step 文案）。Chat 前台 2s 轮询持续调用
+    /// status(for:)，文案随时长自动轮换，让用户明显感知「还在工作、没有卡住」。
+    private static func elapsedAwareDetail(
+        for job: HoloAgentJob,
+        now: Date,
+        tiers: [(threshold: TimeInterval, text: String)]
+    ) -> String? {
+        let elapsed = now.timeIntervalSince(job.updatedAt)
+        var matched: String?
+        for tier in tiers where elapsed >= tier.threshold {
+            matched = tier.text
+        }
+        return matched
     }
 
     static func display(from messageContent: String) -> HoloAgentChatStatus {
@@ -341,8 +373,23 @@ final class HoloAgentAnalysisService {
             return fail("[runLoop异常] \(String(describing: error))")
         }
         guard finalJob.state == .completed else {
-            let detail = "state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)/\(finalJob.budget.maxLLMRounds) error=\(finalJob.errorSummary ?? "无")"
-            return fail("[未完成] \(detail)")
+            switch finalJob.state {
+            case .failed, .cancelled, .superseded:
+                let detail = "state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)/\(finalJob.budget.maxLLMRounds) error=\(finalJob.errorSummary ?? "无")"
+                return fail("[未完成] \(detail)")
+            default:
+                // 可恢复非终态（等待网络/等待前台/暂停等）：runLoop 因等待预算耗尽正常让位，
+                // 任务并未失败——消息保持活跃交恢复链与状态同步管道接管，恢复后自动续跑。
+                // 在此渲染「出错」卡片就是「提示失败、点进去却能继续」的消息层假失败。
+                logger.info("[Agent] runLoop 返回可恢复等待态 state=\(finalJob.state.rawValue) waitReason=\(finalJob.waitReason?.rawValue ?? "无")，交恢复链接管")
+                return HoloRenderedAgentResult(
+                    title: "深度分析进行中",
+                    summary: "网络或系统资源暂时不可用，进度已保存；条件恢复后会自动继续，无需重新提问。",
+                    sections: [],
+                    evidenceReferences: [],
+                    failure: .executionSuspended
+                )
+            }
         }
         let result: HoloAgentResult
         do {

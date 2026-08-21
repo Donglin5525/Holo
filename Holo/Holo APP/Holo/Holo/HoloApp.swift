@@ -166,6 +166,8 @@ struct HoloApp: App {
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
                         await MainActor.run {
                             HoloBackgroundContinuationManager.shared.appDidLaunch()
+                            // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
+                            HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
                         }
                     }
                 }

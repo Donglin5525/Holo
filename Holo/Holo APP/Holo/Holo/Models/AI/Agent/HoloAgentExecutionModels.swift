@@ -34,6 +34,8 @@ enum HoloAgentResumeReason: String, Codable, Sendable {
     case foregroundReturn
     /// 后台执行时间到期后的恢复
     case backgroundExpiryRecovery
+    /// 网络恢复（NWPathMonitor 断→通沿）触发的恢复
+    case networkRestored
 }
 
 /// 取消来源（§6.1 `cancel` 入参；用户取消与系统取消不混为一谈）。
@@ -50,12 +52,14 @@ enum HoloAgentCancellationSource: String, Codable, Sendable {
 enum HoloAgentResumeTrigger: String, Codable, Sendable {
     case appLaunch
     case foreground
+    case networkRestored
 
     /// 映射到单 job 的恢复原因（日志用）。
     var resumeReason: HoloAgentResumeReason {
         switch self {
         case .appLaunch: return .appLaunch
         case .foreground: return .foregroundReturn
+        case .networkRestored: return .networkRestored
         }
     }
 }

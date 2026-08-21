@@ -14,6 +14,7 @@
 
 import UIKit
 import Foundation
+import Network
 
 @MainActor
 protocol HoloBackgroundTaskClient {
@@ -87,6 +88,18 @@ final class HoloBackgroundContinuationManager {
     private let eventRecorder: any HoloAgentEventRecording
     private var resumeTask: Task<Void, Never>?
 
+    // 网络恢复监听（锁屏高可用 2026-08-22）：断网让 job 落 waitingForCondition+network 后，
+    // 此前只有回前台/解锁/Chat 兜底三类时机能拉起，网络本身恢复不会唤醒任务——
+    // 这就是「网络中断干等用户」的缺口。监听「断→通」沿立即走恢复链；
+    // App 被系统挂起时回调不投递，该场景仍由回前台触发兜底。
+    private let networkMonitor = NWPathMonitor()
+    private let networkMonitorQueue = DispatchQueue(label: "com.holo.app.agent.network-recovery")
+    private var lastNetworkSatisfied: Bool?
+
+    deinit {
+        networkMonitor.cancel()
+    }
+
     init(runtime: HoloLocalAgentRuntime,
          scheduler: HoloAgentScheduler? = nil,
          backgroundTaskClient: (any HoloBackgroundTaskClient)? = nil,
@@ -126,6 +139,30 @@ final class HoloBackgroundContinuationManager {
                 }
             }
         }
+    }
+
+    /// 启动网络恢复监听（幂等）。appDidLaunch 时随恢复链一起启动。
+    func startNetworkRecoveryMonitoring() {
+        guard lastNetworkSatisfied == nil else { return }
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                self?.handleNetworkPathUpdate(satisfied: satisfied)
+            }
+        }
+        networkMonitor.start(queue: networkMonitorQueue)
+    }
+
+    @MainActor
+    private func handleNetworkPathUpdate(satisfied: Bool) {
+        guard let previous = lastNetworkSatisfied else {
+            lastNetworkSatisfied = satisfied
+            return
+        }
+        lastNetworkSatisfied = satisfied
+        // 只在「断→通」沿触发：恢复链内部有唯一执行权与限量保护，重复拉起安全。
+        guard previous == false, satisfied else { return }
+        resumeAndSyncRecoveredJobs(trigger: .networkRestored)
     }
 
     /// 冷启动/进程被杀后重新启动：没有旧进程内 runLoop 与旧租约，可直接恢复未完成 job。

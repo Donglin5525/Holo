@@ -15,7 +15,7 @@ nonisolated final class APIClient {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "APIClient")
     private let urlSession: URLSession
-    private let maxRetries = 2
+    private let maxRetries = 3
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -87,6 +87,12 @@ nonisolated final class APIClient {
                 }
                 throw error
             } catch let urlError as URLError {
+                // 取消（后台租约被收回 / 用户点停止传导的 cancel）不是网络故障，
+                // 不得重试——否则暂停/取消语义之后请求还会被悄悄重发若干轮，
+                // 与流式路径的 onTermination 语义对齐。
+                if urlError.code == .cancelled {
+                    throw CancellationError()
+                }
                 let apiError: APIError = urlError.code == .timedOut ? .timeout : .networkUnavailable
                 if apiError.isRetryable && attempt < maxRetries {
                     attempt += 1
