@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo AI · 报告 Tab 方案（交互原型）</title>
+<style>
+  /* ============ Holo 设计 token（与 App DesignSystem.swift 对齐） ============ */
+  :root {
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-light: #FED7AA;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --nested: #F7F5F0;
+    --text: #333333;
+    --text-2: #939393;
+    --text-3: #BDBDBD;
+    --border: #F0F0F0;
+    --divider: rgba(0,0,0,0.06);
+    --finance: #F46D38;
+    --habit: #22C55E;
+    --todo: #6366F1;
+    --thought: #EC4899;
+    --success: #22C55E;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #EDEAE4; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    padding: 28px 32px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 页面级排版 ============ */
+  .page-head { max-width: 1760px; margin: 0 auto 24px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .page-head .sub { font-size: 13px; color: var(--text-2); margin-bottom: 16px; line-height: 1.7; }
+  .diagnosis { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .diag-card {
+    flex: 1; min-width: 300px;
+    background: #FFF8F3; border: 1px solid #FFD9C4; border-radius: var(--radius-md);
+    padding: 14px 16px; font-size: 13px; line-height: 1.75;
+  }
+  .diag-card b.tag { display:inline-block; margin-right:6px; padding:1px 8px; border-radius:99px; background:#FEE2E2; color:#DC2626; font-size:11px; font-weight:600; vertical-align: 1px; }
+  .diag-card.fix b.tag { background:#DCFCE7; color:#16A34A; }
+  .diag-card .t { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; }
+
+  .phones { display: flex; gap: 28px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; margin-bottom: 10px; }
+  .phone-col { flex: 0 0 auto; width: 375px; }
+  .phone-col .col-head { margin-bottom: 10px; }
+  .col-head .name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+    background: var(--primary); color: #fff;
+  }
+  .badge.gray { background: #E5E2DC; color: #6B6B6B; }
+  .badge.blue { background: #DBEAFE; color: #2563EB; }
+  .col-head .hint { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+
+  .notes {
+    margin-top: 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px 14px; font-size: 12.5px; line-height: 1.8; color: #4A4A4A;
+  }
+  .notes .nt { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .notes ul { padding-left: 18px; }
+  .notes li + li { margin-top: 2px; }
+  .notes .good { color: #15803D; }
+  .notes .bad { color: #DC2626; }
+
+  /* ============ 手机壳 ============ */
+  .phone {
+    width: 375px; height: 780px; background: #1C1C1E; border-radius: 46px; padding: 10px;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.22); position: relative;
+  }
+  .screen {
+    width: 100%; height: 100%; background: var(--bg); border-radius: 38px; overflow: hidden;
+    display: flex; flex-direction: column; position: relative;
+  }
+  .statusbar {
+    height: 46px; flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 0 26px 4px; font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .notch { width: 110px; height: 26px; background: #1C1C1E; border-radius: 0 0 18px 18px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 10; }
+
+  /* ============ App 内部组件 ============ */
+  .nav {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px 6px;
+  }
+  .nav .side { width: 64px; display: flex; align-items: center; gap: 6px; }
+  .nav .side.r { justify-content: flex-end; }
+  .nav .title { font-size: 15px; font-weight: 700; letter-spacing: 2.5px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 99px; background: var(--card);
+    border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text-2);
+  }
+
+  /* 页内 Tab（新增核心组件） */
+  .page-tabs {
+    flex: 0 0 auto; display: flex; justify-content: center; gap: 4px;
+    margin: 4px 60px 8px; padding: 3px; background: #EDEAE3; border-radius: 99px;
+  }
+  .page-tab {
+    flex: 1; text-align: center; padding: 6px 0; border-radius: 99px;
+    font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer;
+    transition: all .25s ease; position: relative; user-select: none;
+  }
+  .page-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .page-tab .dot {
+    position: absolute; top: 4px; right: 14px; width: 7px; height: 7px; border-radius: 99px;
+    background: var(--primary); display: none;
+  }
+  .page-tab.has-dot .dot { display: block; }
+
+  .chat-area { flex: 1; overflow: hidden; padding: 4px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+
+  .bubble-user {
+    align-self: flex-end; max-width: 78%; background: var(--primary); color: #fff;
+    border-radius: 18px 18px 4px 18px; padding: 9px 13px; font-size: 13.5px; line-height: 1.55;
+  }
+  .ai-card {
+    align-self: stretch; background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 13px 14px;
+  }
+  .ai-card .cap { font-size: 12px; color: var(--primary); font-weight: 700; margin-bottom: 6px; display:flex; align-items:center; gap:5px; }
+  .ai-card .h { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+  .ai-card .p { font-size: 12.5px; color: #5A5A5A; line-height: 1.65; }
+  .ai-card .meta-row { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+  .chip {
+    font-size: 11px; padding: 3px 10px; border-radius: 99px; background: var(--nested);
+    color: var(--text-2); border: 1px solid var(--border);
+  }
+  .chip.on { background: #FFF2EA; color: var(--primary-dark); border-color: #FFD9C4; font-weight: 600; }
+  .chip.link { background: none; border: none; color: var(--primary); font-weight: 600; padding: 3px 2px; }
+
+  .ghost-note {
+    font-size: 11px; color: var(--text-3); text-align: center; margin-top: 2px;
+  }
+
+  /* 胶囊能力行 */
+  .quickbar {
+    flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 14px 4px; overflow: hidden;
+  }
+  .quickbar .q {
+    flex: 0 0 auto; font-size: 12.5px; padding: 7px 13px; border-radius: 99px;
+    background: var(--card); border: 1px solid var(--border); color: #4A4A4A; font-weight: 500;
+  }
+  .quickbar .q.hot { background: #FFF2EA; border-color: #FFD9C4; color: var(--primary-dark); font-weight: 600; }
+
+  /* 输入栏 */
+  .inputbar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px 22px;
+  }
+  .inputbar .field {
+    flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 99px;
+    padding: 10px 16px; font-size: 13px; color: var(--text-3);
+  }
+  .inputbar .mic, .inputbar .send {
+    width: 38px; height: 38px; border-radius: 99px; display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+  }
+  .inputbar .mic { background: var(--card); border: 1px solid var(--border); }
+  .inputbar .send { background: var(--primary); color: #fff; }
+  .homebar { flex: 0 0 auto; height: 5px; width: 120px; background: #D8D5CE; border-radius: 99px; margin: 0 auto 8px; }
+
+  /* ============ 报告 Tab 内容 ============ */
+  .report-area { flex: 1; overflow: hidden; padding: 2px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+
+  .launch-card {
+    background: linear-gradient(135deg, #FFF4EC 0%, #FFE8D9 100%);
+    border: 1px solid #FFD9C4; border-radius: var(--radius-lg); padding: 13px 14px;
+  }
+  .launch-card .row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .launch-card .btn-main {
+    background: var(--primary); color: #fff; font-size: 13.5px; font-weight: 700;
+    border-radius: 99px; padding: 9px 18px; display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 4px 12px rgba(244,109,56,0.3);
+  }
+  .launch-card .quota { font-size: 11px; color: #B45B2E; background: rgba(255,255,255,0.75); border-radius: 99px; padding: 3px 9px; }
+  .launch-card .scopes { display: flex; gap: 6px; }
+
+  .report-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 12px 14px; position: relative;
+  }
+  .report-card .top { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+  .type-badge {
+    font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; letter-spacing: 0.5px;
+  }
+  .type-badge.analysis { background: #FFF2EA; color: var(--primary-dark); }
+  .type-badge.replay { background: #EEF2FF; color: #4F46E5; }
+  .type-badge.doing { background: #FEF9C3; color: #A16207; }
+  .report-card .scope { font-size: 13px; font-weight: 700; }
+  .report-card .date { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .report-card .sum {
+    font-size: 12.5px; color: #5A5A5A; line-height: 1.6;
+    padding-left: 10px; border-left: 2.5px solid var(--primary-light);
+  }
+  .report-card .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .report-card .kv { font-size: 11px; color: var(--text-3); }
+  .report-card .arrow { font-size: 12px; color: var(--primary); font-weight: 700; }
+
+  .progress-track { height: 5px; background: var(--nested); border-radius: 99px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; width: 62%; background: linear-gradient(90deg, var(--primary), #F9A66C); border-radius: 99px; }
+  .live-hint { font-size: 11px; color: #B45B2E; margin-top: 6px; }
+
+  /* 空态 · 能力橱窗 */
+  .shop-window { flex: 1; overflow: hidden; padding: 4px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .sw-title { font-size: 16px; font-weight: 800; text-align: center; margin: 6px 0 0; }
+  .sw-sub { font-size: 12px; color: var(--text-2); text-align: center; line-height: 1.6; }
+  .sw-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 13px 14px;
+    display: flex; gap: 11px;
+  }
+  .sw-card .emoji { font-size: 22px; line-height: 1.2; }
+  .sw-card .h { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
+  .sw-card .p { font-size: 12px; color: #6B6B6B; line-height: 1.65; }
+  .sw-demo {
+    background: var(--nested); border: 1px dashed #DDD8CE; border-radius: var(--radius-md); padding: 11px 13px;
+  }
+  .sw-demo .cap { font-size: 10.5px; color: var(--text-3); margin-bottom: 5px; letter-spacing: 1px; }
+  .sw-demo .line { font-size: 12px; color: #5A5A5A; line-height: 1.7; }
+  .sw-demo .hl { color: var(--primary-dark); font-weight: 700; }
+  .cta-first {
+    background: var(--primary); color: #fff; text-align: center; font-size: 14px; font-weight: 700;
+    border-radius: 99px; padding: 12px 0; box-shadow: 0 4px 14px rgba(244,109,56,0.32);
+  }
+
+  /* ============ 报告详情全屏页 ============ */
+  .detail-area { flex: 1; overflow: hidden; padding: 2px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  .detail-head .range { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .detail-block { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px; }
+  .detail-block .bh { font-size: 12px; font-weight: 800; color: var(--text-2); letter-spacing: 1px; margin-bottom: 7px; display: flex; align-items: center; gap: 5px; }
+  .detail-block p { font-size: 12.5px; color: #4A4A4A; line-height: 1.7; }
+  .key-insight {
+    background: linear-gradient(135deg, #FFF4EC, #FFE8D9); border: 1px solid #FFD9C4;
+    border-radius: var(--radius-lg); padding: 13px 14px;
+  }
+  .key-insight .bh { font-size: 12px; font-weight: 800; color: var(--primary-dark); letter-spacing: 1px; margin-bottom: 7px; }
+  .key-insight p { font-size: 13.5px; font-weight: 600; color: #7C3A12; line-height: 1.7; }
+  .obs-item { padding: 8px 0; border-bottom: 1px solid var(--divider); }
+  .obs-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .obs-item .o { font-size: 12.5px; color: #3A3A3A; line-height: 1.65; font-weight: 500; }
+  .obs-item .i { font-size: 11.5px; color: #8A7358; line-height: 1.6; margin-top: 3px; padding-left: 8px; border-left: 2px solid #F3D9BF; }
+  .evid-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #4A4A4A; padding: 5px 0; }
+  .evid-row .n { font-size: 11px; color: var(--primary); font-weight: 700; }
+  .rec-item { display: flex; gap: 8px; padding: 6px 0; font-size: 12.5px; color: #3A3A3A; line-height: 1.65; }
+  .rec-item .idx { flex: 0 0 auto; width: 19px; height: 19px; border-radius: 99px; background: #FFF2EA; color: var(--primary-dark); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .ask-bar {
+    margin: 4px 14px 18px; background: var(--card); border: 1.5px dashed #FFD9C4; border-radius: 99px;
+    padding: 10px 15px; font-size: 12.5px; color: var(--primary-dark); font-weight: 600; text-align: center;
+  }
+
+  /* ============ 长廊轻入口 ============ */
+  .gal-area { flex: 1; overflow: hidden; padding: 4px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .gal-tabs { display: flex; gap: 18px; padding: 0 4px; border-bottom: 1.5px solid var(--border); }
+  .gal-tab { font-size: 14px; color: var(--text-3); font-weight: 600; padding-bottom: 7px; }
+  .gal-tab.on { color: var(--text); border-bottom: 2.5px solid var(--primary); font-weight: 800; }
+  .sec-cap { font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+  .sec-cap .more { margin-left: auto; font-size: 11.5px; color: var(--primary); font-weight: 600; }
+  .latest-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px;
+  }
+
+  .legend-flow {
+    margin-top: 28px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 16px 18px; font-size: 13px; line-height: 2.0;
+  }
+  .legend-flow .lt { font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+  .flow-step { display: inline-flex; align-items: center; gap: 6px; background: var(--nested); border-radius: 99px; padding: 4px 12px; font-size: 12px; color: #4A4A4A; margin: 2px 4px 2px 0; }
+  .flow-step.hot { background: #FFF2EA; color: var(--primary-dark); font-weight: 700; }
+  .flow-arrow { color: var(--text-3); margin: 0 2px; }
+
+  .decision {
+    margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(390px, 1fr)); gap: 12px; max-width: 1760px;
+  }
+  .dec-card { background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: var(--radius-md); padding: 13px 16px; font-size: 12.5px; line-height: 1.8; }
+  .dec-card .dt { font-weight: 800; margin-bottom: 3px; font-size: 13px; }
+  .dec-card .rec { color: #15803D; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Holo AI · 「报告」Tab 方案（交互原型）</h1>
+  <div class="sub">
+    2026-08-21 · 头脑风暴阶段产物 · 核心提案：Holo AI 页从「纯对话」升级为「对话 / 报告」双 Tab，
+    深度分析与周期回放从「聊天里的一次性事件」升级为「有家的常驻能力」。
+    <b style="color:var(--primary-dark)">→ 第二台手机可以点击 Tab 切换，试一试。</b>
+  </div>
+  <div class="diagnosis">
+    <div class="diag-card">
+      <div class="t"><b class="tag">痛</b>能力不可见</div>
+      深度分析只有输入框上方一个小胶囊露出，新用户感知不到 Holo 能挖多深。
+    </div>
+    <div class="diag-card">
+      <div class="t"><b class="tag">痛</b>展示形态太轻</div>
+      报告详情是「弹一张盖在聊天上的浮层」，下拉即关，像附属品而非主打能力。
+    </div>
+    <div class="diag-card">
+      <div class="t"><b class="tag">痛</b>找不回旧报告</div>
+      分析生成完就沉进聊天记录，回头要翻很久；越早的报告埋得越深。
+    </div>
+    <div class="diag-card fix">
+      <div class="t"><b class="tag">解</b>一个家解决四痛</div>
+      报告 Tab = 档案库（找回/累积） + 发起入口（可见） + 全屏详情（正式感）。数据现成：报告结果本就持久化在本地消息库，纯客户端改动。
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 第一排：改造前后 + 可交互机 ═══════════════ -->
+<div class="phones">
+
+  <!-- A 现状 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">现状 · Holo AI 页 <span class="badge gray">改造前</span></div>
+      <div class="hint">纯对话单页：4 个能力胶囊 + 聊天流。报告生成就沉底。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side r"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="chat-area">
+        <div class="bubble-user">分析一下我最近的数据趋势</div>
+        <div class="ai-card">
+          <div class="cap">✦ 深度分析 · 近30天</div>
+          <div class="h">观察手记</div>
+          <div class="p">这个月你的晚间支出出现连续三周上扬，与加班打卡的周期高度吻合；习惯完成率在周四 systematically 掉档……</div>
+          <div class="meta-row">
+            <span class="chip">查看完整报告</span>
+            <span class="chip">换范围 ›</span>
+          </div>
+        </div>
+        <div class="ghost-note">▲ 报告只活在聊天流里，翻找全靠滚</div>
+      </div>
+      <div class="quickbar">
+        <span class="q">今日状态</span><span class="q">最近分析</span><span class="q">周期回放</span><span class="q">规划目标</span>
+      </div>
+      <div class="inputbar">
+        <div class="field">想问点什么…</div>
+        <div class="mic">🎤</div><div class="send">➤</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- B 可交互：新方案 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">新方案 · 页内双 Tab <span class="badge">可交互</span></div>
+      <div class="hint">导航栏下方新增「对话 / 报告」分段。点下面的 Tab 试试切换。<br>对话 Tab 能力原样保留（只加不减）。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side r"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs" id="liveTabs">
+        <div class="page-tab active" data-pane="chat" onclick="switchTab('chat')">对话</div>
+        <div class="page-tab has-dot" data-pane="report" onclick="switchTab('report')">报告<span class="dot"></span></div>
+      </div>
+
+      <!-- 对话 pane -->
+      <div class="pane" id="pane-chat">
+        <div class="chat-area" style="height: 494px;">
+          <div class="bubble-user">分析一下我最近的数据趋势</div>
+          <div class="ai-card">
+            <div class="cap">✦ 深度分析 · 近30天</div>
+            <div class="h">观察手记</div>
+            <div class="p">这个月你的晚间支出出现连续三周上扬，与加班打卡的周期高度吻合……</div>
+            <div class="meta-row">
+              <span class="chip">查看完整报告</span>
+              <span class="chip on">已存入「报告」↗</span>
+            </div>
+          </div>
+          <div class="ghost-note">▲ 分析卡新增「已存入报告」回执，点它跳报告 Tab</div>
+          <div class="bubble-user">那帮我看看上周的计划完成得怎么样</div>
+          <div class="ai-card">
+            <div class="cap">↺ 周期回放 · 上周</div>
+            <div class="p">上周对账：3 件计划完成 2 件，习惯打卡率 71%……</div>
+          </div>
+        </div>
+        <div class="quickbar">
+          <span class="q">今日状态</span><span class="q hot">深度分析</span><span class="q">周期回放</span><span class="q">规划目标</span>
+        </div>
+        <div class="inputbar">
+          <div class="field">想问点什么…</div>
+          <div class="mic">🎤</div><div class="send">➤</div>
+        </div>
+      </div>
+
+      <!-- 报告 pane -->
+      <div class="pane" id="pane-report" style="display:none;">
+        <div class="report-area" style="height: 570px;">
+          <div class="launch-card">
+            <div class="row1">
+              <span class="btn-main">✦ 发起新分析</span>
+              <span class="quota">本月深度洞察剩余 1/2</span>
+            </div>
+            <div class="scopes">
+              <span class="chip on">近30天</span><span class="chip">近3月</span><span class="chip">近半年</span><span class="chip">近1年</span>
+            </div>
+          </div>
+          <div class="report-card">
+            <div class="top">
+              <span class="type-badge analysis">深度分析</span>
+              <span class="scope">近30天</span>
+              <span class="date">8/20</span>
+            </div>
+            <div class="sum">连续三周晚间支出上扬，与加班周期高度吻合；周四习惯完成率系统性掉档。</div>
+            <div class="foot"><span class="kv">核心发现 ×3 · 观察 ×7 · 证据 ×12</span><span class="arrow">读报告 ›</span></div>
+          </div>
+          <div class="report-card">
+            <div class="top">
+              <span class="type-badge doing">● 生成中</span>
+              <span class="scope">近半年</span>
+              <span class="date">刚刚</span>
+            </div>
+            <div class="sum" style="border-left-color:#F3D9BF;">正在交叉分析你的财务、习惯与任务数据……</div>
+            <div class="progress-track"><div class="progress-fill"></div></div>
+            <div class="live-hint">可以先切回对话继续聊，完成时「报告」会亮红点</div>
+          </div>
+          <div class="report-card">
+            <div class="top">
+              <span class="type-badge replay">周期回放</span>
+              <span class="scope">上周</span>
+              <span class="date">8/14</span>
+            </div>
+            <div class="sum" style="border-left-color:#C7D2FE;">上周对账：计划 3 完成 2；习惯打卡率 71%；「晚间复盘」连续 5 天未执行。</div>
+            <div class="foot"><span class="kv">对账 ×4 · 偏差 ×2</span><span class="arrow">读报告 ›</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- C 报告Tab静态全貌 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">报告 Tab · 档案全貌 <span class="badge blue">静态</span></div>
+      <div class="hint">按时间倒序，深度分析 + 周期回放两类报告混排归档；生成中的任务也在这里实时显示进度。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side r"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active">报告</div>
+      </div>
+      <div class="report-area" style="height: 578px;">
+        <div class="launch-card">
+          <div class="row1">
+            <span class="btn-main">✦ 发起新分析</span>
+            <span class="quota">本月深度洞察剩余 1/2</span>
+          </div>
+          <div class="scopes">
+            <span class="chip on">近30天</span><span class="chip">近3月</span><span class="chip">近半年</span><span class="chip">近1年</span>
+          </div>
+        </div>
+        <div class="report-card">
+          <div class="top"><span class="type-badge analysis">深度分析</span><span class="scope">近30天</span><span class="date">8/20</span></div>
+          <div class="sum">连续三周晚间支出上扬，与加班周期高度吻合；周四习惯完成率系统性掉档。</div>
+          <div class="foot"><span class="kv">核心发现 ×3 · 观察 ×7</span><span class="arrow">读报告 ›</span></div>
+        </div>
+        <div class="report-card">
+          <div class="top"><span class="type-badge replay">周期回放</span><span class="scope">上周</span><span class="date">8/14</span></div>
+          <div class="sum" style="border-left-color:#C7D2FE;">上周对账：计划 3 完成 2；习惯打卡率 71%。</div>
+          <div class="foot"><span class="kv">对账 ×4</span><span class="arrow">读报告 ›</span></div>
+        </div>
+        <div class="report-card">
+          <div class="top"><span class="type-badge analysis">深度分析</span><span class="scope">近3月</span><span class="date">8/02</span></div>
+          <div class="sum">「健身后报复性消费」模式首次成形：运动日夜间外卖频次为非运动日 2.4 倍。</div>
+          <div class="foot"><span class="kv">核心发现 ×4 · 观察 ×9</span><span class="arrow">读报告 ›</span></div>
+        </div>
+        <div class="report-card" style="opacity:.55;">
+          <div class="top"><span class="type-badge replay">周期回放</span><span class="scope">7月</span><span class="date">7/31</span></div>
+          <div class="sum" style="border-left-color:#C7D2FE;">7 月对账：目标「早睡」达成 19/31 天，最后一周滑坡明显。</div>
+          <div class="foot"><span class="kv">对账 ×5</span><span class="arrow">读报告 ›</span></div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 第二排：空态 / 全屏详情 / 长廊轻入口 ═══════════════ -->
+<div class="phones">
+
+  <!-- D 空态·能力橱窗 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">报告 Tab · 空态 <span class="badge">新用户</span></div>
+      <div class="hint">没报告时不是空白页，而是「能力橱窗」——第一次进 AI 页就完成能力教育，直击「能力不可见」。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side r"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active">报告</div>
+      </div>
+      <div class="shop-window" style="height: 578px;">
+        <div class="sw-title">Holo 能为你写的报告</div>
+        <div class="sw-sub">报告会随使用越来越厚——它记下的每一步，都会成为下一份报告的证据。</div>
+        <div class="sw-card">
+          <div class="emoji">🔭</div>
+          <div>
+            <div class="h">深度分析</div>
+            <div class="p">把你的财务、习惯、任务、想法放在一起看，找出单看一处发现不了的规律。每月 2 次。</div>
+          </div>
+        </div>
+        <div class="sw-card">
+          <div class="emoji">↺</div>
+          <div>
+            <div class="h">周期回放</div>
+            <div class="p">每周 / 每月一次对账：说好的事做了没、计划偏了多少，数据说了算。</div>
+          </div>
+        </div>
+        <div class="sw-demo">
+          <div class="cap">报告长这样（示例）</div>
+          <div class="line">「连续三周晚间支出上扬，与加班周期<span class="hl">高度吻合</span>；运动日夜间外卖频次是非运动日的 <span class="hl">2.4 倍</span>。」</div>
+        </div>
+        <div class="cta-first">发起我的第一份分析</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- E 全屏详情 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">报告详情 · 全屏正式页 <span class="badge">形态升级</span></div>
+      <div class="hint">从「盖在聊天上的浮层」升级为全屏页。内容沿用现有 v21 详情结构，聊天卡与报告 Tab 进的是同一个页面。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">‹</span></div>
+        <div class="detail-head" style="text-align:center;">
+          <div style="font-size:14px;font-weight:800;">深度分析</div>
+          <div class="range">近30天 · 2026/7/21 – 8/20</div>
+        </div>
+        <div class="side r"><span class="icon-btn">⋯</span></div>
+      </div>
+      <div class="detail-area" style="height: 578px;">
+        <div class="detail-block">
+          <p>这一个月，你的生活呈现出一条清晰的「补偿回路」：高强度工作日之后，夜间消费与屏幕时间同步抬升，而原定用于恢复的作息习惯最先被牺牲。</p>
+        </div>
+        <div class="key-insight">
+          <div class="bh">★ 核心发现</div>
+          <p>加班周期与晚间支出上扬高度吻合（r=0.82），且「健身后报复性消费」模式首次成形。</p>
+        </div>
+        <div class="detail-block">
+          <div class="bh">◈ 观察与解读</div>
+          <div class="obs-item">
+            <div class="o">周四习惯完成率系统性掉档，四周均值 41%，低于其他日 23 个百分点。</div>
+            <div class="i">解读：周四是你每周例会日，晚间精力被会议后置情绪占用。</div>
+          </div>
+          <div class="obs-item">
+            <div class="o">「晚间复盘」想法条目连续 5 天只写不执行。</div>
+            <div class="i">解读：复盘被当成情绪出口而非行动入口。</div>
+          </div>
+        </div>
+        <div class="detail-block">
+          <div class="bh">⛓ 证据</div>
+          <div class="evid-row"><span class="n">¥1,847</span> 晚间支出 · 后三周均值 vs 前一周</div>
+          <div class="evid-row"><span class="n">2.4×</span> 运动日夜间外卖频次 vs 非运动日</div>
+        </div>
+        <div class="detail-block">
+          <div class="bh">✦ 建议</div>
+          <div class="rec-item"><span class="idx">1</span>周四预先把习惯清单减半，保底不保满。</div>
+          <div class="rec-item"><span class="idx">2</span>运动日晚餐提前下单固定套餐，切断「累了随便点」的决策点。</div>
+        </div>
+      </div>
+      <div class="ask-bar">💬 就这份报告继续问它 →</div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- F 长廊轻入口 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">记忆长廊 · 轻入口 <span class="badge blue">一个家两个门</span></div>
+      <div class="hint">唯一改动 = 顶部插入一张「最新报告」门卡直达报告 Tab。萃取的观点、热力图、周计划台账、回看片段等<b style="color:#15803D">现有内容一律原样保留</b>（本屏全部画出）。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"></div>
+        <div class="title" style="letter-spacing:0;">记忆长廊</div>
+        <div class="side r"></div>
+      </div>
+      <div class="gal-area" style="height: 578px; gap: 9px;">
+        <div class="gal-tabs">
+          <div class="gal-tab">日历</div>
+          <div class="gal-tab on">洞察</div>
+        </div>
+        <!-- 章节开场（现有） -->
+        <div style="display:flex;gap:10px;align-items:center;padding:1px 2px 0;">
+          <div style="font-size:22px;font-weight:500;font-family:Georgia,'PingFang SC',serif;letter-spacing:-1px;">理解</div>
+          <div>
+            <div style="font-size:12.5px;font-weight:700;">Holo 看见的你</div>
+            <div style="font-size:9.5px;color:var(--text-3);">142 天生活证据 · 89 条记录</div>
+          </div>
+        </div>
+        <!-- ★ 唯一新增：报告门卡 -->
+        <div>
+          <div class="sec-cap" style="margin-bottom:5px;">🔭 它看懂了你
+            <span style="font-size:9.5px;background:#DCFCE7;color:#15803D;border-radius:99px;padding:1px 7px;font-weight:700;">新增·仅此一张</span>
+            <span class="more">全部报告 ›</span>
+          </div>
+          <div class="latest-card" style="padding:10px 13px;">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+              <span class="type-badge analysis">深度分析</span>
+              <span style="font-size:12.5px;font-weight:700;">近30天</span>
+              <span style="margin-left:auto;font-size:10.5px;color:var(--text-3);">8/20</span>
+            </div>
+            <div style="font-size:12px;color:#5A5A5A;line-height:1.55;padding-left:9px;border-left:2.5px solid var(--primary-light);">
+              连续三周晚间支出上扬，与加班周期高度吻合……
+            </div>
+          </div>
+        </div>
+        <!-- 现有：萃取的观点（DomainMemorySection） -->
+        <div>
+          <div class="sec-cap" style="margin-bottom:5px;">◍ 萃取的观点
+            <span style="margin-left:auto;font-size:10px;color:#15803D;font-weight:600;">原有 · 不动</span>
+          </div>
+          <div class="latest-card" style="padding:10px 13px;display:flex;flex-direction:column;gap:7px;">
+            <div style="display:flex;align-items:center;gap:7px;">
+              <span style="font-size:11px;background:var(--nested);border-radius:99px;padding:2px 8px;color:#6B6B6B;">生活</span>
+              <span style="font-size:12px;color:#4A4A4A;">偏好安静的环境恢复精力</span>
+              <span style="margin-left:auto;font-size:10px;color:var(--text-3);">证据 12</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <span style="font-size:11px;background:var(--nested);border-radius:99px;padding:2px 8px;color:#6B6B6B;">消费</span>
+              <span style="font-size:12px;color:#4A4A4A;">大额消费前会反复比价</span>
+              <span style="margin-left:auto;font-size:10px;background:#FEF9C3;color:#A16207;border-radius:99px;padding:1px 6px;">待确认</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <span style="font-size:11px;background:var(--nested);border-radius:99px;padding:2px 8px;color:#6B6B6B;">作息</span>
+              <span style="font-size:12px;color:#4A4A4A;">晚睡常与项目压力相关</span>
+              <span style="margin-left:auto;font-size:10px;color:var(--text-3);">证据 8</span>
+            </div>
+          </div>
+        </div>
+        <!-- 现有：活跃热力图 -->
+        <div>
+          <div class="sec-cap" style="margin-bottom:5px;">▦ 活跃热力图
+            <span style="margin-left:auto;font-size:10px;color:#15803D;font-weight:600;">原有 · 不动</span>
+          </div>
+          <div class="latest-card" style="padding:10px 13px;">
+            <div style="display:flex;gap:4px;">
+              <span style="width:16px;height:16px;border-radius:4px;background:#FFE8D9;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FEC49B;"></span><span style="width:16px;height:16px;border-radius:4px;background:#F46D38;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FFE8D9;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FED7AA;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FEC49B;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FFE8D9;"></span><span style="width:16px;height:16px;border-radius:4px;background:var(--nested);"></span><span style="width:16px;height:16px;border-radius:4px;background:#FFE8D9;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FED7AA;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FEC49B;"></span><span style="width:16px;height:16px;border-radius:4px;background:#F46D38;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FED7AA;"></span><span style="width:16px;height:16px;border-radius:4px;background:#FFE8D9;"></span>
+            </div>
+          </div>
+        </div>
+        <!-- 现有：LifePlan 台账 -->
+        <div>
+          <div class="sec-cap" style="margin-bottom:5px;">🗓 它和你一起做的
+            <span style="margin-left:auto;font-size:10px;color:#15803D;font-weight:600;">原有 · 不动</span>
+          </div>
+          <div class="latest-card" style="padding:10px 13px;">
+            <div style="font-size:12px;color:#5A5A5A;line-height:1.6;">
+              第34周周计划 · 已完成<br>
+              <span style="color:var(--text-3);font-size:10.5px;">保持节奏：早睡 5/7 · 健身 3/4</span>
+            </div>
+          </div>
+        </div>
+        <!-- 现有：可回看的片段 -->
+        <div>
+          <div class="sec-cap" style="margin-bottom:5px;">🔖 可回看的片段
+            <span style="margin-left:auto;font-size:10px;color:#15803D;font-weight:600;">原有 · 不动</span>
+          </div>
+          <div class="latest-card" style="padding:10px 13px;opacity:.6;">
+            <div style="font-size:11.5px;color:var(--text-3);line-height:1.6;">8/19 叙事卡 · 8/17 回放 · 8/14 回放……</div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 动线说明 ═══════════════ -->
+<div class="legend-flow">
+  <div class="lt">发起一份报告的三条路（殊途同归，进同一份档案）</div>
+  <div>
+    <span class="flow-step hot">报告 Tab · 发起新分析</span><span class="flow-arrow">→</span>
+    <span class="flow-step">对话胶囊 · 深度分析 / 周期回放</span><span class="flow-arrow">→</span>
+    <span class="flow-step">直接说「分析下我最近」</span>
+  </div>
+  <div style="margin-top:6px;color:#6B6B6B;">
+    生成中：报告 Tab 出现实时进度卡，可切回对话继续聊；完成时「报告」Tab 亮红点，聊天流里同步落一张卡（带「已存入报告」回执）。
+    从任何一处点开，都是同一个全屏详情页；详情页底部「就这份报告继续问它」一键带回对话语境。
+  </div>
+</div>
+
+<!-- ═══════════════ 决策点 ═══════════════ -->
+<div class="decision">
+  <div class="dec-card">
+    <div class="dt">D1 · 报告 Tab 收哪些报告？</div>
+    推荐：深度分析 + 周期回放两类。<span class="rec">不收</span>「今日状态」（即时问答，非报告）与「规划目标」（产物是目标，目标已有自己的家「我的目标」页）。
+  </div>
+  <div class="dec-card">
+    <div class="dt">D2 · 对话页 4 胶囊去留？</div>
+    推荐全保留（快捷发起动线不变，避免高频操作降级），「最近分析」更名为「深度分析」让能力名实相符。发起产物统一归档报告 Tab。
+  </div>
+  <div class="dec-card">
+    <div class="dt">D3 · 详情页形态？</div>
+    推荐从 sheet（下拉即关）升级为全屏 push 页。聊天卡、报告 Tab、长廊轻入口三处进的是同一个详情页，复用现有 v21 内容结构。
+  </div>
+  <div class="dec-card">
+    <div class="dt">D4 · 长廊放档案还是放门？</div>
+    推荐「一个家两个门」：档案只在报告 Tab，长廊洞察放最新一张卡的轻入口跳转。避免两处维护同一列表，也顺手接活/清掉现有半截链路与两块死代码。
+  </div>
+</div>
+
+<div class="notes" style="max-width:1760px;">
+  <div class="nt">可行性与边界</div>
+  <ul>
+    <li class="good">报告数据现成：深度分析结果与周期回放任务本就持久化在本地消息库（含完整 JSON 与时间戳），列表化即可，纯客户端改动、无需后端发版。</li>
+    <li class="good">页内双 Tab 有成熟先例：记忆长廊「日历/洞察」同为常驻不销毁切换，架构模式可直接复用。</li>
+    <li>额度口径沿用现状：深度洞察独立池（免费 2 次/月，Plus 更多），发起区如实展示剩余次数；翻旧报告不消耗额度。</li>
+    <li>聊天页是性能敏感区（此前刚做过滚动性能根治），Tab 切换采用与长廊相同的「常驻不销毁」方案，不往聊天流里塞新东西。</li>
+    <li>顺手清理：旧洞察大卡（MemoryInsightHeroCard）与周观察卡（WeeklyObservationCard）两块已死代码可在本批删除。</li>
+  </ul>
+</div>
+
+<script>
+  function switchTab(name) {
+    document.querySelectorAll('#liveTabs .page-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.pane === name);
+    });
+    document.getElementById('pane-chat').style.display = name === 'chat' ? '' : 'none';
+    document.getElementById('pane-report').style.display = name === 'report' ? '' : 'none';
+  }
+</script>
+
+</body>
+</html>
