@@ -65,18 +65,22 @@ ChatView
 1. **发起区**（ReportLaunchCard）：
    - 主按钮「✦ 发起新分析」；范围胶囊四档：近30天/近3月/近半年/近1年（复用现有换范围档位，用胶囊不用 Menu，规避 Menu 嵌 Button 手势坑）；
    - 额度角标「本月深度洞察剩余 n/N」——复用现有额度预检链路（发起前预检已在 2026-08-20 批次实现），额度不足走现有升级引导文案，不在本方案新做；
+   - 范围选择的实现（自审补强）：范围胶囊不改预填文案之外的任何参数——选「近3月」即预填「分析一下我最近三个月的数据趋势」，时间语义由既有意图解析链路（L2 通用组合规则 + 时间语义解析）消化，**无需新接口新参数**；
+   - 并发发起沿用现有约束（额度预检在两个入口各自拦截），不新增并发控制。
    - 点发起 = 等价于对话胶囊发起（同一条 `runAnalysis` 链路），发起后**留在报告 Tab**，列表顶部出现生成中进度卡；用户可随时切到对话 Tab，聊天流同样落分析卡，两侧进度同源。
 2. **报告档案列表**（按时间倒序，深度分析与周期回放混排）：
    - 深度分析卡：类型徽标 + 范围 + 日期 + 核心发现摘要（`keyInsight`，缺失时退回 `narrativeSummary` → `directAnswer` 截断）+ 结构计数（观察×n/证据×n）；
    - 回放卡：类型徽标 + 周期（上周/7月）+ 日期 + 对账摘要；
    - 点击 → 全屏详情页（§4.3）；
    - 列表分页：首次 20 条，上滑追加。
-3. **生成中卡**：报告发起后列表顶部出现实时进度卡（复用 `HoloAgentChatStatus` 进度流）；提示「可切回对话继续聊，完成时报告 Tab 亮红点」。失败态展示错误 + 重试（复用现有 Agent 失败分支）。
-4. **空态 = 能力橱窗**（ReportEmptyStateView）：无任何报告时展示「Holo 能为你写的报告」——深度分析/周期回放两张能力介绍卡 + 一条示例报告摘录 + CTA「发起我的第一份分析」。首次进 AI 页即完成能力教育，直击「能力不可见」。
+3. **生成中卡**：报告发起后列表顶部出现实时进度卡；提示「可切回对话继续聊，完成时报告 Tab 亮红点」。失败态展示错误 + 重试（复用现有 Agent 失败分支）。
+   - **数据源双通道**（自审修订）：进度卡不能只订阅内存态的进度流——杀 App 重开后内存订阅失联，而对话流的消息恢复链路仍在跑，两侧会不一致。正确做法：进度卡的存在性以**持久化消息的 streaming 状态**为准（冷启动可恢复），实时进度百分比用 `HoloAgentChatStatus` 订阅做刷新层。
+4. **空态 = 能力橱窗**（ReportEmptyStateView）：**无已完成报告且无生成中任务时**展示「Holo 能为你写的报告」——深度分析/周期回放两张能力介绍卡 + 一条示例报告摘录 + CTA「发起我的第一份分析」。首次进 AI 页即完成能力教育，直击「能力不可见」。
 
 ### 4.3 报告详情页（形态升级）
 
 - `AgentDeepAnalysisDetailSheet` 从 `.sheet` 挂载改为 `.fullScreenCover`，顶部加返回栏（‹ + 报告类型 + 范围与日期区间 + ⋯）；
+- **迁移方式（自审修订，踩坑速查表命中项）**：现状详情页是 ChatView `activeSheet(item:)` 枚举中的一个 case（`:155` 挂载、`:1027` 附近分支），ChatView 已挂 5 个 sheet + 3 个 fullScreenCover。迁移 = 把该 case 从 `activeSheet` 枚举移除，新增独立的 `fullScreenCover(item:)` + `onDismiss` 中复位状态，逐条核对 `handleSheetDismiss` 现有复位逻辑不被破坏（速查表「sheet/fullScreenCover 关闭后界面异常：同一视图挂多个 sheet、presentation 状态未复位」直接命中）；
 - 内容结构沿用现有 v21 版式（开场摘要 → 核心发现 → 观察与解读 → 证据 → 建议 → 数据口径），不重做；
 - 聊天卡「查看完整报告」、报告 Tab 列表卡、长廊门卡（P1）三处进的是同一个详情页实例；
 - 周期回放无独立详情页（内容即卡片）：报告 Tab 中点击回放卡 → 全屏展示现有 `PeriodReplayChatCard` 内容的阅读版（外层包全屏容器，不新造版式）。
@@ -92,7 +96,9 @@ ChatView
 ## 5. 数据与可行性
 
 - **报告数据现成**：深度分析结果以 `agentResultJSON`（完整 `HoloRenderedAgentResult`，含 `keyInsight`/`narrativeSummary`/`timeRangeAttribution` 等）持久化在 `ChatMessage` 实体上，含 `timestamp`；周期回放任务同样持久化且有恢复链路（`ChatMessageRepository.recoverablePeriodReplayJobs`）。
-- **列表查询**：按消息类型 + 结果非空过滤，时间倒序；摘要与范围 label 均取自结果既有字段，范围缺失显示「自定义范围」。
+- **过滤条件精确**（自审核实）：档案查询 = `intent == "query_analysis" && agentResultJSON != nil`。全仓唯一写入方是 `HoloAgentAnalysisService.swift:492`（固定写 `query_analysis`），不会混入其他 Agent 问答；`isQueryAnalysis` 是基于 `intent` 字段的计算属性（`ChatMessageViewData.swift:332`），查询谓词直接用持久化的 `intent` 字段。
+- **解码性能护栏**（自审修订）：`agentResultJSON` 含完整证据链，单条可能很大；列表页禁止整条解码——仅解码列表所需轻量字段（标题/摘要三级退让/时间窗/计数），或用 `JSONDecoder` 按需浅解；完整结果延迟到进入详情页再解码。
+- **列表查询**：按上述谓词过滤，时间倒序，分页（首次 20 条，上滑追加）；范围 label 取自结果既有字段，范围缺失显示「自定义范围」。
 - **纯客户端**：无需后端发版、无新接口、无 schema 变更。
 - **额度口径沿用现状**：深度洞察独立池（免费 2 次/月，Plus 更多）；翻阅旧报告不消耗额度。
 
@@ -113,7 +119,7 @@ ChatView
 | 文件 | 改动 |
 |------|------|
 | `Views/Chat/ChatView.swift` | 页级 Tab 骨架（ZStack 双 pane）+ 红点 + 详情挂载 sheet→fullScreenCover |
-| `Services/AI/HoloAICapabilityProvider.swift` | 「最近分析」→「深度分析」：只改显示文案，不动能力 ID 与点击行为 |
+| `Services/AI/HoloAICapabilityProvider.swift` | 「最近分析」→「深度分析」：只改显示文案，不动能力 ID 与点击行为。**两处构造点都要改**——常驻胶囊（`:86-92`）与空态建议卡（`:54-60`），否则两处名称不一致 |
 | `Views/Chat/Analysis/AgentDeepAnalysisCard.swift` | 新增「已存入报告 ↗」回执 chip |
 | `Views/Chat/Analysis/AgentDeepAnalysisDetailSheet.swift` | 顶部返回栏，适配全屏形态 |
 | `Data/Repositories/ChatMessageRepository.swift` | 新增报告档案查询（类型过滤 + 倒序 + 分页） |
@@ -126,14 +132,16 @@ ChatView
 双 Tab 骨架 + 深度分析档案列表 + 全屏详情 + 发起区（范围/额度预检）+ 生成中进度卡与红点 + 空态橱窗 + 回执 chip + 胶囊更名。
 
 **P1（生态补全）**：
-周期回放归档（含回放全屏阅读版）+ 长廊门卡（接活 agentRenderedResult + 跨模块跳转）+ 死代码删除 + 详情页「就这份报告继续问它」（复用 ChatInputView 现有「继续追问这份分析」草稿条机制，预填后跳回对话 Tab）。
+周期回放归档（含回放全屏阅读版）+ 长廊门卡（接活 agentRenderedResult + 跨模块跳转）+ 死代码删除 + 详情页「就这份报告继续问它」。注意：现有 `ChatInputView` 的「继续追问这份分析」草稿条是「**最近一条**分析消息」语义；从报告 Tab 打开数月前的旧报告再追问，必须显式传递该报告的消息上下文，不能依赖草稿条的默认语义。
 
 ## 8. 边界与风险
 
 | 风险 | 应对 |
 |------|------|
 | 聊天页性能敏感（刚做过滚动性能根治） | 复用长廊 ZStack+opacity 常驻模式，报告 pane 首次切换才构建；不往消息流里塞新东西 |
-| fullScreenCover 与现有 sheet dismiss 逻辑冲突 | 详情页自带返回栏，逐条核对现有三条关闭路径（对照 sheet-dismiss-guard 记忆） |
+| fullScreenCover 迁移破坏现有 sheet 状态机 | 详情从 `activeSheet` 枚举 case 迁出为独立 `fullScreenCover(item:)`，`onDismiss` 复位 + 核对 `handleSheetDismiss`（详见 §4.3，踩坑速查表命中项） |
+| 隐藏 pane 拦截触摸（速查表「全屏透明视图拦截触摸」命中） | 照搬长廊四件套：`opacity` + `allowsHitTesting` + `accessibilityHidden` 一个不少 |
+| 大 JSON 拖慢列表 | 列表轻量解码，完整结果延迟到详情页（详见 §5 解码护栏） |
 | 范围选择 Menu 嵌 Button 手势坑 | 一律用胶囊直选，不用 Menu |
 | 旧操作降级 | 已核对映射表：4 胶囊点击行为全部不变；「查看完整报告」入口不变（仅详情从下拉关变为返回键关）；长廊六块零改动 |
 | 老数据摘要缺失 | keyInsight → narrativeSummary → directAnswer 三级退让，范围缺失显示「自定义范围」 |
