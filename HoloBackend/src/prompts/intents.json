@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updatedAt": "2026-08-18",
+  "updatedAt": "2026-08-23",
   "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。",
   "intents": [
     {
@@ -28,9 +28,21 @@
     },
     {
       "ids": [
+        "set_budget"
+      ],
+      "summary": "设置/调整预算。填 amount；分类预算填 categoryCandidate（不填=总预算）；period 为 month/year/week，默认 month。",
+      "requiredFields": [
+        "amount"
+      ],
+      "examples": [
+        "\"这个月餐饮预算2000\" → intent: \"set_budget\", extractedData: { amount: \"2000\", categoryCandidate: \"餐饮\", period: \"month\" }"
+      ]
+    },
+    {
+      "ids": [
         "create_task"
       ],
-      "summary": "建待办/提醒。填 title；确定日期填 dueDate（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）；用户说了具体钟点（如晚上10点）必须填 reminderDate 和 dueDate 的 HH:mm，时段换 24 小时制。并列待办填 subtasks，title 概括，description 补充。",
+      "summary": "建待办/提醒。填 title；确定日期填 dueDate（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）；用户说了具体钟点（如晚上10点）必须填 reminderDate 和 dueDate 的 HH:mm，时段换 24 小时制。并列待办填 subtasks，title 概括，description 补充。指定清单填 listName（已有清单名）。",
       "requiredFields": [
         "title"
       ],
@@ -84,14 +96,15 @@
       "ids": [
         "update_goal_field"
       ],
-      "summary": "改目标字段。填 goalTitle、field（title/deadline/summary/desiredOutcome/motivation）、value。",
+      "summary": "改目标字段。填 goalTitle、field（title/deadline/summary/desiredOutcome/motivation/status）、value；status 的 value 填 completed（达成）或 paused（暂停）。",
       "requiredFields": [
         "goalTitle",
         "field",
         "value"
       ],
       "examples": [
-        "\"把英语目标截止日期改成年底\" → intent: \"update_goal_field\", extractedData: { goalTitle: \"英语\", field: \"deadline\", value: \"年底\" }"
+        "\"把英语目标截止日期改成年底\" → intent: \"update_goal_field\", extractedData: { goalTitle: \"英语\", field: \"deadline\", value: \"年底\" }",
+        "\"英语目标达成了\" → intent: \"update_goal_field\", extractedData: { goalTitle: \"英语\", field: \"status\", value: \"completed\" }"
       ]
     },
     {
@@ -134,6 +147,29 @@
       "requiredFields": [
         "goalTitle",
         "enable"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "create_anniversary"
+      ],
+      "summary": "新建纪念日/生日/倒数日。填 anniversaryTitle、anniversaryDate（YYYY-MM-DD）；类型明显时填 typeCandidate（birthday/anniversary/countdown/milestone）。",
+      "requiredFields": [
+        "anniversaryTitle",
+        "anniversaryDate"
+      ],
+      "examples": [
+        "\"10月3号是爸妈结婚纪念日\" → intent: \"create_anniversary\", extractedData: { anniversaryTitle: \"爸妈结婚纪念日\", anniversaryDate: \"2026-10-03\" }"
+      ]
+    },
+    {
+      "ids": [
+        "update_anniversary"
+      ],
+      "summary": "改已有纪念日/生日的日期或名称。必填 anniversaryKeyword；改日期填 anniversaryDate，改名称填 anniversaryTitle。",
+      "requiredFields": [
+        "anniversaryKeyword"
       ],
       "examples": []
     },

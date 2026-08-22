@@ -129,13 +129,13 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // 版本号（v27：新增 weekly_planning 意图）
-  assert.equal(prompt.version, 27);
+  // 版本号（v28：新增 set_budget/create_anniversary/update_anniversary 意图 + create_task listName、update_goal_field status 字段）
+  assert.equal(prompt.version, 28);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  // 红线 4950：v27 新增 weekly_planning 意图（每周生活计划，Life Agent 第一刀）后当前 ~4925；
-  // v26 P3 瘦身基线为 ~4745（红线 4900），结构变更（增意图）允许重划红线并升版本。
-  assert.ok(prompt.content.length < 4950, `prompt 长度 ${prompt.content.length} 超过 4950`);
+  // 红线 5710：v28 新增 3 意图（预算/纪念日）后当前 ~5679；
+  // v27 基线为 ~4925（红线 4950），结构变更（增意图）允许重划红线并升版本。
+  assert.ok(prompt.content.length < 5710, `prompt 长度 ${prompt.content.length} 超过 5710`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红
