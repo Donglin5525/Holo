@@ -946,6 +946,82 @@
       "acceptable": [
         "query_analysis"
       ]
+    },
+    {
+      "id": "sb01",
+      "text": "这个月餐饮预算调整到2000",
+      "acceptable": [
+        "set_budget"
+      ]
+    },
+    {
+      "id": "sb02",
+      "text": "总预算设为8000",
+      "acceptable": [
+        "set_budget"
+      ]
+    },
+    {
+      "id": "sb03",
+      "text": "每周购物预算500块",
+      "acceptable": [
+        "set_budget"
+      ]
+    },
+    {
+      "id": "sb04",
+      "text": "我这个月预算还剩多少",
+      "acceptable": [
+        "flexible_data_query",
+        "query_analysis"
+      ],
+      "note": "查询预算状态不是设置，应走查询链路而非 set_budget"
+    },
+    {
+      "id": "an01",
+      "text": "10月3号是爸妈结婚纪念日，帮我记一下",
+      "acceptable": [
+        "create_anniversary"
+      ]
+    },
+    {
+      "id": "an02",
+      "text": "6月1号儿子生日，帮我添加到纪念日",
+      "acceptable": [
+        "create_anniversary"
+      ]
+    },
+    {
+      "id": "an03",
+      "text": "把结婚纪念日的日期改到10月5号",
+      "acceptable": [
+        "update_anniversary"
+      ]
+    },
+    {
+      "id": "an04",
+      "text": "下个月有什么纪念日",
+      "acceptable": [
+        "query",
+        "query_analysis"
+      ],
+      "note": "查询纪念日不是新建，不应误吸到 create_anniversary"
+    },
+    {
+      "id": "gs01",
+      "text": "英语学习目标达成了",
+      "acceptable": [
+        "update_goal_field"
+      ],
+      "note": "目标状态变更：field=status value=completed"
+    },
+    {
+      "id": "gs02",
+      "text": "减肥目标先暂停一下",
+      "acceptable": [
+        "update_goal_field"
+      ],
+      "note": "目标状态变更：field=status value=paused"
     }
   ]
 }
