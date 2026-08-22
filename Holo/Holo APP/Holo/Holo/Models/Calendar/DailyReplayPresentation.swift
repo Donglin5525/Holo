@@ -252,6 +252,24 @@ enum DailyReplayChapterBuilder {
     }
 }
 
+// MARK: - 回放窗口翻页
+
+/// 日回放自最新向过去流动：列表顶部是最晚一天（通常为今天），向上滑动回看更早。
+/// 翻页只有向过去一个方向——更早的页追加在列表底部，永远不打扰正在阅读的位置。
+/// 区间数学收在这里，保证翻页规则可以独立验证。
+enum DailyReplayPageWindow {
+
+    /// 向过去铺一页：没有下限——更早的空白也是生活的一部分。
+    static func earlierPage(before day: Date,
+                            pageSize: Int,
+                            calendar: Calendar = .current) -> Date? {
+        let dayStart = calendar.startOfDay(for: day)
+        guard let candidate = calendar.date(byAdding: .day, value: -pageSize, to: dayStart),
+              candidate < dayStart else { return nil }
+        return candidate
+    }
+}
+
 // MARK: - 空白日滑动导航
 
 enum DailyReplayEmptyDaySwipeDirection {
@@ -261,7 +279,8 @@ enum DailyReplayEmptyDaySwipeDirection {
 
 enum DailyReplayEmptyDayNavigation {
     /// 空白日没有足够内容产生系统滚动时，把纵向手势明确转换成日期动作。
-    /// 历史日上滑进入下一天；今天之后不可浏览，因此今天上滑回看昨天。
+    /// 列表自最新向过去排列（上滑=回看更早）：上滑进入前一天；
+    /// 今天之后不可浏览，因此下滑走向更晚的日期并停在更晚界。
     static func target(from day: Date,
                        direction: DailyReplayEmptyDaySwipeDirection,
                        today: Date,
@@ -271,14 +290,11 @@ enum DailyReplayEmptyDayNavigation {
 
         switch direction {
         case .upward:
-            if current < todayStart,
-               let next = calendar.date(byAdding: .day, value: 1, to: current) {
-                return min(next, todayStart)
-            }
             return calendar.date(byAdding: .day, value: -1, to: current) ?? current
 
         case .downward:
-            return calendar.date(byAdding: .day, value: -1, to: current) ?? current
+            let next = calendar.date(byAdding: .day, value: 1, to: current) ?? current
+            return min(next, todayStart)
         }
     }
 }

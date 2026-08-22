@@ -72,8 +72,16 @@ final class CalendarViewModel: ObservableObject {
 
     /// 预载半径（天）：窗口内切日/切周/翻月即时显示缓存数据
     private let preloadHalfSpanDays = 60
+    /// 首屏半径（天）：打开页面只拉当前回放窗口与近程翻页所需数据，
+    /// 全量预载错峰补齐——首帧不与 ±60 天四模块查询抢主线程。
+    private let initialHalfSpanDays = 20
+    /// 首帧渲染后等待这段时间再拉全量，避开转场与首屏布局的高峰。
+    private let fullPreloadDelayNanoseconds: UInt64 = 400_000_000
     /// 距边缘剩余天数低于此值时触发续载
     private let edgeMarginDays = 14
+    /// 取数进行中标记：续载/预载/重试共用一条主线程通道，并行触发时只跑一个，
+    /// 被丢弃的请求由下一次边缘检查自然补上。
+    private var isFetchInFlight = false
 
     // MARK: - 周叙事（高光/里程碑，周档摘要卡轻量入口消费）
 
@@ -243,13 +251,16 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - 加载
 
-    /// 进日历页时调用：预载聚焦日 ±60 天到内存
+    /// 进日历页时调用：首屏只拉小窗口立即可交互，全量 ±60 天错峰补齐。
     func loadInitial() async {
         guard loadedRange == nil else { return }       // 已预载过，不重复
         isInitialLoading = true
-        await fetchTimeline(around: focusedDate)
+        await fetchTimeline(around: focusedDate, halfSpanDays: initialHalfSpanDays)
         isInitialLoading = false
         refreshWeekNarrative()
+
+        try? await Task.sleep(nanoseconds: fullPreloadDelayNanoseconds)
+        await fetchTimeline(around: focusedDate, halfSpanDays: preloadHalfSpanDays)
     }
 
     /// 聚焦日接近已加载边缘时续载（剩余 < 14 天触发）
@@ -269,13 +280,18 @@ final class CalendarViewModel: ObservableObject {
         refreshWeekNarrative()
     }
 
-    /// 取数：以 center 为中心取 ±60 天，与已加载窗口合并（按 originID 去重）。
+    /// 取数：以 center 为中心取指定半径窗口，与已加载窗口合并（按 originID 去重）。
     /// 续载 = 扩展窗口取并集，不是覆盖替换——避免滑动中途把屏幕上看得到的事件刷没。
     /// originID 是原始 Core Data 实体 ID，同一条记录稳定不变，可可靠判重。
-    private func fetchTimeline(around center: Date) async {
+    private func fetchTimeline(around center: Date, halfSpanDays: Int? = nil) async {
+        guard !isFetchInFlight else { return }
+        isFetchInFlight = true
+        defer { isFetchInFlight = false }
+
+        let span = halfSpanDays ?? preloadHalfSpanDays
         let cal = Calendar.current
-        guard let fetchStart = cal.date(byAdding: .day, value: -preloadHalfSpanDays, to: cal.startOfDay(for: center)),
-              let fetchEnd = cal.date(byAdding: .day, value: preloadHalfSpanDays, to: cal.startOfDay(for: center)) else { return }
+        guard let fetchStart = cal.date(byAdding: .day, value: -span, to: cal.startOfDay(for: center)),
+              let fetchEnd = cal.date(byAdding: .day, value: span, to: cal.startOfDay(for: center)) else { return }
         let fetchRange = DateInterval(start: fetchStart, end: fetchEnd)
         let fetched = await provider.fetchEvents(in: fetchRange, todoDimension: todoDimension)
 

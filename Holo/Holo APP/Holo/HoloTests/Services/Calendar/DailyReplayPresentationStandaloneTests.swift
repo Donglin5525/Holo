@@ -76,10 +76,11 @@ struct DailyReplayPresentationStandaloneTests {
         testLongEmptyRunCollapsesButKeepsBoundaries()
         testEmptyDaysRemainNavigableWhenCollapseDisabled()
         testNarrativeOnlyAppearsForClearPattern()
-        testHistoricalEmptyDaySwipesForward()
+        testHistoricalEmptyDaySwipesEarlier()
         testTodayEmptyDaySwipesBackInsteadOfFuture()
-        testEmptyDayDownwardSwipeGoesBack()
-        print("DailyReplayPresentationStandaloneTests passed (9 cases)")
+        testEmptyDayDownwardSwipeGoesLater()
+        testEarlierPageExtendsBackwardWithoutLowerBound()
+        print("DailyReplayPresentationStandaloneTests passed (10 cases)")
     }
 
     private static func testSameMinuteAndModuleBecomeOneMoment() {
@@ -164,7 +165,7 @@ struct DailyReplayPresentationStandaloneTests {
                           "夜间高度集中的记录应生成有证据的轻叙事")
     }
 
-    private static func testHistoricalEmptyDaySwipesForward() {
+    private static func testHistoricalEmptyDaySwipesEarlier() {
         let today = date(hour: 0, minute: 0, day: 7)
         let historical = date(hour: 0, minute: 0, day: 5)
         let target = DailyReplayEmptyDayNavigation.target(
@@ -172,8 +173,8 @@ struct DailyReplayPresentationStandaloneTests {
             direction: .upward,
             today: today
         )
-        expectDailyReplay(Calendar.current.component(.day, from: target) == 6,
-                          "历史空白日上滑应进入下一天")
+        expectDailyReplay(Calendar.current.component(.day, from: target) == 4,
+                          "空白日上滑应回看前一天（列表自最新向过去排列）")
     }
 
     private static func testTodayEmptyDaySwipesBackInsteadOfFuture() {
@@ -187,7 +188,7 @@ struct DailyReplayPresentationStandaloneTests {
                           "今天上滑不能进入未来，应回看昨天")
     }
 
-    private static func testEmptyDayDownwardSwipeGoesBack() {
+    private static func testEmptyDayDownwardSwipeGoesLater() {
         let today = date(hour: 0, minute: 0, day: 7)
         let historical = date(hour: 0, minute: 0, day: 5)
         let target = DailyReplayEmptyDayNavigation.target(
@@ -195,8 +196,28 @@ struct DailyReplayPresentationStandaloneTests {
             direction: .downward,
             today: today
         )
-        expectDailyReplay(Calendar.current.component(.day, from: target) == 4,
-                          "空白日下滑应回看前一天")
+        expectDailyReplay(Calendar.current.component(.day, from: target) == 6,
+                          "空白日下滑应走向更晚的一天，但不越过今天")
+
+        let atToday = DailyReplayEmptyDayNavigation.target(
+            from: today,
+            direction: .downward,
+            today: today
+        )
+        expectDailyReplay(Calendar.current.component(.day, from: atToday) == 7,
+                          "今天下滑已是最晚一天，必须停在今天")
+    }
+
+    private static func testEarlierPageExtendsBackwardWithoutLowerBound() {
+        let start = date(hour: 0, minute: 0, day: 22)
+        let first = DailyReplayPageWindow.earlierPage(before: start, pageSize: 12)
+        expectDailyReplay(first.map { Calendar.current.component(.day, from: $0) } == 10,
+                          "从 22 日向过去铺一页应到 10 日：\(String(describing: first))")
+
+        let second = first.flatMap { DailyReplayPageWindow.earlierPage(before: $0, pageSize: 12) }
+        let secondComponents = second.map { Calendar.current.dateComponents([.month, .day], from: $0) }
+        expectDailyReplay(secondComponents?.month == 6 && secondComponents?.day == 28,
+                          "从 7 月 10 日继续向过去铺页应跨月回到 6 月 28 日——回看没有下限：\(String(describing: second))")
     }
 
     private static func event(_ module: CalendarModule,

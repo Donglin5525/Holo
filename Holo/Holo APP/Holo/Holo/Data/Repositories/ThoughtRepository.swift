@@ -89,6 +89,8 @@ class ThoughtRepository {
             end as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+        // 日历等调用方逐条读话题；不预取会触发每条一次的关系惰性加载。
+        request.relationshipKeyPathsForPrefetching = ["topics"]
         return try context.fetch(request)
     }
 

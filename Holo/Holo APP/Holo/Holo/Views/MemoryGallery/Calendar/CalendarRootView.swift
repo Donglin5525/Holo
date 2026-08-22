@@ -30,9 +30,6 @@ struct CalendarRootView: View {
         .task {
             await viewModel.loadInitial()
         }
-        .refreshable {
-            await viewModel.refreshForCurrentScale()
-        }
         .sheet(item: $selectedEvent) { event in
             CalendarEventDetailSheet(event: event)
         }

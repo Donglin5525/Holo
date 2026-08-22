@@ -2,7 +2,10 @@
 //  DailyReplayView.swift
 //  Holo
 //
-//  「记忆河流」日回放：日期是章节，不是右侧索引；向下阅读自然进入下一天，直到今天。
+//  「记忆河流」日回放：日期是章节，不是右侧索引。列表自最新向过去流动——
+//  打开就在今天，向上滑动回看更早的一天；翻页把更早的页追加在列表底部，
+//  永远不动正在阅读的位置（此前「往顶部插入更早内容再钉回位置」的两轮方案
+//  在 SwiftUI 下时序不可靠，已在踩坑速查表结案：位置保持类方案禁止再用于首屏定位）。
 //  无意义的小时网格和常驻彩色导航被移除，视觉重心回到可理解的生活事件。
 //
 
@@ -17,6 +20,7 @@ struct DailyReplayView: View {
     let onSelectGroup: ([CalendarEvent]) -> Void
     let onEnsureData: (Date) -> Void
 
+    /// 窗口两端：end=最晚一天（列表顶部，通常为聚焦/今天），start=最早一天（列表底部，翻页向过去扩）。
     @State private var rangeStart: Date
     @State private var rangeEnd: Date
     @State private var showDatePicker = false
@@ -25,6 +29,8 @@ struct DailyReplayView: View {
     @State private var scrollDrivenDate: Date?
 
     private let pageSize = 12
+    /// 最早章节（列表底端）进入视口下方这段距离内即向过去再铺一页；追加在底部不动视口。
+    private let earlierPagePrefetchDistance: CGFloat = 2
     private let scrollSpace = "holo.memoryGallery.dailyReplay"
     private var calendar: Calendar { Calendar.current }
     private var today: Date { calendar.startOfDay(for: Date()) }
@@ -38,8 +44,8 @@ struct DailyReplayView: View {
          onEnsureData: @escaping (Date) -> Void) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let start = min(calendar.startOfDay(for: focusedDate.wrappedValue), today)
-        let candidateEnd = calendar.date(byAdding: .day, value: 11, to: start) ?? start
+        let anchorDay = min(calendar.startOfDay(for: focusedDate.wrappedValue), today)
+        let start = calendar.date(byAdding: .day, value: -12, to: anchorDay) ?? anchorDay
 
         self._focusedDate = focusedDate
         self.eventsByDay = eventsByDay
@@ -49,8 +55,8 @@ struct DailyReplayView: View {
         self.onSelectGroup = onSelectGroup
         self.onEnsureData = onEnsureData
         self._rangeStart = State(initialValue: start)
-        self._rangeEnd = State(initialValue: min(candidateEnd, today))
-        self._pickerDate = State(initialValue: start)
+        self._rangeEnd = State(initialValue: anchorDay)
+        self._pickerDate = State(initialValue: anchorDay)
     }
 
     var body: some View {
@@ -72,6 +78,10 @@ struct DailyReplayView: View {
                     .coordinateSpace(name: scrollSpace)
                     .onPreferenceChange(DailyReplayChapterOffsetKey.self) { offsets in
                         updateFocusedDate(from: offsets)
+                        appendEarlierPageIfNeeded(
+                            from: offsets,
+                            viewportHeight: viewport.size.height
+                        )
                     }
 
                     if let portalDate {
@@ -112,6 +122,10 @@ struct DailyReplayView: View {
     @ViewBuilder
     private func chapterList(proxy: ScrollViewProxy,
                              minimumDayContentHeight: CGFloat) -> some View {
+        if calendar.isDate(rangeEnd, inSameDayAs: today) {
+            DailyReplayTodayEndView()
+        }
+
         ForEach(chapters) { chapter in
             switch chapter {
             case .day(let day):
@@ -129,10 +143,6 @@ struct DailyReplayView: View {
                     )
                 }
             }
-        }
-
-        if calendar.isDate(rangeEnd, inSameDayAs: today) {
-            DailyReplayTodayEndView()
         }
     }
 
@@ -153,9 +163,6 @@ struct DailyReplayView: View {
                     navigateEmptyDay(from: dayStart, direction: direction, proxy: proxy)
                 }
             )
-            .onAppear {
-                appendNextPageIfNeeded(after: dayStart)
-            }
         } header: {
             DailyReplayChapterHeader(
                 day: dayStart,
@@ -189,22 +196,25 @@ struct DailyReplayView: View {
         }
     }
 
+    /// 自最新向过去排列：构建器产出升序，这里反转为降序——最晚一天在列表顶部。
     private var chapters: [DailyReplayChapter] {
         DailyReplayChapterBuilder.make(
             from: rangeStart,
             through: rangeEnd,
             eventCountsByDay: eventsByDay.mapValues(\.count),
             collapseEmptyRuns: false
-        )
+        ).reversed()
     }
 
-    private func appendNextPageIfNeeded(after visibleDay: Date) {
-        guard calendar.isDate(visibleDay, inSameDayAs: rangeEnd), rangeEnd < today else { return }
-        let candidate = calendar.date(byAdding: .day, value: pageSize, to: rangeEnd) ?? today
-        let nextEnd = min(candidate, today)
-        guard nextEnd > rangeEnd else { return }
-        rangeEnd = nextEnd
-        onEnsureData(nextEnd)
+    /// 最早章节（列表底端）接近视口时向过去再铺一页。追加发生在底部，
+    /// 不触碰正在阅读的位置——没有任何滚动补偿或锚定，也因此没有时序风险。
+    private func appendEarlierPageIfNeeded(from offsets: [Date: CGFloat],
+                                           viewportHeight: CGFloat) {
+        guard let earliestOffset = offsets[calendar.startOfDay(for: rangeStart)],
+              earliestOffset <= viewportHeight * earlierPagePrefetchDistance,
+              let earlier = DailyReplayPageWindow.earlierPage(before: rangeStart, pageSize: pageSize, calendar: calendar) else { return }
+        rangeStart = earlier
+        onEnsureData(earlier)
     }
 
     /// 章节头进入顶部后同步全局聚焦日期；周/月切换会延续用户正在阅读的这一天。
@@ -222,8 +232,8 @@ struct DailyReplayView: View {
 
     private func jump(to rawDate: Date, proxy: ScrollViewProxy) {
         let target = calendar.startOfDay(for: min(rawDate, today))
-        rangeStart = target
-        rangeEnd = initialEnd(for: target)
+        rangeEnd = target
+        rangeStart = calendar.date(byAdding: .day, value: -pageSize, to: target) ?? target
         onEnsureData(target)
         if !calendar.isDate(target, inSameDayAs: focusedDate) {
             focusedDate = target
@@ -233,10 +243,6 @@ struct DailyReplayView: View {
                 proxy.scrollTo(target, anchor: .top)
             }
         }
-    }
-
-    private func initialEnd(for start: Date) -> Date {
-        min(calendar.date(byAdding: .day, value: pageSize - 1, to: start) ?? start, today)
     }
 
     private func navigateEmptyDay(from day: Date,
@@ -374,8 +380,8 @@ private struct DailyReplayChapterHeader: View {
     }
 
     private func portalOffset(for translation: CGFloat) -> Int {
-        // 向上拖去往未来，向下拖回到更早日期；每 42pt 跨一天。
-        Int((-translation / 42).rounded())
+        // 与列表方向一致：向上拖回看更早，向下拖去往更近的日期；每 42pt 跨一天。
+        Int((translation / 42).rounded())
     }
 
     private static let fullDateFormatter: DateFormatter = {
@@ -437,9 +443,9 @@ private struct DailyReplayDayContent: View {
 
     private var footerText: String {
         guard events.isEmpty else {
-            return Calendar.current.isDateInToday(day) ? "此刻" : "继续向下，进入下一天"
+            return Calendar.current.isDateInToday(day) ? "此刻" : "继续向下，回看前一天"
         }
-        return Calendar.current.isDateInToday(day) ? "上滑回看昨天" : "上滑进入下一天"
+        return Calendar.current.isDateInToday(day) ? "上滑回看昨天" : "上滑回看前一天"
     }
 
     private var emptyDaySwipeGesture: some Gesture {
@@ -569,7 +575,7 @@ private struct DailyReplayTodayEndView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .padding(.horizontal, 72)
-        .padding(.bottom, HoloSpacing.xl)
+        .padding(.top, HoloSpacing.xl)
     }
 }
 

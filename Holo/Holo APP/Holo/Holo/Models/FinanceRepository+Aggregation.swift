@@ -55,6 +55,9 @@ extension FinanceRepository {
             FinanceTransactionOccurrencePolicy.occurredPredicate()
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+        // 调用方逐笔读分类与账户；不预取会触发每笔一次的关系惰性加载（N+1 查询），
+        // 百余笔交易的区间查询会在主线程额外多出几百次小查询。
+        request.relationshipKeyPathsForPrefetching = ["category", "account"]
         return try context.fetch(request)
     }
 
