@@ -24,7 +24,7 @@ extension TodoRepository {
 
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND dueDate >= %@ AND dueDate < %@",
+            format: "deletedAt == nil AND archived == NO AND dueDate >= %@ AND dueDate < %@",
             today as NSDate,
             tomorrow as NSDate
         )
@@ -61,7 +61,7 @@ extension TodoRepository {
             return (0, 0, 0)
         }
 
-        let base = "deletedFlag == NO AND archived == NO"
+        let base = "deletedAt == nil AND archived == NO"
 
         // 今日到期（不管是否已完成）
         let dueToday = countTasks(
@@ -88,7 +88,7 @@ extension TodoRepository {
     func getCompletionTrend(from start: Date, to end: Date) -> [DailyTaskCount] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "completedAt >= %@ AND completedAt <= %@ AND deletedFlag == NO AND archived == NO",
+            format: "completedAt >= %@ AND completedAt <= %@ AND deletedAt == nil AND archived == NO",
             start as NSDate,
             end as NSDate
         )
@@ -118,7 +118,7 @@ extension TodoRepository {
     func getTasks(completedFrom start: Date, completedTo end: Date) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+            format: "completedAt >= %@ AND completedAt < %@ AND deletedAt == nil AND archived == NO",
             start as NSDate,
             end as NSDate
         )
@@ -133,7 +133,7 @@ extension TodoRepository {
     func getTasks(field: String, from start: Date, to end: Date) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "%K >= %@ AND %K < %@ AND deletedFlag == NO AND archived == NO",
+            format: "%K >= %@ AND %K < %@ AND deletedAt == nil AND archived == NO",
             field, start as NSDate, field, end as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: field, ascending: true)]
@@ -143,7 +143,7 @@ extension TodoRepository {
     /// 指定时间范围内的完成统计
     func getCompletionStats(from start: Date, to end: Date) -> TaskPeriodStats {
         // end 约定为开区间，避免把下一天 00:00 的任务误算进本周期。
-        let basePredicate = "deletedFlag == NO AND archived == NO"
+        let basePredicate = "deletedAt == nil AND archived == NO"
         let completedInPeriod = countTasks(
             predicate: "\(basePredicate) AND completed == YES AND completedAt >= %@ AND completedAt < %@",
             start as NSDate,
@@ -223,7 +223,7 @@ extension TodoRepository {
 
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate >= %@ AND dueDate < %@",
+            format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate >= %@ AND dueDate < %@",
             now as NSDate,
             futureDate as NSDate
         )
@@ -236,7 +236,7 @@ extension TodoRepository {
     func getIncompleteTaskCount() -> Int {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND completed == NO"
+            format: "deletedAt == nil AND archived == NO AND completed == NO"
         )
         return (try? context.count(for: request)) ?? 0
     }

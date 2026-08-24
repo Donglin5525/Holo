@@ -50,7 +50,7 @@ final class ConversationCoordinator {
             "record_expense", "record_income", "create_task", "complete_task",
             "update_task", "modify_task_items", "delete_task", "check_in",
             "update_goal_field", "link_task_to_goal", "link_habit_to_goal", "toggle_goal_visibility",
-            "log_metric_value"
+            "log_metric_value", "set_budget", "create_anniversary", "update_anniversary"
         ]
         guard !executionIntents.contains(intent) else { return false }
         if intent == "query_analysis" { return true }
@@ -411,6 +411,61 @@ final class ConversationCoordinator {
                         status: .skipped,
                         summaryText: summary,
                         renderData: renderData.isEmpty ? nil : renderData,
+                        linkedEntityType: nil,
+                        linkedEntityId: nil,
+                        errorText: nil
+                    )
+                )
+                continue
+            }
+
+            // 预算设置：金额写操作，经用户确认后生效（与记账同构的确认模式）
+            if item.intent == .setBudget,
+               let amountStr = item.extractedData?["amount"], !amountStr.isEmpty {
+                var renderData = item.extractedData ?? [:]
+
+                // 预览分类匹配（分类预算卡展示真实分类名，不创建任何数据）
+                if renderData["categoryCandidate"] != nil,
+                   let preview = try? await intentRouter.previewCategoryMatch(extractedData: item.extractedData, type: .expense) {
+                    if let primary = preview.primary { renderData["primaryCategory"] = primary }
+                    if let sub = preview.sub { renderData["subCategory"] = sub }
+                }
+
+                renderData["confirmationStatus"] = "pending"
+                renderData["pendingKind"] = "budget"
+                executionItems.append(
+                    AIExecutionItem(
+                        id: UUID().uuidString,
+                        parseItemId: item.id,
+                        intent: item.intent,
+                        status: .skipped,
+                        summaryText: renderData["categoryCandidate"] != nil
+                            ? "我识别到一个分类预算设置，请确认后生效"
+                            : "我识别到一个总预算设置，请确认后生效",
+                        renderData: renderData.isEmpty ? nil : renderData,
+                        linkedEntityType: nil,
+                        linkedEntityId: nil,
+                        errorText: nil
+                    )
+                )
+                continue
+            }
+
+            // 纪念日创建：名称/日期经用户确认后落库（新建是新增数据，与建任务同构）
+            if item.intent == .createAnniversary,
+               let title = item.extractedData?["anniversaryTitle"], !title.isEmpty,
+               let dateText = item.extractedData?["anniversaryDate"], !dateText.isEmpty {
+                var renderData = item.extractedData ?? [:]
+                renderData["confirmationStatus"] = "pending"
+                renderData["pendingKind"] = "anniversary"
+                executionItems.append(
+                    AIExecutionItem(
+                        id: UUID().uuidString,
+                        parseItemId: item.id,
+                        intent: item.intent,
+                        status: .skipped,
+                        summaryText: "我识别到一个纪念日，请确认后创建",
+                        renderData: renderData,
                         linkedEntityType: nil,
                         linkedEntityId: nil,
                         errorText: nil

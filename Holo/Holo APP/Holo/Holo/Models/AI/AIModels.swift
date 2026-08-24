@@ -15,6 +15,8 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     // 记账类
     case recordExpense = "record_expense"
     case recordIncome = "record_income"
+    // 预算类
+    case setBudget = "set_budget"
     // 任务类
     case createTask = "create_task"
     case completeTask = "complete_task"
@@ -33,6 +35,9 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     case logMetricValue = "log_metric_value"
     // 笔记类
     case createNote = "create_note"
+    // 纪念日类
+    case createAnniversary = "create_anniversary"
+    case updateAnniversary = "update_anniversary"
     // 健康类
     case recordMood = "record_mood"
     case recordWeight = "record_weight"
@@ -64,6 +69,7 @@ extension AIIntent {
     nonisolated var chatDisplayLabel: String {
         switch self {
         case .recordExpense, .recordIncome: return "已记账"
+        case .setBudget: return "已设置预算"
         case .createTask: return "已创建任务"
         case .completeTask: return "已完成任务"
         case .updateTask: return "已更新任务"
@@ -77,6 +83,8 @@ extension AIIntent {
         case .logMetricValue: return "已记录数值"
         case .toggleGoalVisibility: return "已更新目标可见性"
         case .createNote: return "已记录笔记"
+        case .createAnniversary: return "已创建纪念日"
+        case .updateAnniversary: return "已更新纪念日"
         case .queryTasks: return "任务查询"
         case .queryHabits: return "习惯查询"
         case .queryAnalysis: return "分析卡片"
@@ -93,7 +101,7 @@ extension AIIntent {
 
 /// 关联实体类型
 enum LinkedEntityType: String, Codable {
-    case transaction, task, habit, thought, memoryInsight, goal
+    case transaction, task, habit, thought, memoryInsight, goal, anniversary
 }
 
 /// 通用实体链接

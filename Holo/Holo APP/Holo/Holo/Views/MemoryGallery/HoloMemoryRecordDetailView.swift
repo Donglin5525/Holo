@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 enum HoloMemoryRecordDetailChange {
     case updated(HoloMemoryRecord)
@@ -200,11 +201,36 @@ struct HoloMemoryRecordDetailView: View {
 
     private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
         if let target = deepLinkTarget(for: evidence) {
+            // 跳转前校验原始记录仍存活（不存在或已进回收站都视为已清除，让用户有感知）
+            guard isEvidenceSourceAlive(evidence) else {
+                HoloToastCenter.shared.show("该记录已被清除", type: .info)
+                return
+            }
             dismiss()
             DeepLinkState.shared.navigate(to: target)
         } else {
             selectedEvidence = evidence
         }
+    }
+
+    /// entityRef 证据的 sourceID 是否仍指向一条未删除的原始记录
+    private func isEvidenceSourceAlive(_ evidence: HoloMemoryEvidenceRef) -> Bool {
+        guard evidence.kind == .entityRef,
+              let sourceID = evidence.sourceID,
+              let uuid = UUID(uuidString: sourceID) else { return false }
+        let entityName: String
+        switch evidence.sourceDomain {
+        case .finance: entityName = "Transaction"
+        case .task: entityName = "TodoTask"
+        case .thought: entityName = "Thought"
+        case .habit: entityName = "Habit"
+        case .goal: entityName = "Goal"
+        default: return false
+        }
+        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", uuid as CVarArg)
+        request.fetchLimit = 1
+        return ((try? CoreDataStack.shared.viewContext.count(for: request)) ?? 0) > 0
     }
 
     /// entityRef 证据的 sourceID 指向原始业务记录；有详情页路由的域直达原记录。

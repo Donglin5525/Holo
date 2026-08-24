@@ -121,9 +121,8 @@ final class FlexibleQueryExecutor {
             predicates.append(NSPredicate(format: "amount == %@", NSDecimalNumber(decimal: amountEQ)))
         }
 
-        if !predicates.isEmpty {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-        }
+        predicates.append(NSPredicate(format: "deletedAt == nil"))
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
 
         // 按日期降序预排序（后续会再排序）
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]

@@ -29,10 +29,13 @@ struct HoloDefaultInsightDataSource: HoloInsightDataSource {
                         "generatedAt",
                         "status"
                     ]
-                    request.predicate = NSPredicate(
-                        format: "status IN %@",
-                        [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
-                    )
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(
+                            format: "status IN %@",
+                            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+                        ),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
                     request.fetchLimit = max(1, min(limit, 6))
 

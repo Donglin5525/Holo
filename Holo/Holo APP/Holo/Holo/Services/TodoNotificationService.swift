@@ -327,7 +327,7 @@ class TodoNotificationService: NSObject, ObservableObject {
     func updateReminders(for task: TodoTask, reminders: [TaskReminder]) async throws {
         await cancelReminders(for: task)
 
-        if !task.completed && !task.deletedFlag {
+        if !task.completed && task.deletedAt == nil {
             try await scheduleReminder(for: task, reminders: reminders)
         }
     }
@@ -369,7 +369,7 @@ class TodoNotificationService: NSObject, ObservableObject {
         // 贪睡通知必须带任务名，否则用户不知道在提醒什么；
         // 任务已被完成或删除时不再打扰
         guard let task = TodoRepository.shared.findTask(by: taskId),
-              !task.completed, !task.deletedFlag else { return }
+              !task.completed, task.deletedAt == nil else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "⏰ 稍后提醒"
@@ -463,13 +463,13 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             case TodoNotificationCategory.memoryInsight:
                 Self.logger.info("洞察通知 Deep Link")
                 let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
-                let repository = MemoryInsightRepository()
-                if let insight = try? repository.fetchInsight(
+                // 不在此处 markRead：已读由 ChatView 打开回放卡片时落（与首页胶囊同口径），
+                // 点通知没看到内容时胶囊仍在。
+                if let insight = try? MemoryInsightRepository().fetchInsight(
                     periodType: .weekly,
                     start: period.start,
                     end: period.end
                 ) {
-                    try? repository.markRead(insight: insight)
                     DeepLinkState.shared.navigate(to: .memoryInsight(insightId: insight.id))
                 } else {
                     DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))

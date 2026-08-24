@@ -78,7 +78,7 @@ struct TaskAnalysisContextBuilder {
         let context = CoreDataStack.shared.viewContext
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "completed == YES AND priority >= 2 AND completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+            format: "completed == YES AND priority >= 2 AND completedAt >= %@ AND completedAt < %@ AND deletedAt == nil AND archived == NO",
             start as CVarArg,
             end as CVarArg
         )

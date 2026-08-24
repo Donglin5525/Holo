@@ -219,7 +219,7 @@ final class HoloWidgetSnapshotService {
         let repository = ThoughtRepository()
         let thoughts = (try? repository.fetchAll(limit: 120, sortBy: .createdAtDescending)) ?? []
         let candidates = thoughts
-            .filter { !$0.isSoftDeleted && !$0.isArchived }
+            .filter { $0.deletedAt == nil && !$0.isArchived }
             .filter { $0.plainContent.count >= 8 }
 
         guard !candidates.isEmpty else { return nil }

@@ -237,7 +237,8 @@ class HomeScheduleService: ObservableObject {
 
         for (periodType, start, end, isFallback) in periods {
             if let insight = try? insightRepo.fetchInsight(periodType: periodType, start: start, end: end),
-               insight.insightStatus == .ready || insight.insightStatus == .stale {
+               insight.insightStatus == .ready || insight.insightStatus == .stale,
+               insight.readAt == nil {
                 let title = insight.title
                 let periodLabel: String
                 switch periodType {
@@ -255,7 +256,8 @@ class HomeScheduleService: ObservableObject {
                         message: "\(periodLabel)洞察：\(title)",
                         protectionUntil: nil
                     ),
-                    .memoryGallery(focusNewMemories: false)
+                    // 与周观察胶囊同构：带具体洞察 id，由 ChatView 直接打开回放卡片
+                    .memoryInsight(insightId: insight.id)
                 )
             }
         }

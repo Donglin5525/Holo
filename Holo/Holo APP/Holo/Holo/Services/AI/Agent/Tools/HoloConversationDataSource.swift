@@ -20,10 +20,13 @@ struct HoloDefaultConversationDataSource: HoloConversationDataSource {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = ["role", "intent", "timestamp"]
-                    request.predicate = NSPredicate(
-                        format: "role IN %@ AND isStreaming == NO",
-                        ["user", "assistant"]
-                    )
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(
+                            format: "role IN %@ AND isStreaming == NO",
+                            ["user", "assistant"]
+                        ),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = max(1, min(limit, 50))
 

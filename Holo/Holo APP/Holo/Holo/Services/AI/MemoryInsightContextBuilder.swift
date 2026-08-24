@@ -855,7 +855,7 @@ struct MemoryInsightContextBuilder {
         do {
             let request = TodoTask.fetchRequest()
             request.predicate = NSPredicate(
-                format: "completed == YES AND completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+                format: "completed == YES AND completedAt >= %@ AND completedAt < %@ AND deletedAt == nil AND archived == NO",
                 start as CVarArg,
                 endExclusive as CVarArg
             )
@@ -1760,7 +1760,7 @@ struct MemoryInsightContextBuilder {
             // 已完成任务
             let completedRequest = TodoTask.fetchRequest()
             completedRequest.predicate = NSPredicate(
-                format: "completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+                format: "completedAt >= %@ AND completedAt < %@ AND deletedAt == nil AND archived == NO",
                 start as CVarArg,
                 end.addingDays(1) as CVarArg
             )
@@ -1774,7 +1774,7 @@ struct MemoryInsightContextBuilder {
             // 创建的任务
             let createdRequest = TodoTask.fetchRequest()
             createdRequest.predicate = NSPredicate(
-                format: "createdAt >= %@ AND createdAt < %@ AND deletedFlag == NO AND archived == NO",
+                format: "createdAt >= %@ AND createdAt < %@ AND deletedAt == nil AND archived == NO",
                 start as CVarArg,
                 end.addingDays(1) as CVarArg
             )
@@ -1915,7 +1915,7 @@ struct MemoryInsightContextBuilder {
             // 高优先级已完成任务
             let completedRequest = TodoTask.fetchRequest()
             completedRequest.predicate = NSPredicate(
-                format: "completed == YES AND completedAt >= %@ AND completedAt < %@ AND priority >= %d AND deletedFlag == NO AND archived == NO",
+                format: "completed == YES AND completedAt >= %@ AND completedAt < %@ AND priority >= %d AND deletedAt == nil AND archived == NO",
                 start as CVarArg,
                 endExclusive as CVarArg,
                 2

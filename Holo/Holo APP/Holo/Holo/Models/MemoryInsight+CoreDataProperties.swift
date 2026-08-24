@@ -63,12 +63,15 @@ extension MemoryInsight {
         in context: NSManagedObjectContext
     ) -> MemoryInsight? {
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "periodType == %@ AND periodStart == %@ AND status IN %@",
-            periodType.rawValue,
-            start as CVarArg,
-            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "periodType == %@ AND periodStart == %@ AND status IN %@",
+                periodType.rawValue,
+                start as CVarArg,
+                [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
         request.fetchLimit = 1
 
@@ -85,14 +88,17 @@ extension MemoryInsight {
         promptVersion: Int16
     ) -> MemoryInsight? {
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "periodType == %@ AND periodStart == %@ AND status IN %@ AND sourceSnapshotHash == %@ AND promptVersion == %d",
-            periodType.rawValue,
-            start as CVarArg,
-            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue],
-            snapshotHash,
-            promptVersion
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "periodType == %@ AND periodStart == %@ AND status IN %@ AND sourceSnapshotHash == %@ AND promptVersion == %d",
+                periodType.rawValue,
+                start as CVarArg,
+                [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue],
+                snapshotHash,
+                promptVersion
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
         request.fetchLimit = 1
 

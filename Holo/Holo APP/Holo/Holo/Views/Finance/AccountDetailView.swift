@@ -15,6 +15,10 @@ struct AccountDetailView: View {
     @State private var balance: Decimal = 0
     @State private var monthlySummary: (income: Decimal, expense: Decimal, net: Decimal) = (0, 0, 0)
     @State private var transactions: [Transaction] = []
+    // 信用卡账单信息（loadData 里取一次；body 内查库会让转场掉帧）
+    @State private var creditCycleRange: (start: Date, end: Date)?
+    @State private var creditStatement: (income: Decimal, expense: Decimal, net: Decimal) = (0, 0, 0)
+    @State private var creditDaysToDue: Int?
     @State private var budgetStatus: BudgetStatus?
     @State private var showEditSheet = false
     @State private var showAdjustBalance = false
@@ -64,7 +68,9 @@ struct AccountDetailView: View {
             }
             .padding(HoloSpacing.lg)
         }
-        .background(Color.holoBackground)
+        // 背景必须贯穿到导航栏/状态栏后面：否则 iOS 26 玻璃导航栏底下
+        // 露出系统窗口黑底，页面顶部出现黑色片区
+        .background(Color.holoBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 88)
         }
@@ -602,23 +608,19 @@ struct AccountDetailView: View {
 
     /// 信用卡本期账单卡片
     private var creditCardStatementCard: some View {
-        let cycleRange = creditCardCycleRange
-        let statement = FinanceRepository.shared.getAccountSummary(
-            accountId: account.id,
-            from: cycleRange.start,
-            to: cycleRange.end
-        )
-        let daysUntilDue = daysUntilRepayment(cycleRange: cycleRange)
-
-        return VStack(alignment: .leading, spacing: HoloSpacing.md) {
+        // 数据在 loadData() 里取（@State），body 内直接查库会让每次重画都
+        // 同步跑一遍 Core Data 查询——页面转场时主线程被占住直接掉帧
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack {
                 Text("账单信息")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
-                Text(cycleRangeText(cycleRange))
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextPlaceholder)
+                if let cycleRange = creditCycleRange {
+                    Text(cycleRangeText(cycleRange))
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextPlaceholder)
+                }
             }
 
             // 账单日和还款日是账户的长期属性，放在详情页常驻展示。
@@ -638,7 +640,7 @@ struct AccountDetailView: View {
                 Text("¥")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoError)
-                Text(formatAmount(statement.expense))
+                Text(formatAmount(creditStatement.expense))
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
@@ -646,7 +648,7 @@ struct AccountDetailView: View {
 
             HStack(spacing: HoloSpacing.xl) {
                 // 还款日倒计时
-                if let days = daysUntilDue {
+                if let days = creditDaysToDue {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("距还款日")
                             .font(.system(size: 11))
@@ -663,7 +665,7 @@ struct AccountDetailView: View {
                         Text("可用额度")
                             .font(.system(size: 11))
                             .foregroundColor(.holoTextSecondary)
-                        Text(formatAmount(max(limit - statement.expense, 0)))
+                        Text(formatAmount(max(limit - creditStatement.expense, 0)))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.holoTextPrimary)
                     }
@@ -849,6 +851,22 @@ struct AccountDetailView: View {
             month: Date()
         )
         transactions = FinanceRepository.shared.getAccountTransactions(accountId: account.id)
+
+        // 信用卡账单信息（一次取好，body 只读状态）
+        if account.accountType.isCreditCard {
+            let range = creditCardCycleRange
+            creditCycleRange = range
+            creditStatement = FinanceRepository.shared.getAccountSummary(
+                accountId: account.id,
+                from: range.start,
+                to: range.end
+            )
+            creditDaysToDue = daysUntilRepayment(cycleRange: range)
+        } else {
+            creditCycleRange = nil
+            creditDaysToDue = nil
+        }
+
         budgetStatus = BudgetRepository.shared.computeTotalBudgetStatus(
             forAccount: account.id,
             period: .month
@@ -872,11 +890,28 @@ struct AccountDetailView: View {
         return formatter.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
     }
 
-    private func formatDate(_ date: Date) -> String {
+    /// 同年分组标题：「8月22日 星期六」
+    private static let sameYearDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "M月d日 EEEE"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    /// 跨年分组标题：「2027年1月5日 星期二」，不带年份会分不清归属年份
+    private static let crossYearDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日 EEEE"
+        return formatter
+    }()
+
+    private func formatDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.component(.year, from: date) == calendar.component(.year, from: Date()) {
+            return Self.sameYearDateFormatter.string(from: date)
+        }
+        return Self.crossYearDateFormatter.string(from: date)
     }
 
     private func groupByDate(_ transactions: [Transaction]) -> [Date: [Transaction]] {

@@ -38,7 +38,7 @@ extension TodoRepository {
 
         do {
             let tasks = try context.fetch(request)
-            return tasks.filter { !$0.deletedFlag && !$0.archived }
+            return tasks.filter { $0.deletedAt == nil && !$0.archived }
         } catch {
             Self.kanbanLogger.error("获取今日看板任务失败: \(error.localizedDescription)")
             return []
@@ -56,7 +56,7 @@ extension TodoRepository {
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "dueDate != nil AND dueDate < %@", endOfDay as NSDate),
             NSPredicate(format: "completed == false"),
-            NSPredicate(format: "deletedFlag == false"),
+            NSPredicate(format: "deletedAt == nil"),
             NSPredicate(format: "archived == false"),
             NSPredicate(format: "isDailyRitual == false"),
         ])
@@ -85,7 +85,7 @@ extension TodoRepository {
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "dueDate >= %@ AND dueDate < %@", startOfDay.addingTimeInterval(86400) as NSDate, endOf3Days as NSDate),
             NSPredicate(format: "completed == false"),
-            NSPredicate(format: "deletedFlag == false"),
+            NSPredicate(format: "deletedAt == nil"),
             NSPredicate(format: "archived == false"),
             NSPredicate(format: "isDailyRitual == false"),
         ])
@@ -111,7 +111,7 @@ extension TodoRepository {
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "dueDate == nil"),
             NSPredicate(format: "completed == false"),
-            NSPredicate(format: "deletedFlag == false"),
+            NSPredicate(format: "deletedAt == nil"),
             NSPredicate(format: "archived == false"),
             NSPredicate(format: "isDailyRitual == false"),
         ])
@@ -161,7 +161,7 @@ extension TodoRepository {
             tomorrow as NSDate
         )
         let goalTasks = (try? context.fetch(taskRequest))?
-            .filter { !$0.deletedFlag && !$0.archived } ?? []
+            .filter { $0.deletedAt == nil && !$0.archived } ?? []
         let taskGoalIds = Set(goalTasks.compactMap { $0.goal?.id })
 
         // 习惯部分（复用 HabitRepository 的今日完成判定）
@@ -202,7 +202,7 @@ extension TodoRepository {
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "isDailyRitual == true"),
             NSPredicate(format: "completed == false"),
-            NSPredicate(format: "deletedFlag == false"),
+            NSPredicate(format: "deletedAt == nil"),
             NSPredicate(format: "dueDate >= %@ AND dueDate < %@", startOfDay as NSDate, endOfDay as NSDate),
         ])
 

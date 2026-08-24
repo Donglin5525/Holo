@@ -40,7 +40,9 @@ nonisolated extension CoreDataStack {
             attribute("trigger", .stringAttributeType, defaultValue: "weeklyPlanning"),
             attribute("dataSufficient", .booleanAttributeType, defaultValue: true),
             attribute("createdAt", .dateAttributeType, defaultValue: Date()),
-            attribute("updatedAt", .dateAttributeType, defaultValue: Date())
+            attribute("updatedAt", .dateAttributeType, defaultValue: Date()),
+            optionalAttribute("deletedAt", .dateAttributeType),
+            optionalAttribute("deletedBatchId", .UUIDAttributeType)
         ]
         return entity
     }
@@ -59,7 +61,9 @@ nonisolated extension CoreDataStack {
             optionalAttribute("userDecision", .stringAttributeType),
             optionalAttribute("goalID", .UUIDAttributeType),
             attribute("createdAt", .dateAttributeType, defaultValue: Date()),
-            attribute("updatedAt", .dateAttributeType, defaultValue: Date())
+            attribute("updatedAt", .dateAttributeType, defaultValue: Date()),
+            optionalAttribute("deletedAt", .dateAttributeType),
+            optionalAttribute("deletedBatchId", .UUIDAttributeType)
         ]
         return entity
     }
@@ -81,7 +85,9 @@ nonisolated extension CoreDataStack {
             optionalAttribute("undoTokenJSON", .stringAttributeType),
             attribute("sortOrder", .integer16AttributeType, defaultValue: Int16(0)),
             attribute("createdAt", .dateAttributeType, defaultValue: Date()),
-            attribute("updatedAt", .dateAttributeType, defaultValue: Date())
+            attribute("updatedAt", .dateAttributeType, defaultValue: Date()),
+            optionalAttribute("deletedAt", .dateAttributeType),
+            optionalAttribute("deletedBatchId", .UUIDAttributeType)
         ]
         return entity
     }
@@ -102,7 +108,9 @@ nonisolated extension CoreDataStack {
             attribute("evidenceIDsJSON", .stringAttributeType, defaultValue: "[]"),
             attribute("outcome", .stringAttributeType, defaultValue: "surfaced"),
             optionalAttribute("dismissedAt", .dateAttributeType),
-            attribute("createdAt", .dateAttributeType, defaultValue: Date())
+            attribute("createdAt", .dateAttributeType, defaultValue: Date()),
+            optionalAttribute("deletedAt", .dateAttributeType),
+            optionalAttribute("deletedBatchId", .UUIDAttributeType)
         ]
         return entity
     }
@@ -118,7 +126,9 @@ nonisolated extension CoreDataStack {
             attribute("decision", .stringAttributeType, defaultValue: "rejected"),
             optionalAttribute("reasonTag", .stringAttributeType),
             optionalAttribute("freeText", .stringAttributeType),
-            attribute("createdAt", .dateAttributeType, defaultValue: Date())
+            attribute("createdAt", .dateAttributeType, defaultValue: Date()),
+            optionalAttribute("deletedAt", .dateAttributeType),
+            optionalAttribute("deletedBatchId", .UUIDAttributeType)
         ]
         return entity
     }
@@ -135,7 +145,9 @@ nonisolated extension CoreDataStack {
             attribute("inputSnapshotVersion", .integer16AttributeType, defaultValue: Int16(1)),
             optionalAttribute("consumedBudgetJSON", .stringAttributeType),
             attribute("resultStatus", .stringAttributeType, defaultValue: "completed"),
-            attribute("createdAt", .dateAttributeType, defaultValue: Date())
+            attribute("createdAt", .dateAttributeType, defaultValue: Date()),
+            optionalAttribute("deletedAt", .dateAttributeType),
+            optionalAttribute("deletedBatchId", .UUIDAttributeType)
         ]
         return entity
     }

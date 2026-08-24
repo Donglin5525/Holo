@@ -114,7 +114,8 @@ private extension HoloAICapability {
         case .todayState:
             return "帮我看看今天的整体状态"
         case .recentAnalysis:
-            return "分析一下我最近的数据趋势"
+            // 甲方案：这颗卡点开的是场景面板，不再是直接发送的固定问句
+            return "选一个场景，发起深度分析"
         case .longTermPatterns:
             return "你了解我哪些长期偏好和模式？"
         case .goalPlanning:

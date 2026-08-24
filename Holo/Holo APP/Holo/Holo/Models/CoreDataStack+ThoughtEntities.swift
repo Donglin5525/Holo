@@ -579,6 +579,15 @@ extension CoreDataStack {
         thoughtAttachmentsRelation.inverseRelationship = attachmentThoughtRelation
         attachmentThoughtRelation.inverseRelationship = thoughtAttachmentsRelation
 
+        // 统一软删除标记（Thought/ThoughtTag/Topic 为清空批次的顶层实体；
+        // Reference/Assignment/Attachment 跟随 Thought 生命周期，无需独立标记）
+        let thoughtSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        thoughtAttributes.append(contentsOf: thoughtSoftDelete.attributes)
+        let thoughtTagSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        thoughtTagAttributes.append(contentsOf: thoughtTagSoftDelete.attributes)
+        let topicSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        topicAttributes.append(contentsOf: topicSoftDelete.attributes)
+
         // 将属性和关系添加到实体
         thoughtEntity.properties = thoughtAttributes + [
             thoughtTagsRelation,
@@ -588,13 +597,13 @@ extension CoreDataStack {
             thoughtTopicsRelation,
             thoughtAttachmentsRelation
         ]
-        CoreDataStack.applyIndexes(to: thoughtEntity, on: ["id": thoughtId])
+        CoreDataStack.applyIndexes(to: thoughtEntity, on: ["id": thoughtId, "deletedAt": thoughtSoftDelete.deletedAt, "deletedBatchId": thoughtSoftDelete.deletedBatchId])
         thoughtTagEntity.properties = thoughtTagAttributes + [
             tagThoughtsRelation,
             tagAssignmentsRelation,
             tagAssociatedTopicsRelation
         ]
-        CoreDataStack.applyIndexes(to: thoughtTagEntity, on: ["id": thoughtTagId])
+        CoreDataStack.applyIndexes(to: thoughtTagEntity, on: ["id": thoughtTagId, "deletedAt": thoughtTagSoftDelete.deletedAt, "deletedBatchId": thoughtTagSoftDelete.deletedBatchId])
         thoughtReferenceEntity.properties = thoughtReferenceAttributes + [
             referenceSourceRelation,
             referenceTargetRelation
@@ -611,7 +620,7 @@ extension CoreDataStack {
             topicMergedToRelation,
             topicMergedFromRelation
         ]
-        CoreDataStack.applyIndexes(to: topicEntity, on: ["id": topicId])
+        CoreDataStack.applyIndexes(to: topicEntity, on: ["id": topicId, "deletedAt": topicSoftDelete.deletedAt, "deletedBatchId": topicSoftDelete.deletedBatchId])
         thoughtAttachmentEntity.properties = thoughtAttachmentAttributes + [
             attachmentThoughtRelation
         ]

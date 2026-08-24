@@ -88,7 +88,10 @@ extension Account {
     /// 获取默认账户
     static func getDefaultAccount(in context: NSManagedObjectContext) -> Account? {
         let fetchRequest = Account.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "isDefault == true")
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "isDefault == true"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         fetchRequest.fetchLimit = 1
 
         return try? context.fetch(fetchRequest).first
@@ -104,9 +107,9 @@ extension Account {
             return
         }
 
-        // 查找第一个未归档账户
+        // 查找第一个未归档账户（排除已在回收站的账户）
         let fetchRequest = Account.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "isArchived == false")
+        fetchRequest.predicate = NSPredicate(format: "isArchived == false AND deletedAt == nil")
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         fetchRequest.fetchLimit = 1
 

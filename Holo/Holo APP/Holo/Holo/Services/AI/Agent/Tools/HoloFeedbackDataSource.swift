@@ -36,6 +36,7 @@ struct HoloDefaultFeedbackDataSource: HoloFeedbackDataSource {
                         "userCorrection",
                         "createdAt"
                     ]
+                    request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     request.fetchLimit = cappedLimit
 

@@ -79,7 +79,7 @@ class AnniversaryRepository {
         let request = Anniversary.fetchRequest()
         var predicates: [NSPredicate] = []
         if !includeDeleted {
-            predicates.append(NSPredicate(format: "isSoftDeleted == NO"))
+            predicates.append(NSPredicate(format: "deletedAt == nil"))
         }
         if !includeArchived {
             predicates.append(NSPredicate(format: "isArchived == NO"))
@@ -95,7 +95,7 @@ class AnniversaryRepository {
     /// 按 ID 获取单个纪念日
     func anniversary(by id: UUID) -> Anniversary? {
         let request = Anniversary.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
         return try? context.fetch(request).first
     }
@@ -223,6 +223,7 @@ class AnniversaryRepository {
     /// 软删除纪念日（移入回收站）
     func softDeleteAnniversary(_ item: Anniversary) async throws {
         item.isSoftDeleted = true
+        item.markDeleted(batchId: nil)
         item.updatedAt = Date()
         try context.save()
         loadActiveAnniversaries()

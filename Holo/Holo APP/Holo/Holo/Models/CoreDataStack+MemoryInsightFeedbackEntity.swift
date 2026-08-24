@@ -86,8 +86,11 @@ extension CoreDataStack {
         consumedAt.isOptional = true
         attributes.append(consumedAt)
 
+        let feedbackSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        attributes.append(contentsOf: feedbackSoftDelete.attributes)
+
         entity.properties = attributes
-        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "insightId": insightId])
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "insightId": insightId, "deletedAt": feedbackSoftDelete.deletedAt, "deletedBatchId": feedbackSoftDelete.deletedBatchId])
         return entity
     }
 }

@@ -186,9 +186,11 @@ final class MarkdownTextViewNodePipelineTests: XCTestCase {
         let tokenText = MarkdownTextView.makeAttributedText(from: [
             .reference(noteId: noteId, displayText: "目标记录", snapshot: "摘要")
         ])
+        // token 渲染为「␣@目标记录␣」（首尾空格保点击热区）；
+        // 光标放在 token 文本末尾（尾部空格之前）才会形成触发上下文
         let context = TriggerDetector.detect(
             text: tokenText.string as NSString,
-            cursor: tokenText.length
+            cursor: tokenText.length - 1
         )
 
         XCTAssertNotNil(context)
@@ -687,8 +689,10 @@ final class MarkdownTextViewNodePipelineTests: XCTestCase {
         let attributedText = MarkdownTextView.makeAttributedText(from: nodes)
         let editableValue = MarkdownTextView.editableAccessibilityText(from: attributedText)
 
-        XCTAssertEqual(editableValue.utf16.count, attributedText.string.utf16.count)
+        // 编辑态契约：token 以单字符标记（@/#/✓）占位，坐标才不会相对编辑态存储漂移；
+        // 完整标题/任务说明由 Hint 提供（展示态字符串与编辑态值天然不等长，不做等长断言）。
         XCTAssertEqual(editableValue, "正文@✓")
+        XCTAssertFalse(editableValue.contains("\u{FFFC}"), "编辑态不得暴露附件占位符")
         XCTAssertEqual(
             MarkdownTextView.editableAccessibilityHint(from: nodes),
             "引用：@目标记录；已转为任务：正文"

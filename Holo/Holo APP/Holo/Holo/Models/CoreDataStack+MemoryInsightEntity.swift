@@ -170,8 +170,11 @@ extension CoreDataStack {
         observationStage.isOptional = true
         attributes.append(observationStage)
 
+        let insightSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        attributes.append(contentsOf: insightSoftDelete.attributes)
+
         entity.properties = attributes
-        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "periodType": periodType, "periodStart": periodStart, "status": status])
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "periodType": periodType, "periodStart": periodStart, "status": status, "deletedAt": insightSoftDelete.deletedAt, "deletedBatchId": insightSoftDelete.deletedBatchId])
         return entity
     }
 

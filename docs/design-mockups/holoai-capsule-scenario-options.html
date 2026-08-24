@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo AI · 深度分析胶囊场景化 · 三方案对比（可交互原型）</title>
+<style>
+  :root {
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --text: #333333;
+    --text-2: #939393;
+    --text-3: #BDBDBD;
+    --border: #F0F0F0;
+    --divider: rgba(0,0,0,0.06);
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #EDEAE4; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text); padding: 28px 32px 64px; -webkit-font-smoothing: antialiased;
+  }
+  .page-head { max-width: 1760px; margin: 0 auto 24px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .page-head .sub { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+
+  table.cmp { width: 100%; border-collapse: collapse; background: #fff; border-radius: var(--radius-md); overflow: hidden; font-size: 12.5px; margin-bottom: 26px; }
+  table.cmp th, table.cmp td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); line-height: 1.6; vertical-align: top; }
+  table.cmp th { background: #F7F5F0; font-size: 12px; }
+  table.cmp td:first-child { font-weight: 800; white-space: nowrap; }
+  table.cmp .good { color: #15803D; font-weight: 600; }
+  table.cmp .bad { color: #DC2626; font-weight: 600; }
+
+  .phones { display: flex; gap: 28px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; }
+  .phone-col { flex: 0 0 auto; width: 375px; }
+  .col-head { margin-bottom: 10px; }
+  .col-head .name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--primary); color: #fff; }
+  .col-head .hint { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.65; }
+
+  .phone { width: 375px; height: 760px; background: #1C1C1E; border-radius: 46px; padding: 10px; box-shadow: 0 18px 44px rgba(0,0,0,0.22); }
+  .screen { width: 100%; height: 100%; background: var(--bg); border-radius: 38px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .statusbar { height: 44px; flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 26px 4px; font-size: 13px; font-weight: 600; }
+  .notch { width: 110px; height: 26px; background: #1C1C1E; border-radius: 0 0 18px 18px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 10; }
+  .nav { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 8px 16px 6px; }
+  .nav .side { width: 64px; }
+  .nav .title { font-size: 15px; font-weight: 700; letter-spacing: 2.5px; }
+  .page-tabs { flex: 0 0 auto; display: flex; justify-content: center; gap: 4px; margin: 4px 60px 8px; padding: 3px; background: #EDEAE3; border-radius: 99px; }
+  .page-tab { flex: 1; text-align: center; padding: 6px 0; border-radius: 99px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .page-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+  .chat-area { flex: 1; overflow: hidden; padding: 4px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .bubble-user { align-self: flex-end; max-width: 80%; background: var(--primary); color: #fff; border-radius: 16px 16px 4px 16px; padding: 8px 12px; font-size: 12.5px; line-height: 1.55; }
+  .ghost-note { font-size: 10.5px; color: var(--text-3); text-align: center; }
+
+  /* 胶囊行 */
+  .quickbar { flex: 0 0 auto; display: flex; gap: 7px; padding: 8px 14px 4px; }
+  .q { font-size: 12px; padding: 6px 12px; border-radius: 99px; background: var(--card); border: 1px solid var(--border); color: #4A4A4A; flex: 0 0 auto; }
+  .q.hot { background: #FFF2EA; border-color: #FFD9C4; color: var(--primary-dark); font-weight: 700; }
+
+  /* 方案甲：展开面板 */
+  .scene-panel {
+    display: none; margin: 2px 14px 6px; background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 12px; box-shadow: 0 10px 28px rgba(0,0,0,0.10);
+  }
+  .scene-panel.open { display: block; }
+  .scene-panel .ph { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
+  .scene-panel .ph .t { font-size: 13px; font-weight: 800; }
+  .scene-panel .ph .quota { font-size: 9.5px; color: #B45B2E; }
+  .scene-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .s-card { border: 1px solid var(--border); border-radius: 10px; padding: 8px 9px; cursor: pointer; transition: all .15s ease; }
+  .s-card:hover { border-color: #FFD9C4; background: #FFFDFB; }
+  .s-card .r1 { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; }
+  .s-card .r1 .crown { font-size: 8px; background: #FFF2EA; color: var(--primary-dark); border-radius: 99px; padding: 1px 5px; font-weight: 700; }
+  .s-card .r2 { font-size: 9.5px; color: #6B6B6B; line-height: 1.5; margin-top: 2px; }
+
+  /* 方案乙：行内直出 + ⋯ 展开行 */
+  .more-row { display: none; gap: 7px; padding: 0 14px 4px; }
+  .more-row.open { display: flex; }
+
+  /* 方案丙：小箭头展开列表 */
+  .mini-list { display: none; margin: 2px 14px 6px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 7px; box-shadow: 0 10px 28px rgba(0,0,0,0.10); }
+  .mini-list.open { display: block; }
+  .mini-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+  .mini-item:hover { background: #FBF7F2; }
+  .mini-item .d { font-size: 10px; color: var(--text-2); font-weight: 400; margin-left: auto; }
+
+  /* 预填态 */
+  .src-note { display: none; margin: 0 14px 4px; font-size: 10.5px; color: var(--primary-dark); background: #FFF2EA; border: 1px dashed #FFD9C4; border-radius: 8px; padding: 6px 9px; line-height: 1.6; }
+  .src-note.show { display: block; }
+  .inputbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 14px 22px; }
+  .inputbar .field { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 99px; padding: 9px 14px; font-size: 11.5px; color: var(--text-3); line-height: 1.5; min-height: 36px; }
+  .inputbar .field.filled { border: 1.5px solid #FFD9C4; color: var(--text); font-size: 11px; }
+  .inputbar .send { width: 36px; height: 36px; border-radius: 99px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 auto; }
+  .homebar { flex: 0 0 auto; height: 5px; width: 120px; background: #D8D5CE; border-radius: 99px; margin: 0 auto 8px; }
+
+  .flow-tip { margin-top: 8px; font-size: 11.5px; color: var(--text-2); background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; line-height: 1.7; }
+  .flow-tip b { color: var(--primary-dark); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>深度分析胶囊 · 场景化三方案对比（可交互）</h1>
+  <div class="sub">
+    2026-08-22 · 三台都能点：点胶囊 → 选/不选场景 → 看预填效果。共同底线：任何场景选中后都是
+    <b style="color:var(--primary-dark)">预填到输入框、不自动发送</b>。场景清单以枚举表为准（6 单域 + 跨域洞察置顶）。
+  </div>
+
+  <table class="cmp">
+    <tr><th>方案</th><th>到「预填」的步数</th><th>信息量</th><th>主要风险</th><th>适合什么</th></tr>
+    <tr>
+      <td>甲 · 点开面板</td>
+      <td>任意场景均为 <span class="good">2 步</span>（点胶囊 → 点场景）</td>
+      <td><span class="good">最大</span>：场景名+卖点文案+数据来源都能放下</td>
+      <td>面板会暂时遮挡聊天区；比直出多一次点击</td>
+      <td>场景是主打能力、要让用户「逛」起来的定位</td>
+    </tr>
+    <tr>
+      <td>乙 · 高频直出</td>
+      <td>高频 3 个 <span class="good">1 步</span>；其余 <span class="bad">2 步</span>（⋯ 展开）</td>
+      <td><span class="bad">最小</span>：行内只放得下场景名，卖点文案无处安放</td>
+      <td>胶囊行拥挤；「哪三个算高频」是替用户做主；小屏截断</td>
+      <td>高频明确、用户已有习惯的成熟期</td>
+    </tr>
+    <tr>
+      <td>丙 · 一点一长按</td>
+      <td>默认跨域 <span class="good">1 步</span>；其余场景 <span class="bad">2 步</span>（箭头 → 选）</td>
+      <td>中：紧凑列表只有名+一句话</td>
+      <td><span class="bad">箭头热区小</span>；「长按/箭头可选场景」的可发现性差，要教育</td>
+      <td>保守演进：保留现有单颗胶囊的形态</td>
+    </tr>
+  </table>
+</div>
+
+<div class="phones">
+
+  <!-- ═══ 方案甲 ═══ -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">甲 · 点开面板 <span class="badge">可交互</span></div>
+      <div class="hint">点「深度分析 ▾」→ 面板展开（网格全场景）；点任一场景卡 → 面板收起、问句预填。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav"><div class="side"></div><div class="title">HOLO AI</div><div class="side"></div></div>
+      <div class="page-tabs"><div class="page-tab active">对话</div><div class="page-tab">报告</div></div>
+
+      <div class="chat-area" style="height: 400px;">
+        <div class="bubble-user">分析一下我最近三个月的数据趋势</div>
+        <div class="ghost-note">▲ 现在的深度分析就是默认跨域，只是没有名分</div>
+      </div>
+
+      <div class="quickbar">
+        <span class="q hot" id="a-trigger" onclick="togglePanel('a-panel', this)">深度分析 ▾</span>
+        <span class="q">今日状态</span><span class="q">周期回放</span><span class="q">规划目标</span>
+      </div>
+
+      <div class="scene-panel" id="a-panel">
+        <div class="ph"><span class="t">选一个分析场景</span><span class="quota">共用每月深度洞察额度 · 免费 2 次</span></div>
+        <div class="scene-grid">
+          <div class="s-card" onclick="prefill('a', '把我的各类生活数据放在一起做一次深度分析，重点找出单看一处发现不了的规律', '跨域洞察')">
+            <div class="r1">🔗 跨域洞察 <span class="crown">王牌</span></div>
+            <div class="r2">全域交叉，发现补偿回路类规律</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '深度分析一下我最近的财务状况，重点看支出结构和预算执行，有异常消费也指出来', '财务分析')">
+            <div class="r1">💰 财务分析</div>
+            <div class="r2">支出结构 / 超预算归因 / 异常消费</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '深度分析一下我最近的习惯坚持情况，哪些天容易掉档、可能和什么有关', '习惯分析')">
+            <div class="r1">🌱 习惯分析</div>
+            <div class="r2">掉档规律 / 断签恢复 / 数值走势</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '深度分析一下我最近的睡眠和健康数据，比如睡眠规律、运动日和不运动日的差别', '睡眠与健康')">
+            <div class="r1">🌙 睡眠与健康</div>
+            <div class="r2">睡眠规律 / 运动量 / 活跃节奏</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '分析一下我最近的任务完成情况和拖延模式', '任务效率')">
+            <div class="r1">✅ 任务效率</div>
+            <div class="r2">完成率 / 拖延模式 / 截止压力</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '分析一下我最近反复在想的主题，想法的走向和变化', '想法洞察')">
+            <div class="r1">💭 想法洞察</div>
+            <div class="r2">反复出现的念头 / 主题走向</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '复盘一下我的目标进度，有风险信号也提醒我', '目标复盘')">
+            <div class="r1">🎯 目标复盘</div>
+            <div class="r2">进度 / 量化走势 / 风险</div>
+          </div>
+          <div class="s-card" onclick="prefill('a', '说说你观察到的我有哪些长期模式和偏好', '长期模式')">
+            <div class="r1">🧠 长期模式</div>
+            <div class="r2">Holo 眼中的你（画像问答）</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="src-note" id="a-note"></div>
+      <div class="inputbar">
+        <div class="field" id="a-field">想问点什么…</div>
+        <div class="send">➤</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <div class="flow-tip"><b>动线</b>：点胶囊（面板开）→ 点场景卡（面板收+预填）→ 自己按发送。8 个场景全量陈列，卖点与数据来源都放得下。</div>
+  </div>
+
+  <!-- ═══ 方案乙 ═══ -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">乙 · 高频直出 + ⋯ <span class="badge">可交互</span></div>
+      <div class="hint">行内直接点高频场景（跨域/财务/睡眠）即预填；点「⋯」展开其余场景。注意行内拥挤与场景名截断。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav"><div class="side"></div><div class="title">HOLO AI</div><div class="side"></div></div>
+      <div class="page-tabs"><div class="page-tab active">对话</div><div class="page-tab">报告</div></div>
+
+      <div class="chat-area" style="height: 430px;">
+        <div class="bubble-user">深度分析一下我的睡眠和健康数据</div>
+        <div class="ghost-note">▲ 行内高频场景一点即预填（少一步）</div>
+      </div>
+
+      <div class="quickbar">
+        <span class="q hot" onclick="prefill('b', '把我的各类生活数据放在一起做一次深度分析，重点找出单看一处发现不了的规律', '跨域洞察')">🔗 跨域洞察</span>
+        <span class="q hot" onclick="prefill('b', '深度分析一下我最近的财务状况，重点看支出结构和预算执行，有异常消费也指出来', '财务分析')">💰 财务分析</span>
+        <span class="q hot" onclick="prefill('b', '深度分析一下我最近的睡眠和健康数据，比如睡眠规律、运动日和不运动日的差别', '睡眠与健康')">🌙 睡眠健康</span>
+        <span class="q" id="b-more" onclick="document.getElementById('b-row').classList.toggle('open')">⋯</span>
+      </div>
+      <div class="more-row" id="b-row">
+        <span class="q" onclick="prefill('b', '深度分析一下我最近的习惯坚持情况，哪些天容易掉档、可能和什么有关', '习惯分析')">🌱 习惯</span>
+        <span class="q" onclick="prefill('b', '分析一下我最近的任务完成情况和拖延模式', '任务效率')">✅ 任务</span>
+        <span class="q" onclick="prefill('b', '分析一下我最近反复在想的主题，想法的走向和变化', '想法洞察')">💭 想法</span>
+        <span class="q" onclick="prefill('b', '复盘一下我的目标进度，有风险信号也提醒我', '目标复盘')">🎯 目标</span>
+        <span class="q">🧠 长期模式</span>
+      </div>
+
+      <div class="src-note" id="b-note"></div>
+      <div class="inputbar">
+        <div class="field" id="b-field">想问点什么…</div>
+        <div class="send">➤</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <div class="flow-tip"><b>动线</b>：高频场景 1 步预填；长尾场景点 ⋯（第二行展开）再选。<b>代价</b>：一行变两行的空间、高频三选一是替用户做的主、卖点文案没有容身之处（只有名字）。</div>
+  </div>
+
+  <!-- ═══ 方案丙 ═══ -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">丙 · 一点一长按 <span class="badge">可交互</span></div>
+      <div class="hint">点胶囊主体=默认跨域直接预填；点右侧小箭头（或长按）=紧凑列表选场景。试试两种点法。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav"><div class="side"></div><div class="title">HOLO AI</div><div class="side"></div></div>
+      <div class="page-tabs"><div class="page-tab active">对话</div><div class="page-tab">报告</div></div>
+
+      <div class="chat-area" style="height: 400px;">
+        <div class="bubble-user">把我的财务、习惯、健康放在一起分析</div>
+        <div class="ghost-note">▲ 点主体=默认跨域洞察，1 步预填</div>
+      </div>
+
+      <div class="quickbar">
+        <span class="q hot" onclick="prefill('c', '把我的各类生活数据放在一起做一次深度分析，重点找出单看一处发现不了的规律', '跨域洞察(默认)')">深度分析</span>
+        <span class="q hot" style="padding: 6px 7px;" onclick="document.getElementById('c-list').classList.toggle('open')">▸</span>
+        <span class="q">今日状态</span><span class="q">周期回放</span><span class="q">规划目标</span>
+      </div>
+
+      <div class="mini-list" id="c-list">
+        <div class="mini-item" onclick="prefill('c', '深度分析一下我最近的财务状况，重点看支出结构和预算执行，有异常消费也指出来', '财务分析')">💰 财务分析 <span class="d">支出/预算/异常</span></div>
+        <div class="mini-item" onclick="prefill('c', '深度分析一下我最近的习惯坚持情况，哪些天容易掉档、可能和什么有关', '习惯分析')">🌱 习惯分析 <span class="d">掉档/恢复/走势</span></div>
+        <div class="mini-item" onclick="prefill('c', '深度分析一下我最近的睡眠和健康数据，比如睡眠规律、运动日和不运动日的差别', '睡眠与健康')">🌙 睡眠与健康 <span class="d">睡眠/运动/活跃</span></div>
+        <div class="mini-item" onclick="prefill('c', '分析一下我最近的任务完成情况和拖延模式', '任务效率')">✅ 任务效率 <span class="d">完成/拖延</span></div>
+        <div class="mini-item" onclick="prefill('c', '分析一下我最近反复在想的主题，想法的走向和变化', '想法洞察')">💭 想法洞察 <span class="d">主题/走向</span></div>
+        <div class="mini-item" onclick="prefill('c', '复盘一下我的目标进度，有风险信号也提醒我', '目标复盘')">🎯 目标复盘 <span class="d">进度/风险</span></div>
+      </div>
+
+      <div class="src-note" id="c-note"></div>
+      <div class="inputbar">
+        <div class="field" id="c-field">想问点什么…</div>
+        <div class="send">➤</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <div class="flow-tip"><b>动线</b>：主体 1 步（默认跨域）；箭头/长按 2 步选场景。<b>代价</b>：小箭头热区窄（真机易误触主体）；「还有别的场景」这件事藏得深，新用户感知不到——恰与「让能力显性」的初衷相反。</div>
+  </div>
+
+</div>
+
+<script>
+  function togglePanel(id, trigger) {
+    var panel = document.getElementById(id);
+    panel.classList.toggle('open');
+    trigger.textContent = panel.classList.contains('open') ? '深度分析 ▴' : '深度分析 ▾';
+  }
+  function prefill(prefix, question, scene) {
+    if (prefix === 'a') {
+      document.getElementById('a-panel').classList.remove('open');
+      document.getElementById('a-trigger').textContent = '深度分析 ▾';
+    } else if (prefix === 'b') {
+      document.getElementById('b-row').classList.remove('open');
+    } else if (prefix === 'c') {
+      document.getElementById('c-list').classList.remove('open');
+    }
+    var field = document.getElementById(prefix + '-field');
+    field.textContent = question;
+    field.classList.add('filled');
+    var note = document.getElementById(prefix + '-note');
+    note.textContent = '来自「' + scene + '」场景 · 未发送，确认后按 ➤';
+    note.classList.add('show');
+  }
+</script>
+
+</body>
+</html>

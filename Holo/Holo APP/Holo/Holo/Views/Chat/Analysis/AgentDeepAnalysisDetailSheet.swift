@@ -240,9 +240,9 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
 
     private static func signalSummaries(from summary: String) -> [String] {
         let separators = Set("，,；;。.!！?？\n")
-        let parts = summary
+        let parts = protectThousandSeparators(in: summary)
             .split { separators.contains($0) }
-            .map { cleanSignalSummary(String($0)) }
+            .map { cleanSignalSummary(restoreThousandSeparators(in: String($0))) }
             .filter { !$0.isEmpty }
             .prefix(3)
 
@@ -253,23 +253,35 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         return result.isEmpty ? ["暂无显著观察"] : result
     }
 
+    /// 数字千分位逗号（如 6,991）不是句子分隔：切段前先换成占位符，切完还原，
+    /// 否则「日均 6,991 步」会被切成「日均 6」和「991 步」两段。
+    private static func protectThousandSeparators(in text: String) -> String {
+        text.replacingOccurrences(of: #"(?<=\d),(?=\d)"#, with: "\u{1}", options: .regularExpression)
+    }
+
+    private static func restoreThousandSeparators(in text: String) -> String {
+        text.replacingOccurrences(of: "\u{1}", with: ",")
+    }
+
     private static func readingParagraphs(from summary: String) -> [String] {
         let primarySeparators = Set("；;。!！?？\n")
-        let primaryParts = summary
+        let primaryParts = protectThousandSeparators(in: summary)
             .split { primarySeparators.contains($0) }
-            .map { cleanParagraph(String($0)) }
+            .map { cleanParagraph(restoreThousandSeparators(in: String($0))) }
             .filter { !$0.isEmpty }
         if primaryParts.count > 1 {
             return primaryParts
         }
 
         let fallbackSeparators = Set("，,")
-        let fallbackParts = summary
+        let fallbackParts = protectThousandSeparators(in: summary)
             .split { fallbackSeparators.contains($0) }
-            .map { cleanParagraph(String($0)) }
+            .map { cleanParagraph(restoreThousandSeparators(in: String($0))) }
             .filter { !$0.isEmpty }
         let fallbackSummary = cleanParagraph(summary)
-        return fallbackParts.isEmpty ? [fallbackSummary] : fallbackParts
+        // 逗号拆段只用于多信号长摘要（≥3 段）；单逗号的完整短句（如「最近一个月，日均 6,991 步」）
+        // 保持一段，避免开篇被拆成两个碎片段。
+        return fallbackParts.count >= 3 ? fallbackParts : [fallbackSummary]
     }
 
     private static func displayTitle(
@@ -379,7 +391,11 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     let result: HoloRenderedAgentResult
     var onFinanceDrilldown: ((HoloRenderedFinanceDrilldown) -> Void)?
-    var onContinueFollowUp: (() -> Void)? = nil
+    /// 报告内追问控制器：非 nil 时底部显示追问输入条、正文尾部显示追问记录。
+    /// nil（回放等无追问能力的入口）不显示追问 UI。
+    var followUpController: ReportFollowUpController? = nil
+    /// 追问记录条目点击 → 打开子报告详情（由路由层转消息快照）。
+    var onOpenFollowUpReport: ((ChatMessageRepository.ReportArchiveDTO) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var isEvidenceExpanded = false
@@ -392,6 +408,9 @@ struct AgentDeepAnalysisDetailSheet: View {
         let model = narrative
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
+                if result.continuationMetadata?.isFollowUp == true {
+                    lineageBar
+                }
                 header
                 if model.isEmptyState {
                     emptyState
@@ -404,6 +423,15 @@ struct AgentDeepAnalysisDetailSheet: View {
                         closingSection(model)
                     }
                     evidenceSection(model.evidence)
+                    if let controller = followUpController {
+                        ReportFollowUpRecordsSection(
+                            controller: controller,
+                            onOpen: { entry in
+                                onOpenFollowUpReport?(entry)
+                            }
+                        )
+                        .padding(.top, 2)
+                    }
                 }
             }
             .padding(.horizontal, 23)
@@ -412,6 +440,9 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         .background(sheetBackground)
         .presentationDetents([.medium, .large])
+        .task {
+            await followUpController?.loadFollowUps()
+        }
         // 全屏形态（fullScreenCover）的返回栏：下拉关闭不可用时保证明确的退出路径
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack {
@@ -452,29 +483,40 @@ struct AgentDeepAnalysisDetailSheet: View {
             .background(.ultraThinMaterial)
         }
         .safeAreaInset(edge: .bottom) {
-            if result.agentJobID != nil,
-               result.agentResultID != nil,
-               let onContinueFollowUp {
-                Button {
-                    dismiss()
-                    onContinueFollowUp()
-                } label: {
-                    Label("继续追问这份分析", systemImage: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.holoPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 23)
-                .padding(.top, 8)
-                .padding(.bottom, 6)
-                .background(.ultraThinMaterial)
-                .accessibilityHint("回到输入框并承接当前分析的结论与数据依据")
+            if let controller = followUpController {
+                ReportFollowUpDock(controller: controller)
             }
         }
+        // 全屏页交互规则：边缘右滑返回（fullScreenCover 没有系统右滑返回）
+        .holoEdgeSwipeBack { dismiss() }
+    }
+
+    /// 子报告血统条：这份报告是某次追问的产物时，正文顶部交代「从哪问出来的」。
+    /// 双模式配色（holoLineageTint），深色模式下依然可读。
+    @ViewBuilder
+    private var lineageBar: some View {
+        let relation = result.continuationMetadata?.shortLabel ?? "继续追问"
+        let rootQuestion = result.continuationMetadata?.rootUserQuestion
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "link")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color.holoLineageTint)
+                .padding(.top, 2)
+            Text(rootQuestion.map { "\(relation) · 追问自报告「\($0)」" } ?? "\(relation) · 追问生成的报告")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundColor(Color.holoLineageTint)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(Color.holoLineageTint.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                .stroke(Color.holoLineageTint.opacity(0.3), lineWidth: 0.8)
+        )
+        .accessibilityLabel("追问来源：\(relation)")
     }
 
     private var emptyState: some View {
@@ -916,10 +958,10 @@ struct AgentDeepAnalysisDetailSheet: View {
                                     .padding(.leading, 16)
                             }
 
-                            if let drilldown = item.drilldown {
+                            if let drilldown = item.drilldown, let onFinanceDrilldown {
                                 Button {
                                     dismiss()
-                                    onFinanceDrilldown?(drilldown)
+                                    onFinanceDrilldown(drilldown)
                                 } label: {
                                     evidenceCard(item)
                                 }

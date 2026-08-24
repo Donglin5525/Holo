@@ -12,6 +12,7 @@ struct FinanceSettingsView: View {
     @ObservedObject private var displaySettings = FinanceDisplaySettings.shared
     @ObservedObject private var periodSettings = FinancePeriodSettings.shared
     @ObservedObject private var budgetSettings = FinanceBudgetSettings.shared
+    @State private var showClearFinanceSheet = false
 
     var body: some View {
         NavigationStack {
@@ -102,6 +103,40 @@ struct FinanceSettingsView: View {
 
                     // 数据导入导出模块
                     ImportExportView()
+
+                    // 危险区：清空财务数据（进 30 天回收站，设置-数据管理-最近删除可恢复）
+                    Button {
+                        showClearFinanceSheet = true
+                    } label: {
+                        HStack(spacing: HoloSpacing.md) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                    .fill(Color.holoError.opacity(0.1))
+                                    .frame(width: 40, height: 40)
+                                Image(systemName: "trash.circle")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.holoError)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("清空财务数据")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoError)
+                                Text("可选仅清交易或全部清空；30 天内可在最近删除恢复")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.holoTextSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                        }
+                        .padding(HoloSpacing.md)
+                        .background(Color.holoCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        .padding(.horizontal, HoloSpacing.lg)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .sheet(isPresented: $showClearFinanceSheet) {
+                        ModuleClearSheet(module: .finance)
+                    }
 
                     // 分类管理模块
                     VStack(spacing: 0) {

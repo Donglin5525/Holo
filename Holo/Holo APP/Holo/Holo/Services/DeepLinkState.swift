@@ -56,7 +56,7 @@ enum DeepLinkTarget: Equatable {
     case anniversaryDetail(anniversaryId: UUID)
     /// 从 AI Chat 卡片跳转到记忆长廊；focusNewMemories=true 时由长廊切到洞察 Tab 并高亮新记忆
     case memoryGallery(focusNewMemories: Bool)
-    /// 精准打开记忆长廊中的指定洞察
+    /// 精准打开指定洞察：由 ChatView 消费，在聊天流直接落成该洞察的回放卡片
     case memoryInsight(insightId: UUID)
 }
 

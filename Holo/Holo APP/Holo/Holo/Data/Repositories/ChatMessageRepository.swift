@@ -38,6 +38,7 @@ final class ChatMessageRepository: ObservableObject {
     /// 加载消息（按时间排序，限制最近 200 条）
     func loadMessages() {
         let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
         request.fetchLimit = 200
 
@@ -80,6 +81,7 @@ final class ChatMessageRepository: ObservableObject {
                         "messageType",
                         "rawLogJSON"
                     ]
+                    request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
@@ -126,6 +128,7 @@ final class ChatMessageRepository: ObservableObject {
                         "executionBatchJSON",
                         "rawLogJSON"
                     ]
+                    request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
@@ -162,6 +165,7 @@ final class ChatMessageRepository: ObservableObject {
                         "messageType", "analysisContextJSON", "agentResultJSON",
                         "insightResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
+                    request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit + 1
 
@@ -228,7 +232,10 @@ final class ChatMessageRepository: ObservableObject {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = ["id", "timestamp"]
-                    request.predicate = NSPredicate(format: "timestamp < %@", cursor as NSDate)
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "timestamp < %@", cursor as NSDate),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = fetchBatch
 
@@ -253,7 +260,10 @@ final class ChatMessageRepository: ObservableObject {
                         "messageType", "analysisContextJSON", "agentResultJSON",
                         "insightResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
-                    request.predicate = NSPredicate(format: "id IN %@", sessionIds)
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "id IN %@", sessionIds),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
 
                     return try context.fetch(request)
@@ -285,7 +295,10 @@ final class ChatMessageRepository: ObservableObject {
                     let countRequest = NSFetchRequest<NSNumber>(entityName: "ChatMessage")
                     countRequest.resultType = .countResultType
                     if let earliest = newEarliest {
-                        countRequest.predicate = NSPredicate(format: "timestamp < %@", earliest as NSDate)
+                        countRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                            NSPredicate(format: "timestamp < %@", earliest as NSDate),
+                            NSPredicate(format: "deletedAt == nil")
+                        ])
                     }
                     let result = try context.fetch(countRequest)
                     return (result.first?.intValue ?? 0) > 0
@@ -318,7 +331,10 @@ final class ChatMessageRepository: ObservableObject {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = ["role", "content", "isStreaming"]
-                    request.predicate = NSPredicate(format: "role IN %@ AND isStreaming == NO", ["user", "assistant"])
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "role IN %@ AND isStreaming == NO", ["user", "assistant"]),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
@@ -1083,7 +1099,10 @@ final class ChatMessageRepository: ObservableObject {
                         "agentResultJSON",
                         "insightResultJSON"
                     ]
-                    request.predicate = NSPredicate(format: "id IN %@", toLoad)
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "id IN %@", toLoad),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
 
                     return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?, MemoryInsightPayload?)? in
                         guard let id = dict["id"] as? UUID else { return nil }
@@ -1194,15 +1213,18 @@ final class ChatMessageRepository: ObservableObject {
         let idFilter = snapshots.map(Set.init)
         var financeIDs: Set<UUID> = []
         var taskIDs: Set<UUID> = []
+        var anniversaryIDs: Set<UUID> = []
         for message in messages {
             if let filter = idFilter, !filter.contains(message.id) { continue }
             if let id = message.resolveLinkedEntityId(for: .finance) { financeIDs.insert(id) }
             if let id = message.resolveLinkedEntityId(for: .task) { taskIDs.insert(id) }
+            if let id = message.resolveLinkedEntityId(for: .anniversary) { anniversaryIDs.insert(id) }
         }
-        guard !financeIDs.isEmpty || !taskIDs.isEmpty else { return }
+        guard !financeIDs.isEmpty || !taskIDs.isEmpty || !anniversaryIDs.isEmpty else { return }
 
         let existingFinanceIDs = Self.fetchExistingTransactionIDs(financeIDs)
         let existingTaskIDs = Self.fetchExistingNonDeletedTaskIDs(taskIDs)
+        let existingAnniversaryIDs = Self.fetchExistingAnniversaryIDs(anniversaryIDs)
 
         var updatedMessages = messages
         var didChange = false
@@ -1219,6 +1241,13 @@ final class ChatMessageRepository: ObservableObject {
                 let isDeleted = !existingTaskIDs.contains(taskId)
                 if updatedMessages[index].isEntityDeleted(for: .task) != isDeleted {
                     updatedMessages[index].setDeletionState(isDeleted, for: .task)
+                    didChange = true
+                }
+            }
+            if let anniversaryId = updatedMessages[index].resolveLinkedEntityId(for: .anniversary), anniversaryIDs.contains(anniversaryId) {
+                let isDeleted = !existingAnniversaryIDs.contains(anniversaryId)
+                if updatedMessages[index].isEntityDeleted(for: .anniversary) != isDeleted {
+                    updatedMessages[index].setDeletionState(isDeleted, for: .anniversary)
                     didChange = true
                 }
             }
@@ -1243,6 +1272,8 @@ final class ChatMessageRepository: ObservableObject {
                 exists = Self.fetchExistingTransactionIDs([entityId]).contains(entityId)
             case .task:
                 exists = Self.fetchExistingNonDeletedTaskIDs([entityId]).contains(entityId)
+            case .anniversary:
+                exists = Self.fetchExistingAnniversaryIDs([entityId]).contains(entityId)
             default:
                 exists = true
             }
@@ -1268,7 +1299,7 @@ final class ChatMessageRepository: ObservableObject {
         let request = NSFetchRequest<NSDictionary>(entityName: "Transaction")
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["id"]
-        request.predicate = NSPredicate(format: "id IN %@", ids)
+        request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil", ids)
         let rows = (try? context.fetch(request)) ?? []
         return Set(rows.compactMap { $0["id"] as? UUID })
     }
@@ -1280,7 +1311,19 @@ final class ChatMessageRepository: ObservableObject {
         let request = NSFetchRequest<NSDictionary>(entityName: "TodoTask")
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["id"]
-        request.predicate = NSPredicate(format: "id IN %@ AND deletedFlag == NO", ids)
+        request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil", ids)
+        let rows = (try? context.fetch(request)) ?? []
+        return Set(rows.compactMap { $0["id"] as? UUID })
+    }
+
+    /// 返回给定 Anniversary ID 集合中「存在且未软删除」的子集
+    nonisolated private static func fetchExistingAnniversaryIDs(_ ids: Set<UUID>) -> Set<UUID> {
+        guard !ids.isEmpty else { return [] }
+        let context = CoreDataStack.shared.viewContext
+        let request = NSFetchRequest<NSDictionary>(entityName: "Anniversary")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["id"]
+        request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil", ids)
         let rows = (try? context.fetch(request)) ?? []
         return Set(rows.compactMap { $0["id"] as? UUID })
     }
@@ -1331,6 +1374,8 @@ final class ChatMessageRepository: ObservableObject {
         let id: UUID
         let kind: Kind
         let timestamp: Date
+        /// 场景归类（问句关键词本地匹配，ReportScenarioTag.classify）
+        let scenarioTag: ReportScenarioTag
         let title: String?
         /// 用户发起时的原始提问（深度分析；回放为 nil）。档案卡先显示提问再显示结论。
         let question: String?
@@ -1343,6 +1388,14 @@ final class ChatMessageRepository: ObservableObject {
         /// 正常完成但结论为空的提示文案；有结论时为 nil。
         /// 失败的分析不进档案——失败态由聊天流的消息卡承载，档案只收真报告。
         let issueText: String?
+        /// 收藏时间；nil = 未收藏。右滑收藏/取消由报告 Tab 写入。
+        var favoritedAt: Date?
+        /// 这份报告本身是一次追问的产物（continuationMetadata.isFollowUp）
+        let isFollowUp: Bool
+        /// 追问关系短标签（「继续深挖」/「调整范围」…）；非追问报告为 nil
+        let followUpRelationLabel: String?
+
+        var isFavorited: Bool { favoritedAt != nil }
     }
 
     /// 归档只收已完成的报告；生成中的卡片由 ChatViewModel 的消息流派生（冷启动可恢复）。
@@ -1359,51 +1412,29 @@ final class ChatMessageRepository: ObservableObject {
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = [
                         "id", "timestamp", "messageType", "agentResultJSON",
-                        "extractedDataJSON", "content"
+                        "extractedDataJSON", "content", "favoritedAt"
                     ]
-                    request.predicate = NSPredicate(
-                        format: "((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                        queryAnalysisIntent, replayType
-                    )
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(
+                            format: "((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
+                            queryAnalysisIntent, replayType
+                        ),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
                     request.fetchOffset = offset
 
                     let dicts = try context.fetch(request)
                     return dicts.compactMap { dict -> ReportArchiveDTO? in
-                        guard let id = dict["id"] as? UUID,
-                              let timestamp = dict["timestamp"] as? Date else { return nil }
-
-                        if (dict["messageType"] as? String) == replayType {
-                            return Self.makeReplayArchiveDTO(
-                                id: id,
-                                timestamp: timestamp,
-                                jobJSON: dict["extractedDataJSON"] as? String,
-                                content: dict["content"] as? String
-                            )
-                        }
-
-                        guard let json = dict["agentResultJSON"] as? String,
-                              let data = json.data(using: .utf8),
-                              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
-                              // 失败（额度耗尽/出错/被中断）不是报告，不进档案
-                              rendered.failure == nil
-                        else { return nil }
-
-                        let summary = rendered.keyInsight
-                            ?? rendered.narrativeSummary
-                            ?? rendered.directAnswer
-                        return ReportArchiveDTO(
-                            id: id,
-                            kind: .deepAnalysis,
-                            timestamp: timestamp,
-                            title: rendered.title.isEmpty ? nil : rendered.title,
-                            question: ChatMessageRepository.cleanOptionalText(rendered.question ?? rendered.rootUserQuestion),
-                            summary: summary?.isEmpty == true ? nil : summary,
-                            scopeLabel: rendered.scope?.displayLabel,
-                            observationCount: rendered.sections.count,
-                            evidenceCount: rendered.evidenceReferences.count,
-                            issueText: rendered.emptyReason.map(Self.emptyReasonText)
+                        Self.makeArchiveDTO(
+                            id: dict["id"] as? UUID,
+                            timestamp: dict["timestamp"] as? Date,
+                            messageType: dict["messageType"] as? String,
+                            agentResultJSON: dict["agentResultJSON"] as? String,
+                            extractedDataJSON: dict["extractedDataJSON"] as? String,
+                            content: dict["content"] as? String,
+                            favoritedAt: dict["favoritedAt"] as? Date
                         )
                     }
                 }
@@ -1414,12 +1445,193 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 收藏总数（报告 Tab 入口条计数）。
+    func countFavoriteReportsAsync() async -> Int {
+        await CoreDataStack.shared.waitUntilReady()
+        let queryAnalysisIntent = "query_analysis"
+        let replayType = ChatMessageType.periodReplay.rawValue
+        return await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return await context.perform {
+                let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                request.resultType = .countResultType
+                request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    NSPredicate(
+                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType
+                    ),
+                    NSPredicate(format: "deletedAt == nil")
+                ])
+                return (try? context.count(for: request)) ?? 0
+            }
+        }.value
+    }
+
+    /// 报告收藏/取消：写入 favoritedAt（非 nil 即收藏时间）。返回落库后的值。
+    @discardableResult
+    func setReportFavorited(_ favorited: Bool, reportMessageID: UUID) -> Date? {
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", reportMessageID as CVarArg)
+        request.fetchLimit = 1
+        guard let message = try? context.fetch(request).first else { return nil }
+        message.favoritedAt = favorited ? Date() : nil
+        save()
+        return message.favoritedAt
+    }
+
+    /// 收藏夹：已收藏的报告，按收藏时间倒序（最新收的在前）。
+    func loadFavoriteReportsAsync() async -> [ReportArchiveDTO] {
+        await CoreDataStack.shared.waitUntilReady()
+        let queryAnalysisIntent = "query_analysis"
+        let replayType = ChatMessageType.periodReplay.rawValue
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "timestamp", "messageType", "agentResultJSON",
+                        "extractedDataJSON", "content", "favoritedAt"
+                    ]
+                    request.predicate = NSPredicate(
+                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType
+                    )
+                    request.sortDescriptors = [NSSortDescriptor(key: "favoritedAt", ascending: false)]
+                    request.fetchLimit = 200
+
+                    let dicts = try context.fetch(request)
+                    return dicts.compactMap { dict -> ReportArchiveDTO? in
+                        Self.makeArchiveDTO(
+                            id: dict["id"] as? UUID,
+                            timestamp: dict["timestamp"] as? Date,
+                            messageType: dict["messageType"] as? String,
+                            agentResultJSON: dict["agentResultJSON"] as? String,
+                            extractedDataJSON: dict["extractedDataJSON"] as? String,
+                            content: dict["content"] as? String,
+                            favoritedAt: dict["favoritedAt"] as? Date
+                        )
+                    }
+                }
+            }.value
+        } catch {
+            logger.error("加载收藏报告失败：\(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// 追问记录：直接追问某份报告的子报告（lineage.parentResultID 命中），
+    /// 按时间倒序。SQLite 层先 CONTAINS 粗筛 parentResultID，再解码精确匹配。
+    func loadFollowUpReportsAsync(parentResultID: String) async -> [ReportArchiveDTO] {
+        await CoreDataStack.shared.waitUntilReady()
+        let queryAnalysisIntent = "query_analysis"
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "timestamp", "messageType", "agentResultJSON",
+                        "extractedDataJSON", "content", "favoritedAt"
+                    ]
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(
+                            format: "intent == %@ AND agentResultJSON CONTAINS %@ AND isStreaming == NO",
+                            queryAnalysisIntent, parentResultID
+                        ),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = 50
+
+                    let dicts = try context.fetch(request)
+                    return dicts.compactMap { dict -> ReportArchiveDTO? in
+                        guard let json = dict["agentResultJSON"] as? String,
+                              let data = json.data(using: .utf8),
+                              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
+                              rendered.failure == nil,
+                              rendered.lineage?.parentResultID == parentResultID
+                        else { return nil }
+                        return Self.makeArchiveDTO(
+                            id: dict["id"] as? UUID,
+                            timestamp: dict["timestamp"] as? Date,
+                            messageType: dict["messageType"] as? String,
+                            agentResultJSON: json,
+                            extractedDataJSON: dict["extractedDataJSON"] as? String,
+                            content: dict["content"] as? String,
+                            favoritedAt: dict["favoritedAt"] as? Date
+                        )
+                    }
+                }
+            }.value
+        } catch {
+            logger.error("加载追问记录失败：\(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// 档案行字典 → DTO 的唯一出口（列表/搜索/收藏/追问共用）：
+    /// 深度分析走 agentResultJSON 解码，回放走 content/extratedData。
+    private static func makeArchiveDTO(
+        id: UUID?,
+        timestamp: Date?,
+        messageType: String?,
+        agentResultJSON: String?,
+        extractedDataJSON: String?,
+        content: String?,
+        favoritedAt: Date?
+    ) -> ReportArchiveDTO? {
+        guard let id, let timestamp else { return nil }
+
+        if messageType == ChatMessageType.periodReplay.rawValue {
+            return Self.makeReplayArchiveDTO(
+                id: id,
+                timestamp: timestamp,
+                jobJSON: extractedDataJSON,
+                content: content,
+                favoritedAt: favoritedAt
+            )
+        }
+
+        guard let json = agentResultJSON,
+              let data = json.data(using: .utf8),
+              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
+              // 失败（额度耗尽/出错/被中断）不是报告，不进档案
+              rendered.failure == nil
+        else { return nil }
+
+        let summary = rendered.keyInsight
+            ?? rendered.narrativeSummary
+            ?? rendered.directAnswer
+        let question = ChatMessageRepository.cleanOptionalText(
+            rendered.question ?? rendered.rootUserQuestion
+        )
+        return ReportArchiveDTO(
+            id: id,
+            kind: .deepAnalysis,
+            timestamp: timestamp,
+            scenarioTag: ReportScenarioTag.classify(question: question),
+            title: rendered.title.isEmpty ? nil : rendered.title,
+            question: question,
+            summary: summary?.isEmpty == true ? nil : summary,
+            scopeLabel: rendered.scope?.displayLabel,
+            observationCount: rendered.sections.count,
+            evidenceCount: rendered.evidenceReferences.count,
+            issueText: rendered.emptyReason.map(Self.emptyReasonText),
+            favoritedAt: favoritedAt,
+            isFollowUp: rendered.continuationMetadata?.isFollowUp == true,
+            followUpRelationLabel: rendered.continuationMetadata?.shortLabel
+        )
+    }
+
     /// 报告详情入口：按消息 ID 取完整消息快照（含完整分析结果）。
     /// 单行按索引 ID 查询，直接走主上下文（ViewData 的初始化限定 MainActor）。
     @MainActor
     func loadMessageViewData(id: UUID) -> ChatMessageViewData? {
         let request = ChatMessage.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
         guard let message = try? context.fetch(request).first else { return nil }
         return ChatMessageViewData(message: message)
@@ -1429,7 +1641,8 @@ final class ChatMessageRepository: ObservableObject {
         id: UUID,
         timestamp: Date,
         jobJSON: String?,
-        content: String?
+        content: String?,
+        favoritedAt: Date? = nil
     ) -> ReportArchiveDTO? {
         let summary = content?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1438,14 +1651,36 @@ final class ChatMessageRepository: ObservableObject {
             id: id,
             kind: .periodReplay,
             timestamp: timestamp,
+            scenarioTag: .replay,
             title: "周期回放",
             question: nil,
             summary: summary,
             scopeLabel: HoloPeriodReplayJob(json: jobJSON).map { Self.replayPeriodLabel($0) },
             observationCount: 0,
             evidenceCount: 0,
-            issueText: nil
+            issueText: nil,
+            favoritedAt: favoritedAt,
+            isFollowUp: false,
+            followUpRelationLabel: nil
         )
+    }
+
+    /// 搜索命中判定：回放对 content 精确匹配；深度分析解码后对报告字段匹配。
+    private static func archiveSearchHit(
+        messageType: String?,
+        agentResultJSON: String?,
+        content: String?,
+        keyword: String
+    ) -> Bool {
+        if messageType == ChatMessageType.periodReplay.rawValue {
+            guard let content else { return false }
+            return content.range(of: keyword, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+        guard let json = agentResultJSON,
+              let data = json.data(using: .utf8),
+              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
+        else { return false }
+        return reportMatches(rendered, keyword: keyword)
     }
 
     private static func cleanOptionalText(_ text: String?) -> String? {
@@ -1472,53 +1707,34 @@ final class ChatMessageRepository: ObservableObject {
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = [
                         "id", "timestamp", "messageType", "agentResultJSON",
-                        "extractedDataJSON", "content"
+                        "extractedDataJSON", "content", "favoritedAt"
                     ]
-                    request.predicate = NSPredicate(
-                        format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@)) AND isStreaming == NO",
-                        queryAnalysisIntent, trimmed, replayType, trimmed
-                    )
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(
+                            format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@)) AND isStreaming == NO",
+                            queryAnalysisIntent, trimmed, replayType, trimmed
+                        ),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = 50
 
                     let dicts = try context.fetch(request)
                     return dicts.compactMap { dict -> ReportArchiveDTO? in
-                        guard let id = dict["id"] as? UUID,
-                              let timestamp = dict["timestamp"] as? Date else { return nil }
-
-                        if (dict["messageType"] as? String) == replayType {
-                            guard let content = dict["content"] as? String,
-                                  content.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-                            else { return nil }
-                            return Self.makeReplayArchiveDTO(
-                                id: id,
-                                timestamp: timestamp,
-                                jobJSON: dict["extractedDataJSON"] as? String,
-                                content: content
-                            )
-                        }
-
-                        guard let json = dict["agentResultJSON"] as? String,
-                              let data = json.data(using: .utf8),
-                              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
-                              rendered.failure == nil,
-                              Self.reportMatches(rendered, keyword: trimmed)
-                        else { return nil }
-
-                        let summary = rendered.keyInsight
-                            ?? rendered.narrativeSummary
-                            ?? rendered.directAnswer
-                        return ReportArchiveDTO(
-                            id: id,
-                            kind: .deepAnalysis,
-                            timestamp: timestamp,
-                            title: rendered.title.isEmpty ? nil : rendered.title,
-                            question: ChatMessageRepository.cleanOptionalText(rendered.question ?? rendered.rootUserQuestion),
-                            summary: summary?.isEmpty == true ? nil : summary,
-                            scopeLabel: rendered.scope?.displayLabel,
-                            observationCount: rendered.sections.count,
-                            evidenceCount: rendered.evidenceReferences.count,
-                            issueText: rendered.emptyReason.map(Self.emptyReasonText)
+                        guard Self.archiveSearchHit(
+                            messageType: dict["messageType"] as? String,
+                            agentResultJSON: dict["agentResultJSON"] as? String,
+                            content: dict["content"] as? String,
+                            keyword: trimmed
+                        ) else { return nil }
+                        return Self.makeArchiveDTO(
+                            id: dict["id"] as? UUID,
+                            timestamp: dict["timestamp"] as? Date,
+                            messageType: dict["messageType"] as? String,
+                            agentResultJSON: dict["agentResultJSON"] as? String,
+                            extractedDataJSON: dict["extractedDataJSON"] as? String,
+                            content: dict["content"] as? String,
+                            favoritedAt: dict["favoritedAt"] as? Date
                         )
                     }
                 }

@@ -48,7 +48,7 @@ extension MemoryInsightFeedback {
     /// 查询未消费的反馈（聚合器使用）
     static func fetchUnconsumed(in context: NSManagedObjectContext) -> [MemoryInsightFeedback] {
         let request = MemoryInsightFeedback.fetchRequest()
-        request.predicate = NSPredicate(format: "consumedAt == nil")
+        request.predicate = NSPredicate(format: "consumedAt == nil AND deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
         return (try? context.fetch(request)) ?? []
     }
@@ -59,7 +59,7 @@ extension MemoryInsightFeedback {
         in context: NSManagedObjectContext
     ) -> [MemoryInsightFeedback] {
         let request = MemoryInsightFeedback.fetchRequest()
-        request.predicate = NSPredicate(format: "insightId == %@", insightId as CVarArg)
+        request.predicate = NSPredicate(format: "insightId == %@ AND deletedAt == nil", insightId as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return (try? context.fetch(request)) ?? []
     }
@@ -70,7 +70,7 @@ extension MemoryInsightFeedback {
         in context: NSManagedObjectContext
     ) -> Bool {
         let request = MemoryInsightFeedback.fetchRequest()
-        request.predicate = NSPredicate(format: "cardId == %@", cardId)
+        request.predicate = NSPredicate(format: "cardId == %@ AND deletedAt == nil", cardId)
         request.fetchLimit = 1
         return ((try? context.fetch(request)) ?? []).isEmpty == false
     }

@@ -175,7 +175,16 @@ struct CardFooterView: View {
 
             Spacer()
 
-            if showsChevron && !isDeleted {
+            if isDeleted {
+                Text("已删除")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule().fill(Color.holoTextSecondary.opacity(0.12))
+                    )
+            } else if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.holoPrimary.opacity(0.78))

@@ -112,6 +112,29 @@ final class ChatViewModel: ObservableObject {
     @Published var showGoalDraftReview = false
     /// 周期回放选择 Sheet（从记忆长廊迁移而来）
     @Published var showPeriodReplayPicker = false
+
+    // MARK: - 分析场景面板（甲方案：深度分析胶囊点开场景目录）
+
+    /// 「深度分析」胶囊展开的场景面板。点胶囊切换，选场景即预填问句（不发送）。
+    @Published var showAnalysisScenarioPanel = false
+    /// 最近一次场景预填（用于输入框上方的来源提示；用户改动问句后提示自然消失）
+    private(set) var lastScenarioPrefill: (title: String, question: String)?
+
+    /// 预填来源提示：仅当输入框内容仍是预填原句时显示——
+    /// 用户改写、清空或发送后自动消失，无需手动清理。
+    var activeScenarioPrefillTitle: String? {
+        guard let prefill = lastScenarioPrefill,
+              inputText == prefill.question,
+              !inputText.isEmpty else { return nil }
+        return prefill.title
+    }
+
+    func selectAnalysisScenario(_ scenario: AnalysisScenario) {
+        inputText = scenario.question
+        showAnalysisScenarioPanel = false
+        lastScenarioPrefill = (title: scenario.title, question: scenario.question)
+    }
+
     private let goalPlanningCoordinator = GoalPlanningCoordinator()
 
     // MARK: - Init
@@ -2087,6 +2110,244 @@ final class ChatViewModel: ObservableObject {
         )
     }
 
+    // MARK: - Pending Budget / Anniversary Confirmation
+
+    /// 可确认（含失败重试）的预算项
+    private static func isConfirmableBudgetItem(_ item: AIExecutionItem) -> Bool {
+        item.intent == .setBudget
+            && item.status == .skipped
+            && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
+    }
+
+    /// 可确认（含失败重试）的纪念日项
+    private static func isConfirmableAnniversaryItem(_ item: AIExecutionItem) -> Bool {
+        item.intent == .createAnniversary
+            && item.status == .skipped
+            && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
+    }
+
+    func confirmPendingBudget(from message: ChatMessageViewData, itemID: String? = nil) {
+        confirmPendingExecutionCard(from: message, itemID: itemID, matcher: Self.isConfirmableBudgetItem)
+    }
+
+    func confirmPendingAnniversary(from message: ChatMessageViewData, itemID: String? = nil) {
+        confirmPendingExecutionCard(from: message, itemID: itemID, matcher: Self.isConfirmableAnniversaryItem)
+    }
+
+    /// 预算/纪念日确认卡的通用确认流程（与交易确认同构：
+    /// 重读最新 batch → confirming 中间态 → route → confirmed 回写）
+    private func confirmPendingExecutionCard(
+        from message: ChatMessageViewData,
+        itemID: String?,
+        matcher: (AIExecutionItem) -> Bool
+    ) {
+        guard let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  matcher($0) && (itemID == nil || $0.id == itemID)
+              }),
+              batch.items[pendingIndex].renderData != nil else {
+            return
+        }
+
+        let itemId = batch.items[pendingIndex].id
+        guard !confirmingItemIds.contains(itemId) else { return }
+        confirmingItemIds.insert(itemId)
+
+        Task { @MainActor [weak self] in
+            guard let self, let chatRepo = self.chatRepo else {
+                self?.confirmingItemIds.remove(itemId)
+                return
+            }
+
+            do {
+                guard let currentBatch = self.latestExecutionBatch(for: message.id),
+                      let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
+                      let currentRenderData = currentItems.renderData,
+                      ["pending", "failed"].contains(currentRenderData["confirmationStatus"] ?? "") else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+
+                self.persistConfirmationStatus(messageId: message.id, itemId: itemId, status: "confirming")
+
+                let result = ParsedResult(
+                    intent: currentItems.intent,
+                    confidence: 1,
+                    extractedData: currentRenderData,
+                    needsClarification: false,
+                    clarificationQuestion: nil,
+                    responseText: nil
+                )
+                let routeResult = try await IntentRouter.shared.route(result)
+
+                var confirmedRenderData = currentRenderData
+                confirmedRenderData["confirmationStatus"] = "confirmed"
+                if let entity = routeResult.linkedEntity {
+                    confirmedRenderData["entityType"] = entity.type.rawValue
+                    confirmedRenderData["entityId"] = entity.id.uuidString
+                    if entity.type == .anniversary {
+                        confirmedRenderData["anniversaryId"] = entity.id.uuidString
+                    }
+                }
+
+                guard let currentIndex = currentBatch.items.firstIndex(where: { $0.id == itemId }) else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+                var updatedItems = currentBatch.items
+                let pending = updatedItems[currentIndex]
+                updatedItems[currentIndex] = AIExecutionItem(
+                    id: pending.id,
+                    parseItemId: pending.parseItemId,
+                    intent: pending.intent,
+                    status: .success,
+                    summaryText: routeResult.text,
+                    renderData: confirmedRenderData,
+                    linkedEntityType: routeResult.linkedEntity?.type.rawValue,
+                    linkedEntityId: routeResult.linkedEntity?.id.uuidString,
+                    errorText: nil
+                )
+
+                let updatedBatch = AIExecutionBatch(
+                    mode: currentBatch.mode,
+                    items: updatedItems,
+                    finalText: Self.confirmedFinalText(from: updatedItems)
+                )
+
+                chatRepo.updateMessage(message.id, content: updatedBatch.finalText)
+                chatRepo.updateMessageMetadata(
+                    message.id,
+                    intent: message.intent,
+                    extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+                    parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+                    executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+                )
+            } catch {
+                self.writeExecutionCardError(
+                    itemId: itemId,
+                    message: message,
+                    error: error
+                )
+            }
+
+            self.confirmingItemIds.remove(itemId)
+        }
+    }
+
+    /// 确认卡 route 抛错的 failed 态回写（供重试），与交易侧 writeTransactionError 同构
+    private func writeExecutionCardError(
+        itemId: String,
+        message: ChatMessageViewData,
+        error: Error
+    ) {
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
+              let index = batch.items.firstIndex(where: { $0.id == itemId }) else { return }
+        let item = batch.items[index]
+        guard var renderData = item.renderData else { return }
+
+        renderData["confirmationStatus"] = "failed"
+        renderData["errorText"] = error.localizedDescription
+
+        var updatedItems = batch.items
+        updatedItems[index] = AIExecutionItem(
+            id: item.id,
+            parseItemId: item.parseItemId,
+            intent: item.intent,
+            status: item.status,
+            summaryText: item.summaryText,
+            renderData: renderData,
+            linkedEntityType: item.linkedEntityType,
+            linkedEntityId: item.linkedEntityId,
+            errorText: error.localizedDescription
+        )
+
+        let failedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: failedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
+        )
+        errorMessage = "操作失败：\(error.localizedDescription)"
+    }
+
+    func cancelPendingBudget(from message: ChatMessageViewData, itemID: String? = nil) {
+        cancelPendingExecutionCard(
+            from: message,
+            itemID: itemID,
+            matcher: { $0.intent == .setBudget },
+            cancelledText: "已取消，预算未改动"
+        )
+    }
+
+    func cancelPendingAnniversary(from message: ChatMessageViewData, itemID: String? = nil) {
+        cancelPendingExecutionCard(
+            from: message,
+            itemID: itemID,
+            matcher: { $0.intent == .createAnniversary },
+            cancelledText: "已取消，未创建"
+        )
+    }
+
+    /// 预算/纪念日确认卡的通用取消（基于重读的最新 batch；确认进行中的项不允许取消）
+    private func cancelPendingExecutionCard(
+        from message: ChatMessageViewData,
+        itemID: String?,
+        matcher: (AIExecutionItem) -> Bool,
+        cancelledText: String
+    ) {
+        guard let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  matcher($0)
+                      && $0.status == .skipped
+                      && $0.renderData?["confirmationStatus"] == "pending"
+                      && (itemID == nil || $0.id == itemID)
+              }) else {
+            return
+        }
+
+        let pending = batch.items[pendingIndex]
+        guard !confirmingItemIds.contains(pending.id) else { return }
+
+        var renderData = pending.renderData
+        renderData?["confirmationStatus"] = "cancelled"
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: pending.status,
+            summaryText: cancelledText,
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: nil
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
     /// AddTransactionSheet 编辑保存后，将待确认卡片标记为"已确认"（不重复创建交易）
     func dismissPendingCardAfterEdit(
         from message: ChatMessageViewData,
@@ -2478,11 +2739,19 @@ final class ChatViewModel: ObservableObject {
         case .onboarding:
             inputText = "我是新用户，能教我怎么用 Holo 吗？"
         case .todayState:
+            // 确认权原则（2026-08-22 东林拍板）：预填不发送，
+            // 与深度分析场景面板同一底线——用户看到并确认将发出的话再按发送。
             inputText = "帮我看看今天的整体状态"
+            return
         case .recentAnalysis:
-            inputText = "分析一下我最近的数据趋势"
+            // 甲方案（2026-08-22）：不再点击即发——点开场景面板，
+            // 由用户选场景并确认发送，发起的确认权在用户。
+            showAnalysisScenarioPanel.toggle()
+            return
         case .longTermPatterns:
+            // 与「今日状态」同类：快问快答也走预填确认
             inputText = "你了解我哪些长期偏好和模式？"
+            return
         case .goalPlanning:
             startGoalPlanning(seedText: nil)
             return
@@ -2503,6 +2772,18 @@ final class ChatViewModel: ObservableObject {
             start: start,
             end: end
         )
+    }
+
+    /// 首页胶囊 / 系统通知直达洞察：把已生成的洞察直接落成回放卡片。
+    /// 卡片落地即视为「看过」（方案 §7.5），随后刷新首页候选让胶囊让位；
+    /// 洞察已不可用时什么都不做——不 markRead，胶囊保留。
+    func openScheduledInsight(id: UUID) async {
+        let repository = MemoryInsightRepository()
+        guard let insight = repository.fetchAvailableInsight(id: id),
+              insight.parsedPayload != nil else { return }
+        try? repository.markRead(insight: insight)
+        HomeScheduleService.shared.refresh()
+        HoloPeriodReplayCoordinator.shared.presentCachedInsight(insight)
     }
 
     // MARK: - Quick Actions（兼容旧入口）

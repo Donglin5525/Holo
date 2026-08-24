@@ -28,6 +28,8 @@ struct SettingsView: View {
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
     @ObservedObject private var storageService = StorageCacheService.shared
+    @ObservedObject private var appLockSettings = AppLockSettings.shared
+    @ObservedObject private var appLockManager = AppLockManager.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
     @State private var showAISettings = false
     @State private var showAIConsent = false
@@ -42,6 +44,10 @@ struct SettingsView: View {
     @State private var accountDataDeletionMessage: String?
     @State private var showAbout = false
     @State private var showFeedback = false
+    @State private var showAppLockUnavailableAlert = false
+    @State private var appLockUnavailableMessage: String?
+    /// 开启验证（弹系统验证框）期间用户是否仍意图开启；防止验证回调晚到时覆盖用户已拨回的开关
+    @State private var appLockEnablePending = false
 
     // MARK: - Body
 
@@ -66,6 +72,9 @@ struct SettingsView: View {
 
                     // 存储与缓存
                     storageSection
+
+                    // 隐私与安全
+                    privacySecuritySection
 
                     // 法律与隐私
                     legalSection
@@ -844,6 +853,137 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 隐私与安全
+
+    private var privacySecuritySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("隐私与安全")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            VStack(spacing: 0) {
+                insightToggleRow(
+                    icon: "faceid",
+                    iconColor: .holoPrimary,
+                    title: "应用锁",
+                    subtitle: appLockSubtitle,
+                    isOn: appLockBinding
+                )
+
+                if appLockSettings.isEnabled {
+                    Divider()
+                        .padding(.leading, 56)
+
+                    appLockGraceRow
+                }
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
+        .alert("无法开启应用锁", isPresented: $showAppLockUnavailableAlert) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(appLockUnavailableMessage ?? "")
+        }
+    }
+
+    private var appLockSubtitle: String {
+        if !appLockSettings.isEnabled {
+            return "开启后打开 App 需面容 ID 或手机密码验证"
+        }
+        return "已开启 · \(appLockSettings.graceStyle.subtitle)"
+    }
+
+    /// 开启前先预检设备、再现场验证一次，成功才落开关；取消验证则弹回
+    private var appLockBinding: Binding<Bool> {
+        Binding(
+            get: { appLockSettings.isEnabled },
+            set: { wantsOn in
+                appLockEnablePending = wantsOn
+                guard wantsOn else {
+                    appLockSettings.isEnabled = false
+                    return
+                }
+                switch appLockManager.deviceLockReadiness() {
+                case .unavailable(let message):
+                    appLockEnablePending = false
+                    appLockUnavailableMessage = message
+                    showAppLockUnavailableAlert = true
+                case .ready:
+                    Task { @MainActor in
+                        let confirmed = await appLockManager.validateForEnabling()
+                        // 验证期间用户可能已把开关拨回，只在意图仍是「开」时落开关
+                        if confirmed, appLockEnablePending {
+                            appLockSettings.isEnabled = true
+                        }
+                        appLockEnablePending = false
+                    }
+                }
+            }
+        )
+    }
+
+    /// 锁定时机三档（立即 / 1 分钟 / 5 分钟，默认 5 分钟）
+    private var appLockGraceRow: some View {
+        Menu {
+            ForEach(AppLockSettings.GraceStyle.allCases, id: \.self) { style in
+                Button {
+                    appLockSettings.graceStyle = style
+                } label: {
+                    if style == appLockSettings.graceStyle {
+                        Label(style.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(style.displayName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(Color.holoPrimary.opacity(0.1))
+                        .frame(width: 40, height: 40)
+
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("锁定时机")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+
+                    Text(appLockSettings.graceStyle.subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+                Text(appLockSettings.graceStyle.displayName)
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextSecondary)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPlaceholder)
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+    }
+
     // MARK: - 法律与隐私
 
     private var legalSection: some View {
@@ -970,7 +1110,7 @@ struct SettingsView: View {
 
     // MARK: - 诊断与数据管理
 
-    @State private var showClearThoughtDataAlert: Bool = false
+    @State private var showDataManagement: Bool = false
 
     private var diagnosticsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -1002,55 +1142,18 @@ struct SettingsView: View {
             }
             #endif
 
-            Button {
-                showClearThoughtDataAlert = true
-            } label: {
-                HStack(spacing: HoloSpacing.md) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(Color.holoError.opacity(0.1))
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: "trash.circle")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoError)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("清除观点数据")
-                            .font(.holoBody)
-                            .foregroundColor(.holoError)
-
-                        Text("删除所有观点、标签和引用")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-
-                    Spacer()
-                }
-                .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            // 数据管理（模块清空/清空所有数据/最近删除回收站统一入口；想法等模块清空在各自模块内）
+            settingsRow(
+                icon: "externaldrive.badge.timemachine",
+                iconColor: .holoPrimary,
+                title: "数据管理",
+                subtitle: "数据概览 · 清空所有数据 · 最近删除（30 天可恢复）"
+            ) {
+                showDataManagement = true
             }
-            .buttonStyle(PlainButtonStyle())
-            .alert("确认清除观点数据？", isPresented: $showClearThoughtDataAlert) {
-                Button("取消", role: .cancel) {}
-                Button("清除", role: .destructive) {
-                    clearThoughtData()
-                }
-            } message: {
-                Text("此操作将删除所有观点、标签和引用数据，不可恢复。")
+            .sheet(isPresented: $showDataManagement) {
+                DataManagementView()
             }
-        }
-    }
-
-    private func clearThoughtData() {
-        do {
-            let repo = ThoughtRepository()
-            try repo.deleteAllThoughtData()
-            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-        } catch {
-            Logger(subsystem: "com.holo.app", category: "Settings").error("清除观点数据失败: \(error.localizedDescription)")
         }
     }
 

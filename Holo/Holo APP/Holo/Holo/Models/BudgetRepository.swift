@@ -152,12 +152,15 @@ class BudgetRepository {
         period: BudgetPeriod
     ) -> Budget? {
         let request = Budget.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "accountId == %@ AND period == %@ AND categoryId == %@",
-            accountId as CVarArg,
-            period.rawValue,
-            categoryId as CVarArg
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "accountId == %@ AND period == %@ AND categoryId == %@",
+                accountId as CVarArg,
+                period.rawValue,
+                categoryId as CVarArg
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.fetchLimit = 1
         return (try? context.fetch(request)).flatMap { $0.first }
     }
@@ -218,23 +221,29 @@ class BudgetRepository {
         let request = Transaction.fetchRequest()
 
         if let categoryId {
-            request.predicate = NSPredicate(
-                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND (category.id == %@ OR category.parentId == %@)",
-                accountId as CVarArg,
-                range.start as NSDate,
-                range.end as NSDate,
-                TransactionType.expense.rawValue,
-                categoryId as CVarArg,
-                categoryId as CVarArg
-            )
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(
+                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND (category.id == %@ OR category.parentId == %@)",
+                    accountId as CVarArg,
+                    range.start as NSDate,
+                    range.end as NSDate,
+                    TransactionType.expense.rawValue,
+                    categoryId as CVarArg,
+                    categoryId as CVarArg
+                ),
+                NSPredicate(format: "deletedAt == nil")
+            ])
         } else {
-            request.predicate = NSPredicate(
-                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
-                accountId as CVarArg,
-                range.start as NSDate,
-                range.end as NSDate,
-                TransactionType.expense.rawValue
-            )
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(
+                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
+                    accountId as CVarArg,
+                    range.start as NSDate,
+                    range.end as NSDate,
+                    TransactionType.expense.rawValue
+                ),
+                NSPredicate(format: "deletedAt == nil")
+            ])
         }
 
         let transactions = (try? context.fetch(request)) ?? []
@@ -420,7 +429,10 @@ class BudgetRepository {
     func findCategory(by id: UUID?) -> Category? {
         guard let id else { return nil }
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "id == %@", id as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.fetchLimit = 1
         return (try? context.fetch(request))?.first
     }

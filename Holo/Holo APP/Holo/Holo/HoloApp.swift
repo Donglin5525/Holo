@@ -20,6 +20,9 @@ struct HoloApp: App {
     @StateObject private var darkModeManager = DarkModeManager.shared
     @StateObject private var plusActionCoordinator = HoloPlusActionCoordinator.shared
 
+    /// 应用锁：isLocked 在冷启动首帧前同步确定，根部闸门层防内容闪现（方案 §5.3）
+    @ObservedObject private var appLock = AppLockManager.shared
+
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
 
@@ -29,6 +32,10 @@ struct HoloApp: App {
     // MARK: - Initialization
 
     init() {
+        // hosted test 宿主：不启动任何业务服务，app 只需提供活着的主线程与 bundle。
+        // 正常启动的后台服务/通知监听会与测试 task 并发交互，触发运行时 double-free 崩溃。
+        guard !TestHostEnvironment.isHostedByXCTest else { return }
+
         // 同步设置通知代理，确保冷启动时 didReceive 不被错过
         TodoNotificationService.shared.setupDelegate()
         TodoNotificationService.shared.registerNotificationCategories()
@@ -66,162 +73,190 @@ struct HoloApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .preferredColorScheme(darkModeManager.colorScheme)
-                .onOpenURL { url in
-                    guard url.isFileURL else {
-                        DeepLinkState.shared.handle(url: url)
-                        return
+            if TestHostEnvironment.isHostedByXCTest {
+                // 测试宿主不渲染业务 UI：HomeView 等界面的 .task 会启动
+                // HomeScheduleService/各 ViewModel 刷新，同样会与测试并发交互导致崩溃。
+                Color.clear.ignoresSafeArea()
+            } else {
+                // 应用锁闸门层与业务根视图同帧渲染：锁定时首帧即锁屏，无内容闪现；
+                // 热回时由 AppLockManager 的系统级窗口盖住浮层（fullScreenCover/sheet）
+                ZStack {
+                    appRoot
+
+                    if appLock.isLocked || appLock.isShowingPrivacyShield {
+                        AppLockOverlayView()
+                            .zIndex(10)
+                            // 出现必须瞬时就位（不透明遮蔽），消失可淡出
+                            .transition(.asymmetric(insertion: .identity, removal: .opacity))
                     }
-                    let ext = url.pathExtension.lowercased()
-                    let supported: Set<String> = ["csv", "txt", "tsv", "xlsx", "zip"]
-                    guard supported.contains(ext) else { return }
-                    pendingImportURL = CSVFileURL(url: url)
                 }
-                .fullScreenCover(item: $pendingImportURL) { wrapper in
-                    CSVQuickImportView(fileURL: wrapper.url) {
-                        pendingImportURL = nil
+                .animation(HoloAnimation.standard, value: appLock.isLocked)
+            }
+        }
+    }
+
+    /// 业务根视图与启动链；hosted test 下不挂载（见 init 注释）。
+    private var appRoot: some View {
+        ContentView()
+            .preferredColorScheme(darkModeManager.colorScheme)
+            .onOpenURL { url in
+                guard url.isFileURL else {
+                    DeepLinkState.shared.handle(url: url)
+                    return
+                }
+                let ext = url.pathExtension.lowercased()
+                let supported: Set<String> = ["csv", "txt", "tsv", "xlsx", "zip"]
+                guard supported.contains(ext) else { return }
+                pendingImportURL = CSVFileURL(url: url)
+            }
+            .fullScreenCover(item: $pendingImportURL) { wrapper in
+                CSVQuickImportView(fileURL: wrapper.url) {
+                    pendingImportURL = nil
+                }
+            }
+            .fullScreenCover(isPresented: $plusActionCoordinator.isPaywallPresented) {
+                HoloPlusPaywallView(context: plusActionCoordinator.context)
+            }
+            .task {
+                await SensitiveDebugDataMigration.runIfNeeded()
+                await HoloSubscriptionService.shared.refreshStatus()
+
+                // 检查通知权限状态
+                TodoNotificationService.shared.checkAuthorizationStatus()
+
+                // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
+                await CoreDataStack.shared.waitUntilReady()
+                // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
+                await HoloPeriodReplayCoordinator.shared.appDidLaunch()
+
+                // 目标风险通知：按当前数据全量重排（文案在排程时固定，iOS 更新后可能清通知）
+                GoalNotificationService.shared.rescheduleAll()
+
+                // 每日早报：滚动重排未来 7 天（含旧「每日提醒」一次性迁移）
+                await DailyBriefScheduler.shared.handleAppActivity()
+                // 习惯打卡提醒 + 周一晨报：滚动重排
+                await HabitReminderScheduler.shared.handleAppActivity()
+                await WeeklyBriefScheduler.shared.handleAppActivity()
+                // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                await BillDueReminderScheduler.shared.handleAppActivity()
+                await BudgetOverrunNotificationService.shared.handleAppActivity()
+
+                #if DEBUG
+                let appStoreScreenshotModeActive =
+                    await HoloAppStoreScreenshotSeeder.runIfRequested()
+                let simulatorMemoryValidationActive =
+                    await HoloMemorySimulatorValidationScenario.runIfRequested()
+                #else
+                let appStoreScreenshotModeActive = false
+                let simulatorMemoryValidationActive = false
+                #endif
+
+                if !simulatorMemoryValidationActive {
+                    await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+                    await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
+                }
+                await HoloMemorySettings.shared.reconcileWithRepository()
+                if !simulatorMemoryValidationActive {
+                    await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+                }
+
+                // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
+                FinanceRepository.shared.setup()
+                SpendingProjectBackgroundService.shared.scheduleNextTask()
+                if !appStoreScreenshotModeActive {
+                    MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
+                    await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                }
+
+                // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
+                if InsightFeatureFlags.preferenceLearningEnabled {
+                    let context = CoreDataStack.shared.viewContext
+                    InsightFeedbackAggregator.shared.aggregate(in: context)
+                }
+
+                // AI 想法整理：首次启动 backfill + 恢复 pending 队列
+                let repository = ThoughtRepository()
+                repository.backfillTagAssignmentsIfNeeded()
+                repository.normalizeExistingTags()
+
+                ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+                Task {
+                    await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
+                }
+
+                // 回收站启动维护：旧软删标记一次性迁移 + 30 天过期数据物理清理
+                Task {
+                    await RecycleBinService.shared.performStartupMaintenance()
+                }
+
+                // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
+                await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
+
+                // 老用户首次升级：回填周期回放远期累计摘要（后台执行，不阻塞 UI）
+                Task {
+                    await HoloReplayDigestService.shared.backfillIfNeeded(
+                        historyRepo: MemoryInsightRepository()
+                    )
+                }
+
+                if HoloAIFeatureFlags.agentRuntimeEnabled {
+                    await MainActor.run {
+                        HoloBackgroundContinuationManager.shared.appDidLaunch()
+                        // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
+                        HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
                     }
                 }
-                .fullScreenCover(isPresented: $plusActionCoordinator.isPaywallPresented) {
-                    HoloPlusPaywallView(context: plusActionCoordinator.context)
+            }
+            // §7.2：设备解锁（protected data 可用）后由 Scheduler 恢复等待解锁的 Agent 任务
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: UIApplication.protectedDataDidBecomeAvailableNotification
+                )
+            ) { _ in
+                if HoloAIFeatureFlags.agentRuntimeEnabled {
+                    HoloBackgroundContinuationManager.shared.protectedDataDidBecomeAvailable()
                 }
-                .task {
-                    await SensitiveDebugDataMigration.runIfNeeded()
-                    await HoloSubscriptionService.shared.refreshStatus()
-
-                    // 检查通知权限状态
-                    TodoNotificationService.shared.checkAuthorizationStatus()
-
-                    // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
-                    await CoreDataStack.shared.waitUntilReady()
-                    // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
-                    await HoloPeriodReplayCoordinator.shared.appDidLaunch()
-
-                    // 目标风险通知：按当前数据全量重排（文案在排程时固定，iOS 更新后可能清通知）
-                    GoalNotificationService.shared.rescheduleAll()
-
-                    // 每日早报：滚动重排未来 7 天（含旧「每日提醒」一次性迁移）
-                    await DailyBriefScheduler.shared.handleAppActivity()
-                    // 习惯打卡提醒 + 周一晨报：滚动重排
-                    await HabitReminderScheduler.shared.handleAppActivity()
-                    await WeeklyBriefScheduler.shared.handleAppActivity()
-                    // 财务提醒：周期账单到期（Plus）+ 预算超支检查
-                    await BillDueReminderScheduler.shared.handleAppActivity()
-                    await BudgetOverrunNotificationService.shared.handleAppActivity()
-
-                    #if DEBUG
-                    let appStoreScreenshotModeActive =
-                        await HoloAppStoreScreenshotSeeder.runIfRequested()
-                    let simulatorMemoryValidationActive =
-                        await HoloMemorySimulatorValidationScenario.runIfRequested()
-                    #else
-                    let appStoreScreenshotModeActive = false
-                    let simulatorMemoryValidationActive = false
-                    #endif
-
-                    if !simulatorMemoryValidationActive {
-                        await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
-                        await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                #if DEBUG
+                guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+                guard !HoloAppStoreScreenshotSeeder.isRequested else { return }
+                #endif
+                switch phase {
+                case .background:
+                    Task {
+                        await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                            trigger: .enteredBackground
+                        )
                     }
-                    await HoloMemorySettings.shared.reconcileWithRepository()
-                    if !simulatorMemoryValidationActive {
-                        await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+                    if HoloAIFeatureFlags.agentRuntimeEnabled {
+                        HoloBackgroundContinuationManager.shared.appDidEnterBackground()
                     }
-
-                    // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
-                    FinanceRepository.shared.setup()
-                    SpendingProjectBackgroundService.shared.scheduleNextTask()
-                    if !appStoreScreenshotModeActive {
-                        MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
+                case .active:
+                    HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
+                    Task {
+                        // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
+                        await DailyBriefScheduler.shared.handleAppActivity()
+                        await HabitReminderScheduler.shared.handleAppActivity()
+                        await WeeklyBriefScheduler.shared.handleAppActivity()
+                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                        await BillDueReminderScheduler.shared.handleAppActivity()
+                        await BudgetOverrunNotificationService.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                    }
-
-                    // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
-                    if InsightFeatureFlags.preferenceLearningEnabled {
-                        let context = CoreDataStack.shared.viewContext
-                        InsightFeedbackAggregator.shared.aggregate(in: context)
-                    }
-
-                    // AI 想法整理：首次启动 backfill + 恢复 pending 队列
-                    let repository = ThoughtRepository()
-                    repository.backfillTagAssignmentsIfNeeded()
-                    repository.normalizeExistingTags()
-
-                    ThoughtOrganizationQueue.shared.rebuildFromDatabase()
-                    Task {
-                        await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
-                    }
-
-                    // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
-                    await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
-
-                    // 老用户首次升级：回填周期回放远期累计摘要（后台执行，不阻塞 UI）
-                    Task {
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()
                         )
+                        await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                            trigger: .becameActive
+                        )
                     }
-
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
-                        await MainActor.run {
-                            HoloBackgroundContinuationManager.shared.appDidLaunch()
-                            // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
-                            HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
-                        }
+                        HoloBackgroundContinuationManager.shared.appWillEnterForeground()
                     }
+                default:
+                    break
                 }
-                // §7.2：设备解锁（protected data 可用）后由 Scheduler 恢复等待解锁的 Agent 任务
-                .onReceive(
-                    NotificationCenter.default.publisher(
-                        for: UIApplication.protectedDataDidBecomeAvailableNotification
-                    )
-                ) { _ in
-                    if HoloAIFeatureFlags.agentRuntimeEnabled {
-                        HoloBackgroundContinuationManager.shared.protectedDataDidBecomeAvailable()
-                    }
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    #if DEBUG
-                    guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
-                    guard !HoloAppStoreScreenshotSeeder.isRequested else { return }
-                    #endif
-                    switch phase {
-                    case .background:
-                        Task {
-                            await HoloMemoryObservationScheduler.shared.lightweightCheck(
-                                trigger: .enteredBackground
-                            )
-                        }
-                        if HoloAIFeatureFlags.agentRuntimeEnabled {
-                            HoloBackgroundContinuationManager.shared.appDidEnterBackground()
-                        }
-                    case .active:
-                        HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
-                        Task {
-                            // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
-                            await DailyBriefScheduler.shared.handleAppActivity()
-                            await HabitReminderScheduler.shared.handleAppActivity()
-                            await WeeklyBriefScheduler.shared.handleAppActivity()
-                            // 财务提醒：周期账单到期（Plus）+ 预算超支检查
-                            await BillDueReminderScheduler.shared.handleAppActivity()
-                            await BudgetOverrunNotificationService.shared.handleAppActivity()
-                            await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                            await HoloReplayDigestService.shared.backfillIfNeeded(
-                                historyRepo: MemoryInsightRepository()
-                            )
-                            await HoloMemoryObservationScheduler.shared.lightweightCheck(
-                                trigger: .becameActive
-                            )
-                        }
-                        if HoloAIFeatureFlags.agentRuntimeEnabled {
-                            HoloBackgroundContinuationManager.shared.appWillEnterForeground()
-                        }
-                    default:
-                        break
-                    }
-                }
-        }
+            }
     }
 }
 

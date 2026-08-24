@@ -12,12 +12,32 @@ import SwiftUI
 /// Holo 应用颜色系统
 /// 基于 Figma 设计稿定义的品牌色和功能性颜色
 extension Color {
-    
+
     // MARK: - 品牌主色 (Primary Orange)
     /// 主色调 - 用于强调元素和主要交互
     static let holoPrimary = Color(red: 244/255, green: 109/255, blue: 56/255)  // #F46D38
     static let holoPrimaryLight = Color(red: 254/255, green: 215/255, blue: 170/255)  // #FED7AA
     static let holoPrimaryDark = Color(red: 234/255, green: 88/255, blue: 12/255)  // #EA580C
+
+    // MARK: - 双模式徽标色 (支持 Dark Mode)
+    /// 徽标/彩条类前景色：亮暗各一版，底色统一用自身低透明（两种模式都自然）。
+    /// 禁止再手写「浅底 Color(red:) + 深字」的单模式组合——深色模式下不可读。
+    /// 收藏星标金
+    static let holoStarTint = Color.holoDynamic(light: UIColor(red: 0.71, green: 0.33, blue: 0.04, alpha: 1),
+                                                dark: UIColor(red: 0.98, green: 0.75, blue: 0.15, alpha: 1))
+    /// 追问徽标蓝
+    static let holoFollowUpTint = Color.holoDynamic(light: UIColor(red: 0.11, green: 0.31, blue: 0.85, alpha: 1),
+                                                    dark: UIColor(red: 0.58, green: 0.77, blue: 0.99, alpha: 1))
+    /// 追问血统紫
+    static let holoLineageTint = Color.holoDynamic(light: UIColor(red: 0.36, green: 0.22, blue: 0.71, alpha: 1),
+                                                   dark: UIColor(red: 0.77, green: 0.71, blue: 0.99, alpha: 1))
+
+    /// 双模式色构造：语义色走 Asset Catalog，此工具用于少量品牌衍生色。
+    static func holoDynamic(light: UIColor, dark: UIColor) -> Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark ? dark : light
+        })
+    }
     
     // MARK: - 背景色 (支持 Dark Mode)
     /// 主背景色 - 米白色调 / 深色模式
@@ -110,11 +130,13 @@ extension Color {
         switch palette {
         case .warm:
             // 活跃热力图：0=背景底色，1...5 由浅到深的暖橙
+            // 注：L1 必须与 L0 背景不同——“1 条记录起即有色”是月历设计前提（见 CalendarHeatmap 注释），
+            // 且 CalendarHeatmapDarkModeStandaloneTests 断言五级色阶互不相同。
             switch colorScheme {
             case .dark:
                 switch level {
                 case 0:      return "#302925"
-                case 1:      return "#302925"
+                case 1:      return "#3D2D26"
                 case 2:      return "#4A3028"
                 case 3:      return "#663A2C"
                 case 4:      return "#84462F"
@@ -123,7 +145,7 @@ extension Color {
             default:
                 switch level {
                 case 0:      return "#F5F2ED"
-                case 1:      return "#F5F2ED"
+                case 1:      return "#FAE2DA"
                 case 2:      return "#FFD6C7"
                 case 3:      return "#FFB499"
                 case 4:      return "#FF9B7A"

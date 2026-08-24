@@ -14,6 +14,7 @@ import Foundation
 /// 渲染时从 ChatMessage 的 intent + extractedDataJSON 动态构造
 nonisolated enum ChatCardData: Equatable {
     case transaction(TransactionCardData)
+    case budget(BudgetChatCardData)
     case task(TaskCardData)
     case habitCheckIn(HabitCheckInCardData)
     case mood(MoodCardData)
@@ -25,6 +26,7 @@ nonisolated enum ChatCardData: Equatable {
     case analysisHighlights(AnalysisHighlightsCardData)
     case flexibleQuery(FlexibleQueryChatCardData)
     case goalChoice(GoalChoiceCardData)
+    case anniversary(AnniversaryChatCardData)
 
     /// 从 intent + extractedData 构造卡片数据
     /// - Parameters:
@@ -81,6 +83,30 @@ nonisolated enum ChatCardData: Equatable {
                 installmentPeriodAmounts: data["installmentPeriodAmounts"]?
                     .split(separator: ",").map(String.init) ?? [],
                 entityID: linkedEntityId(from: data),
+                itemID: itemID
+            ))
+
+        case .setBudget:
+            guard let amount = data["amount"] else { return nil }
+            return .budget(BudgetChatCardData(
+                amount: amount,
+                primaryCategory: data["primaryCategory"],
+                subCategory: data["subCategory"],
+                period: data["period"],
+                confirmationStatus: data["confirmationStatus"],
+                confirmationError: data["errorText"] ?? data["confirmationError"],
+                itemID: itemID
+            ))
+
+        case .createAnniversary:
+            guard let title = data["anniversaryTitle"], !title.isEmpty else { return nil }
+            return .anniversary(AnniversaryChatCardData(
+                title: title,
+                dateText: data["anniversaryDate"],
+                typeCandidate: data["typeCandidate"],
+                confirmationStatus: data["confirmationStatus"],
+                confirmationError: data["errorText"] ?? data["confirmationError"],
+                anniversaryId: data["anniversaryId"],
                 itemID: itemID
             ))
 
@@ -177,7 +203,7 @@ nonisolated enum ChatCardData: Equatable {
             // 命中多目标歧义时渲染 goalChoice 选择卡；正常执行仍走文本结果
             return goalChoiceCardData(intent: intent, data: data, itemID: itemID).map { .goalChoice($0) }
 
-        case .completeTask, .updateTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .toggleGoalVisibility:
+        case .completeTask, .updateTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .toggleGoalVisibility, .updateAnniversary:
             return nil
         }
     }
@@ -397,6 +423,82 @@ nonisolated struct TransactionCardData: Equatable {
             return "\(primary) · \(sub)"
         }
         return primary
+    }
+}
+
+// MARK: - 预算卡片数据
+
+nonisolated struct BudgetChatCardData: Equatable {
+    let amount: String
+    /// 分类预算的匹配分类（nil=总预算）
+    let primaryCategory: String?
+    let subCategory: String?
+    /// month/year/week（缺省 month）
+    let period: String?
+    let confirmationStatus: String?
+    let confirmationError: String?
+    var itemID: String? = nil
+
+    var requiresConfirmation: Bool { confirmationStatus == "pending" || confirmationStatus == "confirming" }
+    var isCancelled: Bool { confirmationStatus == "cancelled" }
+    var isFailed: Bool { confirmationStatus == "failed" }
+    var isConfirming: Bool { confirmationStatus == "confirming" }
+
+    /// 预算范围标题：分类预算显示分类名，否则「总预算」
+    var scopeTitle: String {
+        if let sub = subCategory, !sub.isEmpty, sub != primaryCategory {
+            return "\(primaryCategory ?? "") · \(sub)"
+        }
+        return primaryCategory ?? "总预算"
+    }
+
+    var isCategoryBudget: Bool { primaryCategory != nil }
+
+    var periodLabel: String {
+        switch period?.lowercased() {
+        case "week", "weekly": return "每周"
+        case "year", "yearly", "annual": return "每年"
+        default: return "每月"
+        }
+    }
+}
+
+// MARK: - 纪念日卡片数据
+
+nonisolated struct AnniversaryChatCardData: Equatable {
+    let title: String
+    /// LLM 输出的原始日期文本（YYYY-MM-DD，卡片负责友好化展示）
+    let dateText: String?
+    /// birthday/anniversary/countdown/milestone（缺省 anniversary）
+    let typeCandidate: String?
+    let confirmationStatus: String?
+    let confirmationError: String?
+    /// 确认创建后回写的纪念日 ID（点击卡片跳详情）
+    var anniversaryId: String? = nil
+    var itemID: String? = nil
+
+    var requiresConfirmation: Bool { confirmationStatus == "pending" || confirmationStatus == "confirming" }
+    var isCancelled: Bool { confirmationStatus == "cancelled" }
+    var isFailed: Bool { confirmationStatus == "failed" }
+    var isConfirming: Bool { confirmationStatus == "confirming" }
+
+    var type: AnniversaryType {
+        AnniversaryType(rawValue: typeCandidate ?? "") ?? .anniversary
+    }
+
+    var typeDisplayName: String { type.displayName }
+
+    /// 类型默认 emoji 图标
+    var icon: String { type.defaultEmoji }
+
+    /// 友好日期文本：解析成功展示「M月d日（周几）」，解析失败原样展示
+    var displayDate: String? {
+        guard let raw = dateText?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        guard let date = NLDateParser.parse(raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日"
+        return formatter.string(from: date)
     }
 }
 
@@ -1170,7 +1272,6 @@ extension TaskCardData: Sendable {}
 extension HabitCheckInCardData: Sendable {}
 extension MoodCardData: Sendable {}
 extension WeightCardData: Sendable {}
-extension GoalChoiceCardData: Sendable {}
 extension AnalysisSummaryCardData: Sendable {}
 extension AnalysisTrendCardData: Sendable {}
 extension AnalysisBreakdownCardData: Sendable {}

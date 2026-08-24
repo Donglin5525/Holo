@@ -547,35 +547,30 @@ private struct DailyReplayDayContent: View {
 
 // MARK: - 今天终点 / 日期选择 / 时间门
 
+/// 今日开篇轻刻度（A 案定稿）：一行居中小字＋两侧渐隐细线，标记时间轴的「现在」端点。
+/// 替代原满宽渐变大卡——无背景无描边，不再与今天的内容卡抢首屏视觉权重。
 private struct DailyReplayTodayEndView: View {
     var body: some View {
-        VStack(spacing: 7) {
-            Image(systemName: "circle.dotted")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.holoPrimary)
+        HStack(spacing: 12) {
+            dividerLine
             Text("今天的记忆还在继续")
-                .font(.system(size: 12, weight: .semibold, design: .serif))
-                .foregroundColor(.holoTextSecondary)
-            Text("新的记录会继续汇入这里")
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 11, weight: .medium, design: .serif))
                 .foregroundColor(.holoTextPlaceholder)
+                .fixedSize()
+            dividerLine
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
-        .background(
-            LinearGradient(
-                colors: [Color.holoPrimary.opacity(0.07), Color.holoCardBackground.opacity(0.22)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+        .padding(.horizontal, 56)
+        .padding(.top, HoloSpacing.lg)
+        .accessibilityLabel("时间轴从今天开始，上滑回看更早")
+    }
+
+    private var dividerLine: some View {
+        LinearGradient(
+            colors: [Color.holoBorder.opacity(0), Color.holoBorder.opacity(0.9), Color.holoBorder.opacity(0)],
+            startPoint: .leading,
+            endPoint: .trailing
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoPrimary.opacity(0.12), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .padding(.horizontal, 72)
-        .padding(.top, HoloSpacing.xl)
+        .frame(height: 1)
     }
 }
 

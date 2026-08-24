@@ -451,10 +451,12 @@ private struct HoloFinanceView: View {
                 }
                 .frame(width: 92, height: 92)
 
-                Text(budgetRatio == nil ? "设置预算后看节奏" : "橙弧 · 已用   白点 · 时间")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(textSecondary)
-                    .multilineTextAlignment(.center)
+                if budgetRatio == nil {
+                    Text("设置预算后看节奏")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(textSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
         }
         .padding(16)

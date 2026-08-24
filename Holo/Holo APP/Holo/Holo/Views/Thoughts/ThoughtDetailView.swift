@@ -30,6 +30,9 @@ struct ThoughtDetailView: View {
     /// 当前想法
     @State private var thought: Thought? = nil
 
+    /// 数据加载是否已完成（完成后 thought 仍为 nil 说明想法已被删除/清除）
+    @State private var hasLoadedData: Bool = false
+
     /// 该想法引用的其他想法
     @State private var references: [Thought] = []
 
@@ -81,8 +84,15 @@ struct ThoughtDetailView: View {
         NavigationView {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                    // 目标想法已被删除/清除时的占位提示
+                    if thought == nil && hasLoadedData {
+                        deletedThoughtPlaceholder
+                    }
+
                     // 内容区域
-                    contentSection
+                    if thought != nil {
+                        contentSection
+                    }
 
                     // 所属主题（知识树 v1：补齐归属展示与修改）
                     if thought != nil {
@@ -249,6 +259,21 @@ struct ThoughtDetailView: View {
         } catch {
             logger.error("加载数据失败：\(error)")
         }
+        hasLoadedData = true
+    }
+
+    /// 想法已被删除/清除时的占位视图
+    private var deletedThoughtPlaceholder: some View {
+        VStack(spacing: HoloSpacing.md) {
+            Image(systemName: "trash.slash")
+                .font(.system(size: 32))
+                .foregroundColor(.holoTextSecondary)
+            Text("该想法已被删除")
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 120)
     }
 
     /// 解析结构化内容并检测已删除的引用目标

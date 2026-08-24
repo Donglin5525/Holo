@@ -96,6 +96,8 @@ final class IntentRouter {
             return try await handleRecordExpense(result)
         case .recordIncome:
             return try await handleRecordIncome(result)
+        case .setBudget:
+            return try await handleSetBudget(result)
         case .createTask:
             return try handleCreateTask(result, originalInput: originalInput)
         case .completeTask:
@@ -124,6 +126,10 @@ final class IntentRouter {
             return try handleToggleGoalVisibility(result)
         case .createNote:
             return try handleCreateNote(result)
+        case .createAnniversary:
+            return try await handleCreateAnniversary(result, originalInput: originalInput)
+        case .updateAnniversary:
+            return try await handleUpdateAnniversary(result, originalInput: originalInput)
         case .queryTasks:
             return try handleQueryTasks(result)
         case .queryHabits:
@@ -329,6 +335,75 @@ final class IntentRouter {
         )
     }
 
+    // MARK: - Set Budget（预算设置/调整：总预算或分类预算，已存在则更新）
+
+    private func handleSetBudget(_ result: ParsedResult) async throws -> RouteResult {
+        guard let data = result.extractedData,
+              let amountStr = data["amount"],
+              let amount = Decimal(string: amountStr) else {
+            return RouteResult(text: result.responseText ?? "请告诉我预算金额")
+        }
+        guard amount > 0 else {
+            return RouteResult(text: "预算金额需要大于 0")
+        }
+
+        // 预算挂在默认账户（与预算设置页一致）
+        guard let account = FinanceRepository.shared.getDefaultAccountSync() else {
+            return RouteResult(text: "还没有账户，请先在账本的账户管理里创建一个")
+        }
+        let period = Self.parseBudgetPeriod(data["period"])
+        let periodLabel = period.displayName
+
+        // 分类预算：categoryCandidate 匹配支出分类后按该分类落库；未匹配不硬设（防挂错分类）
+        if let candidate = data["categoryCandidate"], !candidate.isEmpty {
+            let category = try await matchCategory(
+                primaryCategory: data["primaryCategory"],
+                subCategory: data["subCategory"],
+                categoryCandidate: candidate,
+                normalizedCategoryCandidate: data["normalizedCategoryCandidate"],
+                semanticCategoryHint: data["semanticCategoryHint"],
+                note: "",
+                type: .expense
+            )
+            guard let category else {
+                return RouteResult(
+                    text: "没找到「\(candidate)」对应的支出分类，可以在账本的分类管理里确认分类名后再试",
+                    categoryUnmatched: true
+                )
+            }
+            let repo = BudgetRepository.shared
+            if let existing = repo.getCategoryBudget(forAccount: account.id, categoryId: category.id, period: period) {
+                try repo.updateBudget(existing, amount: amount, startDate: nil)
+                return RouteResult(text: "已把\(periodLabel)「\(category.name)」预算调整为 ¥\(amountStr)")
+            }
+            _ = try repo.addCategoryBudget(
+                accountId: account.id,
+                categoryId: category.id,
+                amount: amount,
+                period: period,
+                startDate: Date()
+            )
+            return RouteResult(text: "已设置\(periodLabel)「\(category.name)」预算 ¥\(amountStr)")
+        }
+
+        // 总预算
+        let repo = BudgetRepository.shared
+        if let existing = repo.getTotalBudget(forAccount: account.id, period: period) {
+            try repo.updateBudget(existing, amount: amount, startDate: nil)
+            return RouteResult(text: "已把\(periodLabel)总预算调整为 ¥\(amountStr)")
+        }
+        _ = try repo.addBudget(accountId: account.id, amount: amount, period: period, startDate: Date())
+        return RouteResult(text: "已设置\(periodLabel)总预算 ¥\(amountStr)")
+    }
+
+    private static func parseBudgetPeriod(_ raw: String?) -> BudgetPeriod {
+        switch raw?.lowercased() {
+        case "week", "weekly": return .week
+        case "year", "yearly", "annual": return .year
+        default: return .month
+        }
+    }
+
     // MARK: - Create Task
 
     private func handleCreateTask(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
@@ -361,8 +436,21 @@ final class IntentRouter {
             logger.info("任务时间解析（含兜底）：dueDate=\(dueDate.map { String(describing: $0) } ?? "nil") hasTime=\(hasTime)")
         }
 
+        // 指定清单：精确名 > 唯一模糊命中；匹配不到放默认位置（不阻断创建）
+        var listNote: String?
+        var targetList: TodoList?
+        if let listName = data["listName"]?.trimmingCharacters(in: .whitespacesAndNewlines), !listName.isEmpty {
+            if let list = Self.matchTodoList(named: listName) {
+                targetList = list
+                listNote = "，已放入清单「\(list.name)」"
+            } else {
+                listNote = "（没找到清单「\(listName)」，已放到默认位置）"
+            }
+        }
+
         let task = try todoRepo.createTask(
             title: title,
+            list: targetList,
             priority: priority ?? .medium,
             dueDate: dueDate,
             isAllDay: !hasTime,
@@ -405,10 +493,19 @@ final class IntentRouter {
         logger.info("任务已创建：\(title)")
 
         return RouteResult(
-            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime, subtaskCount: checkItemTitles.count),
+            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime, subtaskCount: checkItemTitles.count) + (listNote ?? ""),
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )
+    }
+
+    /// 清单名匹配：精确等值 > 唯一双向包含；多命中/无命中返回 nil（由调用方决定兜底）
+    private static func matchTodoList(named name: String) -> TodoList? {
+        let repo = TodoRepository.shared
+        let lists = repo.folders.flatMap { $0.listsArray } + repo.unfiledLists
+        if let exact = lists.first(where: { $0.name == name }) { return exact }
+        let fuzzy = lists.filter { $0.name.contains(name) || name.contains($0.name) }
+        return fuzzy.count == 1 ? fuzzy[0] : nil
     }
 
     // MARK: - Modify Task Items
@@ -649,11 +746,35 @@ final class IntentRouter {
             // 按 field 字段决定改什么
             let field = data?["field"] ?? ""
             let value = data?["value"]
+
+            // 状态变更（达成/暂停）：语义与文案都独立于普通字段修改
+            if field.lowercased() == "status" || field == "状态" {
+                guard let status = Self.parseGoalStatus(value) else {
+                    return RouteResult(text: "没听懂要改成什么状态，可以说「目标达成了」或「暂停这个目标」")
+                }
+                try GoalRepository.shared.updateStatus(goal, status: status)
+                return RouteResult(
+                    text: status == .completed
+                        ? "太棒了！目标「\(goal.title)」已标记为达成 🎉"
+                        : "已暂停目标「\(goal.title)」，随时可以说「继续」重新开始",
+                    linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+                )
+            }
+
             try applyGoalFieldUpdate(goal, field: field, value: value)
             return RouteResult(
                 text: "已更新「\(goal.title)」",
                 linkedEntity: LinkedEntity(type: .goal, id: goal.id)
             )
+        }
+    }
+
+    /// 目标状态值解析：LLM 输出 completed/paused，同时兜底中文表达
+    private static func parseGoalStatus(_ raw: String?) -> GoalStatus? {
+        switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "completed", "complete", "done", "达成", "完成", "达成目标": return .completed
+        case "paused", "pause", "暂停", "放弃", "搁置": return .paused
+        default: return nil
         }
     }
 
@@ -1081,6 +1202,92 @@ final class IntentRouter {
             thoughtId: thought.id,
             linkedEntity: LinkedEntity(type: .thought, id: thought.id)
         )
+    }
+
+    // MARK: - Anniversary 写操作（对话创建/修改纪念日）
+
+    private func handleCreateAnniversary(_ result: ParsedResult, originalInput: String? = nil) async throws -> RouteResult {
+        guard let data = result.extractedData,
+              let title = data["anniversaryTitle"], !title.isEmpty else {
+            return RouteResult(text: result.responseText ?? "请告诉我纪念日名称")
+        }
+
+        let dateText = data["anniversaryDate"]
+        let date = parseDate(from: dateText)
+            ?? dateText.flatMap { parseFlexibleDate($0) }
+            ?? parseDate(from: originalInput)
+            ?? (originalInput.flatMap { parseFlexibleDate($0) })
+        guard let date else {
+            return RouteResult(text: "请告诉我具体日期，比如「10月3号是爸妈结婚纪念日」")
+        }
+
+        let type = AnniversaryType(rawValue: data["typeCandidate"] ?? "") ?? .anniversary
+        let repeatYearly: Bool
+        if let repeatStr = data["repeatYearly"], !repeatStr.isEmpty {
+            repeatYearly = repeatStr.lowercased() == "true"
+        } else {
+            repeatYearly = type.defaultRepeatYearly
+        }
+
+        let item = try await AnniversaryRepository.shared.addAnniversary(
+            title: title,
+            date: date,
+            type: type,
+            repeatYearly: repeatYearly
+        )
+
+        return RouteResult(
+            text: "已创建\(type.displayName)「\(title)」（\(Self.anniversaryDisplayDate(date))）",
+            linkedEntity: LinkedEntity(type: .anniversary, id: item.id)
+        )
+    }
+
+    private func handleUpdateAnniversary(_ result: ParsedResult, originalInput: String? = nil) async throws -> RouteResult {
+        guard let data = result.extractedData,
+              let keyword = data["anniversaryKeyword"], !keyword.isEmpty else {
+            return RouteResult(text: result.responseText ?? "请告诉我要修改哪个纪念日")
+        }
+
+        // 唯一匹配才执行（同 update_task 模式）：精确 > 包含；无命中/多命中走文本追问
+        let repo = AnniversaryRepository.shared
+        let candidates = repo.activeAnniversaries
+        let matched: Anniversary?
+        if let exact = candidates.first(where: { $0.title == keyword }) {
+            matched = exact
+        } else {
+            let fuzzy = candidates.filter { $0.title.contains(keyword) || keyword.contains($0.title) }
+            matched = fuzzy.count == 1 ? fuzzy[0] : nil
+        }
+        guard let item = matched else {
+            if candidates.isEmpty {
+                return RouteResult(text: "你还没有纪念日记录")
+            }
+            return RouteResult(text: "没找到唯一对应的纪念日，请说得更具体一些（比如用完整名称）")
+        }
+
+        let newTitle = data["anniversaryTitle"]
+        let dateText = data["anniversaryDate"]
+        let newDate = parseDate(from: dateText) ?? dateText.flatMap { parseFlexibleDate($0) }
+        guard newTitle != nil || newDate != nil else {
+            return RouteResult(text: "请说明要改成什么（新日期或新名称）")
+        }
+
+        try await repo.updateAnniversary(item, title: newTitle, date: newDate)
+
+        var text = "已更新\(item.anniversaryType.displayName)「\(newTitle ?? item.title)」"
+        if let newDate {
+            text += "，日期改为 \(Self.anniversaryDisplayDate(newDate))"
+        }
+        return RouteResult(text: text, linkedEntity: LinkedEntity(type: .anniversary, id: item.id))
+    }
+
+    /// 纪念日日期展示（同年省年份）
+    private static func anniversaryDisplayDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        let calendar = Calendar.current
+        formatter.dateFormat = calendar.isDate(date, equalTo: Date(), toGranularity: .year) ? "M月d日" : "yyyy年M月d日"
+        return formatter.string(from: date)
     }
 
     // MARK: - Query Tasks

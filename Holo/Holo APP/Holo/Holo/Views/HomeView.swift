@@ -878,8 +878,11 @@ struct HomeView: View {
                 deepLinkState.pendingTarget = nil
             }
         case .memoryInsight(_):
-            // 目标由 MemoryGalleryView 在完成 Tab 切换和洞察展开后消费。
-            navigateToScreen(.memoryGallery)
+            // 目标由 ChatView 消费：洞察内容自长廊撤除回放卡后统一在 AI 页展示，
+            // ChatView 打开对应回放卡片后清空 pendingTarget 并落已读。
+            if activeScreen != .ai {
+                navigateToScreen(.ai)
+            }
         }
     }
 
@@ -936,13 +939,12 @@ struct HomeView: View {
     }
 
     /// 处理推送点击跳转
+    ///
+    /// 洞察胶囊不在点击瞬间 markRead（方案 §7.5 的「已读」语义是看过内容）：
+    /// 由 ChatView 把洞察卡片落地展示后才落已读并刷新首页候选，
+    /// 跳转链路断了胶囊就还在，不会出现「没看到内容、入口却消失了」。
     private func handleScheduleTap(_ state: ScheduleReminderState) {
         guard let target = state.deepLinkTarget else { return }
-        if case .memoryInsight(let insightId) = target,
-           let insight = MemoryInsightRepository().fetchAvailableInsight(id: insightId) {
-            try? MemoryInsightRepository().markRead(insight: insight)
-            scheduleService.currentState = nil
-        }
         deepLinkState.pendingTarget = target
     }
 }

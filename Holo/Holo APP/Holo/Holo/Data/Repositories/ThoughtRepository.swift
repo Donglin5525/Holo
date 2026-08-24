@@ -55,7 +55,7 @@ class ThoughtRepository {
         sortBy: ThoughtSortOption = .createdAtDescending
     ) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
 
         // 设置排序
         switch sortBy {
@@ -84,7 +84,7 @@ class ThoughtRepository {
     func fetchThoughts(from start: Date, to end: Date) throws -> [Thought] {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(
-            format: "createdAt >= %@ AND createdAt < %@ AND isSoftDeleted == NO AND isArchived == NO",
+            format: "createdAt >= %@ AND createdAt < %@ AND deletedAt == nil AND isArchived == NO",
             start as NSDate,
             end as NSDate
         )
@@ -99,7 +99,7 @@ class ThoughtRepository {
     /// - Returns: Thought 对象，不存在返回 nil
     func fetchById(_ id: UUID) throws -> Thought? {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO AND isArchived == NO", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", id as CVarArg)
         request.fetchLimit = 1
         return try context.fetch(request).first
     }
@@ -118,7 +118,7 @@ class ThoughtRepository {
     func fetchByTag(_ tagName: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
         let tagPredicate = NSPredicate(format: "ANY tags.name == %@", tagName)
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [tagPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)
@@ -130,7 +130,7 @@ class ThoughtRepository {
     func fetchByMood(_ mood: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
         let moodPredicate = NSPredicate(format: "mood == %@", mood)
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [moodPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)
@@ -143,7 +143,7 @@ class ThoughtRepository {
     /// - Returns: Thought 数组
     func search(query: String, filters: ThoughtFilters? = nil) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        var predicates: [NSPredicate] = [NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")]
+        var predicates: [NSPredicate] = [NSPredicate(format: "deletedAt == nil AND isArchived == NO")]
 
         // 搜索内容或标签
         if !query.isEmpty {
@@ -363,8 +363,9 @@ class ThoughtRepository {
             throw ThoughtError.notFound
         }
 
-        // 软删除：只标记 isSoftDeleted，不断开引用关系
+        // 软删除：标记 isSoftDeleted（遗留字段）+ 统一 deletedAt，不断开引用关系
         thought.isSoftDeleted = true
+        thought.markDeleted(batchId: nil)
         thought.updatedAt = Date()
 
         try context.save()
@@ -402,7 +403,7 @@ class ThoughtRepository {
     /// - Parameter id: 想法 ID
     func archive(_ id: UUID) throws {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
 
         guard let thought = try context.fetch(request).first else {
@@ -419,7 +420,7 @@ class ThoughtRepository {
     /// - Parameter id: 想法 ID
     func unarchive(_ id: UUID) throws {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
 
         guard let thought = try context.fetch(request).first else {
@@ -436,7 +437,7 @@ class ThoughtRepository {
     /// - Returns: Thought 数组
     func fetchArchived() throws -> [Thought] {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == YES")
+        request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == YES")
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
         return try context.fetch(request)
     }
@@ -490,7 +491,7 @@ class ThoughtRepository {
 
         return (thought.references as? Set<ThoughtReference>)?
             .compactMap { $0.targetThought }
-            .filter { !$0.isSoftDeleted } ?? []
+            .filter { $0.deletedAt == nil } ?? []
     }
 
     /// 获取引用该想法的其他想法
@@ -503,7 +504,7 @@ class ThoughtRepository {
 
         return (thought.referencedBy as? Set<ThoughtReference>)?
             .compactMap { $0.sourceThought }
-            .filter { !$0.isSoftDeleted } ?? []
+            .filter { $0.deletedAt == nil } ?? []
     }
 
     // MARK: - Tag Operations
@@ -512,6 +513,7 @@ class ThoughtRepository {
     /// - Returns: ThoughtTag 数组
     func getAllTags() throws -> [ThoughtTag] {
         let request = ThoughtTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [
             NSSortDescriptor(key: "usageCount", ascending: false),
             NSSortDescriptor(key: "name", ascending: true),
@@ -535,7 +537,7 @@ class ThoughtRepository {
             ThoughtTagAssignment.Source.confirmedAI.rawValue
         ]
         request.predicate = NSPredicate(
-            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.isSoftDeleted == NO).@count > 0",
+            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.deletedAt == nil).@count > 0",
             recognizedSources
         )
         request.sortDescriptors = [
@@ -562,11 +564,11 @@ class ThoughtRepository {
             ThoughtTagAssignment.Source.confirmedAI.rawValue
         ]
         let hasAI = NSPredicate(
-            format: "SUBQUERY(assignments, $a, $a.source == %@ AND $a.thought.isSoftDeleted == NO).@count > 0",
+            format: "SUBQUERY(assignments, $a, $a.source == %@ AND $a.thought.deletedAt == nil).@count > 0",
             aiSource
         )
         let notRecognized = NSPredicate(
-            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.isSoftDeleted == NO).@count == 0",
+            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.deletedAt == nil).@count == 0",
             recognizedSources
         )
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [hasAI, notRecognized])
@@ -586,7 +588,7 @@ class ThoughtRepository {
         guard !key.isEmpty else { return 0 }
         let request = ThoughtTagAssignment.fetchRequest()
         request.predicate = NSPredicate(
-            format: "thought.isSoftDeleted == NO AND tag.name != nil"
+            format: "thought.deletedAt == nil AND tag.name != nil"
         )
         let all = (try? context.fetch(request)) ?? []
         return all.filter { ThoughtTagNormalizer.key($0.tag?.name ?? "") == key }.count
@@ -601,7 +603,7 @@ class ThoughtRepository {
         guard !key.isEmpty else { return 0 }
         let request = ThoughtTagAssignment.fetchRequest()
         request.predicate = NSPredicate(
-            format: "source == %@ AND thought.isSoftDeleted == NO",
+            format: "source == %@ AND thought.deletedAt == nil",
             ThoughtTagAssignment.Source.ai.rawValue
         )
         let pending = (try? context.fetch(request)) ?? []
@@ -799,7 +801,8 @@ class ThoughtRepository {
         let visibleSources = Self.visibleTagSourceValues
         let sourcePredicate = NSPredicate(format: "source IN %@", visibleSources)
         let notRejectedPredicate = NSPredicate(format: "rejectedAt == nil")
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, notRejectedPredicate])
+        let thoughtAlivePredicate = NSPredicate(format: "thought.deletedAt == nil")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, notRejectedPredicate, thoughtAlivePredicate])
 
         let assignments = try context.fetch(request)
 
@@ -842,7 +845,7 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         let normalizedKey = ThoughtTagNormalizer.key(tagName)
         let sourcePredicate = NSPredicate(format: "SUBQUERY(tagAssignments, $a, $a.source IN %@ AND $a.rejectedAt == nil).@count > 0", Self.visibleTagSourceValues)
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request).filter { thought in
@@ -861,7 +864,7 @@ class ThoughtRepository {
     /// 历史 active/candidate Topic 不再污染新主题维度的未归类口径。
     func fetchUnclassifiedThoughts() throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         let classificationPredicate = NSPredicate(
             format: "SUBQUERY(topics, $topic, $topic.status == %@).@count == 0",
             Topic.TopicStatus.classification.rawValue
@@ -883,7 +886,7 @@ class ThoughtRepository {
     /// 存量数据（字段默认 0）同样被 >0 条件排除，只影响新整理的想法。
     func fetchThoughtsPendingTopicConfirmation() throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         let organizedPredicate = NSPredicate(format: "organizedStatus == %@", "organized")
         let classificationPredicate = NSPredicate(
             format: "SUBQUERY(topics, $topic, $topic.status == %@).@count > 0",
@@ -918,8 +921,9 @@ class ThoughtRepository {
         let sourcePredicate = NSPredicate(format: "source IN %@", Self.visibleTagSourceValues)
         let notRejectedPredicate = NSPredicate(format: "rejectedAt == nil")
         let recentPredicate = NSPredicate(format: "assignedAt >= %@", cutoff as NSDate)
+        let thoughtAlivePredicate = NSPredicate(format: "thought.deletedAt == nil")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            sourcePredicate, notRejectedPredicate, recentPredicate
+            sourcePredicate, notRejectedPredicate, recentPredicate, thoughtAlivePredicate
         ])
 
         let assignments = try context.fetch(request)
@@ -965,7 +969,7 @@ class ThoughtRepository {
             format: "SUBQUERY(tagAssignments, $a, $a.source IN %@ AND $a.rejectedAt == nil).@count > 0",
             Self.visibleTagSourceValues
         )
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         let classificationPredicate = NSPredicate(
             format: "SUBQUERY(topics, $topic, $topic.status == %@).@count == 0",
             Topic.TopicStatus.classification.rawValue
@@ -1168,7 +1172,7 @@ class ThoughtRepository {
 
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(
-            format: "organizedStatus == 'pending' AND createdDeviceId == %@ AND isSoftDeleted == NO AND isArchived == NO",
+            format: "organizedStatus == 'pending' AND createdDeviceId == %@ AND deletedAt == nil AND isArchived == NO",
             currentDeviceId as CVarArg
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
@@ -1190,7 +1194,7 @@ class ThoughtRepository {
         // 不按 createdDeviceId 过滤：批量整理是本地补标签操作，
         // 老想法（createdDeviceId 为 nil 或旧 deviceId）都应纳入；已 organized 的无论哪台设备都会被排除，不会重复
         request.predicate = NSPredicate(
-            format: "NOT (organizedStatus IN %@) AND isSoftDeleted == NO AND isArchived == NO",
+            format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
             Self.terminalOrganizedStatuses as CVarArg
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
@@ -1203,7 +1207,7 @@ class ThoughtRepository {
     func countUnprocessed() throws -> Int {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(
-            format: "NOT (organizedStatus IN %@) AND isSoftDeleted == NO AND isArchived == NO",
+            format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
             Self.terminalOrganizedStatuses as CVarArg
         )
 
@@ -1319,6 +1323,7 @@ class ThoughtRepository {
     /// - Returns: 标签名称数组（按 usageCount 降序）
     func getRecentTagNames(limit: Int = 20) -> [String] {
         let request = ThoughtTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "usageCount", ascending: false)]
         request.fetchLimit = limit
 
@@ -1335,7 +1340,7 @@ class ThoughtRepository {
     /// 构建 base predicate（排除已删除/归档，可选日期范围）
     private func basePredicate(from startDate: Date?, to endDate: Date?) -> NSPredicate {
         var predicates: [NSPredicate] = [
-            NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+            NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         ]
         if let start = startDate {
             predicates.append(NSPredicate(format: "createdAt >= %@", start as CVarArg))

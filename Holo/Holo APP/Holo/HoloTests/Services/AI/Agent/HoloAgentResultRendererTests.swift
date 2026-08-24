@@ -13,14 +13,17 @@ final class HoloAgentResultRendererTests: XCTestCase {
 
     // MARK: - 测试用例
 
-    /// claim 渲染成单个短文 section，body 含 claim 正文。
+    /// b2a87931 信息层级：单条 claim 的正文由开篇（directAnswer）承载，不再重复成卡。
     func testClaim渲染成短文sections() {
         let claim = makeClaim(text: "负向习惯发生量连续上升", evidenceIDs: ["e1"])
         let ev = makeEvidence(id: "e1", redacted: "刷手机次数上升", excerpt: "完整原文")
         let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [ev])
 
-        XCTAssertEqual(result.sections.count, 1, "应有 1 个 section")
-        XCTAssertTrue(result.sections.first?.body.contains("负向习惯") ?? false, "section 应含 claim 内容")
+        XCTAssertTrue(result.directAnswer?.contains("负向习惯") ?? false, "claim 正文应进入开篇")
+        XCTAssertFalse(
+            result.sections.contains { $0.body.contains("负向习惯") },
+            "开篇已讲过的正文不再重复成卡"
+        )
     }
 
     /// 证据引用摘要使用 redactedExcerpt 文案。
@@ -292,11 +295,13 @@ final class HoloAgentResultRendererTests: XCTestCase {
 
     // P1：修复 section.title/body 同值浪费
     /// section.title 用「观察 N」短 kicker，body 用 claim 正文，二者不应同值。
+    /// b2a87931 信息层级后：首条 claim 正文进开篇，其后 claim 才渲染成卡片，故用双 claim。
     func testSectionTitleNotEqualToBody() {
-        let claim = makeClaim(text: "本月支出偏高，主要集中在餐饮")
-        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [])
+        let first = makeClaim(text: "本月整体支出偏高", id: "c1")
+        let second = makeClaim(text: "本月支出偏高，主要集中在餐饮", id: "c2")
+        let result = HoloAgentResultRenderer().render(claims: [first, second], evidence: [])
 
-        XCTAssertEqual(result.sections.count, 1, "应有 1 个 section")
+        XCTAssertEqual(result.sections.count, 1, "开篇之外的 claim 应有 1 个 section")
         guard let section = result.sections.first else {
             XCTFail("section 缺失"); return
         }
@@ -306,10 +311,11 @@ final class HoloAgentResultRendererTests: XCTestCase {
     }
 
     // P1：section 透传 claim.confidence，供阶段 2 可视化
-    /// section.confidence 应等于 claim.confidence。
+    /// section.confidence 应等于 claim.confidence（对成卡的 claim 断言）。
     func testSectionCarriesConfidence() {
-        let claim = makeClaim(text: "观察内容", confidence: 0.82)
-        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [])
+        let first = makeClaim(text: "观察内容", id: "c1")
+        let second = makeClaim(text: "另一条观察", id: "c2", confidence: 0.82)
+        let result = HoloAgentResultRenderer().render(claims: [first, second], evidence: [])
 
         guard let section = result.sections.first else {
             XCTFail("section 缺失"); return
@@ -479,7 +485,8 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertTrue(visibleText.contains("房租"), "应保留可核对大额样例")
         XCTAssertTrue(visibleText.contains("MacBook"), "应保留可核对大额样例")
         XCTAssertFalse(visibleText.contains("finance.total.amount"), "用户可见文本不能暴露内部 metricKey")
-        XCTAssertEqual(result.sections.count, 3, "应有总额、分类、大额样例三段观察")
+        // 总额句进开篇（directAnswer）后不再重复成卡；分类与大额样例必须保留为结构化卡片
+        XCTAssertEqual(result.sections.count, 2, "分类与大额样例须各成一段观察")
         XCTAssertEqual(result.evidenceReferences.count, 6, "应保留全部可核对账单依据")
         XCTAssertTrue(
             result.evidenceReferences.allSatisfy { $0.financeDrilldown?.label == "上月" },

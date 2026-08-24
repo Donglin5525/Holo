@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 财务 · 账户卡片视觉方案</title>
+<style>
+  :root{
+    --bg:#FDFCF8; --card:#FFFFFF; --nested:#F4F7F9;
+    --text:#1D1D1F; --text2:#86868B; --divider:rgba(60,60,67,.10);
+    --primary:#F46D38; --primary-dark:#EA580C;
+    --green:#22C55E; --red:#EF4444; --blue:#1677FF; --indigo:#6366F1; --amber:#F59E0B; --slate:#64748B;
+    --deep1:#1C1614; --deep2:#2A1B15; --deep3:#321E18;
+    --deep-text:#FFE8D5; --deep-sub:#F0C9A8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    background:#E9E7E2;color:var(--text);padding:48px 24px 96px;
+  }
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
+  /* ===== 页头 ===== */
+  .page{max-width:1180px;margin:0 auto;}
+  .page-head{max-width:760px;margin-bottom:56px;}
+  .page-head h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:12px;}
+  .page-head p{font-size:14.5px;line-height:1.75;color:#4b4b50;}
+  .page-head p+p{margin-top:8px;}
+  .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:24px;}
+  .meta-item{background:#fff;border-radius:14px;padding:14px 16px;border:1px solid rgba(0,0,0,.05);}
+  .meta-item b{display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;}
+  .meta-item span{font-size:13px;line-height:1.6;}
+  /* ===== 方案区 ===== */
+  .scheme{margin-bottom:88px;}
+  .scheme-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;}
+  .scheme-head .tag{font-size:12px;font-weight:700;color:#fff;background:var(--primary);border-radius:999px;padding:3px 10px;letter-spacing:.05em;}
+  .scheme-head h2{font-size:21px;font-weight:800;}
+  .scheme-sub{font-size:13.5px;color:var(--text2);margin-bottom:22px;line-height:1.7;}
+  .scheme-body{display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;}
+  .notes{flex:1;min-width:300px;max-width:520px;}
+  .note-block{background:#fff;border-radius:16px;padding:18px 20px;border:1px solid rgba(0,0,0,.05);margin-bottom:14px;}
+  .note-block h3{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;letter-spacing:.04em;}
+  .note-block ul{list-style:none;}
+  .note-block li{font-size:13.5px;line-height:1.8;padding-left:16px;position:relative;color:#3a3a3e;}
+  .note-block li::before{content:"";position:absolute;left:2px;top:.85em;width:5px;height:5px;border-radius:50%;background:var(--primary);opacity:.7;}
+  .pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .pros,.cons{border-radius:16px;padding:16px 18px;border:1px solid rgba(0,0,0,.05);}
+  .pros{background:#F2FBF5;} .cons{background:#FEF5F2;}
+  .pros h4,.cons h4{font-size:12.5px;font-weight:700;margin-bottom:8px;}
+  .pros h4{color:#15803D;} .cons h4{color:#C2410C;}
+  .pros li,.cons li{font-size:13px;line-height:1.75;}
+  .pros li::before{background:var(--green);} .cons li::before{background:var(--red);}
+  /* ===== 手机画布 ===== */
+  .phone{width:390px;background:var(--bg);border-radius:44px;box-shadow:0 24px 60px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.10);overflow:hidden;flex-shrink:0;border:1px solid rgba(0,0,0,.06);}
+  .statusbar{height:54px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 30px 8px;font-size:15px;font-weight:600;}
+  .navbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--bg);}
+  .navbar .t{font-size:17px;font-weight:700;}
+  .navbar .icn{font-size:17px;color:var(--primary);font-weight:600;}
+  .navbar .back{color:#1D1D1F;}
+  .screen{padding:8px 16px 40px;display:flex;flex-direction:column;gap:16px;}
+  .sec-title{font-size:12px;font-weight:600;color:var(--text2);padding:4px 4px 0;letter-spacing:.03em;}
+  /* ===== 净资产深色卡（三方案共用语言） ===== */
+  .netcard{
+    border-radius:20px;padding:22px 22px 20px;color:var(--deep-text);
+    background:linear-gradient(135deg,var(--deep1) 0%,var(--deep2) 55%,var(--deep3) 100%);
+    border:1px solid rgba(254,215,170,.45);position:relative;overflow:hidden;
+  }
+  .netcard::after{content:"";position:absolute;top:-60px;right:-50px;width:190px;height:190px;border-radius:50%;
+    background:radial-gradient(circle,rgba(244,109,56,.30),transparent 70%);}
+  .netcard .lab{font-size:12.5px;color:var(--deep-sub);display:flex;align-items:center;gap:6px;}
+  .netcard .amt{font-size:34px;font-weight:800;margin:8px 0 16px;letter-spacing:-.01em;position:relative;z-index:1;}
+  .netcard .row{display:flex;gap:32px;position:relative;z-index:1;}
+  .netcard .cell b{display:block;font-size:11.5px;color:var(--deep-sub);font-weight:500;margin-bottom:3px;}
+  .netcard .cell span{font-size:15.5px;font-weight:700;}
+  .netcard .cell.a span{color:#7EE2A8;} .netcard .cell.l span{color:#FFA98F;}
+  /* ===== 方案A 卡面沉浸式 ===== */
+  .cardA{
+    border-radius:20px;padding:18px 18px 16px;color:#fff;position:relative;overflow:hidden;
+    box-shadow:0 10px 26px rgba(0,0,0,.16);
+  }
+  .cardA::before{content:"";position:absolute;top:-70px;right:-40px;width:220px;height:220px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.16),transparent 70%);}
+  .cardA .top{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .cardA .glyph{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.22);}
+  .cardA .glyph svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .cardA .nm{font-size:15.5px;font-weight:700;line-height:1.25;}
+  .cardA .tp{font-size:11px;font-weight:500;opacity:.75;letter-spacing:.04em;}
+  .cardA .star{margin-left:auto;font-size:11px;font-weight:600;background:rgba(255,255,255,.20);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:3px 9px;}
+  .cardA .bal-lab{font-size:11px;opacity:.72;margin-bottom:3px;font-weight:500;}
+  .cardA .bal{font-size:29px;font-weight:800;letter-spacing:-.01em;margin-bottom:14px;}
+  .cardA .bal small{font-size:16px;font-weight:700;margin-right:2px;opacity:.85;}
+  .cardA .foot{border-top:1px solid rgba(255,255,255,.22);padding-top:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative;z-index:1;}
+  .cardA .foot .k{font-size:10.5px;opacity:.72;}
+  .cardA .foot .v{font-size:12.5px;font-weight:700;}
+  .cardA .foot .dot{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.5);align-self:center;}
+  .cardA .meter{height:5px;border-radius:999px;background:rgba(255,255,255,.22);overflow:hidden;margin:4px 0 12px;position:relative;z-index:1;}
+  .cardA .meter i{display:block;height:100%;border-radius:999px;background:rgba(255,255,255,.92);}
+  /* 渐变变体 */
+  .g-green{background:linear-gradient(135deg,#0B5E2E 0%,#149A54 60%,#1FB862 100%);}
+  .g-blue{background:linear-gradient(135deg,#0A3D8F 0%,#0F62D6 62%,#2B7CFF 100%);}
+  .g-cyan{background:linear-gradient(135deg,#06566B 0%,#0787A8 60%,#0BA9CB 100%);}
+  .g-indigo{background:linear-gradient(135deg,#312E9E 0%,#4F46D6 62%,#6C63F0 100%);}
+  .g-amber{background:linear-gradient(135deg,#8A4308 0%,#C07214 55%,#E8991C 100%);}
+  /* ===== 方案B 卡阵 ===== */
+  .gridB{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .cardB{aspect-ratio:1.586;border-radius:16px;color:#fff;padding:14px 15px;position:relative;overflow:hidden;
+    display:flex;flex-direction:column;box-shadow:0 8px 20px rgba(0,0,0,.14);}
+  .cardB::before{content:"";position:absolute;top:-46px;right:-30px;width:150px;height:150px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.15),transparent 70%);}
+  .cardB .b-top{display:flex;align-items:center;gap:7px;}
+  .cardB .glyph{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.22);flex-shrink:0;}
+  .cardB .glyph svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+  .cardB .b-nm{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cardB .b-star{margin-left:auto;font-size:9px;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 6px;font-weight:600;flex-shrink:0;}
+  .cardB .b-bal{margin-top:auto;font-size:19px;font-weight:800;letter-spacing:-.01em;line-height:1.1;position:relative;z-index:1;}
+  .cardB .b-bal small{font-size:12px;font-weight:700;opacity:.85;}
+  .cardB .b-sub{font-size:10px;opacity:.8;margin-top:5px;position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cardB .b-bar{height:3.5px;border-radius:999px;background:rgba(255,255,255,.25);margin-top:6px;overflow:hidden;}
+  .cardB .b-bar i{display:block;height:100%;background:rgba(255,255,255,.95);border-radius:999px;}
+  /* 方案B 堆叠演示 */
+  .stackwrap{background:#fff;border-radius:16px;padding:18px;border:1px solid rgba(0,0,0,.05);}
+  .stackwrap h4{font-size:13px;font-weight:700;margin-bottom:4px;}
+  .stackwrap p{font-size:12.5px;color:var(--text2);line-height:1.7;margin-bottom:14px;}
+  .stack{position:relative;height:200px;}
+  .scard{position:absolute;left:50%;width:230px;height:145px;border-radius:16px;color:#fff;padding:14px 16px;
+    transition:transform .45s cubic-bezier(.22,1,.36,1),opacity .45s;cursor:pointer;box-shadow:0 10px 24px rgba(0,0,0,.18);}
+  .scard .s-nm{font-size:13px;font-weight:700;}
+  .scard .s-bal{font-size:22px;font-weight:800;margin-top:8px;}
+  .scard .s-sub{font-size:10.5px;opacity:.8;margin-top:4px;}
+  .stack.collapsed .scard:nth-child(1){transform:translateX(-50%) translateY(0) scale(1);z-index:5;}
+  .stack.collapsed .scard:nth-child(2){transform:translateX(-50%) translateY(30px) scale(.94);opacity:.92;z-index:4;}
+  .stack.collapsed .scard:nth-child(3){transform:translateX(-50%) translateY(58px) scale(.88);opacity:.85;z-index:3;}
+  .stack.collapsed .scard:nth-child(4){transform:translateX(-50%) translateY(84px) scale(.82);opacity:.8;z-index:2;}
+  .stack.expanded .scard:nth-child(1){transform:translateX(-50%) translateY(-6px) rotate(-9deg);}
+  .stack.expanded .scard:nth-child(2){transform:translateX(-50%) translateY(18px) rotate(-3deg);}
+  .stack.expanded .scard:nth-child(3){transform:translateX(-50%) translateY(42px) rotate(3deg);}
+  .stack.expanded .scard:nth-child(4){transform:translateX(-50%) translateY(66px) rotate(9deg);}
+  .stack-hint{font-size:11.5px;color:var(--text2);text-align:center;margin-top:10px;}
+  /* ===== 方案C 分组列表 ===== */
+  .groupC{background:var(--card);border-radius:16px;border:0.5px solid var(--divider);box-shadow:0 3px 10px rgba(0,0,0,.035);overflow:hidden;}
+  .groupC .g-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;}
+  .groupC .g-head b{font-size:12.5px;font-weight:700;color:var(--text2);}
+  .groupC .g-head span{font-size:12px;color:var(--text2);font-weight:600;}
+  .rowC{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:0.5px solid var(--divider);}
+  .rowC .sq{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .rowC .sq svg{width:21px;height:21px;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .rowC .mid{flex:1;min-width:0;}
+  .rowC .n1{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600;}
+  .pill{font-size:9.5px;font-weight:600;border-radius:999px;padding:2px 7px;flex-shrink:0;}
+  .pill.def{color:var(--primary-dark);background:rgba(244,109,56,.12);}
+  .pill.arc{color:var(--text2);background:var(--nested);}
+  .rowC .n2{font-size:11.5px;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rowC .right{text-align:right;flex-shrink:0;}
+  .rowC .r1{font-size:16px;font-weight:700;}
+  .rowC .r1.neg{color:var(--red);}
+  .rowC .r2{font-size:11px;color:var(--text2);margin-top:3px;display:flex;align-items:center;gap:6px;justify-content:flex-end;}
+  .rowC .mini{width:44px;height:3.5px;border-radius:999px;background:rgba(0,0,0,.08);overflow:hidden;}
+  .rowC .mini i{display:block;height:100%;background:var(--amber);border-radius:999px;}
+  .up{color:#16A34A;} .dn{color:var(--red);}
+  .bg-green{background:rgba(34,197,94,.13);} .bg-green svg{stroke:#16A34A;}
+  .bg-blue{background:rgba(22,119,255,.12);} .bg-blue svg{stroke:#1677FF;}
+  .bg-cyan{background:rgba(6,176,215,.12);} .bg-cyan svg{stroke:#0891B2;}
+  .bg-indigo{background:rgba(99,102,241,.13);} .bg-indigo svg{stroke:#6366F1;}
+  .bg-amber{background:rgba(245,158,11,.14);} .bg-amber svg{stroke:#D97706;}
+  .bg-slate{background:rgba(100,116,139,.12);} .bg-slate svg{stroke:#64748B;}
+  /* ===== 对比表 ===== */
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;font-size:13px;}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--divider);line-height:1.55;vertical-align:top;}
+  th{font-size:12px;color:var(--text2);font-weight:700;background:#FAF9F6;}
+  td b{font-weight:700;}
+  .recommend{background:linear-gradient(135deg,var(--deep1),var(--deep3));border-radius:20px;padding:26px 28px;color:var(--deep-text);margin-top:36px;border:1px solid rgba(254,215,170,.45);}
+  .recommend h3{font-size:16px;font-weight:800;margin-bottom:10px;}
+  .recommend p{font-size:13.5px;line-height:1.85;color:var(--deep-sub);}
+  .recommend p b{color:var(--deep-text);}
+  .footnote{font-size:11.5px;color:#9a9aa0;margin-top:26px;line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ================= 页头 ================= -->
+  <div class="page-head">
+    <h1>财务 · 账户卡片视觉方案</h1>
+    <p>现状问题：所有账户都是同款白底小卡平铺，只有「图标 + 名称 + 类型 + 余额」四样信息，视觉上没有层次，信用卡的额度、账单日、还款日等关键信息在列表层完全不可见，净资产卡与账户卡也不分主次。</p>
+    <p>以下三个方案参考了 Apple Wallet / Apple Card 的卡片准则（卡片即身份、金额用大号圆角数字、信息按重要性分层）与主流财务软件（Money Pro / MoneyWiz 的彩色账户卡、银行 App 的渐变卡面、Revolut 的余额主视觉）。三稿均使用 Holo 现有设计语言：米白背景 #FDFCF8、品牌橙 #F46D38、16-20pt 卡片圆角、深色暖调渐变卡。账户示例数据统一，方便横向对比。</p>
+    <div class="meta-grid">
+      <div class="meta-item"><b>账户基本信息清单</b><span>名称 · 类型 · 图标 · 账户色 · 余额 · 默认标记 · 归档标记；信用卡另有：总额度 · 已用额度 · 账单日 · 还款日 · 本期账单</span></div>
+      <div class="meta-item"><b>信用卡专属信息</b><span>额度 ¥30,000 · 已用 ¥8,420.50 · 账单日 5 日 · 还款日 25 日（浦发信用卡示例）</span></div>
+      <div class="meta-item"><b>对应工程字段</b><span>Account: name / type / icon / color / initialBalance+流水 → 余额 / isDefault / isArchived / creditLimit / billingDay / dueDay</span></div>
+    </div>
+  </div>
+
+  <!-- ================= 方案 A ================= -->
+  <section class="scheme">
+    <div class="scheme-head"><span class="tag">方案 A</span><h2>卡面沉浸式 · Wallet 大卡</h2></div>
+    <p class="scheme-sub">每个账户一张全宽彩色渐变大卡，卡片本身就是账户的「身份证」。余额是卡面主角，底部按账户类型定制信息区：信用卡显示额度水位与账单节奏，普通账户显示本月收支。参考：Apple Wallet Pass 分层 + 银行 App 卡面渐变。</p>
+    <div class="scheme-body">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>●●● ●● ●●</span></div>
+        <div class="navbar"><span class="icn back">‹ 返回</span><span class="t">账户</span><span class="icn">＋</span></div>
+        <div class="screen">
+
+          <!-- 净资产 -->
+          <div class="netcard">
+            <div class="lab">总净资产</div>
+            <div class="amt num">¥ 91,036.84</div>
+            <div class="row">
+              <div class="cell a"><b>总资产</b><span class="num">¥ 99,457.34</span></div>
+              <div class="cell l"><b>总负债</b><span class="num">¥ 8,420.50</span></div>
+              <div class="cell"><b>账户</b><span class="num">5 个</span></div>
+            </div>
+          </div>
+
+          <div class="sec-title">现金</div>
+          <div class="cardA g-green">
+            <div class="top">
+              <div class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3v18M16.5 7.5c0-1.7-2-2.5-4.5-2.5S7.5 5.8 7.5 7.5 9.5 10.5 12 10.5s4.5.8 4.5 2.5-2 2.5-4.5 2.5-4.5-.8-4.5-2.5"/></svg></div>
+              <div><div class="nm">现金 · 零钱</div><div class="tp">现金</div></div>
+              <div class="star">★ 默认</div>
+            </div>
+            <div class="bal-lab">当前余额</div>
+            <div class="bal num"><small>¥</small>1,286.50</div>
+            <div class="foot">
+              <span class="k">本月支出</span><span class="v num">¥320.00</span>
+              <span class="dot"></span>
+              <span class="k">本月收入</span><span class="v num">¥0.00</span>
+            </div>
+          </div>
+
+          <div class="sec-title">数字钱包</div>
+          <div class="cardA g-blue" style="margin-bottom:12px;">
+            <div class="top">
+              <div class="glyph"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 12h.01M3 9h18"/></svg></div>
+              <div><div class="nm">微信支付</div><div class="tp">数字钱包</div></div>
+            </div>
+            <div class="bal-lab">当前余额</div>
+            <div class="bal num"><small>¥</small>8,542.18</div>
+            <div class="foot">
+              <span class="k">本月支出</span><span class="v num">¥3,864.20</span>
+              <span class="dot"></span>
+              <span class="k">本月收入</span><span class="v num">¥12,000.00</span>
+            </div>
+          </div>
+          <div class="cardA g-cyan">
+            <div class="top">
+              <div class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 11.5h5.5a2 2 0 1 0-2-2M8 14.5h6a2 2 0 1 1-2 2"/></svg></div>
+              <div><div class="nm">支付宝</div><div class="tp">数字钱包</div></div>
+            </div>
+            <div class="bal-lab">当前余额</div>
+            <div class="bal num"><small>¥</small>3,208.66</div>
+            <div class="foot">
+              <span class="k">本月支出</span><span class="v num">¥1,845.00</span>
+              <span class="dot"></span>
+              <span class="k">本月收入</span><span class="v num">¥600.00</span>
+            </div>
+          </div>
+
+          <div class="sec-title">储蓄卡</div>
+          <div class="cardA g-indigo">
+            <div class="top">
+              <div class="glyph"><svg viewBox="0 0 24 24"><path d="M4 21V10l8-6 8 6v11M4 21h16M9 21v-6h6v6"/></svg></div>
+              <div><div class="nm">招商银行</div><div class="tp">储蓄卡</div></div>
+            </div>
+            <div class="bal-lab">当前余额</div>
+            <div class="bal num"><small>¥</small>86,420.00</div>
+            <div class="foot">
+              <span class="k">本月支出</span><span class="v num">¥6,215.40</span>
+              <span class="dot"></span>
+              <span class="k">本月收入</span><span class="v num">¥18,500.00</span>
+            </div>
+          </div>
+
+          <div class="sec-title">信用卡</div>
+          <div class="cardA g-amber">
+            <div class="top">
+              <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M6.5 14.5h4"/></svg></div>
+              <div><div class="nm">浦发信用卡</div><div class="tp">信用卡</div></div>
+            </div>
+            <div class="bal-lab">已用额度（欠款）</div>
+            <div class="bal num"><small>¥</small>8,420.50</div>
+            <div class="meter"><i style="width:28%"></i></div>
+            <div class="foot">
+              <span class="k">可用额度</span><span class="v num">¥21,579.50</span>
+              <span class="dot"></span>
+              <span class="k">总额度</span><span class="v num">¥30,000</span>
+              <span class="dot"></span>
+              <span class="k">账单日 5 日 · 还款日 25 日</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-block">
+          <h3>设计要点</h3>
+          <ul>
+            <li>卡面颜色由<b>账户自身颜色</b>驱动（现金=绿、钱包=蓝/青、储蓄=靛、信用卡=琥珀，均为现有默认色加深成的渐变），深色卡面在浅色/深色模式下都稳定，暗色模式零适配成本。</li>
+            <li>信息分三层：顶部身份区（图标+名称+类型）→ 中部主数字（余额）→ 底部服务区（收支/额度）。完全对齐 Apple Wallet「卡片即身份，数字是主角」的层级。</li>
+            <li>信用卡卡面把「额度水位条 + 可用额度 + 账单日/还款日」一次给全，账户列表层就能看懂负债健康度，不用进详情。</li>
+            <li>净资产卡用 App 已有的 Plus 暖调深色卡语言，与彩色账户卡形成「深色锚点 + 彩色成员」的主次关系。</li>
+            <li>金额统一大号圆角数字（SF Rounded · tabular-nums），负数/欠款在卡面上仍为白字，靠「已用额度（欠款）」标签消歧，避免卡面出现红字破坏统一感。</li>
+          </ul>
+        </div>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>✓ 优势</h4>
+            <ul class="plain">
+              <li>视觉冲击力最强，账户辨识度靠颜色即可建立</li>
+              <li>信息承载最全（信用卡五行信息全在卡面）</li>
+              <li>深浅色模式同一张卡，不用维护两套配色</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>✗ 取舍</h4>
+            <ul class="plain">
+              <li>账户多时页面较长（一屏约 2.5 张卡）</li>
+              <li>彩色面积大，风格强烈，需接受页面变「重」</li>
+              <li>「已归档」账户建议折叠到页尾一个灰卡组</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 方案 B ================= -->
+  <section class="scheme">
+    <div class="scheme-head"><span class="tag">方案 B</span><h2>钱包卡阵 · 银行卡比例小卡</h2></div>
+    <p class="scheme-sub">账户做成标准银行卡比例（1.586:1）的小卡，两列排布，像一张张实体卡收在钱包里。最紧凑、最「像钱包」；信用卡账单节奏等细节让位给点击后的展开态（附 Wallet 式堆叠交互演示，可点击体验）。</p>
+    <div class="scheme-body">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>●●● ●● ●●</span></div>
+        <div class="navbar"><span class="icn back">‹ 返回</span><span class="t">账户</span><span class="icn">＋</span></div>
+        <div class="screen">
+
+          <div class="netcard">
+            <div class="lab">总净资产</div>
+            <div class="amt num">¥ 91,036.84</div>
+            <div class="row">
+              <div class="cell a"><b>总资产</b><span class="num">¥ 99,457.34</span></div>
+              <div class="cell l"><b>总负债</b><span class="num">¥ 8,420.50</span></div>
+            </div>
+          </div>
+
+          <div class="sec-title">现金 · 数字钱包</div>
+          <div class="gridB">
+            <div class="cardB g-green">
+              <div class="b-top">
+                <div class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3v18M16.5 7.5c0-1.7-2-2.5-4.5-2.5S7.5 5.8 7.5 7.5 9.5 10.5 12 10.5s4.5.8 4.5 2.5-2 2.5-4.5 2.5-4.5-.8-4.5-2.5"/></svg></div>
+                <div class="b-nm">现金 · 零钱</div>
+                <div class="b-star">★默认</div>
+              </div>
+              <div class="b-bal num"><small>¥</small>1,286.50</div>
+              <div class="b-sub num">本月支出 ¥320.00</div>
+            </div>
+            <div class="cardB g-blue">
+              <div class="b-top">
+                <div class="glyph"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 12h.01M3 9h18"/></svg></div>
+                <div class="b-nm">微信支付</div>
+              </div>
+              <div class="b-bal num"><small>¥</small>8,542.18</div>
+              <div class="b-sub num">本月收 +12,000 · 支 3,864</div>
+            </div>
+            <div class="cardB g-cyan">
+              <div class="b-top">
+                <div class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 11.5h5.5a2 2 0 1 0-2-2M8 14.5h6a2 2 0 1 1-2 2"/></svg></div>
+                <div class="b-nm">支付宝</div>
+              </div>
+              <div class="b-bal num"><small>¥</small>3,208.66</div>
+              <div class="b-sub num">本月支出 ¥1,845.00</div>
+            </div>
+            <div class="cardB g-indigo">
+              <div class="b-top">
+                <div class="glyph"><svg viewBox="0 0 24 24"><path d="M4 21V10l8-6 8 6v11M4 21h16M9 21v-6h6v6"/></svg></div>
+                <div class="b-nm">招商银行</div>
+              </div>
+              <div class="b-bal num"><small>¥</small>86,420.00</div>
+              <div class="b-sub num">储蓄卡 · 工资入账账户</div>
+            </div>
+          </div>
+
+          <div class="sec-title">信用卡</div>
+          <div class="gridB">
+            <div class="cardB g-amber">
+              <div class="b-top">
+                <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M6.5 14.5h4"/></svg></div>
+                <div class="b-nm">浦发信用卡</div>
+              </div>
+              <div class="b-bal num"><small>已用</small>8,420.50</div>
+              <div class="b-sub num">额度 ¥30,000 · 可用 21,579.50</div>
+              <div class="b-bar"><i style="width:28%"></i></div>
+            </div>
+            <div class="cardB g-indigo" style="opacity:.55;justify-content:center;align-items:center;border:1.5px dashed rgba(99,102,241,.5);background:rgba(99,102,241,.06);box-shadow:none;">
+              <div style="font-size:22px;font-weight:700;color:#6366F1;">＋</div>
+              <div style="font-size:11px;color:#6366F1;margin-top:4px;">添加账户</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-block">
+          <h3>设计要点</h3>
+          <ul>
+            <li>标准银行卡比例 1.586:1 + 16pt 圆角，视觉上直接唤起「实体卡」心智；两列网格让 5 个账户只占一屏 2/3，账户多也不怕。</li>
+            <li>卡内信息极简三行：名称 → 余额（主视觉，右下大数字，参考实体卡排版）→ 一行状态小字；额度水位用 3.5pt 细进度条暗示，不做完整说明。</li>
+            <li>网格尾部常驻「添加账户」虚线卡，把右上角 + 的能力在网格内再给一次入口。</li>
+            <li>账单日/还款日/本期账单放不下，收进点击后的账户详情（或长按快捷 glance）；这是本方案与 A 的核心取舍。</li>
+            <li>若未来给账户增加「卡号尾号」字段，可在卡面右下角加 ••1234，拟真感还会再上一档（当前数据模型无此字段，方案先不依赖）。</li>
+          </ul>
+        </div>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>✓ 优势</h4>
+            <ul class="plain">
+              <li>页面最短最紧凑，扫视效率高</li>
+              <li>「钱包」心智最强，和 iOS Wallet 的卡片比例一致</li>
+              <li>网格可扩展：加卡、删卡位置感清晰</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>✗ 取舍</h4>
+            <ul class="plain">
+              <li>单卡空间小，信用卡账单节奏信息缺失</li>
+              <li>两列并排时金额长度受限（86,420.00 已接近上限）</li>
+              <li>账户名过长需截断（示例已按 6 字内设计）</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stackwrap">
+          <h4>附加交互演示 · Wallet 式堆叠</h4>
+          <p>账户很多时可以切换为「堆叠」形态：所有账户收拢成卡堆，点一下扇形展开选择目标卡——iOS Wallet 打开时的标志性动效。下方卡片可点击体验。</p>
+          <div class="stack collapsed" id="stack">
+            <div class="scard g-green"><div class="s-nm">现金 · 零钱</div><div class="s-bal num">¥1,286.50</div><div class="s-sub">现金 · 默认</div></div>
+            <div class="scard g-blue"><div class="s-nm">微信支付</div><div class="s-bal num">¥8,542.18</div><div class="s-sub">数字钱包</div></div>
+            <div class="scard g-indigo"><div class="s-nm">招商银行</div><div class="s-bal num">¥86,420.00</div><div class="s-sub">储蓄卡</div></div>
+            <div class="scard g-amber"><div class="s-nm">浦发信用卡</div><div class="s-bal num">¥8,420.50</div><div class="s-sub">已用额度 · 账单日5日</div></div>
+          </div>
+          <div class="stack-hint" id="stackHint">点击卡片：收起 ⇄ 展开</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 方案 C ================= -->
+  <section class="scheme">
+    <div class="scheme-head"><span class="tag">方案 C</span><h2>精编分组列表 · 原生克制升级</h2></div>
+    <p class="scheme-sub">不改变现有「按类型分组 + 列表」的骨架，只做精修：同类型账户合并进一张组卡（iOS 设置列表的分组语言），行内升级为渐变色块图标 + 双行信息 + 右侧余额带小字，信用卡行内嵌迷你额度条。最稳、信息密度最高的一版。</p>
+    <div class="scheme-body">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>●●● ●● ●●</span></div>
+        <div class="navbar"><span class="icn back">‹ 返回</span><span class="t">账户</span><span class="icn">＋</span></div>
+        <div class="screen">
+
+          <div class="netcard">
+            <div class="lab">总净资产</div>
+            <div class="amt num">¥ 91,036.84</div>
+            <div class="row">
+              <div class="cell a"><b>总资产</b><span class="num">¥ 99,457.34</span></div>
+              <div class="cell l"><b>总负债</b><span class="num">¥ 8,420.50</span></div>
+            </div>
+          </div>
+
+          <div class="groupC">
+            <div class="g-head"><b>现金</b><span class="num">¥1,286.50</span></div>
+            <div class="rowC">
+              <div class="sq bg-green"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M16.5 7.5c0-1.7-2-2.5-4.5-2.5S7.5 5.8 7.5 7.5 9.5 10.5 12 10.5s4.5.8 4.5 2.5-2 2.5-4.5 2.5-4.5-.8-4.5-2.5"/></svg></div>
+              <div class="mid">
+                <div class="n1">现金 · 零钱 <span class="pill def">默认</span></div>
+                <div class="n2 num">本月支出 ¥320.00</div>
+              </div>
+              <div class="right"><div class="r1 num">1,286.50</div></div>
+            </div>
+          </div>
+
+          <div class="groupC">
+            <div class="g-head"><b>数字钱包</b><span class="num">¥11,750.84</span></div>
+            <div class="rowC">
+              <div class="sq bg-blue"><svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 12h.01M3 9h18"/></svg></div>
+              <div class="mid">
+                <div class="n1">微信支付</div>
+                <div class="n2 num">本月 <span class="up">收 +12,000</span> · <span class="dn">支 3,864</span></div>
+              </div>
+              <div class="right"><div class="r1 num">8,542.18</div></div>
+            </div>
+            <div class="rowC">
+              <div class="sq bg-cyan"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9"/><path d="M8 11.5h5.5a2 2 0 1 0-2-2M8 14.5h6a2 2 0 1 1-2 2"/></svg></div>
+              <div class="mid">
+                <div class="n1">支付宝</div>
+                <div class="n2 num">本月支出 ¥1,845.00</div>
+              </div>
+              <div class="right"><div class="r1 num">3,208.66</div></div>
+            </div>
+          </div>
+
+          <div class="groupC">
+            <div class="g-head"><b>储蓄卡</b><span class="num">¥86,420.00</span></div>
+            <div class="rowC">
+              <div class="sq bg-indigo"><svg viewBox="0 0 24 24" fill="none"><path d="M4 21V10l8-6 8 6v11M4 21h16M9 21v-6h6v6"/></svg></div>
+              <div class="mid">
+                <div class="n1">招商银行</div>
+                <div class="n2 num">本月 <span class="up">收 +18,500</span> · <span class="dn">支 6,215</span></div>
+              </div>
+              <div class="right"><div class="r1 num">86,420.00</div></div>
+            </div>
+          </div>
+
+          <div class="groupC">
+            <div class="g-head"><b>信用卡</b><span class="num">已用 ¥8,420.50</span></div>
+            <div class="rowC">
+              <div class="sq bg-amber"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M6.5 14.5h4"/></svg></div>
+              <div class="mid">
+                <div class="n1">浦发信用卡</div>
+                <div class="n2 num">账单日 5 日 · 还款日 25 日 · 额度 ¥30,000</div>
+              </div>
+              <div class="right">
+                <div class="r1 num">8,420.50</div>
+                <div class="r2 num">已用 28% <span class="mini"><i style="width:28%"></i></span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="groupC" style="opacity:.72;">
+            <div class="g-head"><b>已归档</b><span>1 个账户</span></div>
+            <div class="rowC">
+              <div class="sq bg-slate"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18"/></svg></div>
+              <div class="mid">
+                <div class="n1">旧储蓄卡 <span class="pill arc">已归档</span></div>
+                <div class="n2">归档账户不参与净资产统计</div>
+              </div>
+              <div class="right"><div class="r1 num" style="color:var(--text2)">0.00</div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-block">
+          <h3>设计要点</h3>
+          <ul>
+            <li>组卡 = iOS 原生「设置」分组的视觉语言：类型名 + 组小计做组头，行间细分割线。小计让「这一类我共有多少钱」一眼可得，这是平铺卡片给不了的信息。</li>
+            <li>行内三层：42pt 渐变色块图标（账户色的 12% 淡底 + 深色描边图标，近似 App 图标质感）→ 名称+徽标+副标题 → 右侧余额 + 信用卡迷你水位条。</li>
+            <li>信用卡副标题一行给全「账单日 · 还款日 · 额度」，右侧「已用 28% + 迷你条」，负债节奏在列表层完整可读。</li>
+            <li>「已归档」独立组，降透明度、不参与小计，明确表达「存在但冻结」。</li>
+            <li>改动范围最小：复用现有 NavigationLink 跳详情与所有交互，视觉翻新不动结构。</li>
+          </ul>
+        </div>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>✓ 优势</h4>
+            <ul class="plain">
+              <li>信息密度最高，账户多时浏览效率最好</li>
+              <li>最贴近 iOS 原生习惯，长期使用不腻</li>
+              <li>实现风险最低，交互全部保留</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>✗ 取舍</h4>
+            <ul class="plain">
+              <li>视觉冲击力一般，「惊艳感」不如 A/B</li>
+              <li>彩色只出现在图标块，账户辨识度靠文字</li>
+              <li>组小计需要每类多做一次余额聚合计算</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 对比与建议 ================= -->
+  <section class="scheme">
+    <div class="scheme-head"><span class="tag">汇总</span><h2>三方案对比</h2></div>
+    <table>
+      <tr><th></th><th>方案 A · Wallet 大卡</th><th>方案 B · 银行卡卡阵</th><th>方案 C · 精编分组列表</th></tr>
+      <tr><td><b>视觉冲击力</b></td><td>★★★★★</td><td>★★★★</td><td>★★★</td></tr>
+      <tr><td><b>信息完整度</b></td><td>★★★★★（信用卡五行全给）</td><td>★★★（账单节奏收进详情）</td><td>★★★★☆（全给但字号小）</td></tr>
+      <tr><td><b>多账户浏览效率</b></td><td>★★（一屏 2.5 卡）</td><td>★★★★（网格最紧凑）</td><td>★★★★★（列表密度最高）</td></tr>
+      <tr><td><b>与现有代码差异</b></td><td>卡片重写，结构保留</td><td>布局改网格，结构保留</td><td>最小（只改行渲染）</td></tr>
+      <tr><td><b>暗色模式成本</b></td><td>零（卡面本就深色）</td><td>零（卡面本就深色）</td><td>低（沿用系统色）</td></tr>
+    </table>
+    <div class="recommend">
+      <h3>综合建议</h3>
+      <p><b>推荐 A 为主方向、C 为回退底线：</b>账户数量通常在 3-6 个（现金 + 两个钱包 + 一两张卡），A 的一屏 2.5 卡完全够用，且信用卡负债信息只有 A/B 的卡面能放全；A 同时给了最强的「专业财务工具」第一印象。若上线后用户反馈账户多、嫌页面长，A 与 C 可组合——<b>信用卡/储蓄卡用 A 大卡，现金/钱包类高频小额账户用 C 行</b>（混合形态），因为信用卡的信息才需要大卡承载，钱包类看余额即可。B 的银行卡比例与堆叠交互适合未来做「卡片管理」彩蛋页，不建议做默认列表。</p>
+    </div>
+    <p class="footnote">注：三稿均为浅色模式示意；A/B 卡面为深色渐变，深色模式下无需变化，仅页面背景切换（#FDFCF8 → #1C1C1E）。净资产卡沿用 App 现有 Plus 深色暖调卡语言（#1C1614→#321E18）。本期已同步修复两个账户页问题：① 账户交易列表不再显示未到期的分期期次（与余额口径一致）；② 交易分组日期跨年时显示完整年份（如「2027年1月5日 星期二」）。</p>
+  </section>
+</div>
+
+<script>
+  (function(){
+    var stack=document.getElementById('stack');
+    var hint=document.getElementById('stackHint');
+    if(!stack)return;
+    stack.addEventListener('click',function(){
+      var expanding=stack.classList.contains('collapsed');
+      stack.classList.toggle('collapsed',!expanding);
+      stack.classList.toggle('expanded',expanding);
+      hint.textContent=expanding?'点击卡片：展开中 ⇄ 点击收起':'点击卡片：收起 ⇄ 展开';
+    });
+  })();
+</script>
+</body>
+</html>

@@ -126,7 +126,7 @@ final class WeeklyBriefScheduler: RollingNotificationScheduler {
         // 上周完成的任务数
         let taskRequest = TodoTask.fetchRequest()
         taskRequest.predicate = NSPredicate(
-            format: "completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO",
+            format: "completedAt >= %@ AND completedAt < %@ AND deletedAt == nil",
             weekStart as NSDate, dayStart as NSDate
         )
         let completedTasks = (try? CoreDataStack.shared.viewContext.count(for: taskRequest)) ?? 0

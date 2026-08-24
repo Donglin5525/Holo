@@ -78,32 +78,35 @@ struct MemoryGalleryView: View {
     // MARK: - Navigation Bar
 
     private var navigationBar: some View {
-        HStack {
-            Button {
-                close()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("返回")
+        // 标题绝对居中：底层左右各排返回键与视图开关，上层标题对齐屏幕正中，
+        // 不再受两侧元素宽度差影响（此前右侧分段 106pt vs 左侧 44pt 把标题挤偏）
+        ZStack {
+            HStack {
+                Button {
+                    close()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("返回")
 
-            Spacer()
+                Spacer(minLength: 0)
+
+                // 页级视图拨动开关（左＝日历 / 右＝洞察）
+                MemoryViewToggleSwitch(selectedTab: $selectedTab)
+            }
+            .padding(.horizontal, HoloSpacing.sm)
 
             Text("记忆长廊")
                 .font(.system(size: 20, weight: .semibold, design: .serif))
                 .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
-            // 页级 tab 并入标题栏右侧（替代原满宽大分段）
-            MemoryNavbarTabs(selectedTab: $selectedTab)
+                .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
-        .padding(.horizontal, HoloSpacing.sm)
         .background(Color.holoBackground)
         .overlay(alignment: .bottom) {
             LinearGradient(

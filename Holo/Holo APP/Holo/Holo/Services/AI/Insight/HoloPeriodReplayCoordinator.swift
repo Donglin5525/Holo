@@ -110,6 +110,44 @@ final class HoloPeriodReplayCoordinator {
         schedule(messageId: assistantMessageId, job: job)
     }
 
+    /// 首页胶囊 / 系统通知直达：把已生成的洞察直接落成一张完成的回放卡片。
+    /// 不触发生成（generateInsight 都不进）、不受额度预检拦截——额度拦的是新生成，
+    /// 不是查看已有结果；因此也不进入重试/息屏接管链路。
+    func presentCachedInsight(_ insight: MemoryInsight) {
+        guard let payload = insight.parsedPayload else { return }
+        let job = HoloPeriodReplayJob(
+            periodType: insight.insightPeriodType,
+            periodStart: insight.periodStart,
+            periodEnd: insight.periodEnd,
+            state: .completed
+        )
+        let userMessageId = repository.addMessage(
+            role: "user",
+            content: "查看\(job.periodLabel)回放",
+            messageType: .periodReplay
+        )
+        let assistantMessageId = repository.addStreamingMessage(
+            role: "assistant",
+            parentMessageId: userMessageId,
+            messageType: .periodReplay,
+            extractedDataJSON: job.json
+        )
+        let fallbackText = [payload.title, payload.summary]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        repository.finalizeMessage(
+            assistantMessageId,
+            finalContent: fallbackText,
+            intent: nil,
+            extractedDataJSON: job.json,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            insightResultJSON: Self.encode(payload),
+            messageType: .periodReplay
+        )
+        logger.info("[present-cached] 已生成洞察直接落卡 message=\(assistantMessageId.uuidString) period=\(insight.periodType)")
+    }
+
     /// 用户在失败卡片上点击“继续生成”。
     func continueGeneration(messageId: UUID) {
         guard var job = repository.periodReplayJob(messageId: messageId) else { return }

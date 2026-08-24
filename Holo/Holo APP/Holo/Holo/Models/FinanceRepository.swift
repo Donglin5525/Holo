@@ -139,7 +139,10 @@ class FinanceRepository {
     /// 根据 ID 查找交易记录
     func findTransaction(by id: UUID) -> Transaction? {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "id == %@", id as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.fetchLimit = 1
         return try? context.fetch(request).first
     }
@@ -149,7 +152,10 @@ class FinanceRepository {
         guard !ids.isEmpty else { return [] }
 
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "id IN %@", ids)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "id IN %@", ids),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         guard let transactions = try? context.fetch(request) else { return [] }
 
         var byID: [UUID: Transaction] = [:]
@@ -162,7 +168,10 @@ class FinanceRepository {
     /// 根据 ID 查找分类
     func findCategory(by id: UUID) -> Category? {
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "id == %@", id as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.fetchLimit = 1
         return try? context.fetch(request).first
     }
@@ -178,7 +187,10 @@ class FinanceRepository {
 
     func getAllTransactions(asOf snapshotDate: Date = Date()) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return try context.fetch(request)
     }
@@ -430,7 +442,10 @@ class FinanceRepository {
     func parentCategoryName(for category: Category) -> String? {
         guard let parentId = category.parentId else { return nil }
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", parentId as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "id == %@", parentId as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.fetchLimit = 1
         return (try? context.fetch(request))?.first?.name
     }
@@ -486,10 +501,13 @@ class FinanceRepository {
     /// 搜索交易记录（按备注和分类名模糊匹配）
     func searchTransactions(keyword: String, limit: Int = 50) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "note CONTAINS[cd] %@ OR category.name CONTAINS[cd] %@",
-            keyword, keyword
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "note CONTAINS[cd] %@ OR category.name CONTAINS[cd] %@",
+                keyword, keyword
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = limit
         return try context.fetch(request)
@@ -655,6 +673,7 @@ final class SpendingProjectRepository {
 
     func allProjects() -> [SpendingProject] {
         let request = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return (try? context.fetch(request)) ?? []
     }

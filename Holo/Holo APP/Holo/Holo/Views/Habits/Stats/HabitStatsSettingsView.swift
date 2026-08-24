@@ -13,6 +13,7 @@ struct HabitStatsSettingsView: View {
 
     @StateObject private var repository = HabitRepository.shared
     @StateObject private var settings = HabitStatsDisplaySettings.shared
+    @State private var showClearHabitSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,6 +23,42 @@ struct HabitStatsSettingsView: View {
                 emptyState
             } else {
                 habitList
+            }
+
+            // 危险区：清空习惯数据（进 30 天回收站，设置-数据管理-最近删除可恢复）
+            Button {
+                showClearHabitSheet = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoError.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "trash.circle")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.holoError)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("清空习惯数据")
+                            .font(.holoBody)
+                            .foregroundColor(.holoError)
+                        Text("习惯与打卡记录全部清空；30 天内可在最近删除恢复")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, HoloSpacing.lg)
+            .sheet(isPresented: $showClearHabitSheet) {
+                ModuleClearSheet(module: .habit)
             }
         }
         .background(Color.holoBackground)

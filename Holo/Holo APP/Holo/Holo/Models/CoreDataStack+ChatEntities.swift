@@ -117,8 +117,19 @@ extension CoreDataStack {
         insightResultJSON.isOptional = true
         chatAttributes.append(insightResultJSON)
 
+        // 报告收藏时间（报告 Tab 右滑收藏）。nil = 未收藏；非 nil 即收藏时间，
+        // 一个字段同时承载状态与排序，轻量迁移。
+        let chatFavoritedAt = NSAttributeDescription()
+        chatFavoritedAt.name = "favoritedAt"
+        chatFavoritedAt.attributeType = .dateAttributeType
+        chatFavoritedAt.isOptional = true
+        chatAttributes.append(chatFavoritedAt)
+
+        let chatSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        chatAttributes.append(contentsOf: chatSoftDelete.attributes)
+
         chatMessageEntity.properties = chatAttributes
-        CoreDataStack.applyIndexes(to: chatMessageEntity, on: ["id": chatId, "timestamp": chatTimestamp])
+        CoreDataStack.applyIndexes(to: chatMessageEntity, on: ["id": chatId, "timestamp": chatTimestamp, "deletedAt": chatSoftDelete.deletedAt, "deletedBatchId": chatSoftDelete.deletedBatchId])
 
         return [chatMessageEntity]
     }

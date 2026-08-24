@@ -129,7 +129,7 @@ final class AnniversaryTaskGenerator {
 
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "sourceAnniversaryId == %@ AND dueDate >= %@ AND dueDate < %@ AND deletedFlag == NO",
+            format: "sourceAnniversaryId == %@ AND dueDate >= %@ AND dueDate < %@ AND deletedAt == nil",
             anniversaryId as CVarArg,
             dayStart as CVarArg,
             dayEnd as CVarArg
@@ -221,7 +221,7 @@ final class AnniversaryTaskGenerator {
     ) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "sourceAnniversaryId == %@ AND deletedFlag == NO AND completed == NO",
+            format: "sourceAnniversaryId == %@ AND deletedAt == nil AND completed == NO",
             anniversaryId as CVarArg
         )
         return (try? context.fetch(request)) ?? []

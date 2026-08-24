@@ -153,12 +153,14 @@ extension CoreDataStack {
         ledgerScope.attributeType = .stringAttributeType
         ledgerScope.isOptional = true
 
+        let goalSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
         goalEntity.properties = [
             id, title, summary, domain, iconEmoji, desiredOutcome, motivation, status,
             deadline, createdAt, updatedAt, completedAt, source, allowAIContext,
             proactiveNudge, lastInsightSummary,
             goalKind, metricUnit, targetValue, baselineValue, baselineDate,
-            metricSource, sourceHabitId, ledgerScope
+            metricSource, sourceHabitId, ledgerScope,
+            goalSoftDelete.deletedAt, goalSoftDelete.deletedBatchId
         ]
         return goalEntity
     }
@@ -209,8 +211,9 @@ extension CoreDataStack {
         createdAt.isOptional = false
         createdAt.defaultValue = Date()
 
-        entity.properties = [id, goalId, date, value, note, createdAt]
-        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "goalId": goalId, "date": date])
+        let metricLogSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        entity.properties = [id, goalId, date, value, note, createdAt, metricLogSoftDelete.deletedAt, metricLogSoftDelete.deletedBatchId]
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "goalId": goalId, "date": date, "deletedAt": metricLogSoftDelete.deletedAt, "deletedBatchId": metricLogSoftDelete.deletedBatchId])
         return entity
     }
 }

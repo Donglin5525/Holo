@@ -1534,15 +1534,17 @@ private struct TaskNotFoundView: View {
 
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
-            ProgressView()
-            Text("正在打开任务…")
+            Image(systemName: "trash.slash")
+                .font(.system(size: 28))
+                .foregroundColor(.holoTextSecondary)
+            Text("该任务已被删除")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.holoBackground.ignoresSafeArea())
         .onAppear {
-            // 等待 1.5s 后若仍由本视图承载，说明任务确实不存在，自动关闭
+            // 短暂展示「已删除」后自动关闭
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 onDismiss()
             }

@@ -1,10 +1,33 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-07-19
+更新时间：2026-08-25
 
 ## 使用方式
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
+
+## 1.0（21）拒审后重新提交补充说明
+
+本次重新提交针对 1.0（18）的两项拒审问题：
+
+- **Guideline 2.1(b)**：已修复「个人 → Holo Plus → 升级 Holo Plus」按钮无响应。付费墙现在由当前可见的会员中心直接展示，不再跨越系统 sheet 层级；请在 Sandbox 环境加载 `Holo Plus Monthly` 并测试购买或恢复购买。
+- **Guideline 2.5.1**：健康模块保留用户易懂的名称「健康」，界面明确展示「连接 Apple Health」「授权后只读同步步数、睡眠和活动数据」及「健康数据由 Apple Health 提供」。请按「首页 → 健康 → 连接 Apple Health」查看；审核备注需附真机录屏链接。
+
+建议回复 App Review：
+
+```text
+Hello App Review Team,
+
+Thank you for the feedback. We have addressed both issues in version 1.0 (build 21).
+
+1. Guideline 2.1(b): We fixed the presentation flow for the Holo Plus paywall. The button at Profile > Holo Plus > Upgrade Holo Plus now opens the paywall directly from the currently visible screen. The subscription price, renewal period, automatic-renewal disclosure, Restore Purchases, Privacy Policy, and Terms of Use are visible on the paywall.
+
+2. Guideline 2.5.1: The Health screen now clearly identifies its Apple Health integration in the user interface. The path is Home > Health > Connect Apple Health. The screen states that Holo reads authorized steps, sleep, stand time, and active time from Apple Health in read-only mode. We have included a physical-device screen recording in App Review Information > Notes: [REPLACE WITH PUBLIC RECORDING URL].
+
+Thank you for reviewing the updated build.
+```
+
+提交前必须把 `[REPLACE WITH PUBLIC RECORDING URL]` 换成无需登录即可访问的真机录屏链接，并在 App Review Information 的 Notes 同步保存。
 
 ## ASO 定位
 

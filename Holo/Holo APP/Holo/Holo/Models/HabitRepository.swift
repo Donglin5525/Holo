@@ -72,7 +72,7 @@ class HabitRepository: ObservableObject {
             _ = context
         }
         let request = Habit.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO")
+        request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         
         do {
@@ -88,7 +88,7 @@ class HabitRepository: ObservableObject {
     /// 根据 ID 查找习惯（目标数据源等跨模块引用用）
     func findHabit(by id: UUID) -> Habit? {
         let request = Habit.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
         return try? context.fetch(request).first
     }
@@ -376,7 +376,7 @@ class HabitRepository: ObservableObject {
         }
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@",
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
             habit.id as CVarArg,
             windowStart as NSDate,
             today as NSDate
@@ -471,7 +471,7 @@ class HabitRepository: ObservableObject {
             // 当天已有完成记录 → 幂等返回
             let request = HabitRecord.fetchRequest()
             request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
                 habit.id as CVarArg,
                 dayStart as NSDate,
                 dayEnd as NSDate
@@ -484,7 +484,7 @@ class HabitRepository: ObservableObject {
             // 当天存在「取消态」记录（曾打卡又取消）时复用它，保持一天一条的数据形态
             let existing = HabitRecord.fetchRequest()
             existing.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@",
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
                 habit.id as CVarArg,
                 dayStart as NSDate,
                 dayEnd as NSDate
@@ -535,14 +535,14 @@ class HabitRepository: ObservableObject {
         
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@",
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
             habit.id as CVarArg,
             today as NSDate,
             tomorrow as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = 1
-        
+
         return try? context.fetch(request).first
     }
     
@@ -555,13 +555,13 @@ class HabitRepository: ObservableObject {
         
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@",
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
             habit.id as CVarArg,
             today as NSDate,
             tomorrow as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        
+
         return (try? context.fetch(request)) ?? []
     }
     
@@ -571,13 +571,13 @@ class HabitRepository: ObservableObject {
         
         if let range = range {
             request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date <= %@",
+                format: "habitId == %@ AND date >= %@ AND date <= %@ AND deletedAt == nil",
                 habit.id as CVarArg,
                 range.lowerBound as NSDate,
                 range.upperBound as NSDate
             )
         } else {
-            request.predicate = NSPredicate(format: "habitId == %@", habit.id as CVarArg)
+            request.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habit.id as CVarArg)
         }
         
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
@@ -598,7 +598,7 @@ class HabitRepository: ObservableObject {
     func getRecords(from start: Date, to end: Date) -> [HabitRecord] {
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@",
+            format: "date >= %@ AND date < %@ AND deletedAt == nil",
             start as NSDate,
             end as NSDate
         )
@@ -609,7 +609,7 @@ class HabitRepository: ObservableObject {
     /// 获取所有未归档习惯（用于日历聚合建 habitMap 反查 record.habitId → Habit）
     func getActiveHabits() -> [Habit] {
         let request = Habit.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO")
+        request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
         return (try? context.fetch(request)) ?? []
     }
     
@@ -646,7 +646,7 @@ class HabitRepository: ObservableObject {
 
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND value != nil",
+            format: "habitId == %@ AND value != nil AND deletedAt == nil",
             habit.id as CVarArg
         )
         // 同日多条（补记修正当日值）时取 createdAt 最新的，保证「后补覆盖前值」确定
@@ -665,7 +665,7 @@ class HabitRepository: ObservableObject {
 
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND value != nil AND date < %@",
+            format: "habitId == %@ AND value != nil AND date < %@ AND deletedAt == nil",
             habit.id as CVarArg,
             date as NSDate
         )
@@ -701,7 +701,7 @@ class HabitRepository: ObservableObject {
 
                 let request = HabitRecord.fetchRequest()
                 request.predicate = NSPredicate(
-                    format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                    format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
                     habit.id as CVarArg,
                     dayStart as NSDate,
                     dayEnd as NSDate
@@ -738,7 +738,7 @@ class HabitRepository: ObservableObject {
 
             let request = HabitRecord.fetchRequest()
             request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
                 habit.id as CVarArg,
                 dayStart as NSDate,
                 dayEnd as NSDate
@@ -797,7 +797,7 @@ class HabitRepository: ObservableObject {
     private func countDistinctCompletionDays(for habit: Habit, from start: Date, to end: Date) -> Int {
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
             habit.id as CVarArg,
             start as NSDate,
             end as NSDate
@@ -983,7 +983,7 @@ class HabitRepository: ObservableObject {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return [:] }
 
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@", week.start as NSDate, week.end as NSDate)
+        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND deletedAt == nil", week.start as NSDate, week.end as NSDate)
         let records = (try? context.fetch(request)) ?? []
         guard !records.isEmpty else { return [:] }
 
@@ -1056,7 +1056,7 @@ class HabitRepository: ObservableObject {
         request.propertiesToFetch = ["habitId"]
         request.returnsDistinctResults = true
         request.predicate = NSPredicate(
-            format: "habitId IN %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+            format: "habitId IN %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
             ids as NSArray,
             from as NSDate,
             to as NSDate

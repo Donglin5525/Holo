@@ -50,6 +50,8 @@ struct ChatView: View {
     /// 因此这里手动监听键盘 frame 变化并给内容加 bottom padding。
     @State private var keyboardOverlap: CGFloat = 0
     @Binding var goalPlanningRequest: GoalPlanningRequest?
+    /// 跨模块洞察直达（首页胶囊 / 系统通知）：消费 .memoryInsight 深链
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     // MARK: 页内双 Tab（对话 / 报告）——设计文档 §4.1
 
@@ -206,6 +208,10 @@ struct ChatView: View {
             if opensVoiceInputOnAppear {
                 activeSheet = .voiceInput
             }
+            consumeInsightDeepLink()
+        }
+        .onChange(of: deepLinkState.pendingTarget) { _, _ in
+            consumeInsightDeepLink()
         }
         .onReceive(ChatReportTabRouter.shared.$requestTicket.dropFirst()) { _ in
             // dropFirst：@Published 订阅时会先回放当前值，不滤掉会把
@@ -294,32 +300,30 @@ struct ChatView: View {
         // 报告详情：从 activeSheet 枚举迁出为独立全屏层（设计文档 §4.3）。
         // 迁移原因：详情从「下拉即关的浮层」升级为正式全屏页；独立 item 绑定 +
         // onDismiss 复位，不与既有 5 sheet + 3 cover 的状态机互相干扰。
+        // 统一走 ReportDetailRoute：详情内可直接追问（不弹回对话页），
+        // 追问出的新报告挂进本报告的追问记录。
         .fullScreenCover(item: $agentDetailMessage, onDismiss: {
             agentDetailMessage = nil
         }) { message in
-            if let result = message.agentResult {
-                AgentDeepAnalysisDetailSheet(
-                    result: result,
-                    onFinanceDrilldown: { drilldown in
-                        let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
-                        DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
-                            title: normalizedKeyword.map { "\($0)数据依据" } ?? "财务数据依据",
-                            label: drilldown.label,
-                            keyword: normalizedKeyword,
-                            start: drilldown.start,
-                            end: drilldown.end,
-                            baselineStart: drilldown.baselineStart,
-                            baselineEnd: drilldown.baselineEnd,
-                            sourceEvidenceID: drilldown.sourceEvidenceID
-                        )))
-                        // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
-                    },
-                    onContinueFollowUp: {
-                        viewModel.startContinuation(from: result)
-                    }
-                )
-            }
+            ReportDetailRoute(
+                message: message,
+                chatViewModel: viewModel,
+                onFinanceDrilldown: { drilldown in
+                    let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
+                    DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
+                        title: normalizedKeyword.map { "\($0)数据依据" } ?? "财务数据依据",
+                        label: drilldown.label,
+                        keyword: normalizedKeyword,
+                        start: drilldown.start,
+                        end: drilldown.end,
+                        baselineStart: drilldown.baselineStart,
+                        baselineEnd: drilldown.baselineEnd,
+                        sourceEvidenceID: drilldown.sourceEvidenceID
+                    )))
+                    // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
+                }
+            )
         }
         .fullScreenCover(item: $replayReaderMessage) { message in
             ReportReplayReaderView(message: message)
@@ -503,12 +507,15 @@ struct ChatView: View {
                         openReportEntry(entry)
                     },
                     onLaunchInChat: {
-                        // 空态橱窗 CTA：切回对话并预填话术，发送确认权在用户
+                        // 空态橱窗 CTA：切回对话并打开场景面板——
+                        // 新用户第一发起就看到全部能力目录，比静默预填一句更有教育意义
                         withAnimation(.easeInOut(duration: 0.18)) {
                             selectedPageTab = .chat
                         }
                         reportViewModel.markHidden()
-                        viewModel.inputText = "分析一下我最近的数据趋势"
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            viewModel.showAnalysisScenarioPanel = true
+                        }
                     }
                 )
                 .opacity(selectedPageTab == .report ? 1 : 0)
@@ -525,10 +532,23 @@ struct ChatView: View {
         hasVisitedReportTab = true
         reportViewModel.markSeen()
         Task { await reportViewModel.reload() }
+        viewModel.showAnalysisScenarioPanel = false
         // 隐藏的聊天 pane 不会自动释放第一响应者，切走时手动收起键盘
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
         )
+    }
+
+    /// 消费 .memoryInsight 深链（首页洞察胶囊 / 系统通知）：
+    /// 在聊天流直接打开该洞察的回放卡片，落已读后首页胶囊让位下一条候选。
+    /// 无论目标洞察是否还可用都先清空 pendingTarget，避免残留目标反复触发导航。
+    private func consumeInsightDeepLink() {
+        guard case .memoryInsight(let insightId) = deepLinkState.pendingTarget else { return }
+        deepLinkState.pendingTarget = nil
+        selectedPageTab = .chat
+        Task {
+            await viewModel.openScheduledInsight(id: insightId)
+        }
     }
 
     /// 档案行点击分流：深度分析 → 全屏报告详情；周期回放 → 全屏阅读版。
@@ -571,6 +591,16 @@ struct ChatView: View {
             // 输入框上方常驻能力行：对话全程可见
             QuickActionBar(viewModel: viewModel)
 
+            // 「深度分析」胶囊展开的场景面板（甲方案）：选场景只预填问句，发送由用户确认
+            if viewModel.showAnalysisScenarioPanel {
+                AnalysisScenarioPanel { scenario in
+                    viewModel.selectAnalysisScenario(scenario)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             // 流式超时未完成的工作中提示（watchdog 第一段触发）：让用户知道 AI 没有卡死
             if let hint = viewModel.streamingStatusHint, viewModel.isStreaming {
                 Label(hint, systemImage: "sparkles")
@@ -586,6 +616,24 @@ struct ChatView: View {
                     .transition(.opacity)
             }
 
+            // 场景预填来源提示：用户改写问句/发送后自动消失（见 VM 计算属性）
+            if let scenarioTitle = viewModel.activeScenarioPrefillTitle {
+                HStack(spacing: 5) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("来自「\(scenarioTitle)」场景 · 可改写问句，确认后发送")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(Color.holoPrimary.opacity(0.95))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(Color.holoPrimary.opacity(0.08), in: Capsule())
+                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.22), lineWidth: 0.8))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+                .transition(.opacity)
+            }
+
             // 输入栏
             ChatInputView(
                 viewModel: viewModel,
@@ -596,6 +644,16 @@ struct ChatView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.isTrulyEmptyConversation)
         .animation(.easeInOut(duration: 0.2), value: viewModel.streamingStatusHint)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: viewModel.showAnalysisScenarioPanel)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.activeScenarioPrefillTitle)
+        .onChange(of: viewModel.showAnalysisScenarioPanel) { _, isOpen in
+            // 面板展开时收起键盘，保证场景目录完整可见
+            if isOpen {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                )
+            }
+        }
     }
 
     private func statusBanner(_ text: String) -> some View {
@@ -715,6 +773,18 @@ struct ChatView: View {
                                 category: nil,
                                 date: TransactionDateResolver.resolve(from: renderData)
                             )
+                        },
+                        onBudgetConfirm: { msg, budgetData in
+                            viewModel.confirmPendingBudget(from: msg, itemID: budgetData.itemID)
+                        },
+                        onBudgetCancel: { msg, budgetData in
+                            viewModel.cancelPendingBudget(from: msg, itemID: budgetData.itemID)
+                        },
+                        onAnniversaryConfirm: { msg, anniversaryData in
+                            viewModel.confirmPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
+                        },
+                        onAnniversaryCancel: { msg, anniversaryData in
+                            viewModel.cancelPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
                         },
                         onGoalChoiceSelect: { msg, choiceData, candidate in
                             viewModel.confirmPendingGoalChoice(
@@ -1158,9 +1228,15 @@ struct ChatView: View {
                 // HomeView 监听 deepLinkState 变化后自动切换 activeScreen。
                 DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
             }
+        case .anniversary(let anniversaryData):
+            // 确认创建后纪念日 ID 回写在卡片数据里
+            if let anniversaryId = anniversaryData.anniversaryId.flatMap(UUID.init(uuidString:))
+                ?? message.resolveLinkedEntityId(for: .anniversary) {
+                DeepLinkState.shared.navigate(to: .anniversaryDetail(anniversaryId: anniversaryId))
+            }
         case .habitCheckIn, .mood, .weight:
             break
-        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights, .flexibleQuery, .goalChoice:
+        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights, .flexibleQuery, .goalChoice, .budget:
             break
         }
     }

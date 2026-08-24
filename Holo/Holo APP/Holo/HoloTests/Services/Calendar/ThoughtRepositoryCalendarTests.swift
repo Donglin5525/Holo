@@ -3,7 +3,7 @@
 //  HoloTests
 //
 //  日历聚合用 ThoughtRepository.fetchThoughts(from:to:) 单测
-//  （半开区间、isSoftDeleted/isArchived 过滤、边界）
+//  （半开区间、deletedAt/isArchived 过滤、边界）
 //
 
 import XCTest
@@ -49,7 +49,7 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
         t.updatedAt = createdAt
         t.orderIndex = 0
         t.organizedStatus = "organized"
-        t.isSoftDeleted = softDeleted
+        t.deletedAt = softDeleted ? createdAt : nil
         t.isArchived = archived
         try ctx.save()
         return t
@@ -88,7 +88,7 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
             from: makeDate(year: 2026, month: 7, day: 1),
             to: makeDate(year: 2026, month: 7, day: 2)
         )
-        XCTAssertEqual(thoughts.count, 1, "isSoftDeleted==YES 应被过滤")
+        XCTAssertEqual(thoughts.count, 1, "deletedAt 非空的想法应被过滤")
         XCTAssertEqual(thoughts.first?.content, "正常")
     }
 

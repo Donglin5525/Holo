@@ -47,7 +47,10 @@ extension Budget {
         in context: NSManagedObjectContext
     ) -> [Budget] {
         let request = Budget.fetchRequest()
-        request.predicate = NSPredicate(format: "accountId == %@", accountId as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "accountId == %@", accountId as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
 
         return (try? context.fetch(request)) ?? []
     }
@@ -59,11 +62,14 @@ extension Budget {
         in context: NSManagedObjectContext
     ) -> Budget? {
         let request = Budget.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "accountId == %@ AND period == %@ AND categoryId == nil",
-            accountId as CVarArg,
-            period.rawValue
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "accountId == %@ AND period == %@ AND categoryId == nil",
+                accountId as CVarArg,
+                period.rawValue
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.fetchLimit = 1
 
         return (try? context.fetch(request)).flatMap { $0.first }
@@ -75,10 +81,13 @@ extension Budget {
         in context: NSManagedObjectContext
     ) -> [Budget] {
         let request = Budget.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "accountId == %@ AND categoryId != nil",
-            accountId as CVarArg
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "accountId == %@ AND categoryId != nil",
+                accountId as CVarArg
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         return (try? context.fetch(request)) ?? []
     }
 

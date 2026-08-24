@@ -331,7 +331,8 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         let model = AgentDeepAnalysisNarrativeModel(result: result)
 
-        XCTAssertEqual(model.openingTitle, "本月账单结果")
+        // v17：具体标题（非"深度分析"等占位词）优先透传，比兜底拼接的"账单结果"更有人味儿
+        XCTAssertEqual(model.openingTitle, "本月账单分析")
         XCTAssertEqual(model.signalSummaries, [], "财务账单结果不应再生成三块看不懂的信号标签")
         XCTAssertEqual(model.closingTitle, "从金额最高的分类开始核对。")
         XCTAssertFalse(model.shouldShowClosing, "账单查询不应强行展示下一步建议")

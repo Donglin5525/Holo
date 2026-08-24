@@ -686,15 +686,29 @@ extension CoreDataStack {
         taskSourceThoughtRelation.inverseRelationship = thoughtTasksRelation
 
         thoughtEntity.properties.append(thoughtTasksRelation)
+        // 清空批次 ID（deletedAt 软删标记见上方；批次删除进回收站，见 SoftDeletable.swift）
+        let taskDeletedBatchId = NSAttributeDescription()
+        taskDeletedBatchId.name = "deletedBatchId"
+        taskDeletedBatchId.attributeType = .UUIDAttributeType
+        taskDeletedBatchId.isOptional = true
+        todoTaskAttributes.append(taskDeletedBatchId)
+
         todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation, taskGoalRelation, taskSourceThoughtRelation]
-        CoreDataStack.applyIndexes(to: todoTaskEntity, on: ["id": taskId, "status": taskStatus, "priority": taskPriority, "dueDate": taskDueDate, "completed": taskIsCompleted, "archived": taskIsArchived, "deletedFlag": taskDeletedFlag, "sourceAnniversaryId": taskSourceAnniversaryId])
+        CoreDataStack.applyIndexes(to: todoTaskEntity, on: ["id": taskId, "status": taskStatus, "priority": taskPriority, "dueDate": taskDueDate, "completed": taskIsCompleted, "archived": taskIsArchived, "deletedFlag": taskDeletedFlag, "sourceAnniversaryId": taskSourceAnniversaryId, "deletedAt": taskDeletedAt, "deletedBatchId": taskDeletedBatchId])
+
+        let folderSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        todoFolderAttributes.append(contentsOf: folderSoftDelete.attributes)
 
         todoFolderEntity.properties = todoFolderAttributes + [folderListsRelation]
-        CoreDataStack.applyIndexes(to: todoFolderEntity, on: ["id": folderId])
+        CoreDataStack.applyIndexes(to: todoFolderEntity, on: ["id": folderId, "deletedAt": folderSoftDelete.deletedAt, "deletedBatchId": folderSoftDelete.deletedBatchId])
+        let listSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        todoListAttributes.append(contentsOf: listSoftDelete.attributes)
         todoListEntity.properties = todoListAttributes + [listFolderRelation, listTasksRelation]
-        CoreDataStack.applyIndexes(to: todoListEntity, on: ["id": listId])
+        CoreDataStack.applyIndexes(to: todoListEntity, on: ["id": listId, "deletedAt": listSoftDelete.deletedAt, "deletedBatchId": listSoftDelete.deletedBatchId])
+        let tagSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        todoTagAttributes.append(contentsOf: tagSoftDelete.attributes)
         todoTagEntity.properties = todoTagAttributes + [tagTasksRelation]
-        CoreDataStack.applyIndexes(to: todoTagEntity, on: ["id": tagId])
+        CoreDataStack.applyIndexes(to: todoTagEntity, on: ["id": tagId, "deletedFlag": tagDeletedFlag, "deletedAt": tagSoftDelete.deletedAt, "deletedBatchId": tagSoftDelete.deletedBatchId])
         checkItemEntity.properties = checkItemAttributes + [checkItemTaskRelation]
         CoreDataStack.applyIndexes(to: checkItemEntity, on: ["id": checkItemId])
         repeatRuleEntity.properties = repeatRuleAttributes + [ruleTaskRelation]

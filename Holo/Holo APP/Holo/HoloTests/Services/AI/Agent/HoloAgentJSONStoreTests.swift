@@ -152,31 +152,37 @@ struct HoloAgentJSONStoreTests {
     }
 
     /// §4.2：写盘后文件与目录必须带 .completeUntilFirstUserAuthentication 保护。
-    /// 注：iOS 与 macOS 对该属性的桥接类型不同（String / FileProtectionType），统一按 rawValue 比较。
+    /// 注：模拟器会静默丢弃 protectionKey，无法读回验证（见 HoloAgentJSONStore.protectionApplier 注释），
+    /// 因此注入 spy 验证「设置动作确实发生且值正确」；真机行为由属性语义本身保证。
     private static func test写盘后设置文件保护属性() async {
+        final class ProtectionSpy: @unchecked Sendable {
+            var calls: [(url: URL, protection: FileProtectionType)] = []
+        }
+        let spy = ProtectionSpy()
         let dir = makeTempDir()
         let subdir = dir.appendingPathComponent("protected", isDirectory: true)
-        let store = HoloAgentJSONStore<Item>(fileName: "protected.json", directory: subdir)
+        let store = HoloAgentJSONStore<Item>(
+            fileName: "protected.json",
+            directory: subdir,
+            protectionApplier: { url, protection in
+                spy.calls.append((url, protection))
+            }
+        )
         do {
             try await store.save([Item(id: "p", value: 1)])
-            let fileAttrs = try FileManager.default.attributesOfItem(
-                atPath: subdir.appendingPathComponent("protected.json").path)
-            let protection = protectionRawValue(fileAttrs)
-            expect(protection == FileProtectionType.completeUntilFirstUserAuthentication.rawValue,
-                   "文件保护应为 completeUntilFirstUserAuthentication，实际 \(String(describing: protection))")
-            let dirAttrs = try FileManager.default.attributesOfItem(atPath: subdir.path)
-            let dirProtection = protectionRawValue(dirAttrs)
-            expect(dirProtection == FileProtectionType.completeUntilFirstUserAuthentication.rawValue,
-                   "目录保护应为 completeUntilFirstUserAuthentication，实际 \(String(describing: dirProtection))")
         } catch {
-            fatalError("文件保护验证不应抛错，实际 \(error)")
+            fatalError("保存不应抛错，实际 \(error)")
         }
-    }
-
-    /// 读取文件保护属性值（兼容 String 与 FileProtectionType 两种桥接）。
-    private static func protectionRawValue(_ attrs: [FileAttributeKey: Any]) -> String? {
-        if let typed = attrs[.protectionKey] as? FileProtectionType { return typed.rawValue }
-        return attrs[.protectionKey] as? String
+        let expected = FileProtectionType.completeUntilFirstUserAuthentication
+        let fileURL = subdir.appendingPathComponent("protected.json")
+        expect(
+            spy.calls.contains { $0.url.path == fileURL.path && $0.protection == expected },
+            "save 后必须对主文件设置 completeUntilFirstUserAuthentication，实际 \(spy.calls)"
+        )
+        expect(
+            spy.calls.contains { $0.url.path == subdir.path && $0.protection == expected },
+            "首次创建目录时必须对目录设置 completeUntilFirstUserAuthentication，实际 \(spy.calls)"
+        )
     }
 }
 

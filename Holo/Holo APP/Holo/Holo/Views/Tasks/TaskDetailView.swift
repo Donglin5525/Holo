@@ -353,7 +353,7 @@ struct TaskDetailView: View {
                 deleteTask()
             }
         } message: {
-            Text("确定要删除此任务吗？任务将进入回收站，30 天后可恢复。")
+            Text("确定要删除此任务吗？删除后无法恢复。")
         }
         .alert("保存失败", isPresented: $showSaveErrorAlert) {
             Button("好的", role: .cancel) {}

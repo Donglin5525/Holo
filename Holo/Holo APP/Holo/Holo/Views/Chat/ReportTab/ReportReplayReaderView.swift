@@ -26,6 +26,8 @@ struct ReportReplayReaderView: View {
             }
         }
         .background(Color.holoBackground.ignoresSafeArea())
+        // 全屏页交互规则：边缘右滑返回（fullScreenCover 没有系统右滑返回）
+        .holoEdgeSwipeBack { dismiss() }
     }
 
     private var topBar: some View {

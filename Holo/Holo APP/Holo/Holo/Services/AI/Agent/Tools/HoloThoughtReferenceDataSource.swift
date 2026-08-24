@@ -26,8 +26,8 @@ struct HoloDefaultThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
                 let links: [HoloThoughtLinkRecord] = refs.compactMap { ref in
                     guard let source = ref.sourceThought,
                           let target = ref.targetThought,
-                          source.isSoftDeleted == false,
-                          target.isSoftDeleted == false,
+                          source.deletedAt == nil,
+                          target.deletedAt == nil,
                           source.isArchived == false,
                           target.isArchived == false else {
                         return nil

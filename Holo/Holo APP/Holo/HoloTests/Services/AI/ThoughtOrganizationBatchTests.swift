@@ -46,7 +46,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
         organizedStatus: String = "unprocessed",
         createdAt: Date = Date(),
         isArchived: Bool = false,
-        isSoftDeleted: Bool = false
+        isDeleted: Bool = false
     ) throws -> UUID {
         let thought = context.insertTestObject(Thought.self)
         let id = UUID()
@@ -57,7 +57,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
         thought.orderIndex = 0
         thought.organizedStatus = organizedStatus
         thought.createdDeviceId = HoloBackendDeviceIdentity.shared.deviceId
-        thought.isSoftDeleted = isSoftDeleted
+        thought.deletedAt = isDeleted ? createdAt : nil
         thought.isArchived = isArchived
         try context.save()
         return id
@@ -105,7 +105,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
         let repo = makeRepository(context: context)
 
         let archivedId = try makeThought(in: context, organizedStatus: "unprocessed", isArchived: true)
-        let deletedId = try makeThought(in: context, organizedStatus: "unprocessed", isSoftDeleted: true)
+        let deletedId = try makeThought(in: context, organizedStatus: "unprocessed", isDeleted: true)
         let normalId = try makeThought(in: context, organizedStatus: "unprocessed")
 
         let ids = try repo.fetchUnprocessedThoughtIds()
@@ -129,7 +129,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
         thought.orderIndex = 0
         thought.organizedStatus = "unprocessed"
         thought.createdDeviceId = nil
-        thought.isSoftDeleted = false
+        thought.deletedAt = nil
         thought.isArchived = false
         try context.save()
 

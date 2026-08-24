@@ -27,6 +27,11 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         self.controller = controller
     }
 
+    /// 敏感记忆库的后台 context（回收站清空/恢复使用；调用方自行 perform）
+    func sensitiveBackgroundContext() -> NSManagedObjectContext {
+        controller.sensitiveContainer.newBackgroundContext()
+    }
+
     func upsert(
         _ record: HoloMemoryRecord,
         observationKey: String?
@@ -612,6 +617,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         let context = container(for: storage).newBackgroundContext()
         return try await context.perform {
             let request = NSFetchRequest<HoloMemoryRecordMO>(entityName: "HoloMemoryRecordMO")
+            request.predicate = NSPredicate(format: "deletedAt == nil")
             let objects = try context.fetch(request)
             do {
                 return try objects.map {
@@ -799,6 +805,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         let context = container(for: storage).newBackgroundContext()
         return try await context.perform {
             let request = NSFetchRequest<HoloMemoryRecordMO>(entityName: "HoloMemoryRecordMO")
+            request.predicate = NSPredicate(format: "deletedAt == nil")
             return try context.count(for: request)
         }
     }

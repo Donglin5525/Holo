@@ -41,6 +41,12 @@ struct MessageBubbleView: View {
     var onTransactionConfirm: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     var onTransactionCancel: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     var onTransactionModifyCategory: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
+    var onBudgetConfirm: ((ChatMessageViewData, BudgetChatCardData) -> Void)? = nil
+    /// 预算卡片「取消」：取消待确认的预算设置
+    var onBudgetCancel: ((ChatMessageViewData, BudgetChatCardData) -> Void)? = nil
+    var onAnniversaryConfirm: ((ChatMessageViewData, AnniversaryChatCardData) -> Void)? = nil
+    /// 纪念日卡片「取消」：取消待确认的创建
+    var onAnniversaryCancel: ((ChatMessageViewData, AnniversaryChatCardData) -> Void)? = nil
     /// goalChoice 选择卡：点选候选目标确认执行
     var onGoalChoiceSelect: ((ChatMessageViewData, GoalChoiceCardData, GoalChoiceCandidate) -> Void)? = nil
     /// goalChoice 选择卡取消：不执行动作
@@ -371,6 +377,20 @@ struct MessageBubbleView: View {
             } onFollowUp: {
                 onTaskFollowUp?(message, taskData)
             }
+        case .budget(let budgetData):
+            BudgetChatCard(data: budgetData) {
+                onBudgetConfirm?(message, budgetData)
+            } onCancel: {
+                onBudgetCancel?(message, budgetData)
+            }
+        case .anniversary(let anniversaryData):
+            AnniversaryChatCard(data: anniversaryData, isDeleted: message.isEntityDeleted(for: .anniversary)) {
+                onCardTap?(message, data)
+            } onConfirm: {
+                onAnniversaryConfirm?(message, anniversaryData)
+            } onCancel: {
+                onAnniversaryCancel?(message, anniversaryData)
+            }
         case .habitCheckIn(let habitData):
             // 当前习惯打卡卡片没有详情跳转入口，保持展示态，避免出现可点击但无动作的假交互。
             HabitCheckInChatCard(data: habitData)
@@ -422,6 +442,8 @@ struct MessageBubbleView: View {
             canTap = message.hasLinkedEntity(for: .task)
         } else if intent == .generateMemoryInsight {
             canTap = message.hasLinkedEntity(for: .memoryInsight)
+        } else if intent == .createAnniversary || intent == .updateAnniversary {
+            canTap = message.hasLinkedEntity(for: .anniversary)
         } else {
             canTap = false
         }
@@ -455,6 +477,7 @@ struct MessageBubbleView: View {
     private func intentIcon(_ intent: AIIntent) -> String {
         switch intent {
         case .recordExpense, .recordIncome: return "yensign.circle"
+        case .setBudget: return "chart.pie"
         case .createTask: return "checklist"
         case .completeTask: return "checkmark.circle"
         case .updateTask: return "pencil.circle"
@@ -462,6 +485,7 @@ struct MessageBubbleView: View {
         case .recordMood: return "heart.circle"
         case .checkIn: return "flame.circle"
         case .createNote: return "note.text"
+        case .createAnniversary, .updateAnniversary: return "calendar"
         case .queryTasks: return "list.bullet.circle"
         case .queryHabits: return "chart.circle"
         case .recordWeight: return "figure.scale"

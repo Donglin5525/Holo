@@ -30,6 +30,16 @@ struct ReportDoorCard: View {
                             in: Capsule()
                         )
 
+                    if entry.kind == .deepAnalysis,
+                       entry.scenarioTag != .general {
+                        Text(entry.scenarioTag == .replay ? "回放" : entry.scenarioTag.label)
+                            .font(.system(size: 10.5, weight: .bold))
+                            .foregroundColor(entry.scenarioTag.badgeColors.foreground)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2.5)
+                            .background(entry.scenarioTag.badgeColors.background, in: Capsule())
+                    }
+
                     Text(entry.scopeLabel ?? "自定义范围")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.holoTextPrimary)

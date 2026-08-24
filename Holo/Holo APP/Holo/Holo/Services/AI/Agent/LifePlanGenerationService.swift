@@ -37,10 +37,22 @@ final class LifePlanGenerationService {
         }
 
         let domains: [(name: String, count: Int)] = [
-            ("任务", count("TodoTask", NSPredicate(format: "completedAt > %@", weekAgo))),
-            ("习惯打卡", count("HabitRecord", NSPredicate(format: "date > %@", weekAgo))),
-            ("记账", count("Transaction", NSPredicate(format: "date > %@", weekAgo))),
-            ("想法", count("Thought", NSPredicate(format: "createdAt > %@", weekAgo)))
+            ("任务", count("TodoTask", NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "completedAt > %@", weekAgo),
+                NSPredicate(format: "deletedAt == nil")
+            ]))),
+            ("习惯打卡", count("HabitRecord", NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "date > %@", weekAgo),
+                NSPredicate(format: "deletedAt == nil")
+            ]))),
+            ("记账", count("Transaction", NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "date > %@", weekAgo),
+                NSPredicate(format: "deletedAt == nil")
+            ]))),
+            ("想法", count("Thought", NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "createdAt > %@", weekAgo),
+                NSPredicate(format: "deletedAt == nil")
+            ])))
         ]
         let activeDomains = domains.filter { $0.count > 0 }
         let missing = domains.filter { $0.count == 0 }.map(\.name)

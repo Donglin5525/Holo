@@ -133,13 +133,15 @@ private final class OverlayWindowController {
     }
 }
 
-/// 不拦截触摸的 window：Toast 浮层可见但不影响下层交互
+/// 不拦截触摸的 window：Toast 浮层可见但不影响下层交互。
+/// window.hitTest 直接返回 nil（本 window 完全不参与触摸事件）——
+/// 2026-08 报告收藏卡死事故：旧的「view === self ? nil : view」依赖 SwiftUI
+/// allowsHitTesting 的内部命中行为，iOS 26 上 hosting view 会被命中并吞掉触摸，
+/// 导致弹过一次 toast 后全页点不动。Toast 无任何交互需求，直接全穿透，
+/// 不再依赖任何 SwiftUI 版本行为。
 private final class ToastPassthroughWindow: UIWindow {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        // 让所有触摸穿透到下层 App 窗口
-        guard let view = super.hitTest(point, with: event) else { return nil }
-        // 仅当命中 Toast 实体内容时才接收（实际 Toast 不需要交互，这里直接全穿透）
-        return view === self ? nil : view
+        return nil
     }
 }
 

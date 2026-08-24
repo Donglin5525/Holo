@@ -46,8 +46,10 @@ extension FinanceRepository {
         // 缓存已有的账户（key = name）
         var accountCache: [String: Account] = [:]
         
-        // 预加载所有分类
-        if let allCategories = try? context.fetch(Category.fetchRequest()) {
+        // 预加载所有分类（排除回收站中的分类——软删分类不参与复用，导入会新建）
+        let preloadCategoryRequest = Category.fetchRequest()
+        preloadCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
+        if let allCategories = try? context.fetch(preloadCategoryRequest) {
             for cat in allCategories {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
@@ -59,9 +61,11 @@ extension FinanceRepository {
                 }
             }
         }
-        
-        // 预加载所有账户
-        if let allAccounts = try? context.fetch(Account.fetchRequest()) {
+
+        // 预加载所有账户（排除回收站中的账户）
+        let preloadAccountRequest = Account.fetchRequest()
+        preloadAccountRequest.predicate = NSPredicate(format: "deletedAt == nil")
+        if let allAccounts = try? context.fetch(preloadAccountRequest) {
             for acc in allAccounts {
                 accountCache[acc.name] = acc
             }
@@ -219,8 +223,10 @@ extension FinanceRepository {
         // 缓存已有的账户（key = name）
         var accountCache: [String: Account] = [:]
 
-        // 预加载所有分类
-        if let allCategories = try? context.fetch(Category.fetchRequest()) {
+        // 预加载所有分类（排除回收站中的分类）
+        let streamCategoryRequest = Category.fetchRequest()
+        streamCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
+        if let allCategories = try? context.fetch(streamCategoryRequest) {
             for cat in allCategories {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
@@ -232,8 +238,10 @@ extension FinanceRepository {
             }
         }
 
-        // 预加载所有账户
-        if let allAccounts = try? context.fetch(Account.fetchRequest()) {
+        // 预加载所有账户（排除回收站中的账户）
+        let streamAccountRequest = Account.fetchRequest()
+        streamAccountRequest.predicate = NSPredicate(format: "deletedAt == nil")
+        if let allAccounts = try? context.fetch(streamAccountRequest) {
             for acc in allAccounts {
                 accountCache[acc.name] = acc
             }
@@ -484,7 +492,10 @@ extension FinanceRepository {
                         return
                     }
                     let refRequest = Transaction.fetchRequest()
-                    refRequest.predicate = NSPredicate(format: "importSourceRef == %@", ref)
+                    refRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "importSourceRef == %@", ref),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     refRequest.fetchLimit = 1
                     if (try? bgContext.count(for: refRequest)) ?? 0 > 0 {
                         skippedDuplicateCount += 1
@@ -536,7 +547,10 @@ extension FinanceRepository {
                     }
                     // 查库里是否已有同指纹交易（importFingerprint 已建索引，查询很快）
                     let dupRequest = Transaction.fetchRequest()
-                    dupRequest.predicate = NSPredicate(format: "importFingerprint == %@", fingerprint)
+                    dupRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "importFingerprint == %@", fingerprint),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
                     dupRequest.fetchLimit = 1
                     let exists = (try? bgContext.count(for: dupRequest)) ?? 0
                     if exists > 0 {
@@ -930,7 +944,9 @@ extension FinanceRepository {
         parentCategoryCache.removeAll()
         accountCache.removeAll()
         
-        if let allCategories = try? context.fetch(Category.fetchRequest()) {
+        let reloadCategoryRequest = Category.fetchRequest()
+        reloadCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
+        if let allCategories = try? context.fetch(reloadCategoryRequest) {
             for cat in allCategories {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
@@ -941,7 +957,9 @@ extension FinanceRepository {
                 }
             }
         }
-        if let allAccounts = try? context.fetch(Account.fetchRequest()) {
+        let reloadAccountRequest = Account.fetchRequest()
+        reloadAccountRequest.predicate = NSPredicate(format: "deletedAt == nil")
+        if let allAccounts = try? context.fetch(reloadAccountRequest) {
             for acc in allAccounts {
                 accountCache[acc.name] = acc
             }

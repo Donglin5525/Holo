@@ -30,6 +30,7 @@ final class GoalRepository: ObservableObject {
 
     func loadGoals() {
         let request = Goal.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [
             NSSortDescriptor(key: "status", ascending: true),
             NSSortDescriptor(key: "updatedAt", ascending: false)
@@ -40,7 +41,7 @@ final class GoalRepository: ObservableObject {
     func activeGoalsForAI(limit: Int) -> [Goal] {
         let request = Goal.fetchRequest()
         request.predicate = NSPredicate(
-            format: "status == %@ AND allowAIContext == YES",
+            format: "status == %@ AND allowAIContext == YES AND deletedAt == nil",
             GoalStatus.active.rawValue
         )
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
@@ -52,7 +53,7 @@ final class GoalRepository: ObservableObject {
     func completedGoalsCount(from start: Date, to end: Date) -> Int {
         let request = Goal.fetchRequest()
         request.predicate = NSPredicate(
-            format: "status == %@ AND completedAt >= %@ AND completedAt <= %@",
+            format: "status == %@ AND completedAt >= %@ AND completedAt <= %@ AND deletedAt == nil",
             GoalStatus.completed.rawValue,
             start as CVarArg,
             end as CVarArg
@@ -62,7 +63,7 @@ final class GoalRepository: ObservableObject {
 
     func findGoal(by id: UUID) -> Goal? {
         let request = Goal.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
         return try? context.fetch(request).first
     }
@@ -71,7 +72,7 @@ final class GoalRepository: ObservableObject {
     /// 不依赖 loadGoals 的 UI 缓存（用户可能整个会话都没进过目标列表）
     func activeGoals() -> [Goal] {
         let request = Goal.fetchRequest()
-        request.predicate = NSPredicate(format: "status == %@", GoalStatus.active.rawValue)
+        request.predicate = NSPredicate(format: "status == %@ AND deletedAt == nil", GoalStatus.active.rawValue)
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
         return (try? context.fetch(request)) ?? []
     }
@@ -334,7 +335,7 @@ extension GoalRepository {
     /// 指定目标的全部手动记录（date 降序，首条即最新）
     func getMetricLogs(for goal: Goal) -> [GoalMetricLog] {
         let request = GoalMetricLog.fetchRequest()
-        request.predicate = NSPredicate(format: "goalId == %@", goal.id as CVarArg)
+        request.predicate = NSPredicate(format: "goalId == %@ AND deletedAt == nil", goal.id as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return (try? context.fetch(request)) ?? []
     }

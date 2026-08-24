@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo AI · 报告收藏 + 收藏夹内直接追问（交互原型）</title>
+<style>
+  /* ============ Holo 设计 token（与 App DesignSystem.swift 对齐） ============ */
+  :root {
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --primary-light: #FED7AA;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --nested: #F7F5F0;
+    --text: #333333;
+    --text-2: #939393;
+    --text-3: #BDBDBD;
+    --border: #F0F0F0;
+    --divider: rgba(0,0,0,0.06);
+    --danger: #DC2626;
+    --danger-bg: #FEE2E2;
+    --replay: #5856D6;
+    --success: #22C55E;
+    --star: #F59E0B;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #EDEAE4; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    padding: 28px 32px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 页面级排版 ============ */
+  .page-head { max-width: 1760px; margin: 0 auto 24px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .page-head .sub { font-size: 13px; color: var(--text-2); margin-bottom: 16px; line-height: 1.7; }
+  .diagnosis { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .diag-card {
+    flex: 1; min-width: 300px;
+    background: #FFF8F3; border: 1px solid #FFD9C4; border-radius: var(--radius-md);
+    padding: 14px 16px; font-size: 13px; line-height: 1.75;
+  }
+  .diag-card.now { background: #F4F3EF; border-color: #E5E2DC; }
+  .diag-card b.tag { display:inline-block; margin-right:6px; padding:1px 8px; border-radius:99px; background:#E5E2DC; color:#5B5B5B; font-size:11px; font-weight:600; vertical-align: 1px; }
+  .diag-card.fix b.tag { background:#DCFCE7; color:#16A34A; }
+  .diag-card .t { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; }
+
+  .phones { display: flex; gap: 28px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; margin-bottom: 10px; }
+  .phone-col { flex: 0 0 auto; width: 375px; }
+  .phone-col .col-head { margin-bottom: 10px; }
+  .col-head .name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+    background: var(--primary); color: #fff;
+  }
+  .badge.gray { background: #E5E2DC; color: #6B6B6B; }
+  .badge.blue { background: #DBEAFE; color: #2563EB; }
+  .col-head .hint { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+
+  .notes {
+    margin-top: 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px 14px; font-size: 12.5px; line-height: 1.8; color: #4A4A4A;
+  }
+  .notes .nt { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .notes ul { padding-left: 18px; }
+  .notes li + li { margin-top: 2px; }
+  .notes .good { color: #15803D; }
+  .notes .bad { color: #DC2626; }
+
+  /* ============ 手机壳 ============ */
+  .phone {
+    width: 375px; height: 780px; background: #1C1C1E; border-radius: 46px; padding: 10px;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.22); position: relative;
+  }
+  .screen {
+    width: 100%; height: 100%; background: var(--bg); border-radius: 38px; overflow: hidden;
+    display: flex; flex-direction: column; position: relative;
+  }
+  .statusbar {
+    height: 46px; flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 0 26px 4px; font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .notch { width: 110px; height: 26px; background: #1C1C1E; border-radius: 0 0 18px 18px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 10; }
+
+  /* ============ App 内部组件 ============ */
+  .nav {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px 6px;
+  }
+  .nav .side { width: 92px; display: flex; align-items: center; gap: 6px; }
+  .nav .side.r { justify-content: flex-end; }
+  .nav .title { font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 99px; background: var(--card);
+    border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text-2); cursor: pointer;
+  }
+
+  /* 页内 Tab */
+  .page-tabs {
+    flex: 0 0 auto; display: flex; justify-content: center; gap: 4px;
+    margin: 4px 60px 8px; padding: 3px; background: #EDEAE3; border-radius: 99px;
+  }
+  .page-tab {
+    flex: 1; text-align: center; padding: 6px 0; border-radius: 99px;
+    font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer;
+    transition: all .25s ease; position: relative; user-select: none;
+  }
+  .page-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .page-tab .dot { position: absolute; top: 4px; right: 14px; width: 7px; height: 7px; border-radius: 99px; background: var(--primary); display: none; }
+  .page-tab.has-dot .dot { display: block; }
+
+  /* ============ 报告 Tab 列表区 ============ */
+  .report-scroll { flex: 1; overflow: hidden; padding: 0 14px 10px; display: flex; flex-direction: column; gap: 10px; }
+  .search-bar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 7px; margin: 4px 2px 0;
+    background: var(--card); border: 1px solid var(--border); border-radius: 99px; padding: 7px 12px;
+    font-size: 12.5px; color: var(--text-3);
+  }
+  .filter-row { flex: 0 0 auto; display: flex; gap: 6px; }
+  .fchip {
+    font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 99px;
+    background: var(--card); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap;
+  }
+  .fchip.on { background: #FFF2EA; color: var(--primary-dark); border-color: #FFD9C4; font-weight: 700; }
+
+  /* 收藏入口条 */
+  .fav-entry {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
+    background: linear-gradient(135deg, #FFF9F2 0%, #FFFFFF 70%);
+    border: 1px solid #FFE3CC; border-radius: var(--radius-md); padding: 11px 13px; cursor: pointer;
+  }
+  .fav-entry .ic {
+    width: 30px; height: 30px; border-radius: 9px; background: #FFF2E3;
+    display: flex; align-items: center; justify-content: center; font-size: 15px; color: var(--star);
+  }
+  .fav-entry .tt { font-size: 13px; font-weight: 700; }
+  .fav-entry .dd { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+  .fav-entry .cnt { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-2); }
+  .fav-entry .cnt b { font-size: 14px; color: var(--star); }
+  .fav-entry .cnt .arw { color: var(--text-3); font-size: 11px; }
+
+  /* 月份分组头 */
+  .month-head { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+  .month-head .m { font-size: 12px; font-weight: 700; color: var(--text-2); }
+  .month-head .ln { flex: 1; height: 1px; background: var(--divider); }
+
+  /* 报告档案卡（含右滑容器） */
+  .swipe-wrap { position: relative; border-radius: var(--radius-lg); overflow: hidden; }
+  .swipe-actions {
+    position: absolute; inset: 0; display: flex; justify-content: flex-end;
+    border-radius: var(--radius-lg);
+  }
+  .swipe-actions .act {
+    width: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 11px; font-weight: 600; color: #fff; cursor: pointer; user-select: none;
+  }
+  .swipe-actions .act .g { font-size: 16px; }
+  .swipe-actions .act.fav { background: var(--primary); }
+  .swipe-actions .act.del { background: var(--danger); }
+  .swipe-actions .act.unfav { background: var(--text-2); }
+  .swipe-card {
+    position: relative; background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 12px 14px;
+    transition: transform .3s cubic-bezier(.3,.9,.4,1); cursor: pointer;
+  }
+  .swipe-card.slid { transform: translateX(-152px); }
+
+  .rcard .head { display: flex; align-items: center; gap: 7px; }
+  .rcard .kbadge {
+    font-size: 10.5px; font-weight: 700; color: var(--primary);
+    background: rgba(244,109,56,0.10); padding: 2.5px 8px; border-radius: 99px; white-space: nowrap;
+  }
+  .rcard .kbadge.replay { color: var(--replay); background: rgba(88,86,214,0.10); }
+  .rcard .fb-badge {
+    font-size: 10.5px; font-weight: 700; color: #2563EB; background: #DBEAFE;
+    padding: 2.5px 8px; border-radius: 99px; white-space: nowrap;
+  }
+  .rcard .title { font-size: 13px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rcard .star { font-size: 13px; color: var(--star); }
+  .rcard .date { font-size: 11px; color: var(--text-2); }
+  .rcard .q { display: flex; gap: 5px; margin-top: 7px; font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+  .rcard .sum { display: flex; gap: 8px; margin-top: 7px; }
+  .rcard .sum .bar { width: 3px; border-radius: 2px; background: rgba(244,109,56,0.55); flex: 0 0 auto; }
+  .rcard .sum .bar.replay { background: rgba(88,86,214,0.55); }
+  .rcard .sum .tx { font-size: 12.5px; color: #595959; line-height: 1.6;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rcard .foot { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+  .rcard .meta { font-size: 11px; color: var(--text-2); }
+  .rcard .read { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 3px; }
+
+  /* ============ 收藏夹页 ============ */
+  .fav-scroll { flex: 1; overflow: hidden; padding: 2px 14px 10px; display: flex; flex-direction: column; gap: 10px; }
+  .fav-tip {
+    font-size: 11px; color: var(--text-3); text-align: center; padding: 2px 0 0;
+  }
+
+  /* 空态 */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0; padding: 0 40px; text-align: center;
+  }
+  .empty-state .big {
+    width: 76px; height: 76px; border-radius: 24px; background: #FFF6E9;
+    display: flex; align-items: center; justify-content: center; font-size: 34px; margin-bottom: 16px;
+  }
+  .empty-state .h { font-size: 15px; font-weight: 700; margin-bottom: 7px; }
+  .empty-state .p { font-size: 12px; color: var(--text-2); line-height: 1.75; margin-bottom: 18px; }
+  .empty-state .cta {
+    font-size: 13px; font-weight: 600; color: #fff; background: var(--primary);
+    padding: 9px 22px; border-radius: 99px;
+  }
+
+  /* ============ 报告详情页 ============ */
+  .detail-scroll { flex: 1; overflow: hidden; padding: 0 14px; display: flex; flex-direction: column; gap: 11px; }
+  .detail-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 13px 14px; }
+  .d-title { font-size: 15.5px; font-weight: 700; line-height: 1.45; }
+  .d-meta { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .d-meta .mchip { font-size: 10.5px; font-weight: 600; color: var(--text-2); background: var(--nested); border: 1px solid var(--border); border-radius: 99px; padding: 2.5px 8px; }
+  .d-key { margin-top: 10px; background: #FFF7F1; border: 1px solid #FFE3CC; border-radius: 10px; padding: 9px 11px; }
+  .d-key .lb { font-size: 10.5px; font-weight: 700; color: var(--primary-dark); margin-bottom: 3px; }
+  .d-key .tx { font-size: 12.5px; line-height: 1.7; color: #4A4A4A; }
+  .d-sec .sh { font-size: 12.5px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .d-sec .sh .dot { width: 5px; height: 5px; border-radius: 99px; background: var(--primary); }
+  .d-sec .body { font-size: 12.5px; color: #595959; line-height: 1.75; }
+  .d-more { font-size: 11.5px; color: var(--text-3); text-align: center; padding: 1px 0 0; }
+
+  /* 血统条（子报告） */
+  .lineage-bar {
+    display: flex; align-items: flex-start; gap: 7px; background: #F3F1FB;
+    border: 1px solid #E4E1F5; border-radius: 10px; padding: 9px 11px;
+    font-size: 11.5px; color: #5B57A6; line-height: 1.6; cursor: pointer;
+  }
+  .lineage-bar .g { flex: 0 0 auto; margin-top: 1px; }
+
+  /* 追问记录区块 */
+  .followup-block { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 13px 14px; }
+  .fu-head { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+  .fu-head .h { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .fu-head .h .g { color: var(--primary); font-size: 13px; }
+  .fu-head .cnt { font-size: 11px; color: var(--text-2); background: var(--nested); border-radius: 99px; padding: 2px 8px; }
+  .fu-head .tip { margin-left: auto; font-size: 10.5px; color: var(--text-3); }
+
+  .fu-item {
+    border: 1px solid var(--border); background: var(--bg); border-radius: 12px;
+    padding: 10px 11px; cursor: pointer;
+  }
+  .fu-item + .fu-item, .fu-item + .fu-running, .fu-running + .fu-item { margin-top: 8px; }
+  .fu-item .l1 { display: flex; align-items: center; gap: 6px; }
+  .fu-item .rel {
+    font-size: 10px; font-weight: 700; color: #2563EB; background: #DBEAFE;
+    padding: 2px 7px; border-radius: 99px; white-space: nowrap;
+  }
+  .fu-item .rel.scope { color: #7C3AED; background: #EDE9FE; }
+  .fu-item .rel.deep { color: #0E7490; background: #CFFAFE; }
+  .fu-item .tm { margin-left: auto; font-size: 10.5px; color: var(--text-3); }
+  .fu-item .q { font-size: 12.5px; font-weight: 600; margin-top: 6px; line-height: 1.55; }
+  .fu-item .a { display: flex; gap: 7px; margin-top: 5px; }
+  .fu-item .a .bar { width: 2.5px; border-radius: 2px; background: rgba(244,109,56,0.5); flex: 0 0 auto; }
+  .fu-item .a .tx { font-size: 11.5px; color: var(--text-2); line-height: 1.6;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fu-item .open { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 7px; display: flex; align-items: center; gap: 3px; }
+
+  .fu-running {
+    border: 1px dashed #FFD9C4; background: #FFFAF5; border-radius: 12px; padding: 10px 11px;
+    display: flex; gap: 9px; align-items: center;
+  }
+  .spinner {
+    width: 16px; height: 16px; flex: 0 0 auto; border-radius: 99px;
+    border: 2.5px solid #FFE3CC; border-top-color: var(--primary);
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fu-running .tx .t1 { font-size: 12px; font-weight: 700; color: var(--primary-dark); }
+  .fu-running .tx .t2 { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+
+  /* 底部追问输入区 */
+  .ask-dock {
+    flex: 0 0 auto; background: var(--card); border-top: 1px solid var(--border);
+    padding: 9px 14px 22px; display: flex; flex-direction: column; gap: 7px;
+  }
+  .ask-dock .inner { display: flex; gap: 8px; align-items: center; }
+  .ask-input {
+    flex: 1; display: flex; align-items: center; background: var(--nested);
+    border: 1px solid var(--border); border-radius: 99px; padding: 9px 14px;
+    font-size: 12.5px; color: var(--text-3);
+  }
+  .ask-input.filled { color: var(--text); }
+  .ask-send {
+    width: 36px; height: 36px; border-radius: 99px; background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 auto;
+  }
+  .ask-send.dis { background: #E5E2DC; color: #BDBDBD; }
+  .ask-note { font-size: 10.5px; color: var(--text-3); text-align: center; }
+  .ask-note b { color: var(--text-2); font-weight: 600; }
+  .ask-note.warn { color: var(--danger); }
+
+  /* 生成中态输入区（详情页内） */
+  .ask-running {
+    flex: 0 0 auto; background: var(--card); border-top: 1px solid var(--border);
+    padding: 11px 14px 22px; display: flex; gap: 10px; align-items: center;
+  }
+  .ask-running .tx .t1 { font-size: 12.5px; font-weight: 700; }
+  .ask-running .tx .t2 { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+  .ask-running .cancel { margin-left: auto; font-size: 11.5px; color: var(--text-2); background: var(--nested); border: 1px solid var(--border); border-radius: 99px; padding: 5px 12px; }
+
+  /* 删除确认弹窗 */
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,0.32); z-index: 20; display: flex; align-items: flex-end; padding: 14px; }
+  .dlg {
+    width: 100%; background: rgba(246,246,248,0.96); backdrop-filter: blur(18px);
+    border-radius: 14px; overflow: hidden; text-align: center;
+  }
+  .dlg .dt { font-size: 14px; font-weight: 700; padding: 16px 20px 5px; }
+  .dlg .dm { font-size: 12px; color: var(--text-2); line-height: 1.65; padding: 0 24px 14px; }
+  .dlg .btn { padding: 12px 0; font-size: 14.5px; border-top: 1px solid rgba(0,0,0,0.08); cursor: pointer; }
+  .dlg .btn.red { color: var(--danger); font-weight: 600; }
+
+  /* 收藏成功 toast */
+  .toast {
+    position: absolute; left: 50%; bottom: 108px; transform: translateX(-50%);
+    background: rgba(30,30,32,0.88); color: #fff; font-size: 12px; font-weight: 600;
+    padding: 8px 16px; border-radius: 99px; display: flex; align-items: center; gap: 6px; z-index: 15;
+    white-space: nowrap;
+  }
+  .toast .s { color: #FBBF24; }
+
+  /* 回放阅读版（屏4注释卡） */
+  .replay-note {
+    background: #F4F3F7; border: 1px dashed #D9D6E8; border-radius: var(--radius-md);
+    padding: 10px 13px; font-size: 11.5px; color: #5B57A6; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>报告收藏 + 收藏夹内直接追问（交互原型）</h1>
+  <div class="sub">
+    需求：报告管理页右滑收藏/删除；收藏夹（新）；收藏的报告可直接追问，追问产生的报告能在原报告里看到。
+    本稿共 6 屏：右滑操作 → 收藏夹 → 空态 → 报告详情（内嵌追问 + 追问记录）→ 追问生成中 → 子报告（链式追问）。
+    屏1、屏4 有可点击演示。
+  </div>
+  <div class="diagnosis">
+    <div class="diag-card now">
+      <div class="t"><b class="tag">现状</b>已有的地基</div>
+      删除：长按报告卡 → 确认弹窗，已上线（本方案把入口前移到右滑，弹窗保留）。<br>
+      追问：详情页有「继续追问」按钮，但会<b>弹回对话页</b>输入，追问完的新报告平铺在档案里，和原报告没有视觉关联。<br>
+      血统：每份追问报告的数据里已带「父报告/根问题」标记（lineage），只是从未在界面上透出。
+    </div>
+    <div class="diag-card fix">
+      <div class="t"><b class="tag">方案</b>三件事</div>
+      ① 右滑操作：列表右滑露出「收藏 / 删除」，收藏即时生效，删除走既有确认弹窗；<br>
+      ② 收藏夹：报告页顶部入口条 → 收藏夹页（按收藏时间倒序，可右滑取消收藏）；<br>
+      ③ 报告内追问：详情页底部常驻追问输入条，发送→生成→新报告直接挂进本报告的「追问记录」区块，不弹回对话页。追问记录按血统关联，子报告可继续追问（链式）。
+    </div>
+    <div class="diag-card">
+      <div class="t"><b class="tag">边界</b>提前想清楚的</div>
+      · 追问消耗「深度洞察」额度，发送前预检（沿用现有文案体系）；<br>
+      · 周期回放可收藏、<b>不支持追问</b>（没有血统锚点，不硬做）；<br>
+      · 删除报告 = 收藏与追问链一并消失（收藏是报告的属性，不是副本）；<br>
+      · 取消收藏不动报告本体；生成中的报告不可收藏（完成才进档案）。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     屏组一：右滑操作 + 收藏入口
+================================================================ -->
+<div class="phones">
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">① 报告页 · 右滑操作 <span class="badge">核心交互</span></div>
+      <div class="hint">点击第二张卡片演示右滑：露出「收藏」（橙）与「删除」（红）。删除仍弹确认框（防误删，删的是报告+对应对话）；收藏即时生效并弹轻提示。已收藏的卡右上角星标常亮。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">✕</div></div>
+        <div class="title">HOLO AI</div>
+        <div class="side r"><div class="icon-btn">⚙︎</div></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active has-dot">报告<div class="dot"></div></div>
+      </div>
+
+      <div class="report-scroll">
+        <div class="search-bar"> 🔍 搜索提问、结论或正文</div>
+        <div class="filter-row">
+          <div class="fchip on">全部</div><div class="fchip">消费</div><div class="fchip">健康</div><div class="fchip">时间</div>
+        </div>
+
+        <!-- 收藏入口条：无收藏时隐藏 -->
+        <div class="fav-entry">
+          <div class="ic">★</div>
+          <div>
+            <div class="tt">我的收藏</div>
+            <div class="dd">值得反复看的好报告都在这</div>
+          </div>
+          <div class="cnt"><b>3</b><span class="arw">›</span></div>
+        </div>
+
+        <div class="month-head"><span class="m">2026年8月</span><span class="ln"></span></div>
+
+        <!-- 已收藏的卡：星标常亮 -->
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard" onclick="toggleSlide('s1')">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="title">近30天消费</span>
+              <span class="star">★</span>
+              <span class="date">8/21</span>
+            </div>
+            <div class="q"><span>💬</span><span>为什么这个月开销突然变大？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">外卖与打车是增量主力：两项合计比上月多花 1,240 元，集中在工作日晚间；「补货型」日用品支出其实持平。</div></div>
+            <div class="foot"><span class="meta">观察 ×4 · 证据 ×12</span><span class="read">读报告 ›</span></div>
+          </div>
+        </div>
+
+        <!-- 右滑中的卡 -->
+        <div class="swipe-wrap" id="s1">
+          <div class="swipe-actions">
+            <div class="act fav"><span class="g">☆</span>收藏</div>
+            <div class="act del"><span class="g">🗑</span>删除</div>
+          </div>
+          <div class="swipe-card rcard" onclick="toggleSlide('s1')">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="fb-badge">追问</span>
+              <span class="title">健康习惯</span>
+              <span class="date">8/19</span>
+            </div>
+            <div class="q"><span>💬</span><span>最近总是睡不醒，跟作息有关系吗？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">入睡时间标准差 78 分钟：熬夜集中在周五、周六；睡眠时长不足 6 小时的次日，「嗜睡」记录出现率翻倍。</div></div>
+            <div class="foot"><span class="meta">观察 ×3 · 证据 ×8</span><span class="read">读报告 ›</span></div>
+          </div>
+        </div>
+
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge replay">周期回放</span>
+              <span class="title">周回放</span>
+              <span class="star" style="color:var(--star)">★</span>
+              <span class="date">8/17</span>
+            </div>
+            <div class="sum"><div class="bar replay"></div><div class="tx">这周完成率最高的是「早睡」，连续 5 天达标；任务堆积集中在周二。整体节奏比上周稳。</div></div>
+            <div class="foot"><span class="read">读报告 ›</span></div>
+          </div>
+        </div>
+
+        <div class="month-head"><span class="m">2026年7月</span><span class="ln"></span></div>
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="title">任务完成率</span>
+              <span class="date">7/28</span>
+            </div>
+            <div class="q"><span>💬</span><span>为什么定了计划总是完不成？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">计划任务有 61% 排在下午 3 点后，而你的高效时段在上午；把任务挪到上午的那几周完成率明显更高。</div></div>
+            <div class="foot"><span class="meta">观察 ×3 · 证据 ×9</span><span class="read">读报告 ›</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toast" id="toast1" style="display:none"><span class="s">★</span>已收藏，可在「我的收藏」找到</div>
+    </div></div>
+  </div>
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">② 报告页 · 删除确认 <span class="badge gray">沿用既有弹窗</span></div>
+      <div class="hint">右滑点「删除」后的确认弹窗与现在长按删除完全一致——明确告知「报告 + 聊天里的提问和回答」一起删，不可撤销。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">✕</div></div>
+        <div class="title">HOLO AI</div>
+        <div class="side r"><div class="icon-btn">⚙︎</div></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active">报告<div class="dot"></div></div>
+      </div>
+
+      <div class="report-scroll">
+        <div class="search-bar"> 🔍 搜索提问、结论或正文</div>
+        <div class="fav-entry">
+          <div class="ic">★</div>
+          <div>
+            <div class="tt">我的收藏</div>
+            <div class="dd">值得反复看的好报告都在这</div>
+          </div>
+          <div class="cnt"><b>3</b><span class="arw">›</span></div>
+        </div>
+
+        <div class="month-head"><span class="m">2026年8月</span><span class="ln"></span></div>
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="title">近30天消费</span>
+              <span class="star">★</span>
+              <span class="date">8/21</span>
+            </div>
+            <div class="q"><span>💬</span><span>为什么这个月开销突然变大？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">外卖与打车是增量主力：两项合计比上月多花 1,240 元，集中在工作日晚间…</div></div>
+            <div class="foot"><span class="meta">观察 ×4 · 证据 ×12</span><span class="read">读报告 ›</span></div>
+          </div>
+        </div>
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard" style="opacity:.55">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="title">健康习惯</span>
+              <span class="date">8/19</span>
+            </div>
+            <div class="q"><span>💬</span><span>最近总是睡不醒，跟作息有关系吗？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">入睡时间标准差 78 分钟：熬夜集中在周五、周六…</div></div>
+          </div>
+        </div>
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge replay">周期回放</span>
+              <span class="title">周回放</span>
+              <span class="star" style="color:var(--star)">★</span>
+              <span class="date">8/17</span>
+            </div>
+            <div class="sum"><div class="bar replay"></div><div class="tx">这周完成率最高的是「早睡」，连续 5 天达标…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dim">
+        <div class="dlg">
+          <div class="dt">删除这份报告？</div>
+          <div class="dm">「健康习惯」及聊天里的提问和回答都会删除，此操作不可撤销。</div>
+          <div class="btn red">删除报告与对应对话</div>
+          <div class="btn">取消</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">③ 收藏夹 <span class="badge">新页面</span></div>
+      <div class="hint">从报告页入口条推入。按「收藏时间」倒序（最新收的在前），卡片右上星标常亮；右滑可取消收藏（本稿未画滑动态，交互与屏①同款：灰底「取消收藏」按钮）。周期回放也在其中。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">‹</div><span style="font-size:12px;color:var(--text-2)">报告</span></div>
+        <div class="title">我的收藏</div>
+        <div class="side r"></div>
+      </div>
+
+      <div class="fav-scroll">
+        <div class="fav-tip">按收藏时间排序 · 右滑可取消收藏</div>
+
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="fb-badge">追问 ×2</span>
+              <span class="title">近30天消费</span>
+              <span class="star">★</span>
+            </div>
+            <div class="q"><span>💬</span><span>为什么这个月开销突然变大？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">外卖与打车是增量主力：两项合计比上月多花 1,240 元，集中在工作日晚间；「补货型」日用品支出其实持平。</div></div>
+            <div class="foot">
+              <span class="meta">8/21 报告 · 8/22 收藏</span>
+              <span class="read">读报告 ›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge replay">周期回放</span>
+              <span class="title">周回放</span>
+              <span class="star">★</span>
+            </div>
+            <div class="sum"><div class="bar replay"></div><div class="tx">这周完成率最高的是「早睡」，连续 5 天达标；任务堆积集中在周二。整体节奏比上周稳。</div></div>
+            <div class="foot">
+              <span class="meta">8/17 报告 · 8/20 收藏</span>
+              <span class="read">读报告 ›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swipe-wrap">
+          <div class="swipe-card rcard">
+            <div class="head">
+              <span class="kbadge">深度分析</span>
+              <span class="title">消费结构</span>
+              <span class="star">★</span>
+            </div>
+            <div class="q"><span>💬</span><span>我的钱到底花在哪些地方了？</span></div>
+            <div class="sum"><div class="bar"></div><div class="tx">餐饮占 38% 是第一大头，但真正偏离预算的是「冲动型购物」：12 笔小额支出累计占了超支部分的七成。</div></div>
+            <div class="foot">
+              <span class="meta">8/2 报告 · 8/15 收藏</span>
+              <span class="read">读报告 ›</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">④ 收藏夹 · 空态 <span class="badge gray">引导进操作</span></div>
+      <div class="hint">没有收藏时的样子。不空谈「收藏」，直接教操作路径：右滑收藏。CTA 回到报告列表。注：无收藏时报告页顶部的入口条隐藏（列表保持干净），收藏第一份后入口条出现。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">‹</div><span style="font-size:12px;color:var(--text-2)">报告</span></div>
+        <div class="title">我的收藏</div>
+        <div class="side r"></div>
+      </div>
+
+      <div class="empty-state">
+        <div class="big">☆</div>
+        <div class="h">还没有收藏的报告</div>
+        <div class="p">在报告列表里右滑一份好报告，<br>把它收进来，随时翻出来看、接着问。</div>
+        <div class="cta">去看看报告</div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<!-- ================================================================
+     屏组二：报告详情 · 内嵌追问 + 追问记录
+================================================================ -->
+<div class="phones">
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">⑤ 报告详情 · 追问记录 + 追问输入条 <span class="badge">核心页面</span></div>
+      <div class="hint">从收藏夹或档案点开报告都进这。正文下方新增「追问记录」区块（按血统挂载，只列直接追问本报告的），底部常驻追问输入条——不再弹回对话页。点击输入条演示「发送后」。</div>
+    </div>
+    <div class="phone"><div class="screen" id="detail5">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">‹</div><span style="font-size:12px;color:var(--text-2)">返回</span></div>
+        <div class="title">深度分析</div>
+        <div class="side r"><div class="icon-btn" style="color:var(--star)">★</div></div>
+      </div>
+
+      <div class="detail-scroll">
+        <div class="detail-card">
+          <div class="d-title">为什么这个月开销突然变大？</div>
+          <div class="d-meta">
+            <span class="mchip">范围 · 近30天</span>
+            <span class="mchip">2026/8/21 生成</span>
+            <span class="mchip">证据 ×12</span>
+          </div>
+          <div class="d-key">
+            <div class="lb">一句话结论</div>
+            <div class="tx">开销变大不是「物价涨了」，而是晚间外卖 + 打车两项行为性支出叠加：合计比上月多 1,240 元，集中在加班日晚间。</div>
+          </div>
+        </div>
+
+        <div class="detail-card d-sec">
+          <div class="sh"><span class="dot"></span>外卖：工作日晚间的「补偿性下单」</div>
+          <div class="body">18:00 后的外卖订单 23 笔，占本月外卖总额 68%；下单日与日历里的加班记录重合率 82%…</div>
+        </div>
+
+        <!-- 追问记录区块 -->
+        <div class="followup-block">
+          <div class="fu-head">
+            <span class="h"><span class="g">↩</span>追问记录</span>
+            <span class="cnt">2</span>
+            <span class="tip">就这份报告问过的问题</span>
+          </div>
+
+          <div class="fu-item">
+            <div class="l1">
+              <span class="rel deep">继续深挖</span>
+              <span class="tm">8/21</span>
+            </div>
+            <div class="q">那换成近半年看，也是这样吗？</div>
+            <div class="a"><div class="bar"></div><div class="tx">成立，且更有规律：近 6 个月里 4 个月出现同样的「加班日外卖峰值」，月均多花 900 元左右。</div></div>
+            <div class="open">看这份追问报告 ›</div>
+          </div>
+
+          <div class="fu-item">
+            <div class="l1">
+              <span class="rel scope">调整范围</span>
+              <span class="tm">8/21</span>
+            </div>
+            <div class="q">只看打车呢？哪些场景最多？</div>
+            <div class="a"><div class="bar"></div><div class="tx">通勤打车只占 31%，大头是「深夜回家」：22 点后的订单贡献了打车超支的六成，同样锚定加班日。</div></div>
+            <div class="open">看这份追问报告 ›</div>
+          </div>
+        </div>
+
+        <div class="d-more">— 报告生成于 8/21，数据截至当日 —</div>
+      </div>
+
+      <!-- 追问输入条 -->
+      <div class="ask-dock" id="dock5" onclick="sendFollowUp('detail5','dock5')">
+        <div class="inner">
+          <div class="ask-input filled">换成上半年看还成立吗？</div>
+          <div class="ask-send">↑</div>
+        </div>
+        <div class="ask-note">追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度（本周剩 <b>1</b> 次）</div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">⑥ 追问生成中 <span class="badge gray">状态页</span></div>
+      <div class="hint">发送后：输入条变为进行中状态（可取消），「追问记录」顶部插入生成中卡片。完成后新报告落进追问记录，红点不打扰——人就在这页看着。底部为额度不足时的输入条样式。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">‹</div><span style="font-size:12px;color:var(--text-2)">返回</span></div>
+        <div class="title">深度分析</div>
+        <div class="side r"><div class="icon-btn" style="color:var(--star)">★</div></div>
+      </div>
+
+      <div class="detail-scroll">
+        <div class="detail-card">
+          <div class="d-title">为什么这个月开销突然变大？</div>
+          <div class="d-meta">
+            <span class="mchip">范围 · 近30天</span>
+            <span class="mchip">2026/8/21 生成</span>
+          </div>
+          <div class="d-key">
+            <div class="lb">一句话结论</div>
+            <div class="tx">开销变大不是「物价涨了」，而是晚间外卖 + 打车两项行为性支出叠加：合计比上月多 1,240 元，集中在加班日晚间。</div>
+          </div>
+        </div>
+
+        <div class="followup-block">
+          <div class="fu-head">
+            <span class="h"><span class="g">↩</span>追问记录</span>
+            <span class="cnt">2</span>
+          </div>
+
+          <!-- 生成中：插在追问记录顶部 -->
+          <div class="fu-running">
+            <div class="spinner"></div>
+            <div class="tx">
+              <div class="t1">正在追查「换成上半年看还成立吗？」</div>
+              <div class="t2">翻检近半年的账单与日程证据 · 通常 1 分钟内出结果</div>
+            </div>
+          </div>
+
+          <div class="fu-item">
+            <div class="l1">
+              <span class="rel deep">继续深挖</span>
+              <span class="tm">8/21</span>
+            </div>
+            <div class="q">那换成近半年看，也是这样吗？</div>
+            <div class="a"><div class="bar"></div><div class="tx">成立，且更有规律：近 6 个月里 4 个月出现同样的「加班日外卖峰值」…</div></div>
+            <div class="open">看这份追问报告 ›</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ask-running">
+        <div class="spinner"></div>
+        <div class="tx">
+          <div class="t1">追问生成中</div>
+          <div class="t2">可以先离开这页，完成后会出现在「追问记录」里</div>
+        </div>
+        <div class="cancel">取消</div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">⑦ 子报告 · 链式追问 <span class="badge gray">递归同款</span></div>
+      <div class="hint">点开追问记录里的条目：同样的详情页，顶部多一条血统条「来自哪份报告」，追问输入条照样可用——可以就追问的结论继续问。整条链每层只看自己的直接追问，避免无限嵌套。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">‹</div><span style="font-size:12px;color:var(--text-2)">返回</span></div>
+        <div class="title">追问报告</div>
+        <div class="side r"><div class="icon-btn">☆</div></div>
+      </div>
+
+      <div class="detail-scroll">
+        <!-- 血统条 -->
+        <div class="lineage-bar">
+          <span class="g">🔗</span>
+          <span>继续深挖 · 追问自报告「为什么这个月开销突然变大？」<u>回到原报告</u></span>
+        </div>
+
+        <div class="detail-card">
+          <div class="d-title">换成近半年看，也是这样吗？</div>
+          <div class="d-meta">
+            <span class="mchip">范围 · 近半年</span>
+            <span class="mchip">2026/8/21 生成</span>
+            <span class="mchip">证据 ×26</span>
+          </div>
+          <div class="d-key">
+            <div class="lb">一句话结论</div>
+            <div class="tx">成立，且更有规律：近 6 个月里 4 个月出现同样的「加班日外卖峰值」，月均多花 900 元左右；仅 6 月例外（出差报销覆盖）。</div>
+          </div>
+        </div>
+
+        <div class="detail-card d-sec">
+          <div class="sh"><span class="dot"></span>四个月的峰值都是同一种形状</div>
+          <div class="body">每月 8–12 个「加班日晚间」订单簇，单簇 2–3 单，客单价 45 元上下，与工作日午间订单的稳定结构完全不同…</div>
+        </div>
+
+        <!-- 本层自己的追问记录（可为空） -->
+        <div class="followup-block">
+          <div class="fu-head">
+            <span class="h"><span class="g">↩</span>追问记录</span>
+            <span class="tip">就这份追问报告继续问</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--text-3);text-align:center;padding:6px 0 2px">还没有追问，下面输入框直接问</div>
+        </div>
+      </div>
+
+      <div class="ask-dock">
+        <div class="inner">
+          <div class="ask-input">就这份追问报告继续问…</div>
+          <div class="ask-send dis">↑</div>
+        </div>
+        <div class="ask-note">追问消耗深度洞察额度（本周剩 <b>1</b> 次）</div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">⑧ 状态与边界 <span class="badge gray">补充样式</span></div>
+      <div class="hint">左：额度不足——输入条内直接说明并给恢复时间，不发出去才报错；中：周期回放详情——只有收藏，没有追问输入条（诚实标注原因）；右：追问失败（断网/中断）样式，与聊天流一致。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+      <div class="nav">
+        <div class="side"><div class="icon-btn">‹</div></div>
+        <div class="title">深度分析</div>
+        <div class="side r"><div class="icon-btn" style="color:var(--star)">★</div></div>
+      </div>
+
+      <div class="detail-scroll" style="gap:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-2);">① 额度不足时</div>
+        <div class="ask-dock" style="border-radius:14px;border:1px solid var(--border);padding-bottom:12px">
+          <div class="inner">
+            <div class="ask-input" style="color:var(--text-3)">本周深度洞察额度已用完</div>
+            <div class="ask-send dis">↑</div>
+          </div>
+          <div class="ask-note warn">额度周一恢复；普通对话不受影响，仍可随时聊</div>
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:6px">② 周期回放（无追问）</div>
+        <div class="replay-note">
+          回放详情顶部维持现有阅读版式，右上角星标可收藏/取消。<br>
+          底部<b>不出现追问输入条</b>：回放不是深度分析的产物，没有可锚定的「父报告」身份，追问无从挂靠——这是数据事实，不做样子货。
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:6px">③ 追问失败时</div>
+        <div class="fu-item" style="border-color:#FECACA;background:#FEF7F7">
+          <div class="l1">
+            <span class="rel" style="color:#DC2626;background:#FEE2E2">生成失败</span>
+            <span class="tm">刚刚</span>
+          </div>
+          <div class="q">换成上半年看还成立吗？</div>
+          <div class="a"><div class="bar" style="background:rgba(220,38,38,.4)"></div><div class="tx">网络中断了，这次追问没有消耗额度。点「重试」原样再问一次。</div></div>
+          <div class="open" style="color:#DC2626">重试</div>
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:6px">④ 生成中取消</div>
+        <div class="replay-note" style="background:#F4F3EF;border-color:#E5E2DC;color:#6B6B6B">
+          生成中点「取消」：立即停止，不消耗额度，追问记录里的进行中卡随之消失——与聊天流取消语义完全一致。
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<div class="notes" style="max-width:1760px;margin:0 auto">
+  <div class="nt">交互规则速查</div>
+  <ul>
+    <li><b>收藏/取消收藏</b>：即时生效，无弹窗。收藏成功弹轻提示「已收藏，可在我的收藏找到」；卡上星标常亮。取消收藏同样即时，无提示（可逆操作不打断）。</li>
+    <li><b>删除</b>：右滑或长按都进同一个确认弹窗（删除报告 + 对应对话，不可撤销）。<span class="bad">删除 = 收藏和追问链一并消失</span>，收藏不是报告的副本。</li>
+    <li><b>追问</b>：消耗深度洞察额度（走 analysis 池），发送前预检、失败不扣额；生成中可取消；完成后新报告插进本报告「追问记录」顶部，<b>不弹回对话页、不跳转</b>。</li>
+    <li><b>追问记录</b>：只列「直接追问本报告」的子报告（parentResultID = 本报告），子报告页里再看它自己的追问——链式钻取，不平铺整链。</li>
+    <li><b>周期回放</b>：可收藏、可删除；无追问输入条（无血统锚点）。</li>
+    <li><b>聊天页里的追问链</b>：不受影响。在聊天页发起的追问仍走现有「继续追问」锚点流；无论从哪发起，追问报告都会挂进原报告的追问记录——同一份血统数据，两个入口。</li>
+  </ul>
+  <div class="nt" style="margin-top:8px">实现路径提示（给开发）</div>
+  <ul>
+    <li>存储：ChatMessage 实体加一个 <code>favoritedAt: Date?</code>（nil=未收藏，非 nil 即收藏时间，排序兼得），代码定义实体 + 轻量迁移，纯客户端、无需后端发版。</li>
+    <li>右滑：报告列表从 ScrollView+LazyVStack 迁到 List（月份分组→Section header，触底加载哨兵不变），swipeActions 项目内已有 3 处先例（分类管理/纪念日等）。卡片视觉不变。</li>
+    <li>追问：完全复用既有 continuation 锚点机制（parentJobID/parentResultID/lineage），只是把「跳回对话页输入」改为「详情页内输入条」；生成中状态与聊天卡同源（HoloAgentChatStatusPresenter）。</li>
+    <li>追问记录：按 lineage.parentResultID 查子报告，列表 DTO 加 relation/shortLabel 透出。</li>
+  </ul>
+  <div class="nt" style="margin-top:8px">开放决策点（默认按上述做，东林可推翻）</div>
+  <ul>
+    <li>档案列表（全部报告）里，追问报告<b>保持平铺</b>、只加「追问」小徽标区分（屏①第二张卡）；收藏夹与详情页内才做链式聚合。若想档案也聚合成「报告树」可以二期再看。</li>
+    <li>收藏第一份报告之前，报告页顶部不显示「我的收藏」入口条（避免空入口）；收藏后常驻。</li>
+  </ul>
+</div>
+
+<script>
+  // 屏①：点击卡片演示右滑/回弹；滑开时弹收藏 toast（模拟点了收藏按钮后的轻提示节奏）
+  function toggleSlide(id) {
+    var card = document.querySelector('#' + id + ' .swipe-card');
+    if (!card) return;
+    card.classList.toggle('slid');
+    var toast = document.getElementById('toast1');
+    if (toast && card.classList.contains('slid')) {
+      toast.style.display = 'flex';
+      setTimeout(function () { toast.style.display = 'none'; }, 1600);
+    }
+  }
+
+  // 屏⑤：点击追问输入条 → 演示发送后的进行中态
+  function sendFollowUp(screenId, dockId) {
+    var dock = document.getElementById(dockId);
+    if (!dock) return;
+    dock.outerHTML =
+      '<div class="ask-running">' +
+        '<div class="spinner"></div>' +
+        '<div class="tx">' +
+          '<div class="t1">追问生成中</div>' +
+          '<div class="t2">完成后会出现在上面的「追问记录」里</div>' +
+        '</div>' +
+        '<div class="cancel">取消</div>' +
+      '</div>';
+  }
+</script>
+
+</body>
+</html>

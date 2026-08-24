@@ -3,7 +3,7 @@
 //  HoloTests
 //
 //  日历聚合用 TodoRepository.getTasks(completedFrom:completedTo:) 单测
-//  （半开区间、deletedFlag/archived 过滤、边界）
+//  （半开区间、deletedAt/archived 过滤、边界）
 //
 
 import XCTest
@@ -45,7 +45,7 @@ final class TodoRepositoryCalendarTests: XCTestCase {
         t.title = title
         t.completedAt = completedAt
         t.completed = true
-        t.deletedFlag = false
+        t.deletedAt = nil
         t.archived = false
         t.createdAt = completedAt
         try ctx.save()
@@ -83,7 +83,7 @@ final class TodoRepositoryCalendarTests: XCTestCase {
         t.title = "已删"
         t.completedAt = makeDate(year: 2026, month: 7, day: 1, hour: 9)
         t.completed = true
-        t.deletedFlag = true
+        t.deletedAt = t.completedAt
         t.archived = false
         t.createdAt = t.completedAt ?? Date()
         try ctx.save()
@@ -92,7 +92,7 @@ final class TodoRepositoryCalendarTests: XCTestCase {
             completedFrom: makeDate(year: 2026, month: 7, day: 1),
             completedTo: makeDate(year: 2026, month: 7, day: 2)
         )
-        XCTAssertTrue(tasks.isEmpty, "deletedFlag==YES 应被过滤")
+        XCTAssertTrue(tasks.isEmpty, "deletedAt 非空的任务应被过滤")
     }
 
     func test_空区间返回空() throws {

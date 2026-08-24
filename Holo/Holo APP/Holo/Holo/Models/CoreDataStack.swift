@@ -134,6 +134,8 @@ nonisolated class CoreDataStack {
         entities.append(createGoalMetricLogEntity())
         // LifePlan 计划台账（六对象，ID 外键、无跨域关系）
         entities.append(contentsOf: createLifePlanEntities())
+        // 回收站清空批次（数据清理功能）
+        entities.append(contentsOf: createRecycleBinEntities())
         model.entities = entities
         return model
     }
@@ -255,6 +257,31 @@ nonisolated class CoreDataStack {
                 fatalError("Core Data 重置失败：\(error.localizedDescription)")
             }
         }
+    }
+
+    // MARK: - 软删除属性工具
+
+    /// 统一软删除属性集（deletedAt / deletedBatchId），供各实体工厂接入。
+    /// attributes 会放进实体 properties，两个属性实例可直接引用到索引字典；
+    /// 同一实体只调用一次，保证 properties 与索引引用同一批实例。
+    struct SoftDeleteAttributeSet {
+        let deletedAt: NSAttributeDescription
+        let deletedBatchId: NSAttributeDescription
+        var attributes: [NSAttributeDescription] { [deletedAt, deletedBatchId] }
+    }
+
+    nonisolated static func makeSoftDeleteAttributes() -> SoftDeleteAttributeSet {
+        let deletedAt = NSAttributeDescription()
+        deletedAt.name = "deletedAt"
+        deletedAt.attributeType = .dateAttributeType
+        deletedAt.isOptional = true
+
+        let deletedBatchId = NSAttributeDescription()
+        deletedBatchId.name = "deletedBatchId"
+        deletedBatchId.attributeType = .UUIDAttributeType
+        deletedBatchId.isOptional = true
+
+        return SoftDeleteAttributeSet(deletedAt: deletedAt, deletedBatchId: deletedBatchId)
     }
 
     // MARK: - 程序化模型索引工具

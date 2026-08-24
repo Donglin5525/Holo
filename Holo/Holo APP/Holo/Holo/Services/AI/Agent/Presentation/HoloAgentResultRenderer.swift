@@ -399,10 +399,14 @@ nonisolated struct HoloAgentResultRenderer {
                     // 非诊断类：headline 用合成器点题（数字可靠），但 directAnswer 优先保留 LLM 写的人话。
                     // 只有当 directAnswer 为空或含机器格式（不干净）时，才用合成器事实句兜底。
                     // 这样既保留人味儿（LLM 叙事），又保证 headline 的数字可靠。
+                    // 注：legacyAnswer.usedCatalog 意味着 LLM 人话缺失、directAnswer 是降级模板单句，
+                    // 它只服务无类型化语义的旧证据兼容层；有 semantic 时合成器句（总量+分项+占比）
+                    // 信息量更高，让位给合成器。
                     result.headline = answer.headline
                     let currentDirect = result.directAnswer ?? ""
                     let directIsClean = !currentDirect.isEmpty
                         && !HoloMetricSemanticCatalog.containsInternalToken(currentDirect)
+                        && !legacyAnswer.usedCatalog
                     if !directIsClean {
                         result.directAnswer = answer.directAnswer
                     }
@@ -442,6 +446,21 @@ nonisolated struct HoloAgentResultRenderer {
             rangeLabel: rangeLabel,
             evidenceByID: evidenceByID
         )
+        // 诊断归因串联（无类型化语义兜底）：P2 合成器路径的诊断拼接只在证据带 semantic 时生效，
+        // 无语义证据时 legacy directAnswer 只承载第一条干净 claim，其余归因结论会随下方
+        // sections 去重一起丢失（如"预算已用120%超限"只剩证据引用可见）。
+        // 这里把全部诊断 claim 的结论完整拼进开篇正文，保证归因不丢。
+        if requestedDeliverables.contains(.diagnosis) {
+            let diagnosisNarrative = claims
+                .filter { HoloAgentAnswerRequestPolicy.isDiagnosticClaim($0) }
+                .map { $0.displayText.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            if !diagnosisNarrative.isEmpty {
+                result.directAnswer = diagnosisNarrative
+                result.summary = diagnosisNarrative
+            }
+        }
         // 诊断层级：归因结论由 directAnswer 承载，这里清掉 sections 里与归因重复的诊断 claim，
         // 避免"开篇讲一遍 → 卡片再讲一遍"。判定依据是 claim 产物类型而非问法关键词，
         // 因此用户无论问"为什么超支"还是"钱花哪了"，只要 LLM 产出诊断 claim 即介入。
@@ -491,12 +510,15 @@ nonisolated struct HoloAgentResultRenderer {
             .filter { !$0.isEmpty })
 
         // 清掉与归因结论重复的 section（body 归一化后命中诊断 claim 正文的）。
-        // 保留：建议类（被 recommendations 接管）和非重复的纯数据 section。
+        // 前提是开篇确实承载了该结论：归一化后的 directAnswer 包含该正文才删卡，
+        // 否则无语义证据路径下 directAnswer 只含第一条 claim，其余观察/样例明细
+        // 会既不进开篇又丢卡片。保留：建议类（被 recommendations 接管）和未重复的纯数据 section。
+        let directKey = Self.normalize((result.directAnswer ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
         result.sections = result.sections.filter { section in
             let kind = section.kind?.lowercased() ?? ""
             if ["suggestion", "recommendation", "action"].contains(kind) { return true }
             let bodyKey = Self.normalize(section.body.trimmingCharacters(in: .whitespacesAndNewlines))
-            return !diagnosisBodies.contains(bodyKey)
+            return !diagnosisBodies.contains(bodyKey) || !directKey.contains(bodyKey)
         }
         return result
     }

@@ -43,6 +43,8 @@ struct ArchiveManagementView: View {
     @State private var archivedTasks: [TodoTask] = []
     /// 已归档清单
     @State private var archivedLists: [TodoList] = []
+    /// 清空所有任务 sheet
+    @State private var showClearTaskSheet = false
 
     /// 删除确认对话框
     @State private var showDeleteConfirmation = false
@@ -76,6 +78,41 @@ struct ArchiveManagementView: View {
                         tasksContentView
                     case .lists:
                         listsContentView
+                    }
+
+                    // 危险区：清空所有任务（含归档与回收站中的软删任务；进 30 天回收站）
+                    Button {
+                        showClearTaskSheet = true
+                    } label: {
+                        HStack(spacing: HoloSpacing.md) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                    .fill(Color.holoError.opacity(0.1))
+                                    .frame(width: 40, height: 40)
+                                Image(systemName: "trash.circle")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.holoError)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("清空所有任务")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoError)
+                                Text("30 天内可在 设置 → 数据管理 → 最近删除 恢复")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(HoloSpacing.md)
+                        .background(Color.holoCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .sheet(isPresented: $showClearTaskSheet, onDismiss: {
+                        loadArchivedData()
+                    }) {
+                        ModuleClearSheet(module: .task)
                     }
                 }
                 .padding(.horizontal, HoloSpacing.lg)

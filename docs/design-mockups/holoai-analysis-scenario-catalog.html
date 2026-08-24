@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo AI · 分析场景目录（报告 Tab 升级方案）</title>
+<style>
+  /* ============ Holo 设计 token（与 App DesignSystem.swift 对齐） ============ */
+  :root {
+    --primary: #F46D38;
+    --primary-dark: #EA580C;
+    --indigo: #6366F1;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --text: #333333;
+    --text-2: #939393;
+    --text-3: #BDBDBD;
+    --border: #F0F0F0;
+    --divider: rgba(0,0,0,0.06);
+    --habit: #22C55E;
+    --todo: #6366F1;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #EDEAE4; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    padding: 28px 32px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-head { max-width: 1760px; margin: 0 auto 24px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .page-head .sub { font-size: 13px; color: var(--text-2); margin-bottom: 16px; line-height: 1.7; }
+  .diagnosis { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .diag-card {
+    flex: 1; min-width: 300px;
+    background: #FFF8F3; border: 1px solid #FFD9C4; border-radius: var(--radius-md);
+    padding: 14px 16px; font-size: 13px; line-height: 1.75;
+  }
+  .diag-card b.tag { display:inline-block; margin-right:6px; padding:1px 8px; border-radius:99px; background:#FEE2E2; color:#DC2626; font-size:11px; font-weight:600; vertical-align: 1px; }
+  .diag-card.fix b.tag { background:#DCFCE7; color:#16A34A; }
+  .diag-card .t { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; }
+
+  .phones { display: flex; gap: 28px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; margin-bottom: 10px; }
+  .phone-col { flex: 0 0 auto; width: 375px; }
+  .phone-col .col-head { margin-bottom: 10px; }
+  .col-head .name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--primary); color: #fff; }
+  .badge.gray { background: #E5E2DC; color: #6B6B6B; }
+  .badge.blue { background: #DBEAFE; color: #2563EB; }
+  .col-head .hint { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+
+  .phone {
+    width: 375px; height: 780px; background: #1C1C1E; border-radius: 46px; padding: 10px;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.22); position: relative;
+  }
+  .screen {
+    width: 100%; height: 100%; background: var(--bg); border-radius: 38px; overflow: hidden;
+    display: flex; flex-direction: column; position: relative;
+  }
+  .statusbar {
+    height: 46px; flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 0 26px 4px; font-size: 13px; font-weight: 600;
+  }
+  .notch { width: 110px; height: 26px; background: #1C1C1E; border-radius: 0 0 18px 18px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 10; }
+
+  .nav { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 8px 16px 6px; }
+  .nav .side { width: 64px; }
+  .nav .title { font-size: 15px; font-weight: 700; letter-spacing: 2.5px; }
+  .icon-btn { width: 30px; height: 30px; border-radius: 99px; background: var(--card); border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text-2); }
+
+  .page-tabs {
+    flex: 0 0 auto; display: flex; justify-content: center; gap: 4px;
+    margin: 4px 60px 8px; padding: 3px; background: #EDEAE3; border-radius: 99px;
+  }
+  .page-tab { flex: 1; text-align: center; padding: 6px 0; border-radius: 99px; font-size: 13px; font-weight: 600; color: var(--text-2); position: relative; }
+  .page-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .page-tab .dot { position: absolute; top: 4px; right: 14px; width: 7px; height: 7px; border-radius: 99px; background: var(--primary); }
+
+  .report-area { flex: 1; overflow: hidden; padding: 0 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ============ 场景目录 ============ */
+  .catalog-head { display: flex; align-items: baseline; gap: 8px; padding: 2px 2px 0; }
+  .catalog-head .t { font-size: 15px; font-weight: 800; }
+  .catalog-head .s { font-size: 10.5px; color: var(--text-2); }
+
+  .scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .scenario-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 10px 11px; cursor: pointer; transition: all .18s ease; position: relative;
+    user-select: none;
+  }
+  .scenario-card:hover { border-color: #FFD9C4; }
+  .scenario-card.picked { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(244,109,56,0.14); }
+  .scenario-card .emoji { font-size: 17px; line-height: 1.2; margin-bottom: 4px; }
+  .scenario-card .n { font-size: 12.5px; font-weight: 800; margin-bottom: 3px; display:flex; align-items:center; gap:5px; }
+  .scenario-card .n .crown { font-size: 8.5px; background: #FFF2EA; color: var(--primary-dark); border-radius: 99px; padding: 1px 5px; font-weight: 700; }
+  .scenario-card .d { font-size: 10px; color: #6B6B6B; line-height: 1.55; }
+  .scenario-card .src { margin-top: 5px; font-size: 8.5px; color: var(--text-3); }
+  .scenario-card .src b { font-weight: 600; color: #A8A29E; }
+
+  .quota-line {
+    font-size: 9.5px; color: #B45B2E; background: #FFF6EF; border-radius: 99px;
+    padding: 3px 9px; align-self: flex-start;
+  }
+
+  .ask-preview {
+    font-size: 10px; color: var(--primary-dark); background: #FFF2EA; border: 1px dashed #FFD9C4;
+    border-radius: var(--radius-sm); padding: 6px 9px; line-height: 1.6; display: none;
+  }
+  .ask-preview.show { display: block; }
+
+  .searchbar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 99px; padding: 8px 12px;
+    font-size: 12.5px; color: var(--text-3);
+  }
+
+  .month-head { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+  .month-head .m { font-size: 12px; font-weight: 700; color: var(--text-2); }
+  .month-head .line { flex: 1; height: 0.7px; background: var(--divider); }
+
+  .report-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 11px 13px; }
+  .report-card .top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .type-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+  .type-badge.analysis { background: #FFF2EA; color: var(--primary-dark); }
+  .type-badge.replay { background: #EEF2FF; color: #4F46E5; }
+  .scene-badge { font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+  .scene-finance { background: #FFF7E6; color: #B45309; }
+  .scene-habit { background: #F0FDF4; color: #15803D; }
+  .scene-health { background: #EFF6FF; color: #1D4ED8; }
+  .scene-cross { background: #F5F3FF; color: #6D28D9; }
+  .scene-task { background: #EEF2FF; color: #4338CA; }
+  .report-card .scope { font-size: 12.5px; font-weight: 700; }
+  .report-card .date { margin-left: auto; font-size: 10.5px; color: var(--text-3); }
+  .report-card .ask { font-size: 10.5px; color: var(--text-2); line-height: 1.55; margin-bottom: 5px; }
+  .report-card .sum { font-size: 11.5px; color: #5A5A5A; line-height: 1.6; padding-left: 9px; border-left: 2.5px solid #FED7AA; }
+  .report-card .foot { display: flex; justify-content: space-between; margin-top: 7px; font-size: 10.5px; }
+  .report-card .foot .r { color: var(--primary); font-weight: 700; }
+
+  .filter-row { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; }
+  .fchip { font-size: 10.5px; padding: 4px 10px; border-radius: 99px; background: var(--card); border: 1px solid var(--border); color: var(--text-2); flex: 0 0 auto; }
+  .fchip.on { background: #FFF2EA; color: var(--primary-dark); border-color: #FFD9C4; font-weight: 700; }
+
+  .ghost-note { font-size: 10.5px; color: var(--text-3); text-align: center; padding: 3px 0; }
+
+  /* ============ 对话页（动线屏） ============ */
+  .chat-area { flex: 1; overflow: hidden; padding: 4px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .bubble-user { align-self: flex-end; max-width: 80%; background: var(--primary); color: #fff; border-radius: 16px 16px 4px 16px; padding: 8px 12px; font-size: 12.5px; line-height: 1.55; }
+
+  .quickbar { flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 14px 4px; }
+  .quickbar .q { font-size: 12px; padding: 6px 12px; border-radius: 99px; background: var(--card); border: 1px solid var(--border); color: #4A4A4A; }
+  .quickbar .q.hot { background: #FFF2EA; border-color: #FFD9C4; color: var(--primary-dark); font-weight: 600; }
+
+  .inputbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 14px 22px; }
+  .inputbar .field {
+    flex: 1; background: var(--card); border: 1.5px solid #FFD9C4; border-radius: 99px;
+    padding: 9px 14px; font-size: 11.5px; color: var(--text); line-height: 1.5;
+  }
+  .inputbar .send { width: 36px; height: 36px; border-radius: 99px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .homebar { flex: 0 0 auto; height: 5px; width: 120px; background: #D8D5CE; border-radius: 99px; margin: 0 auto 8px; }
+
+  .arrow-note {
+    margin-top: 8px; font-size: 11.5px; color: var(--primary-dark); background: #FFF2EA;
+    border: 1px dashed #FFD9C4; border-radius: var(--radius-sm); padding: 7px 10px; line-height: 1.65;
+  }
+
+  /* ============ 说明区 ============ */
+  .legend-flow {
+    margin-top: 28px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 16px 18px; font-size: 13px; line-height: 2.0;
+  }
+  .legend-flow .lt { font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+  .flow-step { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border-radius: 99px; padding: 4px 12px; font-size: 12px; color: #4A4A4A; margin: 2px 4px 2px 0; }
+  .flow-step.hot { background: #FFF2EA; color: var(--primary-dark); font-weight: 700; }
+  .flow-arrow { color: var(--text-3); margin: 0 2px; }
+
+  .decision { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(390px, 1fr)); gap: 12px; max-width: 1760px; }
+  .dec-card { background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: var(--radius-md); padding: 13px 16px; font-size: 12.5px; line-height: 1.8; }
+  .dec-card .dt { font-weight: 800; margin-bottom: 3px; font-size: 13px; }
+  .dec-card .rec { color: #15803D; font-weight: 700; }
+
+  .notes { margin-top: 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; font-size: 12.5px; line-height: 1.8; }
+  .notes .nt { font-weight: 700; margin-bottom: 2px; }
+  .notes ul { padding-left: 18px; }
+  .notes .good { color: #15803D; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Holo AI · 分析场景目录（报告 Tab 升级方案 · 原型）</h1>
+  <div class="sub">
+    2026-08-22 · 承接「能力不可见」的根治：上一轮让用户知道「有报告档案」，这一轮让用户在发起前就知道
+    <b style="color:var(--primary-dark)">「都能分析什么」</b>。核心动作：报告 Tab 上半部升级为场景目录（能力陈列馆），下半部保持档案。
+    <b style="color:var(--primary-dark)">→ 第一台手机的场景卡可以点，点了看「将预填的问句」。</b>
+  </div>
+  <div class="diagnosis">
+    <div class="diag-card">
+      <div class="t"><b class="tag">现状</b>能力藏在一句空话里</div>
+      「深度分析」四个字不告诉用户能分析什么；财务、睡眠、习惯这些场景在发起前完全不可感知。
+    </div>
+    <div class="diag-card">
+      <div class="t"><b class="tag">教训</b>空泛按钮已被否决</div>
+      报告 Tab 的「发起新分析」按钮因「空泛无用 + 点击即发」被撤。场景目录不是它的回魂：每张卡是<b>具体能力</b>，点击是<b>预填不发送</b>。
+    </div>
+    <div class="diag-card fix">
+      <div class="t"><b class="tag">方案</b>场景目录 = 能力的家</div>
+      6 个场景卡（含周期回放）+ 数据来源徽标 + 额度同池如实标注；点卡 → 切对话预填；档案长出场景徽标与筛选。零后端改动。
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 第一排 ═══════════════ -->
+<div class="phones">
+
+  <!-- A 场景目录主形态 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">报告 Tab · 场景目录主形态 <span class="badge">可交互</span></div>
+      <div class="hint">上半部=「你可以让 Holo 分析什么」场景卡（点卡片试试，下方出现将预填的问句）；下半部=档案照旧。<br>额度同池：目录只放一句统一说明，不逐卡标。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side" style="text-align:right"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active">报告</div>
+      </div>
+      <div class="report-area" style="padding-top:2px;">
+        <div class="catalog-head">
+          <span class="t">你可以让 Holo 分析什么</span>
+          <span class="s">点一个试试 →</span>
+        </div>
+
+        <div class="scenario-grid" id="sceneGrid">
+          <div class="scenario-card" data-ask="深度分析一下我最近的财务状况：支出结构、预算执行和异常消费" onclick="pickScene(this)">
+            <div class="emoji">💰</div>
+            <div class="n">财务健康</div>
+            <div class="d">钱花得值不值、结构变没变、异常在哪</div>
+            <div class="src">读 <b>账单 · 预算</b></div>
+          </div>
+          <div class="scenario-card" data-ask="深度分析一下我的习惯坚持情况：哪些天容易掉档、和什么有关" onclick="pickScene(this)">
+            <div class="emoji">🌱</div>
+            <div class="n">习惯坚持</div>
+            <div class="d">哪些天容易掉档、断签怎么恢复、和什么有关</div>
+            <div class="src">读 <b>打卡 · 补签</b></div>
+          </div>
+          <div class="scenario-card" data-ask="深度分析一下我的睡眠和健康数据：睡眠规律、运动日与不运动日的差别" onclick="pickScene(this)">
+            <div class="emoji">🌙</div>
+            <div class="n">睡眠与健康</div>
+            <div class="d">睡眠规律吗、运动日和不运动日的差别</div>
+            <div class="src">读 <b>睡眠 · 步数 · 运动</b></div>
+          </div>
+          <div class="scenario-card" data-ask="把我的财务、习惯、健康放在一起分析，找出单看一处发现不了的规律" onclick="pickScene(this)">
+            <div class="emoji">🔗</div>
+            <div class="n">跨域洞察 <span class="crown">王牌</span></div>
+            <div class="d">财务×习惯×健康放一起看，发现单看找不到的规律</div>
+            <div class="src">读 <b>全域数据</b></div>
+          </div>
+          <div class="scenario-card" data-ask="分析一下我的任务完成情况和拖延模式" onclick="pickScene(this)">
+            <div class="emoji">✅</div>
+            <div class="n">任务效率</div>
+            <div class="d">计划完成率、拖延模式</div>
+            <div class="src">读 <b>任务 · 计划</b></div>
+          </div>
+          <div class="scenario-card" data-ask="帮我回放对账上一周的计划和执行" onclick="pickScene(this)">
+            <div class="emoji">↺</div>
+            <div class="n">周期回放</div>
+            <div class="d">按周/月对账：说好的事做了没、偏了多少</div>
+            <div class="src">读 <b>计划台账</b></div>
+          </div>
+        </div>
+
+        <div class="quota-line">以上分析共用每月深度洞察额度（免费 2 次 · Plus 更多）· 翻旧报告不消耗</div>
+
+        <div class="ask-preview" id="askPreview"></div>
+
+        <div class="searchbar">🔍 搜索提问、结论或正文</div>
+
+        <div class="month-head"><span class="m">2026年8月</span><span class="line"></span></div>
+        <div class="report-card">
+          <div class="top">
+            <span class="type-badge analysis">深度分析</span><span class="scene-badge scene-finance">财务</span>
+            <span class="scope">近30天</span><span class="date">8/20</span>
+          </div>
+          <div class="ask">💬 深度分析一下我最近的财务状况：支出结构、预算执行和异常消费</div>
+          <div class="sum">连续三周晚间支出上扬，与加班周期高度吻合；周四习惯完成率系统性掉档。</div>
+          <div class="foot"><span>观察 ×7 · 证据 ×12</span><span class="r">读报告 ›</span></div>
+        </div>
+        <div class="report-card">
+          <div class="top">
+            <span class="type-badge analysis">深度分析</span><span class="scene-badge scene-health">健康</span>
+            <span class="scope">近3月</span><span class="date">8/02</span>
+          </div>
+          <div class="ask">💬 深度分析一下我的睡眠和健康数据</div>
+          <div class="sum">「运动日后入睡更晚」模式成形：运动日平均入睡比非运动日晚 42 分钟。</div>
+          <div class="foot"><span>观察 ×9 · 证据 ×15</span><span class="r">读报告 ›</span></div>
+        </div>
+        <div class="ghost-note">▲ 卡片上的彩色小徽标 = 场景标签（本例：财务 / 健康）</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- B 预填动线 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">点击场景卡之后 <span class="badge">动线</span></div>
+      <div class="hint">切回「对话」Tab + 问句已填进输入框（橙色描边提示来源）——<b>不自动发送</b>，确认权在用户。与空态 CTA 同一模式。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side" style="text-align:right"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab active">对话</div>
+        <div class="page-tab">报告</div>
+      </div>
+      <div class="chat-area" style="height: 520px;">
+        <div class="bubble-user">深度分析一下我最近的财务状况：支出结构、预算执行和异常消费</div>
+        <div class="ghost-note" style="text-align:left; padding-left:4px;">↑ 发送后的历史样子（供参考，此刻还未发送）</div>
+      </div>
+      <div class="quickbar">
+        <span class="q">今日状态</span><span class="q">规划目标</span>
+      </div>
+      <div class="arrow-note">💰 来自「财务健康」场景 · 你可以改写问句或直接发送</div>
+      <div class="inputbar">
+        <div class="field">深度分析一下我最近的财务状况：支出结构、预算执行和异常消费</div>
+        <div class="send">➤</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- C 空态=场景清单 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">新用户空态 <span class="badge blue">同一目录</span></div>
+      <div class="hint">空态不再是两段泛泛介绍——就是这张场景清单本身。第一次进报告 Tab 即完成「都能分析什么」的教育。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side" style="text-align:right"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active">报告</div>
+      </div>
+      <div class="report-area" style="padding-top:8px;">
+        <div class="catalog-head"><span class="t">Holo 能为你做的分析</span></div>
+        <div class="ghost-note" style="text-align:left; padding-left:2px;">报告会随使用越来越厚——每份分析都会存进这里的档案。</div>
+
+        <div class="scenario-grid">
+          <div class="scenario-card" style="cursor:default;">
+            <div class="emoji">💰</div><div class="n">财务健康</div>
+            <div class="d">钱花得值不值、结构变没变、异常在哪</div><div class="src">读 <b>账单 · 预算</b></div>
+          </div>
+          <div class="scenario-card" style="cursor:default;">
+            <div class="emoji">🌱</div><div class="n">习惯坚持</div>
+            <div class="d">哪些天容易掉档、和什么有关</div><div class="src">读 <b>打卡 · 补签</b></div>
+          </div>
+          <div class="scenario-card" style="cursor:default;">
+            <div class="emoji">🌙</div><div class="n">睡眠与健康</div>
+            <div class="d">睡眠规律、运动日差别</div><div class="src">读 <b>睡眠 · 步数 · 运动</b></div>
+          </div>
+          <div class="scenario-card" style="cursor:default;">
+            <div class="emoji">🔗</div><div class="n">跨域洞察 <span class="crown">王牌</span></div>
+            <div class="d">全域放一起看，发现交叉规律</div><div class="src">读 <b>全域数据</b></div>
+          </div>
+          <div class="scenario-card" style="cursor:default;">
+            <div class="emoji">✅</div><div class="n">任务效率</div>
+            <div class="d">完成率、拖延模式</div><div class="src">读 <b>任务 · 计划</b></div>
+          </div>
+          <div class="scenario-card" style="cursor:default;">
+            <div class="emoji">↺</div><div class="n">周期回放</div>
+            <div class="d">按周/月对账</div><div class="src">读 <b>计划台账</b></div>
+          </div>
+        </div>
+
+        <div class="quota-line">首次体验：免费额度内先试一份 · 每月 2 次（Plus 更多）</div>
+        <div class="ghost-note">点任意场景卡 → 切到对话，问句已备好，确认后发送</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 第二排 ═══════════════ -->
+<div class="phones">
+
+  <!-- D 档案场景筛选 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">档案 · 场景筛选 <span class="badge blue">维度</span></div>
+      <div class="hint">档案顶部一行场景筛选（全部/财务/健康/习惯/跨域/回放），点「财务」只看财务分析。场景标签 P0 用问句关键词本地归类，后续由意图识别返回字段。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side" style="text-align:right"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab">对话</div>
+        <div class="page-tab active">报告</div>
+      </div>
+      <div class="report-area" style="padding-top:2px;">
+        <div class="searchbar">🔍 搜索提问、结论或正文</div>
+        <div class="filter-row">
+          <span class="fchip">全部</span><span class="fchip on">💰 财务</span><span class="fchip">🌙 健康</span><span class="fchip">🌱 习惯</span><span class="fchip">🔗 跨域</span><span class="fchip">↺ 回放</span>
+        </div>
+        <div class="ghost-note" style="text-align:left; padding-left:2px;">财务分析 · 3 份</div>
+
+        <div class="report-card">
+          <div class="top">
+            <span class="type-badge analysis">深度分析</span><span class="scene-badge scene-finance">财务</span>
+            <span class="scope">近30天</span><span class="date">8/20</span>
+          </div>
+          <div class="ask">💬 深度分析一下我最近的财务状况…</div>
+          <div class="sum">连续三周晚间支出上扬，与加班周期高度吻合…</div>
+          <div class="foot"><span>观察 ×7</span><span class="r">读报告 ›</span></div>
+        </div>
+        <div class="report-card">
+          <div class="top">
+            <span class="type-badge analysis">深度分析</span><span class="scene-badge scene-finance">财务</span>
+            <span class="scope">近3月</span><span class="date">8/02</span>
+          </div>
+          <div class="ask">💬 帮我看看信用卡和日常支出结构…</div>
+          <div class="sum">「健身后报复性消费」模式首次成形…</div>
+          <div class="foot"><span>观察 ×9</span><span class="r">读报告 ›</span></div>
+        </div>
+        <div class="report-card" style="opacity:.6;">
+          <div class="top">
+            <span class="type-badge analysis">深度分析</span><span class="scene-badge scene-cross">跨域</span>
+            <span class="scope">近半年</span><span class="date">7/18</span>
+          </div>
+          <div class="ask">💬 把我的财务和习惯放在一起分析…</div>
+          <div class="sum">（跨域场景，含财务维度，未来可多选筛选）</div>
+          <div class="foot"><span>观察 ×12</span><span class="r">读报告 ›</span></div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+
+  <!-- E 胶囊行简化提案 -->
+  <div class="phone-col">
+    <div class="col-head">
+      <div class="name">对话页胶囊行 · 简化提案 <span class="badge">决策点</span></div>
+      <div class="hint">生成类（深度分析/周期回放）从胶囊退役——能力告知职能由场景目录接管；胶囊行只剩「问」与「流程」：今日状态 + 规划目标。是否退役见决策点 D2。</div>
+    </div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ⌁ ▮</span></div>
+      <div class="nav">
+        <div class="side"><span class="icon-btn">✕</span></div>
+        <div class="title">HOLO AI</div>
+        <div class="side" style="text-align:right"><span class="icon-btn">⚙</span></div>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab active">对话</div>
+        <div class="page-tab">报告</div>
+      </div>
+      <div class="chat-area" style="height: 470px;">
+        <div class="bubble-user">帮我看看今天的整体状态</div>
+        <div class="ghost-note" style="text-align:left; padding-left:4px;">今日状态照旧：快问快答，不进档案</div>
+        <div class="arrow-note">生成类入口搬家后，这里的胶囊只剩轻量问法与流程起点。<br>「深度分析」「周期回放」→ 报告 Tab 场景目录（点卡预填）。</div>
+      </div>
+      <div class="quickbar">
+        <span class="q hot">今日状态</span><span class="q">规划目标</span>
+      </div>
+      <div class="ghost-note">▲ 胶囊从 4 颗减为 2 颗（提案态，待拍板）</div>
+      <div class="inputbar">
+        <div class="field">想问点什么…</div>
+        <div class="send" style="background:#fff;border:1px solid var(--border);color:#BDBDBD;">➤</div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 动线 ═══════════════ -->
+<div class="legend-flow">
+  <div class="lt">一条完整的场景动线（确认权全程在用户）</div>
+  <div>
+    <span class="flow-step hot">报告 Tab · 点场景卡（财务健康）</span><span class="flow-arrow">→</span>
+    <span class="flow-step">切回对话 · 问句已预填（可改）</span><span class="flow-arrow">→</span>
+    <span class="flow-step">用户按发送</span><span class="flow-arrow">→</span>
+    <span class="flow-step">生成（可切走聊天，完成亮红点）</span><span class="flow-arrow">→</span>
+    <span class="flow-step hot">档案落卡（带财务场景徽标）</span>
+  </div>
+  <div style="margin-top:6px;color:#6B6B6B;">
+    发起永远以「预填到对话输入框」收口——场景卡、空态、未来任何入口都走同一模式，不再出现「点击即发送」。
+  </div>
+</div>
+
+<!-- ═══════════════ 决策点 ═══════════════ -->
+<div class="decision">
+  <div class="dec-card">
+    <div class="dt">D1 · 场景清单第一版收哪些？</div>
+    推荐 6 个：财务健康 / 习惯坚持 / 睡眠与健康 / 跨域洞察（<b>王牌置顶推荐</b>）/ 任务效率 / 周期回放。<span class="rec">任务效率数据在链路里但深度未验证</span>，第一版可保守先上 5 个；想法/情绪场景待核查想法数据读取深度后再议。
+  </div>
+  <div class="dec-card">
+    <div class="dt">D2 · 生成类胶囊是否退役？</div>
+    推荐<span class="rec">退役</span>：「深度分析」「周期回放」从胶囊行撤下（职能由场景目录接管），胶囊行留「今日状态 + 规划目标」。代价：老用户发起多一步；备选：保留两颗胶囊但同改预填模式。
+  </div>
+  <div class="dec-card">
+    <div class="dt">D3 · 场景归类怎么做？</div>
+    P0 <span class="rec">问句关键词本地归类</span>（预填问句由我们生成、词表封闭，归得准）；旧报告按已有问句回溯打标。后续可让意图识别返回场景字段，届时零迁移成本。
+  </div>
+  <div class="dec-card">
+    <div class="dt">D4 · 额度怎么呈现？</div>
+    推荐<span class="rec">目录区统一一句</span>（「共用每月深度洞察额度 · 免费 2 次」），不逐卡标——克制、不贩卖焦虑；点卡预填时不拦（发送前额度预检照旧兜底）。
+  </div>
+</div>
+
+<div class="notes" style="max-width:1760px;">
+  <div class="nt">可行性与边界</div>
+  <ul>
+    <li class="good">零后端改动：场景 = 预填问句走既有深度分析链路（时间语义/额度预检/档案归档全部复用）。</li>
+    <li class="good">场景卡的「读 XX 数据」徽标与记忆透明化（Holo 看了什么）同一方向，只列链路里真实读取的域，不虚标。</li>
+    <li>跨域洞察是差异化王牌，置顶+皇冠标识；其问句明确点名三个域，引导模型做交叉分析。</li>
+    <li>空态与常驻态用同一套场景卡组件，只换标题文案，降低维护成本。</li>
+    <li>档案场景筛选第一版单选即可（跨域报告在多个筛选下出现的「多选」语义推后）。</li>
+  </ul>
+</div>
+
+<script>
+  function pickScene(el) {
+    document.querySelectorAll('#sceneGrid .scenario-card').forEach(c => c.classList.remove('picked'));
+    el.classList.add('picked');
+    var preview = document.getElementById('askPreview');
+    preview.textContent = '点击后将切到对话并预填：「' + el.dataset.ask + '」（不自动发送）';
+    preview.classList.add('show');
+  }
+</script>
+
+</body>
+</html>

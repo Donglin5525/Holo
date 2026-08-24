@@ -157,7 +157,11 @@ struct FinanceView: View {
         switch target {
         case .transactionDetail(let transactionId):
             selectedTab = .ledger
-            deepLinkedTransaction = FinanceRepository.shared.findTransaction(by: transactionId)
+            if let transaction = FinanceRepository.shared.findTransaction(by: transactionId) {
+                deepLinkedTransaction = transaction
+            } else {
+                HoloToastCenter.shared.show("该交易已被清除", type: .info)
+            }
             deepLinkState.pendingTarget = nil
         case .financeAnalysis(let link):
             evidenceReviewDeepLink = nil

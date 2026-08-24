@@ -73,6 +73,7 @@
 		5A202607180000000000000007 /* TriggerDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607180000000000000008 /* TriggerDetectorTests.swift */; };
 		5A202607180000000000000009 /* ThoughtRichContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A20260718000000000000000A /* ThoughtRichContentTests.swift */; };
 		5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */; };
+		5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */; };
 		5EF3D41ADABBC9CE64365090 /* VoiceInputViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332AD18C54757A4476C899B5 /* VoiceInputViewModelTests.swift */; };
 		616846A4AB8C2BD03630E7EB /* HoloMemoryReceiptCompatibilityStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B9CAF239FD35D854D2D22D /* HoloMemoryReceiptCompatibilityStandaloneTests.swift */; };
 		64CC2125D96E17D2B2A5C4E8 /* CategoryDefaultIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38047768B578BCEBA8BE74EE /* CategoryDefaultIconTests.swift */; };
@@ -134,6 +135,7 @@
 		A34DE8AF42707BBA0B9BEE03 /* MemoryObserverOutputValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8640CCF9881B7E86AB863E88 /* MemoryObserverOutputValidatorTests.swift */; };
 		A6CEB161A87E1F977BD35E2B /* SemanticDomainMemorySignalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EEA678FD3D09817A782E4F4 /* SemanticDomainMemorySignalsTests.swift */; };
 		A98C511454054EFA1E2E362E /* DailySenseSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC172B6E8AE092CE1F54E97 /* DailySenseSnapshotTests.swift */; };
+		AA11BB22CC33DD44EE550002 /* HoloAcceptanceR4UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE550001 /* HoloAcceptanceR4UITests.swift */; };
 		AA6574CF2BCFA8397B9DF954 /* HoloMemoryRepositoryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8EDADC5C4B9CC6914DC480 /* HoloMemoryRepositoryIntegrationTests.swift */; };
 		AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */; };
 		AE65461EFB381455650E9DEF /* ThoughtTagConvergenceJobStoreStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FD6BF4464BC2E855830BCC /* ThoughtTagConvergenceJobStoreStandaloneTests.swift */; };
@@ -195,6 +197,7 @@
 		F5846726F7A37ECB5DBB5049 /* ThoughtOrganizationBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B5A27F34F962AF28839320 /* ThoughtOrganizationBatchTests.swift */; };
 		F6804A1C4E46CF4790373A71 /* HoloHabitToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371AC1CB73E45FA0F14D5920 /* HoloHabitToolTests.swift */; };
 		F755253A916BDD01DE62D188 /* HealthInsightCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */; };
+		FE1000000000000000000003 /* HoloAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000000000000000000001 /* HoloAcceptanceUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -211,6 +214,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A1000000000000000000000C;
 			remoteInfo = HoloWidgets;
+		};
+		FE1000000000000000000009 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 49E199EC2F54389E0070AE1B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 49E199F32F54389E0070AE1B;
+			remoteInfo = Holo;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -302,6 +312,7 @@
 		5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentResultRendererTests.swift; sourceTree = "<group>"; };
 		5C8D2A1F9E3B4760B2D8F1A3 /* HoloDeterministicAnswerComposerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloDeterministicAnswerComposerStandaloneTests.swift; sourceTree = "<group>"; };
 		5D3A4266B8E20BFB85AAB16E /* InstallmentNoteSanitizerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallmentNoteSanitizerStandaloneTests.swift; sourceTree = "<group>"; };
+		5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLockManagerTests.swift; sourceTree = "<group>"; };
 		5EEA678FD3D09817A782E4F4 /* SemanticDomainMemorySignalsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SemanticDomainMemorySignalsTests.swift; sourceTree = "<group>"; };
 		5F2F8FF0DC789254DD0C1D72 /* HoloFeedbackToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloFeedbackToolTests.swift; sourceTree = "<group>"; };
 		622BFBA66EE5B9248A677503 /* CoreDataTestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreDataTestSupport.swift; sourceTree = "<group>"; };
@@ -373,6 +384,7 @@
 		A5EA497516F5BCBB6C86D7ED /* HoloMemorySchedulerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemorySchedulerStandaloneTests.swift; sourceTree = "<group>"; };
 		A73CDEC6A92DA7D92BF0F437 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A9400352FE311A1786D062AC /* HoloInsightCriticTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloInsightCriticTests.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE550001 /* HoloAcceptanceR4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoloAcceptanceR4UITests.swift; sourceTree = "<group>"; };
 		ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloThoughtToolTests.swift; sourceTree = "<group>"; };
 		AC8EDADC5C4B9CC6914DC480 /* HoloMemoryRepositoryIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryRepositoryIntegrationTests.swift; sourceTree = "<group>"; };
 		AD68F772D13786067AF4E462 /* HoloAuthSessionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAuthSessionStandaloneTests.swift; sourceTree = "<group>"; };
@@ -416,6 +428,8 @@
 		F7172AA6F8A3B20680429BDE /* HoloAgentInputSnapshotStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentInputSnapshotStandaloneTests.swift; sourceTree = "<group>"; };
 		FB210CE9AF03AFD0A87E2C06 /* HoloProjectToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloProjectToolTests.swift; sourceTree = "<group>"; };
 		FCD82FD43AAF6B2667E5AD52 /* AIUserContextMessageBuilderStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIUserContextMessageBuilderStandaloneTests.swift; sourceTree = "<group>"; };
+		FE1000000000000000000001 /* HoloAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoloAcceptanceUITests.swift; sourceTree = "<group>"; };
+		FE1000000000000000000002 /* HoloUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FF3C3058ABC126953D79D465 /* HoloMemoryCandidateReconcilerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryCandidateReconcilerStandaloneTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -446,6 +460,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A10000000000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FE1000000000000000000006 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -619,6 +640,7 @@
 				49E199F52F54389E0070AE1B /* Products */,
 				CA9B89C813D74E853A35475D /* Frameworks */,
 				8D9FDE44AC903B6747A6C03F /* HoloTests */,
+				FE1000000000000000000004 /* HoloUITests */,
 				496F9B482FDEEF2B00142294 /* Recovered References */,
 			);
 			sourceTree = "<group>";
@@ -629,6 +651,7 @@
 				49E199F42F54389E0070AE1B /* Holo.app */,
 				A10000000000000000000004 /* HoloWidgets.appex */,
 				1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */,
+				FE1000000000000000000002 /* HoloUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -856,6 +879,7 @@
 				C07E22030000000000000001 /* Calendar */,
 				8044812C2C9B2F327A4958D4 /* Speech */,
 				7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */,
+				5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */,
 				9B2D7AA58BC923A555CD61A8 /* Auth */,
 				77B2CF789BD2C65DA383892E /* Diagnostics */,
 				8CAA563B9A91D311A7F18D4F /* WeeklyObservation */,
@@ -872,6 +896,15 @@
 				F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */,
 			);
 			path = BillImport;
+			sourceTree = "<group>";
+		};
+		FE1000000000000000000004 /* HoloUITests */ = {
+			isa = PBXGroup;
+			children = (
+				FE1000000000000000000001 /* HoloAcceptanceUITests.swift */,
+				AA11BB22CC33DD44EE550001 /* HoloAcceptanceR4UITests.swift */,
+			);
+			path = HoloUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -938,6 +971,24 @@
 			productReference = A10000000000000000000004 /* HoloWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		FE1000000000000000000008 /* HoloUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FE1000000000000000000011 /* Build configuration list for PBXNativeTarget "HoloUITests" */;
+			buildPhases = (
+				FE1000000000000000000005 /* Sources */,
+				FE1000000000000000000006 /* Frameworks */,
+				FE1000000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FE1000000000000000000010 /* PBXTargetDependency */,
+			);
+			name = HoloUITests;
+			productName = HoloUITests;
+			productReference = FE1000000000000000000002 /* HoloUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -978,6 +1029,7 @@
 				49E199F32F54389E0070AE1B /* Holo */,
 				A1000000000000000000000C /* HoloWidgets */,
 				76F4261AC45012D682D2175F /* HoloTests */,
+				FE1000000000000000000008 /* HoloUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -998,6 +1050,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1000000000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FE1000000000000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -1044,6 +1103,7 @@
 				A27D00030000000000000001 /* Network/APIClientStreamingRecoveryTests.swift in Sources */,
 				754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */,
 				7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */,
+				5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B5D /* HoloAgentSchedulerTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B5F /* HoloAgentInputSnapshotHasherTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B65 /* HoloAgentStepIdempotencyTests.swift in Sources */,
@@ -1212,6 +1272,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FE1000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FE1000000000000000000003 /* HoloAcceptanceUITests.swift in Sources */,
+				AA11BB22CC33DD44EE550002 /* HoloAcceptanceR4UITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1226,6 +1295,12 @@
 			name = HoloWidgets;
 			target = A1000000000000000000000C /* HoloWidgets */;
 			targetProxy = A10000000000000000000010 /* PBXContainerItemProxy */;
+		};
+		FE1000000000000000000010 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Holo;
+			target = 49E199F32F54389E0070AE1B /* Holo */;
+			targetProxy = FE1000000000000000000009 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1417,6 +1492,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Holo 需要使用麦克风来记录你的语音输入。";
@@ -1468,6 +1544,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Holo 需要使用麦克风来记录你的语音输入。";
@@ -1570,6 +1647,44 @@
 			};
 			name = Release;
 		};
+		FE1000000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.holo.app.holoUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Holo;
+			};
+			name = Debug;
+		};
+		FE1000000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.holo.app.holoUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Holo;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1605,6 +1720,15 @@
 			buildConfigurations = (
 				A1000000000000000000000E /* Debug */,
 				A1000000000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FE1000000000000000000011 /* Build configuration list for PBXNativeTarget "HoloUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FE1000000000000000000012 /* Debug */,
+				FE1000000000000000000013 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

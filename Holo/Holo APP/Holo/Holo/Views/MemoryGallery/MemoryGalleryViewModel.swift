@@ -277,6 +277,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     private func fetchTransactions() throws -> [MemoryItem] {
         let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = 500
         let transactions = try context.fetch(request)
@@ -287,10 +288,11 @@ class MemoryGalleryViewModel: ObservableObject {
         var items: [MemoryItem] = []
 
         let habitRequest = Habit.fetchRequest()
-        habitRequest.predicate = NSPredicate(format: "isArchived == NO")
+        habitRequest.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
         let habits = try context.fetch(habitRequest)
 
         let recordRequest = HabitRecord.fetchRequest()
+        recordRequest.predicate = NSPredicate(format: "deletedAt == nil")
         recordRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         recordRequest.fetchLimit = 500
         let records = try context.fetch(recordRequest)
@@ -313,7 +315,7 @@ class MemoryGalleryViewModel: ObservableObject {
         let request = TodoTask.fetchRequest()
         let now = Date()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND (completed == YES OR dueDate < %@)",
+            format: "deletedAt == nil AND archived == NO AND (completed == YES OR dueDate < %@)",
             now as NSDate
         )
         request.sortDescriptors = [
@@ -327,7 +329,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     private func fetchThoughts() throws -> [MemoryItem] {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         request.fetchLimit = 500
         let thoughts = try context.fetch(request)
@@ -370,6 +372,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     private func computeAggregateStats() {
         let transactionRequest = Transaction.fetchRequest()
+        transactionRequest.predicate = NSPredicate(format: "deletedAt == nil")
         let txCount = (try? context.count(for: transactionRequest)) ?? 0
 
         let activeHabitIds = fetchActiveHabitIds()
@@ -377,32 +380,36 @@ class MemoryGalleryViewModel: ObservableObject {
 
         let taskRequest = TodoTask.fetchRequest()
         taskRequest.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND (completed == YES OR dueDate < %@)",
+            format: "deletedAt == nil AND archived == NO AND (completed == YES OR dueDate < %@)",
             Date() as NSDate
         )
         let taskCount = (try? context.count(for: taskRequest)) ?? 0
 
         let thoughtRequest = Thought.fetchRequest()
-        thoughtRequest.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        thoughtRequest.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         let thoughtCount = (try? context.count(for: thoughtRequest)) ?? 0
 
         var allDates = Set<Date>()
-        allDates.formUnion(fetchUniqueDates(entityName: "Transaction", key: "date", predicate: nil))
+        allDates.formUnion(fetchUniqueDates(
+            entityName: "Transaction",
+            key: "date",
+            predicate: NSPredicate(format: "deletedAt == nil")
+        ))
         allDates.formUnion(fetchHabitRecordDates(for: activeHabitIds))
         allDates.formUnion(fetchUniqueDates(
             entityName: "TodoTask",
             key: "completedAt",
-            predicate: NSPredicate(format: "deletedFlag == NO AND archived == NO AND completed == YES")
+            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES")
         ))
         allDates.formUnion(fetchUniqueDates(
             entityName: "TodoTask",
             key: "dueDate",
-            predicate: NSPredicate(format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate < %@", Date() as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate < %@", Date() as NSDate)
         ))
         allDates.formUnion(fetchUniqueDates(
             entityName: "Thought",
             key: "createdAt",
-            predicate: NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         ))
 
         totalMemoryCount = txCount + habitRecordCount + taskCount + thoughtCount
@@ -421,7 +428,7 @@ class MemoryGalleryViewModel: ObservableObject {
         mergeDayCounts(into: &counts, fetchDayCounts(
             entityName: "Transaction",
             key: "date",
-            predicate: NSPredicate(format: "date >= %@ AND date < %@", windowStart as NSDate, windowEnd as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND date >= %@ AND date < %@", windowStart as NSDate, windowEnd as NSDate)
         ))
         mergeDayCounts(into: &counts, fetchHabitRecordDayCounts(
             for: activeHabitIds,
@@ -431,12 +438,12 @@ class MemoryGalleryViewModel: ObservableObject {
         mergeDayCounts(into: &counts, fetchDayCounts(
             entityName: "TodoTask",
             key: "completedAt",
-            predicate: NSPredicate(format: "deletedFlag == NO AND archived == NO AND completed == YES AND completedAt >= %@ AND completedAt < %@", windowStart as NSDate, windowEnd as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES AND completedAt >= %@ AND completedAt < %@", windowStart as NSDate, windowEnd as NSDate)
         ))
         mergeDayCounts(into: &counts, fetchDayCounts(
             entityName: "Thought",
             key: "createdAt",
-            predicate: NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO AND createdAt >= %@ AND createdAt < %@", windowStart as NSDate, windowEnd as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO AND createdAt >= %@ AND createdAt < %@", windowStart as NSDate, windowEnd as NSDate)
         ))
 
         heatmapData = counts
@@ -444,7 +451,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     private func fetchActiveHabitIds() -> [UUID] {
         let request = Habit.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO")
+        request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
         let habits = (try? context.fetch(request)) ?? []
         return habits.map(\.id)
     }
@@ -452,14 +459,14 @@ class MemoryGalleryViewModel: ObservableObject {
     private func countHabitRecords(for activeHabitIds: [UUID]) -> Int {
         guard !activeHabitIds.isEmpty else { return 0 }
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "habitId IN %@", activeHabitIds)
+        request.predicate = NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds)
         return (try? context.count(for: request)) ?? 0
     }
 
     private func fetchHabitRecordDates(for activeHabitIds: [UUID]) -> Set<Date> {
         guard !activeHabitIds.isEmpty else { return [] }
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "habitId IN %@", activeHabitIds)
+        request.predicate = NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds)
         let records = (try? context.fetch(request)) ?? []
         return Set(records.map { $0.date.startOfDay })
     }
@@ -468,7 +475,7 @@ class MemoryGalleryViewModel: ObservableObject {
         guard !activeHabitIds.isEmpty else { return [:] }
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId IN %@ AND date >= %@ AND date < %@",
+            format: "habitId IN %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
             activeHabitIds,
             start as NSDate,
             end as NSDate

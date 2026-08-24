@@ -160,6 +160,10 @@ struct CalendarEventDetailSheet: View {
                 guard let entity = try? backgroundContext.existingObject(with: originID) else {
                     return nil as DeepLinkTarget?
                 }
+                // 软删除的对象仍存在于库中，但原始记录对用户已不可见，视为已删除
+                if (entity as? SoftDeletable)?.deletedAt != nil {
+                    return nil as DeepLinkTarget?
+                }
                 switch module {
                 case .finance:
                     guard let transaction = entity as? Transaction else { return nil }

@@ -52,6 +52,9 @@ struct ThoughtListView: View {
     /// 知识树模式下的主题管理 sheet
     @State private var showTopicManagement: Bool = false
 
+    /// 清空想法数据 sheet（数据清理功能，进 30 天回收站）
+    @State private var showClearThoughtSheet: Bool = false
+
     /// 待确认池（想法列表 banner 入口）
     @State private var showConfirmationQueue: Bool = false
 
@@ -692,19 +695,29 @@ struct ThoughtListView: View {
 
             Spacer()
 
-            // 知识树模式下提供主题管理入口（管理动作长在它管理的内容旁）
-            if isKnowledgeMode {
-                Button {
-                    showTopicManagement = true
-                } label: {
-                    Text("管理")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 44, height: 44)
+            // 右上「…」菜单：知识树模式含主题管理；清空想法数据（数据清理）两种模式均提供
+            Menu {
+                if isKnowledgeMode {
+                    Button {
+                        showTopicManagement = true
+                    } label: {
+                        Label("主题管理", systemImage: "folder.badge.gearshape")
+                    }
                 }
-            } else {
-                // 占位，与左侧返回按钮对称，保持标题居中
-                Color.clear.frame(width: 44, height: 44)
+                Button(role: .destructive) {
+                    showClearThoughtSheet = true
+                } label: {
+                    Label("清空想法数据…", systemImage: "trash.circle")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .sheet(isPresented: $showClearThoughtSheet) {
+                ModuleClearSheet(module: .thought)
             }
         }
         .padding(.horizontal, HoloSpacing.md)

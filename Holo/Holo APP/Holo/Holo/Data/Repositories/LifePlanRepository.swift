@@ -185,7 +185,10 @@ final class LifePlanRepository: ObservableObject {
     func fetchActivePlan() -> LifePlanSnapshot? {
         supersedeExpiredPlans()
         let request = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
-        request.predicate = NSPredicate(format: "status == %@", "active")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "status == %@", "active"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         request.fetchLimit = 1
         guard let plan = (try? context.fetch(request))?.first else { return nil }
@@ -196,6 +199,7 @@ final class LifePlanRepository: ObservableObject {
     func fetchLatestPlan() -> LifePlanSnapshot? {
         supersedeExpiredPlans()
         let request = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         request.fetchLimit = 1
         guard let plan = (try? context.fetch(request))?.first else { return nil }
@@ -204,7 +208,7 @@ final class LifePlanRepository: ObservableObject {
 
     func snapshot(planID: UUID) -> LifePlanSnapshot? {
         let request = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
-        request.predicate = NSPredicate(format: "id == %@", planID as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", planID as CVarArg)
         request.fetchLimit = 1
         guard let plan = (try? context.fetch(request))?.first else { return nil }
         return buildSnapshot(plan)
@@ -213,10 +217,13 @@ final class LifePlanRepository: ObservableObject {
     /// 回放对账：覆盖指定时间范围的计划（periodStart 落在 range 内）
     func fetchPlans(periodStartIn start: Date, _ end: Date) -> [LifePlanSnapshot] {
         let request = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
-        request.predicate = NSPredicate(
-            format: "periodStart >= %@ AND periodStart <= %@",
-            start as NSDate, end as NSDate
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "periodStart >= %@ AND periodStart <= %@",
+                start as NSDate, end as NSDate
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: false)]
         return ((try? context.fetch(request)) ?? []).map(buildSnapshot)
     }
@@ -224,10 +231,14 @@ final class LifePlanRepository: ObservableObject {
     /// 长廊统计：总计划数 / 平均每计划接受行动卡数
     func statistics() -> (totalPlans: Int, avgAcceptedActions: Double) {
         let plans = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
+        plans.predicate = NSPredicate(format: "deletedAt == nil")
         let total = (try? context.count(for: plans)) ?? 0
         guard total > 0 else { return (0, 0) }
         let actions = NSFetchRequest<PlanActionMO>(entityName: "PlanActionMO")
-        actions.predicate = NSPredicate(format: "status == %@", "accepted")
+        actions.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "status == %@", "accepted"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         let accepted = (try? context.count(for: actions)) ?? 0
         return (total, Double(accepted) / Double(total))
     }

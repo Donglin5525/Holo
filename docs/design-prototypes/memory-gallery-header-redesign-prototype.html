@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆长廊 · 头部改版方案对比</title>
+<style>
+  /* ============ 工作台（非 App 部分） ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0E0E10;
+    color: #F5F5F5;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh;
+    padding: 36px 24px 60px;
+  }
+  .page-head { text-align: center; margin-bottom: 18px; }
+  .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  .page-head p { font-size: 13px; color: #939393; margin-top: 8px; line-height: 1.7; }
+
+  .legend {
+    max-width: 880px; margin: 0 auto 26px;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 14px;
+    padding: 14px 18px;
+  }
+  .legend-row { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: #C9C9C9; line-height: 1.65; }
+  .legend-row + .legend-row { margin-top: 8px; }
+  .legend-row b { color: #F5F5F5; }
+  .pin-inline {
+    flex: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #F46D38; color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .tag {
+    flex: none; font-size: 10px; font-weight: 700; color: #0E0E10;
+    background: #F46D38; border-radius: 5px; padding: 2px 6px; margin-top: 2px; letter-spacing: 1px;
+  }
+
+  .stage { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label {
+    font-size: 14px; font-weight: 600; margin-bottom: 14px; letter-spacing: 2px;
+    color: #C9C9C9;
+  }
+  .col-label .sub { font-weight: 400; letter-spacing: 0; color: #939393; font-size: 12px; margin-left: 8px; }
+
+  /* 控制面板 */
+  .panel {
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 16px; width: 390px;
+  }
+  .panel-title { font-size: 12px; color: #939393; margin-bottom: 10px; letter-spacing: 1px; }
+  .ctl-row { display: flex; gap: 10px; margin-top: 12px; }
+  .ctl-row:first-of-type { margin-top: 0; }
+  .ctl-name { flex: none; width: 92px; font-size: 12px; color: #C9C9C9; padding-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button {
+    border: 1px solid #3A3A3C; background: transparent; color: #939393; cursor: pointer;
+    font-size: 12px; padding: 6px 11px; border-radius: 999px; transition: all .15s;
+    font-family: inherit;
+  }
+  .chips button.on { background: #F46D38; border-color: #F46D38; color: #fff; font-weight: 600; }
+  .chips button .mini { display: block; font-size: 9.5px; opacity: .75; font-weight: 400; margin-top: 1px; }
+  .centerline-toggle {
+    display: flex; align-items: center; gap: 7px; cursor: pointer;
+    font-size: 12px; color: #C9C9C9; user-select: none; margin-top: 12px;
+  }
+  .centerline-toggle input { accent-color: #F46D38; width: 15px; height: 15px; cursor: pointer; }
+
+  /* ============ 手机壳 ============ */
+  .phone {
+    width: 390px; height: 792px;
+    background: #1C1C1E;               /* holoBackground (dark) */
+    border: 3px solid #0A0A0B; border-radius: 54px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 6px #26262A;
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .centerline {
+    position: absolute; left: 50%; top: 0; bottom: 0; width: 0;
+    border-left: 1.5px dashed rgba(244,109,56,.75); z-index: 50; display: none;
+    pointer-events: none;
+  }
+  body.show-center .centerline { display: block; }
+
+  .statusbar {
+    flex: none; height: 44px; display: flex; justify-content: space-between; align-items: center;
+    padding: 0 26px 0 32px; font-size: 13.5px; font-weight: 600; color: #F5F5F5;
+  }
+  .statusbar .icons { display: flex; gap: 5px; align-items: center; }
+  .batt { width: 22px; height: 11px; border: 1px solid rgba(245,245,245,.5); border-radius: 3px; position: relative; }
+  .batt::after { content: ""; position: absolute; left: 1.5px; top: 1.5px; bottom: 1.5px; width: 60%; background: #F5F5F5; border-radius: 1.5px; }
+  .batt::before { content: ""; position: absolute; right: -3.5px; top: 3px; bottom: 3px; width: 1.5px; background: rgba(245,245,245,.5); border-radius: 0 1px 1px 0; }
+
+  .pin {
+    position: absolute; z-index: 60; width: 22px; height: 22px; border-radius: 50%;
+    background: #F46D38; color: #fff; font-size: 12.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(244,109,56,.5);
+  }
+
+  /* ============ 导航栏（现状：标题被两侧不等宽元素挤偏） ============ */
+  .nav {
+    flex: none; height: 52px; display: flex; align-items: center;
+    padding: 0 12px; position: relative;
+    background: #1C1C1E;
+  }
+  .nav::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 0.5px;
+    background: linear-gradient(90deg, rgba(58,58,60,0), rgba(58,58,60,.42), rgba(58,58,60,0));
+  }
+  .back {
+    width: 44px; height: 44px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    color: #F5F5F5; font-size: 21px; font-weight: 600;
+  }
+  .nav-mid { flex: 1; display: flex; justify-content: center; }
+  .nav-title {
+    font-size: 20px; font-weight: 600;
+    font-family: "Songti SC", "Noto Serif SC", serif;
+    color: #F5F5F5; white-space: nowrap;
+  }
+  .phone.plan .nav-mid .nav-title { position: absolute; left: 50%; transform: translateX(-50%); z-index: 5; }
+
+  /* 日历/洞察小分段（现状样式：12px 字） */
+  .tabs {
+    flex: none; display: flex; gap: 2px; padding: 2px;
+    background: rgba(53,52,56,.66); border: 1px solid rgba(58,58,60,.42); border-radius: 999px;
+  }
+  .tabs span {
+    font-size: 12px; padding: 0 13px; height: 26px; line-height: 26px; border-radius: 999px;
+    color: #939393; font-weight: 500; white-space: nowrap;
+  }
+  .tabs span.on {
+    background: #2C2C2E; color: #F46D38; font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(244,109,56,.14);
+  }
+
+  /* 方案A：标题栏下方居中分段行（13px 字） */
+  .tabs-row { flex: none; display: flex; justify-content: center; padding: 8px 0 10px; }
+  .tabs-lg {
+    display: flex; gap: 2px; padding: 2.5px;
+    background: rgba(53,52,56,.66); border: 1px solid rgba(58,58,60,.42); border-radius: 999px;
+  }
+  .tabs-lg span {
+    font-size: 13px; padding: 0 17px; height: 30px; line-height: 30px; border-radius: 999px;
+    color: #939393; font-weight: 500;
+  }
+  .tabs-lg span.on {
+    background: #2C2C2E; color: #F46D38; font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(244,109,56,.14);
+  }
+
+  /* 选项互斥 */
+  body[data-pos="a"] .pos-b-only, body[data-pos="a"] .pos-c-only, body[data-pos="a"] .pos-d-only,
+  body[data-pos="b"] .pos-a-only, body[data-pos="b"] .pos-c-only, body[data-pos="b"] .pos-d-only,
+  body[data-pos="c"] .pos-a-only, body[data-pos="c"] .pos-b-only, body[data-pos="c"] .pos-d-only,
+  body[data-pos="d"] .pos-a-only, body[data-pos="d"] .pos-b-only, body[data-pos="d"] .pos-c-only,
+  body[data-pos="e"] .pos-a-only, body[data-pos="e"] .pos-b-only, body[data-pos="e"] .pos-c-only, body[data-pos="e"] .pos-d-only,
+  body[data-pos="f"] .pos-a-only, body[data-pos="f"] .pos-b-only, body[data-pos="f"] .pos-c-only, body[data-pos="f"] .pos-d-only { display: none !important; }
+  body:not([data-pos="e"]) .pos-e-only,
+  body:not([data-pos="f"]) .pos-f-only { display: none !important; }
+  body[data-open="tick"] .open-none-only, body[data-open="tick"] .open-now-only, body[data-open="tick"] .open-live-only,
+  body[data-open="none"] .open-tick-only, body[data-open="none"] .open-now-only, body[data-open="none"] .open-live-only,
+  body[data-open="now"]  .open-tick-only, body[data-open="now"]  .open-none-only, body[data-open="now"]  .open-live-only,
+  body[data-open="live"] .open-tick-only, body[data-open="live"] .open-none-only, body[data-open="live"] .open-now-only { display: none !important; }
+  /* 非缩放轴方案（A/B/D/E/F）共用内容区：只在选缩放轴时让位 */
+  body[data-pos="c"] .tabs-fallback { display: none !important; }
+
+  /* ============ 方案E：图标开关（双图标迷你胶囊，总宽约为原分段的六成） ============ */
+  .icon-switch {
+    flex: none; display: flex; padding: 2px; gap: 2px;
+    background: rgba(53,52,56,.66); border: 1px solid rgba(58,58,60,.42); border-radius: 999px;
+  }
+  .icon-switch button {
+    width: 32px; height: 24px; border: none; border-radius: 999px; cursor: pointer;
+    background: transparent; color: #939393; padding: 0;
+    display: flex; align-items: center; justify-content: center; transition: all .18s;
+  }
+  .icon-switch button svg { width: 14px; height: 14px; display: block; }
+  .icon-switch button.on {
+    background: #2C2C2E; color: #F46D38;
+    box-shadow: inset 0 0 0 1px rgba(244,109,56,.14);
+  }
+
+  /* ============ 方案F：拨动开关（iOS 系统开关形态，右拨=洞察） ============ */
+  .toggle-switch {
+    flex: none; width: 54px; height: 32px; border-radius: 999px; position: relative; cursor: pointer;
+    background: rgba(53,52,56,.9); border: 1px solid rgba(58,58,60,.42);
+  }
+  .toggle-switch .rail {
+    position: absolute; top: 0; bottom: 0; display: flex; align-items: center;
+    color: #6B7280; transition: opacity .2s;
+  }
+  .toggle-switch .rail.l { left: 8px; }
+  .toggle-switch .rail.r { right: 8px; }
+  .toggle-switch .rail svg { width: 13px; height: 13px; display: block; }
+  .toggle-switch .knob {
+    position: absolute; top: 2px; left: 2px; width: 27px; height: 26px; border-radius: 50%;
+    background: #F46D38; color: #fff; transition: left .22s cubic-bezier(.3,.9,.4,1);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  }
+  .toggle-switch .knob svg { width: 14px; height: 14px; display: block; }
+  .toggle-switch.on .knob { left: 24px; }
+  .toggle-switch .rail.l { opacity: 1; }
+  .toggle-switch .rail.r { opacity: 0; }
+  .toggle-switch.on .rail.l { opacity: 0; }
+  .toggle-switch.on .rail.r { opacity: 1; }
+  .switch-hint { font-size: 9.5px; color: #6B7280; padding: 4px 12px 6px; text-align: center; }
+
+  /* ============ 方案2C：变焦标尺（日→周→月→洞察） ============ */
+  .zoom-area { flex: none; }
+  .zoom-ruler { margin: 12px 40px 0; position: relative; }
+  .zoom-track { position: absolute; left: 14px; right: 14px; top: 5px; height: 1px; background: rgba(58,58,60,.9); }
+  .zoom-stops { position: relative; display: flex; justify-content: space-between; }
+  .zoom-stop {
+    flex: none; width: 44px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; border: none; background: transparent; font-family: inherit; padding: 0;
+  }
+  .zoom-stop .dot { width: 7px; height: 7px; border-radius: 50%; background: #5A5A5E; transition: all .2s; }
+  .zoom-stop .lbl { font-size: 10px; color: #939393; transition: all .2s; }
+  .zoom-stop.on .dot { background: #F46D38; box-shadow: 0 0 8px rgba(244,109,56,.65); transform: scale(1.35); }
+  .zoom-stop.on .lbl { color: #F46D38; font-weight: 700; }
+  .zoom-caption { text-align: center; font-size: 9.5px; color: #6B7280; padding: 6px 30px 8px; line-height: 1.5; }
+
+  .zoom-body { flex: none; display: flex; flex-direction: column; }
+  .zoom-body[data-show="day"] .zb-week, .zoom-body[data-show="day"] .zb-month, .zoom-body[data-show="day"] .zb-insight,
+  .zoom-body[data-show="week"] .zb-day, .zoom-body[data-show="week"] .zb-month, .zoom-body[data-show="week"] .zb-insight,
+  .zoom-body[data-show="month"] .zb-day, .zoom-body[data-show="month"] .zb-week, .zoom-body[data-show="month"] .zb-insight,
+  .zoom-body[data-show="insight"] .zb-day, .zoom-body[data-show="insight"] .zb-week, .zoom-body[data-show="insight"] .zb-month { display: none !important; }
+
+  .mini-grid-card {
+    margin: 14px 16px 0; padding: 14px; border-radius: 18px;
+    background: #2C2C2E; border: 1px solid rgba(58,58,60,.58);
+  }
+  .mini-grid-card .cap { font-size: 10px; color: #939393; margin-bottom: 10px; }
+  .mini-grid-card .cap b { color: #F5F5F5; font-size: 12px; display: block; margin-bottom: 3px;
+    font-family: "Songti SC", "Noto Serif SC", serif; }
+  .dot-grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 4px; }
+  .dot-grid i { display: block; aspect-ratio: 1; border-radius: 3px; }
+
+  .insight-profile {
+    margin: 14px 16px 0; padding: 14px; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(244,109,56,.09), rgba(44,44,46,.5));
+    border: 1px solid rgba(244,109,56,.16);
+  }
+  .insight-profile h3 { font-size: 14px; font-weight: 600; color: #F5F5F5;
+    font-family: "Songti SC", "Noto Serif SC", serif; margin-bottom: 9px; }
+  .insight-profile p { font-size: 11.5px; color: #C9C9C9; line-height: 1.9; }
+  .insight-profile p b { color: #F46D38; font-weight: 600; }
+
+  /* ============ 方案2D：圆点指示器 + 横滑 ============ */
+  .dots-row { flex: none; display: flex; justify-content: center; align-items: center; gap: 7px; padding: 13px 0 7px; }
+  .dot-pill { width: 7px; height: 7px; border-radius: 999px; background: rgba(147,147,147,.4); transition: all .3s; }
+  .dot-pill.on { width: 22px; background: #F46D38; }
+  .swipe-hint { flex: none; text-align: center; font-size: 10px; color: #6B7280; padding-bottom: 4px; }
+  .swipe-hint .arr { display: inline-block; animation: nudge 1.6s ease-in-out infinite; color: #F46D38; }
+  @keyframes nudge { 0%,100% { transform: translateX(-2px); opacity: .5; } 50% { transform: translateX(3px); opacity: 1; } }
+
+  /* ============ 「今天的记忆还在继续」现状大卡 ============ */
+  .today-end-card {
+    flex: none; margin: 30px 72px 0; padding: 18px 12px; border-radius: 18px;
+    background: linear-gradient(90deg, rgba(244,109,56,.07), rgba(44,44,46,.22));
+    border: 1px solid rgba(244,109,56,.12);
+    text-align: center;
+  }
+  .today-end-card .glyph { color: #F46D38; font-size: 15px; }
+  .today-end-card .t1 {
+    margin-top: 7px; font-size: 12px; font-weight: 600; color: #939393;
+    font-family: "Songti SC", "Noto Serif SC", serif;
+  }
+  .today-end-card .t2 { margin-top: 4px; font-size: 10px; color: #6B7280; }
+
+  /* 方案3A：轻刻度 */
+  .now-divider {
+    flex: none; display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin-top: 18px; padding: 4px 56px 2px;
+  }
+  .now-divider .line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(58,58,60,0), rgba(58,58,60,.9), rgba(58,58,60,0)); }
+  .now-divider .txt {
+    font-size: 11px; color: #6B7280; white-space: nowrap;
+    font-family: "Songti SC", "Noto Serif SC", serif;
+  }
+
+  /* 方案3C：现在锚点（呼吸光点） */
+  .now-anchor { flex: none; display: flex; flex-direction: column; align-items: center; margin-top: 16px; }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #F46D38;
+    box-shadow: 0 0 14px 4px rgba(244,109,56,.45);
+    animation: breathe 2.2s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { transform: scale(1); opacity: .8; } 50% { transform: scale(1.65); opacity: 1; } }
+  .now-anchor .lbl {
+    margin-top: 7px; font-size: 10px; color: #6B7280; letter-spacing: 3px;
+    font-family: "Songti SC", "Noto Serif SC", serif;
+  }
+  .now-anchor .tail {
+    margin-top: 6px; width: 1px; height: 20px;
+    background: linear-gradient(rgba(244,109,56,.6), rgba(244,109,56,0));
+  }
+
+  /* 方案3D：活的今天（时间进度条） */
+  .today-live {
+    flex: none; margin: 14px 16px 0; padding: 12px 14px 10px; border-radius: 16px;
+    background: rgba(44,44,46,.55); border: 1px solid rgba(58,58,60,.45);
+  }
+  .today-live .row1 { display: flex; align-items: center; }
+  .today-live .name {
+    font-size: 14px; font-weight: 600; color: #F5F5F5;
+    font-family: "Songti SC", "Noto Serif SC", serif;
+  }
+  .today-live .live-badge {
+    margin-left: 7px; font-size: 9px; font-weight: 700; color: #F46D38;
+    background: rgba(244,109,56,.1); padding: 2px 6px; border-radius: 999px;
+  }
+  .today-live .stats { margin-left: auto; font-size: 10px; color: #939393; }
+  .today-live .stats b { color: #F5F5F5; font-weight: 600; }
+  .today-live .track { position: relative; margin-top: 10px; height: 4px; border-radius: 999px; background: rgba(245,245,245,.07); }
+  .today-live .fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 94%; border-radius: 999px;
+    background: linear-gradient(90deg, rgba(244,109,56,.35), #F46D38);
+  }
+  .today-live .cursor {
+    position: absolute; left: 94%; top: 50%; width: 9px; height: 9px; border-radius: 50%;
+    background: #F46D38; box-shadow: 0 0 10px rgba(244,109,56,.7);
+    transform: translate(-50%, -50%);
+    animation: breathe 2.2s ease-in-out infinite;
+  }
+  .today-live .row3 { display: flex; justify-content: space-between; margin-top: 7px; font-size: 8.5px; color: #6B7280; }
+
+  /* ============ 时间章节头 ============ */
+  .chapter {
+    flex: none; min-height: 92px; display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; position: relative;
+    background: linear-gradient(#1C1C1E, rgba(28,28,30,.94));
+  }
+  .chapter::after {
+    content: ""; position: absolute; left: 16px; bottom: 0; width: 104px; height: 1px;
+    background: linear-gradient(90deg, rgba(244,109,56,.68), rgba(244,109,56,0));
+  }
+  .chapter .big-day {
+    font-family: "Songti SC", "Noto Serif SC", serif;
+    font-size: 48px; font-weight: 500; color: #F5F5F5; width: 66px; letter-spacing: -2px;
+  }
+  .chapter .meta { display: flex; flex-direction: column; gap: 4px; }
+  .chapter .title-line { display: flex; align-items: center; gap: 6px; }
+  .chapter .title {
+    font-family: "Songti SC", "Noto Serif SC", serif;
+    font-size: 15px; font-weight: 600; color: #F5F5F5;
+  }
+  .chapter .badge {
+    font-size: 9px; font-weight: 700; color: #F46D38;
+    background: rgba(244,109,56,.10); border-radius: 999px; padding: 3px 6px;
+  }
+  .chapter .evidence { font-size: 10px; color: #939393; }
+  .chapter .filter {
+    margin-left: auto; display: flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; color: #939393;
+    padding: 0 10px; height: 34px; min-width: 66px; justify-content: center;
+    background: rgba(44,44,46,.78); border: 1px solid rgba(58,58,60,.55); border-radius: 12px;
+  }
+
+  /* ============ 日回放内容区 ============ */
+  .replay { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .moment { display: flex; gap: 10px; padding: 8px 16px 0; }
+  .moment .time {
+    flex: none; width: 46px; text-align: right; padding-top: 14px;
+    font-size: 11px; font-weight: 500; color: #939393;
+    font-family: "SF Pro Rounded", ui-rounded, system-ui; font-variant-numeric: tabular-nums;
+  }
+  .card {
+    flex: 1; border-radius: 18px; padding: 13px 14px;
+    background: #2C2C2E; border: 1px solid rgba(58,58,60,.58);
+  }
+  .card .top { display: flex; align-items: center; margin-bottom: 9px; }
+  .module {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700; padding: 0 8px; height: 24px; border-radius: 9px;
+  }
+  .module.finance { color: #F46D38; background: rgba(244,109,56,.10); }
+  .module.habit   { color: #22C55E; background: rgba(34,197,94,.10); }
+  .module.thought { color: #EC4899; background: rgba(236,72,153,.10); }
+  .card .count { margin-left: auto; font-size: 10px; color: #6B7280; }
+  .card .main { display: flex; align-items: baseline; gap: 8px; }
+  .card .main .name { font-size: 15px; font-weight: 600; color: #F5F5F5; }
+  .card .main .name.serif { font-family: "Songti SC", "Noto Serif SC", serif; }
+  .card .main .value {
+    margin-left: auto; font-size: 15px; font-weight: 600; color: #F46D38;
+    font-family: "SF Pro Rounded", ui-rounded, system-ui;
+  }
+  .card .ctx { margin-top: 6px; font-size: 11px; color: #939393; line-height: 1.5; }
+  .habit-pills { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
+  .habit-pills span {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 500; color: #22C55E;
+    background: rgba(34,197,94,.10); border-radius: 8px; padding: 4px 8px;
+  }
+  .hint { text-align: center; font-size: 10px; color: #4B4B4E; padding: 14px 0 0; }
+
+  .page-foot {
+    max-width: 880px; margin: 30px auto 0; font-size: 12px; color: #939393; line-height: 1.8;
+    border-top: 1px solid #2A2A2C; padding-top: 16px;
+  }
+  .page-foot b { color: #C9C9C9; }
+</style>
+</head>
+<body data-pos="f" data-open="tick">
+
+<div class="page-head">
+  <h1>记忆长廊 · 头部改版方案（含大胆版）</h1>
+  <p>左边是现状，右边是方案。两个决策点各有 A/B（常规）与 C/D（大胆）四个选项，点选即时切换。</p>
+</div>
+
+<div class="legend" style="border-color:rgba(244,109,56,.5);"><div class="legend-row" style="margin-bottom:10px;"><span class="tag">定稿</span><span><b>F 拨动开关 ＋ A 轻刻度</b> —— 已拍板组合，页面默认展示此形态。下方其余选项保留供回溯对比。</span></div>
+  <div class="legend-row"><span class="pin-inline">1</span><span><b>标题居中</b>：现状被两侧不等宽元素挤偏约 32px → 所有方案统一改为「绝对居中」，此项无选项。</span></div>
+  <div class="legend-row"><span class="pin-inline">2</span><span><b>日历/洞察切换</b> — A 标题下居中分段（常规）／ B 保留右上角（常规）／ <b>C 缩放轴</b>：日→周→月→洞察是一条连续缩放轴，双指捏合拉远、拉到最远即洞察，切换控件彻底消失（概念上最正确：洞察本来就是「拉远了看」）／ <b>D 横滑切换</b>：左右滑动翻页，只留两个小圆点当指示器。选 C 后点标尺上的档位可以预览各档形态／ <b>E 图标开关</b>：标题栏右侧两个小图标（日历/星芒），点哪个亮哪个，宽度只有原分段的六成，标题行左右接近等宽／ <b>F 拨动开关</b>：iOS 系统开关的形态，拨块上是当前视图图标，右拨到洞察、左拨回日历（原型里可以点）。</span></div>
+  <div class="legend-row"><span class="pin-inline">3</span><span><b>今日开篇</b> — A 轻刻度（一行小字）／ B 直接删（常规）／ <b>C 现在锚点</b>：一颗缓慢呼吸的橙色光点＋「现在」，像站在时间轴的此刻往回走（零信息量、全氛围）／ <b>D 活的今天</b>：零点到午夜的时间进度条＋实时统计，光标停在当前时刻——今天没走完，条就没走完，这是「还在继续」的进行时表达。</span></div>
+</div>
+
+<main class="stage">
+
+  <!-- ======================= 现状 ======================= -->
+  <div class="col">
+    <div class="col-label">现状</div>
+    <div class="phone now">
+      <div class="centerline"></div>
+      <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+
+      <div class="nav">
+        <span class="pin" style="left: 96px; top: 26px;">1</span>
+        <div class="back">‹</div>
+        <div class="nav-mid"><span class="nav-title">记忆长廊</span></div>
+        <div class="tabs" style="position:relative;"><span class="on">日历</span><span>洞察</span><i class="pin" style="right:-9px; top:-9px; transform:scale(.82);">2</i></div>
+      </div>
+
+      <div class="today-end-card" style="position:relative;">
+        <span class="pin" style="right: 8px; top: -30px;">3</span>
+        <div class="glyph">◎</div>
+        <div class="t1">今天的记忆还在继续</div>
+        <div class="t2">新的记录会继续汇入这里</div>
+      </div>
+
+      <div class="chapter">
+        <div class="big-day">23</div>
+        <div class="meta">
+          <div class="title-line"><span class="title">8月23日</span><span class="badge">今天</span></div>
+          <div class="evidence">23 条记录 · 08:12 — 22:47</div>
+        </div>
+        <div class="filter"><span>☰</span>全部</div>
+      </div>
+
+      <div class="replay">
+        <div class="moment">
+          <div class="time">08:12</div>
+          <div class="card">
+            <div class="top"><span class="module finance">¥ 记账</span><span class="count">2 条</span></div>
+            <div class="main"><span class="name">早餐 · 生煎配豆浆</span><span class="value">¥18</span></div>
+            <div class="ctx">还有一笔交通卡充值 ¥100</div>
+          </div>
+        </div>
+        <div class="moment">
+          <div class="time">09:40</div>
+          <div class="card">
+            <div class="top"><span class="module habit">✓ 习惯</span><span class="count">3 条</span></div>
+            <div class="main"><span class="name">晨间三件事</span></div>
+            <div class="habit-pills"><span>✓ 喝水</span><span>✓ 阅读</span><span>✓ 拉伸</span></div>
+          </div>
+        </div>
+        <div class="moment">
+          <div class="time">13:05</div>
+          <div class="card">
+            <div class="top"><span class="module thought">✦ 想法</span></div>
+            <div class="main"><span class="name serif">想把周末骑行路线记下来，下回走温榆河绿道</span></div>
+          </div>
+        </div>
+        <div class="hint">▲ 上滑回看更早</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= 方案 ======================= -->
+  <div class="col">
+    <div class="col-label">方案<span class="sub">选项可点选切换</span></div>
+
+    <div class="panel">
+      <div class="panel-title">决策点</div>
+      <div class="ctl-row">
+        <span class="ctl-name">切换控件</span>
+        <div class="chips" id="segPos">
+          <button data-v="a">A 居中分段</button>
+          <button data-v="b">B 右上角</button>
+          <button data-v="c">C 缩放轴<span class="mini">大胆</span></button>
+          <button data-v="d">D 横滑切换<span class="mini">大胆</span></button>
+          <button data-v="e">E 图标开关<span class="mini">小开关</span></button>
+          <button data-v="f" class="on">F 拨动开关<span class="mini">小开关</span></button>
+        </div>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-name">今日开篇</span>
+        <div class="chips" id="segOpen">
+          <button data-v="tick" class="on">A 轻刻度</button>
+          <button data-v="none">B 直接删</button>
+          <button data-v="now">C 现在锚点<span class="mini">大胆</span></button>
+          <button data-v="live">D 活的今天<span class="mini">大胆</span></button>
+        </div>
+      </div>
+      <div class="ctl-row">
+        <label class="centerline-toggle"><input type="checkbox" id="centerToggle">显示屏幕中心线（对比标题偏移）</label>
+      </div>
+    </div>
+
+    <div class="phone plan">
+      <div class="centerline"></div>
+      <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+
+      <div class="nav">
+        <span class="pin" style="left: 196px; top: 26px;">1</span>
+        <div class="back">‹</div>
+        <div class="nav-mid"><span class="nav-title">记忆长廊</span></div>
+        <div class="tabs pos-b-only"><span class="on">日历</span><span>洞察</span></div>
+        <div class="icon-switch pos-e-only" style="position:relative;" id="iconSwitch">
+          <span class="pin" style="right:-9px; top:-9px; transform:scale(.82);">2</span>
+          <button class="on" aria-label="日历"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="11.5" rx="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M1.5 6.6h13M5.2 1.4v2.9M10.8 1.4v2.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+          <button aria-label="洞察"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.6l1.35 3.5L12.9 6.5l-3.55 1.4L8 11.4 6.65 7.9 3.1 6.5l3.55-1.4z" fill="currentColor"/><path d="M12.7 10.6l.55 1.4 1.4.55-1.4.55-.55 1.4-.55-1.4-1.4-.55 1.4-.55z" fill="currentColor"/></svg></button>
+        </div>
+        <div class="toggle-switch pos-f-only" id="toggleSwitch">
+          <span class="rail l"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="11.5" rx="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M1.5 6.6h13M5.2 1.4v2.9M10.8 1.4v2.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+          <span class="rail r"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.6l1.35 3.5L12.9 6.5l-3.55 1.4L8 11.4 6.65 7.9 3.1 6.5l3.55-1.4z" fill="currentColor"/><path d="M12.7 10.6l.55 1.4 1.4.55-1.4.55-.55 1.4-.55-1.4-1.4-.55 1.4-.55z" fill="currentColor"/></svg></span>
+          <span class="knob"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="11.5" rx="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M1.5 6.6h13M5.2 1.4v2.9M10.8 1.4v2.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+        </div>
+      </div>
+      <div class="pos-f-only"><div class="switch-hint">开关在标题栏右侧 · 右拨到洞察，左拨回日历（可点）</div></div>
+
+      <!-- 方案A：标题下居中分段 -->
+      <div class="tabs-row pos-a-only" style="position:relative;">
+        <div class="tabs-lg"><span class="on">日历</span><span>洞察</span></div>
+        <span class="pin" style="left:50%; margin-left: 52px; top: 2px;">2</span>
+      </div>
+
+      <!-- 方案C：变焦标尺。标题行只剩居中标题，缩放轴是唯一的时间导航 -->
+      <div class="zoom-area pos-c-only">
+        <div class="zoom-ruler" id="zoomRuler" style="position:relative;">
+          <span class="pin" style="right: -22px; top: 0;">2</span>
+          <div class="zoom-track"></div>
+          <div class="zoom-stops">
+            <button class="zoom-stop on" data-stop="day"><span class="dot"></span><span class="lbl">日</span></button>
+            <button class="zoom-stop" data-stop="week"><span class="dot"></span><span class="lbl">周</span></button>
+            <button class="zoom-stop" data-stop="month"><span class="dot"></span><span class="lbl">月</span></button>
+            <button class="zoom-stop" data-stop="insight"><span class="dot"></span><span class="lbl">洞察</span></button>
+          </div>
+        </div>
+        <div class="zoom-caption">双指捏合拉远，沿这条轴在 日 / 周 / 月 / 洞察 之间连续缩放 —— 洞察就是「拉到最远的记忆」（点上方档位预览）</div>
+      </div>
+
+      <!-- 方案D：圆点指示器（横滑切换，控件只剩两个点） -->
+      <div class="pos-d-only">
+        <div class="dots-row" style="position:relative;">
+          <span class="pin" style="left:50%; margin-left: 34px; top: 4px;">2</span>
+          <span class="dot-pill on"></span><span class="dot-pill"></span>
+        </div>
+        <div class="swipe-hint"><span class="arr">‹</span> 左右滑动切换 日历 / 洞察 <span class="arr">›</span></div>
+      </div>
+
+      <div class="zoom-body pos-c-only" id="zoomBody" data-show="day">
+        <!-- 日档：与其它方案一致的今日内容 -->
+        <div class="zb-day">
+          <div class="open-tick-only">
+            <div class="now-divider" style="position:relative;">
+              <span class="line"></span>
+              <span class="txt">今天的记忆还在继续</span>
+              <span class="line"></span>
+              <span class="pin" style="right: 64px; top: -6px;">3</span>
+            </div>
+          </div>
+          <div class="now-anchor open-now-only">
+            <span class="pin" style="right: 118px; margin-top: 4px;">3</span>
+            <span class="pulse-dot"></span>
+            <span class="lbl">现 在</span>
+            <span class="tail"></span>
+          </div>
+          <div class="today-live open-live-only" style="position:relative;">
+            <span class="pin" style="right: -31px; top: 14px;">3</span>
+            <div class="row1">
+              <span class="name">今天</span><span class="live-badge">进行中</span>
+              <span class="stats">已记 <b>23</b> 条 · 最近一条 <b>22:47</b></span>
+            </div>
+            <div class="track"><div class="fill"></div><div class="cursor"></div></div>
+            <div class="row3"><span>00:00</span><span>现在 22:47</span><span>24:00</span></div>
+          </div>
+          <div class="chapter">
+            <div class="big-day">23</div>
+            <div class="meta">
+              <div class="title-line"><span class="title">8月23日</span><span class="badge">今天</span></div>
+              <div class="evidence">23 条记录 · 08:12 — 22:47</div>
+            </div>
+            <div class="filter"><span>☰</span>全部</div>
+          </div>
+          <div class="replay">
+            <div class="moment">
+              <div class="time">08:12</div>
+              <div class="card">
+                <div class="top"><span class="module finance">¥ 记账</span><span class="count">2 条</span></div>
+                <div class="main"><span class="name">早餐 · 生煎配豆浆</span><span class="value">¥18</span></div>
+                <div class="ctx">还有一笔交通卡充值 ¥100</div>
+              </div>
+            </div>
+            <div class="moment">
+              <div class="time">09:40</div>
+              <div class="card">
+                <div class="top"><span class="module habit">✓ 习惯</span><span class="count">3 条</span></div>
+                <div class="main"><span class="name">晨间三件事</span></div>
+                <div class="habit-pills"><span>✓ 喝水</span><span>✓ 阅读</span><span>✓ 拉伸</span></div>
+              </div>
+            </div>
+            <div class="moment">
+              <div class="time">13:05</div>
+              <div class="card">
+                <div class="top"><span class="module thought">✦ 想法</span></div>
+                <div class="main"><span class="name serif">想把周末骑行路线记下来，下回走温榆河绿道</span></div>
+              </div>
+            </div>
+            <div class="hint">▲ 上滑回看更早</div>
+          </div>
+        </div>
+
+        <!-- 周档：周网格缩略示意 -->
+        <div class="zb-week">
+          <div class="mini-grid-card">
+            <div class="cap"><b>第 34 周 · 8月17日 — 8月23日</b>泳道按模块分行 · 双指捏合继续拉远</div>
+            <div class="dot-grid" data-seed="11" data-n="60"></div>
+          </div>
+          <div class="hint">▲ 上滑回看更早的周</div>
+        </div>
+
+        <!-- 月档：月历缩略示意 -->
+        <div class="zb-month">
+          <div class="mini-grid-card">
+            <div class="cap"><b>2026年8月</b>整月一格一天 · 深浅代表当天记忆量</div>
+            <div class="dot-grid" data-seed="29" data-n="60"></div>
+          </div>
+          <div class="hint">▲ 上滑回看更早的月</div>
+        </div>
+
+        <!-- 洞察档：拉到最远的视图 -->
+        <div class="zb-insight">
+          <div class="insight-profile">
+            <h3>这个月的你</h3>
+            <p>· 睡眠比上月<b>更稳</b>，平均提前了 26 分钟入睡<br>
+               · 骑行 <b>4 次</b>，都发生在周末上午<br>
+               · 记账集中在<b>餐饮与交通</b>，占比 61%</p>
+          </div>
+          <div class="mini-grid-card">
+            <div class="cap"><b>活跃热力</b>近三个月 · 颜色越亮记录越密</div>
+            <div class="dot-grid" data-seed="7" data-n="75"></div>
+          </div>
+          <div class="hint">捏合拉到最远 = 洞察 · 张开双指回到具体的日子</div>
+        </div>
+      </div>
+
+      <!-- 非缩放轴方案（A/B/D）共用的内容区 -->
+      <div class="tabs-fallback" style="display:contents;">
+        <div class="open-tick-only">
+          <div class="now-divider" style="position:relative;">
+            <span class="line"></span>
+            <span class="txt">今天的记忆还在继续</span>
+            <span class="line"></span>
+            <span class="pin" style="right: 64px; top: -6px;">3</span>
+          </div>
+        </div>
+        <div class="now-anchor open-now-only">
+          <span class="pin" style="right: 118px; margin-top: 4px;">3</span>
+          <span class="pulse-dot"></span>
+          <span class="lbl">现 在</span>
+          <span class="tail"></span>
+        </div>
+        <div class="today-live open-live-only" style="position:relative;">
+          <span class="pin" style="right: -31px; top: 14px;">3</span>
+          <div class="row1">
+            <span class="name">今天</span><span class="live-badge">进行中</span>
+            <span class="stats">已记 <b>23</b> 条 · 最近一条 <b>22:47</b></span>
+          </div>
+          <div class="track"><div class="fill"></div><div class="cursor"></div></div>
+          <div class="row3"><span>00:00</span><span>现在 22:47</span><span>24:00</span></div>
+        </div>
+        <div class="chapter">
+          <div class="big-day">23</div>
+          <div class="meta">
+            <div class="title-line"><span class="title">8月23日</span><span class="badge">今天</span></div>
+            <div class="evidence">23 条记录 · 08:12 — 22:47</div>
+          </div>
+          <div class="filter"><span>☰</span>全部</div>
+        </div>
+        <div class="replay">
+          <div class="moment">
+            <div class="time">08:12</div>
+            <div class="card">
+              <div class="top"><span class="module finance">¥ 记账</span><span class="count">2 条</span></div>
+              <div class="main"><span class="name">早餐 · 生煎配豆浆</span><span class="value">¥18</span></div>
+              <div class="ctx">还有一笔交通卡充值 ¥100</div>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">09:40</div>
+            <div class="card">
+              <div class="top"><span class="module habit">✓ 习惯</span><span class="count">3 条</span></div>
+              <div class="main"><span class="name">晨间三件事</span></div>
+              <div class="habit-pills"><span>✓ 喝水</span><span>✓ 阅读</span><span>✓ 拉伸</span></div>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">13:05</div>
+            <div class="card">
+              <div class="top"><span class="module thought">✦ 想法</span></div>
+              <div class="main"><span class="name serif">想把周末骑行路线记下来，下回走温榆河绿道</span></div>
+            </div>
+          </div>
+          <div class="hint">▲ 上滑回看更早</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="page-foot">
+  <b>工程量分级</b>（全部纯 iOS，无后端发版）：A / B / E / F 常规，半天级——E、F 只是把现有右上角分段换成小控件＋标题改绝对居中，是改动最小的路线；D 横滑 = 分段换 TabView 分页常驻，约一天；<b>C 缩放轴最大</b>——日/周/月之间做连续捏合缩放并把洞察接成第四档，周历双指缩放已有底子但仍是一个小专项（数天级）。<br>
+  <b>E / F 的取舍</b>：E 图标开关两个状态都直接可见、可逐个点选；F 拨动开关更「开关」、动画更像 iOS 系统控件，但只显示当前态，另一个视图藏在一拨之后（发现性略弱）。两者宽度都只有 50–64pt，标题行两侧基本等宽（左返回 44pt），是「不动布局结构就解决挤标题」的最轻解。<br>
+  <b>取舍提醒</b>：C 概念最正（洞察=拉远的俯瞰），但档位多、发现性靠标尺兜底；D 最省控件但滑动与页面内上下滚动需实测手感；3C 零信息量全氛围；3D 信息量最高，进度条每分钟走一格，「还在继续」不言自明。<br>
+  · 章节头、事件卡、洞察内容均为示意，仅还原布局与配色（取自 App 深色模式真实色值）。<br>
+  · 无论选哪组，标题的绝对居中与「两视图常驻不销毁」的性能底座不变。
+</div>
+
+<script>
+  function bindChips(id, attr) {
+    var seg = document.getElementById(id);
+    if (!seg) return;
+    seg.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn || !btn.dataset.v) return;
+      var buttons = seg.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('on');
+      btn.classList.add('on');
+      document.body.setAttribute(attr, btn.dataset.v);
+    });
+  }
+  bindChips('segPos', 'data-pos');
+  bindChips('segOpen', 'data-open');
+
+  var toggle = document.getElementById('centerToggle');
+  if (toggle) {
+    toggle.addEventListener('change', function () {
+      document.body.classList.toggle('show-center', toggle.checked);
+    });
+  }
+
+  // 缩放轴：点标尺档位预览各档形态（真实交互是双指捏合）
+  var ruler = document.getElementById('zoomRuler');
+  var zoomBody = document.getElementById('zoomBody');
+  if (ruler && zoomBody) {
+    ruler.addEventListener('click', function (e) {
+      var stop = e.target.closest('[data-stop]');
+      if (!stop) return;
+      var stops = ruler.querySelectorAll('.zoom-stop');
+      for (var i = 0; i < stops.length; i++) stops[i].classList.remove('on');
+      stop.classList.add('on');
+      zoomBody.setAttribute('data-show', stop.dataset.stop);
+    });
+  }
+
+  // 点阵/热力图：确定性伪随机填色，只渲染一次
+  var grids = document.querySelectorAll('.dot-grid');
+  for (var g = 0; g < grids.length; g++) {
+    var el = grids[g];
+    var s = parseInt(el.dataset.seed || '1', 10);
+    var n = parseInt(el.dataset.n || '60', 10);
+    var html = '';
+    for (var i = 0; i < n; i++) {
+      s = (s * 9301 + 49297) % 233280;
+      var v = s / 233280;
+      var op = v < 0.45 ? 0 : (v < 0.7 ? 0.25 : (v < 0.9 ? 0.55 : 0.95));
+      html += '<i style="background:rgba(244,109,56,' + op + ')"></i>';
+    }
+    el.innerHTML = html;
+  }
+
+  // 方案E：图标开关演示（点哪个图标亮哪个，模拟切换视图）
+  var iconSwitch = document.getElementById('iconSwitch');
+  if (iconSwitch) {
+    iconSwitch.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var btns = iconSwitch.querySelectorAll('button');
+      for (var i = 0; i < btns.length; i++) btns[i].classList.remove('on');
+      btn.classList.add('on');
+    });
+  }
+
+  // 方案F：拨动开关演示（左=日历，右=洞察；拨块显示当前视图图标）
+  var toggleSwitch = document.getElementById('toggleSwitch');
+  if (toggleSwitch) {
+    toggleSwitch.addEventListener('click', function () {
+      toggleSwitch.classList.toggle('on');
+      var isInsight = toggleSwitch.classList.contains('on');
+      var knobs = toggleSwitch.querySelectorAll('.knob');
+      var rail = isInsight
+        ? '<svg viewBox="0 0 16 16" fill="none"><path d="M8 1.6l1.35 3.5L12.9 6.5l-3.55 1.4L8 11.4 6.65 7.9 3.1 6.5l3.55-1.4z" fill="currentColor"/><path d="M12.7 10.6l.55 1.4 1.4.55-1.4.55-.55 1.4-.55-1.4-1.4-.55 1.4-.55z" fill="currentColor"/></svg>'
+        : '<svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="11.5" rx="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M1.5 6.6h13M5.2 1.4v2.9M10.8 1.4v2.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+      knobs[0].innerHTML = rail;
+    });
+  }
+</script>
+</body>
+</html>

@@ -1003,10 +1003,11 @@ struct HoloLocalAgentRuntimeTests {
     }
 
     /// 跨月后用户说“上个月”时，Agent 必须查自然月上月，不能误用今天所在月。
+    /// now 固定在 7 月中旬（断言期望上月=6月），禁止用 Date()——真实时间跨月后会让断言过期。
     private static func testStartAnalysisJob_上个月问题写入上月整月时间范围() async throws {
         let dir = makeTempDir()
         let fixture = makeRuntime(dir: dir)
-        let now = Date()
+        let now = makeDate(2026, 7, 15)
 
         let job = try await fixture.runtime.startAnalysisJob(
             question: "上个月都花了 1.4 万了？钱都花哪儿去了？分析一下",
@@ -1019,10 +1020,11 @@ struct HoloLocalAgentRuntimeTests {
     }
 
     /// 用户直接说“六月/6月”时，也应确定性落到对应自然月。
+    /// now 固定在 2026 年 8 月（显式月份≠当前月，且年份断言不随真实时间漂移）。
     private static func testStartAnalysisJob_显式月份问题写入对应自然月范围() async throws {
         let dir = makeTempDir()
         let fixture = makeRuntime(dir: dir)
-        let now = Date()
+        let now = makeDate(2026, 8, 20)
 
         let job = try await fixture.runtime.startAnalysisJob(
             question: "六月都花了 1.4 万了？钱都花哪儿去了？分析一下",
@@ -1208,7 +1210,8 @@ struct HoloLocalAgentRuntimeTests {
                 "待办", "分析我2026年的待办数据，有哪些需要优化的地方？",
                 "task", "backlog_risk", "task.backlog.active_count", 12, "项",
                 "2026年截至当前有12项活跃积压待办",
-                "先清理或重新排期最旧的3项积压，再限制每天新增的高优先级任务"
+                // 建议文案不得带无证据数字（如“3项”）：V2 核验器会把无证据数字的建议整条拒绝
+                "先清理或重新排期最旧的积压项，再限制每天新增的高优先级任务"
             ),
             (
                 "目标", "分析我2026年的目标进展，有哪些需要优化的地方？",

@@ -72,7 +72,7 @@ struct ReportEmptyStateView: View {
                 .buttonStyle(.plain)
                 .padding(.top, 4)
 
-                Text("会帮你把问题填进输入框，确认后再发送")
+                Text("会帮你打开分析场景目录，选一个场景即可发起")
                     .font(.system(size: 11))
                     .foregroundColor(.holoTextSecondary.opacity(0.9))
             }

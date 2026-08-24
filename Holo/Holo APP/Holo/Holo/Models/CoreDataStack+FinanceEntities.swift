@@ -194,8 +194,11 @@ extension CoreDataStack {
         importSourceRef.isOptional = true
         attributes.append(importSourceRef)
 
+        let transactionSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        attributes.append(contentsOf: transactionSoftDelete.attributes)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
-        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef])
+        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef, "deletedAt": transactionSoftDelete.deletedAt, "deletedBatchId": transactionSoftDelete.deletedBatchId])
         
         // MARK: - Category Entity
         let categoryEntity = NSEntityDescription()
@@ -285,8 +288,11 @@ extension CoreDataStack {
         categoryTransactionsRelation.isOptional = true
         categoryTransactionsRelation.deleteRule = .nullifyDeleteRule
 
+        let categorySoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        categoryAttributes.append(contentsOf: categorySoftDelete.attributes)
+
         categoryEntity.properties = categoryAttributes + [categoryTransactionsRelation]
-        CoreDataStack.applyIndexes(to: categoryEntity, on: ["id": categoryIdAttr, "type": categoryType, "isDefault": isDefault, "sortOrder": sortOrder, "parentId": parentId, "importBatchId": categoryImportBatchId])
+        CoreDataStack.applyIndexes(to: categoryEntity, on: ["id": categoryIdAttr, "type": categoryType, "isDefault": isDefault, "sortOrder": sortOrder, "parentId": parentId, "importBatchId": categoryImportBatchId, "deletedAt": categorySoftDelete.deletedAt, "deletedBatchId": categorySoftDelete.deletedBatchId])
 
         // MARK: - Account Entity
         let accountEntity = NSEntityDescription()
@@ -423,8 +429,11 @@ extension CoreDataStack {
         accountTransactionsRelation.isOptional = true
         accountTransactionsRelation.deleteRule = .nullifyDeleteRule
 
+        let accountSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        accountAttributes.append(contentsOf: accountSoftDelete.attributes)
+
         accountEntity.properties = accountAttributes + [accountTransactionsRelation]
-        CoreDataStack.applyIndexes(to: accountEntity, on: ["id": accountIdAttr, "type": accountType, "isDefault": accountIsDefault, "sortOrder": accountSortOrder, "importBatchId": accountImportBatchId])
+        CoreDataStack.applyIndexes(to: accountEntity, on: ["id": accountIdAttr, "type": accountType, "isDefault": accountIsDefault, "sortOrder": accountSortOrder, "importBatchId": accountImportBatchId, "deletedAt": accountSoftDelete.deletedAt, "deletedBatchId": accountSoftDelete.deletedBatchId])
 
         // 绑定 Transaction 关系的目标实体（需在 Category/Account 创建后设置）
         categoryRelation.destinationEntity = categoryEntity
@@ -566,8 +575,11 @@ extension CoreDataStack {
         budgetUpdatedAt.defaultValue = Date()
         budgetAttributes.append(budgetUpdatedAt)
 
+        let budgetSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        budgetAttributes.append(contentsOf: budgetSoftDelete.attributes)
+
         budgetEntity.properties = budgetAttributes
-        CoreDataStack.applyIndexes(to: budgetEntity, on: ["id": budgetId, "accountId": budgetAccountId, "categoryId": budgetCategoryId, "period": budgetPeriod])
+        CoreDataStack.applyIndexes(to: budgetEntity, on: ["id": budgetId, "accountId": budgetAccountId, "categoryId": budgetCategoryId, "period": budgetPeriod, "deletedAt": budgetSoftDelete.deletedAt, "deletedBatchId": budgetSoftDelete.deletedBatchId])
 
         // MARK: - Spending Project Entity
         let spendingProjectEntity = NSEntityDescription()
@@ -609,11 +621,18 @@ extension CoreDataStack {
             projectAttribute("createdAt", .dateAttributeType, defaultValue: Date()),
             projectAttribute("updatedAt", .dateAttributeType, defaultValue: Date())
         ]
-        spendingProjectEntity.properties = projectAttributes
+        let projectSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        spendingProjectEntity.properties = projectAttributes + projectSoftDelete.attributes
+        let projectAttributesById: [String: NSAttributeDescription] = Dictionary(
+            projectAttributes.map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         CoreDataStack.applyIndexes(to: spendingProjectEntity, on: [
-            "id": projectAttributes.first { $0.name == "id" }!,
-            "kind": projectAttributes.first { $0.name == "kind" }!,
-            "nextOccurrenceDate": projectAttributes.first { $0.name == "nextOccurrenceDate" }!
+            "id": projectAttributesById["id"]!,
+            "kind": projectAttributesById["kind"]!,
+            "nextOccurrenceDate": projectAttributesById["nextOccurrenceDate"]!,
+            "deletedAt": projectSoftDelete.deletedAt,
+            "deletedBatchId": projectSoftDelete.deletedBatchId
         ])
 
         return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity]

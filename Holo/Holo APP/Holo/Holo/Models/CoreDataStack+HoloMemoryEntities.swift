@@ -49,7 +49,9 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("lastObservationKey", .stringAttributeType, optional: true, indexed: true),
                 attribute("recordData", .binaryDataAttributeType, defaultValue: Data()),
                 attribute("createdAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0)),
-                attribute("updatedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true)
+                attribute("updatedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true),
+                attribute("deletedAt", .dateAttributeType, optional: true, indexed: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )
     }
@@ -63,7 +65,9 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("recordID", .stringAttributeType, defaultValue: "", indexed: true),
                 attribute("lineageKey", .stringAttributeType, defaultValue: "", indexed: true),
                 attribute("evidenceData", .binaryDataAttributeType, defaultValue: Data()),
-                attribute("observedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0))
+                attribute("observedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0)),
+                attribute("deletedAt", .dateAttributeType, optional: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )
     }
@@ -76,7 +80,9 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("aliasKey", .stringAttributeType, defaultValue: "", indexed: true),
                 attribute("anchorData", .binaryDataAttributeType, defaultValue: Data()),
                 attribute("verificationSource", .stringAttributeType, defaultValue: ""),
-                attribute("verifiedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0))
+                attribute("verifiedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0)),
+                attribute("deletedAt", .dateAttributeType, optional: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )
     }
@@ -91,7 +97,9 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("status", .stringAttributeType, defaultValue: "pending", indexed: true),
                 attribute("extractorVersion", .integer64AttributeType, defaultValue: 0),
                 attribute("promptVersion", .integer64AttributeType, defaultValue: 0),
-                attribute("completedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0))
+                attribute("completedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0)),
+                attribute("deletedAt", .dateAttributeType, optional: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )
     }
@@ -106,11 +114,15 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("claimKind", .stringAttributeType, defaultValue: "", indexed: true),
                 attribute("anchorKeysJSON", .stringAttributeType, defaultValue: "[]"),
                 attribute("userDecisionVersion", .integer64AttributeType, defaultValue: 0),
-                attribute("createdAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true)
+                attribute("createdAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true),
+                attribute("deletedAt", .dateAttributeType, optional: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )
     }
 
+    // ControlStateMO 为全局运行状态单例（非用户数据），不参与软删除；
+    // 「清空所有数据」时物理重置，恢复流程不涉及，运行期按需自动重建。
     private static func controlStateEntity() -> NSEntityDescription {
         entity(
             name: "HoloMemoryControlStateMO",

@@ -324,12 +324,15 @@ struct HabitListView: View {
     }
 
     private func openRequestedHabitIfNeeded() {
-        guard let requestedHabitId,
-              habits.contains(where: { $0.id == requestedHabitId }) else {
-            return
+        guard let requestedHabitId else { return }
+        if habits.contains(where: { $0.id == requestedHabitId }) {
+            selectedHabit = HabitSelection(id: requestedHabitId)
+            self.requestedHabitId = nil
+        } else if hasLoadedOnce {
+            // 列表已加载仍找不到：习惯已被删除/清除
+            HoloToastCenter.shared.show("该习惯已被删除", type: .info)
+            self.requestedHabitId = nil
         }
-        selectedHabit = HabitSelection(id: requestedHabitId)
-        self.requestedHabitId = nil
     }
 
     // MARK: - 顶部导航栏

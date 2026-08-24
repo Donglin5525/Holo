@@ -275,10 +275,15 @@ extension CoreDataStack {
         habitGoalRelation.inverseRelationship = goalHabitsRelation
 
         goalEntity.properties.append(goalHabitsRelation)
+        let habitSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        habitAttributes.append(contentsOf: habitSoftDelete.attributes)
+        let recordSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        habitRecordAttributes.append(contentsOf: recordSoftDelete.attributes)
+
         habitEntity.properties = habitAttributes + [habitRecordsRelation, habitGoalRelation]
-        CoreDataStack.applyIndexes(to: habitEntity, on: ["id": habitId, "type": habitType, "isArchived": habitIsArchived, "sortOrder": habitSortOrder])
+        CoreDataStack.applyIndexes(to: habitEntity, on: ["id": habitId, "type": habitType, "isArchived": habitIsArchived, "sortOrder": habitSortOrder, "deletedAt": habitSoftDelete.deletedAt, "deletedBatchId": habitSoftDelete.deletedBatchId])
         habitRecordEntity.properties = habitRecordAttributes + [recordHabitRelation]
-        CoreDataStack.applyIndexes(to: habitRecordEntity, on: ["id": recordId, "habitId": recordHabitId, "date": recordDate])
+        CoreDataStack.applyIndexes(to: habitRecordEntity, on: ["id": recordId, "habitId": recordHabitId, "date": recordDate, "deletedAt": recordSoftDelete.deletedAt, "deletedBatchId": recordSoftDelete.deletedBatchId])
 
         return [habitEntity, habitRecordEntity]
     }

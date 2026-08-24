@@ -64,6 +64,7 @@ enum MemorySignalDataAdapter {
         }
 
         let request = Budget.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         let budgets = (try? FinanceRepository.shared.context.fetch(request)) ?? []
         let budgetInputs = budgets.compactMap { budget -> FinanceMemoryBudgetInput? in
             guard let status = BudgetRepository.shared.computeBudgetStatus(budget: budget) else {
@@ -168,7 +169,7 @@ enum MemorySignalDataAdapter {
             to: now
         ) ?? .distantPast
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND (completed == NO OR completedAt >= %@)",
+            format: "deletedAt == nil AND archived == NO AND (completed == NO OR completedAt >= %@)",
             completionWindowStart as NSDate
         )
         request.fetchBatchSize = 200
@@ -198,11 +199,14 @@ enum MemorySignalDataAdapter {
                 let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                 request.resultType = .dictionaryResultType
                 request.propertiesToFetch = ["id", "role", "content", "timestamp"]
-                request.predicate = NSPredicate(
-                    format: "role == %@ AND isStreaming == NO AND timestamp >= %@",
-                    "user",
-                    start as NSDate
-                )
+                request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    NSPredicate(
+                        format: "role == %@ AND isStreaming == NO AND timestamp >= %@",
+                        "user",
+                        start as NSDate
+                    ),
+                    NSPredicate(format: "deletedAt == nil")
+                ])
                 request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                 request.fetchLimit = 200
                 return try context.fetch(request).compactMap { dictionary in

@@ -53,7 +53,7 @@ class TodoRepository: ObservableObject {
     /// 没有关联文件夹的清单
     var unfiledLists: [TodoList] {
         let request = TodoList.fetchRequest()
-        request.predicate = NSPredicate(format: "folder == nil AND archived == NO")
+        request.predicate = NSPredicate(format: "folder == nil AND archived == NO AND deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return (try? context.fetch(request)) ?? []
     }
@@ -96,6 +96,7 @@ class TodoRepository: ObservableObject {
     /// 加载文件夹列表
     func loadFolders() {
         let request = TodoFolder.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
 
         do {
@@ -110,7 +111,7 @@ class TodoRepository: ObservableObject {
     func loadActiveTasks() {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO"
+            format: "deletedAt == nil AND archived == NO"
         )
         request.sortDescriptors = [
             NSSortDescriptor(key: "completed", ascending: true),
@@ -340,7 +341,7 @@ class TodoRepository: ObservableObject {
 
         // 截止时间改动后，把已调度的通知挪到新时间：先取消旧的，再按新时间重建。
         // 只改 reminders 时上面已处理；这里覆盖「只改 dueDate 没动 reminders」的情况。
-        if dueDateChanged, !task.completed, !task.deletedFlag, !task.archived, task.hasReminders {
+        if dueDateChanged, !task.completed, task.deletedAt == nil, !task.archived, task.hasReminders {
             Task {
                 await TodoNotificationService.shared.cancelReminders(for: task)
                 try? await TodoNotificationService.shared.scheduleReminder(
@@ -574,7 +575,7 @@ class TodoRepository: ObservableObject {
     /// 任务恢复活跃状态时，重新调度提醒
     /// （绝对提醒不需要截止日期；相对提醒需有截止日期才有效，scheduleReminder 内部会跳过无效项）
     private func rescheduleRemindersIfNeeded(for task: TodoTask) {
-        guard !task.completed, !task.deletedFlag, !task.archived,
+        guard !task.completed, task.deletedAt == nil, !task.archived,
               task.hasReminders else { return }
         Task {
             try? await TodoNotificationService.shared.scheduleReminder(
@@ -586,7 +587,7 @@ class TodoRepository: ObservableObject {
     /// 加载已归档任务
     func loadArchivedTasks() -> [TodoTask] {
         let request = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(format: "archived == YES AND deletedFlag == NO")
+        request.predicate = NSPredicate(format: "archived == YES AND deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
 
         do {
@@ -600,7 +601,7 @@ class TodoRepository: ObservableObject {
     /// 加载已归档清单
     func loadArchivedLists() -> [TodoList] {
         let request = TodoList.fetchRequest()
-        request.predicate = NSPredicate(format: "archived == YES")
+        request.predicate = NSPredicate(format: "archived == YES AND deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
 
         do {
@@ -727,7 +728,7 @@ class TodoRepository: ObservableObject {
     /// 通过 ID 查找任务
     func findTask(by id: UUID) -> TodoTask? {
         let request = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
         return (try? context.fetch(request).first) ?? nil
     }
@@ -754,7 +755,7 @@ class TodoRepository: ObservableObject {
     /// 通过 ID 查找清单
     func findList(by id: UUID) -> TodoList? {
         let request = TodoList.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
         return (try? context.fetch(request).first) ?? nil
     }
@@ -771,7 +772,7 @@ class TodoRepository: ObservableObject {
     func getTasks(for list: TodoList) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "list == %@ AND deletedFlag == NO AND archived == NO",
+            format: "list == %@ AND deletedAt == nil AND archived == NO",
             list as CVarArg
         )
         request.sortDescriptors = [
@@ -790,7 +791,7 @@ class TodoRepository: ObservableObject {
 
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate >= %@ AND dueDate < %@",
+            format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate >= %@ AND dueDate < %@",
             today as NSDate,
             tomorrow as NSDate
         )
@@ -803,7 +804,7 @@ class TodoRepository: ObservableObject {
 
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate < %@",
+            format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate < %@",
             now as NSDate
         )
         // Core Data 只能按存储的原始日期筛选；全天任务存的是当天 00:00，
@@ -822,7 +823,7 @@ class TodoRepository: ObservableObject {
     func getTasks(priority: TaskPriority) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND priority == %@",
+            format: "deletedAt == nil AND archived == NO AND priority == %@",
             NSNumber(value: priority.rawValue)
         )
         return (try? context.fetch(request)) ?? []
@@ -832,7 +833,7 @@ class TodoRepository: ObservableObject {
     func searchTasks(keyword: String) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "(deletedFlag == NO AND archived == NO) AND (title CONTAINS[cd] %@ OR desc CONTAINS[cd] %@ OR list.name CONTAINS[cd] %@)",
+            format: "(deletedAt == nil AND archived == NO) AND (title CONTAINS[cd] %@ OR desc CONTAINS[cd] %@ OR list.name CONTAINS[cd] %@)",
             keyword, keyword, keyword
         )
         request.sortDescriptors = [

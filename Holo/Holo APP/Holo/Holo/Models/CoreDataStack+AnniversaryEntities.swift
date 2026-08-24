@@ -138,8 +138,11 @@ extension CoreDataStack {
         updatedAt.defaultValue = Date()
         attributes.append(updatedAt)
 
+        let anniversarySoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        attributes.append(contentsOf: anniversarySoftDelete.attributes)
+
         entity.properties = attributes
-        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "isSoftDeleted": isSoftDeleted, "isPinned": isPinned])
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "isSoftDeleted": isSoftDeleted, "isPinned": isPinned, "deletedAt": anniversarySoftDelete.deletedAt, "deletedBatchId": anniversarySoftDelete.deletedBatchId])
         return entity
     }
 }

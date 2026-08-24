@@ -72,22 +72,23 @@ enum HoloAICapabilityProvider {
         return capabilities
     }
 
-    /// 输入框上方常驻能力行的入口（对话全程可见的 3 个高频能力）。
-    /// 不含「使用指南」——它属于新用户引导，归入空状态卡片。
+    /// 输入框上方常驻能力行的入口（对话全程可见）。
+    /// 顺序与原型一致（2026-08-22 东林拍板）：「深度分析」排第一——
+    /// 它是场景面板入口、本次能力显性化的主角；不含「使用指南」（新用户引导归空态卡）。
     static func persistentCapabilities(context: HoloAICapabilityProviderContext = .empty) -> [HoloAICapability] {
         return [
-            HoloAICapability(
-                id: .todayState,
-                title: "今日状态",
-                systemImage: "sun.max",
-                isEmphasized: false,
-                isEnabled: true
-            ),
             HoloAICapability(
                 id: .recentAnalysis,
                 title: "深度分析",
                 systemImage: "chart.line.uptrend.xyaxis",
                 isEmphasized: context.hasSufficientData,
+                isEnabled: true
+            ),
+            HoloAICapability(
+                id: .todayState,
+                title: "今日状态",
+                systemImage: "sun.max",
+                isEmphasized: false,
                 isEnabled: true
             ),
             HoloAICapability(

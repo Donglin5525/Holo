@@ -70,7 +70,14 @@ final class TopicRepository {
     /// 幂等创建：归一化查重命中则复用，否则新建（spec 决策 17）
     @discardableResult
     func getOrCreateTopic(title: String, sourceTerms: [String] = []) throws -> Topic {
-        if let existing = try getByTitle(title) { return existing }
+        if let existing = try getByTitle(title) {
+            // 复用软删主题时视为复活（清空想法后重新整理出同名主题）
+            if existing.deletedAt != nil {
+                existing.clearDeletedMark()
+                try? context.save()
+            }
+            return existing
+        }
         return try create(title: title, sourceTerms: sourceTerms)
     }
 
@@ -89,7 +96,10 @@ final class TopicRepository {
     /// 所有可展示主题（含用户启用的 classification），按 thoughtCount 降序
     func fetchVisibleTopics() throws -> [Topic] {
         let request = Topic.fetchRequest()
-        request.predicate = NSPredicate(format: "status IN %@", Self.visibleStatusValues)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "status IN %@", Self.visibleStatusValues),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         let topics = try context.fetch(request)
         return topics.sorted { thoughtCount(of: $0) > thoughtCount(of: $1) }
     }
@@ -97,10 +107,13 @@ final class TopicRepository {
     /// 用户明确启用、允许进入 AI 单选约束池的主题。
     func fetchClassificationTopics() throws -> [Topic] {
         let request = Topic.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "status == %@",
-            Topic.TopicStatus.classification.rawValue
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "status == %@",
+                Topic.TopicStatus.classification.rawValue
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         let topics = try context.fetch(request)
         return topics.sorted {
             if thoughtCount(of: $0) == thoughtCount(of: $1) { return $0.title < $1.title }
@@ -319,8 +332,8 @@ final class TopicRepository {
         let request = Thought.fetchRequest()
         let topicPredicate = NSPredicate(format: "ANY topics.id == %@", topicId as CVarArg)
         let deletePredicate = includeArchived
-            ? NSPredicate(format: "isSoftDeleted == NO")
-            : NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+            ? NSPredicate(format: "deletedAt == nil")
+            : NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)
@@ -331,7 +344,7 @@ final class TopicRepository {
         let request = Thought.fetchRequest()
         let topicPredicate = NSPredicate(format: "ANY topics.id == %@", topicId as CVarArg)
         let searchPredicate = NSPredicate(format: "content CONTAINS[cd] %@", query)
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, searchPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)

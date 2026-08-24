@@ -14,6 +14,7 @@ extension FinanceRepository {
     
     func getAllCategories() async throws -> [Category] {
         let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [
             NSSortDescriptor(key: "type", ascending: true),
             NSSortDescriptor(key: "sortOrder", ascending: true)
@@ -23,7 +24,10 @@ extension FinanceRepository {
     
     func getCategories(by type: TransactionType) async throws -> [Category] {
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "type == %@", type.rawValue)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "type == %@", type.rawValue),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return try context.fetch(request)
     }
@@ -31,7 +35,10 @@ extension FinanceRepository {
     /// 获取一级分类（parentId == nil）
     func getTopLevelCategories(by type: TransactionType) async throws -> [Category] {
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "type == %@ AND parentId == nil", type.rawValue)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "type == %@ AND parentId == nil", type.rawValue),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return try context.fetch(request)
     }
@@ -39,7 +46,10 @@ extension FinanceRepository {
     /// 获取指定父分类下的二级子分类
     func getSubCategories(parentId: UUID) async throws -> [Category] {
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "parentId == %@", parentId as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "parentId == %@", parentId as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return try context.fetch(request)
     }
@@ -96,11 +106,14 @@ extension FinanceRepository {
         
         // 查询指定类型、指定时间范围内的所有交易
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "date >= %@ AND category.type == %@",
-            cutoffDate as NSDate,
-            type.rawValue
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "date >= %@ AND category.type == %@",
+                cutoffDate as NSDate,
+                type.rawValue
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         
         let transactions = try context.fetch(request)
         

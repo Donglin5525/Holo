@@ -155,7 +155,7 @@ struct DailySenseStateBuilder {
     private static func fetchOverdueTaskCount(in context: NSManagedObjectContext, asOf date: Date) -> Int {
         let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "completed == NO AND deletedFlag == NO AND archived == NO AND dueDate < %@",
+            format: "completed == NO AND deletedAt == nil AND archived == NO AND dueDate < %@",
             date as CVarArg
         )
         return (try? context.count(for: request)) ?? 0
@@ -163,7 +163,7 @@ struct DailySenseStateBuilder {
 
     private static func hasAnyTasks(in context: NSManagedObjectContext) -> Bool {
         let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(format: "deletedFlag == NO AND archived == NO")
+        request.predicate = NSPredicate(format: "deletedAt == nil AND archived == NO")
         return ((try? context.count(for: request)) ?? 0) > 0
     }
 
@@ -175,7 +175,7 @@ struct DailySenseStateBuilder {
 
         let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND habit.isBadHabit == NO AND isCompleted == NO",
+            format: "date >= %@ AND date < %@ AND habit.isBadHabit == NO AND isCompleted == NO AND deletedAt == nil",
             yesterday as CVarArg,
             date as CVarArg
         )
@@ -189,7 +189,7 @@ struct DailySenseStateBuilder {
 
         let todayRequest: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
         todayRequest.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND isCompleted == YES",
+            format: "date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
             date as CVarArg,
             tomorrow as CVarArg
         )
@@ -231,7 +231,7 @@ struct DailySenseStateBuilder {
         }
 
         let habitRequest: NSFetchRequest<Habit> = Habit.fetchRequest()
-        habitRequest.predicate = NSPredicate(format: "isArchived == NO")
+        habitRequest.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
 
         let habits = (try? context.fetch(habitRequest)) ?? []
         guard !habits.isEmpty else { return (0, 0) }
@@ -252,7 +252,7 @@ struct DailySenseStateBuilder {
         if habit.isCheckInType {
             let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
             request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
                 habit.id as CVarArg,
                 todayStart as CVarArg,
                 tomorrow as CVarArg
@@ -265,7 +265,7 @@ struct DailySenseStateBuilder {
 
         let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil AND deletedAt == nil",
             habit.id as CVarArg,
             todayStart as CVarArg,
             tomorrow as CVarArg
@@ -340,7 +340,7 @@ struct DailySenseStateBuilder {
 
         let request: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND type == %@",
+            format: "date >= %@ AND date < %@ AND type == %@ AND deletedAt == nil",
             weekStart as CVarArg,
             tomorrow as CVarArg,
             "expense"

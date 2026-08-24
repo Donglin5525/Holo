@@ -14,6 +14,7 @@ extension FinanceRepository {
 
     func getAllAccounts() async throws -> [Account] {
         let request = Account.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [
             NSSortDescriptor(key: "isDefault", ascending: false),
             NSSortDescriptor(key: "sortOrder", ascending: true)
@@ -25,7 +26,12 @@ extension FinanceRepository {
     func getAccounts(includeArchived: Bool = false) -> [Account] {
         let request = Account.fetchRequest()
         if !includeArchived {
-            request.predicate = NSPredicate(format: "isArchived == false")
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "isArchived == false"),
+                NSPredicate(format: "deletedAt == nil")
+            ])
+        } else {
+            request.predicate = NSPredicate(format: "deletedAt == nil")
         }
         request.sortDescriptors = [
             NSSortDescriptor(key: "isDefault", ascending: false),
@@ -169,7 +175,8 @@ extension FinanceRepository {
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "account == %@", account),
-            FinanceTransactionOccurrencePolicy.occurredPredicate()
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
         ])
 
         guard let transactions = try? context.fetch(request) else {
@@ -198,7 +205,8 @@ extension FinanceRepository {
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "date < %@", date as NSDate),
-            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date()))
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date())),
+            NSPredicate(format: "deletedAt == nil")
         ])
 
         guard let transactions = try? context.fetch(request) else {
@@ -316,12 +324,15 @@ extension FinanceRepository {
     /// 获取账户在某时间范围内的收支统计（用于账单周期统计）
     func getAccountSummary(accountId: UUID, from start: Date, to end: Date) -> (income: Decimal, expense: Decimal, net: Decimal) {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "account.id == %@ AND date >= %@ AND date < %@",
-            accountId as CVarArg,
-            start as NSDate,
-            end as NSDate
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "account.id == %@ AND date >= %@ AND date < %@",
+                accountId as CVarArg,
+                start as NSDate,
+                end as NSDate
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
 
         guard let transactions = try? context.fetch(request) else {
             return (0, 0, 0)
@@ -346,10 +357,14 @@ extension FinanceRepository {
         return getAccountSummary(accountId: accountId, from: range.start, to: range.end)
     }
 
-    /// 获取账户的交易列表
+    /// 获取账户的交易列表（只含已发生流水：未来分期期次不展示，与余额口径一致）
     func getAccountTransactions(accountId: UUID, from: Date? = nil, to: Date? = nil) -> [Transaction] {
         let request = Transaction.fetchRequest()
-        var predicates = [NSPredicate(format: "account.id == %@", accountId as CVarArg)]
+        var predicates = [
+            NSPredicate(format: "account.id == %@", accountId as CVarArg),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
+        ]
 
         if let from = from {
             predicates.append(NSPredicate(format: "date >= %@", from as NSDate))
@@ -366,7 +381,10 @@ extension FinanceRepository {
     /// 获取账户最近一笔交易的日期
     func getAccountLastTransactionDate(_ account: Account) -> Date? {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "account == %@", account)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account == %@", account),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = 1
         return (try? context.fetch(request))?.first?.date

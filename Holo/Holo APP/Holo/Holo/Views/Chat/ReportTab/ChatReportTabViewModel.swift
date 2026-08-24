@@ -38,6 +38,12 @@ final class ChatReportTabViewModel: ObservableObject {
     /// 待删除的报告（驱动确认弹窗）
     @Published var pendingDeleteEntry: ReportArchiveDTO?
 
+    // MARK: - 收藏
+
+    /// 收藏总数（入口条计数）。独立于分页加载的 entries——档案只翻了前几页时
+    /// 计数也不能少报。
+    @Published private(set) var favoritesCount = 0
+
     // MARK: - 红点
 
     /// 正在生成的深度分析消息。数据源是 ChatViewModel 的消息流（持久化 streaming
@@ -54,6 +60,10 @@ final class ChatReportTabViewModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var didBind = false
     private let pageSize = 20
+
+    /// 报告 Tab 视图树内的子页面（收藏夹）需要追问能力时取用；
+    /// 未 bind（理论不可达）为 nil，追问条自动降级隐藏。
+    var boundChatViewModel: ChatViewModel? { chatViewModel }
 
     // MARK: - 绑定聊天页
 
@@ -87,10 +97,13 @@ final class ChatReportTabViewModel: ObservableObject {
     func reload() async {
         isLoading = true
         defer { isLoading = false }
-        let fresh = await repository.loadReportArchiveAsync(limit: pageSize, offset: 0)
-        entries = fresh
+        async let fresh = repository.loadReportArchiveAsync(limit: pageSize, offset: 0)
+        async let favorites = repository.countFavoriteReportsAsync()
+        let (reports, count) = await (fresh, favorites)
+        entries = reports
+        favoritesCount = count
         hasLoadedOnce = true
-        reachedEnd = fresh.count < pageSize
+        reachedEnd = reports.count < pageSize
     }
 
     /// 上滑加载下一页（由列表末项出现触发）。
@@ -104,6 +117,23 @@ final class ChatReportTabViewModel: ObservableObject {
         entries += more.filter { !knownIDs.contains($0.id) }
     }
 
+    // MARK: - 场景筛选
+
+    /// nil = 全部。筛选作用于非搜索态的档案展示（搜索态按关键词优先）。
+    @Published var selectedScenarioFilter: ReportScenarioTag?
+
+    /// 当前档案中实际存在的场景（按固定顺序），驱动筛选行动态出链
+    var availableScenarioFilters: [ReportScenarioTag] {
+        let present = Set(entries.map(\.scenarioTag))
+        return ReportScenarioTag.allCases.filter { present.contains($0) && $0 != .general }
+    }
+
+    /// 筛选后的展示集（月份分组以此为准）
+    var displayEntries: [ReportArchiveDTO] {
+        guard let filter = selectedScenarioFilter else { return entries }
+        return entries.filter { $0.scenarioTag == filter }
+    }
+
     // MARK: - 月份分组
 
     /// 非搜索态的档案按月份分组（「档案越来越厚」的视觉节奏）。
@@ -112,7 +142,7 @@ final class ChatReportTabViewModel: ObservableObject {
         formatter.dateFormat = "yyyy年M月"
         var order: [String] = []
         var buckets: [String: [ReportArchiveDTO]] = [:]
-        for entry in entries {
+        for entry in displayEntries {
             let label = formatter.string(from: entry.timestamp)
             if buckets[label] == nil { order.append(label) }
             buckets[label, default: []].append(entry)
@@ -133,8 +163,8 @@ final class ChatReportTabViewModel: ObservableObject {
             lastExecutedSearchKeyword = ""
             return
         }
-        searchCancellable = Future { [weak self] promise in
-            Task { @MainActor [weak self] in
+        searchCancellable = Future { promise in
+            Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 promise(.success(()))
             }
@@ -163,7 +193,36 @@ final class ChatReportTabViewModel: ObservableObject {
     func deleteReport(_ entry: ReportArchiveDTO) {
         entries.removeAll { $0.id == entry.id }
         searchResults.removeAll { $0.id == entry.id }
+        if entry.isFavorited {
+            favoritesCount = max(0, favoritesCount - 1)
+        }
         repository.deleteReportMessages(reportMessageID: entry.id)
+    }
+
+    // MARK: - 收藏
+
+    /// 收藏/取消：界面先亮（乐观更新），再落库回填真实时间。
+    /// 可逆操作不打断——无弹窗、无确认。
+    func toggleFavorite(_ entry: ReportArchiveDTO) {
+        let target = !entry.isFavorited
+        applyFavoriteChange(messageID: entry.id, favoritedAt: target ? Date() : nil)
+        let persisted = repository.setReportFavorited(target, reportMessageID: entry.id)
+        applyFavoriteChange(messageID: entry.id, favoritedAt: persisted)
+        favoritesCount = max(0, favoritesCount + (target ? 1 : -1))
+    }
+
+    /// 删除报告后由收藏夹侧同步计数（收藏夹删光时入口条要收起）。
+    func refreshFavoritesCount() async {
+        favoritesCount = await repository.countFavoriteReportsAsync()
+    }
+
+    private func applyFavoriteChange(messageID: UUID, favoritedAt: Date?) {
+        if let index = entries.firstIndex(where: { $0.id == messageID }) {
+            entries[index].favoritedAt = favoritedAt
+        }
+        if let index = searchResults.firstIndex(where: { $0.id == messageID }) {
+            searchResults[index].favoritedAt = favoritedAt
+        }
     }
 
     // MARK: - 红点

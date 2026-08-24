@@ -179,10 +179,29 @@ struct DomainMemorySection: View {
         }
     }
 
+    /// 分组顺序按「组内最新一条记忆的更新时间」倒序：最新变化的领域排最前，
+    /// 用户从上往下看就是从新到旧，不再被固定枚举顺序（财务常驻第一组）淹没。
+    /// 时间并列时显式回退枚举声明顺序（Swift sort 不保证稳定）。
     private var nonemptyGroups: [HoloMemoryDisplayGroup] {
-        HoloMemoryDisplayGroup.allCases.filter { group in
-            currentRecords.contains { HoloMemoryDisplayGroup.group(for: $0) == group }
-        }
+        HoloMemoryDisplayGroup.allCases
+            .enumerated()
+            .filter { _, group in
+                currentRecords.contains { HoloMemoryDisplayGroup.group(for: $0) == group }
+            }
+            .sorted { lhs, rhs in
+                let l = latestUpdatedAt(in: lhs.element)
+                let r = latestUpdatedAt(in: rhs.element)
+                return l == r ? lhs.offset < rhs.offset : l > r
+            }
+            .map(\.element)
+    }
+
+    private func latestUpdatedAt(in group: HoloMemoryDisplayGroup) -> Date {
+        currentRecords
+            .lazy
+            .filter { HoloMemoryDisplayGroup.group(for: $0) == group }
+            .map(\.updatedAt)
+            .max() ?? .distantPast
     }
 
     private var pendingRecords: [HoloMemoryRecord] {
@@ -208,7 +227,7 @@ struct DomainMemorySection: View {
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
-                Text("\(groupRecords.count) 条")
+                Text(Self.groupMetaText(count: groupRecords.count, latest: latestUpdatedAt(in: group)))
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextPlaceholder)
             }
@@ -217,6 +236,15 @@ struct DomainMemorySection: View {
                 memoryCard(record)
             }
         }
+    }
+
+    /// 组头摘要：条数 + 组内最新一条的更新日期，排序改为时间倒序后这是「新的在上面」的直接线索。
+    private static func groupMetaText(count: Int, latest: Date) -> String {
+        guard latest != .distantPast else { return "\(count) 条" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(count) 条 · \(formatter.string(from: latest))更新"
     }
 
     private func specialMemoryGroup(

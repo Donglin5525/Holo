@@ -81,7 +81,8 @@ final class MemoryInsightRepository {
             NSPredicate(
                 format: "status IN %@",
                 [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
-            )
+            ),
+            NSPredicate(format: "deletedAt == nil")
         ])
         request.fetchLimit = 1
         return (try? context.fetch(request))?.first
@@ -96,13 +97,16 @@ final class MemoryInsightRepository {
         }
 
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "periodType == %@ AND periodStart >= %@ AND periodStart <= %@ AND status IN %@",
-            MemoryInsightPeriodType.monthly.rawValue,
-            yearStart as CVarArg,
-            yearEnd as CVarArg,
-            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "periodType == %@ AND periodStart >= %@ AND periodStart <= %@ AND status IN %@",
+                MemoryInsightPeriodType.monthly.rawValue,
+                yearStart as CVarArg,
+                yearEnd as CVarArg,
+                [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
 
         return (try? context.fetch(request)) ?? []
@@ -209,11 +213,14 @@ final class MemoryInsightRepository {
     /// 取最新一条可展示洞察（严格只含 ready/stale）。
     func fetchLatestReadyInsight(periodType: MemoryInsightPeriodType) -> MemoryInsight? {
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "periodType == %@ AND status IN %@",
-            periodType.rawValue,
-            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "periodType == %@ AND status IN %@",
+                periodType.rawValue,
+                [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
         request.fetchLimit = 1
         return (try? context.fetch(request))?.first
@@ -361,11 +368,11 @@ final class MemoryInsightRepository {
         if let version = promptVersion {
             let versionPredicate = NSPredicate(format: "promptVersion == %d", version)
             request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                basePredicate, stagePredicate, versionPredicate
+                basePredicate, stagePredicate, versionPredicate, NSPredicate(format: "deletedAt == nil")
             ])
         } else {
             request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                basePredicate, stagePredicate
+                basePredicate, stagePredicate, NSPredicate(format: "deletedAt == nil")
             ])
         }
 
@@ -382,11 +389,14 @@ final class MemoryInsightRepository {
         limit: Int = 3
     ) -> [MemoryInsight] {
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "status == %@ AND periodStart < %@",
-            MemoryInsightStatus.ready.rawValue,
-            currentStart as CVarArg
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "status == %@ AND periodStart < %@",
+                MemoryInsightStatus.ready.rawValue,
+                currentStart as CVarArg
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: false)]
         request.fetchLimit = limit
         return (try? context.fetch(request)) ?? []
@@ -396,10 +406,13 @@ final class MemoryInsightRepository {
     /// 用于老用户首次升级时的累计摘要回填（backfill）。
     func fetchAllReadyInsightsAcrossPeriods() -> [MemoryInsight] {
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "status == %@",
-            MemoryInsightStatus.ready.rawValue
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "status == %@",
+                MemoryInsightStatus.ready.rawValue
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
         return (try? context.fetch(request)) ?? []
     }

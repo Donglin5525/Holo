@@ -13,7 +13,7 @@ import CoreData
 
 /// 实体类别，用于统一解析 linkedEntityId
 nonisolated enum EntityCategory: Hashable, Sendable, CaseIterable {
-    case finance, task, habit, thought, memoryInsight, goal
+    case finance, task, habit, thought, memoryInsight, goal, anniversary
 }
 
 // MARK: - MetadataState
@@ -495,6 +495,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .thought: return [.createNote]
         case .memoryInsight: return [.generateMemoryInsight]
         case .goal: return []
+        case .anniversary: return [.createAnniversary, .updateAnniversary]
         }
     }
 
@@ -508,6 +509,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .thought: key = "thoughtId"
         case .memoryInsight: key = "entityId"
         case .goal: key = "goalId"
+        case .anniversary: key = "anniversaryId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)
@@ -601,6 +603,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .checkIn: return .habit
         case .createNote: return .thought
         case .generateMemoryInsight: return .memoryInsight
+        case .createAnniversary, .updateAnniversary: return .anniversary
         default: return nil
         }
     }
@@ -615,6 +618,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .thought: key = "thoughtId"
         case .memoryInsight: key = "entityId"
         case .goal: key = "goalId"
+        case .anniversary: key = "anniversaryId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)

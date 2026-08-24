@@ -1,99 +1,50 @@
 # Holo App Store Preflight Report
 
-更新时间：2026-07-06
+更新时间：2026-08-25
 
 ## 结论
 
-当前状态：Conditional Go。
+当前状态：**代码侧 Go，提交操作侧 Conditional Go**。
 
-本地 Release 无签名构建已通过，但 App Store Connect 元数据、真机录屏、截图、signed Archive/TestFlight、区域策略和最终隐私标签仍需要提交前补齐。代码侧本轮已把隐私政策口径、AI 数据处理授权和高风险数据处理说明先收紧。
+1.0（21）已在本地完成 Release 真机配置无签名构建。1.0（18）的两项拒审问题均有明确处理：Holo Plus 付费墙层级已修复；健康页已在界面中明确标识 Apple Health 及只读用途。真正重新提交前仍必须完成 signed Archive/TestFlight、真机 Sandbox 内购、Apple Health 录屏、App Review Notes 附件与 CloudKit Production schema 部署。
 
 ## Rejections Found
 
-### 1. Guideline 2.1 - Review Notes 尚未最终完成
+### 1. Guideline 2.1(b) - Holo Plus 真机 Sandbox 尚未验收
 
-状态：未完成，需人工补材料。
+状态：代码已修复，真机验证待完成。
 
-原因：新 app 提交需要提供真机录屏、产品用途、访问步骤、外部服务、区域差异和高敏功能说明。
-
-操作路径：
-
-1. 打开 App Store Connect。
-2. 进入 Holo app。
-3. 进入当前版本。
-4. 打开 App Review Information / Notes。
-5. 参考 `docs/app-store/review-notes-and-metadata.md` 填写。
-6. 替换真实真机录屏链接。
-
-### 2. Guideline 2.3 - App Store 元数据未能本地核实
-
-状态：未完成，需人工填 ASC。
-
-原因：本机没有 `asc` CLI，仓库也没有本地 metadata 包，无法核实截图、隐私 URL、Support URL、描述、关键词、年龄分级和销售范围。
+已修复：会员中心当前可见层级直接展示付费墙，避免嵌套 sheet 与 App 根视图全屏展示冲突。付费墙具备商品名称、价格/周期、自动续订说明、恢复购买、隐私政策与 Apple 标准条款入口。
 
 操作路径：
 
-1. App Store Connect -> My Apps -> Holo。
-2. App Store -> App Information。
-3. 填 App Name、Subtitle、Category、Content Rights。
-4. App Store -> 当前版本 -> Version Information。
-5. 填 Description、Keywords、Support URL、Marketing URL、Copyright。
-6. App Privacy -> 填隐私标签。
+1. 在 App Store Connect 确认 Paid Apps Agreement 为 In Effect，订阅商品资料完整并随本次提交。
+2. 真机安装 TestFlight build 21，进入「个人 → Holo Plus → 升级 Holo Plus」。
+3. 确认商品可加载、价格与周期正确，并至少完成一次 Sandbox 购买和一次恢复购买。
+4. 录屏保留点击入口、付费墙打开和商品加载过程。
 
-### 3. Guideline 5.1.2 - 第三方 AI 数据处理需要明确同意
+### 2. Guideline 2.5.1 - Apple Health 真机录屏尚未附加
 
-状态：本轮已补代码，仍需真机验证。
+状态：界面标识已核对，真机证据待完成。
 
-已做：
-
-- 新增 AI 数据处理授权状态。
-- HoloAI 聊天入口未同意时不发送。
-- HoloBackend AI 网关调用未同意时不发送。
-- HoloBackend ASR 语音识别未同意时不上传音频。
-- AI 设置页新增“允许 AI 数据处理”开关。
-
-验证路径：
-
-1. 新装或清理 App 数据。
-2. 不开启授权，进入 HoloAI 发送消息，应看到授权提示且不发起 AI 请求。
-3. 进入 设置 -> AI 助手 -> 允许 AI 数据处理。
-4. 再次使用 HoloAI，应允许请求。
-5. 关闭授权，再测试语音转文字和 AI 洞察，应停止外部调用。
-
-### 4. Guideline 5.1.1 - 隐私政策与后端日志口径需一致
-
-状态：本轮已修文案，仍需发布网页版本。
-
-已做：
-
-- 网页隐私政策改为“不主动保存原始请求正文/语音音频/完整上下文作为用户资料”。
-- App 内隐私政策同步同一口径。
-- 明确服务器会保存最小化技术日志或摘要，用于安全、限流和排障。
-- 明确默认不保存完整原文，并按后台配置定期清理。
-
-后续操作：
-
-1. 将 `docs/privacy-policy.html` 发布到 `https://holoapp.cn/privacy`。
-2. 确认 App Store Connect 的 Privacy Policy URL 指向最新版本。
-3. App Privacy labels 与该文案保持一致。
-
-### 5. Guideline 5.1.3 - HealthKit 与 iCloud 风险需继续真机和数据链路核实
-
-状态：代码口径已收紧，提交前仍需复核。
-
-当前判断：
-
-- HealthKit 读取是用户授权后只读。
-- Holo 不写入 Apple Health。
-- 健康洞察缓存使用本地 Caches 文件，不进入 Core Data CloudKit 主库。
-- Memory Insight 的健康上下文在 Release 默认关闭的 feature flag 下不启用，但提交前仍要确认线上 build 没有手动打开。
+界面当前可见「连接 Apple Health」「授权后只读同步步数、睡眠和活动数据」「健康数据由 Apple Health 提供」。无需把整个模块改名为「Apple 健康」；关键是审核员能在功能入口和授权前页面看见数据来源与用途。
 
 操作路径：
 
-1. 检查 Release 环境下 `InsightFeatureFlags.healthContextEnabled` 是否保持默认关闭或明确不写入 CloudKit。
-2. 真机授权 Apple Health 后验证健康页面只读展示。
-3. 断网和未授权情况下验证不会崩溃。
-4. 在 Review Notes 里明确：不写入 HealthKit、不将原始 HealthKit 数据写入 Holo iCloud 数据库、不提供医疗诊断。
+1. 真机打开「首页 → 健康 → 连接 Apple Health」。
+2. 录制页面标识、系统授权页、授权后的只读健康数据展示。
+3. 把无需登录的录屏链接填入 App Review Information → Notes。
+4. 使用 `docs/app-store/review-notes-and-metadata.md` 顶部的重新提交说明回复审核员。
+
+### 3. App Store Connect 元数据未能从本机自动核实
+
+状态：需人工核对。
+
+本机没有 `asc` CLI，无法读取 App Store Connect 中的截图、隐私标签、URL、年龄分级和销售范围。提交前人工核对 Support URL、Privacy Policy URL、版本描述、关键词、截图、App Privacy 与销售区域。
+
+### 4. CloudKit Production schema 待部署
+
+本次数据管理/回收站为多类 Core Data 实体新增软删除字段和 `RecycleBinBatch`。上传前按 `docs/appstore-preflight/CloudKit-schema部署指南.md` 将 Development schema 部署到 Production，并确认 Production 中的新字段和 Record Type 已出现。
 
 ## Warnings
 
@@ -156,7 +107,13 @@ xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configurat
 BUILD SUCCEEDED
 ```
 
-### 2. 基础合规能力
+### 2. 自动化测试
+
+- App 锁定向单元测试：7 项，0 失败。
+- 完整单元测试：跳过会长时间不结束的 `HoloLocalAgentRuntimeTests` 桥接用例后，实际执行 767 项，0 失败。
+- `HoloTests` 与 `HoloUITests` 测试目标均已编译成功；UI 验收脚本依赖预置数据，本轮未把“编译成功”写成“UI 路径已真机通过”。
+
+### 3. 基础合规能力
 
 已具备：
 
@@ -172,15 +129,15 @@ BUILD SUCCEEDED
 
 ## 提交前最终清单
 
+- [ ] 将本次 Core Data/回收站新增字段部署到 CloudKit Production schema。
+- [ ] 用最终提交 commit 生成 signed Archive，并上传 TestFlight build 21。
+- [ ] 真机验证「升级 Holo Plus」可打开付费墙、加载 Sandbox 商品、完成购买和恢复购买。
+- [ ] 真机录制「首页 → 健康 → 连接 Apple Health → 系统授权 → 只读数据展示」。
+- [ ] 将公开录屏链接写入 App Review Information → Notes，并用拒审回复模板回复审核员。
 - [ ] 发布最新 `docs/privacy-policy.html` 到线上隐私政策 URL。
 - [ ] 在 App Store Connect 填 Support URL 和 Privacy Policy URL。
 - [ ] 确认 App Privacy labels 与实际数据处理一致。
 - [ ] 选择是否上中国大陆。
 - [ ] 准备真机截图。
-- [ ] 准备真机审核录屏链接。
-- [ ] 将 `docs/app-store/review-notes-and-metadata.md` 中的 TODO 全部替换。
-- [ ] Xcode signed Archive。
-- [ ] 上传 TestFlight。
 - [ ] 真机完整走查 Sign in with Apple、AI 授权、HoloAI、语音、HealthKit、iCloud、删除账号与数据。
 - [ ] 审核期间保持 `https://api.holoapp.cn` 后端稳定在线。
-

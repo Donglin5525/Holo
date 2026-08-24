@@ -405,7 +405,16 @@ struct HoloAgentAnswerPresentationStandaloneTests {
         expect(result.headline?.contains("优化建议") == true, "标题必须体现用户要的是优化")
         expect(result.recommendations?.count == 1, "建议必须进入类型化列表")
         expect(result.recommendations?.first?.title == "优先复核餐饮支出", "建议标题应提炼动作")
-        expect(result.sections.contains { $0.kind == "observation" }, "建议后仍要保留事实依据")
+        // 诊断层级（applyingDiagnosisHierarchy）：事实 claim 与开篇重复时不再单独成卡，
+        // 事实依据改由开篇正文/证据引用承载——这里验证事实仍对用户可见，不绑定承载位置。
+        let visibleFacts = ([result.directAnswer, result.coverageText].compactMap { $0 }
+            + result.sections.flatMap { [$0.title, $0.body] }
+            + result.evidenceReferences.map(\.summary))
+            .joined(separator: " ")
+        expect(
+            result.sections.contains { $0.kind == "observation" } || visibleFacts.contains("14598.83"),
+            "建议后仍要保留事实依据"
+        )
     }
 
     private static func test年度财务事故统一上下文() {

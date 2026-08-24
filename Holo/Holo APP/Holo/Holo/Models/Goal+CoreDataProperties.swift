@@ -98,13 +98,13 @@ extension Goal {
 
     var sortedTasks: [TodoTask] {
         (tasks?.allObjects as? [TodoTask] ?? [])
-            .filter { !$0.deletedFlag && !$0.archived }
+            .filter { $0.deletedAt == nil && !$0.archived }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
     var sortedHabits: [Habit] {
         (habits?.allObjects as? [Habit] ?? [])
-            .filter { !$0.isArchived }
+            .filter { $0.deletedAt == nil && !$0.isArchived }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 

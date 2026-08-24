@@ -24,12 +24,34 @@ struct ReportArchiveCard: View {
                 HStack(spacing: 7) {
                     kindBadge
 
+                    // 场景徽标（回放/其他不另显：回放类型徽标已表明，其他无场景可言）
+                    if entry.scenarioTag != .replay && entry.scenarioTag != .general {
+                        Text(entry.scenarioTag.label)
+                            .font(.system(size: 10.5, weight: .bold))
+                            .foregroundColor(entry.scenarioTag.badgeColors.foreground)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2.5)
+                            .background(entry.scenarioTag.badgeColors.background, in: Capsule())
+                    }
+
                     Text(entry.scopeLabel ?? "自定义范围")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
 
                     Spacer(minLength: 6)
+
+                    // 追问产物徽标：档案平铺里区分「根报告」与「追问出的报告」
+                    if entry.isFollowUp {
+                        followUpBadge
+                    }
+
+                    if entry.isFavorited {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color.holoStarTint)
+                            .accessibilityLabel("已收藏")
+                    }
 
                     Text(Self.dateText(entry.timestamp))
                         .font(.system(size: 11, weight: .medium))
@@ -100,6 +122,17 @@ struct ReportArchiveCard: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 2.5)
             .background(accentColor.opacity(0.10), in: Capsule())
+    }
+
+    /// 追问徽标：这份报告是某次追问的产物（如「继续深挖」出的报告）。
+    /// 双模式配色（holoFollowUpTint），深色模式下依然可读。
+    private var followUpBadge: some View {
+        Text("追问")
+            .font(.system(size: 10.5, weight: .bold))
+            .foregroundColor(Color.holoFollowUpTint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2.5)
+            .background(Color.holoFollowUpTint.opacity(0.14), in: Capsule())
     }
 
     private static func countsText(_ entry: ReportArchiveDTO) -> String {

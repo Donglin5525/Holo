@@ -20,7 +20,7 @@ import Combine
 struct MatchKeyWrapper: Identifiable, Equatable {
     let id: String
     init(_ key: String) { self.id = key }
-    static func == (lhs: MatchKeyWrapper, rhs: MatchKeyWrapper) { lhs.id == rhs.id }
+    static func == (lhs: MatchKeyWrapper, rhs: MatchKeyWrapper) -> Bool { lhs.id == rhs.id }
 }
 
 /// 账单导入的 AI 处理阶段

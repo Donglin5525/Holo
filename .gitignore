@@ -51,6 +51,8 @@ Holo/Holo APP/Holo/build/
 
 # 生成的截图与原型资源
 artifacts/*.png
+/accept_r5/
+/.accept_r5/
 
 # 临时数据
 docs/Temporarydata/

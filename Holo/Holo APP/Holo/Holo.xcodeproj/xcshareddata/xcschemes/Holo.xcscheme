@@ -53,6 +53,16 @@
                ReferencedContainer = "container:Holo.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FE1000000000000000000008"
+               BuildableName = "HoloUITests.xctest"
+               BlueprintName = "HoloUITests"
+               ReferencedContainer = "container:Holo.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
