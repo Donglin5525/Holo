@@ -4,20 +4,20 @@
 
 ---
 
-## [2026-08-25] App Review 拒审修复——Holo Plus 升级入口恢复响应 + build 19
+## [2026-08-25] App Review 拒审修复——Holo Plus 升级入口恢复响应 + build 21
 
 ### 背景
 - App Review 在 1.0（18）指出两项问题：点击「升级 Holo Plus」无响应（2.1(b)），以及使用 HealthKit 但审核员未在界面中确认到 Apple Health 功能标识（2.5.1）。
 
 ### 改动
 - **修复 Holo Plus 付费墙展示层级**：会员中心本身位于「个人」sheet 内，原实现却让 App 根视图再弹全屏付费墙，系统展示层级冲突时用户看到的就是按钮无响应。现改为由会员中心当前可见层级直接展示 `HoloPlusPaywallView`，购买激活后自动关闭。
-- **提审版本升级为 1.0（19）**：主 App 与 Widget 的 Debug/Release build number 统一从 18 升至 19，满足拒审后二进制重新上传要求。
+- **提审版本升级为 1.0（21）**：主 App 与 Widget 的 Debug/Release build number 统一调整为 21，避开 TestFlight 已存在的 19/20 构建号，满足拒审后二进制重新上传要求。
 - **健康模块名称保持「健康」**：不做误导性的模块改名；现有界面已明确展示「连接 Apple Health」「授权后只读同步步数、睡眠和活动数据」「健康数据由 Apple Health 提供」，重新提交时用真机录屏向审核员展示路径。
 
 ### 验证
 - iPhone 17 Pro 模拟器实测「个人 → Holo Plus → 升级 Holo Plus」可立即打开付费墙并正常关闭；Swift 语法解析和 scoped diff check 通过。
-- iOS Debug Simulator 构建成功；iOS Release 真机配置无签名构建成功，产物核对为 `CFBundleShortVersionString=1.0`、`CFBundleVersion=19`，Privacy Manifest 随包存在。
-- 尚需上传 build 19 后在 TestFlight 真机完成 App Store Sandbox 商品加载/购买/恢复购买，以及 Apple Health 授权路径录屏；这两项未用模拟器结果冒充。纯客户端改动，**无需后端发版**。
+- iOS Debug Simulator 构建成功；iOS Release 真机配置无签名构建成功。此次仅调整 build number，Xcode Release 构建设置已核对为 `MARKETING_VERSION=1.0`、`CURRENT_PROJECT_VERSION=21`，Privacy Manifest 随包存在。
+- 尚需上传 build 21 后在 TestFlight 真机完成 App Store Sandbox 商品加载/购买/恢复购买，以及 Apple Health 授权路径录屏；这两项未用模拟器结果冒充。纯客户端改动，**无需后端发版**。
 
 ---
 
