@@ -11,6 +11,7 @@ import SwiftUI
 struct HoloMembershipCenterView: View {
     @ObservedObject private var entitlementState = HoloEntitlementState.shared
     @Environment(\.openURL) private var openURL
+    @State private var isPaywallPresented = false
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -40,6 +41,16 @@ struct HoloMembershipCenterView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await HoloSubscriptionService.shared.refreshStatus()
+        }
+        // 会员中心位于「个人」sheet 内，付费墙必须由当前可见层级发起。
+        // 交给 App 根视图弹出会被既有 sheet 挡住，表现为按钮点击无响应。
+        .fullScreenCover(isPresented: $isPaywallPresented) {
+            HoloPlusPaywallView(context: .membershipCenter)
+        }
+        .onChange(of: entitlementState.isPlusActive) { _, isPlusActive in
+            if isPlusActive {
+                isPaywallPresented = false
+            }
         }
     }
 
@@ -197,7 +208,7 @@ struct HoloMembershipCenterView: View {
                 }
                 openURL(url)
             } else {
-                HoloPlusActionCoordinator.shared.requirePlus(context: .membershipCenter)
+                isPaywallPresented = true
             }
         } label: {
             Text(entitlementState.isPlusActive ? "管理会员" : "升级 Holo Plus")
