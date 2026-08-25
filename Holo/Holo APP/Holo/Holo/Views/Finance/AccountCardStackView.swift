@@ -87,18 +87,23 @@ struct AccountCardStackView: View {
                         .allowsHitTesting(false)
                         .offset(y: stackOffset(index) + (appeared ? 0 : -26))
                         .opacity(appeared ? 1 - Double(index) * 0.06 : 0)
-                        .zIndex(Double(index))
                         .animation(flipAnimation.delay(Double(index) * 0.07), value: appeared)
                         .animation(flipAnimation, value: order)
+                        // zIndex 放在 animation 之外：层级不参与弹簧插值，翻卡瞬间
+                        // 就按目标层级绘制。否则过渡期间层级与位置错配，飞卡会盖住
+                        // 途经的卡/添加卡（「最后一张卡遮挡添加账户」的根源）
+                        .zIndex(Double(index))
                 }
             }
 
             // 「＋ 添加账户」虚线卡头（常驻堆底）
             addButton
                 .offset(y: addButtonOffset)
-                .zIndex(100)
                 .opacity(appeared ? 1 : 0)
                 .animation(flipAnimation.delay(Double(order.count) * 0.07), value: appeared)
+                // 增删账户挪位时与卡片同一条弹簧移动，避免按钮瞬移、卡片慢移的两层错位
+                .animation(flipAnimation, value: order)
+                .zIndex(100)
 
             // 命中层：当前卡整卡可点，收起卡仅头部可点（与视觉严格对齐）。
             // 用 contentShape + onTapGesture（Button+contextMenu 在手势竞争中长按易失效）
@@ -267,6 +272,12 @@ struct AccountMaterialCard: View {
             head
             if showsBody {
                 cardBody
+                    // 展开时从卡头下方滑出、收起时滑回（clipped 裁掉滑入途中
+                    // 越出卡身区域的部分，形成「从卡头底下抽出来」的展开感）；
+                    // 转场与卡壳 offset 共用外层同一条 spring，避免「壳在滑、
+                    // 内容原地淡入等贴」的两层动画割裂
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .clipped()
             } else {
                 // 折叠尾条：材质自然延伸出 16pt 卡身边，被下一张卡叠压
                 Color.clear.frame(height: AccountCardStackView.collapsedTailHeight)
