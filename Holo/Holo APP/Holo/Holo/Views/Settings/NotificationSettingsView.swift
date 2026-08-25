@@ -1021,7 +1021,7 @@ private struct BudgetOverrunNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: "某个预算超支的当天提醒一次；回到预算线内之前不再重复，之后再超支才会再提醒——不会天天念叨。")
+                DetailNoteCard(text: "某个预算超支的当天提醒一次，之后不再重复；花销降回预算以内后，再次超支才会再提醒——不会天天念叨。")
 
                 VStack(spacing: 0) {
                     DetailToggleRow(icon: "chart.bar.fill", title: "预算超支提醒", isOn: $enabled, disabled: !notificationService.isAuthorized)
@@ -1036,7 +1036,7 @@ private struct BudgetOverrunNotificationDetailView: View {
                 PreviewButtonRow(title: "预览通知样式") {
                     sendPreviewNotification(
                         title: "「餐饮」预算超支了",
-                        body: "已花 ¥2,340 · 预算 ¥2,000（超出 17%），回到线内前不再提醒",
+                        body: "已花 ¥2,340，超了预算 ¥340",
                         category: TodoNotificationCategory.budgetOverrun
                     )
                 }

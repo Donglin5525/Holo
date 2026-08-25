@@ -35,9 +35,11 @@ nonisolated enum HoloAgentPauseNotifier {
         let progress = totalRounds > 0 ? "已完成 \(completedRounds)/\(totalRounds) 轮，" : ""
         switch reason {
         case .systemCapacity, .backgroundTimeExpired:
-            content.body = "系统暂时收回了后台执行时间。\(progress)点按回到 Holo 将自动继续分析。"
-        case .deviceUnlock, .protectedData, .network:
-            content.body = "\(progress)条件恢复后会自动继续分析。"
+            content.body = "手机刚才腾不出空，分析先暂停了。\(progress)回到 Holo 会自动继续分析。"
+        case .network:
+            content.body = "\(progress)网络恢复后会自动继续分析。"
+        case .deviceUnlock, .protectedData:
+            content.body = "\(progress)解锁后会自动继续分析。"
         case .userPaused, .inputChanged:
             content.body = "\(progress)回到 Holo 后可继续这次分析。"
         }

@@ -101,8 +101,10 @@ final class BudgetOverrunNotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = "「\(Self.displayName(for: worst.budget))」预算超支了"
-        let overPercent = Int((worst.progress - 1.0) * 100)
-        content.body = "已花 \(Self.amountText(worst.spentAmount)) · 预算 \(Self.amountText(worst.budgetAmount))（超出\(overPercent)%），回到线内前不再提醒"
+        let overAmount = worst.spentAmount - worst.budgetAmount
+        content.body = overAmount > 0
+            ? "已花 \(Self.amountText(worst.spentAmount))，超了预算 \(Self.amountText(overAmount))"
+            : "已花 \(Self.amountText(worst.spentAmount))，预算正好用完"
         content.sound = .default
         content.categoryIdentifier = TodoNotificationCategory.budgetOverrun
 
