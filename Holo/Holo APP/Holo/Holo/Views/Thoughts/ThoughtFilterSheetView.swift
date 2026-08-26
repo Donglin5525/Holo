@@ -30,7 +30,7 @@ struct ThoughtFilterSheetView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // 筛选内容
                 ScrollView(showsIndicators: false) {

@@ -1,6 +1,6 @@
 # Holo iPad 适配完整方案 v1
 
-> 状态：待东林拍板（决策点见 §6）
+> 状态：**已拍板动工（2026-08-21，东林）**
 > 日期：2026-08-21
 > 结论先行：完整适配（大屏布局 + 横屏 + 外接键盘）约 **25–36 人天（5–7 人周）**，纯客户端改动，无需后端发版。
 > 止血已完成：2026-08-21 已将全 App 锁竖屏 + 要求全屏（见 §3 Phase 0），iPad 用户不会再以分屏/任意宽度的变形形态使用。
@@ -14,11 +14,11 @@
 | 项 | 现状 |
 |---|---|
 | 设备声明 | TARGETED_DEVICE_FAMILY = "1,2"（已声明 iPhone+iPad，App Store 上 iPad 可见可装） |
-| 方向 | ~~iPad 全 4 方向、iPhone 竖+左右横屏~~ → **2026-08-21 已锁：iPhone 仅竖屏；iPad 仅竖屏（正/反两个竖屏方向）** |
-| 分屏/侧滑 | **UIRequiresFullScreen = YES 已加上**，iPad 上强制全屏，不再出现任意窗口宽度 |
+| 方向 | iPhone 仅竖屏；iPad 全 4 方向（竖屏双方向 + 左右横屏，2026-08-26 随适配放开） |
+| 分屏/侧滑 | UIRequiresFullScreen = YES，iPad 全屏运行、不支持分屏/侧滑/多窗口（明确非目标，保留此开关） |
 | 部署目标 | iOS 17.0；3 个 target：Holo / HoloTests / HoloWidgets |
-| 自适应代码 | `horizontalSizeClass` / `verticalSizeClass` / `userInterfaceIdiom` 全库 **0 处**——一行大屏适配代码都没有 |
-| 启动图 | LaunchScreen.storyboard 按 393×852（iPhone 竖屏）设计的全屏图，iPad 上会被拉伸铺满 |
+| 自适应代码 | Phase 1 已建 `Utils/HoloAdaptiveLayout.swift`（限宽容器 + 断点常量 + size class 判断），骨架层已包裹 |
+| 启动图 | LaunchScreen.storyboard 按 393×852（iPhone 竖屏）设计的全屏图，iPad 上会被拉伸铺满；artwork 待东林 |
 
 ### 0.2 界面骨架（适配难度的根源）
 
@@ -90,19 +90,22 @@
 4. **旧 NavigationView 清零**：19 处全部迁到 NavigationStack。这是**必做项**不是可选项——旧容器在 iPad 大屏会自动变分栏，直接炸版；迁移本身也是 iOS 17 该还的债；
 5. **LaunchScreen**：storyboard 布局改自适应，需要东林出 iPad 尺寸启动 artwork。
 
-### 2.3 尺寸来源治理
+### 2.3 尺寸来源治理（2026-08-26 修正：降级为低优先级技术债）
 
-- `UIScreen.main.bounds` 11 处全部替换为「当前窗口/容器尺寸」（GeometryReader 或 windowScene）——锁全屏时两者恰好相等所以现在没炸，但**放开横屏后必须正确**，且这是 Apple 已废弃的 API；
-- 图表（折线/饼/柱）全依赖 GeometryReader 宽度：被限宽容器包住后自动正确，属免费受益项。
+原判断「UIScreen.main.bounds 在 iPad 上必错」的前提是放开分屏。D4 拍板保留 RequiresFullScreen（不做分屏/多任务）后：**全屏 App 的 UIScreen.main.bounds 恒等于当前窗口尺寸，旋转时两者同步变化**，11 处现状用法在数学上依然正确，外接键盘时键盘通知避让量自然为 0——无需为想象中的分屏场景提前改造（少写防御性代码）。
 
-### 2.4 键盘专项策略
+遗留：`UIScreen.main` 是 Apple 已废弃的 API，未来某次发版若被强制收紧再统一替换为窗口/容器尺寸（替换清单在 §5.2）。图表（折线/饼/柱）全依赖 GeometryReader 宽度：被限宽容器包住后自动正确，属免费受益项。
+
+### 2.4 键盘专项策略（快捷键已于 2026-08-26 落地）
 
 1. **打字本身不用开发**：TextField/TextEditor/UITextView 系统级支持外接键盘输入；
-2. **4 处手动键盘避让改造**：改用「当前窗口坐标系」的键盘帧通知；外接键盘时软件键盘不弹出、避让量自动为 0，顺带修复；`ThoughtEditorView` 用屏幕高减键盘高的算法在 iPad 上必错，重点改；
-3. **快捷键分两包**：
-   - 基础包（Phase 4 必做）：Esc 关闭弹层/收起键盘、聊天回车发送、Shift+回车换行、列表上下方向键移动；
-   - 进阶包（视性价比二期）：Cmd+1/2/3 切主 tab、Cmd+N 新建、Cmd+F 搜索、Cmd+W 关闭模块；
-4. **想法编辑器专项**：`MarkdownTextView.swift`（3457 行 UIKit 桥接）是全 App 键盘交互最深处，已有 5 处 UIKeyCommand 先例；外接键盘下回车/Esc/自动补全/工具栏联动需逐项验证修复，单列预算。
+2. **4 处手动键盘避让**：全屏前提下（§2.3 修正）数学正确、外接键盘时避让量自动为 0，**无需改造**；`ThoughtEditorView` 的 `isDocked` 判断（宽度≈屏宽才避让）已正确排除 iPad 浮动/分体键盘；
+3. **快捷键（已实施，编译绿待真机验收）**：
+   - Cmd+1/2/3 切主 tab、Cmd+, 设置、Cmd+N 按模块分流新建（任务/记账/想法；首页默认新建任务）、Cmd+W 关闭当前常驻模块——挂载在 ContentView 常驻层透明按钮（label 供 iPad 长按 Cmd 的快捷键提示浮层显示），事件经 `Utils/HoloShortcutBus.swift` 广播，HomeView 分流响应；
+   - 聊天 **Cmd+回车发送、Cmd+. 停止生成**（ChatInputView 挂在发送/停止按钮上）。纯回车不改：TextField 竖轴多行无法区分 Shift+回车，改 submitLabel 会动 iPhone 软件键盘体验，违反零回归；
+   - **Cmd+F 搜索降二期**：任务/财务/想法三模块的搜索形态各不相同（导航流/列表内状态），强行统一事件分发要写三套定制状态机，收益风险比差；
+   - Esc：SwiftUI sheet 系统默认支持；想法编辑器的自动补全已有 Escape UIKeyCommand 先例；
+   - 已知限制：HomeView 只在「今天」主 tab 存活，对话/我的 tab 下 Cmd+N/W/, 无响应（切回 Cmd+1 即可），后续如需覆盖可把设置 sheet 上移到 ContentView。
 
 ### 2.5 Widget
 
@@ -110,19 +113,19 @@ WidgetKit 天然按设备自适应尺寸，理论免改；验收阶段在 iPad �
 
 ---
 
-## 3. 分期计划与工作量
+## 3. 分期计划与工作量（含 2026-08-26 实施进度）
 
-| Phase | 内容 | 人天 | 交付物/验收 |
+| Phase | 内容 | 人天 | 状态（2026-08-26） |
 |---|---|---|---|
-| **0 止血（已完成 2026-08-21）** | 全 App 锁竖屏 + UIRequiresFullScreen | 0.5 | iPad 不再以分屏变形形态打开；本次已改 pbxproj 待提交 |
-| **1 基建** | HoloAdaptiveLayout 工具层 + ContentColumnContainer + 断点常量 + LaunchScreen 自适应 + 常驻栈包裹 | 4–6 | iPad 真机：内容限宽居中、启动图不拉伸；iPhone 零变化 |
-| **2 骨架与弹层** | ContentView/HomeView/BottomNavBar 大屏形态；sheet 理想宽度策略全局落地；14 处固定高度 detents 改自适应；29 处 fullScreenCover 观感过一遍；19 处旧 NavigationView 迁 NavigationStack | 5–7 | iPad 上弹层形态统一、无分栏炸版 |
-| **3 模块走查** | 按「高频→低频」顺序逐模块大屏走查与修：今天/任务/想法/记账/长廊/习惯/健康 → 设置/订阅/纪念日/Onboarding；每模块过：图表宽度、固定宽度 35 处、文字排版、双列卡片 | 8–12 | 每模块真机截图走查通过，按模块分批提交 |
-| **4 键盘专项** | 4 处避让改造 + 基础包快捷键 + 想法编辑器专项 + @FocusState 补齐 | 4–6 | 外接键盘全主流程可操作（不碰屏幕完成「新建想法→编辑→保存」） |
-| **5 横屏放开 + 回归** | 恢复 iPad 横屏方向配置（保留 RequiresFullScreen）；旋转时状态保持专项（输入中/滚动位置/弹层不消失）；iPhone 继续锁竖屏；全量回归 | 4–5 | 真机走查矩阵（§5.3）全绿 |
-| **合计** | | **25–36 人天 ≈ 5–7 人周** | |
+| **0 止血** | 全 App 锁竖屏 + UIRequiresFullScreen | 0.5 | ✅ 完成（随适配推进，iPad 横屏已重新放开、iPhone 维持锁竖屏） |
+| **1 基建** | HoloAdaptiveLayout 工具层 + ContentColumnContainer + 断点常量 + 常驻栈包裹 | 4–6 | ✅ 完成（编译绿）——`Utils/HoloAdaptiveLayout.swift` + ContentView 三 tab 包裹；LaunchScreen 待东林 artwork |
+| **2 骨架与弹层** | 24 处旧 NavigationView 迁 NavigationStack；sheet 形态策略 | 5–7 | ✅ 主体完成（编译绿）——迁移 24 处；sheet 在 iPad 系统默认即居中卡片（D2 无需逐个改造）；14 处固定高度 detents 与 29 处 fullScreenCover 留真机走查（Phase 3）按观感定改 |
+| **3 模块走查** | 逐模块大屏/横屏走查与修（图表宽度、固定宽度 35 处、文字排版） | 8–12 | 🔶 静态部分完成——全屏覆盖层 24 处内容限宽（编辑器/详情/表单/付费墙/看板/搜索等）、相机与画廊 6 处保持全屏；固定宽度扫描确认无超 600pt 元素（720 内容列内无溢出）；观感微调待真机走查反馈 |
+| **4 键盘专项** | 快捷键体系 + 编辑器验证 | 4–6 | ✅ 快捷键全部落地（编译绿）：Cmd+1/2/3/,/N/W/**F** + Cmd+回车发送 + Cmd+. 停止；避让经 §2.3 修正无需改造；想法编辑器外接键盘实测留真机验收 |
+| **5 横屏放开 + 回归** | 恢复 iPad 横屏配置；旋转状态保持；全量回归 | 4–5 | 🔶 配置已放开（编译绿）；真机走查矩阵（§5.3）待东林验收 |
+| **合计** | | **25–36 人天** | 工程侧静态可做的部分已完成，剩余为真机走查驱动项 |
 
-提交策略：沿用「每批编译过再提交、Phase 3 按模块分批」的惯例；适配期间与功能开发的合并冲突风险集中在 `ContentView`/`HomeView`/各模块根视图，Phase 1-2 尽量连续做完。
+提交策略：沿用「每批编译过再提交、Phase 3 按模块分批」的惯例。
 
 ---
 
@@ -146,7 +149,7 @@ ImportExportView:378(460)、AddFolderSheet:70(200)、PopupCalendarSheet:53,69(48
 
 SwipeBackModifier:103、PopupCalendarSheet:219、ExpandedCalendarView:127、WeekView:87、ChatView:906、DailyKanbanView:73、ThoughtEditorView:929,944,957、FinanceLedgerView:671-672
 
-### 5.3 真机走查矩阵（Phase 5 验收）
+### 5.3 真机走查矩阵（东林统一验收用）
 
 设备 × 场景：iPhone 竖屏（纯回归）｜iPad 竖屏｜iPad 横屏｜iPad + 外接键盘（重点：聊天、想法编辑、记账表单、搜索）
 
@@ -154,17 +157,42 @@ SwipeBackModifier:103、PopupCalendarSheet:219、ExpandedCalendarView:127、Week
 
 旋转专项（同一页面横竖各一次）：输入中内容不丢、滚动位置保持、弹层不消失、常驻模块切换正常。
 
+快捷键专项（外接键盘）：
+- 长按 Cmd：屏幕应浮出快捷键提示面板（按钮名：前往今天/对话/我的、打开设置、新建、关闭当前模块）
+- Cmd+1/2/3 三个主 tab 轮切；Cmd+, 开设置；在任务/想法/记账页 Cmd+N 开对应新建；在模块内 Cmd+W 退回首页
+- 任务页/财务页（任意子 Tab）按 Cmd+F 应切到任务/账本并开搜索；想法页知识树视图按 Cmd+F 应切回列表并聚焦搜索框
+- 聊天输入框打字：Cmd+回车发送、Cmd+. 停止生成、纯回车换行
+- 软件键盘弹出让位：聊天页、想法编辑器、看板数值弹窗三处光标不被键盘遮挡
+
+覆盖层形态专项（iPad）：编辑器/详情/付费墙/看板/搜索等全屏页内容应居中限宽（两侧留白）；相机与图片画廊应全屏铺满；各类 sheet 弹窗应为居中卡片（系统默认行为）。
+
 ---
 
-## 6. 需要东林拍板的决策点
+## 6. 决策点（已于 2026-08-21 全部拍板）
 
-| # | 决策 | 推荐 |
+| # | 决策 | **拍板结果** |
 |---|---|---|
-| D1 | 大屏形态：限宽居中 vs 左右分栏 | **限宽居中**（省 40% 工作量，v2 可升级分栏） |
-| D2 | iPad 弹层风格：居中卡片 vs 保留底部抽屉 | **表单类居中卡片、强底部心智的抽屉保留** |
-| D3 | 快捷键范围：基础包先做 vs 一步到位含 Cmd 组合 | **基础包先行**，进阶包看真机使用习惯再定 |
-| D4 | 横屏放开时点：随首版一起 vs 竖屏先上、横屏后续版本 | **随首版一起**（横屏是本次目标之一，且限宽策略下横屏增量成本只剩回归） |
-| D5 | 素材：iPad 启动图 artwork（Phase 1 需要）、App Store iPad 截图（上架前） | 东林排期 |
+| D1 | 大屏形态：限宽居中 vs 左右分栏 | **限宽居中** |
+| D2 | iPad 弹层风格：居中卡片 vs 保留底部抽屉 | **表单类居中卡片**，强底部心智的抽屉（语音输入等）保留底部形态 |
+| D3 | 快捷键范围：基础包 vs 一步到位含 Cmd 组合 | **含 Cmd 组合键**（基础包 + Cmd+1/2/3 切主 tab、Cmd+N 新建、Cmd+F 搜索等进阶包一并做） |
+| D4 | 横屏放开时点 | **随首版一起**（Phase 5 与前面阶段同批发版） |
+| D5 | 素材 | iPad 启动图 artwork 东林后续提供（工程侧先完成自适应结构）；App Store iPad 截图上架前录 |
+
+### 6.1 Cmd 快捷键清单（D3 拍板范围；2026-08-26 已实施除 Cmd+F 外全部）
+
+**基础包**：Esc 关闭当前弹层/收起键盘（sheet 系统默认支持）；聊天 Cmd+回车发送、Cmd+. 停止生成（已实施）。
+
+**Cmd 组合（2026-08-26 已实施，编译绿待真机验收）**：
+
+| 快捷键 | 动作 | 状态 |
+|---|---|---|
+| Cmd+1 / Cmd+2 / Cmd+3 | 切到 今天 / 对话 / 我的 主 tab | ✅ |
+| Cmd+N | 当前模块内新建（任务/记账/想法分流；首页默认新建任务） | ✅ |
+| Cmd+, | 打开设置 | ✅ |
+| Cmd+W | 关闭当前常驻模块、回到模块首页 | ✅ |
+| Cmd+F | 打开当前模块的搜索：任务页切任务 Tab 开搜索、财务页切账本 Tab 开搜索、想法页切列表视图聚焦搜索框 | ✅ 已接入（TasksView/FinanceView 以触发计数转发给 switch 销毁式的子页；ThoughtListView 单实例直接聚焦） |
+
+已知限制：对话/我的主 tab 下 Cmd+N/W/, 无响应（订阅方 HomeView 只在「今天」tab 存活），Cmd+1/2/3 与三模块的 Cmd+F 不受影响。
 
 ---
 

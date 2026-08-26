@@ -60,6 +60,7 @@ struct ReportDetailRoute: View {
                         chatViewModel: chatViewModel,
                         onFinanceDrilldown: onFinanceDrilldown
                     )
+                    .holoContentColumn()
                 }
             } else {
                 ReportReplayReaderView(message: message)

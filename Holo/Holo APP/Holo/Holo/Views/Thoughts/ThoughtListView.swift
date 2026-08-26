@@ -42,6 +42,8 @@ struct ThoughtListView: View {
     /// 筛选状态
     @State private var selectedTagName: String? = nil
     @State private var searchText: String = ""
+    /// Cmd+F 聚焦搜索栏（硬件键盘快捷键）
+    @FocusState private var searchFieldFocused: Bool
     @State private var showFilterSheet: Bool = false
     @State private var currentFilters: ThoughtFilters? = nil
 
@@ -202,6 +204,7 @@ struct ThoughtListView: View {
                 thoughtRepository: ThoughtRepository(),
                 showsDismissButton: true
             )
+            .holoContentColumn()
         }
         .fullScreenCover(item: $editingThoughtId) { thoughtId in
             ThoughtEditorView(
@@ -213,6 +216,7 @@ struct ThoughtListView: View {
                 editingThoughtId: thoughtId,
                 autoFocusExistingThought: true
             )
+            .holoContentColumn()
         }
         // ThoughtDetailView 点「问问 Holo」后通知关闭整个 fullScreenCover，
         // 否则 cover 仍盖在 AI 页之上（dismiss 只能 pop 一层 NavigationStack）。
@@ -252,6 +256,13 @@ struct ThoughtListView: View {
                 topicRepository: topicRepository,
                 onQueueDrained: { loadPendingConfirmationCount() }
             )
+            .holoContentColumn()
+        }
+        // Cmd+F：聚焦搜索栏；知识树视图下先切回列表视图（搜索栏只在列表视图）
+        .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
+            guard event?.action == .searchInCurrentModule else { return }
+            browseMode = "timeline"
+            searchFieldFocused = true
         }
         .overlay(alignment: .top) {
             noticeToast
@@ -777,6 +788,7 @@ struct ThoughtListView: View {
                 .foregroundColor(.holoTextSecondary)
 
             TextField("搜索想法或标签...", text: $searchText)
+                .focused($searchFieldFocused)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextPrimary)
 

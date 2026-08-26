@@ -63,7 +63,7 @@ struct TopicDetailView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if let topic {
@@ -148,6 +148,7 @@ struct TopicDetailView: View {
                     thoughtRepository: ThoughtRepository(),
                     showsDismissButton: true
                 )
+                .holoContentColumn()
             }
             .overlay(alignment: .top) { actionToast }
         }

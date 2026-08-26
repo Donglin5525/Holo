@@ -23,7 +23,7 @@ struct RecycleBinView: View {
     @State private var isPurgingAll = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Group {
                 if recycleBin.batches.isEmpty {
                     emptyState
@@ -363,7 +363,7 @@ struct RestoreConflictSheet: View {
     @State private var isRestoring = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     Text("检测到 \(preview.conflicts.count) 条数据与清空后新产生的数据疑似重复（同日同额/同名等）。默认跳过这些条目、保留现有数据；如确认要恢复，请单独勾选。")

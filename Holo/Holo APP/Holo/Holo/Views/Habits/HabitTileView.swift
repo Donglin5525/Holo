@@ -324,7 +324,7 @@ struct HabitTileView: View {
 
     /// 打卡型：当日记录补/改备注
     private var checkInNoteSheet: some View {
-        NavigationView {
+        NavigationStack {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 TextField("备注（可选，如：状态不错）", text: $checkInNoteText)
                     .font(.holoBody)

@@ -113,9 +113,11 @@ struct HoloApp: App {
                 CSVQuickImportView(fileURL: wrapper.url) {
                     pendingImportURL = nil
                 }
+                .holoContentColumn()
             }
             .fullScreenCover(isPresented: $plusActionCoordinator.isPaywallPresented) {
                 HoloPlusPaywallView(context: plusActionCoordinator.context)
+                    .holoContentColumn()
             }
             .task {
                 await SensitiveDebugDataMigration.runIfNeeded()

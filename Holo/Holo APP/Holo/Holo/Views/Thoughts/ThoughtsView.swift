@@ -75,6 +75,7 @@ struct ThoughtsView: View {
                 // 保存后刷新列表
                 NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             }
+            .holoContentColumn()
         }
         .sheet(isPresented: $showConvergence) {
             ConvergenceConfirmView(

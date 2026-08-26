@@ -17,7 +17,7 @@ struct GoalPickerSheet: View {
     @State private var goals: [Goal] = []
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 ForEach(goals, id: \.id) { goal in
                     Button {

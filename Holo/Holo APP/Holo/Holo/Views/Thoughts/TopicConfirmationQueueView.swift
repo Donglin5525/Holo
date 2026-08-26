@@ -24,7 +24,7 @@ struct TopicConfirmationQueueView: View {
     @State private var notice: String? = nil
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if !hasLoaded {

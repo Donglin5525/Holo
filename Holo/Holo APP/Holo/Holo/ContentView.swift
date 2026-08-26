@@ -34,21 +34,46 @@ struct ContentView: View {
             // 背景色
             Color.holoBackground
                 .ignoresSafeArea()
-            
+
+            // 硬件键盘 Cmd 快捷键（iPad 适配 D3）：透明按钮常驻视图树。
+            // label 会出现在 iPad 长按 Cmd 的快捷键提示浮层里，须写清动作。
+            Group {
+                Button("前往今天") { selectedTab = .today }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("前往对话") { selectedTab = .holo }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("前往我的") { selectedTab = .profile }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("打开设置") { HoloShortcutBus.shared.post(.openSettings) }
+                    .keyboardShortcut(",", modifiers: .command)
+                Button("新建") { HoloShortcutBus.shared.post(.newItemAtCurrentModule) }
+                    .keyboardShortcut("n", modifiers: .command)
+                Button("关闭当前模块") { HoloShortcutBus.shared.post(.closeCurrentModule) }
+                    .keyboardShortcut("w", modifiers: .command)
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+
             // 根据选中的 Tab 显示对应页面
+            // iPad（regular 宽度）统一限宽居中，覆盖首页与七个常驻模块；
+            // iPhone（compact）行为与不包裹完全一致
             switch selectedTab {
             case .today:
                 HomeView()
+                    .holoContentColumn()
             case .holo:
                 NavigationStack {
                     ChatView(goalPlanningRequest: $pendingGoalPlanningRequest)
                         .navigationBarHidden(true)
                 }
+                .holoContentColumn()
             case .profile:
                 PersonalView(onPlanGoal: {
                     pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
                     selectedTab = .holo
                 }, pendingGoalDetailId: $pendingGoalDetailId)
+                    .holoContentColumn()
             }
         }
         .onChange(of: deepLinkState.pendingTarget) { _, target in

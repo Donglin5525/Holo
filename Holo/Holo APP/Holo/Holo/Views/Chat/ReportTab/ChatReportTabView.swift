@@ -55,6 +55,7 @@ struct ChatReportTabView: View {
                     Task { await viewModel.refreshFavoritesCount() }
                 }
             )
+            .holoContentColumn()
         }
         .confirmationDialog(
             "删除这份报告？",

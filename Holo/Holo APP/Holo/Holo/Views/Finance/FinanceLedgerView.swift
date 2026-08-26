@@ -19,6 +19,8 @@ struct FinanceLedgerView: View {
 
     let onBack: () -> Void
     @Binding var showAddTransaction: Bool
+    /// Cmd+F 触发计数（FinanceView 转发）：变化即打开账本搜索
+    var searchTrigger: Int = 0
     
     /// 正在编辑的交易
     @State private var editingTransaction: Transaction? = nil
@@ -52,11 +54,13 @@ struct FinanceLedgerView: View {
     init(
         calendarState: CalendarState,
         onBack: @escaping () -> Void,
-        showAddTransaction: Binding<Bool>
+        showAddTransaction: Binding<Bool>,
+        searchTrigger: Int = 0
     ) {
         self.calendarState = calendarState
         self.onBack = onBack
         self._showAddTransaction = showAddTransaction
+        self.searchTrigger = searchTrigger
         // 首帧渲染即带上预算数据：若在入场转场中途才由 .task 写入，
         // 预算卡会作为「转场期间的新插入视图」跳过共享动画，提前以全透明度弹出
         _globalBudgetSummary = State(
@@ -227,6 +231,10 @@ struct FinanceLedgerView: View {
         }
         .fullScreenCover(isPresented: $showSearch) {
             FinanceSearchView()
+                .holoContentColumn()
+        }
+        .onChange(of: searchTrigger) { _, _ in
+            showSearch = true
         }
         // 复制交易日期选择
         .sheet(item: $copyingTransaction) { tx in

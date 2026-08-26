@@ -21,7 +21,7 @@ struct ConvergenceConfirmView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             content
                 .navigationTitle("AI 主题归并")
                 .navigationBarTitleDisplayMode(.inline)

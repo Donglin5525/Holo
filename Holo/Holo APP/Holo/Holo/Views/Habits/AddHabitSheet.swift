@@ -74,7 +74,7 @@ struct AddHabitSheet: View {
     // MARK: - Body
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     // 图标和颜色选择
@@ -589,7 +589,7 @@ struct IconPickerSheet: View {
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 Picker("图标类型", selection: $pickerTab) {
                     ForEach(PickerTab.allCases) { tab in

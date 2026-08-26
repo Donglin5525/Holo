@@ -219,6 +219,7 @@ struct HomeView: View {
             HoloLightweightOnboardingView { _ in
                 showOnboarding = false
             }
+            .holoContentColumn()
         }
         // 设置页面（Sheet 形式）
         .sheet(isPresented: $showSettingsView) {
@@ -234,6 +235,7 @@ struct HomeView: View {
             LazyView {
                 DailyKanbanView(showWeeklyBrief: showWeeklyBriefCard)
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                    .holoContentColumn()
             }
         }
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
@@ -282,6 +284,7 @@ struct HomeView: View {
                 ThoughtEditorView {
                     NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
                 }
+                .holoContentColumn()
             }
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
@@ -303,6 +306,46 @@ struct HomeView: View {
             if draggingItem == nil {
                 loadFeatureItemsFromRepository()
             }
+        }
+        // 硬件键盘 Cmd 快捷键（iPad 适配 D3）：按当前常驻模块分流响应。
+        // 注意：HomeView 只在「今天」主 tab 存活，对话/我的 tab 下这些事件无响应。
+        .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
+            guard let event else { return }
+            handleShortcut(event.action)
+        }
+    }
+
+    // MARK: - 硬件键盘快捷键
+
+    private func handleShortcut(_ action: HoloShortcutAction) {
+        switch action {
+        case .openSettings:
+            showSettingsView = true
+
+        case .closeCurrentModule:
+            guard activeScreen != nil else { return }
+            withAnimation(.holoScreenTransition) {
+                _ = residentNavigation.dismissCurrent()
+            }
+
+        case .newItemAtCurrentModule:
+            // 按当前模块分流；首页与任务页默认新建任务（最高频）。
+            // 习惯/健康/长廊/AI 无「一条快捷键直开表单」的新建语义，忽略。
+            switch activeScreen {
+            case .finance:
+                showAddTransactionSheet = true
+            case .thoughts:
+                showThoughtEditor = true
+            case .tasks, nil:
+                showAddTaskSheet = true
+            default:
+                break
+            }
+
+        case .searchInCurrentModule:
+            // 由模块根视图自行订阅响应（TasksView/FinanceView 转发、ThoughtListView 聚焦），
+            // 见 docs/ipad-adaptation/plan.md §6.1
+            break
         }
     }
 

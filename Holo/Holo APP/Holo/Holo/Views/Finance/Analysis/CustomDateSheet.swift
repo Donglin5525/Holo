@@ -50,7 +50,7 @@ struct CustomDateSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(alignment: .center, spacing: HoloSpacing.lg) {
                 // 阶段提示
                 phaseHint

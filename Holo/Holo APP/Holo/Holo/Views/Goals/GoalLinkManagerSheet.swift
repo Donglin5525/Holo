@@ -25,7 +25,7 @@ struct GoalLinkManagerSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     ForEach(allTasks, id: \.id) { task in

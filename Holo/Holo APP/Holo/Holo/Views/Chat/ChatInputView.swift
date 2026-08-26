@@ -103,6 +103,7 @@ struct ChatInputView: View {
                             .font(.system(size: 28))
                             .foregroundColor(.holoError)
                     }
+                    .keyboardShortcut(".", modifiers: .command)
                     .accessibilityLabel("停止生成")
                 } else {
                     Button {
@@ -113,6 +114,9 @@ struct ChatInputView: View {
                             .foregroundColor(sendButtonColor)
                     }
                     .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    // 外接键盘 Cmd+回车发送。纯回车保留换行（TextField 竖轴默认行为），
+                    // 不改 iPhone 软件键盘体验；停止键同样给 Cmd+.（系统标准取消）
+                    .keyboardShortcut(.return, modifiers: .command)
                     .accessibilityLabel("发送消息")
                 }
             }

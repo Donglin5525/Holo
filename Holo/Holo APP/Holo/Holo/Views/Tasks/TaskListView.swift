@@ -118,6 +118,8 @@ struct TaskListView: View {
     let onBack: () -> Void
     /// 把当前筛选上下文传给外层新增入口，保证新增任务继承当前视图语义。
     var onFilterChanged: ((TaskFilterType) -> Void)? = nil
+    /// Cmd+F 触发计数（TasksView 转发）：变化即打开任务搜索
+    var searchTrigger: Int = 0
 
     /// 任务列表（本地缓存）
     @State private var tasks: [TodoTask] = []
@@ -322,6 +324,10 @@ struct TaskListView: View {
         }
         .fullScreenCover(isPresented: $showSearchView) {
             TaskSearchView(repository: repository)
+                .holoContentColumn()
+        }
+        .onChange(of: searchTrigger) { _, _ in
+            showSearchView = true
         }
     }
 

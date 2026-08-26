@@ -86,6 +86,7 @@ struct ThoughtKnowledgeTreeView: View {
                 thoughtRepository: thoughtRepository,
                 onTopicDeleted: { topicDetailId = nil }
             )
+            .holoContentColumn()
         }
         .fullScreenCover(isPresented: $showConfirmationQueue) {
             TopicConfirmationQueueView(
@@ -93,6 +94,7 @@ struct ThoughtKnowledgeTreeView: View {
                 topicRepository: topicRepository,
                 onQueueDrained: { Task { await loadData() } }
             )
+            .holoContentColumn()
         }
     }
 

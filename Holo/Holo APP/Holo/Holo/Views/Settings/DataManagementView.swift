@@ -22,7 +22,7 @@ struct DataManagementView: View {
     @State private var recycleBatchCount = 0
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     overviewSection
@@ -241,7 +241,7 @@ struct ClearAllDataConfirmSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     warningCard

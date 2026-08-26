@@ -15,7 +15,7 @@ struct HoloEpisodicMemoryDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 // 基本信息区
                 Section {

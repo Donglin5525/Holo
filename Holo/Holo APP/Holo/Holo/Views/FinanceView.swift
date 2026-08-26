@@ -53,6 +53,8 @@ struct FinanceView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: FinanceTab
     @State private var showAddTransaction: Bool = false
+    /// Cmd+F 触发计数：切到账本 Tab 并转发给 FinanceLedgerView 打开搜索
+    @State private var searchTrigger: Int = 0
     @State private var deepLinkedTransaction: Transaction?
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
@@ -110,7 +112,8 @@ struct FinanceView: View {
                         FinanceLedgerView(
                             calendarState: calendarState,
                             onBack: { close() },
-                            showAddTransaction: $showAddTransaction
+                            showAddTransaction: $showAddTransaction,
+                            searchTrigger: searchTrigger
                         )
                     case .spending:
                         SpendingProjectsView(onBack: { close() })
@@ -124,6 +127,12 @@ struct FinanceView: View {
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         .task {
             FinanceRepository.shared.setup()
+        }
+        // Cmd+F：切到账本 Tab（FinanceLedgerView 是 switch 销毁式，须先建活）再转发触发
+        .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
+            guard event?.action == .searchInCurrentModule else { return }
+            selectedTab = .ledger
+            searchTrigger += 1
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if evidenceReviewDeepLink == nil {

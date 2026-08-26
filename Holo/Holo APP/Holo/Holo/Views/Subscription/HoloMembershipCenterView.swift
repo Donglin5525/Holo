@@ -46,6 +46,7 @@ struct HoloMembershipCenterView: View {
         // 交给 App 根视图弹出会被既有 sheet 挡住，表现为按钮点击无响应。
         .fullScreenCover(isPresented: $isPaywallPresented) {
             HoloPlusPaywallView(context: .membershipCenter)
+                .holoContentColumn()
         }
         .onChange(of: entitlementState.isPlusActive) { _, isPlusActive in
             if isPlusActive {

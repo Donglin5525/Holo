@@ -44,7 +44,7 @@ struct ReferenceSelectorView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // 搜索栏
                 searchBar

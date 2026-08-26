@@ -82,6 +82,7 @@ struct AnniversaryListView: View {
             AnniversaryDetailView(anniversary: item) {
                 detailAnniversary = nil
             }
+            .holoContentColumn()
         }
         .confirmationDialog(
             "确认删除",

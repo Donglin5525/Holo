@@ -233,6 +233,7 @@ struct ChatView: View {
         )) {
             if let viewingLog {
                 ChatLogView(log: viewingLog)
+                    .holoContentColumn()
             }
         }
         #endif
@@ -241,6 +242,7 @@ struct ChatView: View {
                 initialSearchText: route.keyword,
                 exactTransactionIDs: route.transactionIDs
             )
+            .holoContentColumn()
         }
         .sheet(isPresented: Binding(
             get: { pendingCategoryEditMessage != nil },
@@ -324,9 +326,11 @@ struct ChatView: View {
                     // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
                 }
             )
+            .holoContentColumn()
         }
         .fullScreenCover(item: $replayReaderMessage) { message in
             ReportReplayReaderView(message: message)
+                .holoContentColumn()
         }
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
@@ -339,6 +343,7 @@ struct ChatView: View {
                         viewModel.finishGoalPlanningSave(result)
                     }
                 )
+                .holoContentColumn()
             }
         }
         .fullScreenCover(isPresented: $viewModel.showLifePlanReview) {
@@ -353,6 +358,7 @@ struct ChatView: View {
                         viewModel.showLifePlanReview = false
                     }
                 )
+                .holoContentColumn()
             }
         }
     }

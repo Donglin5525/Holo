@@ -141,7 +141,7 @@ struct ThoughtEditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
-            // 「查看记录」跳转：通过 navigationDestination 驱动（NavigationLink 必须在 NavigationView 内部才生效）
+            // 「查看记录」跳转：通过 navigationDestination 驱动（须在 NavigationStack 内部生效）
             .navigationDestination(isPresented: Binding(
                 get: { navigateToThoughtId != nil },
                 set: { if !$0 { navigateToThoughtId = nil } }

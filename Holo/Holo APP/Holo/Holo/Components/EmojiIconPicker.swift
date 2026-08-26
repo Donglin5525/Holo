@@ -164,7 +164,7 @@ struct EmojiIconPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             EmojiCatalogGrid(currentIcon: currentIcon) { emoji in
                 onSelect(emoji)
                 dismiss()

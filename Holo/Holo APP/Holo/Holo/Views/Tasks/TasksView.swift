@@ -53,6 +53,8 @@ struct TasksView: View {
     @State private var showNotificationSettings: Bool = false
     /// 任务列表当前筛选，用于底部新增按钮继承「今日」或具体清单上下文。
     @State private var selectedTaskFilter: TaskFilterType = .today
+    /// Cmd+F 触发计数：切到任务 Tab 并转发给 TaskListView 打开搜索
+    @State private var searchTrigger: Int = 0
     /// 小组件/通知深链：纪念日目标落到待办模块时切到纪念日 Tab（此前 pendingTarget 无人消费）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -73,7 +75,8 @@ struct TasksView: View {
                     TaskListView(
                         repository: repository,
                         onBack: { close() },
-                        onFilterChanged: { selectedTaskFilter = $0 }
+                        onFilterChanged: { selectedTaskFilter = $0 },
+                        searchTrigger: searchTrigger
                     )
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })
@@ -87,6 +90,12 @@ struct TasksView: View {
         .onAppear { handleDeepLink() }
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
+        }
+        // Cmd+F：切到任务 Tab（TaskListView 是 switch 销毁式，须先建活）再转发触发
+        .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
+            guard event?.action == .searchInCurrentModule else { return }
+            selectedTab = .tasks
+            searchTrigger += 1
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             todoTabBar

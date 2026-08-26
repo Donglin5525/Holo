@@ -25,7 +25,7 @@ struct TopicPickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 if showNewTopicInput {
                     HStack(spacing: HoloSpacing.sm) {

@@ -81,7 +81,7 @@ struct ThoughtDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     // 目标想法已被删除/清除时的占位提示
@@ -213,6 +213,7 @@ struct ThoughtDetailView: View {
                     },
                     editingThoughtId: thoughtId
                 )
+                .holoContentColumn()
             }
             .fullScreenCover(isPresented: $showAttachmentGallery) {
                 if let thought = thought {

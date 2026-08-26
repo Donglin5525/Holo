@@ -101,7 +101,7 @@ struct ThoughtTaskExtractionSheet: View {
     private let visibleSourceText: String?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 if candidates.isEmpty {
                     emptyState

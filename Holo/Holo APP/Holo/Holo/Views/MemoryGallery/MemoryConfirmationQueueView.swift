@@ -25,7 +25,7 @@ struct MemoryConfirmationQueueView: View {
     @State private var selectedRecord: HoloMemoryRecord?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if !hasLoaded {
