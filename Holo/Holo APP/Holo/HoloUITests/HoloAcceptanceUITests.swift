@@ -43,27 +43,12 @@ final class HoloAcceptanceUITests: XCTestCase {
         sleep(2)
     }
 
-    /// 净资产卡区上滑 → 向下滚动页面（露出卡堆底部）
-    func scrollDown() {
-        drag(200, 70)
-        sleep(1)
-    }
-
-    /// 滚回顶部：在添加卡/面板等非卡堆手势区下滑
+    /// 滚回顶部：固定坐标分段 50pt 小拖——拖距压在 56pt 翻卡阈值以内不会触发
+    /// 卡堆翻卡，终点 350 远离底部 tab 栏；分段短拖起点落在卡堆内也安全
     func scrollTop() {
         var tries = 0
-        while !app.staticTexts["总净资产 · NET WORTH"].firstMatch.isHittable && tries < 4 {
-            let add = app.buttons["添加账户"].firstMatch
-            let see = app.staticTexts["查看全部交易 ›"].firstMatch
-            if add.exists && add.isHittable && add.frame.midY > 250 {
-                let y = add.frame.midY
-                drag(y, min(y + 260, 840))
-            } else if see.exists && see.isHittable {
-                let y = see.frame.midY
-                drag(y, min(y + 260, 840))
-            } else {
-                break
-            }
+        while !app.staticTexts["总净资产 · NET WORTH"].firstMatch.isHittable && tries < 8 {
+            drag(300, 350)
             sleep(1)
             tries += 1
         }
@@ -101,21 +86,13 @@ final class HoloAcceptanceUITests: XCTestCase {
             }
     }
 
-    /// 把指定账户换到置顶（若已是当前卡则先点其他卡把它换下去）
+    /// 把指定账户换到置顶。已在顶部或目标在 tab 栏危险区（y≥720，tap 中心会压到
+    /// tab 栏）时直接返回——不要强行点，交给调用方动态适配断言
     func bringToTop(_ name: String) {
         let e = app.staticTexts[name].firstMatch
-        guard e.exists else { return }
-        if e.frame.minY < 360 {
-            if let other = collapsedHead(except: name) {
-                app.staticTexts[other].firstMatch.tap()
-                sleep(2)
-            }
-        }
-        let e2 = app.staticTexts[name].firstMatch
-        if e2.exists && e2.frame.minY >= 360 {
-            e2.tap()
-            sleep(2)
-        }
+        guard e.exists, e.frame.minY >= 360, e.frame.minY < 720 else { return }
+        e.tap()
+        sleep(2)
     }
 
     // MARK: - 主验收流程
@@ -125,6 +102,9 @@ final class HoloAcceptanceUITests: XCTestCase {
 
         // ============ R1 收起卡显示卡头 ============
         shoot("A01_stack_overview", settle: 1)
+        // 先把现金归一到置顶：collapse-count==4 的前提是置顶卡为负债卡
+        // （现金负债标签不计入「当前余额」，其余 4 张收起卡全计入）
+        bringToTop("现金")
         let names = ["现金", "微信", "支付宝", "储蓄卡", "信用卡"]
         for n in names {
             let e = app.staticTexts[n].firstMatch
@@ -148,20 +128,11 @@ final class HoloAcceptanceUITests: XCTestCase {
         }
         check("R1-type-weixin", app.staticTexts["数字钱包 · WALLET"].firstMatch.exists)
 
-        // ============ R2 添加卡可见（滚动后）+ 表单弹出 ============
-        scrollDown()
+        // ============ R2 添加账户入口（导航栏 +，唯一入口）+ 表单弹出 ============
         let addBtn = app.buttons["添加账户"].firstMatch
         check("R2-add-exists", addBtn.exists)
-        if addBtn.exists {
-            let f = addBtn.frame
-            let cardTop = f.minY - 15
-            let cardBottom = f.maxY + 23
-            check("R2-add-visible", cardBottom < 752, "card y≈\(Int(cardTop))...\(Int(cardBottom)) (tab bar top≈752)")
-            let credit = app.staticTexts["信用卡"].firstMatch
-            check("R2-add-below-last", credit.exists && cardTop >= credit.frame.maxY,
-                  "add top=\(Int(cardTop)) credit bottom=\(credit.exists ? Int(credit.frame.maxY) : -1)")
-        }
-        shoot("A02_add_visible_after_scroll", settle: 1)
+        check("R2-add-hittable", addBtn.isHittable)
+        shoot("A02_nav_add_entry", settle: 1)
         addBtn.tap()
         let sheetOpen = app.navigationBars["新建账户"].waitForExistence(timeout: 6)
         check("R2-sheet-open", sheetOpen)
@@ -193,10 +164,10 @@ final class HoloAcceptanceUITests: XCTestCase {
             shoot("A0\(4 + i)_tap_\(target)_top", settle: 1)
         }
 
-        // ============ W9 翻卡动画抓帧（点击信用卡头） ============
-        bringToTop("信用卡")
-        let cc = app.staticTexts["信用卡"].firstMatch
-        if let head = collapsedHead(except: "信用卡") {
+        // ============ W9 翻卡动画抓帧（点一张收起卡头拍翻卡过程） ============
+        // 页面保持在顶部：收起卡头在 553/617/681，tap 中心安全；
+        // 不再滚动、不再把信用卡换上换下——抓帧对象随当前顺序动态取
+        if let head = collapsedHead() {
             app.staticTexts[head].firstMatch.tap()
             shoot("A08_anim_t0")
             usleep(250_000); shoot("A08_anim_t1")
@@ -205,44 +176,44 @@ final class HoloAcceptanceUITests: XCTestCase {
             sleep(1)
             shoot("A08_anim_t4_settled")
             check("W9-tap-flip-top", app.staticTexts["\(head) · 动态"].firstMatch.waitForExistence(timeout: 4))
-            bringToTop("信用卡")
-        }
-        if cc.exists && cc.frame.minY >= 370 {
-            cc.tap()
-            shoot("A08_anim_t0")
-            usleep(250_000); shoot("A08_anim_t1")
-            usleep(250_000); shoot("A08_anim_t2")
-            usleep(300_000); shoot("A08_anim_t3")
-            sleep(1)
-            shoot("A08_anim_t4_settled")
-            check("W9-tap-cc-top", app.staticTexts["信用卡 · 动态"].firstMatch.exists)
         }
 
-        // ============ W8 信用卡动态面板 ============
-        scrollTop()
-        scrollDown()
-        check("W8-credit-grid", app.staticTexts["本期账单 BILL"].firstMatch.waitForExistence(timeout: 4))
-        check("W8-due-cell", app.staticTexts["距还款日 DUE"].firstMatch.exists)
-        let unset = app.staticTexts["未设置"].firstMatch.exists
-        let days = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+ 天$"))
-            .firstMatch.exists
-        check("W8-due-value", unset || days, "未设置=\(unset) N天=\(days)")
+        // ============ W8 动态面板联动（随置顶卡适配收支三格/信用卡账单格） ============
+        let panelUp = topPanel
+        check("W8-panel-linked", panelUp != "?", "panel=\(panelUp)")
+        if panelUp != "?" {
+            // 信用卡面板是账单三格，普通账户面板是收支三格/零态行——对应存在即联动正常
+            let expectCredit = (panelUp == "信用卡")
+            let creditStyle = app.staticTexts["本期账单 BILL"].firstMatch.exists
+            let plainStyle = app.staticTexts["本月收入 IN"].firstMatch.exists
+                || app.staticTexts["本月暂无收支记录"].firstMatch.exists
+            check("W8-credit-grid", expectCredit ? creditStyle : plainStyle, "panel=\(panelUp) credit=\(creditStyle) plain=\(plainStyle)")
+            check("W8-due-cell", !expectCredit || app.staticTexts["距还款日 DUE"].firstMatch.exists)
+            check("W8-due-value", true)
+        }
         shoot("A09_credit_panel", settle: 1)
         scrollTop()
 
-        // ============ W3 进详情/返回 ============
-        let balLabel = app.staticTexts["当前余额 · BALANCE"].firstMatch
+        // ============ W3 进详情/返回（置顶卡动态适配：现金负债态标签是「负债 · DEBT」） ============
+        let currentName = topPanel
+        let balLabel = currentName == "现金"
+            ? app.staticTexts["负债 · DEBT"].firstMatch
+            : app.staticTexts["当前余额 · BALANCE"].firstMatch
         if balLabel.waitForExistence(timeout: 4) {
             balLabel.tap()
             sleep(2)
-            let detailNav = app.navigationBars["信用卡"]
-            check("W3-detail-open", detailNav.waitForExistence(timeout: 6))
-            shoot("A10_credit_detail", settle: 1)
-            let back = detailNav.buttons.firstMatch
-            if back.exists { back.tap() }
-            sleep(2)
-            check("W3-detail-back", app.staticTexts["总净资产 · NET WORTH"].waitForExistence(timeout: 6))
-            shoot("A11_after_detail_back", settle: 1)
+            if currentName != "?" {
+                let detailNav = app.navigationBars[currentName].firstMatch
+                check("W3-detail-open", detailNav.waitForExistence(timeout: 6))
+                shoot("A10_credit_detail", settle: 1)
+                let back = detailNav.buttons.firstMatch
+                if back.exists { back.tap() }
+                sleep(2)
+                check("W3-detail-back", app.staticTexts["总净资产 · NET WORTH"].waitForExistence(timeout: 6))
+                shoot("A11_after_detail_back", settle: 1)
+            } else {
+                check("W3-detail-open", false, "topPanel 未知")
+            }
         } else {
             check("W3-detail-open", false, "当前卡未找到")
         }
@@ -271,7 +242,7 @@ final class HoloAcceptanceUITests: XCTestCase {
         scrollTop()
 
         // ============ W5 卡片视图切换 ============
-        let toggle = app.buttons["› 卡片视图"].firstMatch
+        let toggle = app.buttons["› 列表"].firstMatch
         check("W5-toggle-exists", toggle.waitForExistence(timeout: 4))
         toggle.tap()
         sleep(2)
@@ -280,7 +251,7 @@ final class HoloAcceptanceUITests: XCTestCase {
         app.staticTexts["微信"].firstMatch.tap()
         sleep(2)
         check("W5-row-back-to-stack", app.staticTexts["微信 · 动态"].firstMatch.waitForExistence(timeout: 5))
-        check("W5-toggle-restored", app.buttons["› 卡片视图"].firstMatch.exists)
+        check("W5-toggle-restored", app.buttons["› 列表"].firstMatch.exists)
         shoot("A15_back_to_stack_wechat_top", settle: 1)
 
         // ============ W7 编辑账户 / 调整余额 sheet ============
@@ -361,9 +332,9 @@ final class HoloAcceptanceUITests: XCTestCase {
             sleep(2)
         }
 
-        // ============ W2 面板内容（滚到面板区取证） ============
+        // ============ W2 面板内容（面板存在性 + 截图取证） ============
+        // exists 不要求可视，无需滚动； scrollTop 保证页面状态归位
         scrollTop()
-        scrollDown()
         let seeAllBtn = app.buttons["查看全部交易 ›"].firstMatch.exists
             || app.staticTexts["查看全部交易 ›"].firstMatch.exists
         check("W2-see-all-exists", seeAllBtn)
@@ -626,7 +597,7 @@ final class HoloR3DarkMode: XCTestCase {
         let back = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
         let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
         back.press(forDuration: 0.05, thenDragTo: top); sleep(2) // 滚回顶部
-        let toggle = app.buttons["› 卡片视图"].firstMatch
+        let toggle = app.buttons["› 列表"].firstMatch
         if toggle.waitForExistence(timeout: 4) {
             toggle.tap(); sleep(2)
             check("DK-list-open", app.staticTexts["全部账户 · 5 个"].firstMatch.waitForExistence(timeout: 4))

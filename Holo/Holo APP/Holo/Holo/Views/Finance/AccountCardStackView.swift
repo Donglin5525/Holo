@@ -25,6 +25,12 @@ struct AccountStackItem: Identifiable {
         guard account.accountType.isCreditCard, balance < 0 else { return nil }
         return -balance
     }
+
+    /// 普通账户余额为负 = 负债状态（信用卡除外，其负余额已走「已用额度」语义）；
+    /// 与净资产卡「总负债」同一口径，卡面用负债色标出
+    var isDebt: Bool {
+        !account.accountType.isCreditCard && balance < 0
+    }
 }
 
 // MARK: - 金额格式化
@@ -43,6 +49,11 @@ enum AccountCardFormat {
     static func amount(_ value: Decimal) -> String {
         formatter.string(from: NSDecimalNumber(decimal: value)) ?? "0.00"
     }
+
+    /// 带货币符号的卡面金额：负数输出「-¥298.00」（负号在 ¥ 前，与净资产卡口径一致）
+    static func prefixed(_ value: Decimal) -> String {
+        value < 0 ? "-¥\(amount(-value))" : "¥\(amount(value))"
+    }
 }
 
 // MARK: - 卡堆
@@ -54,7 +65,6 @@ struct AccountCardStackView: View {
     @Binding var topAccountId: UUID?
 
     var onOpenDetail: (Account) -> Void
-    var onAddAccount: () -> Void
     var onEdit: (Account) -> Void
     var onAdjustBalance: (Account) -> Void
     var onSetDefault: (Account) -> Void
@@ -95,15 +105,6 @@ struct AccountCardStackView: View {
                         .zIndex(Double(index))
                 }
             }
-
-            // 「＋ 添加账户」虚线卡头（常驻堆底）
-            addButton
-                .offset(y: addButtonOffset)
-                .opacity(appeared ? 1 : 0)
-                .animation(flipAnimation.delay(Double(order.count) * 0.07), value: appeared)
-                // 增删账户挪位时与卡片同一条弹簧移动，避免按钮瞬移、卡片慢移的两层错位
-                .animation(flipAnimation, value: order)
-                .zIndex(100)
 
             // 命中层：当前卡整卡可点，收起卡仅头部可点（与视觉严格对齐）。
             // 用 contentShape + onTapGesture（Button+contextMenu 在手势竞争中长按易失效）
@@ -156,47 +157,13 @@ struct AccountCardStackView: View {
             : Self.cardHeight + Self.stackGap + CGFloat(index - 1) * Self.headHeight
     }
 
-    /// 添加卡排在最后，同样压住最后一张收起卡的底边
-    private var addButtonOffset: CGFloat {
-        Self.cardHeight + Self.stackGap + CGFloat(max(order.count - 1, 0)) * Self.headHeight
-    }
-
+    /// 卡堆总高 = 末位收起卡底部（添加入口已收敛到导航栏 +，堆底不再放虚线卡）
     private var totalHeight: CGFloat {
-        addButtonOffset + Self.headHeight
+        Self.cardHeight + Self.stackGap + CGFloat(max(order.count - 1, 0)) * Self.headHeight
+            + Self.collapsedCardHeight
     }
 
     // MARK: 子视图
-
-    private var addButton: some View {
-        Button {
-            onAddAccount()
-        } label: {
-            HStack(spacing: 9) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color.holoPrimary.opacity(0.12))
-                    Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.holoPrimaryDark)
-                }
-                .frame(width: 26, height: 26)
-                Text("添加账户")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoPrimaryDark)
-            }
-        }
-        .frame(height: Self.headHeight)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: AccountCardMaterial.cornerRadius, style: .continuous)
-                .fill(Color.holoPrimary.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AccountCardMaterial.cornerRadius, style: .continuous)
-                .strokeBorder(Color.holoPrimaryDark.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-        )
-        .buttonStyle(.plain)
-    }
 
     private func cardMenu(for account: Account) -> some View {
         Group {
@@ -267,6 +234,8 @@ struct AccountMaterialCard: View {
     /// 收起态只渲染卡头（高度 64），当前卡完整展开（高度 212）
     var showsBody: Bool = true
 
+    private var palette: AccountCardPalette { .palette(for: item.account) }
+
     var body: some View {
         VStack(spacing: 0) {
             head
@@ -283,7 +252,7 @@ struct AccountMaterialCard: View {
                 Color.clear.frame(height: AccountCardStackView.collapsedTailHeight)
             }
         }
-        .modifier(AccountCardMaterial(palette: .palette(for: item.account), isCurrent: isCurrent, compact: !showsBody))
+        .modifier(AccountCardMaterial(palette: palette, isCurrent: isCurrent, compact: !showsBody))
         .overlay(alignment: .bottomTrailing) {
             // 卡面水印：右下角大图标，7% 透明度强化识别又不出戏（仅展开卡）
             if showsBody {
@@ -303,7 +272,7 @@ struct AccountMaterialCard: View {
         return HStack(spacing: 11) {
             ZStack {
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(.white.opacity(0.16))
+                    .fill(palette.accent.opacity(0.32))
                 Image(systemName: item.account.icon)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundColor(.white)
@@ -311,7 +280,7 @@ struct AccountMaterialCard: View {
             .frame(width: 38, height: 38)
             .overlay(
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .strokeBorder(.white.opacity(0.22), lineWidth: 0.5)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
             )
 
             VStack(alignment: .leading, spacing: 2) {
@@ -330,21 +299,32 @@ struct AccountMaterialCard: View {
                             .overlay(Capsule().strokeBorder(Color(hex: "#FFBE8C").opacity(0.35), lineWidth: 0.5))
                     }
                 }
-                Text("\(item.account.accountType.displayName) · \(item.account.accountType.englishLabel)")
-                    .font(.system(size: 10, weight: .medium))
-                    .tracking(1.4)
-                    .foregroundColor(.white.opacity(0.78))
+                // 展开卡的类型英文已在右上角排印出现，这里不再重复
+                if !showsBody {
+                    Text("\(item.account.accountType.displayName) · \(item.account.accountType.englishLabel)")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.4)
+                        .foregroundColor(.white.opacity(0.78))
+                }
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("¥\(AccountCardFormat.amount(item.outstanding ?? item.balance))")
-                    .font(.system(size: 14.5, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                Text(item.outstanding != nil ? "已用额度" : "当前余额")
-                    .font(.system(size: 9))
-                    .tracking(0.8)
-                    .foregroundColor(.white.opacity(0.68))
+            if showsBody {
+                // 展开卡：金额只在卡身出现一次，卡头右侧留给类型英文排印（实体卡 logo 位）
+                Text(item.account.accountType.englishLabel)
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(3)
+                    .foregroundColor(.white.opacity(0.5))
+            } else {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(AccountCardFormat.prefixed(item.outstanding ?? item.balance))
+                        .font(.system(size: 14.5, weight: .bold, design: .rounded))
+                        .foregroundColor(item.isDebt ? AccountCardMaterial.debtColor : .white)
+                        .lineLimit(1)
+                    Text(item.outstanding != nil ? "已用额度" : (item.isDebt ? "负债" : "当前余额"))
+                        .font(.system(size: 9))
+                        .tracking(0.8)
+                        .foregroundColor(item.isDebt ? AccountCardMaterial.debtColor.opacity(0.8) : .white.opacity(0.68))
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -357,84 +337,75 @@ struct AccountMaterialCard: View {
     // MARK: 卡身（当前卡展开区）
 
     private var cardBody: some View {
-        VStack(spacing: 0) {
-            // 把手条：当前卡由品牌橙点亮
-            Capsule()
-                .fill(isCurrent ? Color.holoPrimary : Color.white.opacity(0.35))
-                .frame(width: 30, height: 4)
-                .shadow(color: isCurrent ? Color.holoPrimary.opacity(0.65) : .clear, radius: 6)
-                .padding(.top, 5)
-                .padding(.bottom, 3)
-
+        Group {
             if let outstanding = item.outstanding {
                 creditBody(outstanding: outstanding)
             } else {
                 balanceBody
             }
         }
+        // 卡身高度锁死在几何常数上：stackOffset/总高都按 head+body 计算，
+        // 内容改造后若靠 padding 自然撑高，叠压几何会整体错位
+        .frame(height: AccountCardStackView.bodyHeight, alignment: .top)
     }
 
     private var balanceBody: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("当前余额 · BALANCE")
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.isDebt ? "负债 · DEBT" : "当前余额 · BALANCE")
                         .font(.system(size: 9.5, weight: .medium))
                         .tracking(1.6)
-                        .foregroundColor(.white.opacity(0.75))
-                    HStack(alignment: .top, spacing: 2) {
-                        Text("¥")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white.opacity(0.8))
-                        Text(AccountCardFormat.amount(item.balance))
-                            .font(.system(size: 30, weight: .heavy, design: .rounded))
-                            .foregroundColor(.white)
+                        .foregroundColor(item.isDebt ? AccountCardMaterial.debtColor.opacity(0.85) : .white.opacity(0.75))
+                    HStack(alignment: .top, spacing: 3) {
+                        Text(item.isDebt ? "-¥" : "¥")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(item.isDebt ? AccountCardMaterial.debtColor.opacity(0.9) : .white.opacity(0.8))
+                            .padding(.top, 3)
+                        Text(AccountCardFormat.amount(item.isDebt ? -item.balance : item.balance))
+                            .font(.system(size: 36, weight: .heavy, design: .rounded))
+                            .foregroundColor(item.isDebt ? AccountCardMaterial.debtColor : Color(hex: "#FFF2E4"))
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     }
                 }
                 Spacer()
                 if showsChip {
-                    AccountChipIcon().padding(.bottom, 2)
+                    AccountChipIcon().padding(.top, 6)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 12)
-
-            HStack(spacing: 6) {
-                AccountCardPill(label: "本月支出", value: "¥\(AccountCardFormat.amount(item.monthlyExpense))")
-                AccountCardPill(label: "本月收入", value: "¥\(AccountCardFormat.amount(item.monthlyIncome))")
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 15)
+            .padding(.top, 16)
+            Spacer(minLength: 0)
         }
     }
 
     private func creditBody(outstanding: Decimal) -> some View {
         VStack(spacing: 0) {
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("已用额度 · OUTSTANDING")
                         .font(.system(size: 9.5, weight: .medium))
                         .tracking(1.6)
                         .foregroundColor(.white.opacity(0.75))
-                    HStack(alignment: .top, spacing: 2) {
+                    HStack(alignment: .top, spacing: 3) {
                         Text("¥")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.white.opacity(0.8))
+                            .padding(.top, 3)
                         Text(AccountCardFormat.amount(outstanding))
-                            .font(.system(size: 30, weight: .heavy, design: .rounded))
-                            .foregroundColor(.white)
+                            .font(.system(size: 36, weight: .heavy, design: .rounded))
+                            .foregroundColor(Color(hex: "#FFF2E4"))
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     }
                 }
                 Spacer()
-                AccountChipIcon().padding(.bottom, 2)
+                AccountChipIcon().padding(.top, 6)
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 11)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
 
             // 额度水位：欠款越多，暖光越长
             GeometryReader { proxy in
@@ -448,21 +419,30 @@ struct AccountMaterialCard: View {
             }
             .frame(height: 4.5)
             .padding(.horizontal, 16)
-            .padding(.bottom, 12)
+            .padding(.bottom, 14)
 
-            HStack(spacing: 6) {
-                if let limit = item.account.creditLimitDecimal {
-                    AccountCardPill(label: "可用", value: "¥\(AccountCardFormat.amount(max(limit - outstanding, 0)))")
-                    AccountCardPill(label: "总额度", value: "¥\(AccountCardFormat.amount(limit))")
+            // 可用额度排印行：替代原先的三粒胶囊，卡面回归银行卡的排印语言
+            if item.account.creditLimitDecimal != nil {
+                HStack(spacing: 5) {
+                    Text("可用")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .tracking(1.2)
+                        .foregroundColor(.white.opacity(0.62))
+                    Text(availableText)
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.95))
+                    Spacer(minLength: 0)
                 }
-                if let billDay = item.account.billingDayInt, let dueDay = item.account.dueDayInt {
-                    AccountCardPill(label: "账单 \(billDay) 日 · 还款 \(dueDay) 日", value: "")
-                }
-                Spacer(minLength: 0)
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 15)
         }
+    }
+
+    /// 可用额度（调用方已保证总额度存在时才渲染该行）
+    private var availableText: String {
+        guard let limit = item.account.creditLimitDecimal else { return "" }
+        let outstanding = item.outstanding ?? 0
+        return AccountCardFormat.prefixed(max(limit - outstanding, 0))
     }
 
     private var creditUsageRatio: CGFloat {

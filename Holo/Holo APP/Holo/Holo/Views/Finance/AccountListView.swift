@@ -91,6 +91,8 @@ struct AccountListView: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.holoPrimary)
                     }
+                    // 添加账户唯一入口（卡堆底虚线卡已删），无障碍标签供读屏与 UI 测试定位
+                    .accessibilityLabel("添加账户")
                 }
             }
             .navigationDestination(isPresented: $showDetail) {
@@ -132,7 +134,6 @@ struct AccountListView: View {
                     detailAccount = account
                     showDetail = true
                 },
-                onAddAccount: { showAddAccount = true },
                 onEdit: { account in editingAccount = account },
                 onAdjustBalance: { account in adjustingAccount = account },
                 onSetDefault: { account in
@@ -175,7 +176,8 @@ struct AccountListView: View {
                 Button {
                     withAnimation(HoloAnimation.standard) { showListView.toggle() }
                 } label: {
-                    Text(showListView ? "‹ 卡堆视图" : "› 卡片视图")
+                    // 按钮文案 = 切换去往的视图，不是当前视图（卡堆页里写「卡片视图」会被读成当前模式）
+                    Text(showListView ? "‹ 卡堆" : "› 列表")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color(hex: "#F0C9A8"))
                         .padding(.horizontal, 10)
@@ -366,9 +368,9 @@ struct AccountListView: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Text("¥\(AccountCardFormat.amount(item.balance))")
+                    Text(AccountCardFormat.prefixed(item.balance))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(item.balance >= 0 ? .holoTextPrimary : .holoError)
+                        .foregroundColor(item.balance >= 0 ? .holoTextPrimary : AccountCardMaterial.debtColor)
                 }
             }
             .padding(.horizontal, 16)

@@ -60,6 +60,12 @@ struct AccountDynamicPanel: View {
         AccountCardPalette.palette(for: account).accent
     }
 
+    /// 普通账户零态：本月收支全 0 且无近期交易（信用卡不收拢——距还款日始终有信息量）
+    private var isPlainEmptyMonth: Bool {
+        guard !account.accountType.isCreditCard else { return false }
+        return data.monthly.income == 0 && data.monthly.expense == 0 && data.recents.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // 顶部账户色渐变条 + 色点
@@ -74,15 +80,18 @@ struct AccountDynamicPanel: View {
                 Text("\(account.name) · 动态")
                     .font(.system(size: 13.5, weight: .bold))
                 Spacer()
-                Text("\(account.accountType.displayName) · \(account.accountType.englishLabel)")
-                    .font(.system(size: 10.5))
-                    .tracking(0.8)
-                    .foregroundColor(.holoTextSecondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
 
-            if account.accountType.isCreditCard {
+            if isPlainEmptyMonth {
+                // 零态收拢：本月无收支且无近期交易时不再整块铺三格 ¥0.00
+                Text("本月暂无收支记录")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            } else if account.accountType.isCreditCard {
                 creditGrid
             } else {
                 balanceGrid
@@ -128,8 +137,15 @@ struct AccountDynamicPanel: View {
         grid(
             cell(title: "本月收入 IN", value: "+¥\(AccountCardFormat.amount(data.monthly.income))", color: .holoSuccess),
             cell(title: "本月支出 OUT", value: "¥\(AccountCardFormat.amount(data.monthly.expense))", color: .holoTextPrimary),
-            cell(title: "净收支 NET", value: "\(data.monthly.net >= 0 ? "+" : "")¥\(AccountCardFormat.amount(data.monthly.net))", color: data.monthly.net >= 0 ? .holoSuccess : .holoError)
+            cell(title: "净收支 NET", value: netText, color: data.monthly.net >= 0 ? .holoSuccess : AccountCardMaterial.debtColor)
         )
+    }
+
+    /// 净收支：正数带 + 号，负数输出「-¥42.50」（与卡面/列表的负债口径同格式）
+    private var netText: String {
+        data.monthly.net >= 0
+            ? "+¥\(AccountCardFormat.amount(data.monthly.net))"
+            : AccountCardFormat.prefixed(data.monthly.net)
     }
 
     private func cell(title: String, value: String, color: Color) -> some View {

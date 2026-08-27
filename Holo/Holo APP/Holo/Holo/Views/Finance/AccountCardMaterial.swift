@@ -110,6 +110,8 @@ struct AccountCardMaterial: ViewModifier {
     static let cornerRadius: CGFloat = 20
     /// 统一 Holo 暖金高光（所有卡同一颗暖光）
     private static let warmGlow = Color(hex: "#FFCD8C")
+    /// 负债色：卡面/列表的负余额统一用这支暖橙红（与净资产卡「总负债」同色）
+    static let debtColor = Color(hex: "#FFA98F")
 
     func body(content: Content) -> some View {
         content
@@ -142,8 +144,10 @@ struct AccountCardMaterial: ViewModifier {
                         lineWidth: 1
                     )
             )
-            .shadow(color: .black.opacity(compact ? 0.32 : 0.28), radius: compact ? 8 : 20, y: compact ? 5 : 14)
-            .shadow(color: .black.opacity(0.16), radius: compact ? 3 : 5, y: compact ? 2 : 3)
+            // 收起卡投影压轻一档：叠压处深色背景下曾显「脏缝」，
+            // 深度感交给叠压几何本身，阴影只做轻托底
+            .shadow(color: .black.opacity(compact ? 0.22 : 0.28), radius: compact ? 7 : 20, y: compact ? 4 : 14)
+            .shadow(color: .black.opacity(compact ? 0.10 : 0.16), radius: compact ? 2 : 5, y: compact ? 1 : 3)
             .overlay(
                 RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                     .strokeBorder(Color.holoPrimary.opacity(0.45), lineWidth: 1)
@@ -176,25 +180,6 @@ struct AccountChipIcon: View {
         .frame(width: 44, height: 33)
         .shadow(color: .black.opacity(0.30), radius: 2, y: 1)
         .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.45), lineWidth: 0.5))
-    }
-}
-
-/// 卡面毛玻璃信息胶囊（「可用 ¥xx」「本月支出 ¥xx」）
-struct AccountCardPill: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(label).font(.system(size: 9)).foregroundStyle(.white.opacity(0.72))
-            Text(value).font(.system(size: 11.5, weight: .bold, design: .rounded)).foregroundStyle(.white)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(
-            Capsule().fill(.white.opacity(0.11))
-                .overlay(Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
-        )
     }
 }
 
