@@ -121,11 +121,9 @@ struct HoloLightweightOnboardingView: View {
     /// 统一收尾：保存昵称（仅非整体跳过）、标记旧 onboarding、按选择授权、写 completed key、回调。
     private func finish(_ choice: OnboardingCompletionChoice) {
         // 1. 仅在非整体跳过时保存昵称草稿；跳过不保存半输入昵称。
-        //    同步写入 iCloud 同步表：卸载重装后昵称随云端回来（本地 UserDefaults 会随卸载清空）。
-        if choice != .skippedOnboarding,
-           let name = UserDisplayNameSettings.normalizedDisplayName(nicknameDraft) {
-            UserDisplayNameSettings.standard.saveDisplayName(name)
-            UserPreferenceRepository.shared.set(name, forKey: UserPreferenceRepository.displayNameKey)
+        //    统一出口内部会跳过空值；写入同步表后卸载重装昵称随云端回来。
+        if choice != .skippedOnboarding {
+            UserPreferenceRepository.shared.setDisplayName(nicknameDraft)
         }
         // 2. 完成/跳过都标记旧昵称 onboarding，避免旧 Alert 再次出现。
         UserDisplayNameSettings.standard.markOnboardingCompleted()

@@ -83,6 +83,16 @@ final class UserPreferenceRepository {
         }
     }
 
+    // MARK: - 昵称统一出口
+
+    /// 昵称保存的唯一通道：本地立即生效 + 同步表上行 iCloud。
+    /// 引导页、个人页、设置页三个入口共用，保证「本次安装主动设置」标记与云端值始终一致。
+    func setDisplayName(_ rawName: String) {
+        guard let name = UserDisplayNameSettings.normalizedDisplayName(rawName) else { return }
+        UserDisplayNameSettings.standard.saveDisplayName(name)
+        set(name, forKey: Self.displayNameKey)
+    }
+
     // MARK: - 云同步重复修复
 
     /// 与首页图标配置同源的竞态：卸载重装后种子写入与 iCloud 恢复并存时，

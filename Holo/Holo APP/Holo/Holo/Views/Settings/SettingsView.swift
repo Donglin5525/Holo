@@ -48,6 +48,9 @@ struct SettingsView: View {
     @State private var appLockUnavailableMessage: String?
     /// 开启验证（弹系统验证框）期间用户是否仍意图开启；防止验证回调晚到时覆盖用户已拨回的开关
     @State private var appLockEnablePending = false
+    // 昵称修改弹窗
+    @State private var showNicknameEditor = false
+    @State private var nicknameDraft = ""
 
     // MARK: - Body
 
@@ -57,6 +60,9 @@ struct SettingsView: View {
                 VStack(spacing: HoloSpacing.lg) {
                     // 用户信息卡片
                     userInfoCard
+
+                    // 昵称（首页问候怎么称呼你，随 iCloud 同步）
+                    nicknameSection
 
                     // 深色模式设置
                     darkModeSection
@@ -132,6 +138,62 @@ struct SettingsView: View {
         } message: {
             Text("这会删除本机 Holo 数据、附件、AI 记忆、缓存和登录状态。已同步到 iCloud 的 Holo 数据会在系统同步后尝试删除；如果设备离线，删除同步可能延后。")
         }
+        .alert("怎么称呼你", isPresented: $showNicknameEditor) {
+            TextField("昵称", text: $nicknameDraft)
+            Button("保存") { saveNickname() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("保存后随 iCloud 同步，卸载重装也能找回来")
+        }
+    }
+
+    // MARK: - 昵称
+
+    private var nicknameSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("昵称")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            Button {
+                nicknameDraft = userName
+                showNicknameEditor = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    Text("怎么称呼你")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer()
+
+                    Text(userName)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 12)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+
+    /// 改名走统一出口：本地立即生效 + 同步表上行 iCloud（与引导页/个人页同通道）
+    private func saveNickname() {
+        UserPreferenceRepository.shared.setDisplayName(nicknameDraft)
     }
 
     // MARK: - 用户信息卡片

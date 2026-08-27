@@ -347,11 +347,9 @@ struct PersonalView: View {
         }
     }
 
-    /// 改名走与引导页同一条双写通道：本地立即生效 + 同步表上行 iCloud
+    /// 改名走统一出口：本地立即生效 + 同步表上行 iCloud（与引导页/设置页同通道）
     private func saveNickname() {
-        guard let name = UserDisplayNameSettings.normalizedDisplayName(nicknameDraft) else { return }
-        UserDisplayNameSettings.standard.saveDisplayName(name)
-        UserPreferenceRepository.shared.set(name, forKey: UserPreferenceRepository.displayNameKey)
+        UserPreferenceRepository.shared.setDisplayName(nicknameDraft)
     }
 
     private var memorySummaryCapsule: some View {
