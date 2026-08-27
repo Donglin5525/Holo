@@ -27,6 +27,9 @@ struct PersonalView: View {
     @State private var showMemorySettings = false
     @State private var showMemorySummaryCapsule = false
     @State private var showMemoryConfirmationQueue = false
+    // 昵称修改弹窗
+    @State private var showNicknameEditor = false
+    @State private var nicknameDraft = ""
     @State private var memoryInboxSnapshot = HoloMemoryInboxSnapshot(
         newMemoryCount: 0,
         pendingConfirmationCount: 0,
@@ -78,6 +81,13 @@ struct PersonalView: View {
                 NavigationStack {
                     HoloProfileEditorView()
                 }
+            }
+            .alert("怎么称呼你", isPresented: $showNicknameEditor) {
+                TextField("昵称", text: $nicknameDraft)
+                Button("保存") { saveNickname() }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("保存后随 iCloud 同步，卸载重装也能找回来")
             }
             .navigationDestination(isPresented: $showGoalList) {
                 GoalListView(
@@ -291,7 +301,57 @@ struct PersonalView: View {
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(PlainButtonStyle())
+
+            // 昵称：原先只在引导页设置一次、之后无处可改；
+            // 昵称云同步上线后这里同时是改名入口与云端值的写通道。
+            Button {
+                nicknameDraft = userName
+                showNicknameEditor = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoPrimary.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "person.crop.circle")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("昵称")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("首页问候怎么称呼你，随 iCloud 同步")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    Text(userName)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(PlainButtonStyle())
         }
+    }
+
+    /// 改名走与引导页同一条双写通道：本地立即生效 + 同步表上行 iCloud
+    private func saveNickname() {
+        guard let name = UserDisplayNameSettings.normalizedDisplayName(nicknameDraft) else { return }
+        UserDisplayNameSettings.standard.saveDisplayName(name)
+        UserPreferenceRepository.shared.set(name, forKey: UserPreferenceRepository.displayNameKey)
     }
 
     private var memorySummaryCapsule: some View {
