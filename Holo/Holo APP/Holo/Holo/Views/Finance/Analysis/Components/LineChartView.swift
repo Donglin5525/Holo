@@ -18,6 +18,8 @@ struct LineChartView: View {
     var displayedType: TransactionType = .expense
     var displayedTypeSelection: Binding<TransactionType>? = nil
     var selectionDataPoints: [ChartDataPoint]? = nil
+    /// 卡头副标题：明细 Tab 提示滑动联动，总览 Tab 等无联动场景可自定义
+    var subtitle: String = "横向滑动，明细实时定位"
     var onScrubDate: ((Date) -> Void)? = nil
     let onSelectDate: (Date?) -> Void
 
@@ -91,7 +93,7 @@ struct LineChartView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
 
-                Text("横向滑动，明细实时定位")
+                Text(subtitle)
                     .font(.system(size: 10))
                     .foregroundColor(.holoTextSecondary)
             }
@@ -356,6 +358,25 @@ struct LineChartView: View {
         }
         .frame(height: 142)
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Legend Item
+
+/// 图例项
+struct LegendItem: View {
+    let color: Color
+    let label: String
+
+    var body: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+        }
     }
 }
 

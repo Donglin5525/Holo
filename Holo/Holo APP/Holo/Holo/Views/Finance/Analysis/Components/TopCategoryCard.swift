@@ -31,7 +31,7 @@ struct TopCategoryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // 标题 + Segment
+            // 标题 + Segment（与「收支趋势」卡头的分段控件同一套，去掉自绘红胶囊）
             HStack(spacing: HoloSpacing.md) {
                 Text("分类排行")
                     .font(.holoHeading)
@@ -40,8 +40,14 @@ struct TopCategoryCard: View {
 
                 Spacer(minLength: HoloSpacing.sm)
 
-                segmentControl
-                    .fixedSize(horizontal: true, vertical: false)
+                Picker("排行类型", selection: $showsExpense) {
+                    Text("支出").tag(true)
+                    Text("收入").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 136)
+                .fixedSize(horizontal: true, vertical: false)
             }
 
             if currentAggregations.isEmpty {
@@ -55,39 +61,6 @@ struct TopCategoryCard: View {
         .padding(.bottom, 18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .holoCard()
-    }
-
-    // MARK: - Segment
-
-    private var segmentControl: some View {
-        HStack(spacing: 0) {
-            segmentButton(title: "支出", isSelected: showsExpense, color: .holoError) {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showsExpense = true
-                }
-            }
-
-            segmentButton(title: "收入", isSelected: !showsExpense, color: .holoSuccess) {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showsExpense = false
-                }
-            }
-        }
-        .background(Color.holoBackground)
-        .clipShape(Capsule())
-    }
-
-    private func segmentButton(title: String, isSelected: Bool, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: isSelected ? .medium : .regular))
-                .foregroundColor(isSelected ? .white : .holoTextSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(isSelected ? color : Color.clear)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - 分类列表

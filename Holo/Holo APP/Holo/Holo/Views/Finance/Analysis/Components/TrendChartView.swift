@@ -1,34 +1,30 @@
 //
-//  BarChartView.swift
+//  TrendChartView.swift
 //  Holo
 //
-//  柱状图组件（用于总览 Tab）
-//  支出/收入柱状图 + 余额折线（双 Y 轴）+ 触摸交互
+//  总览 Tab 趋势卡：支出 / 收入 / 余额 三线同图
+//  收支走左轴；余额经 BalanceChartScale 缩放映射到同一视觉区间，
+//  右轴不再标刻度（余额精确值在触摸 tooltip 里读）——规避双轴数字的认知负担。
+//  曲线 catmullRom 平滑连接、不画逐日数据点。
 //
 
 import SwiftUI
 import Charts
 
-// MARK: - BarChartView
+// MARK: - TrendChartView
 
-/// 柱状图视图（支出/收入对比 + 可选余额折线，双 Y 轴）
-struct BarChartView: View {
+/// 总览趋势卡（三线同图）
+struct TrendChartView: View {
     let dataPoints: [ChartDataPoint]
-    var showBalance: Bool = false
     var balanceScale: BalanceChartScale? = nil
-    var selectedDate: Date? = nil
-    var onSelectDate: ((Date?) -> Void)? = nil
 
     @State private var hoveredLabel: String? = nil
 
     private var allValuesZero: Bool {
-        if showBalance {
-            return dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 && $0.balance == 0 }
-        }
-        return dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
+        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 && $0.balance == 0 }
     }
 
-    /// X 轴刻度标签：数据点多（>14）时稀疏展示（最多 6 个），少时全部展示
+    /// X 轴刻度标签：数据点多（>14）时稀疏展示（最多 6 个）
     private var axisMarkLabels: [String] {
         guard dataPoints.count > 14 else { return dataPoints.map(\.label) }
         let desiredCount = 6
@@ -66,83 +62,60 @@ struct BarChartView: View {
         .holoCard()
     }
 
-    // MARK: - 图例
+    // MARK: 图例
 
     private var chartLegend: some View {
         HStack(spacing: HoloSpacing.lg) {
             LegendItem(color: .holoError, label: "支出")
             LegendItem(color: .holoSuccess, label: "收入")
-            if showBalance {
-                LegendItem(color: .holoInfo, label: "余额")
-            }
+            LegendItem(color: .holoPrimary, label: "余额")
         }
     }
 
-    // MARK: - 图表内容
+    // MARK: 图表内容
 
     private var chartContent: some View {
         Chart(dataPoints) { point in
             let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
             let incomeVal = Double(truncating: point.income as NSDecimalNumber)
+            let balanceVal = Double(truncating: point.balance as NSDecimalNumber)
+            let scaledBalance = balanceScale?.scaledBalance(balanceVal) ?? balanceVal
 
-            // 同一日期的收入/支出按类型分组并排显示，避免相同方向的柱形被自动堆叠。
-            BarMark(
+            // 余额渐变垫底：只做水位质感，不压过三线
+            AreaMark(
                 x: .value("日期", point.label),
-                y: .value("收入", incomeVal)
+                y: .value("余额", scaledBalance)
             )
-            .position(by: .value("类型", "收入"))
-            .foregroundStyle(Color.holoSuccess.opacity(0.45))
-
-            BarMark(
-                x: .value("日期", point.label),
-                y: .value("支出", expenseVal)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [Color.holoPrimary.opacity(0.10), Color.holoPrimary.opacity(0.0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             )
-            .position(by: .value("类型", "支出"))
-            .foregroundStyle(Color.holoError.opacity(0.88))
+            .interpolationMethod(.monotone)
 
-            // 余额折线 → 右 Y 轴 (yAxisIndex: 1, 缩放后映射到左轴视觉范围)
-            if showBalance {
-                let balanceVal = Double(truncating: point.balance as NSDecimalNumber)
-                let scaledVal = balanceScale?.scaledBalance(balanceVal) ?? balanceVal
-
-                LineMark(
-                    x: .value("日期", point.label),
-                    y: .value("余额", scaledVal)
-                )
-                .foregroundStyle(Color.holoInfo)
-                // 财务数据使用线性连接，避免平滑曲线在相邻点之间制造不存在的峰谷。
-                .interpolationMethod(.linear)
-                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                .zIndex(10)
-
-                PointMark(
-                    x: .value("日期", point.label),
-                    y: .value("余额", scaledVal)
-                )
-                .foregroundStyle(Color.holoInfo)
-                .symbolSize(34)
-                .zIndex(11)
-            }
+            // 三线同图：余额（品牌橙）为主视觉，支出暖红、收入暖绿。
+            // series 必须各自命名——否则 Charts 会把连续的同类型 Mark 串成一条线
+            lineMark(label: point.label, value: scaledBalance, color: .holoPrimary, width: 2.5, series: "余额")
+            lineMark(label: point.label, value: expenseVal, color: .holoError, width: 2.25, series: "支出")
+            lineMark(label: point.label, value: incomeVal, color: .holoSuccess, width: 2.25, series: "收入")
         }
-        // 给首尾数据点留出空间，避免柱形贴边后被裁切。
+        // 给首尾数据点留出空间，避免曲线贴边被裁切
         .chartXScale(range: .plotDimension(padding: 18))
-        // X 轴（数据点多时按 axisMarkLabels 稀疏展示）
         .chartXAxis {
             AxisMarks(values: axisMarkLabels) { _ in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
                 AxisValueLabel()
                     .foregroundStyle(Color.holoTextSecondary)
             }
         }
-        // 左 Y 轴（收支）—— 保留网格线 + 默认刻度标签
         .chartYAxis {
             AxisMarks(
                 position: .leading,
                 values: FinanceChartAxisTicks.amountTicks(min: yAxisDomain.lowerBound, max: yAxisDomain.upperBound)
             ) { value in
                 AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
+                    .foregroundStyle(Color.holoDivider.opacity(0.5))
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(formatAxisValue(amount))
@@ -153,21 +126,18 @@ struct BarChartView: View {
                 }
             }
         }
-        // 锁定 Y 轴域 = 收支范围，确保余额折线的缩放映射精确对齐
         .chartYScale(domain: yAxisDomain)
-        // 给右侧 Y 轴标签预留空间
         .chartPlotStyle { plotArea in
             plotArea
                 .padding(.leading, 4)
-                .padding(.trailing, showBalance ? 44 : 0)
+                .padding(.trailing, 8)
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 let overlayFrame = geometry.frame(in: .local)
                 let plotFrame = proxy.plotFrame.map { geometry[$0] }
 
-                // 触摸手势：方向判定覆盖层——横向拖动图表独占，纵向拖动在识别开始前交还页面滚动
-                // 统一换算到 plot area 坐标，避免 overlay/global 坐标混用导致错位
+                // 触摸手势：横向拖动独占、纵向拖动在识别开始前交还页面滚动
                 DirectionalChartGestureOverlay(
                     onChanged: { location in
                         guard !dataPoints.isEmpty, let plotFrame else { return }
@@ -183,7 +153,6 @@ struct BarChartView: View {
                         let point = dataPoints[index]
                         if hoveredLabel != point.label {
                             hoveredLabel = point.label
-                            onSelectDate?(point.date)
                         }
                     },
                     onEnded: { _ in
@@ -194,7 +163,7 @@ struct BarChartView: View {
                     }
                 )
 
-                // —— Tooltip 区域 ——
+                // —— Tooltip ——
                 if let label = hoveredLabel,
                    let point = dataPoints.first(where: { $0.label == label }),
                    let xPos = proxy.position(forX: label) {
@@ -202,11 +171,9 @@ struct BarChartView: View {
                     let localX = (plotFrame?.minX ?? 0) + xPos
                     let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
                     let incomeVal = Double(truncating: point.income as NSDecimalNumber)
-                    let maxBarVal = max(expenseVal, incomeVal)
-                    let balanceScaled = showBalance
-                        ? (balanceScale?.scaledBalance(Double(truncating: point.balance as NSDecimalNumber)) ?? 0)
-                        : 0
-                    let anchorY = max(maxBarVal, balanceScaled)
+                    let balanceScaled = balanceScale?
+                        .scaledBalance(Double(truncating: point.balance as NSDecimalNumber)) ?? 0
+                    let anchorY = max(max(expenseVal, incomeVal), balanceScaled)
 
                     // 垂直指示线
                     if let pf = plotFrame {
@@ -216,57 +183,37 @@ struct BarChartView: View {
                             .position(x: localX, y: pf.midY)
                     }
 
-                    // 金额标注（悬浮于数据点正上方，边界约束防溢出）
                     if let topY = proxy.position(forY: max(anchorY, 0.001)), let pf = plotFrame {
                         let localY = pf.minY + topY
-                        let chartWidth = overlayFrame.width
-                        let clampedX = min(max(localX, 60), chartWidth - 60)
+                        let clampedX = min(max(localX, 60), overlayFrame.width - 60)
                         let clampedY = min(max(localY - 24, 16), overlayFrame.height - 16)
                         amountTooltip(point: point, x: clampedX, y: clampedY)
                     }
                 }
-
-                // —— 右侧 Y 轴（余额刻度，无网格线） ——
-                if showBalance, let scale = balanceScale, let pf = plotFrame {
-                    rightAxisLabels(
-                        scale: scale,
-                        proxy: proxy,
-                        plotFrame: pf
-                    )
-                }
             }
         }
-        .frame(height: showBalance ? 200 : 160)
+        .frame(height: 200)
     }
 
-    // MARK: - 右侧余额轴（无网格线，独立刻度）
-
-    @ViewBuilder
-    private func rightAxisLabels(
-        scale: BalanceChartScale,
-        proxy: ChartProxy,
-        plotFrame: CGRect
-    ) -> some View {
-        let ticks = FinanceChartAxisTicks.balanceTicks(for: scale)
-
-        ForEach(Array(ticks.enumerated()), id: \.offset) { _, tick in
-            if let yPos = proxy.position(forY: tick.scaledAmount) {
-                let localY = plotFrame.minY + yPos
-
-                Text(formatAxisValue(tick.balance))
-                    .font(.system(size: 9))
-                    .foregroundColor(.holoInfo.opacity(0.7))
-                    .fixedSize()
-                    .position(x: plotFrame.maxX + 22, y: localY)
-            }
-        }
+    /// 单条平滑曲线（不画逐日数据点）；series 隔离防止跨系列串线。
+    /// monotone 单调插值：平台保持平、突变处圆滑，且不产生 catmullRom 的过冲
+    /// （不会画出数据里不存在的峰谷）——金融曲线的标准插值
+    private func lineMark(label: String, value: Double, color: Color, width: CGFloat, series: String) -> some ChartContent {
+        LineMark(
+            x: .value("日期", label),
+            y: .value("金额", value),
+            series: .value(series, series)
+        )
+        .foregroundStyle(color)
+        .interpolationMethod(.monotone)
+        .lineStyle(StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
     }
 
-    // MARK: - Tooltip
+    // MARK: Tooltip
 
     private func amountTooltip(point: ChartDataPoint, x: CGFloat, y: CGFloat) -> some View {
         VStack(spacing: 2) {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 if point.expense > 0 {
                     Text("-\(NumberFormatter.compactCurrency(point.expense))")
                         .font(.system(size: 10, weight: .bold))
@@ -277,25 +224,28 @@ struct BarChartView: View {
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.holoSuccess)
                 }
+                if point.expense == 0 && point.income == 0 {
+                    Text("无收支")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
             }
-            if showBalance && point.balance != 0 {
-                Text("余额 \(NumberFormatter.compactCurrency(point.balance))")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.holoInfo)
-            }
+            Text("余额 \(NumberFormatter.compactCurrency(point.balance))")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.holoPrimary)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(Color.holoCardBackground)
-                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
         )
         .fixedSize()
         .position(x: x, y: y)
     }
 
-    // MARK: - 辅助方法
+    // MARK: 辅助方法
 
     private func formatAxisValue(_ value: Double) -> String {
         let absValue = abs(value)
@@ -310,11 +260,11 @@ struct BarChartView: View {
         }
     }
 
-    // MARK: - 空状态
+    // MARK: 空状态
 
     private var emptyChartView: some View {
         VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "chart.bar")
+            Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 40, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
@@ -327,28 +277,9 @@ struct BarChartView: View {
     }
 }
 
-// MARK: - Legend Item
-
-/// 图例项
-struct LegendItem: View {
-    let color: Color
-    let label: String
-
-    var body: some View {
-        HStack(spacing: HoloSpacing.xs) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-        }
-    }
-}
-
 // MARK: - Preview
 
-#Preview("Bar Chart") {
+#Preview("Trend Chart") {
     let sampleData = [
         ChartDataPoint(date: Date(), label: "周一", expense: 150, income: 0, transactionCount: 3, balance: -150),
         ChartDataPoint(date: Date().addingDays(1), label: "周二", expense: 80, income: 500, transactionCount: 2, balance: 270),
@@ -365,11 +296,7 @@ struct LegendItem: View {
     )
 
     VStack {
-        BarChartView(
-            dataPoints: sampleData,
-            showBalance: true,
-            balanceScale: scale
-        ) { _ in }
+        TrendChartView(dataPoints: sampleData, balanceScale: scale)
         Spacer()
     }
     .padding()

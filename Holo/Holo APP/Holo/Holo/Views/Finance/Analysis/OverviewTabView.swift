@@ -16,7 +16,7 @@ struct OverviewTabView: View {
     @ObservedObject var state: FinanceAnalysisState
     var onCategoryTap: ((Category) -> Void)? = nil
 
-    /// 计算余额坐标缩放（将余额映射到收支 Y 轴范围）
+    /// 计算余额坐标缩放（将余额映射到收支 Y 轴范围，三线同图）
     private var balanceScale: BalanceChartScale? {
         let points = state.chartDataPoints
         guard !points.isEmpty else { return nil }
@@ -36,10 +36,9 @@ struct OverviewTabView: View {
                 // 周期汇总卡片
                 periodSummaryCard
 
-                // 柱状图（含余额折线，双 Y 轴）
-                BarChartView(
+                // 收支趋势：支出/收入/余额三线同图
+                TrendChartView(
                     dataPoints: state.chartDataPoints,
-                    showBalance: true,
                     balanceScale: balanceScale
                 )
 
@@ -56,41 +55,68 @@ struct OverviewTabView: View {
         .background(Color.holoBackground)
     }
 
+    /// 汇总卡头部的周期描述（与顶部日期选择器口径一致：range.end 是排他上界，减 1 秒显示）
+    private var periodSubtitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(formatter.string(from: state.currentDateRange.start)) - \(formatter.string(from: state.currentDateRange.end.addingTimeInterval(-1)))"
+    }
+
     // MARK: - 周期汇总卡片
 
     private var periodSummaryCard: some View {
-        HStack(spacing: 0) {
-            // 支出
-            PeriodSummaryItem(
-                title: "总支出",
-                amount: state.periodSummary.formattedExpense,
-                subtitle: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyExpense as NSDecimalNumber) ?? "¥0")",
-                color: .holoError
-            )
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            // 卡头与「收支趋势」「分类排行」同一套标题语言
+            HStack(spacing: HoloSpacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("周期汇总")
+                        .font(.holoLabel)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoTextPrimary)
 
-            Divider()
-                .opacity(0.4)
-                .frame(height: 40)
+                    Text(periodSubtitle)
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoTextSecondary)
+                }
 
-            // 收入
-            PeriodSummaryItem(
-                title: "总收入",
-                amount: state.periodSummary.formattedIncome,
-                subtitle: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyIncome as NSDecimalNumber) ?? "¥0")",
-                color: .holoSuccess
-            )
+                Spacer(minLength: HoloSpacing.sm)
 
-            Divider()
-                .opacity(0.4)
-                .frame(height: 40)
+                Text("\(state.periodSummary.transactionCount) 笔")
+                    .font(.system(size: 10))
+                    .foregroundColor(.holoTextSecondary)
+            }
 
-            // 净收入
-            PeriodSummaryItem(
-                title: "净收入",
-                amount: state.periodSummary.formattedNetIncome,
-                subtitle: "\(state.periodSummary.transactionCount) 笔",
-                color: state.periodSummary.netIncome >= 0 ? .holoSuccess : .holoError
-            )
+            HStack(spacing: 0) {
+                PeriodSummaryItem(
+                    title: "总支出",
+                    amount: state.periodSummary.formattedExpense,
+                    subtitle: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyExpense as NSDecimalNumber) ?? "¥0")",
+                    color: .holoError
+                )
+
+                Divider()
+                    .opacity(0.4)
+                    .frame(height: 40)
+
+                PeriodSummaryItem(
+                    title: "总收入",
+                    amount: state.periodSummary.formattedIncome,
+                    subtitle: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyIncome as NSDecimalNumber) ?? "¥0")",
+                    color: .holoSuccess
+                )
+
+                Divider()
+                    .opacity(0.4)
+                    .frame(height: 40)
+
+                PeriodSummaryItem(
+                    title: "净收入",
+                    amount: state.periodSummary.formattedNetIncome,
+                    subtitle: "",
+                    color: state.periodSummary.netIncome >= 0 ? .holoSuccess : .holoError
+                )
+            }
         }
         .padding(HoloSpacing.md)
         .holoCard()
