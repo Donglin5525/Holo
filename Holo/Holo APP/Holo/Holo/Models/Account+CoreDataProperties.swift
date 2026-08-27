@@ -169,4 +169,62 @@ extension Account {
         // 兜底：确保有默认账户
         ensureDefaultAccount(in: context)
     }
+
+    // MARK: - 云同步重复修复
+
+    /**
+     修复「首启动种子 + CloudKit 恢复旧数据」并存造成的重复账户
+
+     卸载重装后，首启动种子先写入本地（现金/支付宝/储蓄卡/信用卡），
+     iCloud 随后把卸载前的账户同步回来，同名同类型的账户出现两份。
+     修复规则：按（类型 + 名称）分组，只保留 createdAt 最早的一行
+     （用户卸载前的真实账户），重复行把交易改挂到保留行后删除；
+     预算/支出项目的 accountId 属性引用一并改挂。
+     默认账户唯一性由 backfillAccounts 兜底。回收站里已软删的行不动。
+     数据干净时零写入。
+     */
+    static func repairDuplicateAccounts(in context: NSManagedObjectContext) {
+        let request = Account.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        guard let all = try? context.fetch(request), !all.isEmpty else { return }
+
+        struct GroupKey: Hashable {
+            let type: String
+            let name: String
+        }
+
+        var grouped: [GroupKey: [Account]] = [:]
+        for account in all {
+            let key = GroupKey(type: account.type, name: account.name)
+            grouped[key, default: []].append(account)
+        }
+
+        var didChange = false
+        for group in grouped.values where group.count > 1 {
+            let sorted = group.sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+                if lhs.isDefault != rhs.isDefault { return lhs.isDefault }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            let canonical = sorted[0]
+            for duplicate in sorted.dropFirst() {
+                (duplicate.transactions ?? []).forEach { $0.account = canonical }
+
+                let budgetRequest = Budget.fetchRequest()
+                budgetRequest.predicate = NSPredicate(format: "accountId == %@", duplicate.id as CVarArg)
+                (try? context.fetch(budgetRequest))?.forEach { $0.accountId = canonical.id }
+
+                let projectRequest = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
+                projectRequest.predicate = NSPredicate(format: "accountId == %@", duplicate.id as CVarArg)
+                (try? context.fetch(projectRequest))?.forEach { $0.accountId = canonical.id }
+
+                context.delete(duplicate)
+                didChange = true
+            }
+        }
+
+        if didChange {
+            try? context.save()
+        }
+    }
 }

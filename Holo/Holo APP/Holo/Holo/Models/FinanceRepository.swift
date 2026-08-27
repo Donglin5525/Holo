@@ -77,6 +77,9 @@ class FinanceRepository {
     // MARK: - Seed Data
     
     func seedDefaultData() {
+        // 先修复云同步竞态产生的重复数据（卸载重装后种子与 iCloud 恢复并存），再补种
+        Category.repairDuplicateCategories(in: context)
+        Account.repairDuplicateAccounts(in: context)
         Category.seedDefaultCategories(in: context)
         Account.seedDefaultAccounts(in: context)
         try? context.save()

@@ -204,6 +204,8 @@ struct HomeView: View {
             // 习惯仓库必须在此初始化：首页三环习惯进度依赖 activeHabits，
             // 否则冷启动习惯环恒为 0，需进入今日看板后才被加载
             HabitRepository.shared.setup()
+            // 用户偏好（昵称等）云同步仓库：注册 iCloud 变更监听 + 采纳云端恢复的名字
+            UserPreferenceRepository.shared.setup()
             loadFeatureItemsFromRepository()
             scheduleService.setup()
             // 本周观察：有效记录日 Service（首屏读缓存，后台监听四模块刷新）

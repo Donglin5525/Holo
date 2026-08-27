@@ -124,6 +124,7 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: thoughtEntities)
         entities.append(contentsOf: createChatEntities())
         entities.append(contentsOf: createSyncEntities())
+        entities.append(createUserPreferenceEntity())
         entities.append(createMemoryInsightEntity())
         entities.append(createMemoryInsightFeedbackEntity())
         entities.append(contentsOf: HoloMemoryManagedObjectModelFactory.makeEntities())

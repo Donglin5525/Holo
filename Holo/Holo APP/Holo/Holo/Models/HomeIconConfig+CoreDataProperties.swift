@@ -151,9 +151,38 @@ extension HomeIconConfig {
                 config.updateSortOrder(Int16(index))
             }
         }
-        
+
         if context.hasChanges {
             try? context.save()
         }
+    }
+
+    // MARK: - 云同步重复修复
+
+    /**
+     修复「首启动种子 + CloudKit 恢复旧配置」并存造成的重复行
+
+     卸载重装后，首启动种子先写入本地，iCloud 随后把卸载前的旧配置同步回来，
+     同一 iconId 会出现多行；首页五角形布局按配置行序计算按钮位置，
+     重复行会让多个按钮折叠重叠到同一位置。
+     修复规则：同一 iconId 只保留 createdAt 最早的一行（用户卸载前的真实配置），
+     其余删除；删除经 CloudKit 上行，云端一并清理。数据干净时零写入。
+     */
+    static func repairDuplicateConfigs(in context: NSManagedObjectContext) {
+        let request = HomeIconConfig.fetchRequest()
+        guard let all = try? context.fetch(request), !all.isEmpty else { return }
+
+        var grouped: [String: [HomeIconConfig]] = [:]
+        for config in all {
+            grouped[config.iconId, default: []].append(config)
+        }
+
+        let duplicates = grouped.values.flatMap { group in
+            group.sorted { $0.createdAt < $1.createdAt }.dropFirst()
+        }
+        guard !duplicates.isEmpty else { return }
+
+        duplicates.forEach { context.delete($0) }
+        try? context.save()
     }
 }

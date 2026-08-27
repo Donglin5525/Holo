@@ -985,4 +985,126 @@ extension Category {
             UserDefaults.standard.set(true, forKey: financeV4IconMigrationFlag)
         }
     }
+
+    // MARK: - 云同步重复修复
+
+    /**
+     修复「首启动种子 + CloudKit 恢复旧数据」并存造成的重复分类
+
+     卸载重装后，首启动种子先写入本地，iCloud 随后把卸载前的分类同步回来，
+     同名同类型的层级分类会出现两套。分类没有 createdAt，无法按创建时间区分，
+     改用挂靠数据判定：种子行没有任何交易/子分类/预算/支出项目挂靠，
+     用户在用的旧分类必然有挂靠。保留有挂靠的一行，重复行把数据改挂过去后删除。
+     回收站里已软删的行不动，按回收规则自然过期。数据干净时零写入。
+     */
+    static func repairDuplicateCategories(in context: NSManagedObjectContext) {
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request), !all.isEmpty else { return }
+
+        // 先去重一级分类（重复的父级会带出整棵重复子树），把重复父级下的
+        // 子分类 parentId 改挂到保留行；再去重二级分类时两套子分类才能归到同组。
+        var didChange = dedupeCategories(
+            all.filter { $0.parentId == nil },
+            siblings: all,
+            in: context
+        )
+        didChange = dedupeCategories(
+            all.filter { $0.parentId != nil },
+            siblings: all,
+            in: context
+        ) || didChange
+
+        if didChange {
+            try? context.save()
+        }
+    }
+
+    /// 按（类型 + 名称 + 父级）分组去重，保留应留下的一行，其余改挂数据后删除
+    private static func dedupeCategories(
+        _ categories: [Category],
+        siblings: [Category],
+        in context: NSManagedObjectContext
+    ) -> Bool {
+        struct GroupKey: Hashable {
+            let type: String
+            let name: String
+            let parentId: UUID?
+        }
+
+        var grouped: [GroupKey: [Category]] = [:]
+        for category in categories {
+            let key = GroupKey(type: category.type, name: category.name, parentId: category.parentId)
+            grouped[key, default: []].append(category)
+        }
+
+        var didChange = false
+        for group in grouped.values where group.count > 1 {
+            let sorted = group.sorted { compareCanonical($0, $1, siblings: siblings, in: context) }
+            let canonical = sorted[0]
+            for duplicate in sorted.dropFirst() {
+                repointCategoryAttachments(from: duplicate, to: canonical, siblings: siblings, in: context)
+                context.delete(duplicate)
+                didChange = true
+            }
+        }
+        return didChange
+    }
+
+    /// 保留行排序：有挂靠数据 > 系统分类 > sortOrder 小 > id 稳定兜底
+    private static func compareCanonical(
+        _ lhs: Category,
+        _ rhs: Category,
+        siblings: [Category],
+        in context: NSManagedObjectContext
+    ) -> Bool {
+        let lhsInUse = hasAttachments(lhs, siblings: siblings, in: context)
+        let rhsInUse = hasAttachments(rhs, siblings: siblings, in: context)
+        if lhsInUse != rhsInUse { return lhsInUse }
+        if lhs.isSystem != rhs.isSystem { return lhs.isSystem }
+        if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    /// 分类是否有数据挂靠（交易关系 / 子分类 / 预算 / 支出项目）
+    private static func hasAttachments(
+        _ category: Category,
+        siblings: [Category],
+        in context: NSManagedObjectContext
+    ) -> Bool {
+        if let transactions = category.transactions, !transactions.isEmpty { return true }
+        if siblings.contains(where: { $0.parentId == category.id }) { return true }
+
+        let budgetRequest = Budget.fetchRequest()
+        budgetRequest.predicate = NSPredicate(format: "categoryId == %@", category.id as CVarArg)
+        budgetRequest.fetchLimit = 1
+        if ((try? context.fetch(budgetRequest))?.isEmpty) == false { return true }
+
+        let projectRequest = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
+        projectRequest.predicate = NSPredicate(format: "categoryId == %@", category.id as CVarArg)
+        projectRequest.fetchLimit = 1
+        if ((try? context.fetch(projectRequest))?.isEmpty) == false { return true }
+
+        return false
+    }
+
+    /// 把挂靠在重复分类上的数据改挂到保留行，删除后不留悬空引用
+    private static func repointCategoryAttachments(
+        from duplicate: Category,
+        to canonical: Category,
+        siblings: [Category],
+        in context: NSManagedObjectContext
+    ) {
+        (duplicate.transactions ?? []).forEach { $0.category = canonical }
+        siblings.filter { $0.parentId == duplicate.id }.forEach { $0.parentId = canonical.id }
+
+        let budgetRequest = Budget.fetchRequest()
+        budgetRequest.predicate = NSPredicate(format: "categoryId == %@", duplicate.id as CVarArg)
+        (try? context.fetch(budgetRequest))?.forEach { $0.categoryId = canonical.id }
+
+        let projectRequest = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
+        projectRequest.predicate = NSPredicate(format: "categoryId == %@", duplicate.id as CVarArg)
+        (try? context.fetch(projectRequest))?.forEach { $0.categoryId = canonical.id }
+    }
 }

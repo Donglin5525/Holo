@@ -41,29 +41,36 @@ class HomeIconConfigRepository: ObservableObject {
     /// 所有数据操作延迟到 setup() 中执行
     private init() {}
 
-    /// 延迟初始化：触发 Core Data → seed → load
+    /// 延迟初始化：触发 Core Data → 修复云同步重复 → seed → load
     /// 在视图的 .task {} 中调用（.task 在首帧渲染后触发，不会阻塞 UI）
     func setup() {
         guard !isReady else { return }
         _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
+        HomeIconConfig.repairDuplicateConfigs(in: context)
         seedDefaultData()
         loadConfigs()
         isReady = true
     }
-    
+
     // MARK: - Seed Data
-    
+
     /// 初始化默认图标配置
     private func seedDefaultData() {
         HomeIconConfig.seedDefaultConfigs(in: context)
     }
-    
+
     // MARK: - Load Data
-    
+
     /// 从数据库加载配置
     func loadConfigs() {
-        allConfigs = HomeIconConfig.fetchAllConfigs(in: context)
-        visibleConfigs = HomeIconConfig.fetchVisibleConfigs(in: context)
+        allConfigs = uniqByIconId(HomeIconConfig.fetchAllConfigs(in: context))
+        visibleConfigs = uniqByIconId(HomeIconConfig.fetchVisibleConfigs(in: context))
+    }
+
+    /// 加载兜底：同一 iconId 只保留一行，重复行（云同步竞态残留）不进布局计算
+    private func uniqByIconId(_ configs: [HomeIconConfig]) -> [HomeIconConfig] {
+        var seen = Set<String>()
+        return configs.filter { seen.insert($0.iconId).inserted }
     }
     
     // MARK: - Reorder Operations

@@ -23,6 +23,9 @@ struct HoloLightweightOnboardingView: View {
     @State private var selectedTopics = ThoughtThemeConstraint.defaultPresetTopics
     @State private var topicSetupError: String?
 
+    /// 云端采纳的昵称（iCloud 恢复晚于引导页出现时，据此实时预填）
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var adoptedDisplayName: String = UserDisplayNameSettings.fallbackDisplayName
+
     var body: some View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
@@ -33,6 +36,20 @@ struct HoloLightweightOnboardingView: View {
             }
         }
         .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        .onAppear { prefillAdoptedNameIfNeeded() }
+        .onChange(of: adoptedDisplayName) { _, _ in
+            prefillAdoptedNameIfNeeded()
+        }
+    }
+
+    /// 重装场景：云端恢复的昵称先到（或引导页打开期间才到）时预填输入框，
+    /// 用户确认即可；本次安装主动输入过、或已在输入框打字时不覆盖。
+    private func prefillAdoptedNameIfNeeded() {
+        guard !UserDisplayNameSettings.standard.hasSetDisplayNameThisInstall else { return }
+        guard nicknameDraft.isEmpty else { return }
+        if adoptedDisplayName != UserDisplayNameSettings.fallbackDisplayName {
+            nicknameDraft = adoptedDisplayName
+        }
     }
 
     // MARK: - 顶部栏（页码圆点 + 跳过）
@@ -104,9 +121,11 @@ struct HoloLightweightOnboardingView: View {
     /// 统一收尾：保存昵称（仅非整体跳过）、标记旧 onboarding、按选择授权、写 completed key、回调。
     private func finish(_ choice: OnboardingCompletionChoice) {
         // 1. 仅在非整体跳过时保存昵称草稿；跳过不保存半输入昵称。
+        //    同步写入 iCloud 同步表：卸载重装后昵称随云端回来（本地 UserDefaults 会随卸载清空）。
         if choice != .skippedOnboarding,
            let name = UserDisplayNameSettings.normalizedDisplayName(nicknameDraft) {
             UserDisplayNameSettings.standard.saveDisplayName(name)
+            UserPreferenceRepository.shared.set(name, forKey: UserPreferenceRepository.displayNameKey)
         }
         // 2. 完成/跳过都标记旧昵称 onboarding，避免旧 Alert 再次出现。
         UserDisplayNameSettings.standard.markOnboardingCompleted()
