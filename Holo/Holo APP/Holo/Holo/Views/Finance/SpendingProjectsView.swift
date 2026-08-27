@@ -60,7 +60,7 @@ struct SpendingProjectsView: View {
         return HStack(spacing: 0) {
             metric("每月承诺", monthly)
             Divider().frame(height: 40)
-            metric("一次性日均", daily)
+            metric("一次性·折合每天", daily)
             Divider().frame(height: 40)
             VStack(spacing: 4) {
                 Text("项目数").font(.holoLabel).foregroundColor(.holoTextSecondary)

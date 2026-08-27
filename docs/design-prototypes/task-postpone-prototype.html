@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务延期 · 交互原型 — Holo</title>
+<style>
+  :root{
+    --primary:#F46D38; --primary-dark:#EA580C; --primary-light:#FED7AA;
+    --success:#22C55E; --error:#EF4444; --tomorrow-blue:#3B82F6; --tomorrow-blue-dark:#2559C4;
+    --bg:#FDFCF8; --card:#FFFFFF; --text:#333333; --text2:#939393; --divider:#F1F5F9;
+    --radius:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    background:#EFEDE7; color:var(--text); overflow:hidden;
+  }
+
+  /* ========== 舞台布局 ========== */
+  .stage{display:flex; height:100vh; align-items:stretch;}
+  .phone-wrap{
+    flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:20px; gap:14px; min-width:460px; border-right:1px solid #E2E0DA;
+  }
+  .notes{
+    flex:1; overflow-y:auto; padding:28px 34px 60px; background:#F7F6F2;
+  }
+  @media (max-width: 920px){
+    .stage{flex-direction:column; overflow-y:auto; height:auto;}
+    body{overflow:auto;}
+    .phone-wrap{border-right:none; border-bottom:1px solid #E2E0DA; min-width:0;}
+    .notes{overflow:visible;}
+  }
+
+  /* ========== 手机框 ========== */
+  .phone{
+    width:390px; height:760px; background:var(--bg); border-radius:48px; position:relative;
+    border:10px solid #1C1C1E; box-shadow:0 30px 80px rgba(0,0,0,.28); overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .statusbar{
+    height:48px; flex:0 0 auto; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 26px 4px; font-size:14px; font-weight:600;
+  }
+  .statusbar .icons{display:flex; gap:5px; align-items:center; color:var(--text);}
+  .statusbar .icons svg{width:17px;height:17px;}
+  .notch{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    width:118px; height:28px; background:#1C1C1E; border-radius:0 0 16px 16px; z-index:5;
+  }
+  .app-content{flex:1; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; position:relative;}
+  .app-content::-webkit-scrollbar{display:none;}
+
+  /* ========== 页头 ========== */
+  .app-header{
+    display:flex; align-items:center; gap:10px; padding:10px 18px 6px;
+  }
+  .app-header .title{font-size:26px; font-weight:800; letter-spacing:-.3px;}
+  .today-summary{
+    margin:8px 18px 4px; padding:12px 14px; background:var(--card); border-radius:var(--radius);
+    display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,.03);
+  }
+  .today-summary .ring{
+    width:40px;height:40px;border-radius:50%; position:relative; flex:0 0 auto;
+    background:conic-gradient(var(--primary) 0 33%, #F1EDE6 33% 100%);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .today-summary .ring::after{
+    content:""; position:absolute; inset:4px; background:var(--card); border-radius:50%;
+  }
+  .today-summary .ring span{position:relative; z-index:1; font-size:11px; font-weight:800; color:var(--primary-dark);}
+  .today-summary .txt{display:flex; flex-direction:column; gap:2px;}
+  .today-summary .txt b{font-size:14px;}
+  .today-summary .txt small{font-size:11.5px; color:var(--text2);}
+  .clock-chip{
+    margin-left:auto; font-size:11px; color:var(--primary-dark); background:var(--primary-light);
+    padding:4px 9px; border-radius:999px; font-weight:700; flex:0 0 auto;
+  }
+
+  /* ========== 分组 ========== */
+  .group{margin-top:16px; padding:0 18px;}
+  .group-head{
+    display:flex; align-items:center; gap:7px; padding:2px 2px 8px;
+  }
+  .group-head .dot{width:7px;height:7px;border-radius:50%;}
+  .group-head .name{font-size:13px; font-weight:700;}
+  .group-head .count{font-size:11px; color:var(--text2); background:#F1EFE9; padding:1px 7px; border-radius:999px; font-weight:700;}
+  .group-head .batch{
+    margin-left:auto; font-size:11px; font-weight:700; color:var(--primary-dark);
+    background:rgba(244,109,56,.12); border:none; padding:5px 10px; border-radius:999px; cursor:pointer;
+    display:flex; align-items:center; gap:3px;
+  }
+  .group-head .batch:hover{background:rgba(244,109,56,.2);}
+
+  /* ========== 任务卡（复刻 TaskCardView） ========== */
+  .card-outer{position:relative; margin-bottom:10px; border-radius:var(--radius); overflow:hidden;}
+  .swipe-actions{
+    position:absolute; inset:0; display:flex; justify-content:flex-end; border-radius:var(--radius);
+  }
+  .swipe-actions button{
+    width:74px; border:none; color:#fff; font-size:11.5px; font-weight:700; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  }
+  .swipe-actions button svg{width:19px;height:19px;}
+  .swipe-actions .act-postpone{background:var(--primary); order:0;}
+  .swipe-actions .act-archive{background:#A3A3A3; order:1;}
+  .swipe-actions .act-delete{background:var(--error); order:2; border-radius:0 var(--radius) var(--radius) 0;}
+  .task-card{
+    position:relative; z-index:1; background:var(--card); border-radius:var(--radius);
+    box-shadow:0 2px 8px rgba(0,0,0,.04); padding:13px 14px; transition:transform .22s ease;
+    touch-action:pan-y; cursor:pointer;
+  }
+  .task-card.dragging{transition:none;}
+  .task-card .row{display:flex; gap:11px; align-items:flex-start;}
+  .check{
+    width:22px;height:22px;border-radius:50%;border:1.6px solid #C9C7C1; margin-top:1px; flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center; color:#fff;
+  }
+  .check svg{width:12px;height:12px;opacity:0;}
+  .task-card .body{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
+  .task-card .title-row{display:flex; gap:8px; align-items:flex-start;}
+  .task-card .t{font-size:15px; font-weight:600; line-height:1.25; flex:1;}
+  .pill{
+    flex:0 0 auto; font-size:10.5px; font-weight:800; padding:3px 8px; border-radius:7px;
+    margin-top:1px; cursor:pointer; position:relative;
+  }
+  .pill::after{
+    content:""; position:absolute; left:8px; right:8px; bottom:1px; border-bottom:1.5px dotted currentColor;
+    opacity:0; transition:opacity .15s;
+  }
+  .pill:hover::after{opacity:.55;}
+  .pill-overdue{color:var(--error); background:rgba(239,68,68,.09);}
+  .pill-today{color:var(--primary-dark); background:rgba(244,109,56,.10);}
+  .pill-tomorrow{color:var(--tomorrow-blue-dark); background:rgba(59,130,246,.09);}
+  .pill-week{color:#6B7280; background:#F1F1F4;}
+  .pill-later{color:#9CA3AF; background:#F4F4F6;}
+  .meta{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .meta .m{font-size:10.5px; color:var(--text2); display:flex; align-items:center; gap:3px;}
+  .meta .stripe{width:3px;height:11px;border-radius:2px;}
+  .meta .priority{font-size:10.5px;font-weight:800;color:#F59E0B;display:flex;align-items:center;gap:2px;
+    background:rgba(245,158,11,.1);padding:1.5px 6px;border-radius:5px;}
+  .meta .postponed{
+    font-size:10.5px; font-weight:700; color:#8A8A8A; background:#F1F1F4;
+    padding:1.5px 7px; border-radius:5px; display:flex; align-items:center; gap:3px;
+  }
+  .meta .postponed svg{width:10px;height:10px;}
+  .card-hint{
+    font-size:10.5px; color:#B9B7B1; display:flex; align-items:center; gap:4px; margin-top:2px;
+  }
+  .card-hint svg{width:11px;height:11px;}
+
+  /* ========== 底部 sheet ========== */
+  .backdrop{
+    position:absolute; inset:0; background:rgba(0,0,0,.35); opacity:0; pointer-events:none;
+    transition:opacity .22s; z-index:40;
+  }
+  .backdrop.show{opacity:1; pointer-events:auto;}
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:50; background:var(--bg);
+    border-radius:22px 22px 0 0; padding:10px 18px 22px; transform:translateY(105%);
+    transition:transform .3s cubic-bezier(.32,.72,.24,1); box-shadow:0 -12px 40px rgba(0,0,0,.16);
+  }
+  .sheet.show{transform:translateY(0);}
+  .sheet .grabber{width:38px;height:4.5px;background:#DAD8D2;border-radius:999px;margin:4px auto 12px;}
+  .sheet .stitle{font-size:16.5px; font-weight:800; display:flex; align-items:center; gap:8px;}
+  .sheet .stitle .tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;flex:0 0 auto;}
+  .sheet .ssub{font-size:12px; color:var(--text2); margin-top:5px; display:flex; align-items:center; gap:5px;}
+  .sheet .ssub b{color:var(--primary-dark);}
+  .opt-group-label{font-size:11px; font-weight:700; color:var(--text2); margin:14px 2px 8px; letter-spacing:.5px;}
+  .opts{display:grid; grid-template-columns:repeat(3,1fr); gap:9px;}
+  .opts.four{grid-template-columns:repeat(4,1fr);}
+  .opt{
+    background:var(--card); border:1.5px solid transparent; border-radius:12px; padding:10px 6px 9px;
+    text-align:center; cursor:pointer; display:flex; flex-direction:column; gap:3px; align-items:center;
+    transition:transform .1s, border-color .15s, background .15s;
+    box-shadow:0 1px 4px rgba(0,0,0,.04);
+  }
+  .opt:hover{border-color:var(--primary); background:#FFF9F5;}
+  .opt:active{transform:scale(.96);}
+  .opt .l1{font-size:13.5px; font-weight:700;}
+  .opt .l2{font-size:10.5px; color:var(--text2); white-space:nowrap;}
+  .opt.primary-opt{background:rgba(244,109,56,.08); border-color:rgba(244,109,56,.35);}
+  .opt.primary-opt:hover{background:rgba(244,109,56,.14);}
+  .opt.custom .l1{color:var(--text2); font-weight:600;}
+  .sheet-note{
+    margin-top:14px; font-size:11px; color:var(--text2); background:#F3F1EB;
+    border-radius:10px; padding:9px 12px; display:flex; gap:7px; align-items:flex-start;
+  }
+  .sheet-note svg{width:13px;height:13px;flex:0 0 auto;margin-top:1px;}
+
+  /* ========== 撤回横幅 ========== */
+  .banner{
+    position:absolute; top:52px; left:14px; right:14px; z-index:60;
+    background:rgba(28,28,30,.92); color:#fff; border-radius:14px; padding:12px 14px;
+    display:flex; align-items:center; gap:9px; font-size:13px;
+    transform:translateY(-130%); transition:transform .3s cubic-bezier(.32,.72,.24,1);
+    backdrop-filter:blur(8px);
+  }
+  .banner.show{transform:translateY(0);}
+  .banner svg{width:17px;height:17px;flex:0 0 auto;}
+  .banner .msg{flex:1; line-height:1.35;}
+  .banner button{
+    border:none; background:none; color:#FFB38A; font-size:13px; font-weight:800; cursor:pointer; flex:0 0 auto;
+  }
+
+  /* ========== 引导气泡 ========== */
+  .hints{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:430px;}
+  .hint-bubble{
+    font-size:12px; color:#6B6963; background:#fff; border:1px solid #E4E2DC; border-radius:999px;
+    padding:6px 13px; display:flex; align-items:center; gap:6px;
+  }
+  .hint-bubble b{color:var(--primary-dark);}
+  .hint-bubble kbd{
+    font-family:inherit; font-size:11px; background:#F4F2EC; border:1px solid #E0DED8; border-radius:5px;
+    padding:1px 6px; color:#57554F;
+  }
+
+  /* ========== 说明面板 ========== */
+  .notes h1{font-size:23px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px;}
+  .notes .subtitle{font-size:13.5px; color:#6B6963; margin-bottom:22px; line-height:1.6;}
+  .notes h2{
+    font-size:15px; font-weight:800; margin:26px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .notes h2 .no{
+    width:20px;height:20px;border-radius:6px;background:var(--primary);color:#fff;font-size:11px;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  }
+  .notes p{font-size:13.5px; line-height:1.75; color:#4A4843; margin-bottom:10px;}
+  .notes p b, .notes li b{color:var(--text);}
+  .notes ul{padding-left:20px; margin-bottom:10px;}
+  .notes li{font-size:13.5px; line-height:1.75; color:#4A4843; margin-bottom:4px;}
+  .ncard{
+    background:#fff; border:1px solid #E8E6E0; border-radius:14px; padding:16px 18px; margin-bottom:12px;
+  }
+  .ncard .nt{font-size:13.5px; font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:7px;}
+  .ncard .nt .badge{
+    font-size:10px; font-weight:800; padding:2px 7px; border-radius:5px;
+    background:rgba(244,109,56,.12); color:var(--primary-dark);
+  }
+  .ncard p, .ncard li{font-size:13px; line-height:1.7; color:#4A4843;}
+  table.spec{width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden;
+    border:1px solid #E8E6E0; margin-bottom:12px; font-size:12.5px;}
+  table.spec th{background:#F4F2EC; text-align:left; padding:9px 12px; font-weight:800; color:#57554F; font-size:12px;}
+  table.spec td{padding:9px 12px; border-top:1px solid #F0EEE8; line-height:1.6; color:#4A4843; vertical-align:top;}
+  table.spec td:first-child{font-weight:700; white-space:nowrap; color:var(--text);}
+  .pill-demo{display:inline-flex; align-items:center; gap:6px; margin:2px 4px 2px 0; flex-wrap:wrap;}
+  .dp{
+    font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:7px; display:inline-block;
+  }
+  .decision{border-left:3px solid var(--primary);}
+  .decision .nt .badge{background:#FEE8DB;}
+  code{font-family:"SF Mono",Menlo,monospace; font-size:11.5px; background:#F1EFE9; padding:1px 5px; border-radius:4px; color:#57554F;}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ==================== 左：iPhone 演示 ==================== -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span id="statusClock">16:20</span>
+        <span class="icons">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 4h3v16h-3zM12 7h3v13h-3zM7 10h3v10H7zM2 13h3v7H2z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21l-3.5-4.3a5.5 5.5 0 1 1 7 0L12 21z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="17" height="10" rx="2.5"/><path d="M21 10.5v3" stroke-linecap="round"/><rect x="4" y="9" width="12" height="6" rx="1" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+
+      <div class="app-content" id="appContent">
+        <div class="app-header">
+          <div class="title">任务</div>
+        </div>
+
+        <div class="today-summary">
+          <div class="ring"><span>2/6</span></div>
+          <div class="txt"><b>今天 · 8月25日 周三</b><small>还有 4 件事没完成</small></div>
+          <div class="clock-chip">模拟现在 16:20</div>
+        </div>
+
+        <!-- 分组由 JS 渲染 -->
+        <div id="groups"></div>
+        <div style="height:30px"></div>
+
+        <!-- 撤回横幅 -->
+        <div class="banner" id="banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#FFB38A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M18 12h3M16.3 7.7l2.1-2.1M7.5 12h9l-1 8h-7l-1-8z"/></svg>
+          <div class="msg" id="bannerMsg">已延期到明天 17:00</div>
+          <button id="bannerUndo">撤回</button>
+        </div>
+
+        <!-- 底部弹层遮罩 -->
+        <div class="backdrop" id="backdrop"></div>
+
+        <!-- 延期面板 -->
+        <div class="sheet" id="sheet">
+          <div class="grabber"></div>
+          <div class="stitle"><span id="sheetTaskTitle">产品组会同步</span><span class="tag pill-today" id="sheetTaskTag">今天 17:00</span></div>
+          <div class="ssub" id="sheetSub"></div>
+          <div id="sheetBody"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hints">
+      <div class="hint-bubble"><b>左滑</b>任意任务卡 → 点橙色「延期」</div>
+      <div class="hint-bubble">或直接<b>点右上角时间胶囊</b></div>
+      <div class="hint-bubble">过期组头有<b>「全部 → 今天」</b></div>
+    </div>
+  </div>
+
+  <!-- ==================== 右：设计说明 ==================== -->
+  <aside class="notes">
+    <h1>任务延期 · 交互原型</h1>
+    <div class="subtitle">
+      「今天做不完的事，顺手推到之后」。延期是<b>改截止时间的高频快捷操作</b>——不是新建、不是编辑，是任务滑走之前的那次「再宽限一下」。
+      左边手机可完整点按体验：左滑卡片、点时间胶囊、延期后看撤回横幅与换组动画。<br>
+      模拟时间基准：<b>2026-08-25（周三）16:20</b>。
+    </div>
+
+    <h2><span class="no">1</span>一句话方案</h2>
+    <p>
+      在任务列表左滑操作里新增<b>「延期」</b>主按钮，弹出底部选项面板；选项<b>按任务的时间形态动态生成</b>
+      （定时任务给分钟档＋跨天档，全天任务给天数档，过期任务第一档永远是「今天」）；
+      延期后卡片自动迁到目标日期分组，顶部出<b>可撤回横幅</b>，卡片上留下<b>「已延期 N 次」</b>痕迹。
+    </p>
+
+    <h2><span class="no">2</span>三个入口，按顺手程度分层</h2>
+    <table class="spec">
+      <tr><th>入口</th><th>说明</th><th>定位</th></tr>
+      <tr>
+        <td>左滑卡片 → 延期</td>
+        <td>现有左滑是「归档 / 删除」两键，新增橙色「延期」排在最前。归档、删除<b>保持原位不动</b>（高频老操作不降级）。</td>
+        <td>主入口</td>
+      </tr>
+      <tr>
+        <td>点时间胶囊</td>
+        <td>卡片右上角「今天 17:00」「过期 1 天」胶囊本身可点，直达延期面板。胶囊＝什么时候，点它＝改什么时候，语义自然。技术上子视图手势优先消费，App 里已有先例（纪念日徽章）。</td>
+        <td>加速入口</td>
+      </tr>
+      <tr>
+        <td>任务详情页</td>
+        <td>现有「日期与时间」弹层顶部插一排同样的延期快捷 chips，复用本面板的选项生成规则。</td>
+        <td>兜底入口</td>
+      </tr>
+    </table>
+
+    <h2><span class="no">3</span>选项跟着任务形态走（核心规则）</h2>
+    <table class="spec">
+      <tr><th>任务形态</th><th>选项面板</th><th>锚点规则</th></tr>
+      <tr>
+        <td>定时 · 未到点<br><span class="pill-demo"><span class="dp pill-today">今天 17:00</span></span></td>
+        <td>
+          <b>今天内顺延：</b>15分钟后 / 30分钟后 / 1小时后<br>
+          <b>跨天（保时刻）：</b>明天 / 三天后 / 一周后<br>
+          <b>自定义</b> → 进现有日期弹层
+        </td>
+        <td>分钟档锚<b>原时刻</b>（17:00 延 15 分钟 = 17:15）；天数档锚<b>今天</b>，跨天保留原时刻（明天 17:00）。</td>
+      </tr>
+      <tr>
+        <td>全天 · 今天</td>
+        <td><b>天数档：</b>明天 / 三天后 / 一周后 / 本周末<br><b>自定义</b></td>
+        <td>天数档锚<b>今天</b>，落点仍是全天（不凭空造出时刻）。</td>
+      </tr>
+      <tr>
+        <td>已过期<br><span class="pill-demo"><span class="dp pill-overdue">过期 1 天</span></span></td>
+        <td><b>第一档永远是「今天」</b>，之后 明天 / 三天后 / 一周后 / 自定义</td>
+        <td>过期任务最高频诉求就是「挪到今天再说」。定时过期 → 今天原时刻；全天过期 → 今天。若原时刻今天也已过，落点顺延到 30 分钟后并在选项小字里写明。</td>
+      </tr>
+    </table>
+    <p>每档选项都是双行：<b>主词 + 实际落点</b>（如「30分钟后 · 17:30」「三天后 · 周六 17:00」），点了会落到哪一目了然，杜绝「延期后才发现推错了天」。</p>
+
+    <h2><span class="no">4</span>延期后的世界</h2>
+    <ul>
+      <li><b>卡片迁组：</b>从「今天」滑到「明天 / 本周 / 稍后」分组，组头计数同步刷新；延期到「三天后」会看到「本周」组被自动展开。</li>
+      <li><b>撤回横幅：</b>「已延期到明天 17:00 · 撤回」，与现有「任务已完成 · 撤回」同一语言；点撤回完全还原（含延期计数）。</li>
+      <li><b>延期痕迹：</b>卡片 meta 行出现灰色「已延期 N 次」小胶囊（N≥1 才显示）。这是本设计最重要的一笔——<b>允许拖延，但让拖延可见</b>，连续延 3 次的任务自己都会不好意思。演示里「还信用卡账单」预置了 2 次的样子。</li>
+      <li><b>提醒自动跟随：</b>现有提醒是「截止前 N 分钟」的相对偏移，跟着截止时间走，延期免费带提醒，无需用户重设。绝对提醒（无截止日任务）不存在延期概念，不出现本面板。</li>
+    </ul>
+
+    <h2><span class="no">5</span>边界情况</h2>
+    <table class="spec">
+      <tr><th>场景</th><th>处理</th></tr>
+      <tr><td>23:50 的任务延 30 分钟</td><td>落点跨天，选项小字直接写「明天 00:20」，不藏在主词后面。</td></tr>
+      <tr><td>重复任务</td><td><b>只改当期这一件</b>，重复规则不动，下次照常按规则出。与习惯模块「补签 ≠ 补记」同一语义纪律：单次操作不改长期设定。</td></tr>
+      <tr><td>通知上的「稍后提醒」</td><td>那是<b>只重发一次通知、不改截止时间</b>的贪睡，与本功能两回事。一期不动它，仅在文案上区隔（通知里叫「稍后提醒」，App 内叫「延期」）。见决策 D5。</td></tr>
+      <tr><td>过期积压成串</td><td>过期组头提供「全部 → 今天」批量入口，一次清债。见决策 D6。</td></tr>
+      <tr><td>延期次数上限</td><td>不设硬上限，靠「已延期 N 次」胶囊自省。设上限会把用户推向「删了重建」，反而丢历史。</td></tr>
+    </table>
+
+    <h2><span class="no">6</span>实现要点（开发侧）</h2>
+    <ul>
+      <li>数据：TodoTask 新增 <code>postponedCount(Int16)</code> 一个字段即可承载痕迹；<code>lastPostponedAt</code> 可选，为将来 AI 信号留料。纯客户端，CloudKit 字段随 App 发版，无需后端。</li>
+      <li>延期动作 = 改 <code>dueDate</code>（跨天保时刻复用现有 <code>selectDatePreservingTime</code> 同一规则）+ 计数 +1 + 重排该任务的提醒通知。</li>
+      <li>选项生成收敛成一个纯函数（任务形态 → 选项列表），三入口共用，永不出现两个入口选项不一致。</li>
+      <li>AI 呼应：任务信号提炼层已有关注「积压与延期类型」的设计，<code>postponedCount</code> 让「这事被拖了三次」第一次成为可感知的事实。</li>
+    </ul>
+
+    <h2><span class="no">7</span>待东林拍板</h2>
+    <div class="ncard decision">
+      <div class="nt">D1 · 入口组合<span class="badge">推荐照此实施</span></div>
+      <p>左滑主入口 + 胶囊加速入口 + 详情页兜底，三层是否 OK？归档 / 删除维持原位不降级。</p>
+    </div>
+    <div class="ncard decision">
+      <div class="nt">D2 · 全天任务的「本周末」档</div>
+      <p>全天任务面板要不要保留「本周末」？现有日期弹层的快捷选择里有「本周末 / 下周」先例，延期内也可用；嫌四个天数档太密可以砍。</p>
+    </div>
+    <div class="ncard decision">
+      <div class="nt">D3 · 「已延期 N 次」胶囊</div>
+      <p>这是本设计的灵魂，但也有「给用户压力」的另一面。保留 / 换成只在延期第 2 次起显示 / 不做，三个态度。</p>
+    </div>
+    <div class="ncard decision">
+      <div class="nt">D4 · 重复任务只改当期</div>
+      <p>默认只改当期、规则不动。另一种做法是「此次延期 + 之后也顺延」，更重，不建议一期做。</p>
+    </div>
+    <div class="ncard decision">
+      <div class="nt">D5 · 通知「稍后提醒」是否升级</div>
+      <p>现状：通知按钮 15 分钟后重发一次通知，不改期。可升级为「延期 15 分钟」（真改期）；一期建议先不动，靠文案区隔。</p>
+    </div>
+    <div class="ncard decision">
+      <div class="nt">D6 · 过期组头「全部 → 今天」</div>
+      <p>批量清债入口，原型已可体验。进一期还是二期？</p>
+    </div>
+
+    <p style="margin-top:26px;color:#9B9993;font-size:12px;">原型：docs/design-prototypes/task-postpone-prototype.html · 模拟时间 2026-08-25 16:20 · 仅交互演示，非最终视觉</p>
+  </aside>
+</div>
+
+<script>
+/* ================================================================
+   核心逻辑（与说明面板的规则一一对应）
+   注意：所有日期计算基于时间戳/Date 对象，禁止字符串拼接比较。
+   ================================================================ */
+
+// ---- 模拟"现在"：2026-08-25（周三）16:20 ----
+var NOW = new Date(2026, 7, 25, 16, 20, 0);
+
+function ts(y, mo, d, h, mi){ return new Date(y, mo - 1, d, h || 0, mi || 0, 0).getTime(); }
+function dayOnly(off){ var d = new Date(NOW.getTime() + off * 86400000); d.setHours(0,0,0,0); return d.getTime(); }
+
+var WEEK_CN = ['日','一','二','三','四','五','六'];
+function weekdayShort(t){ return '周' + WEEK_CN[new Date(t).getDay()]; }
+function sameDay(a, b){
+  var da = new Date(a), db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+function addDays(t, n){ var d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); }
+function hhmm(t){ var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function pad(n){ return (n < 10 ? '0' : '') + n; }
+// 跨天档的落点小字：明天→"明天 HH:mm"，本周内→"周六 HH:mm"，跨周→"下周三 HH:mm"
+function dayLabel(t, withTime){
+  var target = new Date(t), now = NOW;
+  var diffDays = Math.round((new Date(t).setHours(0,0,0,0) - new Date(now).setHours(0,0,0,0)) / 86400000);
+  var base;
+  if (sameDay(t, addDays(now.getTime(), 1))) base = '明天';
+  else if (diffDays > 6) base = '下周' + WEEK_CN[target.getDay()];
+  else base = weekdayShort(t);
+  if (withTime) base += ' ' + hhmm(t);
+  return base;
+}
+
+// ---- 任务数据（due=截止时间戳, allDay=是否全天, postponed=已延期次数） ----
+var tasks = [
+  { id:'t1', title:'给妈妈回电话',   due: ts(2026,8,24,21,0), allDay:false, list:null,            postponed:0 },
+  { id:'t2', title:'还信用卡账单',   due: dayOnly(-1),        allDay:true,  list:{name:'财务',color:'#8B5CF6'}, postponed:2 },
+  { id:'t3', title:'产品组会同步',   due: ts(2026,8,25,17,0), allDay:false, list:{name:'工作',color:'#3B82F6'}, postponed:0 },
+  { id:'t4', title:'取快递',        due: dayOnly(0),         allDay:true,  list:null,            postponed:0 },
+  { id:'t5', title:'写周报',        due: dayOnly(0),         allDay:true,  list:null, priority:'高', postponed:0 },
+  { id:'t6', title:'买生日礼物',     due: dayOnly(1),         allDay:true,  list:null,            postponed:0 }
+];
+
+// ---- 互斥分桶：过期 / 今天 / 明天 / 本周 / 稍后 ----
+function groupOf(t){
+  var due = t.due;
+  var eff = t.allDay ? new Date(new Date(due).setHours(23,59,59,0)).getTime() : due;
+  if (eff < NOW.getTime()) return 'overdue';
+  if (sameDay(due, NOW.getTime())) return 'today';
+  if (sameDay(due, addDays(NOW.getTime(), 1))) return 'tomorrow';
+  // 本周 = 从今天到下周一半夜（周一为一周起点）
+  var mondayIndex = (new Date(NOW).getDay() + 6) % 7;
+  var weekEnd = addDays(new Date(NOW).setHours(0,0,0,0), 7 - mondayIndex);
+  if (due < weekEnd) return 'thisweek';
+  return 'later';
+}
+var GROUPS = [
+  { key:'overdue',  name:'已过期', dot:'#EF4444' },
+  { key:'today',    name:'今天',   dot:'#F46D38' },
+  { key:'tomorrow', name:'明天',   dot:'#3B82F6' },
+  { key:'thisweek', name:'本周',   dot:'#C4C4C4' },
+  { key:'later',    name:'稍后',   dot:'#DDDDDD' }
+];
+
+// ---- 胶囊 ----
+function pillInfo(t){
+  var g = groupOf(t);
+  if (g === 'overdue'){
+    var days = Math.round((new Date(new Date(NOW).setHours(0,0,0,0)) - new Date(new Date(t.due).setHours(0,0,0,0))) / 86400000);
+    return { cls:'pill-overdue', text: days > 0 ? '过期 ' + days + ' 天' : '过期' };
+  }
+  if (g === 'today')    return { cls:'pill-today',    text: t.allDay ? '今天' : '今天 ' + hhmm(t.due) };
+  if (g === 'tomorrow') return { cls:'pill-tomorrow', text: t.allDay ? '明天' : '明天 ' + hhmm(t.due) };
+  if (g === 'thisweek') return { cls:'pill-week',     text: t.allDay ? weekdayShort(t.due) : weekdayShort(t.due) + ' ' + hhmm(t.due) };
+  return { cls:'pill-later', text: t.allDay ? (new Date(t.due).getMonth()+1) + '月' + new Date(t.due).getDate() + '日'
+                                            : (new Date(t.due).getMonth()+1) + '月' + new Date(t.due).getDate() + '日 ' + hhmm(t.due) };
+}
+
+// ================================================================
+// 选项生成（唯一规则源：三种任务形态 → 选项列表）
+// 每项 {label 主词, sub 落点小字, targetTs 落点时间戳, allDay 落点是否全天, primary 是否第一档}
+// ================================================================
+function postponeOptions(t){
+  var opts = [];
+  var g = groupOf(t);
+  var nowTs = NOW.getTime();
+  var todayZero = new Date(NOW); todayZero.setHours(0,0,0,0);
+  var dueD = new Date(t.due);
+  var timeOfDayMs = ((dueD.getHours() * 60 + dueD.getMinutes()) * 60 + dueD.getSeconds()) * 1000; // 定时任务原时刻
+
+  function atDayWithTime(dayOffset){
+    return addDays(todayZero.getTime(), dayOffset) + timeOfDayMs;
+  }
+
+  if (!t.allDay && g !== 'overdue'){
+    // ---- 定时 · 未到点：分钟档（锚原时刻）+ 跨天档（保时刻，锚今天）----
+    [15, 30, 60].forEach(function(mins){
+      var target = t.due + mins * 60000;
+      var sub = sameDay(target, nowTs) ? hhmm(target) : dayLabel(target, true); // 跨午夜则直接写"明天 00:20"
+      opts.push({ label: mins === 60 ? '1小时后' : mins + '分钟后', sub: sub, targetTs: target, allDay:false, primary: mins === 15 });
+    });
+    [ {label:'明天', d:1}, {label:'三天后', d:3}, {label:'一周后', d:7} ].forEach(function(o){
+      opts.push({ label:o.label, sub: dayLabel(atDayWithTime(o.d), true), targetTs: atDayWithTime(o.d), allDay:false, primary:false });
+    });
+  } else if (t.allDay && g !== 'overdue'){
+    // ---- 全天 · 今天/未来：天数档（锚今天，落点仍全天）----
+    [ {label:'明天', d:1}, {label:'三天后', d:3}, {label:'一周后', d:7}, {label:'本周末', d:'weekend'} ].forEach(function(o){
+      var target = o.d === 'weekend' ? atWeekend() : addDays(todayZero.getTime(), o.d);
+      opts.push({ label:o.label, sub: dayLabel(target, false), targetTs: target, allDay:true, primary: o.d === 1 });
+    });
+  } else {
+    // ---- 已过期：第一档"今天"，之后天数档。定时过期→保原时刻（原时刻已过则顺延30分钟并在小字写明）----
+    if (!t.allDay){
+      var todayAtTime = atDayWithTime(0);
+      var passed = todayAtTime <= nowTs;
+      var target = passed ? nowTs + 30 * 60000 : todayAtTime;
+      opts.push({ label:'今天', sub: passed ? hhmm(target) + '（原时刻已过）' : hhmm(target), targetTs: target, allDay:false, primary:true });
+    } else {
+      opts.push({ label:'今天', sub:'今天', targetTs: todayZero.getTime(), allDay:true, primary:true });
+    }
+    [ {label:'明天', d:1}, {label:'三天后', d:3}, {label:'一周后', d:7} ].forEach(function(o){
+      var target = t.allDay ? addDays(todayZero.getTime(), o.d) : atDayWithTime(o.d);
+      opts.push({ label:o.label, sub: dayLabel(target, !t.allDay), targetTs: target, allDay: t.allDay, primary:false });
+    });
+  }
+  opts.push({ label:'自定义', sub:'日期与时间', custom:true });
+  return opts;
+
+  function atWeekend(){
+    var dow = (new Date(NOW).getDay() + 6) % 7; // 周一=0
+    var add = (5 - dow + 7) % 7; if (add === 0) add = 7; // 本周六；已是周六/日则下周六
+    return addDays(todayZero.getTime(), add);
+  }
+}
+
+// ================================================================
+// 渲染
+// ================================================================
+var groupsEl = document.getElementById('groups');
+var revealedCard = null; // 当前滑开的卡片
+
+function esc(s){ return s.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function render(){
+  var html = '';
+  GROUPS.forEach(function(g){
+    var members = tasks.filter(function(t){ return groupOf(t) === g.key; });
+    if (!members.length) return;
+    html += '<div class="group" data-g="' + g.key + '"><div class="group-head">'
+         + '<span class="dot" style="background:' + g.dot + '"></span>'
+         + '<span class="name">' + g.name + '</span>'
+         + '<span class="count">' + members.length + '</span>';
+    if (g.key === 'overdue'){
+      html += '<button class="batch" id="batchToday"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>全部 → 今天</button>';
+    }
+    html += '</div><div class="members"></div></div>';
+  });
+  groupsEl.innerHTML = html;
+
+  GROUPS.forEach(function(g){
+    var members = tasks.filter(function(t){ return groupOf(t) === g.key; });
+    if (!members.length) return;
+    var holder = groupsEl.querySelector('.group[data-g="' + g.key + '"] .members');
+    members.forEach(function(t){ holder.appendChild(buildCard(t)); });
+  });
+
+  var batch = document.getElementById('batchToday');
+  if (batch) batch.addEventListener('click', batchToToday);
+}
+
+function buildCard(t){
+  var p = pillInfo(t);
+  var outer = document.createElement('div');
+  outer.className = 'card-outer';
+
+  var actions = document.createElement('div');
+  actions.className = 'swipe-actions';
+  actions.innerHTML =
+      '<button class="act-postpone" data-act="postpone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6"/></svg>延期</button>'
+    + '<button class="act-archive" data-act="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>归档</button>'
+    + '<button class="act-delete" data-act="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3"/></svg>删除</button>';
+  outer.appendChild(actions);
+
+  var card = document.createElement('div');
+  card.className = 'task-card';
+  var meta = '';
+  if (t.list) meta += '<span class="m"><span class="stripe" style="background:' + t.list.color + '"></span>' + esc(t.list.name) + '</span>';
+  if (t.priority) meta += '<span class="priority"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14l-3 8h4L9 23l2-9H5l3-11z"/></svg>' + t.priority + '</span>';
+  if (t.postponed > 0) meta += '<span class="postponed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>已延期 ' + t.postponed + ' 次</span>';
+  card.innerHTML =
+      '<div class="row"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div>'
+    + '<div class="body"><div class="title-row"><div class="t">' + esc(t.title) + '</div>'
+    + '<span class="pill ' + p.cls + '" data-pill title="点击延期">' + p.text + '</span></div>'
+    + '<div class="meta">' + meta + '</div></div></div>';
+  outer.appendChild(card);
+
+  // 点胶囊 → 延期面板
+  card.querySelector('.pill').addEventListener('click', function(e){
+    e.stopPropagation(); closeSwipe(); openSheet(t);
+  });
+  actions.querySelector('.act-postpone').addEventListener('click', function(e){
+    e.stopPropagation(); closeSwipe(); openSheet(t);
+  });
+  actions.querySelector('.act-archive').addEventListener('click', function(){ closeSwipe(); toast('原型仅演示延期（归档/删除为现有功能）'); });
+  actions.querySelector('.act-delete').addEventListener('click', function(){ closeSwipe(); toast('原型仅演示延期（归档/删除为现有功能）'); });
+
+  attachSwipe(card, actions, outer);
+  return outer;
+}
+
+// ---- 左滑手势（pointer 拖拽，露出操作按钮）----
+var BTN_W = 74, FULL_W = BTN_W * 3;
+function attachSwipe(card, actions, outer){
+  var startX = 0, curX = 0, dragging = false, baseX = 0;
+
+  function setX(x){
+    curX = Math.max(-FULL_W, Math.min(0, x));
+    card.style.transform = 'translateX(' + curX + 'px)';
+  }
+  card.addEventListener('pointerdown', function(e){
+    dragging = true; startX = e.clientX; baseX = curX;
+    card.classList.add('dragging'); card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    setX(baseX + (e.clientX - startX));
+  });
+  card.addEventListener('pointerup', function(e){
+    var moved = Math.abs(e.clientX - startX);
+    dragging = false; card.classList.remove('dragging');
+    if (curX < -FULL_W * 0.55){ setX(-FULL_W); revealedCard = card; }
+    else {
+      setX(0); if (revealedCard === card) revealedCard = null;
+      if (moved < 3 && !e.target.closest('.pill')) toast('进入任务详情（原型略）· 左滑卡片或点时间胶囊体验延期');
+    }
+  });
+  card.addEventListener('pointercancel', function(){ dragging = false; card.classList.remove('dragging'); setX(0); });
+}
+function closeSwipe(){
+  if (revealedCard){ revealedCard.style.transform = 'translateX(0)'; revealedCard = null; }
+}
+
+// ---- 延期面板 ----
+var sheet = document.getElementById('sheet'), backdrop = document.getElementById('backdrop');
+var sheetTask = null;
+
+function openSheet(t){
+  sheetTask = t;
+  document.getElementById('sheetTaskTitle').textContent = t.title;
+  var p = pillInfo(t);
+  var tag = document.getElementById('sheetTaskTag');
+  tag.className = 'tag ' + p.cls; tag.textContent = p.text;
+  document.getElementById('sheetSub').innerHTML =
+      '现在 <b>' + hhmm(NOW.getTime()) + ' · ' + weekdayShort(NOW.getTime()) + '</b>，选择新的截止时间';
+
+  var opts = postponeOptions(t);
+  var body = document.getElementById('sheetBody');
+  body.innerHTML = '';
+  var delayOpts = [], dayOpts = [], customOpt = null;
+  opts.forEach(function(o){
+    if (o.custom){ customOpt = o; return; }
+    if (!t.allDay && groupOf(t) !== 'overdue' && /分钟后|1小时后/.test(o.label)) delayOpts.push(o);
+    else dayOpts.push(o);
+  });
+  function optEl(o){
+    var div = document.createElement('div');
+    div.className = 'opt' + (o.primary ? ' primary-opt' : '') + (o.custom ? ' custom' : '');
+    div.innerHTML = '<div class="l1">' + o.label + '</div><div class="l2">' + (o.sub || '') + '</div>';
+    div.addEventListener('click', function(){
+      if (o.custom){ closeSheet(); toast('自定义 → 进现有「日期与时间」弹层（复用）'); return; }
+      applyPostpone([sheetTask], o);
+    });
+    return div;
+  }
+  if (delayOpts.length){
+    var l1 = document.createElement('div'); l1.className = 'opt-group-label'; l1.textContent = '今天内顺延';
+    var b1 = document.createElement('div'); b1.className = 'opts';
+    delayOpts.forEach(function(o){ b1.appendChild(optEl(o)); });
+    body.appendChild(l1); body.appendChild(b1);
+  }
+  var l2 = document.createElement('div'); l2.className = 'opt-group-label';
+  l2.textContent = delayOpts.length ? '推到另一天' : '延期到';
+  var b2 = document.createElement('div'); b2.className = 'opts' + (dayOpts.length === 4 ? ' four' : '');
+  dayOpts.forEach(function(o){ b2.appendChild(optEl(o)); });
+  body.appendChild(l2); body.appendChild(b2);
+  if (customOpt){
+    var b3 = document.createElement('div'); b3.className = 'opts';
+    b3.appendChild(optEl(customOpt));
+    body.appendChild(b3);
+  }
+
+  var note = document.createElement('div'); note.className = 'sheet-note';
+  note.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#F46D38" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg><span>'
+    + (t.allDay ? '全天任务延期后仍是全天；已设置的提醒会自动跟随新日期。'
+                : '跨天延期保留原时刻；提醒是「截止前 N 分钟」，会自动跟随。') + '</span>';
+  body.appendChild(note);
+
+  backdrop.classList.add('show'); sheet.classList.add('show');
+}
+function closeSheet(){ backdrop.classList.remove('show'); sheet.classList.remove('show'); sheetTask = null; }
+backdrop.addEventListener('click', closeSheet);
+
+// ---- 应用延期（支持批量）----
+var undoStack = null;
+function applyPostpone(list, opt){
+  undoStack = { list: [], opt: opt };
+  list.forEach(function(t){
+    undoStack.list.push({ task: t, due: t.due, allDay: t.allDay, postponed: t.postponed });
+    t.due = opt.targetTs; t.allDay = opt.allDay; t.postponed += 1;
+  });
+  closeSheet(); render();
+  var sub = opt.sub ? ' · ' + opt.sub : '';
+  showBanner('已延期到 ' + opt.label + sub + (list.length > 1 ? '（' + list.length + ' 个任务）' : ''), true);
+}
+
+// ---- 过期批量 → 今天 ----
+function batchToToday(){
+  var overdue = tasks.filter(function(t){ return groupOf(t) === 'overdue'; });
+  if (!overdue.length) return;
+  var todayZero = new Date(NOW); todayZero.setHours(0,0,0,0);
+  undoStack = { list: [] };
+  overdue.forEach(function(t){
+    undoStack.list.push({ task: t, due: t.due, allDay: t.allDay, postponed: t.postponed });
+    if (t.allDay){ t.due = todayZero.getTime(); }
+    else {
+      var d = new Date(t.due);
+      var target = new Date(todayZero.getFullYear(), todayZero.getMonth(), todayZero.getDate(), d.getHours(), d.getMinutes()).getTime();
+      if (target <= NOW.getTime()) target = NOW.getTime() + 30 * 60000;
+      t.due = target;
+    }
+    t.postponed += 1;
+  });
+  render();
+  showBanner('已将 ' + overdue.length + ' 个过期任务推到今天', true);
+}
+
+// ---- 撤回横幅 ----
+var banner = document.getElementById('banner'), bannerMsg = document.getElementById('bannerMsg');
+var bannerTimer = null;
+function showBanner(msg, withUndo){
+  bannerMsg.textContent = msg;
+  document.getElementById('bannerUndo').style.display = withUndo ? '' : 'none';
+  banner.classList.add('show');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(function(){ banner.classList.remove('show'); }, 5000);
+}
+document.getElementById('bannerUndo').addEventListener('click', function(){
+  if (undoStack){
+    undoStack.list.forEach(function(snap){
+      snap.task.due = snap.due; snap.task.allDay = snap.allDay; snap.task.postponed = snap.postponed;
+    });
+    undoStack = null; render();
+  }
+  banner.classList.remove('show');
+});
+
+// ---- 轻提示 ----
+function toast(msg){ showBanner(msg, false); clearTimeout(bannerTimer); bannerTimer = setTimeout(function(){ banner.classList.remove('show'); }, 2600); }
+
+render();
+</script>
+</body>
+</html>

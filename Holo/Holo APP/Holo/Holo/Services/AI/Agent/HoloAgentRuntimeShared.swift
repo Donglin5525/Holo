@@ -211,34 +211,40 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
 
     private static func goalProgressRows(timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
         let (_, _, days) = dayRange(timeRange)
-        return await MainActor.run {
-            let calendar = Calendar.current
-            let goals = GoalRepository.shared.activeGoalsForAI(limit: 20)
-            return days.compactMap { day in
-                let nextDay = calendar.date(byAdding: .day, value: 1, to: day) ?? day
-                let progress = goals.compactMap { goal -> (Double, [String])? in
-                    guard goal.createdAt < nextDay else { return nil }
-                    let availableTasks = goal.sortedTasks.filter { $0.createdAt < nextDay }
-                    guard !availableTasks.isEmpty else { return nil }
-                    let completed = availableTasks.filter { task in
-                        guard let completedAt = task.completedAt else { return false }
-                        return completedAt < nextDay
-                    }
-                    return (
-                        Double(completed.count) / Double(availableTasks.count) * 100,
-                        [goal.id.uuidString] + completed.map { $0.id.uuidString }
-                    )
+        // 主线程只取一次值快照（目标创建时间 + 关联任务的创建/完成时间），
+        // 逐日 × 逐目标的嵌套计算放后台——跨年查询时这段循环最坏 366 天 × 20 目标，
+        // 此前整个跑在 MainActor.run 里，是跨域分析期间主线程的长阻塞块之一。
+        let snapshots: [(goalID: UUID, createdAt: Date, tasks: [(id: UUID, createdAt: Date, completedAt: Date?)])] =
+            await MainActor.run {
+                GoalRepository.shared.activeGoalsForAI(limit: 20).map { goal in
+                    (goal.id, goal.createdAt, goal.sortedTasks.map { ($0.id, $0.createdAt, $0.completedAt) })
                 }
-                guard !progress.isEmpty else { return nil }
-                let value = progress.map(\.0).reduce(0, +) / Double(progress.count)
-                let sourceIDs = progress.flatMap(\.1)
-                return HoloQueryRow(
-                    id: sourceIDs.joined(separator: ","),
-                    occurredAt: day,
-                    fields: ["date": .date(day), "value": .number(value)],
-                    excerpt: "活跃目标关联任务平均完成进度 \(String(format: "%.1f", value))%"
+            }
+        let calendar = Calendar.current
+        return days.compactMap { day in
+            let nextDay = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+            let progress = snapshots.compactMap { goal -> (Double, [String])? in
+                guard goal.createdAt < nextDay else { return nil }
+                let availableTasks = goal.tasks.filter { $0.createdAt < nextDay }
+                guard !availableTasks.isEmpty else { return nil }
+                let completed = availableTasks.filter { task in
+                    guard let completedAt = task.completedAt else { return false }
+                    return completedAt < nextDay
+                }
+                return (
+                    Double(completed.count) / Double(availableTasks.count) * 100,
+                    [goal.goalID.uuidString] + completed.map { $0.id.uuidString }
                 )
             }
+            guard !progress.isEmpty else { return nil }
+            let value = progress.map(\.0).reduce(0, +) / Double(progress.count)
+            let sourceIDs = progress.flatMap(\.1)
+            return HoloQueryRow(
+                id: sourceIDs.joined(separator: ","),
+                occurredAt: day,
+                fields: ["date": .date(day), "value": .number(value)],
+                excerpt: "活跃目标关联任务平均完成进度 \(String(format: "%.1f", value))%"
+            )
         }
     }
 

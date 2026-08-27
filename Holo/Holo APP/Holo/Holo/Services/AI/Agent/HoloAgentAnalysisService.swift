@@ -500,6 +500,21 @@ final class HoloAgentAnalysisService {
             }
             let status = HoloAgentChatStatusPresenter.status(for: job)
             if status.keepsMessageStreaming {
+                // P0 绝对截止兜底：超过截止线且进程内无活跃执行的非终态 job 就地终结。
+                // 此前只有 sendMessage 内的前台轮询会查截止（且刻意排除 running/waitingForLLM，
+                // 怕与活跃执行互相覆盖）；本同步只在页面重建/回前台时运行——若该 job 在
+                // 本进程内仍有活跃执行则跳过交主路径收尾，否则它就是强杀/恢复失败后的
+                // 遗留落盘态，无人再写，不终结消息会永远转圈「分析中」。
+                if job.isPastAbsoluteDeadline(),
+                   !(await scheduler.hasActiveExecution(jobID: job.id)) {
+                    _ = try? await runtime.failJob(jobID: job.id, reason: "任务已超过截止时限，不再继续")
+                    HoloAgentPauseNotifier.clearPausedNotice(jobID: job.id)
+                    repository.updateAgentMessageProgress(
+                        sourceMessageID,
+                        status: Self.deadlineExceededStatus
+                    )
+                    continue
+                }
                 repository.updateAgentMessageProgress(sourceMessageID, status: status)
                 preservedStreamingMessageIDs.insert(sourceMessageID)
                 continue
@@ -613,18 +628,94 @@ final class HoloAgentAnalysisService {
                 jobID: job.id,
                 reason: "任务已超过截止时限，不再继续"
             )
-            repository.updateAgentMessageProgress(sourceMessageID, status: HoloAgentChatStatus(
-                title: "深度分析已中断",
-                detail: "任务已超过截止时限，不再继续。请重新发起分析。",
-                keepsMessageStreaming: false,
-                showsActivityIndicator: false
-            ))
+            repository.updateAgentMessageProgress(sourceMessageID, status: Self.deadlineExceededStatus)
             return false
         }
         let status = HoloAgentChatStatusPresenter.status(for: job)
         guard status.keepsMessageStreaming else { return false }
         repository.updateAgentMessageProgress(sourceMessageID, status: status)
         return true
+    }
+
+    // MARK: - 页面驻留对账（P0：悬挂「分析中」兜底）
+
+    /// 无 job 背书的分析加载态消息超过该宽限后落地中断。消息进入「分析中」
+    /// （setAnalysisLoadingState）早于 job 首次落盘（startAnalysisJob 末尾的
+    /// saveProgress），正常窗口只有数秒；90 秒足以覆盖慢网，超过即认定 job
+    /// 不会再出现（发送途中被强杀 / 启动链卡死）。
+    private static let noJobAnalysisGraceInterval: TimeInterval = 90
+
+    /// 截止超时的统一终态文案（sync / 轮询 / 对账三处共用，避免口径漂移）。
+    private static let deadlineExceededStatus = HoloAgentChatStatus(
+        title: "深度分析已中断",
+        detail: "任务已超过截止时限，不再继续。请重新发起分析。",
+        keepsMessageStreaming: false,
+        showsActivityIndicator: false
+    )
+
+    /// 无 job 悬挂的统一终态文案。
+    private static let neverStartedStatus = HoloAgentChatStatus(
+        title: "深度分析已中断",
+        detail: "App 在分析启动前被中断，这次分析没有真正开始。请重新发送问题发起分析。",
+        keepsMessageStreaming: false,
+        showsActivityIndicator: false
+    )
+
+    /// 聊天页驻留期间的对账兜底，每轮覆盖三类悬挂：
+    /// ① 有 job、超绝对截止、无进程内活跃执行 → 终结为「已中断」
+    ///    （refreshLiveProgress 只在 sendMessage 存活期间被调用，重进后无人触发，
+    ///     且其截止检查刻意排除 running/waitingForLLM——遗留落盘态由这里收尾）；
+    /// ② 有 job、非终态未超时 → 刷新进度文案（文案未变时仓储层去重，无写放大）；
+    /// ③ 无 job、超过宽限 → 落地「已中断」。一次性孤儿清理（180s 宽限、仅页面
+    ///    重建时跑）接不住强杀后短时间重进的场景，这里是常驻兜底。
+    /// - Returns: 是否发生状态变更。
+    @discardableResult
+    func reconcileStalledAnalysisMessages(
+        repository: ChatMessageRepository? = nil,
+        now: Date = Date()
+    ) async -> Bool {
+        let repository = repository ?? ChatMessageRepository.shared
+        let candidates = repository.streamingAnalysisLoadingMessages()
+        guard !candidates.isEmpty else { return false }
+
+        let jobs: [HoloAgentJob]
+        do {
+            jobs = try await runtime.loadChatLinkedJobs()
+        } catch {
+            logger.error("[Agent] 对账读取 job 失败，本轮跳过: \(String(describing: error), privacy: .public)")
+            return false
+        }
+        var latestJobByMessage: [UUID: HoloAgentJob] = [:]
+        for job in jobs {
+            guard let messageID = job.sourceMessageID else { continue }
+            if let existing = latestJobByMessage[messageID], existing.updatedAt >= job.updatedAt { continue }
+            latestJobByMessage[messageID] = job
+        }
+
+        var didChange = false
+        for candidate in candidates {
+            let messageID = candidate.id
+            if repository.messageType(for: messageID) == .userCancelled { continue }
+            if let job = latestJobByMessage[messageID] {
+                let status = HoloAgentChatStatusPresenter.status(for: job)
+                guard status.keepsMessageStreaming else { continue }
+                if job.isPastAbsoluteDeadline(at: now),
+                   !(await scheduler.hasActiveExecution(jobID: job.id)) {
+                    _ = try? await runtime.failJob(jobID: job.id, reason: "任务已超过截止时限，不再继续")
+                    HoloAgentPauseNotifier.clearPausedNotice(jobID: job.id)
+                    repository.updateAgentMessageProgress(messageID, status: Self.deadlineExceededStatus)
+                    didChange = true
+                } else {
+                    repository.updateAgentMessageProgress(messageID, status: status)
+                }
+                continue
+            }
+            guard now.timeIntervalSince(candidate.timestamp) >= Self.noJobAnalysisGraceInterval else { continue }
+            logger.info("[Agent] 无 job 悬挂消息落地中断 messageID=\(messageID.uuidString, privacy: .public)")
+            repository.updateAgentMessageProgress(messageID, status: Self.neverStartedStatus)
+            didChange = true
+        }
+        return didChange
     }
 
     /// 从持久化的样本摘要构造渲染预览；空或缺失返回 nil。

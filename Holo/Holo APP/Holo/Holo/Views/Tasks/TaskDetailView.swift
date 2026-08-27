@@ -67,6 +67,7 @@ struct TaskDetailView: View {
     @State private var showListPicker = false
     @State private var showGoalPicker = false
     @State private var showTimeSheet = false
+    @State private var showPostponeSheet = false
     @State private var showTaskVoiceInput = false
     @State private var pendingTaskVoiceTranscriptToInsert: String? = nil
     @State private var showAddListSheet = false
@@ -271,6 +272,22 @@ struct TaskDetailView: View {
         .sheet(isPresented: $showTimeSheet) {
             dateTimeSheet
         }
+        .sheet(isPresented: $showPostponeSheet) {
+            // 面板入参用编辑态而非库值：时间弹窗里改过日期（未保存）也要立即反映
+            if let task = existingTask {
+                TaskPostponeSheet(
+                    title: title.isEmpty ? task.title : title,
+                    dueDate: hasDueDate ? dueDate : nil,
+                    isAllDay: !hasTime,
+                    isOverdue: TodoTaskDatePolicy.isOverdue(
+                        dueDate: hasDueDate ? dueDate : nil,
+                        isAllDay: !hasTime,
+                        completed: task.completed
+                    ),
+                    onPostpone: applyDetailPostpone
+                )
+            }
+        }
         .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
             if smartSummaryEnabled {
                 VoiceInputSheet(
@@ -339,7 +356,7 @@ struct TaskDetailView: View {
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             handleBack()
         }
-        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+        .unsavedChangesAlert(isPresented: $showDismissAlert, message: "还没填任务名称，退出后这次填写的内容不会被保存。") {
             dismiss()
         }
         // 拦截系统 Sheet 下滑关闭，统一走 handleBack 的保存/确认分流；
@@ -353,7 +370,7 @@ struct TaskDetailView: View {
                 deleteTask()
             }
         } message: {
-            Text("确定要删除此任务吗？删除后无法恢复。")
+            Text("删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。")
         }
         .alert("保存失败", isPresented: $showSaveErrorAlert) {
             Button("好的", role: .cancel) {}
@@ -1188,34 +1205,57 @@ struct TaskDetailView: View {
 
     private var propertiesSection: some View {
         VStack(spacing: 0) {
-            // 时间（日期/全天/提醒/重复合并在同一入口）
-            Button {
-                showTimeSheet = true
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    rowIcon("calendar")
+            // 时间（日期/全天/提醒/重复合并在同一入口）+ 延期快捷入口
+            HStack(spacing: 0) {
+                Button {
+                    showTimeSheet = true
+                } label: {
+                    HStack(spacing: HoloSpacing.sm) {
+                        rowIcon("calendar")
 
-                    Text("时间")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        Text("时间")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
 
-                    Spacer(minLength: HoloSpacing.md)
+                        Spacer(minLength: HoloSpacing.md)
 
-                    Text(timeSummaryText)
-                        .font(.holoCaption)
-                        .foregroundColor(hasDueDate ? timeValueColor : .holoTextSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .multilineTextAlignment(.trailing)
+                        Text(timeSummaryText)
+                            .font(.holoCaption)
+                            .foregroundColor(hasDueDate ? timeValueColor : .holoTextSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .multilineTextAlignment(.trailing)
 
-                    rowChevron
+                        rowChevron
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+
+                // 延期：与时间行同层而非嵌套（避免按钮嵌按钮的误触）；有截止日期的非重复任务才出现
+                if canPostponeExistingTask {
+                    Button {
+                        showPostponeSheet = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("延期")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundColor(.holoPrimaryDark)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.holoPrimary.opacity(0.12)))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 12)
+                }
             }
-            .buttonStyle(.plain)
 
             Divider().padding(.horizontal, 12)
 
@@ -1276,6 +1316,33 @@ struct TaskDetailView: View {
             return .holoError
         }
         return Calendar.current.isDateInToday(dueDate) ? .holoPrimary : .holoTextPrimary
+    }
+
+    /// 延期入口条件：编辑模式 + 有截止日期 + 未完成 + 非重复（重复任务一期不接延期）。
+    /// 显隐跟编辑态走：时间弹窗里关掉截止日期/打开重复后立即消失，不必等保存重进。
+    private var canPostponeExistingTask: Bool {
+        guard let task = existingTask else { return false }
+        return TaskPostponePolicy.canPostpone(
+            dueDate: hasDueDate ? dueDate : nil,
+            completed: task.completed,
+            repeatRuleExists: hasRepeat
+        )
+    }
+
+    /// 详情页延期：立即落库 + 同步编辑态（防止随后的「保存」用旧日期把延期覆盖回去）
+    private func applyDetailPostpone(_ option: TaskPostponeOption) {
+        guard let task = existingTask else { return }
+        do {
+            try repository.postpone(task: task, to: option)
+            if let target = option.targetDate {
+                dueDate = target
+                hasDueDate = true
+                hasTime = !option.isAllDay
+            }
+            HapticManager.medium()
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TaskDetailView").error("延期失败: \(error.localizedDescription)")
+        }
     }
 
     private var priorityRow: some View {
@@ -1780,10 +1847,11 @@ struct TaskDetailView: View {
         isSaving = true
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
-        // 无截止日时只保留绝对提醒（相对提醒依赖截止日，无意义）
-        let remindersToSave: Set<TaskReminder>? = hasDueDate
+        // 无截止日时只保留绝对提醒（相对提醒依赖截止日，无意义）。
+        // 空集也要照常写入：reminders 传 nil 是「不修改」，清空必须靠写空集。
+        let remindersToSave: Set<TaskReminder> = hasDueDate
             ? selectedReminders
-            : (selectedReminders.contains { $0.isAbsolute } ? selectedReminders.filter { $0.isAbsolute } : nil)
+            : selectedReminders.filter { $0.isAbsolute }
         let shouldCreateRepeat = hasRepeat && hasDueDate
 
         Task { @MainActor in
@@ -1798,7 +1866,7 @@ struct TaskDetailView: View {
                         description: description,
                         status: taskStatus,
                         priority: priority,
-                        dueDate: hasDueDate ? dueDate : nil,
+                        dueDate: hasDueDate ? .set(dueDate) : .clear,
                         isAllDay: !hasTime,
                         list: selectedList,
                         reminders: remindersToSave
@@ -1881,7 +1949,14 @@ struct TaskDetailView: View {
             dueDate: $dueDate,
             isAllDay: Binding(
                 get: { !hasTime },
-                set: { hasTime = !$0 }
+                set: { allDay in
+                    hasTime = !allDay
+                    // 新建任务默认落「当天 00:00」；直接关掉全天使任务瞬间过期。
+                    // 此刻把时刻垫到「当前时间向上取整到 15 分钟」，跨天则落 23:59。
+                    if !allDay, dueDate == Calendar.current.startOfDay(for: dueDate) {
+                        dueDate = TaskDetailTimeDefault.timedDate(from: dueDate)
+                    }
+                }
             ),
             hasDueDate: $hasDueDate,
             selectedReminders: $selectedReminders,
@@ -1904,6 +1979,44 @@ struct TaskDetailView: View {
 private extension TaskPriority {
     var shortTitle: String {
         self == .urgent ? "紧急" : displayTitle
+    }
+}
+
+// MARK: - 关「全天」时的默认时刻规则
+
+/// 新建任务默认落「当天 00:00（全天）」；用户关掉全天的瞬间，00:00 已是过去时，
+/// 任务会立即显示「已过期」。这里把整点日期值垫成有意义的时刻：
+/// 当前时钟向上取整到下一个 15 分钟；若已越过午夜则落回当天 23:59。
+/// 非 00:00 的时刻说明用户或流程已显式选过时间，保持不动。
+enum TaskDetailTimeDefault {
+    static func timedDate(
+        from allDayDate: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        guard allDayDate == calendar.startOfDay(for: allDayDate) else { return allDayDate }
+
+        var minute = calendar.component(.minute, from: now)
+        var hour = calendar.component(.hour, from: now)
+        let remainder = minute % 15
+        if remainder == 0 && calendar.component(.second, from: now) == 0 {
+            // 恰好整 15 分钟倍数：直接用当前时刻
+        } else {
+            minute += 15 - remainder
+            if minute >= 60 {
+                minute -= 60
+                hour += 1
+            }
+        }
+        if hour >= 24 {
+            hour = 23
+            minute = 59
+        }
+
+        var components = calendar.dateComponents([.year, .month, .day], from: allDayDate)
+        components.hour = hour
+        components.minute = minute
+        return calendar.date(from: components) ?? allDayDate
     }
 }
 

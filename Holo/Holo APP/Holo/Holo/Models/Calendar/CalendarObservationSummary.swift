@@ -107,7 +107,7 @@ struct CalendarObservationSummary: Equatable {
 
         if let peak = peakDay(in: events), peak.count >= max(3, events.count / 2) {
             return CalendarObservationSummary(
-                title: "\(dayText(peak.day))留下的生活痕迹最密。",
+                title: "\(dayText(peak.day))的记录最集中。",
                 evidence: evidence,
                 tone: .notable,
                 source: .local

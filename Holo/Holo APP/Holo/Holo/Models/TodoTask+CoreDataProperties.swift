@@ -36,6 +36,7 @@ extension TodoTask {
         task.completed = false
         task.archived = false
         task.deletedFlag = false
+        task.postponedCount = 0
         task.hasDailyReminder = false
         task.smartReminderEnabled = false
         task.createdAt = Date()

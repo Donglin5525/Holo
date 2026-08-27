@@ -56,6 +56,9 @@ struct FinanceAnalysisView: View {
             state.refresh()
         }
         .onAppear {
+            // 记账发生在账本页时本视图不在层级里，通知收不到；
+            // 每次出现都主动对齐一次，保证「记一笔 → 切到统计」看到的是新数据。
+            state.refresh()
             applyExternalDeepLinkIfNeeded()
         }
         .onChange(of: externalDeepLink) { _, _ in

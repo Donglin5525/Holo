@@ -247,7 +247,7 @@ struct NotificationSettingsView: View {
     private var habitRow: some View {
         settingRow(
             icon: "checkmark.seal.fill",
-            title: "习惯打卡提醒",
+            title: "习惯打卡",
             summary: habitSummary,
             action: { path.append(.habit) }
         ) {
@@ -263,7 +263,7 @@ struct NotificationSettingsView: View {
         let scheduler = HabitReminderScheduler.shared
         let fallback = timeText(scheduler.reminderTime)
         return scheduler.fallbackEnabled
-            ? "兜底 \(fallback) · \(soloHabitCount) 个单独"
+            ? "每日汇总 \(fallback) · \(soloHabitCount) 个单独"
             : "\(soloHabitCount) 个单独"
     }
 

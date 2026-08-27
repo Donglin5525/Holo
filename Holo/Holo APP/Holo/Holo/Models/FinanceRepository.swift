@@ -124,8 +124,9 @@ class FinanceRepository {
         }
         if let acc = updates.account { transaction.account = acc }
         if let date = updates.date { transaction.date = date }
-        if let note = updates.note { transaction.note = note }
-        if let remark = updates.remark { transaction.remark = remark }
+        // note/remark 传空串 = 清空（与纪念日同款约定）；nil 才是「不修改」
+        if let note = updates.note { transaction.note = note.isEmpty ? nil : note }
+        if let remark = updates.remark { transaction.remark = remark.isEmpty ? nil : remark }
         if let tags = updates.tags { transaction.tags = tags }
         transaction.updatedAt = Date()
         try context.save()

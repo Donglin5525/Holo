@@ -107,7 +107,7 @@ class TodoNotificationService: NSObject, ObservableObject {
 
         let snoozeAction = UNNotificationAction(
             identifier: TodoNotificationAction.snooze.rawValue,
-            title: "⏰ 15分钟后提醒",
+            title: "⏰ 延期15分钟",
             options: []
         )
 
@@ -354,13 +354,28 @@ class TodoNotificationService: NSObject, ObservableObject {
         }
     }
 
-    /// 处理稍后提醒操作
+    /// 处理「延期15分钟」操作：真改截止时间（与 App 内延期同一落库路径，计数、提醒重排一致）。
+    /// 无截止日（绝对提醒）或重复任务一期不接延期：退回纯贪睡，15 分钟后重发提醒。
     func handleSnoozeTask(taskId: UUID) {
-        Self.logger.info("处理稍后提醒：\(taskId.uuidString)")
+        Self.logger.info("处理延期15分钟：\(taskId.uuidString)")
 
-        // 创建15分钟后的新提醒
-        Task {
-            await scheduleSnoozeReminder(taskId: taskId)
+        Task { @MainActor in
+            guard let task = TodoRepository.shared.findTask(by: taskId),
+                  !task.completed, task.deletedAt == nil else { return }
+
+            if task.dueDate != nil, task.repeatRule == nil,
+               let newDate = Calendar.current.date(byAdding: .minute, value: 15, to: task.dueDate!) {
+                do {
+                    _ = try TodoRepository.shared.postpone(
+                        task: task, toDate: newDate, isAllDay: task.isAllDay
+                    )
+                } catch {
+                    Self.logger.error("通知延期失败：\(error.localizedDescription)")
+                    await scheduleSnoozeReminder(taskId: taskId)
+                }
+            } else {
+                await scheduleSnoozeReminder(taskId: taskId)
+            }
         }
     }
 

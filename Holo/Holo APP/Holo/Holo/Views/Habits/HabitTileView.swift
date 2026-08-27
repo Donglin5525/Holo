@@ -854,11 +854,10 @@ struct HabitProgressHeader: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if isAllDone {
-                    Text("今天全部点亮 ")
+                    // 单个 Text 承载 emoji：Text(a)+Text(b) 拼接会让 ✨ 走字体回退失败显示成豆腐块
+                    Text("今天全部点亮 ✨")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.holoPrimary)
-                    + Text("✨")
-                        .font(.system(size: 15))
                 } else {
                     Text("今日进度 ")
                         .font(.system(size: 15, weight: .bold))

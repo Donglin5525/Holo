@@ -157,8 +157,7 @@ struct TaskSearchView: View {
                         Text("清除")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
-                    }
-                }
+                    }                }
 
                 ForEach(recentSearchKeywords, id: \.self) { keyword in
                     Button {
@@ -179,6 +178,18 @@ struct TaskSearchView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
+            } else {
+                // 首次使用且无最近搜索：给一句引导，避免整页空白
+                VStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "text.magnifyingglass")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundColor(.holoTextSecondary.opacity(0.35))
+                    Text("输入关键词，按名称或描述搜索任务")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 80)
             }
         }
         .padding(.horizontal, HoloSpacing.lg)

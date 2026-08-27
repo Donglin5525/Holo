@@ -301,6 +301,15 @@ class TodoRepository: ObservableObject {
         return task
     }
 
+    /// 更新任务时截止日期的保存意图。
+    /// 单用 Optional 日期无法区分「没改」和「清空」（nil 二义性），必须显式声明。
+    enum TaskDueDateUpdate {
+        /// 设置新的截止时间
+        case set(Date)
+        /// 清空截止时间
+        case clear
+    }
+
     /// 更新任务
     func updateTask(
         _ task: TodoTask,
@@ -308,7 +317,7 @@ class TodoRepository: ObservableObject {
         description: String? = nil,
         status: TaskStatus? = nil,
         priority: TaskPriority? = nil,
-        dueDate: Date? = nil,
+        dueDate: TaskDueDateUpdate? = nil,
         isAllDay: Bool? = nil,
         list: TodoList? = nil,
         reminders: Set<TaskReminder>? = nil
@@ -320,7 +329,11 @@ class TodoRepository: ObservableObject {
         // 截止时间被改动时，需要把已调度的本地通知挪到新时间，
         // 否则旧通知仍按原时间响、新通知不会建（通知是一次性绑死在固定时间点的）。
         let dueDateChanged = dueDate != nil
-        if let dueDate = dueDate { task.dueDate = dueDate }
+        switch dueDate {
+        case .set(let date): task.dueDate = date
+        case .clear: task.dueDate = nil
+        case nil: break
+        }
         if let isAllDay = isAllDay { task.isAllDay = isAllDay }
         if let list = list { task.list = list }
 
@@ -574,7 +587,7 @@ class TodoRepository: ObservableObject {
 
     /// 任务恢复活跃状态时，重新调度提醒
     /// （绝对提醒不需要截止日期；相对提醒需有截止日期才有效，scheduleReminder 内部会跳过无效项）
-    private func rescheduleRemindersIfNeeded(for task: TodoTask) {
+    func rescheduleRemindersIfNeeded(for task: TodoTask) {
         guard !task.completed, task.deletedAt == nil, !task.archived,
               task.hasReminders else { return }
         Task {

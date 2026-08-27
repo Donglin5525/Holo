@@ -48,6 +48,49 @@ struct ArchiveIcon: Shape {
     }
 }
 
+// MARK: - 延期图标
+
+/// 自绘延期图标（表盘 + 顺时针箭头，语义：把时间往后拨）
+struct PostponeIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scale = min(rect.width, rect.height) / 24
+        let offsetX = (rect.width - 24 * scale) / 2
+        let offsetY = (rect.height - 24 * scale) / 2
+
+        var path = Path()
+        let centerX = 12 * scale + offsetX
+        let centerY = 12 * scale + offsetY
+        let radius = 8 * scale
+
+        // 表盘（留出右上箭头的缺口：从 55° 画到 305°，逆时针方向不画）
+        path.addArc(
+            center: CGPoint(x: centerX, y: centerY),
+            radius: radius,
+            startAngle: .degrees(55),
+            endAngle: .degrees(305),
+            clockwise: true
+        )
+
+        // 指针
+        path.move(to: CGPoint(x: centerX, y: centerY))
+        path.addLine(to: CGPoint(x: centerX, y: centerY - 5 * scale))
+        path.move(to: CGPoint(x: centerX, y: centerY))
+        path.addLine(to: CGPoint(x: centerX + 3.5 * scale, y: centerY + 1.5 * scale))
+
+        // 右上角顺时针箭头
+        let arrowBase = CGPoint(x: centerX + 4.6 * scale, y: centerY - 4.6 * scale)
+        let arrowTip = CGPoint(x: centerX + 7.2 * scale, y: centerY - 2 * scale)
+        path.move(to: arrowBase)
+        path.addLine(to: arrowTip)
+        path.move(to: arrowTip)
+        path.addLine(to: CGPoint(x: arrowTip.x - 3.2 * scale, y: arrowTip.y))
+        path.move(to: arrowTip)
+        path.addLine(to: CGPoint(x: arrowTip.x, y: arrowTip.y - 3.2 * scale))
+
+        return path
+    }
+}
+
 // MARK: - 删除图标
 
 /// 自绘删除图标（梯形桶身 + 手柄 + 内部分隔线）

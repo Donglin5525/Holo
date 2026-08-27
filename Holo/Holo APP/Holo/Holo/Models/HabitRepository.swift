@@ -590,6 +590,95 @@ class HabitRepository: ObservableObject {
         return getRecords(for: habit, in: nil)
     }
 
+    // MARK: - 记录概况聚合（Agent discover 用）
+
+    /// 单个习惯的记录概况：只含聚合值，不加载任何原始记录。
+    struct RecordOverview: Sendable {
+        let total: Int
+        let earliest: Date?
+        let latest: Date?
+        let recent30: Int
+    }
+
+    /// 一次性算出每个习惯的记录概况（总数/最早/最晚/近30天条数）。
+    /// 纯 SQL 聚合（@count/@min/@max group by habitId），后台 context 执行，
+    /// 不占主线程也不把记录行拉进内存——Agent 跨域分析启动前的 discover
+    /// 探查用（旧实现按习惯全量 getAllRecords 在主线程数 min/max，
+    /// 重度用户记录多时会把主线程冻住）。
+    nonisolated static func recordOverviews(now: Date = Date()) async -> [UUID: RecordOverview] {
+        await CoreDataStack.shared.waitUntilReady()
+        let context = CoreDataStack.shared.newBackgroundContext()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -29, to: today) ?? today
+        return await context.perform {
+            func fetchRows(predicate: NSPredicate) -> [[String: Any]] {
+                let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
+                request.resultType = .dictionaryResultType
+                request.predicate = predicate
+
+                let habitID = NSExpressionDescription()
+                habitID.name = "habitId"
+                habitID.expression = NSExpression(forKeyPath: "habitId")
+                habitID.expressionResultType = .UUIDAttributeType
+
+                let total = NSExpressionDescription()
+                total.name = "total"
+                total.expression = NSExpression(
+                    forFunction: "count:",
+                    arguments: [NSExpression(forKeyPath: "date")]
+                )
+                total.expressionResultType = .integer64AttributeType
+
+                let earliest = NSExpressionDescription()
+                earliest.name = "earliest"
+                earliest.expression = NSExpression(
+                    forFunction: "min:",
+                    arguments: [NSExpression(forKeyPath: "date")]
+                )
+                earliest.expressionResultType = .dateAttributeType
+
+                let latest = NSExpressionDescription()
+                latest.name = "latest"
+                latest.expression = NSExpression(
+                    forFunction: "max:",
+                    arguments: [NSExpression(forKeyPath: "date")]
+                )
+                latest.expressionResultType = .dateAttributeType
+
+                request.propertiesToFetch = [habitID, total, earliest, latest]
+                request.propertiesToGroupBy = [habitID]
+                return ((try? context.fetch(request)) as? [[String: Any]]) ?? []
+            }
+
+            let allRows = fetchRows(predicate: NSPredicate(format: "deletedAt == nil"))
+            let recentRows = fetchRows(predicate: NSPredicate(
+                format: "deletedAt == nil AND date >= %@",
+                thirtyDaysAgo as NSDate
+            ))
+            let recentByHabit = Dictionary(
+                recentRows.compactMap { row -> (UUID, Int)? in
+                    guard let id = row["habitId"] as? UUID,
+                          let count = row["total"] as? Int else { return nil }
+                    return (id, count)
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+
+            var overviews: [UUID: RecordOverview] = [:]
+            for row in allRows {
+                guard let id = row["habitId"] as? UUID else { continue }
+                overviews[id] = RecordOverview(
+                    total: row["total"] as? Int ?? 0,
+                    earliest: row["earliest"] as? Date,
+                    latest: row["latest"] as? Date,
+                    recent30: recentByHabit[id] ?? 0
+                )
+            }
+            return overviews
+        }
+    }
+
     /// 获取指定时间范围内的所有习惯记录（不带 habitId 过滤，跨习惯；半开区间 [start, end)）
     ///
     /// 用于日历聚合：遍历所有习惯打卡记录。习惯名等信息由调用方用 habitMap 反查

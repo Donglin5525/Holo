@@ -262,16 +262,9 @@ struct AccountListView: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
-                Button {
-                    withAnimation(HoloAnimation.standard) { showListView = false }
-                } label: {
-                    Text("‹ 返回卡堆")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoPrimaryDark)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 4)
+            // 返回卡堆统一走净资产卡右上角的「‹ 卡堆视图」，这里不再放第二个入口
 
             VStack(spacing: 0) {
                 Text("使用中 · \(items.count) 个")

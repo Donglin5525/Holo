@@ -71,7 +71,7 @@ struct HabitReminderDetailView: View {
 
     private var fallbackSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("兜底提醒")
+            Text("每日汇总提醒")
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
 
@@ -82,7 +82,7 @@ struct HabitReminderDetailView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
 
-                    Text("兜底汇总提醒")
+                    Text("开启每日汇总")
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
@@ -101,7 +101,7 @@ struct HabitReminderDetailView: View {
                 Divider()
                     .padding(.horizontal, 12)
 
-                Text("跟随兜底的习惯会在兜底时间收到一条汇总提醒；关闭后，单独设了时间的习惯仍按自己的时间提醒。")
+                Text("开启后，跟随汇总的习惯会在每天的汇总时间收到一条提醒；关闭后，只有单独设了时间的习惯按自己的时间提醒。")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, 12)
@@ -116,7 +116,7 @@ struct HabitReminderDetailView: View {
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.holoTextSecondary)
 
-                        Text("兜底时间")
+                        Text("汇总时间")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
@@ -240,7 +240,7 @@ struct HabitReminderDetailView: View {
         switch habit.habitReminderMode {
         case .follow:
             let time = HabitReminderScheduler.shared.reminderTime
-            return "兜底 \(Self.timeText(time.hour, time.minute))"
+            return "汇总 \(Self.timeText(time.hour, time.minute))"
         case .solo:
             return "单独 \(Self.timeText(Int(habit.reminderHour), Int(habit.reminderMinute)))"
         case .none:
@@ -256,7 +256,7 @@ struct HabitReminderDetailView: View {
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
 
-            ruleText("单独设了时间的习惯按自己的时间提醒，当天不再进兜底汇总——同一习惯一天最多提醒一次")
+            ruleText("单独设了时间的习惯按自己的时间提醒，当天不再进每日汇总——同一习惯一天最多提醒一次")
             ruleText("当天已打卡的习惯不会收到任何提醒")
             ruleText("只有打卡型习惯能设提醒，数值型不参与")
         }

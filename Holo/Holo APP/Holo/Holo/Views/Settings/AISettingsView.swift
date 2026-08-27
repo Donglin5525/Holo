@@ -136,6 +136,8 @@ struct AISettingsView: View {
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }
+        // 与 AI 数据授权弹窗同一 tint：同一开关在两处不应对立颜色
+        .tint(.holoPrimary)
     }
 
     // MARK: - API Key Section

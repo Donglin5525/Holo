@@ -17,6 +17,8 @@ struct TaskCardView: View {
     var onToggleCompletion: (() -> Void)?
     /// 点击纪念日来源徽章时跳转
     var onNavigateToAnniversary: ((UUID) -> Void)?
+    /// 点击时间胶囊弹出延期面板（nil = 胶囊不可点，如重复任务/未安排任务）
+    var onPostpone: (() -> Void)?
 
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
@@ -84,6 +86,10 @@ struct TaskCardView: View {
                         Spacer(minLength: 6)
 
                         duePill
+                            .onTapGesture {
+                                // 子视图手势优先于整卡 onTap；胶囊=什么时候，点它=改什么时候
+                                onPostpone?()
+                            }
                     }
 
                     // 描述（截断展示，默认 1 行）
@@ -112,6 +118,16 @@ struct TaskCardView: View {
                             priorityTag(text: "紧急", color: .holoError)
                         } else if task.taskPriority == .high {
                             priorityTag(text: "高", color: Color(red: 0.96, green: 0.62, blue: 0.05))
+                        }
+
+                        // 延期痕迹：允许拖延，但让拖延可见（延期 ≥1 次才出现）
+                        if !showsCompleted, task.postponedCount > 0 {
+                            Label("已延期 \(task.postponedCount) 次", systemImage: "clock.arrow.circlepath")
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(RoundedRectangle(cornerRadius: 5).fill(Color.holoBorder.opacity(0.6)))
                         }
 
                         // 重复任务标识

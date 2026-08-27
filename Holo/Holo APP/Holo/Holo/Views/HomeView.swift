@@ -569,6 +569,7 @@ struct HomeView: View {
     private var timeGreeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
+        case 0..<6: return "夜深了"
         case 6..<12: return "早上好"
         case 12..<18: return "下午好"
         default: return "晚上好"

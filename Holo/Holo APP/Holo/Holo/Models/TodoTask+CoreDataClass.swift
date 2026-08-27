@@ -46,6 +46,9 @@ class TodoTask: NSManagedObject {
 
     @NSManaged var isDailyRitual: Bool
 
+    /// 累计延期次数（每次延期 +1，撤回时回滚；卡片以此显示「已延期 N 次」）
+    @NSManaged var postponedCount: Int16
+
     // MARK: - Relationships
 
     @NSManaged var list: TodoList?

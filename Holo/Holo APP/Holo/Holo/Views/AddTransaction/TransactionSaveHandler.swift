@@ -15,6 +15,16 @@ private let logger = Logger(subsystem: "com.holo.app", category: "TransactionSav
 
 extension AddTransactionSheet {
 
+    /// 保存被拦截（金额/分类缺失等）：明确告诉用户卡在哪，而不是静默无反应。
+    /// 计算器 ✓、右上 ✓、下拉保存共用这一条反馈路径。
+    func signalSaveBlocked(reason: String) {
+        guard !isSaving else { return }
+        HoloToastCenter.shared.show(reason, type: .warning)
+        withAnimation(.easeInOut(duration: 0.45)) {
+            saveBlockShake += 1
+        }
+    }
+
     /// 保存交易
     func saveTransaction() {
         // 保存前先计算表达式（如果有）
@@ -24,10 +34,12 @@ extension AddTransactionSheet {
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
+            signalSaveBlocked(reason: "请先输入金额")
             return
         }
 
         guard let category = selectedCategory, category.isSubCategory else {
+            signalSaveBlocked(reason: "请先选择具体分类")
             return
         }
 
@@ -112,8 +124,9 @@ extension AddTransactionSheet {
                         updates.amount = amount
                         updates.category = category
                         updates.account = account
-                        updates.note = note.isEmpty ? nil : note
-                        updates.remark = remark.isEmpty ? nil : remark
+                        // 空串原样传给数据层按约定清空；这里转 nil 会变成「不修改」，备注就删不掉了
+                        updates.note = note
+                        updates.remark = remark
                         updates.date = selectedDate
 
                         try await repository.updateTransaction(transaction, updates: updates)
@@ -169,10 +182,12 @@ extension AddTransactionSheet {
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
+            await MainActor.run { signalSaveBlocked(reason: "请先输入金额") }
             return
         }
 
         guard let category = selectedCategory, category.isSubCategory else {
+            await MainActor.run { signalSaveBlocked(reason: "请先选择具体分类") }
             return
         }
 
@@ -345,7 +360,10 @@ extension AddTransactionSheet {
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0",
               let category = selectedCategory,
-              category.isSubCategory else { return }
+              category.isSubCategory else {
+            signalSaveBlocked(reason: selectedCategory?.isSubCategory == true ? "请先输入金额" : "请先选择具体分类")
+            return
+        }
 
         Task {
             do {

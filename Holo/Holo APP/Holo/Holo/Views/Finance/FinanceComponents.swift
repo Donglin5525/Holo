@@ -334,18 +334,22 @@ struct TransactionRowView: View {
 // MARK: - Empty State View
 
 /// 空状态视图
+/// isFirstRecord=true：本月还没有任何收支（真·第一笔）；
+/// false：只是选中那天没记录，不该再说「第一笔」。
 struct EmptyStateView: View {
+    var isFirstRecord: Bool = true
+
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "wallet.pass")
                 .font(.system(size: 64, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.3))
-            
-            Text("暂无交易记录")
+
+            Text(isFirstRecord ? "暂无交易记录" : "这一天还没有记录")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
-            
-            Text("点击 + 按钮记录第一笔交易")
+
+            Text(isFirstRecord ? "点击 + 按钮记录第一笔交易" : "点击 + 按钮记一笔")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
                 .multilineTextAlignment(.center)

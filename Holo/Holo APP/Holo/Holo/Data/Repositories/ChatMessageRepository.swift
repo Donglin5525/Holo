@@ -505,6 +505,18 @@ final class ChatMessageRepository: ObservableObject {
         return ChatMessageType(rawValue: message.messageType)
     }
 
+    /// 仍在 streaming 的 Agent 分析加载态消息（intent=query_analysis 且无 analysisContext）。
+    /// 这正是聊天页「深度分析中」转圈卡的渲染条件；供页面驻留对账识别悬挂候选。
+    func streamingAnalysisLoadingMessages() -> [(id: UUID, timestamp: Date)] {
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "isStreaming == YES AND intent == %@ AND analysisContextJSON == nil",
+            AIIntent.queryAnalysis.rawValue
+        )
+        let matches = (try? context.fetch(request)) ?? []
+        return matches.map { ($0.id, $0.timestamp) }
+    }
+
     /// 更新消息内容
     func updateMessage(_ messageId: UUID, content: String) {
         guard let message = messageForUpdate(messageId) else { return }
@@ -686,6 +698,10 @@ final class ChatMessageRepository: ObservableObject {
         guard let message else { return }
 
         liveMessageCache[messageId] = message
+        // 同状态重复写入直接跳过：进度轮询/状态同步在文案未变时不落库、
+        // 不触发全量快照发布——Agent 等待期消息列表不会再被无谓重刷。
+        guard message.content != status.messageContent
+                || message.isStreaming != status.keepsMessageStreaming else { return }
         message.content = status.messageContent
         message.isStreaming = status.keepsMessageStreaming
         message.intent = "query_analysis"

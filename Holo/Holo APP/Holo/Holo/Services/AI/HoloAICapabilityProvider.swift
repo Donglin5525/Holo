@@ -62,7 +62,7 @@ enum HoloAICapabilityProvider {
             let hasMemoryContent = context.hasLongTermMemories || context.hasLongTermCandidates
             capabilities.append(HoloAICapability(
                 id: .longTermPatterns,
-                title: hasMemoryContent ? "长期模式" : "形成中",
+                title: hasMemoryContent ? "长期模式" : "长期模式 · 形成中",
                 systemImage: "brain.head.profile",
                 isEmphasized: false,
                 isEnabled: true

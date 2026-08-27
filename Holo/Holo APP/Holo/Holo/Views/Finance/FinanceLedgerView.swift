@@ -529,8 +529,11 @@ struct FinanceLedgerView: View {
                 }
 
                 if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
-                    EmptyStateView()
-                        .padding(.top, 40)
+                    EmptyStateView(
+                        isFirstRecord: calendarState.currentMonthExpense == 0
+                            && calendarState.currentMonthIncome == 0
+                    )
+                    .padding(.top, 40)
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)

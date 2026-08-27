@@ -144,6 +144,7 @@ final class ChatViewModel: ObservableObject {
         if let observer = coreDataObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        analysisReconcileTask?.cancel()
     }
     init(provider: AIProvider? = nil, coordinator: ConversationCoordinator? = nil) {
         self.usesInjectedProvider = provider != nil
@@ -162,6 +163,7 @@ final class ChatViewModel: ObservableObject {
     func setup() async {
         if hasFinishedSetup { return }
         bootstrapChatRepositoryIfNeeded()
+        startAnalysisReconcileLoop()
 
         if !usesInjectedProvider {
             provider = HoloBackendEnvironment.makeDefaultProvider()
@@ -173,6 +175,25 @@ final class ChatViewModel: ObservableObject {
         // 初始化时按当前 onboarding 状态生成空状态卡片内容（消息加载后再刷新一次）
         refreshCapabilities()
         logger.info("AI 已配置为 Holo 后端网关")
+    }
+
+    // MARK: - Analysis Reconcile Loop（P0：悬挂「分析中」兜底）
+
+    /// 页面驻留期间的低频对账：无悬挂分析消息时单次轻量查询即返回，
+    /// 有则交 analysisService 处理三类悬挂（超截止终结 / 进度刷新 / 无 job 落地中断）。
+    /// 一次性孤儿清理（bootstrap 时跑一次 + 180s 宽限）接不住「强杀后短时间内
+    /// 重进并停留在聊天页」的场景——用户会看着「分析中」永远转圈。
+    private var analysisReconcileTask: Task<Void, Never>?
+
+    private func startAnalysisReconcileLoop() {
+        guard analysisReconcileTask == nil else { return }
+        analysisReconcileTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(8))
+                guard let self else { return }
+                await self.analysisService.reconcileStalledAnalysisMessages()
+            }
+        }
     }
 
     // MARK: - Paused Agent Jobs Resume

@@ -12,6 +12,7 @@ import SwiftUI
 /// 当用户尝试退出编辑页面时，如果有未保存的修改，弹出确认弹窗
 struct UnsavedChangesAlert: ViewModifier {
     @Binding var isPresented: Bool
+    let message: String
     let onConfirmDismiss: () -> Void
 
     func body(content: Content) -> some View {
@@ -22,7 +23,7 @@ struct UnsavedChangesAlert: ViewModifier {
                 }
                 Button("继续编辑", role: .cancel) {}
             } message: {
-                Text("你有未保存的修改，确定要退出吗？")
+                Text(message)
             }
     }
 }
@@ -31,13 +32,17 @@ extension View {
     /// 添加未保存修改确认弹窗
     /// - Parameters:
     ///   - isPresented: 控制弹窗显示的绑定
+    ///   - message: 弹窗说明文案；默认通用文案，编辑页可按自身语义覆盖
+    ///   （如任务新建页承诺「返回时自动保存」，拦截只发生在「没填名称」时，需说明真实原因）
     ///   - onConfirmDismiss: 确认放弃后执行的关闭操作
     func unsavedChangesAlert(
         isPresented: Binding<Bool>,
+        message: String = "你有未保存的修改，确定要退出吗？",
         onConfirmDismiss: @escaping () -> Void
     ) -> some View {
         self.modifier(UnsavedChangesAlert(
             isPresented: isPresented,
+            message: message,
             onConfirmDismiss: onConfirmDismiss
         ))
     }

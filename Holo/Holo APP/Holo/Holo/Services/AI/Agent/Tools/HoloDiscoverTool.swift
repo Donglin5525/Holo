@@ -105,32 +105,14 @@ struct HoloDiscoverTool: HoloDataTool {
     /// 让模型据此判断某个时间范围（如全年）是否有足够数据可分析。
     /// "数据够不够"是模型基于真实 dynamic_query 结果判断的，discover 不替它下结论。
     private func discoverHabits(now: Date) async -> DomainDiscovery {
-        // 先在 async 上下文拿习惯元信息（name/type/unit/polarity），再进 MainActor 读全量记录。
-        let toolRecords = await HoloDefaultHabitDataSource().habits(timeRange: nil)
+        // 习惯元信息（名称/类型/单位）与记录概况并行取：概况走 SQL 聚合（后台
+        // context），不再把每个习惯的全量记录拉进主线程内存数 min/max——
+        // 跨域分析启动前必然经过这里，旧实现会让重度用户的主线程直接冻住。
+        async let toolRecords = HoloDefaultHabitDataSource().habits(timeRange: nil)
+        async let overviewMap = HabitRepository.recordOverviews(now: now)
+        let (records, overviews) = await (toolRecords, overviewMap)
 
-        // 直接读 Core Data 全量记录算概况，不依赖 dailyCounts 的窗口限制。
-        let habits: [(habit: HoloHabitToolRecord, total: Int, earliest: Date?, latest: Date?, recent30: Int)] = await MainActor.run {
-            let repo = HabitRepository.shared
-            repo.loadActiveHabits()
-            let calendar = Calendar.current
-            let today = calendar.startOfDay(for: now)
-            let thirtyDaysAgo = calendar.date(byAdding: .day, value: -29, to: today) ?? today
-
-            return toolRecords.map { habit in
-                guard let uuid = UUID(uuidString: habit.id),
-                      let managed = repo.activeHabits.first(where: { $0.id == uuid }) else {
-                    return (habit, 0, nil, nil, 0)
-                }
-                let allRecords = repo.getAllRecords(for: managed)
-                let total = allRecords.count
-                let earliest = allRecords.map(\.date).min()
-                let latest = allRecords.map(\.date).max()
-                let recent30 = allRecords.filter { $0.date >= thirtyDaysAgo }.count
-                return (habit, total, earliest, latest, recent30)
-            }
-        }
-
-        guard !habits.isEmpty else {
+        guard !records.isEmpty else {
             return DomainDiscovery(
                 events: [],
                 metrics: [HoloMetric(metricKey: "discover.habit.count", value: 0, unit: "个",
@@ -144,32 +126,33 @@ struct HoloDiscoverTool: HoloDataTool {
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
         var events: [HoloEvidenceEvent] = []
-        for item in habits {
-            let habit = item.habit
+        for habit in records {
+            let overview = UUID(uuidString: habit.id).flatMap { overviews[$0] }
+                ?? HabitRepository.RecordOverview(total: 0, earliest: nil, latest: nil, recent30: 0)
             let typeText = habit.isMeasureType ? "测量型" : "打卡计数型"
             let unitText = habit.unit?.isEmpty == false ? habit.unit! : "次"
             let polarityText = habit.polarity == .negative ? "负向" : "正向"
             // excerpt 是模型判断的关键：总记录数 + 覆盖时段 + 近30天活跃度，一次给全。
             // 模型据此能判断"全年有15条覆盖1-7月"→ 足以分析全年趋势，而不是只看近30天。
-            let earliestText = item.earliest.map { dateFormatter.string(from: $0) } ?? "无"
-            let latestText = item.latest.map { dateFormatter.string(from: $0) } ?? "无"
-            let excerpt = "\(habit.name)｜\(typeText)｜单位\(unitText)｜\(polarityText)｜共\(item.total)条记录｜\(earliestText)至\(latestText)｜近30天\(item.recent30)条"
+            let earliestText = overview.earliest.map { dateFormatter.string(from: $0) } ?? "无"
+            let latestText = overview.latest.map { dateFormatter.string(from: $0) } ?? "无"
+            let excerpt = "\(habit.name)｜\(typeText)｜单位\(unitText)｜\(polarityText)｜共\(overview.total)条记录｜\(earliestText)至\(latestText)｜近30天\(overview.recent30)条"
             events.append(HoloEvidenceEvent(
                 id: "discover-habit-\(habit.id)",
                 occurredAt: now,
                 metricKey: "discover.habit.item",
-                metricValue: Double(item.total),
+                metricValue: Double(overview.total),
                 excerpt: excerpt,
                 timeRange: nil
             ))
         }
 
-        let note = "共 \(habits.count) 个习惯；写 dynamic_query 时 source=\"habit.daily\"，"
+        let note = "共 \(records.count) 个习惯；写 dynamic_query 时 source=\"habit.daily\"，"
             + "用 habit 字段 contains 匹配名称；测量型(体重/体脂)取 value，打卡型取 count。"
             + "excerpt 里的是全量记录概况，请按用户问的时间范围判断是否足够分析"
         return DomainDiscovery(
             events: events,
-            metrics: [HoloMetric(metricKey: "discover.habit.count", value: Double(habits.count), unit: "个",
+            metrics: [HoloMetric(metricKey: "discover.habit.count", value: Double(records.count), unit: "个",
                                  baselineValue: nil, comparison: nil)],
             note: note
         )

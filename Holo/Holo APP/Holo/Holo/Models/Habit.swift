@@ -164,7 +164,7 @@ extension Habit: Identifiable {}
 // MARK: - 打卡提醒模式
 
 /// 习惯打卡提醒模式（推送管理 · 习惯按条设提醒时间）
-/// - follow: 跟随兜底提醒，在兜底时间与其他习惯一起汇总提醒
+/// - follow: 跟随每日汇总，在汇总时间与其他习惯一起提醒
 /// - solo: 单独时间，按习惯自己设置的 reminderTime 单独提醒
 /// - none: 不提醒
 enum HabitReminderMode: String, CaseIterable, Identifiable {
@@ -177,7 +177,7 @@ enum HabitReminderMode: String, CaseIterable, Identifiable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .follow: return "跟随兜底提醒"
+        case .follow: return "跟随每日汇总"
         case .solo: return "设单独提醒时间"
         case .none: return "不提醒"
         }

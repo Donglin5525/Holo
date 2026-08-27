@@ -1140,7 +1140,8 @@ final class IntentRouter {
             title: newTitle,
             description: newDesc,
             priority: priority,
-            dueDate: dueDate,
+            // 用户没提到时间时 map 产 nil = 不修改原截止时间
+            dueDate: dueDate.map { TodoRepository.TaskDueDateUpdate.set($0) },
             isAllDay: isAllDay
         )
 

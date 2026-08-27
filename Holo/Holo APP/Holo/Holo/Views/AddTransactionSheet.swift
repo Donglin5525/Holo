@@ -58,6 +58,9 @@ struct AddTransactionSheet: View {
     /// 是否正在保存
     @State var isSaving: Bool = false
 
+    /// 保存被拦截时的抖动触发器（递增值驱动一次抖动动画）
+    @State var saveBlockShake: Int = 0
+
     /// 是否显示删除确认
     @State var showDeleteConfirm: Bool = false
 
@@ -204,6 +207,7 @@ struct AddTransactionSheet: View {
                     transactionEntryInputs
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
+                        .modifier(ShakeEffect(animatableData: CGFloat(saveBlockShake)))
 
                     // 4. 中间滚动区（分类 + 信息）
                     ScrollView(showsIndicators: false) {

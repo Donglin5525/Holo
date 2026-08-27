@@ -140,7 +140,10 @@ struct FinanceView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if evidenceReviewDeepLink == nil {
+            // 「记一笔」只在账本/账户两个页有语义；统计/固定支出/设置页
+            // 各有自己的新增入口，且设置页内容会延伸到 FAB 区域造成遮挡。
+            if evidenceReviewDeepLink == nil,
+               selectedTab == .ledger || selectedTab == .accounts {
                 addTransactionFAB
             }
         }

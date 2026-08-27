@@ -13,7 +13,6 @@ import UIKit
 
 private enum SwipeConstants {
     static let actionWidth: CGFloat = 70
-    static let snapOpenOffset: CGFloat = 140
 }
 
 private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.85)
@@ -31,11 +30,18 @@ struct SwipeActionView<Content: View>: View {
     let isRevealed: Binding<Bool>
     let isEnabled: Bool
     let content: Content
+    /// 延期主操作（nil = 不显示延期键，如重复任务/未安排任务）
+    let onPostpone: (() -> Void)?
     let onArchive: () -> Void
     let onDelete: () -> Void
 
     @State private var offset: CGFloat = 0
     @State private var showDeleteConfirmation = false
+
+    /// 按钮数量决定展开宽度：延期(可选) + 归档 + 删除
+    private var snapOpenOffset: CGFloat {
+        SwipeConstants.actionWidth * (onPostpone != nil ? 3 : 2)
+    }
 
     // MARK: - Initialization
 
@@ -43,12 +49,14 @@ struct SwipeActionView<Content: View>: View {
         isRevealed: Binding<Bool>,
         isEnabled: Bool = true,
         @ViewBuilder content: () -> Content,
+        onPostpone: (() -> Void)? = nil,
         onArchive: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.isRevealed = isRevealed
         self.isEnabled = isEnabled
         self.content = content()
+        self.onPostpone = onPostpone
         self.onArchive = onArchive
         self.onDelete = onDelete
     }
@@ -59,13 +67,14 @@ struct SwipeActionView<Content: View>: View {
         ZStack(alignment: .trailing) {
             actionButtons
 
-            content
+                content
                 .offset(x: offset)
                 .overlay(
                     SwipeGestureOverlay(
                         offset: $offset,
                         isRevealed: isRevealed,
-                        isEnabled: isEnabled
+                        isEnabled: isEnabled,
+                        snapOffset: snapOpenOffset
                     )
                 )
         }
@@ -75,7 +84,7 @@ struct SwipeActionView<Content: View>: View {
         }
         .onChange(of: isRevealed.wrappedValue) { _, newValue in
             withAnimation(snapAnimation) {
-                offset = newValue ? -SwipeConstants.snapOpenOffset : 0
+                offset = newValue ? -snapOpenOffset : 0
             }
         }
         .alert("确认删除", isPresented: $showDeleteConfirmation) {
@@ -92,6 +101,28 @@ struct SwipeActionView<Content: View>: View {
 
     private var actionButtons: some View {
         HStack(spacing: 0) {
+            if let onPostpone = onPostpone {
+                Button {
+                    onPostpone()
+                    close()
+                } label: {
+                    VStack(spacing: 4) {
+                        PostponeIcon()
+                            .stroke(
+                                Color.holoPrimary,
+                                style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+                            )
+                            .frame(width: 22, height: 22)
+                        Text("延期")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color.holoPrimary)
+                    }
+                    .frame(width: SwipeConstants.actionWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.holoPrimary.opacity(0.10))
+                }
+            }
+
             Button {
                 onArchive()
                 close()
@@ -154,6 +185,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     @Binding var offset: CGFloat
     let isRevealed: Binding<Bool>
     let isEnabled: Bool
+    let snapOffset: CGFloat
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -229,7 +261,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
         @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
             let translation = gesture.translation(in: gesture.view)
-            let snap = SwipeConstants.snapOpenOffset
+            let snap = parent.snapOffset
 
             switch gesture.state {
             case .began:

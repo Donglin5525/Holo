@@ -239,6 +239,14 @@ actor HoloAgentScheduler {
         }
     }
 
+    /// 该 job 当前是否有进程内活跃执行 Task。
+    /// 状态同步层据此区分「running/waitingForLLM 落盘态」是正在跑（本次会话内
+    /// 的活跃分析，不得外部终结），还是进程重启后的遗留态（无人执行，可安全
+    /// 按截止时限收尾）。
+    func hasActiveExecution(jobID: String) -> Bool {
+        activeTasks[jobID] != nil
+    }
+
     /// 取消执行：取消活跃 Task（取消信号）+ 落终态；注册表立即让位。
     /// source 区分用户取消、系统取消与被新任务抢占（§2.1-8：不混为一谈）；
     /// §5.2：被抢占（.superseded）落 superseded 终态，其余落 cancelled。

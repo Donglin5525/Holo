@@ -271,6 +271,14 @@ extension CoreDataStack {
         taskIsDailyRitual.defaultValue = false
         todoTaskAttributes.append(taskIsDailyRitual)
 
+        // 延期计数（任务被延期到之后日期的累计次数，卡片上以「已延期 N 次」透出）
+        let taskPostponedCount = NSAttributeDescription()
+        taskPostponedCount.name = "postponedCount"
+        taskPostponedCount.attributeType = .integer16AttributeType
+        taskPostponedCount.isOptional = false
+        taskPostponedCount.defaultValue = 0
+        todoTaskAttributes.append(taskPostponedCount)
+
         // 纪念日来源（纪念日自动生成任务时标记来源 ID，nil=普通任务）
         let taskSourceAnniversaryId = NSAttributeDescription()
         taskSourceAnniversaryId.name = "sourceAnniversaryId"

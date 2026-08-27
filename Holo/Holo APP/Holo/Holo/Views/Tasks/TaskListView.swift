@@ -175,6 +175,14 @@ struct TaskListView: View {
     /// 右滑展开的卡片 ID
     @State private var revealedTaskId: UUID? = nil
 
+    /// 延期面板当前任务
+    @State private var postponeSelection: TaskSelection? = nil
+
+    /// 延期撤回快照（非 nil 时显示撤回横幅）
+    @State private var postponeSnapshots: [TaskPostponeSnapshot]? = nil
+    @State private var postponeBannerText: String = ""
+    @State private var postponeBannerDismissTask: Task<Void, Never>? = nil
+
     /// 正在完成中的任务 ID（来自 repository 全局撤回状态）
     private var pendingCompletionTaskId: UUID? { repository.pendingCompletionTaskId }
 
@@ -227,9 +235,15 @@ struct TaskListView: View {
                     .padding(.bottom, pendingCompletionTaskId != nil ? 80 : 100)
                 }
 
-                // 撤回 banner
-                if pendingCompletionTaskId != nil {
-                    undoBanner
+                // 撤回 banner（完成 / 延期可能短时并存，纵向堆叠防重叠）
+                VStack(spacing: 8) {
+                    if pendingCompletionTaskId != nil {
+                        undoBanner
+                    }
+
+                    if postponeSnapshots != nil {
+                        postponeUndoBanner
+                    }
                 }
             }
         }
@@ -318,6 +332,17 @@ struct TaskListView: View {
         }
         .sheet(isPresented: $showArchiveManagement) {
             ArchiveManagementView(repository: repository)
+        }
+        .sheet(item: $postponeSelection) { selection in
+            if let task = tasks.first(where: { $0.id == selection.id }) ?? repository.findTask(by: selection.id) {
+                TaskPostponeSheet(
+                    title: task.title,
+                    dueDate: task.dueDate,
+                    isAllDay: task.isAllDay,
+                    isOverdue: task.isOverdue,
+                    onPostpone: { option in applyPostpone(task, option: option) }
+                )
+            }
         }
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView()
@@ -845,7 +870,17 @@ struct TaskListView: View {
                     title: group.title,
                     dotColor: group.dotColor,
                     count: members.count
-                )
+                ) {
+                    // 过期组头：一键清债（组内存在可延期任务时才出现）
+                    if group == .overdue,
+                       members.contains(where: { TaskPostponePolicy.canPostpone(
+                           dueDate: $0.dueDate,
+                           completed: $0.completed,
+                           repeatRuleExists: $0.repeatRule != nil
+                       ) }) {
+                        postponeAllToTodayChip
+                    }
+                }
 
                 if !collapsedGroups.contains(group.rawValue) {
                     ForEach(sortedMembers(members), id: \.id) { task in
@@ -899,8 +934,14 @@ struct TaskListView: View {
         members.sorted { sortOption.areInOrder($0, $1, ascending: sortAscending) }
     }
 
-    /// 分组头：语义色点 + 组名 + 计数 + 折叠箭头
-    private func groupHeader(id: String, title: String, dotColor: Color, count: Int) -> some View {
+    /// 分组头：语义色点 + 组名 + 计数 + 折叠箭头（可挂尾部附加操作）
+    private func groupHeader(
+        id: String,
+        title: String,
+        dotColor: Color,
+        count: Int,
+        @ViewBuilder trailing: () -> some View = { EmptyView() }
+    ) -> some View {
         let isCollapsed = collapsedGroups.contains(id)
 
         return Button {
@@ -935,6 +976,8 @@ struct TaskListView: View {
                         .foregroundColor(.holoTextSecondary.opacity(0.7))
                 }
 
+                trailing()
+
                 Spacer()
 
                 Image(systemName: "chevron.right")
@@ -946,6 +989,26 @@ struct TaskListView: View {
             .padding(.horizontal, HoloSpacing.xs)
             .padding(.top, HoloSpacing.md)
             .padding(.bottom, HoloSpacing.xs)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 过期组头「全部 → 今天」批量胶囊（内层 Button 会优先于组头折叠手势）
+    private var postponeAllToTodayChip: some View {
+        Button {
+            batchPostponeOverdue()
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 9, weight: .bold))
+                Text("全部到今天")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .foregroundColor(.holoPrimaryDark)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.holoPrimary.opacity(0.12)))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -968,7 +1031,14 @@ struct TaskListView: View {
 
     /// 可复用的任务卡片行（含滑动操作）
     private func taskRow(_ task: TodoTask) -> some View {
-        SwipeActionView(
+        // 延期入口只对「有截止日期、未完成、非重复」的任务开放（重复任务一期不接延期）
+        let canPostpone = TaskPostponePolicy.canPostpone(
+            dueDate: task.dueDate,
+            completed: task.completed,
+            repeatRuleExists: task.repeatRule != nil
+        )
+
+        return SwipeActionView(
             isRevealed: Binding(
                 get: { revealedTaskId == task.id },
                 set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
@@ -1001,9 +1071,11 @@ struct TaskListView: View {
                             // 未完成 → 走撤回流程
                             handleTaskCompletion(task)
                         }
-                    }
+                    },
+                    onPostpone: canPostpone ? { postponeSelection = TaskSelection(id: task.id) } : nil
                 )
             },
+            onPostpone: canPostpone ? { postponeSelection = TaskSelection(id: task.id) } : nil,
             onArchive: {
                 archiveTask(task)
             },
@@ -1039,6 +1111,103 @@ struct TaskListView: View {
             }
         }
         .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.md)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    // MARK: - 延期（面板 / 批量 / 撤回横幅）
+
+    /// 应用延期：落库 + 弹撤回横幅（5 秒）
+    private func applyPostpone(_ task: TodoTask, option: TaskPostponeOption) {
+        do {
+            let snapshot = try repository.postpone(task: task, to: option)
+            HapticManager.medium()
+            showPostponeBanner(
+                text: "已延期到 \(bannerTargetText(option))",
+                snapshots: [snapshot]
+            )
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TaskListView").error("延期失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 过期任务批量推到今天（跳过重复任务）
+    private func batchPostponeOverdue() {
+        do {
+            let snapshots = try repository.postponeOverdueToToday()
+            guard !snapshots.isEmpty else { return }
+            HapticManager.medium()
+            showPostponeBanner(
+                text: "已将 \(snapshots.count) 个过期任务推到今天",
+                snapshots: snapshots
+            )
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TaskListView").error("批量延期失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 横幅文案的落点：选项小字有实际时间（如「周五 17:00」）时带上，全天只有主词
+    private func bannerTargetText(_ option: TaskPostponeOption) -> String {
+        option.subLabel.isEmpty ? option.label : "\(option.label) · \(option.subLabel)"
+    }
+
+    private func showPostponeBanner(text: String, snapshots: [TaskPostponeSnapshot]) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            postponeSnapshots = snapshots
+            postponeBannerText = text
+        }
+        postponeBannerDismissTask?.cancel()
+        postponeBannerDismissTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                postponeSnapshots = nil
+            }
+        }
+    }
+
+    /// 撤回延期（恢复截止时间与延期计数）
+    private func undoPostpone() {
+        guard let snapshots = postponeSnapshots else { return }
+        postponeBannerDismissTask?.cancel()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            repository.restorePostponed(snapshots)
+            postponeSnapshots = nil
+        }
+        HapticManager.light()
+    }
+
+    /// 延期撤回横幅（与完成撤回横幅同语言：图标 + 文案 + 撤回按钮）
+    private var postponeUndoBanner: some View {
+        HStack {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoPrimary)
+                Text(postponeBannerText)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                undoPostpone()
+            } label: {
+                Text("撤回")
+                    .font(.holoBody)
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 12)
         .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.md)
