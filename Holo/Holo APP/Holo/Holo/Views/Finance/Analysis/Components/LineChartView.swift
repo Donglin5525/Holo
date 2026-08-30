@@ -376,6 +376,8 @@ struct LegendItem: View {
             Text(label)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 }
