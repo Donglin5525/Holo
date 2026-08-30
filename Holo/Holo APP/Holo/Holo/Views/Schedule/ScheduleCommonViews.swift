@@ -12,17 +12,147 @@ import SwiftUI
 import EventKit
 import EventKitUI
 
-// MARK: - 带详情弹窗的日程区块（今日看板 / 任务页今日 共用包装）
+// MARK: - 接入引导条（未开启时出现在任务页/看板，原地发起授权，不必去设置页）
+
+struct ScheduleOnboardingBar: View {
+    @StateObject private var store = ScheduleStore.shared
+    /// 用户点过 × 后永久不再出现（除非重装）
+    @AppStorage("com.holo.schedule.onboardingDismissed") private var dismissed = false
+    @State private var isStarting = false
+
+    /// 权限被拒后的引导跳系统设置
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    var body: some View {
+        if !dismissed {
+            if !store.isEnabled {
+                startBar
+            } else if store.authorizationStatus == .denied || store.authorizationStatus == .restricted {
+                deniedBar
+            }
+        }
+    }
+
+    private var startBar: some View {
+        HStack(spacing: 0) {
+            Button {
+                guard !isStarting else { return }
+                isStarting = true
+                Task {
+                    await store.enable()
+                    isStarting = false
+                    if store.authorizationStatus == .fullAccess {
+                        HapticManager.success()
+                    }
+                }
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("接入系统日历")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("日程进入 Holo，AI 规划自动避开会议")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if isStarting {
+                        ProgressView()
+                    } else {
+                        Text("开启")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.holoPrimaryDark)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(Color.holoPrimary.opacity(0.15)))
+                    }
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            dismissButton
+        }
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+    }
+
+    private var deniedBar: some View {
+        HStack(spacing: 0) {
+            Button(action: openSystemSettings) {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoError)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("日历权限被拒绝")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("点击前往系统设置开启后即可使用")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoPrimary)
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            dismissButton
+        }
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+    }
+
+    private var dismissButton: some View {
+        Button {
+            dismissed = true
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .frame(width: 36, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - 带详情弹窗的日程区块（今日看板 / 任务页今日 共用包装；未开启时降级为接入引导条）
 
 struct ScheduleSectionWithDetail: View {
     @State private var detailItem: ScheduleItem?
 
     var body: some View {
-        ScheduleSectionCard { item in
-            detailItem = item
-        }
-        .sheet(item: $detailItem) { item in
-            ScheduleDetailSheet(item: item)
+        VStack(spacing: HoloSpacing.md) {
+            // 未开启/被拒：引导条；开启且今日有日程：日程区块（两者互斥，由各自内部条件控制）
+            ScheduleOnboardingBar()
+
+            ScheduleSectionCard { item in
+                detailItem = item
+            }
+            .sheet(item: $detailItem) { item in
+                ScheduleDetailSheet(item: item)
+            }
         }
         .onAppear {
             // 冷启动到达时兜底刷新（设置页开启后的首次到达）

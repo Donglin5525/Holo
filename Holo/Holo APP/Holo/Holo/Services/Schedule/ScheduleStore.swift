@@ -71,13 +71,17 @@ final class ScheduleStore: ObservableObject {
         if isEnabled {
             Task { await activate() }
         }
-        // 权限在外部（系统设置）被收回/授予时刷新状态
+        // 回前台：权限可能在外部被改；后台期间日历可能有变更而变更通知未必送达 → 双兜底
         NotificationCenter.default.addObserver(
             forName: UIApplication.willEnterForegroundNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.refreshAuthorizationStatus()
+                guard let self else { return }
+                self.refreshAuthorizationStatus()
+                if self.isEnabled, self.authorizationStatus == .fullAccess {
+                    self.scheduleReload()
+                }
             }
         }
     }
