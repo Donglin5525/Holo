@@ -35,6 +35,10 @@ const DEFAULT_CONFIG = {
     // Agent 遥测批量上报：低频（前台化/冷却时 diff 上报），单批 ≤100 条由路由校验。
     agentTelemetryUploadsPerMinute: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_MINUTE ?? 10),
     agentTelemetryUploadsPerDay: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_DAY ?? 500),
+    // 云端异步分析（二期）：创建与快照上传限流；额度池接入在 M2 执行器上线时统一接线。
+    cloudAnalysisStartsPerMinute: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_MINUTE ?? 6),
+    cloudAnalysisStartsPerDay: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_DAY ?? 30),
+    cloudAnalysisSnapshotMaxBytes: Number(process.env.HOLO_CLOUD_ANALYSIS_SNAPSHOT_MAX_BYTES ?? 2 * 1024 * 1024),
   },
   routes: {
     chat: {
@@ -380,6 +384,11 @@ export function loadConfig(overrides = {}) {
     contentReportStore: overrides.contentReportStore,
     feedbackStore: overrides.feedbackStore,
     agentTelemetryStore: overrides.agentTelemetryStore,
+    cloudAnalysisTaskStore: overrides.cloudAnalysisTaskStore,
+    cloudAnalysisEncryptionKey:
+      overrides.cloudAnalysisEncryptionKey
+        ?? process.env.HOLO_CLOUD_ANALYSIS_ENCRYPTION_KEY
+        ?? "",
     feedbackImagesDir:
       overrides.feedbackImagesDir ?? process.env.HOLO_FEEDBACK_IMAGES_DIR ?? "/data/feedback-images",
     contentModeration: overrides.contentModeration,

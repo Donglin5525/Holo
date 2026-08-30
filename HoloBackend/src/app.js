@@ -36,6 +36,7 @@ import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
 import { createContentReportStore } from "./reports/contentReportStore.js";
 import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
+import { createCloudAnalysisTaskStore } from "./agent/cloudAnalysisTaskStore.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
@@ -153,6 +154,25 @@ export function createApp(overrides = {}) {
     config.feedbackStore ?? createFeedbackStore(database.db, { imagesDir: config.feedbackImagesDir });
   const agentTelemetryStore =
     config.agentTelemetryStore ?? createAgentTelemetryStore(database.db);
+  // 云端异步分析（二期 M1）：密钥未配置时优雅禁用（端点统一 503），配置后自动启用——
+  // M1 部署不强制先配 ECS 环境变量，零风险上线；生产密钥纪律与 step 缓存一致。
+  let cloudAnalysisTaskStore = config.cloudAnalysisTaskStore ?? null;
+  if (!cloudAnalysisTaskStore && config.cloudAnalysisEncryptionKey) {
+    try {
+      cloudAnalysisTaskStore = createCloudAnalysisTaskStore(database.db, {
+        encryptionKey: config.cloudAnalysisEncryptionKey,
+      });
+    } catch (error) {
+      console.error("[holo-backend] 云端分析密钥无效，功能保持禁用:", error?.message ?? error);
+    }
+  }
+  // 云端分析任务 7 天过期兜底清理（复用同一清理节拍；store 未启用时无操作）
+  if (cloudAnalysisTaskStore) {
+    startAgentStepCleanupTimer(
+      { purgeExpired: (now) => cloudAnalysisTaskStore.purgeExpired(now) },
+      config.agentStepIdempotencyCleanupIntervalMs,
+    );
+  }
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
   const captureAiCallLogs = config.aiCallLogs.enabled;
@@ -965,6 +985,119 @@ export function createApp(overrides = {}) {
         imageBuffers,
       });
 
+      return context.json({ ok: true });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // ===== 云端异步分析（二期 M1：任务底座）=====
+  // 生命周期：start 创建(uploading) → 上传快照(queued) → [M2 执行器接管 running→completed/failed]
+  // → GET 回传结果即销毁密文 / DELETE 取消整行销毁 / 7 天过期兜底清理。
+  // 隐私契约：快照/问题/失败原因/结果全部密文落存；完成/失败立即销毁输入侧数据。
+  const requireCloudAnalysisStore = () => {
+    if (!cloudAnalysisTaskStore) {
+      throw new GatewayError("SERVICE_DISABLED", "Cloud analysis is not enabled", 503);
+    }
+    return cloudAnalysisTaskStore;
+  };
+
+  app.post("/v1/ai/agent/cloud/start", async (context) => {
+    try {
+      const store = requireCloudAnalysisStore();
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+
+      const question = typeof request.question === "string" ? request.question.trim() : "";
+      if (!question || question.length > 2000) {
+        throw new GatewayError("INVALID_REQUEST", "question must be 1-2000 chars", 400);
+      }
+
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "cloud_analysis_start",
+        minuteLimit: config.limits.cloudAnalysisStartsPerMinute,
+        dailyLimit: config.limits.cloudAnalysisStartsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const task = store.create({ deviceId, question });
+      context.header("Cache-Control", "no-store");
+      return context.json({ taskId: task.id, status: "uploading", expiresAt: task.expiresAt });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.put("/v1/ai/agent/cloud/:id/snapshot", async (context) => {
+    try {
+      const store = requireCloudAnalysisStore();
+      const deviceId = getDeviceId(context, config);
+      const task = store.get(context.req.param("id"));
+      if (!task || task.device_id !== deviceId) {
+        throw new GatewayError("NOT_FOUND", "Task not found", 404);
+      }
+      if (task.status !== "uploading") {
+        throw new GatewayError("INVALID_STATE", `Snapshot already received (status=${task.status})`, 409);
+      }
+      const raw = await context.req.text();
+      if (!raw || raw.length > config.limits.cloudAnalysisSnapshotMaxBytes) {
+        throw new GatewayError("SNAPSHOT_TOO_LARGE", "Snapshot exceeds size limit", 413);
+      }
+      // 快照必须是合法 JSON 对象（各数据域的结构化全集）；原文即刻加密落存，不落明文日志
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new GatewayError("INVALID_REQUEST", "Snapshot must be valid JSON", 400);
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new GatewayError("INVALID_REQUEST", "Snapshot must be a JSON object", 400);
+      }
+      const attached = store.attachSnapshot({ id: task.id, snapshot: raw });
+      if (!attached) {
+        throw new GatewayError("INVALID_STATE", "Snapshot already received", 409);
+      }
+      return context.json({ ok: true, status: "queued" });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.get("/v1/ai/agent/cloud/:id", async (context) => {
+    try {
+      const store = requireCloudAnalysisStore();
+      const deviceId = getDeviceId(context, config);
+      const task = store.getDecrypted(context.req.param("id"));
+      if (!task || task.device_id !== deviceId) {
+        throw new GatewayError("NOT_FOUND", "Task not found", 404);
+      }
+      context.header("Cache-Control", "no-store");
+      const body = { status: task.status };
+      if (task.status === "completed" && task.result) {
+        // 结果回传即销毁：本响应是密文结果的唯一一次交付
+        store.consumeResult(task.id);
+        body.result = JSON.parse(task.result);
+      } else if (task.status === "failed" && task.failureReason) {
+        body.failureReason = task.failureReason;
+      }
+      return context.json(body);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.delete("/v1/ai/agent/cloud/:id", async (context) => {
+    try {
+      const store = requireCloudAnalysisStore();
+      const deviceId = getDeviceId(context, config);
+      const task = store.get(context.req.param("id"));
+      if (!task || task.device_id !== deviceId) {
+        throw new GatewayError("NOT_FOUND", "Task not found", 404);
+      }
+      store.cancel(task.id);
       return context.json({ ok: true });
     } catch (error) {
       return createErrorResponse(context, error);

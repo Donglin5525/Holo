@@ -297,6 +297,31 @@ const MIGRATIONS = [
         ON agent_telemetry_events(job_id);
     `,
   },
+  {
+    id: 16,
+    description: '创建云端异步分析任务表（二期：快照/问题/结果均密文落存，完成或过期即焚不留明文）',
+    up: `
+      CREATE TABLE IF NOT EXISTS agent_cloud_analysis_tasks (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('uploading','queued','running','completed','failed','cancelled','expired')),
+        question_ciphertext TEXT,
+        snapshot_ciphertext TEXT,
+        snapshot_size_bytes INTEGER,
+        result_ciphertext TEXT,
+        failure_reason_ciphertext TEXT,
+        created_at_ms INTEGER NOT NULL,
+        uploaded_at_ms INTEGER,
+        started_at_ms INTEGER,
+        completed_at_ms INTEGER,
+        expires_at_ms INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cloud_analysis_device
+        ON agent_cloud_analysis_tasks(device_id, created_at_ms);
+      CREATE INDEX IF NOT EXISTS idx_cloud_analysis_expiry
+        ON agent_cloud_analysis_tasks(expires_at_ms, status);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {
