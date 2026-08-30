@@ -187,6 +187,13 @@ extension CoreDataStack {
         taskPlannedEnd.isOptional = true
         todoTaskAttributes.append(taskPlannedEnd)
 
+        // 实际用时（分钟）：完成带时间段任务时可选确认，供计划 vs 实际对比
+        let taskActualDuration = NSAttributeDescription()
+        taskActualDuration.name = "actualDurationMinutes"
+        taskActualDuration.attributeType = .integer32AttributeType
+        taskActualDuration.isOptional = true
+        todoTaskAttributes.append(taskActualDuration)
+
         let taskIsCompleted = NSAttributeDescription()
         taskIsCompleted.name = "completed"
         taskIsCompleted.attributeType = .booleanAttributeType

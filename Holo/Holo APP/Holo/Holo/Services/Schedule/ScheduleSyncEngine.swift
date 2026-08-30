@@ -259,6 +259,9 @@ final class ScheduleSyncEngine {
                     mirror.state = "disconnected"
                     mirror.lastSyncedAt = Date()
                 }
+                // 设计稿：断开轻提示一次（断开后 state=disconnected 不再进对账，天然只提示这一回）
+                let taskTitle = fetchTask(id: taskId)?.title ?? "任务"
+                HoloToastCenter.shared.show("「\(taskTitle)」的日历事件已删除，任务保留、同步已断开", type: .warning)
             }
         }
     }

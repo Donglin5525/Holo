@@ -28,12 +28,15 @@ enum CalendarScale: String, CaseIterable {
     case week
     /// 按月看：热力月历
     case month
+    /// 按时间轴看：0–24 点纵向刻度，任务时间段与系统日程同轴回放（三期）
+    case timeline
 
     var displayName: String {
         switch self {
         case .day: return "日"
         case .week: return "周"
         case .month: return "月"
+        case .timeline: return "轴"
         }
     }
 }
@@ -116,6 +119,7 @@ final class CalendarViewModel: ObservableObject {
         case .day: return "今天"
         case .week: return "本周"
         case .month: return "本月"
+        case .timeline: return "今天"
         }
     }
 
@@ -125,6 +129,7 @@ final class CalendarViewModel: ObservableObject {
         case .day:  return Calendar.current.isDateInToday(focusedDate)
         case .week: return CalendarRangeBuilder.weekRange(around: focusedDate).contains(Date())
         case .month: return Calendar.current.isDate(focusedDate, equalTo: Date(), toGranularity: .month)
+        case .timeline: return Calendar.current.isDateInToday(focusedDate)
         }
     }
 
@@ -174,6 +179,8 @@ final class CalendarViewModel: ObservableObject {
             return filteredTimeline.filter { CalendarRangeBuilder.contains($0.date, in: currentWeekRange) }
         case .month:
             return filteredTimeline.filter { CalendarRangeBuilder.contains($0.date, in: currentMonthRange) }
+        case .timeline:
+            return focusedDayEvents
         }
     }
 
@@ -199,6 +206,9 @@ final class CalendarViewModel: ObservableObject {
         case .month:
             range = currentMonthRange
             chapterScale = .month
+        case .timeline:
+            range = CalendarRangeBuilder.dayRange(focusedDate)
+            chapterScale = .day
         }
 
         return MemoryTimeChapterPresentation.make(
@@ -246,6 +256,12 @@ final class CalendarViewModel: ObservableObject {
             return CalendarObservationSummary.make(events: currentPeriodEvents, scope: .week)
         case .month:
             return CalendarObservationSummary.make(events: currentPeriodEvents, scope: .month)
+        case .timeline:
+            return CalendarObservationSummary.make(
+                events: focusedDayEvents,
+                scope: .day,
+                moduleFilter: moduleFilter
+            )
         }
     }
 

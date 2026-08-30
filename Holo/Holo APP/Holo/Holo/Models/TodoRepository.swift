@@ -402,7 +402,6 @@ class TodoRepository: ObservableObject {
         task.completed.toggle()
         task.completed ? (task.completedAt = Date()) : (task.completedAt = nil)
         task.updatedAt = Date()
-
         try context.save()
         loadActiveTasks()
         notifyDataChange()
@@ -439,6 +438,14 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
 
         rescheduleRemindersIfNeeded(for: task)
+    }
+
+    /// 记录任务实际用时（分钟）：完成带时间段任务时可选确认，供计划 vs 实际对比
+    func setActualDuration(_ task: TodoTask, minutes: Int?) throws {
+        task.actualDurationMinutes = minutes.map { NSNumber(value: max(0, $0)) }
+        task.updatedAt = Date()
+        try context.save()
+        notifyDataChange()
     }
 
     // MARK: - 全局完成撤回

@@ -27,6 +27,8 @@ class TodoTask: NSManagedObject {
     @NSManaged var plannedStart: Date?
     /// 计划时间段结束
     @NSManaged var plannedEnd: Date?
+    /// 实际用时（分钟）：完成带时间段任务时可选确认
+    @NSManaged var actualDurationMinutes: NSNumber?
     @NSManaged var completed: Bool
     @NSManaged var completedAt: Date?
     @NSManaged var archived: Bool

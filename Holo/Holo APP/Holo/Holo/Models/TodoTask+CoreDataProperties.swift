@@ -103,6 +103,12 @@ extension TodoTask {
         return calendar.isDate(start, inSameDayAs: end)
     }
 
+    /// 计划时长（分钟）
+    var plannedDurationMinutes: Int? {
+        guard let start = plannedStart, let end = plannedEnd else { return nil }
+        return max(0, Int(end.timeIntervalSince(start) / 60))
+    }
+
     /// 检查清单完成进度
     var checkItemProgress: String {
         let checkItemsArray = checkItems?.allObjects as? [CheckItem] ?? []

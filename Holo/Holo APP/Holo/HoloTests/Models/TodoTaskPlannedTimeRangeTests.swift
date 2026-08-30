@@ -121,4 +121,36 @@ final class TodoTaskPlannedTimeRangeTests: XCTestCase {
         XCTAssertEqual(task.plannedStart, start)
         XCTAssertEqual(task.plannedEnd, end)
     }
+
+    // MARK: - 计划 vs 实际
+
+    func test_计划时长计算() throws {
+        let (repo, _) = try makeRepo()
+        let start = makeDate(2026, 8, 30, hour: 10)
+        let end = makeDate(2026, 8, 30, hour: 11, minute: 30)
+        let task = try repo.createTask(title: "T", plannedStart: start, plannedEnd: end)
+
+        XCTAssertEqual(task.plannedDurationMinutes, 90)
+    }
+
+    func test_记录与清除实际用时() throws {
+        let (repo, _) = try makeRepo()
+        let start = makeDate(2026, 8, 30, hour: 10)
+        let end = makeDate(2026, 8, 30, hour: 12)
+        let task = try repo.createTask(title: "T", plannedStart: start, plannedEnd: end)
+
+        try repo.setActualDuration(task, minutes: 45)
+        XCTAssertEqual(task.actualDurationMinutes?.intValue, 45)
+
+        try repo.setActualDuration(task, minutes: nil)
+        XCTAssertNil(task.actualDurationMinutes)
+    }
+
+    func test_实际用时负值被钳为0() throws {
+        let (repo, _) = try makeRepo()
+        let task = try repo.createTask(title: "T")
+
+        try repo.setActualDuration(task, minutes: -10)
+        XCTAssertEqual(task.actualDurationMinutes?.intValue, 0)
+    }
 }

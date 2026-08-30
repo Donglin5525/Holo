@@ -72,6 +72,8 @@ struct TaskDetailView: View {
     @State private var showGoalPicker = false
     @State private var showTimeSheet = false
     @State private var showPlannedRangeSheet = false
+    /// 完成带时间段任务时的实际用时确认
+    @State private var showActualDurationSheet = false
     @State private var showPostponeSheet = false
     @State private var showTaskVoiceInput = false
     @State private var pendingTaskVoiceTranscriptToInsert: String? = nil
@@ -304,6 +306,11 @@ struct TaskDetailView: View {
                 plannedEnd: $plannedEnd,
                 defaultDay: hasDueDate ? dueDate : nil
             )
+        }
+        .sheet(isPresented: $showActualDurationSheet) {
+            if let task = existingTask {
+                ActualDurationSheet(task: task, repository: repository)
+            }
         }
         .sheet(isPresented: $showPostponeSheet) {
             // 面板入参用编辑态而非库值：时间弹窗里改过日期（未保存）也要立即反映
@@ -694,6 +701,8 @@ struct TaskDetailView: View {
 
     private func toggleCompletion() {
         guard let task = existingTask else { return }
+        let wasCompleted = task.completed
+        let shouldPromptActual = !wasCompleted && task.hasPlannedTimeRange && task.actualDurationMinutes == nil
         do {
             if task.repeatRule != nil && !task.completed {
                 let generated = try repository.completeRepeatingTask(task)
@@ -707,6 +716,10 @@ struct TaskDetailView: View {
                 }
             }
             HapticManager.taskCompletion()
+            // 完成带时间段任务且未记录过实际用时 → 弹确认（跳过也行）
+            if shouldPromptActual, task.completed {
+                showActualDurationSheet = true
+            }
         } catch {
             Self.logger.error("切换完成状态失败: \(error.localizedDescription)")
         }
@@ -1306,12 +1319,20 @@ struct TaskDetailView: View {
 
                     Spacer(minLength: HoloSpacing.md)
 
-                    Text(plannedRangeSummaryText)
-                        .font(.holoCaption)
-                        .foregroundColor(hasPlannedRange ? .holoPrimary : .holoTextSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .multilineTextAlignment(.trailing)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(plannedRangeSummaryText)
+                            .font(.holoCaption)
+                            .foregroundColor(hasPlannedRange ? .holoPrimary : .holoTextSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .multilineTextAlignment(.trailing)
+
+                        if let actualText {
+                            Text(actualText)
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                    }
 
                     rowChevron
                 }
@@ -1395,6 +1416,15 @@ struct TaskDetailView: View {
             ? "今天"
             : (calendar.isDateInTomorrow(plannedStart) ? "明天" : dayFormatter.string(from: plannedStart))
         return "\(dayText) \(timeFormatter.string(from: plannedStart))–\(timeFormatter.string(from: plannedEnd))"
+    }
+
+    /// 时间段行副行：实际 vs 计划对比（已记录实际用时时显示）
+    private var actualText: String? {
+        guard let actual = existingTask?.actualDurationMinutes?.intValue,
+              let planned = existingTask?.plannedDurationMinutes else { return nil }
+        let actualText = ActualDurationSheet.durationText(actual)
+        let plannedText = ActualDurationSheet.durationText(planned)
+        return actual == planned ? "实际 \(actualText)" : "实际 \(actualText)（计划 \(plannedText)）"
     }
 
     /// 延期入口条件：编辑模式 + 有截止日期 + 未完成 + 非重复（重复任务一期不接延期）。

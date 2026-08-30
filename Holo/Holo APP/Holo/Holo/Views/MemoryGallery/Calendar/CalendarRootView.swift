@@ -59,7 +59,13 @@ struct CalendarRootView: View {
         case .day:   dayContent
         case .week:  weekContent
         case .month: monthlyContent
+        case .timeline: timelineContent
         }
+    }
+
+    /// 轴档：0–24 纵向时间轴，任务时间段与系统日程同轴；历史日程按需拉取不受活跃窗口限制。
+    private var timelineContent: some View {
+        TimelineReplayView(focusedDate: viewModel.focusedDate)
     }
 
     /// 日档：日期章节连续向今天流动；日期、筛选与当天证据都由章节头承载。
@@ -174,6 +180,7 @@ struct CalendarRootView: View {
         case .day: return .system(size: 48, weight: .medium, design: .serif)
         case .week: return .system(size: 36, weight: .medium, design: .serif)
         case .month: return .system(size: 42, weight: .medium, design: .serif)
+        case .timeline: return .system(size: 48, weight: .medium, design: .serif)
         }
     }
 

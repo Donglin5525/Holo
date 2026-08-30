@@ -69,7 +69,8 @@ final class LifePlanGenerationService {
         userContext: UserContext,
         now: Date = Date()
     ) async -> GenerationOutcome {
-        let prompt = buildPrompt(agentResult: agentResult, now: now)
+        let scheduleOverview = await weeklyScheduleOverview(now: now)
+        let prompt = buildPrompt(agentResult: agentResult, now: now, scheduleOverview: scheduleOverview)
 
         // LLM 结构化输出，失败重试一次
         var payload: LifePlanGenerationPayload?
@@ -114,7 +115,7 @@ final class LifePlanGenerationService {
 
     // MARK: - Prompt 组装
 
-    private func buildPrompt(agentResult: HoloRenderedAgentResult, now: Date) -> String {
+    private func buildPrompt(agentResult: HoloRenderedAgentResult, now: Date, scheduleOverview: String?) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         var prompt = """
@@ -142,8 +143,39 @@ final class LifePlanGenerationService {
             }
         }
 
+        // 系统日历日程概览（未开启/无日程时整节省略，模型按「可能有」处理）
+        if let scheduleOverview {
+            prompt += "\n\n【本周日程概览】\n\(scheduleOverview)"
+        }
+
         prompt += "\n\n请根据以上信息生成本周计划。"
         return prompt
+    }
+
+    /// 本周日程密度概览：按天汇总定时日程数量与时段（周规划避让的输入）
+    private func weeklyScheduleOverview(now: Date) async -> String? {
+        let store = ScheduleStore.shared
+        guard store.isAvailableForAgent else { return nil }
+
+        let calendar = Calendar.current
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.locale = Locale(identifier: "zh_CN")
+        weekdayFormatter.dateFormat = "E"
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+
+        var lines: [String] = []
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else { continue }
+            let items = await store.fetchSchedules(onDay: day).filter { !$0.isAllDay }
+            guard !items.isEmpty else { continue }
+            let first = timeFormatter.string(from: items[0].startDate)
+            let last = timeFormatter.string(from: items[items.count - 1].endDate)
+            let density = items.count >= 4 ? "（密集日）" : ""
+            lines.append("\(weekdayFormatter.string(from: day)) \(items.count) 场（\(first)–\(last)）\(density)")
+        }
+        guard !lines.isEmpty else { return nil }
+        return lines.joined(separator: "；")
     }
 
     /// 剥离可能的 markdown fence 后解码
