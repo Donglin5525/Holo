@@ -135,6 +135,7 @@ nonisolated class CoreDataStack {
         entities.append(createGoalMetricLogEntity())
         // LifePlan 计划台账（六对象，ID 外键、无跨域关系）
         entities.append(contentsOf: createLifePlanEntities())
+        entities.append(contentsOf: CoreDataStack.createScheduleEntities())
         // 回收站清空批次（数据清理功能）
         entities.append(contentsOf: createRecycleBinEntities())
         model.entities = entities

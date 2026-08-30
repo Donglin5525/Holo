@@ -382,6 +382,8 @@ struct ScheduleDetailSheet: View {
     let item: ScheduleItem
     /// EventKitUI 原始日程呈现
     @State private var showsOriginalEvent = false
+    /// 日程转任务（跟进任务）
+    @State private var showsFollowUpTask = false
 
     var body: some View {
         NavigationStack {
@@ -436,6 +438,22 @@ struct ScheduleDetailSheet: View {
                 .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
 
+                // 转跟进任务：预填标题/来源描述/时间段（非全天）
+                Button {
+                    showsFollowUpTask = true
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("添加跟进任务")
+                            .font(.holoBody)
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoPrimary.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+
                 // 只读说明 + 去系统日历
                 Button {
                     showsOriginalEvent = true
@@ -445,10 +463,10 @@ struct ScheduleDetailSheet: View {
                         Text("在系统日历中查看 / 编辑")
                             .font(.holoBody)
                     }
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoPrimary.opacity(0.1)))
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoTextSecondary.opacity(0.08)))
                 }
                 .buttonStyle(.plain)
 
@@ -467,8 +485,28 @@ struct ScheduleDetailSheet: View {
             .sheet(isPresented: $showsOriginalEvent) {
                 OriginalEventSheet(item: item)
             }
+            .sheet(isPresented: $showsFollowUpTask) {
+                TaskDetailView(
+                    repository: TodoRepository.shared,
+                    list: nil,
+                    defaultDueDate: item.startDate,
+                    prefilledTitle: "跟进：\(item.title)",
+                    prefilledDescription: "来源日程：\(followUpSourceText)",
+                    prefilledPlannedRange: item.isAllDay ? nil : (start: item.startDate, end: item.endDate)
+                )
+            }
         }
         .presentationDetents([.medium])
+    }
+
+    private var followUpSourceText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        if item.isAllDay {
+            return "\(item.title)（\(item.calendarTitle) · 全天）"
+        }
+        return "\(formatter.string(from: item.startDate)) \(item.title)（\(item.calendarTitle)）"
     }
 
     private func detailRow(icon: String, title: String, value: String, content: () -> some View) -> some View {

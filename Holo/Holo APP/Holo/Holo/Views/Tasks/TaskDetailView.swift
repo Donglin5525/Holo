@@ -187,11 +187,14 @@ struct TaskDetailView: View {
         _taskStatus = State(initialValue: task.taskStatus)
     }
 
-    /// 新建模式：底部「＋」、首页深链、看板进入
+    /// 新建模式：底部「＋」、首页深链、看板、日程转任务进入
     init(
         repository: TodoRepository,
         list: TodoList? = nil,
-        defaultDueDate: Date? = nil
+        defaultDueDate: Date? = nil,
+        prefilledTitle: String? = nil,
+        prefilledDescription: String? = nil,
+        prefilledPlannedRange: (start: Date, end: Date)? = nil
     ) {
         self.repository = repository
         self.existingTask = nil
@@ -203,6 +206,18 @@ struct TaskDetailView: View {
         _dueDate = State(initialValue: defaultDueDate ?? Date())
         _hasDueDate = State(initialValue: defaultDueDate != nil)
         _hasTime = State(initialValue: false)
+        // 日程转任务等场景的预填
+        if let prefilledTitle, !prefilledTitle.isEmpty {
+            _title = State(initialValue: prefilledTitle)
+        }
+        if let prefilledDescription {
+            _description = State(initialValue: prefilledDescription)
+        }
+        if let range = prefilledPlannedRange {
+            _hasPlannedRange = State(initialValue: true)
+            _plannedStart = State(initialValue: range.start)
+            _plannedEnd = State(initialValue: range.end)
+        }
     }
 
     // MARK: - Body

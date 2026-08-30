@@ -81,6 +81,7 @@ final class ScheduleStore: ObservableObject {
                 self.refreshAuthorizationStatus()
                 if self.isEnabled, self.authorizationStatus == .fullAccess {
                     self.scheduleReload()
+                    ScheduleSyncEngine.shared.reconcileNow()
                 }
             }
         }
@@ -96,6 +97,11 @@ final class ScheduleStore: ObservableObject {
     /// 供 Agent 数据源判定可用性（未开启/未授权返回 false → 工具层转空态）
     var isAvailableForAgent: Bool {
         isEnabled && authorizationStatus == .fullAccess && eventStore != nil
+    }
+
+    /// 供同步引擎取得可用 eventStore（含后台初始化）
+    func ensureEventStoreForSync() async -> EKEventStore? {
+        await ensureEventStore()
     }
 
     // 单例随 App 生命周期存活，无需 deinit 清理观察者
@@ -127,6 +133,8 @@ final class ScheduleStore: ObservableObject {
         refreshCalendars()
         await reloadActiveWindow()
         startObservingChanges()
+        // 写入引擎随激活就绪后首次对账
+        ScheduleSyncEngine.shared.reconcileNow()
     }
 
     /// EKEventStore 初始化可达数百毫秒，放后台队列，不卡调用方

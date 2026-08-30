@@ -114,6 +114,7 @@
 		96927771A8D4AB323E51A193 /* HoloMemoryForgettingStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B002B03577194E1D3B9144 /* HoloMemoryForgettingStandaloneTests.swift */; };
 		9740ACD02B22BDD96B4A30EA /* CoreDataTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 622BFBA66EE5B9248A677503 /* CoreDataTestSupport.swift */; };
 		979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */; };
+		94BEF2F6CBCDCCF52A110251 /* ScheduleSyncPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177B647718EA3134C39D209C /* ScheduleSyncPlannerTests.swift */; };
 		9914970A090861E1CB8AB5FB /* ASRAudioChunkingPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C9CFE5C8FE075C8D88AE72 /* ASRAudioChunkingPlanTests.swift */; };
 		9D3BD315D8AFE5BAA409116B /* StandaloneExecutableBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB9FD65AF0381026EDE40C0 /* StandaloneExecutableBridgeTests.swift */; };
 		A0E17C0866831CC93970FDBB /* HabitFocusSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */; };
@@ -265,6 +266,7 @@
 		19CE3990C07175D90E1F2109 /* HoloToolRegistryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloToolRegistryTests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodoTaskPlannedTimeRangeTests.swift; sourceTree = "<group>"; };
+		177B647718EA3134C39D209C /* ScheduleSyncPlannerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleSyncPlannerTests.swift; sourceTree = "<group>"; };
 		1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightResponseParserTests.swift; sourceTree = "<group>"; };
 		1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitIconPresetsTests.swift; sourceTree = "<group>"; };
 		27A8CA5AB2CCAC6491B22D88 /* HoloAgentJSONStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentJSONStoreTests.swift; sourceTree = "<group>"; };
@@ -876,9 +878,18 @@
 			path = Agent;
 			sourceTree = "<group>";
 		};
+		2A7C5E9130B4D6F81C0A5562 /* Schedule */ = {
+			isa = PBXGroup;
+			children = (
+				177B647718EA3134C39D209C /* ScheduleSyncPlannerTests.swift */,
+			);
+			path = Schedule;
+			sourceTree = "<group>";
+		};
 		E4EF083CEA4F1BA693FB84AE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				2A7C5E9130B4D6F81C0A5562 /* Schedule */,
 				5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */,
 				01FEFE4BD64B0BA4926A551E /* AI */,
 				F18A001B2C3D4E5F60718295 /* BillImport */,
@@ -1084,6 +1095,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */,
+				94BEF2F6CBCDCCF52A110251 /* ScheduleSyncPlannerTests.swift in Sources */,
 				C10066D146B0666E6097FD5B /* HoloAgentJSONStoreTests.swift in Sources */,
 				36CF72A2A4843D68CEAE4246 /* HoloAgentModelCodableTests.swift in Sources */,
 				298078EE449F7555223892DC /* HoloClaimVerifierTests.swift in Sources */,

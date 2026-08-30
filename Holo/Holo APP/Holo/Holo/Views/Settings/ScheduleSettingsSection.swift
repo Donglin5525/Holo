@@ -10,6 +10,7 @@ import EventKit
 
 struct ScheduleSettingsSection: View {
     @StateObject private var store = ScheduleStore.shared
+    private let syncEngine = ScheduleSyncEngine.shared
     @State private var isRequestingPermission = false
 
     var body: some View {
@@ -50,6 +51,11 @@ struct ScheduleSettingsSection: View {
                     if store.authorizationStatus == .fullAccess {
                         Divider().padding(.leading, HoloSpacing.md)
 
+                        // 任务写入日历（二期）
+                        taskSyncRow
+
+                        Divider().padding(.leading, HoloSpacing.md)
+
                         calendarSelectionRows
 
                         Divider().padding(.leading, HoloSpacing.md)
@@ -79,6 +85,40 @@ struct ScheduleSettingsSection: View {
                 store.refreshCalendars()
                 Task { await store.reloadActiveWindow() }
             }
+        }
+    }
+
+    private var taskSyncRow: some View {
+        VStack(spacing: 6) {
+            Toggle(isOn: Binding(
+                get: { syncEngine.isTaskSyncEnabled },
+                set: { enabled in
+                    syncEngine.isTaskSyncEnabled = enabled
+                    if enabled {
+                        syncEngine.reconcileNow()
+                    }
+                }
+            )) {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 24)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("任务同步到日历")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("带时间段的任务自动写入专属「Holo」日历，手表和系统日历可见；改动双向同步")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(.holoPrimary)
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, 10)
         }
     }
 
