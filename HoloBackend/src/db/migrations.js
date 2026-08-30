@@ -261,6 +261,42 @@ const MIGRATIONS = [
         ON user_feedback(device_id);
     `,
   },
+  {
+    id: 15,
+    description: '创建 Agent 遥测事件表（iOS 端锁屏/租约/恢复诊断事件批量上报，仅技术字段无用户内容，14 天滚动保留）',
+    up: `
+      CREATE TABLE IF NOT EXISTS agent_telemetry_events (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        timestamp_ms INTEGER NOT NULL,
+        job_id TEXT,
+        job_type TEXT,
+        trigger TEXT,
+        state TEXT,
+        wait_reason TEXT,
+        generation INTEGER,
+        checkpoint_revision INTEGER,
+        lease_kind TEXT,
+        round INTEGER,
+        duration_ms INTEGER,
+        error_code TEXT,
+        request_id TEXT,
+        prompt_revision INTEGER,
+        agent_protocol_version INTEGER,
+        tool_schema_version INTEGER,
+        contract_violation_count INTEGER,
+        contract_repair_count INTEGER,
+        received_at_ms INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_telemetry_received
+        ON agent_telemetry_events(received_at_ms);
+      CREATE INDEX IF NOT EXISTS idx_agent_telemetry_device
+        ON agent_telemetry_events(device_id, received_at_ms);
+      CREATE INDEX IF NOT EXISTS idx_agent_telemetry_job
+        ON agent_telemetry_events(job_id);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

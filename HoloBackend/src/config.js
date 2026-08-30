@@ -32,6 +32,9 @@ const DEFAULT_CONFIG = {
     feedbackRequestsPerDay: Number(process.env.HOLO_FEEDBACK_REQUESTS_PER_DAY ?? 5),
     // 单张反馈图片解码后上限（App 端压缩承诺 ≤1MB，留余量），最多 3 张由路由校验。
     feedbackMaxImageBytes: Number(process.env.HOLO_FEEDBACK_MAX_IMAGE_BYTES ?? 1536 * 1024),
+    // Agent 遥测批量上报：低频（前台化/冷却时 diff 上报），单批 ≤100 条由路由校验。
+    agentTelemetryUploadsPerMinute: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_MINUTE ?? 10),
+    agentTelemetryUploadsPerDay: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_DAY ?? 500),
   },
   routes: {
     chat: {
@@ -376,6 +379,7 @@ export function loadConfig(overrides = {}) {
     providerOverrides: overrides.providerOverrides,
     contentReportStore: overrides.contentReportStore,
     feedbackStore: overrides.feedbackStore,
+    agentTelemetryStore: overrides.agentTelemetryStore,
     feedbackImagesDir:
       overrides.feedbackImagesDir ?? process.env.HOLO_FEEDBACK_IMAGES_DIR ?? "/data/feedback-images",
     contentModeration: overrides.contentModeration,

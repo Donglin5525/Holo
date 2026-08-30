@@ -35,6 +35,7 @@ import { createQuotaActionLedgerStore } from "./usage/quotaActionLedgerStore.js"
 import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
 import { createContentReportStore } from "./reports/contentReportStore.js";
 import { createFeedbackStore } from "./feedback/feedbackStore.js";
+import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
@@ -150,6 +151,8 @@ export function createApp(overrides = {}) {
   const contentReportStore = config.contentReportStore ?? createContentReportStore(database.db);
   const feedbackStore =
     config.feedbackStore ?? createFeedbackStore(database.db, { imagesDir: config.feedbackImagesDir });
+  const agentTelemetryStore =
+    config.agentTelemetryStore ?? createAgentTelemetryStore(database.db);
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
   const captureAiCallLogs = config.aiCallLogs.enabled;
@@ -463,6 +466,7 @@ export function createApp(overrides = {}) {
       }
 
       const serverPrompt = injectServerPrompt(purpose, request.messages);
+      const isAgentLoop = purpose === "agent_loop";
       const upstreamRequest = {
         purpose,
         messages: serverPrompt.messages,
@@ -472,9 +476,13 @@ export function createApp(overrides = {}) {
         maxTokens: route.maxTokens,
         responseFormat: request.response_format,
         reasoningEffort: route.reasoningEffort,
-        clientSignal: context.req.raw.signal,
+        // agent_loop 是 step 幂等请求：锁屏/切后台导致的客户端断开是系统行为而非用户意图，
+        // 不能连坐取消上游模型调用（2026-08-30 锁屏事故：30s 后台窗口内模型边算边被掐，
+        // 缓存永远建不起来，4 次重试全部从头算全部作废）。断开后让上游算完并落幂等缓存，
+        // 客户端重发同 stepID 直接命中秒回，每个后台窗口都能推进一步。
+        // 其余 purpose（含流式 chat）保持断开即止，不为已离开的连接浪费上游算力。
+        clientSignal: isAgentLoop ? undefined : context.req.raw.signal,
       };
-      const isAgentLoop = purpose === "agent_loop";
       const stepIdentity = resolveAgentStepIdentity(isAgentLoop, request);
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
@@ -963,6 +971,41 @@ export function createApp(overrides = {}) {
     }
   });
 
+  // Agent 遥测批量上报：iOS 端锁屏租约/执行恢复/任务终态等技术诊断事件的
+  // 服务端落地。出障时远端可直接还原时间线（2026-08-30 锁屏事故：证据只在
+  // 手机本地，排查靠推演）。字段与 iOS HoloAgentTelemetryEvent 一一对应，
+  // 仅收白名单技术字段，不收任何用户内容。
+  app.post("/v1/ai/agent/telemetry", async (context) => {
+    try {
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "agent_telemetry",
+        minuteLimit: config.limits.agentTelemetryUploadsPerMinute,
+        dailyLimit: config.limits.agentTelemetryUploadsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const rawEvents = Array.isArray(request.events) ? request.events : null;
+      if (!rawEvents || rawEvents.length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "events must be a non-empty array", 400);
+      }
+      if (rawEvents.length > 100) {
+        throw new GatewayError("INVALID_REQUEST", "at most 100 events per batch", 400);
+      }
+
+      const events = rawEvents.map(normalizeAgentTelemetryEvent);
+      const inserted = agentTelemetryStore.insertBatch(deviceId, events);
+      return context.json({ ok: true, accepted: inserted });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   return app;
 }
 
@@ -1328,6 +1371,71 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "task_action_parser") return QUOTA_TYPES.naturalLanguageTask;
   if (purpose === "insight") return QUOTA_TYPES.memoryInsight;
   return null;
+}
+
+/** 与 iOS HoloAgentEventName 一一对应；表驱动收口，端点外不得扩展。 */
+const AGENT_TELEMETRY_EVENT_NAMES = new Set([
+  "agent_job_created",
+  "agent_execution_acquired",
+  "agent_execution_attached",
+  "agent_execution_stale_rejected",
+  "agent_checkpoint_committed",
+  "agent_waiting_for_condition",
+  "agent_execution_expired",
+  "agent_resume_started",
+  "agent_resume_stalled",
+  "agent_step_idempotency_hit",
+  "agent_result_reconciled",
+  "agent_job_completed",
+  "agent_job_failed",
+  "agent_job_cancelled",
+  "agent_lease_changed",
+]);
+
+/** 遥测事件字段白名单与归一：非法 name/缺 id 拒绝，超长字符串截断，数字非法置空。 */
+function normalizeAgentTelemetryEvent(raw) {
+  if (!raw || typeof raw !== "object") {
+    throw new GatewayError("INVALID_REQUEST", "event must be an object", 400);
+  }
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  if (!id || id.length > 64) {
+    throw new GatewayError("INVALID_REQUEST", "event.id must be 1-64 chars", 400);
+  }
+  if (!AGENT_TELEMETRY_EVENT_NAMES.has(raw.name)) {
+    throw new GatewayError("INVALID_REQUEST", `unknown event name: ${String(raw.name).slice(0, 40)}`, 400);
+  }
+  const timestampMs = Number(raw.timestampMs);
+  if (!Number.isFinite(timestampMs)) {
+    throw new GatewayError("INVALID_REQUEST", "event.timestampMs must be a finite number", 400);
+  }
+  const shortString = (value) => (
+    typeof value === "string" && value.length > 0 ? value.slice(0, 64) : null
+  );
+  const optionalInt = (value) => (
+    Number.isFinite(value) ? Math.trunc(value) : null
+  );
+  return {
+    id,
+    name: raw.name,
+    timestampMs: Math.trunc(timestampMs),
+    jobID: shortString(raw.jobID),
+    jobType: shortString(raw.jobType),
+    trigger: shortString(raw.trigger),
+    state: shortString(raw.state),
+    waitReason: shortString(raw.waitReason),
+    generation: optionalInt(raw.generation),
+    checkpointRevision: optionalInt(raw.checkpointRevision),
+    leaseKind: shortString(raw.leaseKind),
+    round: optionalInt(raw.round),
+    durationMilliseconds: optionalInt(raw.durationMilliseconds),
+    errorCode: shortString(raw.errorCode),
+    requestID: shortString(raw.requestID),
+    promptRevision: optionalInt(raw.promptRevision),
+    agentProtocolVersion: optionalInt(raw.agentProtocolVersion),
+    toolSchemaVersion: optionalInt(raw.toolSchemaVersion),
+    contractViolationCount: optionalInt(raw.contractViolationCount),
+    contractRepairCount: optionalInt(raw.contractRepairCount),
+  };
 }
 
 function resolveQuotaActionId(request, purpose) {

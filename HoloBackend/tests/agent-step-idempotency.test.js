@@ -574,3 +574,86 @@ test("production app fails before opening storage when the encryption key is mis
       && error.code === "AGENT_STEP_ENCRYPTION_KEY_MISSING",
   );
 });
+
+test("agent_loop 请求不把客户端连接信号传给上游：断开算完落缓存，重发命中免重算", async () => {
+  let calls = 0;
+  let seenClientSignal = null;
+  let releaseProvider;
+  const gate = new Promise((resolve) => { releaseProvider = resolve; });
+  const provider = {
+    async complete(request) {
+      calls += 1;
+      seenClientSignal = request.clientSignal ?? null;
+      await gate;
+      return makeAgentCompletion("agent-completion-lockscreen");
+    },
+  };
+  const app = createTestApp(provider);
+  const step = { runId: "run-lockscreen", stepId: "llm-1-1", requestHash: "hash-lockscreen" };
+
+  // 客户端（锁屏断开场景）：发起后在模型返回前断开连接
+  const controller = new AbortController();
+  const firstPending = app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "device-a",
+    },
+    body: JSON.stringify({
+      purpose: "agent_loop",
+      stream: false,
+      runId: step.runId,
+      stepId: step.stepId,
+      requestHash: step.requestHash,
+      messages: [{ role: "user", content: "分析我的财务" }],
+    }),
+    signal: controller.signal,
+  });
+  while (calls === 0) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(seenClientSignal, null, "agent_loop 的上游调用不得携带客户端信号（断开连坐取消的根因）");
+  controller.abort();
+  // 先放行模型调用（断开后后端继续算），再等 handler 完成落缓存——顺序反了会死锁
+  releaseProvider();
+  await firstPending.then(() => {}, () => {});
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  const resumed = await sendAgentStep(app, step);
+  assert.equal(resumed.status, 200);
+  assert.equal((await resumed.json()).id, "agent-completion-lockscreen");
+  assert.equal(resumed.headers.get("x-holo-step-idempotency"), "hit");
+  assert.equal(calls, 1, "断开已算完的步骤不得重调 provider");
+});
+
+test("非 agent_loop 请求仍把客户端信号传给上游（流式 chat 断开即止不浪费算力）", async () => {
+  let seenClientSignal = null;
+  const provider = {
+    async complete(request) {
+      seenClientSignal = request.clientSignal ?? null;
+      return makeAgentCompletion();
+    },
+  };
+  const app = createTestApp(provider, {
+    routes: {
+      agent_loop: { provider: "fake", model: "agent-model", temperature: 0, maxTokens: 1024 },
+      chat: { provider: "fake", model: "chat-model", temperature: 0, maxTokens: 1024 },
+    },
+  });
+  const controller = new AbortController();
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "device-a",
+    },
+    body: JSON.stringify({
+      purpose: "chat",
+      stream: false,
+      messages: [{ role: "user", content: "你好" }],
+    }),
+    signal: controller.signal,
+  });
+  assert.equal(response.status, 200);
+  assert.ok(seenClientSignal instanceof AbortSignal, "普通请求保持断开即止语义");
+});
