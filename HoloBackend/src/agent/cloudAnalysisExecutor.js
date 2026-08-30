@@ -31,35 +31,48 @@ export function createCloudAnalysisExecutor({
     throw new Error(`CLOUD_ANALYSIS_PROVIDER_MISSING: ${route.provider}`);
   }
 
+  // 工具结果统一为 iOS HoloDataToolResult 同构信封（错误也走 error 字段），
+  // 模型按提示词约定解析，不出现自造结构。
   function executeToolRequests(toolRequests, snapshot) {
     return toolRequests.map((request) => {
       const id = request.id ?? "tool";
       const tool = request.tool;
+      const envelope = (fields) => ({ toolRequestID: id, tool, coverage: null, warnings: [], ...fields });
       try {
         // validateAgentLoopContent 会把 parameters.dynamicPlan 规范化提升到请求顶层；两种位置都接受
         const plan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
         if (plan) {
-          const result = engine.execute(plan, snapshot);
-          if (result.error) {
-            return { id, tool, ok: false, error: result.error };
-          }
-          return { id, tool, ok: true, query: "dynamic_query", result };
+          return engine.execute(plan, snapshot, { toolRequestID: id, tool });
         }
         const statics = snapshot?.statics ?? {};
         if (Object.prototype.hasOwnProperty.call(statics, tool)) {
-          return { id, tool, ok: true, query: request.query ?? "static", result: statics[tool] };
+          return envelope({ status: "success", metrics: [], events: [], result: statics[tool] });
         }
         if (request.query === "dynamic_query") {
-          return { id, tool, ok: false, error: "INVALID_PLAN: dynamic_query 缺少 dynamicPlan" };
+          return envelope({
+            status: "error",
+            metrics: [],
+            events: [],
+            error: { code: "INVALID_PLAN", message: "dynamic_query 缺少 dynamicPlan", recoverable: true },
+          });
         }
-        return {
-          id,
-          tool,
-          ok: false,
-          error: `NOT_SUPPORTED_BY_CLOUD: 固定 query「${request.query}」未在快照中预取；请改用 dynamic_query+dynamicPlan，或使用静态块 ${Object.keys(statics).join("、 ") || "（无）"}`,
-        };
+        return envelope({
+          status: "error",
+          metrics: [],
+          events: [],
+          error: {
+            code: "NOT_SUPPORTED_BY_CLOUD",
+            message: `固定 query「${request.query}」未在快照中预取；请改用 dynamic_query+dynamicPlan，或使用静态块 ${Object.keys(statics).join("、 ") || "（无）"}`,
+            recoverable: true,
+          },
+        });
       } catch (error) {
-        return { id, tool, ok: false, error: `TOOL_ERROR: ${error?.message ?? error}` };
+        return envelope({
+          status: "error",
+          metrics: [],
+          events: [],
+          error: { code: "TOOL_ERROR", message: String(error?.message ?? error), recoverable: true },
+        });
       }
     });
   }
@@ -169,7 +182,9 @@ export function createCloudAnalysisExecutor({
         const toolRequests = Array.isArray(output.toolRequests) ? output.toolRequests : [];
         if (toolRequests.length > 0) {
           const toolResults = executeToolRequests(toolRequests, snapshot);
-          const failures = toolResults.filter((r) => !r.ok).map((r) => `${r.tool}:${r.error}`);
+          const failures = toolResults
+            .filter((r) => r.status === "error")
+            .map((r) => `${r.tool}:${r.error?.code}`);
           if (failures.length > 0) {
             log(`工具失败 taskId=${taskId} round=${round}: ${failures.join(" | ").slice(0, 400)}`);
           }

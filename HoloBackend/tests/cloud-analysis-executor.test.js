@@ -66,7 +66,7 @@ function makeExecutor(provider) {
   return { database, store, executor };
 }
 
-test("查询引擎：filter+groupBy+sum 聚合餐饮支出", () => {
+test("查询引擎：filter+groupBy+sum 输出 iOS 同构结构", () => {
   const engine = createCloudAnalysisQueryEngine();
   const result = engine.execute({
     source: "finance.transactions",
@@ -79,15 +79,20 @@ test("查询引擎：filter+groupBy+sum 聚合餐饮支出", () => {
     derivations: [],
     limit: 10,
     evidenceLimit: 5,
-  }, SNAPSHOT);
-  assert.equal(result.error, undefined);
-  assert.equal(result.matchedRowCount, 3);
-  const byMerchant = {};
+  }, SNAPSHOT, { toolRequestID: "t1", tool: "finance" });
+  assert.equal(result.status, "success");
+  assert.equal(result.toolRequestID, "t1");
+  const byKey = {};
   for (const metric of result.metrics) {
-    if (metric.id.startsWith("total@")) byMerchant[metric.group.merchant] = metric.value;
+    if (metric.metricKey.includes(".total.")) byKey[metric.comparison] = metric.value;
   }
-  assert.equal(byMerchant["麦当劳"], -60);
-  assert.equal(byMerchant["星巴克"], -42);
+  assert.equal(byKey["麦当劳"], -60);
+  assert.equal(byKey["星巴克"], -42);
+  // metricKey iOS 格式：dynamic.{source}.{id}.{group}，sanitize 为小写
+  assert.ok(result.metrics[0].metricKey.startsWith("dynamic.finance_transactions.total."));
+  // evidence 摘要为 iOS evidenceText 格式
+  assert.ok(result.events[0].excerpt.includes("动态计算 dynamic."));
+  assert.ok(result.events[0].excerpt.includes("公式："));
 });
 
 test("查询引擎：oneOf 与数值比较 + distinctCount", () => {
@@ -105,8 +110,9 @@ test("查询引擎：oneOf 与数值比较 + distinctCount", () => {
     limit: 10,
     evidenceLimit: 5,
   }, SNAPSHOT);
-  assert.equal(result.matchedRowCount, 2);
+  assert.equal(result.status, "success");
   assert.equal(result.metrics[0].value, 2);
+  assert.equal(result.metrics[0].comparison, null);
 });
 
 test("查询引擎：expression/linearTrend/coverage 明确拒绝（模型降级换路）", () => {
@@ -120,7 +126,9 @@ test("查询引擎：expression/linearTrend/coverage 明确拒绝（模型降级
     limit: 5,
     evidenceLimit: 5,
   }, SNAPSHOT);
-  assert.ok(result.error.includes("NOT_SUPPORTED_BY_CLOUD"));
+  assert.equal(result.status, "error");
+  assert.equal(result.error.code, "NOT_SUPPORTED_BY_CLOUD");
+  assert.equal(result.error.recoverable, true);
 });
 
 test("执行器全循环：need_tools→工具结果→final_claims→完成即焚", async () => {
@@ -164,8 +172,10 @@ test("执行器全循环：need_tools→工具结果→final_claims→完成即�
   const toolTurn = provider.calls[1].messages.find((m) => m.content?.startsWith("toolResults:"));
   assert.ok(toolTurn, "第二轮应携带 toolResults");
   const toolPayload = JSON.parse(toolTurn.content.slice("toolResults: ".length));
-  assert.equal(toolPayload[0].ok, true);
-  assert.equal(toolPayload[0].result.matchedRowCount, 5);
+  assert.equal(toolPayload[0].status, "success");
+  assert.equal(toolPayload[0].toolRequestID, "t1");
+  assert.ok(toolPayload[0].metrics.length > 0);
+  assert.ok(toolPayload[0].metrics[0].metricKey.startsWith("dynamic."));
 
   // 完成即焚：问题与快照密文清空，结果仍在等回传
   assert.ok(store.isDataDestroyed(task.id));
@@ -196,10 +206,10 @@ test("执行器：静态块直读 + 未知数据集返回可解释错误", async
   assert.equal(await executor.run(task.id), "completed");
   const toolTurn = provider.calls[1].messages.find((m) => m.content?.startsWith("toolResults:"));
   const payload = JSON.parse(toolTurn.content.slice("toolResults: ".length));
-  assert.equal(payload[0].ok, true);
+  assert.equal(payload[0].status, "success");
   assert.equal(payload[0].result.nickname, "测试用户");
-  assert.equal(payload[1].ok, false);
-  assert.ok(payload[1].error.includes("INVALID_DATASET"));
+  assert.equal(payload[1].status, "error");
+  assert.equal(payload[1].error.code, "INVALID_DATASET");
 });
 
 test("执行器：provider 连续失败→任务 failed 且输入即焚", async () => {
