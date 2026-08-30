@@ -145,6 +145,7 @@ export function createCloudAnalysisExecutor({
         const validation = validateAgentLoopContent(content);
         if (!validation.valid) {
           // 契约故障按一轮消耗处理后继续（与网关侧同策略：不提前终止任务）
+          log(`轮次 ${round}/${maxRounds} taskId=${taskId} status=invalid_json（已请求重发）`);
           messages.push({ role: "assistant", content });
           messages.push({
             role: "user",

@@ -1103,13 +1103,29 @@ export function createApp(overrides = {}) {
       context.header("Cache-Control", "no-store");
       const body = { status: task.status };
       if (task.status === "completed" && task.result) {
-        // 结果回传即销毁：本响应是密文结果的唯一一次交付
-        store.consumeResult(task.id);
+        // 领取不删（R1）：删除权交给客户端落地后的 ack——响应在网络回程丢失时
+        // 结果不丢，冷启动恢复轮询可再次领取；未 ack 由 7 天过期兜底。
         body.result = JSON.parse(task.result);
       } else if (task.status === "failed" && task.failureReason) {
         body.failureReason = task.failureReason;
       }
       return context.json(body);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 结果领取确认（R1）：客户端已落地本地后回执，服务端销毁结果密文。
+  app.post("/v1/ai/agent/cloud/:id/ack", async (context) => {
+    try {
+      const store = requireCloudAnalysisStore();
+      const deviceId = getDeviceId(context, config);
+      const task = store.get(context.req.param("id"));
+      if (!task || task.device_id !== deviceId) {
+        throw new GatewayError("NOT_FOUND", "Task not found", 404);
+      }
+      store.consumeResult(task.id);
+      return context.json({ ok: true });
     } catch (error) {
       return createErrorResponse(context, error);
     }
@@ -1834,6 +1850,11 @@ function recordAgentStepFailure(store, identity, error) {
 /** 启动期 queued 孤儿扫描：进程重启后未执行的云端分析任务重新拉起 */
 function resumeQueuedCloudAnalysisTasks(store, executor, limit = 50) {
   try {
+    // R2：进程重启后执行中断的 running 任务先重置回队列（否则永久卡死无人接管）
+    const orphaned = store.requeueOrphanRunning?.() ?? 0;
+    if (orphaned > 0) {
+      console.log(`[holo-backend] 云端分析重启恢复：重置 ${orphaned} 个中断 running 任务`);
+    }
     const db = store.listQueued?.(limit);
     if (!db) return;
     for (const taskId of db) {

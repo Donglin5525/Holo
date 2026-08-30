@@ -102,7 +102,7 @@ test("跨设备访问 404（所有权隔离）", async () => {
   })).status, 404);
 });
 
-test("完成后输入侧数据立即销毁；结果回传一次后销毁（隐私契约代码化）", async () => {
+test("完成后输入侧立即销毁；结果领取不删、ack 后删、未 ack 可重领（R1 确认制）", async () => {
   const database = createDatabase({ dbPath: ":memory:" });
   const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
 
@@ -111,18 +111,34 @@ test("完成后输入侧数据立即销毁；结果回传一次后销毁（隐�
   assert.ok(store.transition(task.id, "running"));
   assert.ok(store.complete({ id: task.id, result: '{"title":"分析结论"}' }));
 
-  // 完成即焚：问题与快照密文清空，结果仍在（等待回传）
+  // 完成即焚：问题与快照密文清空，结果仍在（等待领取）
   assert.ok(store.isDataDestroyed(task.id));
-  const after = store.get(task.id);
-  assert.notEqual(after.result_ciphertext, null);
+  assert.ok(store.hasResult(task.id));
 
-  // 回传一次：结果解密正确且随后销毁
-  const fetched = store.getDecrypted(task.id);
-  assert.equal(JSON.parse(fetched.result).title, "分析结论");
+  // 领取（GET）不删：响应丢失后可再次领取同一结果
+  const first = store.getDecrypted(task.id);
+  assert.equal(JSON.parse(first.result).title, "分析结论");
+  assert.ok(store.hasResult(task.id));
+  const second = store.getDecrypted(task.id);
+  assert.equal(JSON.parse(second.result).title, "分析结论");
+
+  // ack 确认后销毁；问题密文已焚为 null（不留副本）
   store.consumeResult(task.id);
-  assert.equal(store.get(task.id).result_ciphertext, null);
-  // 问题密文已焚，再解密问题应得 null（不留副本）
+  assert.ok(!store.hasResult(task.id));
   assert.equal(store.getDecrypted(task.id).question, null);
+});
+
+test("孤儿 running 任务启动重置回 queued（R2：进程重启不卡死）", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
+  const task = store.create({ deviceId: "device-a", question: "q" });
+  store.attachSnapshot({ id: task.id, snapshot: "{}" });
+  assert.ok(store.transition(task.id, "running"));
+
+  // 模拟进程重启：running 且快照仍在 → 重置回 queued 供启动扫描重跑
+  assert.equal(store.requeueOrphanRunning(), 1);
+  assert.equal(store.get(task.id).status, "queued");
+  assert.deepEqual(store.listQueued(), [task.id]);
 });
 
 test("失败路径同样销毁输入侧数据，失败原因密文可回传", async () => {

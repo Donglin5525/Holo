@@ -199,14 +199,38 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
       deleteStmt.run(id);
     },
 
-    /** 结果回传确认：销毁结果密文，任务行转为已领取的历史记录（仅状态与时间戳） */
+    /**
+     * 结果领取确认（R1 修复）：客户端已把结果落地本地后回执，服务端才销毁结果密文。
+     * 此前「先删后返」在响应丢失时会永久丢失结果；现在未确认的结果留待 7 天兜底
+     * 清理，冷启动恢复轮询可再次领取（幂等，同结果多领一次无损失）。
+     */
     consumeResult(id) {
       destroyResultStmt.run(id);
+    },
+
+    /** 结果是否仍在（未被确认销毁）——领取与确认分离后的中间态 */
+    hasResult(id) {
+      const row = getStmt.get(id);
+      return row?.result_ciphertext != null;
     },
 
     /** 启动恢复用：queued 态任务 id 列表（进程重启后重新执行） */
     listQueued(limit = 50) {
       return listQueuedStmt.all(limit).map((row) => row.id);
+    },
+
+    /**
+     * 孤儿 running 重置（R2 修复）：进程重启后执行中断的任务卡在 running，
+     * 永远无人接管。重置回 queued 交给启动扫描重新执行（任务级重跑幂等：
+     * 输入侧密文仍在——running 中断时尚未销毁）。
+     */
+    requeueOrphanRunning() {
+      const result = db.prepare(`
+        UPDATE agent_cloud_analysis_tasks
+        SET status = 'queued'
+        WHERE status = 'running' AND snapshot_ciphertext IS NOT NULL
+      `).run();
+      return result.changes;
     },
 
     purgeExpired(now = Date.now(), limit = 200) {
