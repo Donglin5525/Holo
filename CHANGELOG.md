@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-30] 云端异步深度分析二期 M2a——云端执行器上线（功能仍禁用态）
+
+### 改动（后端已发版 58b6a9f7）
+- **dynamicPlan 查询引擎**（新增 `cloudAnalysisQueryEngine.js`）：与 iOS 端同协议的声明式查询在快照数据集上执行——filter 全操作/groupBy/aggregation 五种/sort/limit/evidenceLimit/四个基础派生；expression/linearTrend/coverage/baseline 明确返回 NOT_SUPPORTED_BY_CLOUD 让模型按协议降级换路（诚实能力边界）。另提供 `buildCloudToolCatalog` 从快照生成模型工具目录。
+- **执行器循环**（新增 `cloudAnalysisExecutor.js`）：queued→running→completed/failed 全状态机——LLM 多轮（need_tools→工具执行→final_claims），模型调用复用 agent_loop route/provider 与重试退避，输出校验复用 validateAgentLoopContent（兼容其把 dynamicPlan 提升到请求顶层的规范化），完成走 complete() 即焚、失败走 fail() 即焚，轮次上限 12。
+- **调度接线**：快照上传成功即 fire-and-forget 触发执行；进程启动扫描 queued 孤儿重跑（任务级重跑即幂等，单实例无队列基建）。
+- store 补快照解密字段与 listQueued（启动恢复）。
+
+### 验证
+- 7 个新测试：引擎聚合语义/边界拒绝/全循环（工具请求→结果→结论→完成即焚断言）/静态块直读/未知数据集可解释错误/provider 失败即焚/轮次耗尽；全量 263/263 绿。
+- 生产部署验收（bundle 绕行 GitHub 网络抖动）：健康正常、零错误日志。功能仍处禁用态（密钥未配置），零行为变化。
+
+### 待办
+- M2b：iOS 快照聚合器+双轨发起+隐私文案；M2c：ECS 配钥启用+真机验收。
+
+---
+
 ## [2026-08-30] 云端异步深度分析二期 M1——任务底座上线（功能禁用态）
 
 ### 背景
