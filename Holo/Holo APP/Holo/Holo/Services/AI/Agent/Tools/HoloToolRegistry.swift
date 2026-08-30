@@ -23,6 +23,7 @@ nonisolated enum HoloAgentToolCoverage {
         "memory",
         "profile",
         "project",
+        "schedule",
         "task",
         "thought",
         "thought_reference"

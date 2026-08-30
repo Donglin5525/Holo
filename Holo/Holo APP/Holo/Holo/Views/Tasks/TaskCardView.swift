@@ -102,6 +102,14 @@ struct TaskCardView: View {
 
                     // 任务元信息（远期日期 / 优先级 / 重复 / 清单 / 纪念日来源 / 目标）
                     HStack(spacing: 8) {
+                        // 计划时间段（时间块）：今天用纯时刻，非今天带日期前缀
+                        if !showsCompleted, task.hasPlannedTimeRange,
+                           let rangeText = plannedRangeText(task) {
+                            Label(rangeText, systemImage: "hourglass")
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoPrimary)
+                        }
+
                         // 截止日期：仅远期任务在 meta 行显示（今天/明天/过期已由右上胶囊承载）
                         if !showsCompleted, let dueDate = task.dueDate,
                            !task.isOverdue, !task.isDueToday, !task.isDueTomorrow {
@@ -307,6 +315,20 @@ struct TaskCardView: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "HH:mm"
         return "\(prefix) \(formatter.string(from: due))"
+    }
+
+    /// 计划时间段徽章文案：今天「10:00–12:00」，非今天「8/30 10:00–12:00」；字段不完整返回 nil 不显示
+    private func plannedRangeText(_ task: TodoTask) -> String? {
+        guard let start = task.plannedStart, let end = task.plannedEnd else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        let range = "\(formatter.string(from: start))–\(formatter.string(from: end))"
+        if Calendar.current.isDateInToday(start) {
+            return range
+        }
+        formatter.dateFormat = "M/d"
+        return "\(formatter.string(from: start)) \(range)"
     }
 
     // MARK: - 优先级小胶囊

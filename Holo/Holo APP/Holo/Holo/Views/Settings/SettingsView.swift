@@ -70,6 +70,9 @@ struct SettingsView: View {
                     // iCloud 同步
                     iCloudSyncSection
 
+                    // 日历（系统日历接入）
+                    ScheduleSettingsSection()
+
                     // AI 整理设置
                     aiOrganizationSection
 

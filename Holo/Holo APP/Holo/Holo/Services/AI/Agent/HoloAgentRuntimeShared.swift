@@ -302,6 +302,8 @@ extension HoloLocalAgentRuntime {
             HoloThoughtReferenceTool(dataSource: HoloDefaultThoughtReferenceDataSource()),
             HoloProjectTool(dataSource: HoloDefaultProjectDataSource()),
             HoloCrossDomainTool(dataSource: dynamicDataSource),
+            // 系统日历日程（一期只读；未开启/未授权时返回空态语义）
+            HoloScheduleTool(dataSource: HoloDefaultScheduleDataSource()),
             // 数据探查工具：让模型在写 dynamicPlan 前先看到用户实际有哪些数据（习惯名/类型等），
             // 避免盲猜数据归属（如把体重猜到 profile）。
             HoloDiscoverTool()

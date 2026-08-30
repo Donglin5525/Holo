@@ -174,6 +174,19 @@ extension CoreDataStack {
         taskIsAllDay.defaultValue = false
         todoTaskAttributes.append(taskIsAllDay)
 
+        // 计划时间段（时间块）：成对出现、可全部为空；与 dueDate（截止）语义分离
+        let taskPlannedStart = NSAttributeDescription()
+        taskPlannedStart.name = "plannedStart"
+        taskPlannedStart.attributeType = .dateAttributeType
+        taskPlannedStart.isOptional = true
+        todoTaskAttributes.append(taskPlannedStart)
+
+        let taskPlannedEnd = NSAttributeDescription()
+        taskPlannedEnd.name = "plannedEnd"
+        taskPlannedEnd.attributeType = .dateAttributeType
+        taskPlannedEnd.isOptional = true
+        todoTaskAttributes.append(taskPlannedEnd)
+
         let taskIsCompleted = NSAttributeDescription()
         taskIsCompleted.name = "completed"
         taskIsCompleted.attributeType = .booleanAttributeType

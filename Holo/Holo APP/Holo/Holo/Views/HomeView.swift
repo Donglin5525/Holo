@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import EventKit
 
 /// 首页视图
 /// 设计布局：
@@ -439,6 +440,9 @@ struct HomeView: View {
 
             // 日程提醒 - 位于 Header 下方，语音按钮上方
             scheduleReminder
+
+            // 今日日程摘要条（系统日历开启且有日程时出现，点击进今日看板）
+            todayScheduleBar
 
             Spacer()
 
@@ -980,6 +984,19 @@ struct HomeView: View {
             )
             .onTapGesture {
                 handleScheduleTap(state)
+            }
+        }
+    }
+
+    /// 今日日程摘要条（系统日历开启且有日程时出现，点击进今日看板）
+    private var todayScheduleBar: some View {
+        TodayScheduleBar {
+            showDailyKanban = true
+        }
+        .onAppear {
+            let store = ScheduleStore.shared
+            if store.isEnabled, store.authorizationStatus == .fullAccess {
+                Task { await store.reloadActiveWindow() }
             }
         }
     }

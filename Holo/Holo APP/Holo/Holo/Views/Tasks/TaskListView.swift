@@ -222,6 +222,10 @@ struct TaskListView: View {
                             // 已完成 tab：按周分组展示
                             completedTabContent
                         } else {
+                            // 今日视图：系统日程背景块（排任务时看得到今天的时间占用）
+                            if selectedFilter == .today {
+                                ScheduleSectionWithDetail()
+                            }
                             // 其他 tab：时间分组任务流
                             otherTabContent
                         }

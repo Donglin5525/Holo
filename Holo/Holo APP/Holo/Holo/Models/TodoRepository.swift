@@ -261,8 +261,16 @@ class TodoRepository: ObservableObject {
         reminders: Set<TaskReminder>? = nil,
         checkItemTitles: [String]? = nil,
         sourceThought: Thought? = nil,
-        sourceTextSnippet: String? = nil
+        sourceTextSnippet: String? = nil,
+        plannedStart: Date? = nil,
+        plannedEnd: Date? = nil
     ) throws -> TodoTask {
+        if plannedStart != nil || plannedEnd != nil {
+            guard let start = plannedStart, let end = plannedEnd,
+                  TodoTask.isValidPlannedRange(start, end) else {
+                preconditionFailure("计划时间段必须成对、同一天且开始早于结束")
+            }
+        }
         let task = TodoTask.create(
             in: context,
             title: title,
@@ -271,7 +279,9 @@ class TodoRepository: ObservableObject {
             priority: priority,
             dueDate: dueDate,
             isAllDay: isAllDay,
-            reminders: reminders
+            reminders: reminders,
+            plannedStart: plannedStart,
+            plannedEnd: plannedEnd
         )
 
         // 关联来源想法（想法转任务）
@@ -310,6 +320,14 @@ class TodoRepository: ObservableObject {
         case clear
     }
 
+    /// 更新任务时计划时间段的保存意图（与 TaskDueDateUpdate 同构，nil 二义性同理）
+    enum TaskPlannedTimeUpdate {
+        /// 设置计划时间段（起止同一天且开始早于结束）
+        case set(start: Date, end: Date)
+        /// 清空计划时间段
+        case clear
+    }
+
     /// 更新任务
     func updateTask(
         _ task: TodoTask,
@@ -320,7 +338,8 @@ class TodoRepository: ObservableObject {
         dueDate: TaskDueDateUpdate? = nil,
         isAllDay: Bool? = nil,
         list: TodoList? = nil,
-        reminders: Set<TaskReminder>? = nil
+        reminders: Set<TaskReminder>? = nil,
+        plannedTime: TaskPlannedTimeUpdate? = nil
     ) throws {
         if let title = title { task.title = title }
         if let description = description { task.desc = description }
@@ -336,6 +355,19 @@ class TodoRepository: ObservableObject {
         }
         if let isAllDay = isAllDay { task.isAllDay = isAllDay }
         if let list = list { task.list = list }
+        switch plannedTime {
+        case .set(let start, let end):
+            guard TodoTask.isValidPlannedRange(start, end) else {
+                preconditionFailure("计划时间段必须同一天且开始早于结束")
+            }
+            task.plannedStart = start
+            task.plannedEnd = end
+        case .clear:
+            task.plannedStart = nil
+            task.plannedEnd = nil
+        case nil:
+            break
+        }
 
         // 更新提醒
         if let reminders = reminders {

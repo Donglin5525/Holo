@@ -23,6 +23,10 @@ class TodoTask: NSManagedObject {
     @NSManaged var priority: Int16
     @NSManaged var dueDate: Date?
     @NSManaged var isAllDay: Bool
+    /// 计划时间段开始（时间块）：与 plannedEnd 成对出现，两者同时有值或同时为空；不允许跨天
+    @NSManaged var plannedStart: Date?
+    /// 计划时间段结束
+    @NSManaged var plannedEnd: Date?
     @NSManaged var completed: Bool
     @NSManaged var completedAt: Date?
     @NSManaged var archived: Bool

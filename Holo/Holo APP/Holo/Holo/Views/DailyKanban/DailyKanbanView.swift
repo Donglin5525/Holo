@@ -49,6 +49,8 @@ struct DailyKanbanView: View {
                         inputValue: $inputValue,
                         editingHabit: $editingHabit
                     )
+                    // 系统日历日程（只读背景块 + 可勾完成；未开启/无日程时整块不出现）
+                    ScheduleSectionWithDetail()
                     KanbanTaskSection(todoRepo: todoRepo)
                     KanbanMoodSection()
                     KanbanHealthSection(healthRepo: healthRepo)

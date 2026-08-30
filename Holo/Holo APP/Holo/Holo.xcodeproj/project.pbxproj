@@ -113,6 +113,7 @@
 		9682024D9CADB38D9428A7CC /* HoloDomainObservationSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048596AA782988EDBDCD636D /* HoloDomainObservationSecurityTests.swift */; };
 		96927771A8D4AB323E51A193 /* HoloMemoryForgettingStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B002B03577194E1D3B9144 /* HoloMemoryForgettingStandaloneTests.swift */; };
 		9740ACD02B22BDD96B4A30EA /* CoreDataTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 622BFBA66EE5B9248A677503 /* CoreDataTestSupport.swift */; };
+		979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */; };
 		9914970A090861E1CB8AB5FB /* ASRAudioChunkingPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C9CFE5C8FE075C8D88AE72 /* ASRAudioChunkingPlanTests.swift */; };
 		9D3BD315D8AFE5BAA409116B /* StandaloneExecutableBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB9FD65AF0381026EDE40C0 /* StandaloneExecutableBridgeTests.swift */; };
 		A0E17C0866831CC93970FDBB /* HabitFocusSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */; };
@@ -263,6 +264,7 @@
 		1931317A74E1E6333BB7DDC3 /* HoloLocalAgentRuntimeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloLocalAgentRuntimeTests.swift; sourceTree = "<group>"; };
 		19CE3990C07175D90E1F2109 /* HoloToolRegistryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloToolRegistryTests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodoTaskPlannedTimeRangeTests.swift; sourceTree = "<group>"; };
 		1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightResponseParserTests.swift; sourceTree = "<group>"; };
 		1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitIconPresetsTests.swift; sourceTree = "<group>"; };
 		27A8CA5AB2CCAC6491B22D88 /* HoloAgentJSONStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentJSONStoreTests.swift; sourceTree = "<group>"; };
@@ -583,6 +585,7 @@
 			isa = PBXGroup;
 			children = (
 				B4B0167B38070BDB97E68153 /* AI */,
+				1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */,
 				38047768B578BCEBA8BE74EE /* CategoryDefaultIconTests.swift */,
 				6CC172B6E8AE092CE1F54E97 /* DailySenseSnapshotTests.swift */,
 				295E9B51FBEA12EAC64FF25F /* FinanceChartScaleTests.swift */,
@@ -1080,6 +1083,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */,
 				C10066D146B0666E6097FD5B /* HoloAgentJSONStoreTests.swift in Sources */,
 				36CF72A2A4843D68CEAE4246 /* HoloAgentModelCodableTests.swift in Sources */,
 				298078EE449F7555223892DC /* HoloClaimVerifierTests.swift in Sources */,
@@ -1495,6 +1499,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
@@ -1547,6 +1552,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";

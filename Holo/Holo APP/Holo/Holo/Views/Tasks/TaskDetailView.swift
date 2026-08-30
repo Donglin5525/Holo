@@ -60,6 +60,10 @@ struct TaskDetailView: View {
     @State private var dueDate = Date()
     @State private var hasDueDate = false
     @State private var hasTime = false
+    // 计划时间段（时间块）：与截止日期独立的编辑态，两 Date 始终合法成对
+    @State private var hasPlannedRange = false
+    @State private var plannedStart = Date()
+    @State private var plannedEnd = Date()
     @State private var selectedReminders: Set<TaskReminder> = []
     @State private var selectedListId: UUID? = nil
 
@@ -67,6 +71,7 @@ struct TaskDetailView: View {
     @State private var showListPicker = false
     @State private var showGoalPicker = false
     @State private var showTimeSheet = false
+    @State private var showPlannedRangeSheet = false
     @State private var showPostponeSheet = false
     @State private var showTaskVoiceInput = false
     @State private var pendingTaskVoiceTranscriptToInsert: String? = nil
@@ -156,6 +161,11 @@ struct TaskDetailView: View {
         _dueDate = State(initialValue: task.dueDate ?? Date())
         _hasDueDate = State(initialValue: task.dueDate != nil)
         _hasTime = State(initialValue: !task.isAllDay)
+        _hasPlannedRange = State(initialValue: task.hasPlannedTimeRange)
+        if let plannedStart = task.plannedStart {
+            _plannedStart = State(initialValue: plannedStart)
+            _plannedEnd = State(initialValue: task.plannedEnd ?? plannedStart.addingTimeInterval(3600))
+        }
         _selectedReminders = State(initialValue: task.remindersSet)
         _selectedListId = State(initialValue: task.list?.id)
 
@@ -271,6 +281,14 @@ struct TaskDetailView: View {
         }
         .sheet(isPresented: $showTimeSheet) {
             dateTimeSheet
+        }
+        .sheet(isPresented: $showPlannedRangeSheet) {
+            PlannedTimeRangeSheet(
+                hasPlannedRange: $hasPlannedRange,
+                plannedStart: $plannedStart,
+                plannedEnd: $plannedEnd,
+                defaultDay: hasDueDate ? dueDate : nil
+            )
         }
         .sheet(isPresented: $showPostponeSheet) {
             // 面板入参用编辑态而非库值：时间弹窗里改过日期（未保存）也要立即反映
@@ -420,6 +438,7 @@ struct TaskDetailView: View {
                 || !description.isEmpty
                 || hasCustomizedDefaultDueDate
                 || hasRepeat
+                || hasPlannedRange
                 || !pendingCheckItems.isEmpty
         }
     }
@@ -1259,6 +1278,37 @@ struct TaskDetailView: View {
 
             Divider().padding(.horizontal, 12)
 
+            // 计划时间段（时间块）：打算做事的时段，与「时间」（截止）语义分离
+            Button {
+                showPlannedRangeSheet = true
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    rowIcon("clock")
+
+                    Text("时间段")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer(minLength: HoloSpacing.md)
+
+                    Text(plannedRangeSummaryText)
+                        .font(.holoCaption)
+                        .foregroundColor(hasPlannedRange ? .holoPrimary : .holoTextSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .multilineTextAlignment(.trailing)
+
+                    rowChevron
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.horizontal, 12)
+
             // 清单
             Button {
                 showListPicker = true
@@ -1316,6 +1366,20 @@ struct TaskDetailView: View {
             return .holoError
         }
         return Calendar.current.isDateInToday(dueDate) ? .holoPrimary : .holoTextPrimary
+    }
+
+    /// 时间段行右侧摘要：「今天 10:00–12:00」；非今明用「M/d」
+    private var plannedRangeSummaryText: String {
+        guard hasPlannedRange else { return "未设置" }
+        let calendar = Calendar.current
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "M/d"
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let dayText = calendar.isDateInToday(plannedStart)
+            ? "今天"
+            : (calendar.isDateInTomorrow(plannedStart) ? "明天" : dayFormatter.string(from: plannedStart))
+        return "\(dayText) \(timeFormatter.string(from: plannedStart))–\(timeFormatter.string(from: plannedEnd))"
     }
 
     /// 延期入口条件：编辑模式 + 有截止日期 + 未完成 + 非重复（重复任务一期不接延期）。
@@ -1869,7 +1933,8 @@ struct TaskDetailView: View {
                         dueDate: hasDueDate ? .set(dueDate) : .clear,
                         isAllDay: !hasTime,
                         list: selectedList,
-                        reminders: remindersToSave
+                        reminders: remindersToSave,
+                        plannedTime: hasPlannedRange ? .set(start: plannedStart, end: plannedEnd) : .clear
                     )
 
                     try applyRepeatRule(to: task, shouldCreate: shouldCreateRepeat)
@@ -1881,7 +1946,9 @@ struct TaskDetailView: View {
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: !hasTime,
-                        reminders: remindersToSave
+                        reminders: remindersToSave,
+                        plannedStart: hasPlannedRange ? plannedStart : nil,
+                        plannedEnd: hasPlannedRange ? plannedEnd : nil
                     )
 
                     // 记忆本次选择的清单，下次创建任务时默认使用

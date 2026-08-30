@@ -21,7 +21,9 @@ extension TodoTask {
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
-        isDailyRitual: Bool = false
+        isDailyRitual: Bool = false,
+        plannedStart: Date? = nil,
+        plannedEnd: Date? = nil
     ) -> TodoTask {
         let task = TodoTask(context: context)
         task.id = UUID()
@@ -32,6 +34,8 @@ extension TodoTask {
         task.dueDate = dueDate
         task.isAllDay = isAllDay
         task.isDailyRitual = isDailyRitual
+        task.plannedStart = plannedStart
+        task.plannedEnd = plannedEnd
         task.status = TaskStatus.todo.rawValue
         task.completed = false
         task.archived = false
@@ -86,6 +90,17 @@ extension TodoTask {
             dueDate: dueDate,
             isAllDay: isAllDay
         )
+    }
+
+    /// 是否设置了计划时间段（两字段成对出现是数据不变式）
+    var hasPlannedTimeRange: Bool {
+        plannedStart != nil && plannedEnd != nil
+    }
+
+    /// 计划时间段合法性：同一天且开始早于结束（写入点的单点校验依据）
+    static func isValidPlannedRange(_ start: Date, _ end: Date, calendar: Calendar = .current) -> Bool {
+        guard end > start else { return false }
+        return calendar.isDate(start, inSameDayAs: end)
     }
 
     /// 检查清单完成进度
