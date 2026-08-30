@@ -174,8 +174,11 @@ export function createApp(overrides = {}) {
       config.agentStepIdempotencyCleanupIntervalMs,
     );
   }
+  const providers = createProviders(config);
+  const asrProvider = createAsrProvider(config);
   // 云端执行器（M2a）：store 启用且 agent_loop route 可用时创建；
-  // 执行采用进程内 fire-and-forget + 启动扫描 queued 孤儿（单实例，无队列基建）
+  // 执行采用进程内 fire-and-forget + 启动扫描 queued 孤儿（单实例，无队列基建）。
+  // 必须在 providers 声明之后（生产密钥启用时曾因顺序错误创建失败）。
   let cloudAnalysisExecutor = config.cloudAnalysisExecutor ?? null;
   if (cloudAnalysisTaskStore && !cloudAnalysisExecutor && config.routes.agent_loop) {
     try {
@@ -194,8 +197,6 @@ export function createApp(overrides = {}) {
       resumeQueuedCloudAnalysisTasks(cloudAnalysisTaskStore, cloudAnalysisExecutor);
     });
   }
-  const providers = createProviders(config);
-  const asrProvider = createAsrProvider(config);
   const captureAiCallLogs = config.aiCallLogs.enabled;
   const appleIdentityVerifier = config.appleIdentityVerifier ?? createAppleIdentityVerifier({
     clientIds: config.auth.appleClientIds,

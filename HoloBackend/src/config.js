@@ -385,6 +385,7 @@ export function loadConfig(overrides = {}) {
     feedbackStore: overrides.feedbackStore,
     agentTelemetryStore: overrides.agentTelemetryStore,
     cloudAnalysisTaskStore: overrides.cloudAnalysisTaskStore,
+    cloudAnalysisExecutor: overrides.cloudAnalysisExecutor,
     cloudAnalysisEncryptionKey:
       overrides.cloudAnalysisEncryptionKey
         ?? process.env.HOLO_CLOUD_ANALYSIS_ENCRYPTION_KEY

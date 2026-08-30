@@ -22,6 +22,8 @@ function createTestApp(overrides = {}) {
     aiCallLogs: { enabled: false },
     runtimeEnvironment: "test",
     cloudAnalysisEncryptionKey: TEST_KEY,
+    // no-op 执行器：上传后不自动跑（密文销毁是执行器行为，端点测试只验证存取契约）
+    cloudAnalysisExecutor: { run: async () => "queued" },
     ...overrides,
   });
 }
