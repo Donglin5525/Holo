@@ -123,6 +123,19 @@ final class HoloCloudAnalysisClient {
         return try await apiClient.send(request)
     }
 
+    /// 结果领取确认（R1）：结果已落地本地后回执，服务端销毁密文副本
+    func ackResult(taskId: String) async throws {
+        struct AckResponse: Decodable { let ok: Bool }
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/ai/agent/cloud/\(taskId)/ack",
+            method: .post,
+            headers: ["X-Holo-Device-Id": deviceIdProvider()],
+            body: AckBody()
+        )
+        let _: AckResponse = try await apiClient.send(request)
+    }
+
     func cancel(taskId: String) async throws {
         struct CancelResponse: Decodable { let ok: Bool }
         let request = APIRequest(
@@ -138,6 +151,8 @@ final class HoloCloudAnalysisClient {
     private struct StartBody: Encodable {
         let question: String
     }
+
+    private struct AckBody: Encodable {}
 
     /// GET/DELETE 无请求体的占位（APIRequest.body 无默认值）
     private struct EmptyBody: Encodable {}

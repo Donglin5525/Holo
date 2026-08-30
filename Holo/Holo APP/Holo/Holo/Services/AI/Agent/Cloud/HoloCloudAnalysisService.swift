@@ -138,9 +138,12 @@ final class HoloCloudAnalysisService {
                 case "completed":
                     if let result = status.result {
                         finalizeCloudResult(result, sourceMessageID: sourceMessageID)
+                        // R1 确认制：结果已落地本地，回执服务端销毁密文副本。
+                        // ack 失败无妨——结果留存 ≤7 天，属可接受的隐私延迟。
+                        try? await client.ackResult(taskId: taskId)
                         return
                     }
-                    // completed 但无结果（异常态）：回落本地重跑
+                    // completed 但无结果（已领取过的重复轮询或异常态）：回落本地重跑
                     break
                 case "failed", "cancelled", "expired":
                     logger.log("云端任务终态=\(status.status, privacy: .public) 回落本地")
@@ -154,8 +157,18 @@ final class HoloCloudAnalysisService {
                         showsActivityIndicator: true
                     ))
                 }
-            } catch {
+            } catch let error as APIError {
+                // 任务行已被 7 天过期清理（服务端整行删除返回 404）：结果不可再领取，
+                // 无限重试没有意义，立即回落本地重跑
+                if case .httpError(let statusCode, _) = error, statusCode == 404 {
+                    logger.log("云端任务已过期清理，立即回落本地 taskId=\(taskId, privacy: .public)")
+                    activeTasks[taskId] = nil
+                    await fallbackToLocal(question: question, sourceMessageID: sourceMessageID)
+                    return
+                }
                 logger.error("轮询失败（稍后重试）：\(String(describing: error), privacy: .public)")
+            } catch {
+                logger.error("轮询异常（稍后重试）：\(String(describing: error), privacy: .public)")
             }
             try? await Task.sleep(for: .seconds(Self.pollInterval))
         }
