@@ -153,7 +153,9 @@ struct HoloApp: App {
                 let simulatorMemoryValidationActive = false
                 #endif
 
-                if !simulatorMemoryValidationActive {
+                // 宣传图截图模式由 Seeder 全权提供可复现记忆数据；跳过迁移与候选重评估，
+                // 避免旧版本地记忆在启动时覆盖「待确认」演示状态。
+                if !simulatorMemoryValidationActive && !appStoreScreenshotModeActive {
                     await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
                     await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
                 }
@@ -206,6 +208,8 @@ struct HoloApp: App {
                         HoloBackgroundContinuationManager.shared.appDidLaunch()
                         // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
                         HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
+                        // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
+                        HoloCloudAnalysisService.shared.recoverIfNeeded()
                     }
                     // 遥测增量上报：上次会话的锁屏/租约/终态事件落服务端，出障可查
                     Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }

@@ -86,7 +86,10 @@ final class HoloCloudAnalysisClient {
         do {
             return try await apiClient.send(request)
         } catch let error as APIError {
-            if case .serverError = error { throw CloudAnalysisError.serviceDisabled }
+            // 503 SERVICE_DISABLED：服务未启用（密钥未配置），与瞬时故障区分开
+            if case .backendError(let statusCode, _, _, _) = error, statusCode == 503 {
+                throw CloudAnalysisError.serviceDisabled
+            }
             throw error
         }
     }

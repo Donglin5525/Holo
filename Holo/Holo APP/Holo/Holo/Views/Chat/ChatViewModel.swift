@@ -755,6 +755,7 @@ final class ChatViewModel: ObservableObject {
                                 sourceMessageID: aiMessageId
                             )
                             if cloudHandled {
+                                progressPoller.cancel()
                                 self.concludeStreamingSession(aiMessageId: aiMessageId)
                                 return
                             }

@@ -24,14 +24,20 @@ final class HoloCloudAnalysisService {
     private let repository: ChatMessageRepository
 
     /// 进行中的云端任务：taskId → (sourceMessageID, question)。回前台恢复轮询用。
-    private var activeTasks: [String: (messageID: UUID, question: String)] = [:]
+    /// 同步持久化（杀 App 后冷启动恢复领取——云端结果等 7 天，但没有恢复入口就等于丢失）。
+    private var activeTasks: [String: (messageID: UUID, question: String)] = [:] {
+        didSet { persistActiveTasks() }
+    }
     private var pollingTasks: [String: Task<Void, Never>] = [:]
 
     /// 首启确认标志（隐私文案 sheet 只出现一次）
     static let consentDefaultsKey = "holo.cloudAnalysis.privacyConsented"
+    static let activeTasksDefaultsKey = "holo.cloudAnalysis.activeTasks"
 
     private static let pollInterval: TimeInterval = 5
-    private static let pollTimeout: TimeInterval = 5 * 60
+    // 云端复合分析实测可达 6-10 分钟（多轮工具+推理）；等待云端不该比本地紧，
+    // 且等待期间用户可自由锁屏/离开（resumePolling 接续）。超时兜底取 15 分钟。
+    private static let pollTimeout: TimeInterval = 15 * 60
 
     init(
         client: HoloCloudAnalysisClient? = nil,
@@ -52,6 +58,34 @@ final class HoloCloudAnalysisService {
 
     static func markPrivacyConsented() {
         UserDefaults.standard.set(true, forKey: consentDefaultsKey)
+    }
+
+    private func persistActiveTasks() {
+        let payload = activeTasks.mapValues { context in
+            ["messageID": context.messageID.uuidString, "question": context.question]
+        }
+        UserDefaults.standard.set(payload, forKey: Self.activeTasksDefaultsKey)
+    }
+
+    private func restoreActiveTasks() {
+        guard activeTasks.isEmpty,
+              let payload = UserDefaults.standard.dictionary(forKey: Self.activeTasksDefaultsKey)
+        else { return }
+        var restored: [String: (messageID: UUID, question: String)] = [:]
+        for (taskId, value) in payload {
+            guard let dict = value as? [String: String],
+                  let messageID = UUID(uuidString: dict["messageID"] ?? ""),
+                  let question = dict["question"]
+            else { continue }
+            restored[taskId] = (messageID, question)
+        }
+        activeTasks = restored
+    }
+
+    /// 冷启动恢复：杀 App 后未领取的云端任务重新轮询（结果在云端密文暂存，≤7 天）
+    func recoverIfNeeded() {
+        restoreActiveTasks()
+        resumePolling()
     }
 
     /// 云端轨道入口（ChatViewModel 在本地 runAnalysis 之前调用）。
