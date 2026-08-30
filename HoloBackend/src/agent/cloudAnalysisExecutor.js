@@ -148,6 +148,11 @@ export function createCloudAnalysisExecutor({
         }
         messages.push({ role: "assistant", content: validation.content });
 
+        const requestedTools = (Array.isArray(output.toolRequests) ? output.toolRequests : [])
+          .map((r) => `${r.tool}${r.query ? `:${r.query}` : ""}${(r.dynamicPlan ?? r.parameters?.dynamicPlan)?.source ? `(${(r.dynamicPlan ?? r.parameters?.dynamicPlan).source})` : ""}`)
+          .join(",");
+        log(`轮次 ${round}/${maxRounds} taskId=${taskId} status=${output.status} claims=${(output.claims ?? []).length}${requestedTools ? ` tools=${requestedTools}` : ""}`);
+
         if (output.status === "final_claims") {
           const result = {
             title: output.title ?? null,
@@ -164,6 +169,10 @@ export function createCloudAnalysisExecutor({
         const toolRequests = Array.isArray(output.toolRequests) ? output.toolRequests : [];
         if (toolRequests.length > 0) {
           const toolResults = executeToolRequests(toolRequests, snapshot);
+          const failures = toolResults.filter((r) => !r.ok).map((r) => `${r.tool}:${r.error}`);
+          if (failures.length > 0) {
+            log(`工具失败 taskId=${taskId} round=${round}: ${failures.join(" | ").slice(0, 400)}`);
+          }
           messages.push({
             role: "user",
             content: `toolResults: ${JSON.stringify(toolResults)}`,
