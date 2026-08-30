@@ -97,6 +97,9 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
   const listExpiredStmt = db.prepare(`
     SELECT id FROM agent_cloud_analysis_tasks WHERE expires_at_ms <= ? LIMIT ?
   `);
+  const listQueuedStmt = db.prepare(`
+    SELECT id FROM agent_cloud_analysis_tasks WHERE status = 'queued' LIMIT ?
+  `);
 
   function decryptField(envelope, taskId) {
     if (!envelope) return null;
@@ -139,12 +142,15 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
     },
 
     /** 仅设备所有权校验后的受信读取：解密问题/结果 */
-    getDecrypted(id, fields = ["question", "result", "failureReason"]) {
+    getDecrypted(id, fields = ["question", "snapshot", "result", "failureReason"]) {
       const row = getStmt.get(id);
       if (!row) return null;
       const out = { ...row };
       out.question = fields.includes("question") && row.question_ciphertext
         ? decryptField(row.question_ciphertext, id)
+        : null;
+      out.snapshot = fields.includes("snapshot") && row.snapshot_ciphertext
+        ? decryptField(row.snapshot_ciphertext, id)
         : null;
       out.result = fields.includes("result") && row.result_ciphertext
         ? decryptField(row.result_ciphertext, id)
@@ -196,6 +202,11 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
     /** 结果回传确认：销毁结果密文，任务行转为已领取的历史记录（仅状态与时间戳） */
     consumeResult(id) {
       destroyResultStmt.run(id);
+    },
+
+    /** 启动恢复用：queued 态任务 id 列表（进程重启后重新执行） */
+    listQueued(limit = 50) {
+      return listQueuedStmt.all(limit).map((row) => row.id);
     },
 
     purgeExpired(now = Date.now(), limit = 200) {

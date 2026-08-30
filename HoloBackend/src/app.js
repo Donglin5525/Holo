@@ -37,6 +37,7 @@ import { createContentReportStore } from "./reports/contentReportStore.js";
 import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
 import { createCloudAnalysisTaskStore } from "./agent/cloudAnalysisTaskStore.js";
+import { createCloudAnalysisExecutor } from "./agent/cloudAnalysisExecutor.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
@@ -172,6 +173,26 @@ export function createApp(overrides = {}) {
       { purgeExpired: (now) => cloudAnalysisTaskStore.purgeExpired(now) },
       config.agentStepIdempotencyCleanupIntervalMs,
     );
+  }
+  // 云端执行器（M2a）：store 启用且 agent_loop route 可用时创建；
+  // 执行采用进程内 fire-and-forget + 启动扫描 queued 孤儿（单实例，无队列基建）
+  let cloudAnalysisExecutor = config.cloudAnalysisExecutor ?? null;
+  if (cloudAnalysisTaskStore && !cloudAnalysisExecutor && config.routes.agent_loop) {
+    try {
+      cloudAnalysisExecutor = createCloudAnalysisExecutor({
+        taskStore: cloudAnalysisTaskStore,
+        providers,
+        route: config.routes.agent_loop,
+      });
+    } catch (error) {
+      console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
+    }
+  }
+  if (cloudAnalysisExecutor) {
+    // 启动扫描：进程重启后 queued 孤儿重新执行（任务级重跑即幂等）
+    setImmediate(() => {
+      resumeQueuedCloudAnalysisTasks(cloudAnalysisTaskStore, cloudAnalysisExecutor);
+    });
   }
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
@@ -1060,6 +1081,10 @@ export function createApp(overrides = {}) {
       if (!attached) {
         throw new GatewayError("INVALID_STATE", "Snapshot already received", 409);
       }
+      // 快照齐备即触发云端执行（fire-and-forget：状态轮询与即焚语义都在 store 内闭环）
+      if (cloudAnalysisExecutor) {
+        cloudAnalysisExecutor.run(task.id).catch(() => {});
+      }
       return context.json({ ok: true, status: "queued" });
     } catch (error) {
       return createErrorResponse(context, error);
@@ -1802,6 +1827,22 @@ function recordAgentStepFailure(store, identity, error) {
       "[holo-backend] agent step 幂等状态写入失败:",
       storeError?.message ?? storeError,
     );
+  }
+}
+
+/** 启动期 queued 孤儿扫描：进程重启后未执行的云端分析任务重新拉起 */
+function resumeQueuedCloudAnalysisTasks(store, executor, limit = 50) {
+  try {
+    const db = store.listQueued?.(limit);
+    if (!db) return;
+    for (const taskId of db) {
+      executor.run(taskId).catch(() => {});
+    }
+    if (db.length > 0) {
+      console.log(`[holo-backend] 云端分析启动恢复 ${db.length} 个 queued 任务`);
+    }
+  } catch (error) {
+    console.error("[holo-backend] 云端分析启动恢复失败:", error?.message ?? error);
   }
 }
 
