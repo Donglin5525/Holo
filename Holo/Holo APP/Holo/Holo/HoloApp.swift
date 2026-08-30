@@ -207,6 +207,8 @@ struct HoloApp: App {
                         // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
                         HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
                     }
+                    // 遥测增量上报：上次会话的锁屏/租约/终态事件落服务端，出障可查
+                    Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
                 }
             }
             // §7.2：设备解锁（protected data 可用）后由 Scheduler 恢复等待解锁的 Agent 任务
@@ -254,6 +256,8 @@ struct HoloApp: App {
                     }
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
                         HoloBackgroundContinuationManager.shared.appWillEnterForeground()
+                        // 前台化遥测增量上报（含恢复哨兵刚标记的停滞事件）
+                        Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
                     }
                 default:
                     break

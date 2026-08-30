@@ -18,6 +18,7 @@ nonisolated enum HoloAgentEventName: String, Codable, CaseIterable, Sendable {
     case waitingForCondition = "agent_waiting_for_condition"
     case executionExpired = "agent_execution_expired"
     case resumeStarted = "agent_resume_started"
+    case resumeStalled = "agent_resume_stalled"
     case stepIdempotencyHit = "agent_step_idempotency_hit"
     case resultReconciled = "agent_result_reconciled"
     case jobCompleted = "agent_job_completed"

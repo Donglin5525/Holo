@@ -30,6 +30,16 @@ enum HoloAgentChatStatusPresenter {
         context: HoloAgentProgressContext = HoloAgentProgressContext(extractedData: nil),
         now: Date = Date()
     ) -> HoloAgentChatStatus {
+        // 恢复哨兵命中（waitReason=resumeStalled）：恢复链触发后任务没真正动起来，
+        // 任何等待态都按「恢复没成功」口径渲染——如实告知并提供重试，不假转圈。
+        if job.waitReason == .resumeStalled {
+            switch job.state {
+            case .waitingForForeground, .waitingForCondition, .paused, .queued, .retrying:
+                return resumeStalledStatus(for: job)
+            default:
+                break
+            }
+        }
         switch job.state {
         case .queued, .running:
             let title = context.isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…"
@@ -138,6 +148,17 @@ enum HoloAgentChatStatusPresenter {
         )
     }
 
+    /// 恢复哨兵命中文案：如实说「没能自动接着跑」，复用暂停卡的「立即继续」按钮链路
+    /// （showsActivityIndicator=false 时按钮渲染）。进度已保存是事实，必须传达。
+    static func resumeStalledStatus(for job: HoloAgentJob) -> HoloAgentChatStatus {
+        HoloAgentChatStatus(
+            title: "恢复没成功 · \(progressText(for: job))进度已保存",
+            detail: "上次暂停的分析没能自动接着跑。点「立即继续」从暂停位置重试，进度不会丢，无需重新提问。",
+            keepsMessageStreaming: true,
+            showsActivityIndicator: false
+        )
+    }
+
     /// waitingForCondition 按 waitReason 给出可解释文案（§7.2：不显示失败）。
     /// 网络等待叠加时长轮换：让「自动重连」成为可感知的活信号，而不是静止的一句话。
     private static func waitingForConditionStatus(for job: HoloAgentJob, now: Date = Date()) -> HoloAgentChatStatus {
@@ -196,7 +217,8 @@ enum HoloAgentChatStatusPresenter {
             title.hasPrefix("系统已暂停这次分析") ||
             title.hasPrefix("等待设备解锁") ||
             title.hasPrefix("等待网络恢复") ||
-            title.hasPrefix("等待条件满足")
+            title.hasPrefix("等待条件满足") ||
+            title.hasPrefix("恢复没成功")
         return HoloAgentChatStatus(
             title: title,
             detail: detail.isEmpty ? "正在处理你的本地数据。" : detail,

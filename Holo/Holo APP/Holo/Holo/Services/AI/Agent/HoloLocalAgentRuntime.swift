@@ -945,6 +945,24 @@ actor HoloLocalAgentRuntime {
         try await jobStore.upsert(job)
     }
 
+    /// 恢复哨兵命中：等待态 job 在恢复链触发后迟迟没有动（state 与 updatedAt 均未变化
+    /// 且无活跃执行）。只改写 waitReason 为 resumeStalled——消息层据此从「会自动继续」
+    /// 切换为「恢复没成功，点立即继续」的如实文案，不再假转圈（2026-08-30 锁屏事故：
+    /// 解锁后 10+ 分钟无请求，界面却显示自动进行中）。下一次恢复成功时写路径自然覆盖。
+    @discardableResult
+    func markResumeStalled(jobID: String, now: Date = Date()) async throws -> HoloAgentJob? {
+        guard var job = try await loadJob(jobID) else { return nil }
+        guard !Self.terminalStates.contains(job.state) else { return job }
+        guard job.state == .waitingForForeground
+            || job.state == .waitingForCondition
+            || job.state == .paused else { return job }
+        guard job.waitReason != .resumeStalled else { return job }
+        job.waitReason = .resumeStalled
+        job.updatedAt = now
+        try await jobStore.upsert(job)
+        return job
+    }
+
     /// 把单个非终态任务标记为等待（Scheduler.pause 用；§6.4 只做状态标记 + 取消信号，
     /// 不承担完整 checkpoint 保存——正常推进中已持续落盘）。
     /// §5.2：结算 active runtime 段，并按原因写 waitReason。

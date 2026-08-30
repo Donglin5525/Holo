@@ -187,7 +187,7 @@ final class HoloBackgroundContinuationManager {
     /// 恢复未完成 job 并同步 Chat 状态。§6.1：恢复统一走 Scheduler 唯一执行权（resumeEligibleJobs）。
     private func resumeAndSyncRecoveredJobs(trigger: HoloAgentResumeTrigger, reconcileFirst: Bool = false) {
         resumeTask?.cancel()
-        resumeTask = Task { [runtime, scheduler, reconciler, eventRecorder] in
+        resumeTask = Task { [weak self, runtime, scheduler, reconciler, eventRecorder] in
             if reconcileFirst {
                 do {
                     _ = try await scheduler.reconcileContinuedProcessingRequests()
@@ -228,6 +228,53 @@ final class HoloBackgroundContinuationManager {
             } catch {
                 NSLog("[Agent] 终态 job 清理失败: \(String(describing: error))")
             }
+            // 恢复哨兵（2026-08-30 锁屏事故）：恢复链触发 ≠ 任务真的动起来——
+            // 事故里解锁后 10+ 分钟没有任何请求，界面却显示「自动进行中」。
+            // 触发后快照等待态 job，10 秒复查：state 与 updatedAt 均未变化且无活跃执行
+            // = 恢复未兑现，把 waitReason 落成 resumeStalled，消息层切换为
+            // 「恢复没成功 · 点立即继续」的如实文案。哨兵跑在本 Task 内，
+            // 下一次恢复触发会 cancel 重建，不会堆叠多个哨兵。
+            await self?.runResumeStallSentinel()
+        }
+    }
+
+    /// 哨兵判定窗口：恢复链触发到任务产生第一个新落盘事件（state 变化/时间戳更新）的
+    /// 正常上界。真机观察首步请求 2~5 秒内必达；10 秒未动即按停滞如实披露。
+    private static let resumeStallSentinelDelaySeconds: UInt64 = 10
+
+    private func runResumeStallSentinel() async {
+        let waitingStates: Set<HoloAgentJobState> = [.waitingForForeground, .waitingForCondition, .paused]
+        func snapshotWaitingJobs() async -> [HoloAgentJob] {
+            let jobs = (try? await runtime.loadChatLinkedJobs()) ?? []
+            return jobs.filter { waitingStates.contains($0.state) }
+        }
+        let before = await snapshotWaitingJobs()
+        guard !before.isEmpty else { return }
+        do {
+            try await Task.sleep(nanoseconds: Self.resumeStallSentinelDelaySeconds * 1_000_000_000)
+        } catch {
+            return  // 被下一次恢复取消：说明又有新触发，交新哨兵接管
+        }
+        let after = await snapshotWaitingJobs()
+        let afterByID = Dictionary(uniqueKeysWithValues: after.map { ($0.id, $0) })
+        var didMarkStalled = false
+        for stalled in before {
+            guard let current = afterByID[stalled.id],
+                  current.state == stalled.state,
+                  current.updatedAt == stalled.updatedAt,
+                  !(await scheduler.hasActiveExecution(jobID: stalled.id))
+            else { continue }
+            _ = try? await runtime.markResumeStalled(jobID: stalled.id)
+            await eventRecorder.record(HoloAgentTelemetryEvent(
+                name: .resumeStalled,
+                job: stalled,
+                errorCode: "RESUME_STALLED"
+            ))
+            didMarkStalled = true
+            NSLog("[Agent] 恢复哨兵：job 恢复未兑现，已切换如实文案 jobID=\(stalled.id)")
+        }
+        if didMarkStalled {
+            _ = await HoloAgentAnalysisService().syncRecoverableChatMessages()
         }
     }
 }

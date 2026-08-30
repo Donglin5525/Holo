@@ -90,4 +90,8 @@ enum HoloAgentWaitReason: String, Codable, CaseIterable, Sendable {
     case userPaused
     /// 输入已变化，被新任务取代（配合 superseded 终态）
     case inputChanged
+    /// 恢复哨兵命中（2026-08-30 锁屏事故）：恢复链触发后任务迟迟没有真正动起来。
+    /// state 仍是等待态，只是把「会自动继续」的口径改为「恢复没成功，点立即继续」。
+    /// 下一次恢复成功时写路径会自然覆盖本值；等待态恢复不按 waitReason 过滤，不挡重试。
+    case resumeStalled
 }

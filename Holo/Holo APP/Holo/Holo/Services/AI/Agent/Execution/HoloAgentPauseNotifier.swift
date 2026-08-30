@@ -42,6 +42,8 @@ nonisolated enum HoloAgentPauseNotifier {
             content.body = "\(progress)解锁后会自动继续分析。"
         case .userPaused, .inputChanged:
             content.body = "\(progress)回到 Holo 后可继续这次分析。"
+        case .resumeStalled:
+            content.body = "上次暂停的分析没能自动接着跑。\(progress)回到 Holo 点「立即继续」即可从暂停位置重试。"
         }
         content.sound = .default
         content.interruptionLevel = .active
