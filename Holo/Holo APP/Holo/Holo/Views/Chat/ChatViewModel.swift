@@ -23,6 +23,9 @@ final class ChatViewModel: ObservableObject {
         }
     }
     @Published var isStreaming: Bool = false
+
+    /// 云端分析首次启用前的隐私说明 sheet（只出现一次，确认后下次发起生效）
+    @Published var showCloudPrivacySheet = false
     /// 是否存在仍在等待/执行中的 AI 消息（消息级 streaming）。
     /// Agent 深度分析等待网络/系统资源期间，全局输入锁（isStreaming）已解锁、
     /// 但停止键必须保持可见（cancelStreaming 取消等待任务并定稿消息）。
@@ -737,6 +740,24 @@ final class ChatViewModel: ObservableObject {
                             try? await Task.sleep(for: .seconds(2))
                             guard let self else { return }
                             await self.analysisService.refreshLiveProgress(sourceMessageID: aiMessageId)
+                        }
+                    }
+                    // 云端异步轨道（二期 M2b）：flag 开启且已确认隐私文案时优先上云，
+                    // 失败自动回落本地（attempt 内闭环）；周计划快照仍走本地轨道。
+                    // 首次（未确认）只弹说明 sheet，本次仍走本地，下次生效。
+                    if !isWeeklyPlanning, continuation == nil,
+                       HoloAIFeatureFlags.cloudDeepAnalysisEnabled {
+                        if !HoloCloudAnalysisService.privacyConsented {
+                            self.showCloudPrivacySheet = true
+                        } else {
+                            let cloudHandled = await HoloCloudAnalysisService.shared.attempt(
+                                question: text,
+                                sourceMessageID: aiMessageId
+                            )
+                            if cloudHandled {
+                                self.concludeStreamingSession(aiMessageId: aiMessageId)
+                                return
+                            }
                         }
                     }
                     let rendered = await self.analysisService.runAnalysis(

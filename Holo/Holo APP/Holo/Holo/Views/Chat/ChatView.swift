@@ -299,6 +299,14 @@ struct ChatView: View {
                 Task { await viewModel.startPeriodReplay(periodType: periodType, start: start, end: end) }
             }
         }
+        // 云端分析首次启用前的隐私说明（只出现一次；本次仍本地分析，下次生效）
+        .sheet(isPresented: $viewModel.showCloudPrivacySheet) {
+            CloudAnalysisPrivacySheet {
+                viewModel.showCloudPrivacySheet = false
+                HoloCloudAnalysisService.markPrivacyConsented()
+            }
+            .presentationDetents([.medium])
+        }
         // 报告详情：从 activeSheet 枚举迁出为独立全屏层（设计文档 §4.3）。
         // 迁移原因：详情从「下拉即关的浮层」升级为正式全屏页；独立 item 绑定 +
         // onDismiss 复位，不与既有 5 sheet + 3 cover 的状态机互相干扰。

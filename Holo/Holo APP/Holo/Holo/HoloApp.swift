@@ -258,6 +258,8 @@ struct HoloApp: App {
                         HoloBackgroundContinuationManager.shared.appWillEnterForeground()
                         // 前台化遥测增量上报（含恢复哨兵刚标记的停滞事件）
                         Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
+                        // 云端分析：锁屏期间轮询暂停、云端持续执行，回前台恢复领取
+                        HoloCloudAnalysisService.shared.resumePolling()
                     }
                 default:
                     break
