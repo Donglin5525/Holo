@@ -183,6 +183,8 @@ struct HoloApp: App {
                 repository.backfillTagAssignmentsIfNeeded()
                 repository.normalizeExistingTags()
 
+                // 断网挂起 / 网络恢复续做（飞行模式写笔记等场景）
+                ThoughtOrganizationQueue.shared.startObservingNetwork()
                 ThoughtOrganizationQueue.shared.rebuildFromDatabase()
                 Task {
                     await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
@@ -242,6 +244,8 @@ struct HoloApp: App {
                     }
                 case .active:
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
+                    // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
+                    ThoughtOrganizationQueue.shared.appWillEnterForeground()
                     Task {
                         // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
                         await DailyBriefScheduler.shared.handleAppActivity()

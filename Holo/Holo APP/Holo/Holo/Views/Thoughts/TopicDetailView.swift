@@ -262,7 +262,10 @@ struct TopicDetailView: View {
                             onTagTap: { tagName in
                                 // 标签点选映射到本页关键词筛选
                                 selectedKeywordKey = ThoughtTagNormalizer.key(tagName)
-                            }
+                            },
+                            onRetryOrganize: thought.organizedStatus == "failed" ? {
+                                ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thought.id)
+                            } : nil
                         )
                     }
                 }

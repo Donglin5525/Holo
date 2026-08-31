@@ -50,6 +50,18 @@ enum APIError: LocalizedError {
         }
     }
 
+    /// 连接层失败（断网/请求超时）：调用内容根本没到达后端。
+    /// 与 isRetryable 的区别：这类错误重试耗尽后应回退待重做状态等网络恢复，
+    /// 而不是进失败终态——飞行模式写笔记、地铁弱网都是这个场景。
+    var isConnectivityLoss: Bool {
+        switch self {
+        case .networkUnavailable, .timeout:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// 是否可重试
     var isRetryable: Bool {
         switch self {

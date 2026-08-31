@@ -926,6 +926,9 @@ struct ThoughtListView: View {
                                 onArchive: {
                                     archiveThought(thought)
                                 },
+                                onRetryOrganize: thought.organizedStatus == "failed" ? {
+                                    ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thought.id)
+                                } : nil,
                                 onDelete: {
                                     deleteThought(thought)
                                 },

@@ -52,6 +52,13 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
             : nil
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         context.coordinator.lastSizeCategory = sizeCategory
+        // 同步渲染输入缓存：首次 updateUIView 时若输入未变可整体跳过
+        context.coordinator.syncRenderInputs(
+            nodes: nodes,
+            deletedReferenceIds: deletedReferenceIds,
+            lineLimit: lineLimit,
+            allowsTokenInteraction: allowsTokenInteraction
+        )
 
         if allowsTokenInteraction {
             let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -64,20 +71,37 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
-        let rendered = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
+        // 便宜的状态同步每次都做；贵的重建（attributedText 全量构建、
+        // accessibility 文本/动作遍历）仅在渲染输入变化时执行。
+        // 卡片上任意 @State 变化（如点「…」弹菜单）都会触发 updateUIView，
+        // 长文的重建成本即列表卡顿主因。
         textView.textContainer.maximumNumberOfLines = lineLimit ?? 0
         textView.isUserInteractionEnabled = allowsTokenInteraction
+        context.coordinator.onTokenTap = onTokenTap
+
         let sizeCategoryChanged = context.coordinator.lastSizeCategory != sizeCategory
-        if sizeCategoryChanged || !textView.attributedText.isEqual(to: rendered) {
-            textView.attributedText = rendered
-        }
+        let inputsChanged = sizeCategoryChanged || !context.coordinator.hasSameRenderInputs(
+            nodes: nodes,
+            deletedReferenceIds: deletedReferenceIds,
+            lineLimit: lineLimit,
+            allowsTokenInteraction: allowsTokenInteraction
+        )
+        guard inputsChanged else { return }
+
+        let rendered = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
+        textView.attributedText = rendered
         textView.accessibilityLabel = "想法内容"
         textView.accessibilityValue = MarkdownTextView.accessibilityText(from: nodes)
         textView.accessibilityCustomActions = allowsTokenInteraction
             ? context.coordinator.accessibilityActions(for: nodes)
             : nil
         context.coordinator.lastSizeCategory = sizeCategory
-        context.coordinator.onTokenTap = onTokenTap
+        context.coordinator.syncRenderInputs(
+            nodes: nodes,
+            deletedReferenceIds: deletedReferenceIds,
+            lineLimit: lineLimit,
+            allowsTokenInteraction: allowsTokenInteraction
+        )
     }
 
     func makeCoordinator() -> Coordinator {
@@ -109,9 +133,38 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onTokenTap: (HoloContentNode) -> Void
         var lastSizeCategory: ContentSizeCategory?
+        // 渲染输入缓存：nodes 等输入不变时跳过 updateUIView 的全量重建
+        private var lastRenderedNodes: [HoloContentNode] = []
+        private var lastDeletedReferenceIds: Set<UUID> = []
+        private var lastLineLimit: Int?
+        private var lastAllowsTokenInteraction: Bool?
 
         init(onTokenTap: @escaping (HoloContentNode) -> Void) {
             self.onTokenTap = onTokenTap
+        }
+
+        func hasSameRenderInputs(
+            nodes: [HoloContentNode],
+            deletedReferenceIds: Set<UUID>,
+            lineLimit: Int?,
+            allowsTokenInteraction: Bool
+        ) -> Bool {
+            lastRenderedNodes == nodes
+                && lastDeletedReferenceIds == deletedReferenceIds
+                && lastLineLimit == lineLimit
+                && lastAllowsTokenInteraction == allowsTokenInteraction
+        }
+
+        func syncRenderInputs(
+            nodes: [HoloContentNode],
+            deletedReferenceIds: Set<UUID>,
+            lineLimit: Int?,
+            allowsTokenInteraction: Bool
+        ) {
+            lastRenderedNodes = nodes
+            lastDeletedReferenceIds = deletedReferenceIds
+            lastLineLimit = lineLimit
+            lastAllowsTokenInteraction = allowsTokenInteraction
         }
 
         /// 为每个行内关系提供 VoiceOver 可执行动作；正文仍保持单一连续朗读顺序。

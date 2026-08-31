@@ -3,11 +3,12 @@
 //  Holo
 //
 //  想法 AI 整理串行队列
-//  最多 1 个并发请求，支持重试、超时恢复、前后台切换、批量进度、配额耗尽暂停
+//  最多 1 个并发请求，支持重试、超时恢复、前后台切换、批量进度、配额耗尽暂停、断网挂起
 //
 
 import Foundation
 import Combine
+import Network
 import os.log
 
 @MainActor
@@ -22,6 +23,12 @@ final class ThoughtOrganizationQueue: ObservableObject {
     private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtOrgQueue")
     let service: ThoughtOrganizationService
 
+    /// 状态写入口（默认主上下文；测试注入内存仓储）
+    private let repository: ThoughtRepository
+    /// 单条整理执行口（默认转发 service；测试注入桩观察调用）。
+    /// @MainActor：真实与桩实现都写 viewContext，必须在主线程执行。
+    private let organize: @MainActor (UUID) async throws -> Void
+
     /// 内存中的待处理队列（thoughtId + 重试次数）
     private var pendingItems: [QueueItem] = []
     /// 当前是否正在处理
@@ -29,12 +36,21 @@ final class ThoughtOrganizationQueue: ObservableObject {
     /// 当前处理的 item
     private var currentItem: QueueItem?
 
-    /// 最大重试次数
-    private let maxRetryCount = 3
-    /// 重试间隔（秒）：指数退避 5s → 30s → 120s
-    private let retryIntervals: [TimeInterval] = [5, 30, 120]
+    /// 最大重试次数（测试可缩短）
+    private let maxRetryCount: Int
+    /// 重试间隔（秒）：指数退避 5s → 30s → 120s（测试可缩短）
+    private let retryIntervals: [TimeInterval]
     /// 条目间隔（秒）：4s = 15/分钟，留 25% 余量避开后端 20/分钟限额
-    private let itemInterval: TimeInterval = 4
+    private let itemInterval: TimeInterval
+
+    // MARK: - 网络状态（断网挂起 / 恢复续做）
+
+    /// 当前断网：processNext 短路不发起请求，条目留在队列；
+    /// 网络恢复沿自动重拾 pending 续做。App 重启后由启动 rebuild 兜底。
+    @Published private(set) var isOffline: Bool = false
+    private let networkMonitor = NWPathMonitor()
+    private let networkMonitorQueue = DispatchQueue(label: "com.holo.app.thought-org.network")
+    private var isObservingNetwork = false
 
     // MARK: - 批量进度（供 UI 观察）
 
@@ -48,8 +64,20 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
     // MARK: - Init
 
-    init(service: ThoughtOrganizationService) {
+    init(
+        service: ThoughtOrganizationService,
+        repository: ThoughtRepository = ThoughtRepository(),
+        retryIntervals: [TimeInterval] = [5, 30, 120],
+        maxRetryCount: Int = 3,
+        itemInterval: TimeInterval = 4,
+        organize: (@MainActor (UUID) async throws -> Void)? = nil
+    ) {
         self.service = service
+        self.repository = repository
+        self.retryIntervals = retryIntervals
+        self.maxRetryCount = maxRetryCount
+        self.itemInterval = itemInterval
+        self.organize = organize ?? { try await service.organizeThought(thoughtId: $0) }
     }
 
     // MARK: - Queue Operations
@@ -117,8 +145,6 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
     /// App 启动时重建队列（从 Core Data 恢复 pending 想法）
     func rebuildFromDatabase() {
-        let repository = ThoughtRepository()
-
         // 先恢复 processing 超时
         repository.recoverStaleProcessingThoughts()
 
@@ -128,7 +154,7 @@ final class ThoughtOrganizationQueue: ObservableObject {
             return
         }
 
-        // 读取 pending 想法（批量整理被配额暂停后留下的，次日续做）
+        // 读取 pending 想法（批量整理被配额暂停 / 断网回退留下的，恢复后续做）
         do {
             let pendingIds = try repository.fetchPendingThoughtIds()
             for id in pendingIds {
@@ -147,6 +173,41 @@ final class ThoughtOrganizationQueue: ObservableObject {
         processNext()
     }
 
+    // MARK: - 网络挂起 / 恢复
+
+    /// 启动网络监听（App 启动时调用一次，幂等）
+    func startObservingNetwork() {
+        guard !isObservingNetwork else { return }
+        isObservingNetwork = true
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                self?.handleNetworkPathChange(satisfied: satisfied)
+            }
+        }
+        networkMonitor.start(queue: networkMonitorQueue)
+    }
+
+    /// 网络状态沿处理：断网挂起队列；断→通沿重拾 pending 续做。
+    /// internal 供单测直接驱动（不依赖真实 NWPathMonitor 时序）。
+    func handleNetworkPathChange(satisfied: Bool) {
+        let wasOffline = isOffline
+        isOffline = !satisfied
+
+        if satisfied && wasOffline {
+            logger.info("网络恢复，重拾 pending 想法续做")
+            rebuildFromDatabase()
+        }
+    }
+
+    /// App 回前台：网络监听回调可能滞后于前台切换，直接读 currentPath 修正并续做。
+    /// 覆盖「飞行落地后杀 App 重开」「后台驻留时断网回退」两种时序。
+    func appWillEnterForeground() {
+        startObservingNetwork()
+        guard networkMonitor.currentPath.status == .satisfied else { return }
+        rebuildFromDatabase()
+    }
+
     // MARK: - Processing
 
     /// 处理队列中的下一个 item
@@ -155,6 +216,9 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
         // 配额耗尽暂停：不再取下一条（靠 App 重启 rebuild 续做）
         guard !dailyLimitHit else { return }
+
+        // 断网挂起：不发起注定失败的请求，条目留在队列等网络恢复沿续做
+        guard !isOffline else { return }
 
         guard let item = pendingItems.first else {
             // 队列清空：批量模式若已完成全部，进度会在 onItemDone 里清空
@@ -177,7 +241,7 @@ final class ThoughtOrganizationQueue: ObservableObject {
             guard let self = self else { return }
 
             do {
-                try await self.service.organizeThought(thoughtId: thoughtId)
+                try await self.organize(thoughtId)
                 self.logger.info("处理成功：\(thoughtId)")
                 self.onItemDone(isTerminal: true)
             } catch let error as APIError {
@@ -219,18 +283,13 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
     /// 配额耗尽：当前条回退 pending（状态已是 pending，此处幂等确认），整体暂停
     private func handleRateLimited(thoughtId: UUID) {
-        let repository = ThoughtRepository()
-        do {
-            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "pending")
-        } catch {
-            logger.error("回退 pending 失败：\(thoughtId) \(error.localizedDescription)")
-        }
+        rollbackToPending(thoughtId: thoughtId, reason: "配额耗尽")
         self.dailyLimitHit = true
     }
 
     // MARK: - 失败重试处理
 
-    /// 处理失败：重试或标记 failed
+    /// 处理失败：重试、断网挂起或标记 failed
     private func handleFailure(
         thoughtId: UUID,
         error: Error,
@@ -238,6 +297,12 @@ final class ThoughtOrganizationQueue: ObservableObject {
         maxRetries: Int,
         intervals: [TimeInterval]
     ) {
+        // 断网已确认：重试必然失败，直接回退 pending 等网络恢复沿（不空转重试）
+        if isOffline {
+            rollbackToPending(thoughtId: thoughtId, reason: "断网")
+            return
+        }
+
         let nextRetry = retryCount + 1
 
         if nextRetry <= maxRetries {
@@ -253,16 +318,29 @@ final class ThoughtOrganizationQueue: ObservableObject {
                 self.pendingItems.insert(retryItem, at: 0)
                 self.processNext()
             }
+        } else if let apiError = error as? APIError, apiError.isConnectivityLoss {
+            // 连接层失败重试耗尽（飞行模式/长时间弱网）：回退 pending，
+            // 网络恢复沿或下次启动 rebuild 自动续做——内容本身没问题，不该进失败终态
+            rollbackToPending(thoughtId: thoughtId, reason: "网络不可用（重试耗尽）")
         } else {
             logger.warning("超过最大重试次数，标记 failed：\(thoughtId)")
             // Service 透传错误不再标 failed，由 Queue 在重试耗尽时标记终态
-            let repository = ThoughtRepository()
             do {
                 try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
             } catch {
                 logger.error("标记 failed 失败：\(thoughtId) \(error.localizedDescription)")
             }
             onItemDone(isTerminal: true)
+        }
+    }
+
+    /// 回退 pending：非终态，等网络恢复沿 / 次日配额重置 / 下次启动 rebuild 续做
+    private func rollbackToPending(thoughtId: UUID, reason: String) {
+        do {
+            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "pending")
+            logger.info("回退 pending（\(reason)）：\(thoughtId)")
+        } catch {
+            logger.error("回退 pending 失败（\(reason)）：\(thoughtId) \(error.localizedDescription)")
         }
     }
 

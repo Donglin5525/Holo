@@ -30,6 +30,8 @@ struct ThoughtCardView: View {
     var onMoveToTopic: (() -> Void)?
     /// 更多操作：归档（可选）
     var onArchive: (() -> Void)?
+    /// 更多操作：重新整理（可选，failed/已整理均可提供）
+    var onRetryOrganize: (() -> Void)?
     /// 更多操作：删除（可选）
     var onDelete: (() -> Void)?
     /// 归档操作显示文案（默认「归档」，归档视图下传「恢复」）
@@ -40,6 +42,8 @@ struct ThoughtCardView: View {
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
+    /// 整理队列断网状态：pending 徽章据此显示「等待网络」而非「整理中」
+    @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
 
     // MARK: - Body
 
@@ -92,10 +96,13 @@ struct ThoughtCardView: View {
                         .foregroundColor(.holoTextSecondary)
                         .frame(width: 44, height: 44)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("更多操作")
-                // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
-                .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("更多操作")
+                    // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
+                    .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
+                        if let onRetryOrganize {
+                            Button("重新整理") { onRetryOrganize() }
+                        }
                         if let onMoveToTopic {
                             Button("移入主题") { onMoveToTopic() }
                         }
@@ -113,7 +120,7 @@ struct ThoughtCardView: View {
 
     /// 是否存在至少一个可用的更多操作
     private var hasAvailableActions: Bool {
-        onMoveToTopic != nil || onArchive != nil || onDelete != nil
+        onMoveToTopic != nil || onArchive != nil || onRetryOrganize != nil || onDelete != nil
     }
 
     private var statusBadge: some View {
@@ -135,7 +142,14 @@ struct ThoughtCardView: View {
         if thought.hasActiveTopic {
             return ("已入主题", "folder.fill", .holoSuccess)
         }
-        if thought.organizedStatus == "processing" || thought.organizedStatus == "pending" {
+        if thought.organizedStatus == "processing" {
+            return ("整理中", "sparkles", .holoPrimary)
+        }
+        if thought.organizedStatus == "pending" {
+            // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
+            if orgQueue.isOffline {
+                return ("等待网络", "wifi.slash", .holoTextSecondary)
+            }
             return ("整理中", "sparkles", .holoPrimary)
         }
         // P0「等待确认」：含新标签或低置信主题，中性色不算失败（D-07′，规则集中在 Policy）
@@ -177,12 +191,18 @@ struct ThoughtCardView: View {
     // MARK: - 内容区域
 
     private var contentView: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        // 单次解析：下方 UIKit 渲染与 accessibility 各消费一次 nodes，
+        // 若走计算属性会在每次卡片重算（点「…」弹菜单等）时重复解析两遍 JSON
+        let nodes = RichContentSerializer.nodes(
+            richJSON: thought.richContentJSON,
+            fallbackPlainText: thought.content
+        )
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 所有卡片内容都走结构化阅读管线；没有 rich JSON 的存量纯文本也先转成 text/tag
             // 节点，避免列表外层重新走一套 Text/ExpandableText，导致 Markdown、空行和行距漂移。
             // 长文只在列表做预览，但通过同一套排版测量明确提示“点击查看全文”。
             ReadOnlyRichTextPreview(
-                nodes: contentNodes,
+                nodes: nodes,
                 lineLimit: 7
             )
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,7 +216,7 @@ struct ThoughtCardView: View {
         // 同一份语义文本和按钮动作；底部标签仍保留各自的筛选操作。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("想法内容")
-        .accessibilityValue(MarkdownTextView.accessibilityText(from: contentNodes))
+        .accessibilityValue(MarkdownTextView.accessibilityText(from: nodes))
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("单击查看详情，双击直接编辑")
         // 正文区域自带双击声明：双击时 SwiftUI 会先等双击窗口、不再触发下面的单击进详情，
@@ -211,14 +231,6 @@ struct ThoughtCardView: View {
         .accessibilityAction(named: "直接编辑") {
             onEdit?()
         }
-    }
-
-    /// 富文本结构化事实源；存量纯文本也通过同一入口转换，保证列表与详情/编辑器同源。
-    private var contentNodes: [HoloContentNode] {
-        RichContentSerializer.nodes(
-            richJSON: thought.richContentJSON,
-            fallbackPlainText: thought.content
-        )
     }
 
     // MARK: - 底部区域
