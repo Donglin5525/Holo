@@ -52,6 +52,9 @@ struct HoloApp: App {
         // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
         CategoryLearnedMapping.migrateOldFormatKeys()
 
+        // 分类学习装配：缓存 hydrate + UserDefaults 存量迁移至 CloudKit 同步实体（幂等）
+        Task { await CategoryLearningStore.shared.bootstrap() }
+
         // 触发 Core Data 异步加载（不阻塞主线程，避免首次创建 SQLite 时死锁）
         // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
         CoreDataStack.shared.prepareIfNeeded()

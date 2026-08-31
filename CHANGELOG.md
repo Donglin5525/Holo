@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-08-31] 分类学习映射迁入 iCloud 同步 + 交易历史重建工具
+
+### 背景（东林急报）
+东林卸载重装后发现 HOLO AI 的「分类学习映射」全部丢失：映射（用户纠正过的 AI 记账分类）与归纳规则（LLM 从纠正样本归纳的模式）原先只存本地 UserDefaults，卸载即删、从未上云。
+
+### 改动（iOS 已实现，模拟器冒烟通过，待真机验收）
+- **两个新 CloudKit 同步实体**：`CategoryMappingRecordEntity`（精确映射逐行，业务键 type|primary|candidate）与 `CategoryInductionRuleEntity`（归纳规则逐行，业务键 pattern|matchType|type|target 去重）；全字段非可选 + 默认值（CloudKit 必填铁律，taskId 坑在档）。卸载重装后随 iCloud 恢复，多设备自动合并。
+- **存储层 `CategoryLearningStore`**：NSLock 内存缓存 + 独占 background context 落库；写路径「先缓存后落库」，读路径（IntentRouter 记账匹配链）零等待；监听远端变更防抖回流缓存（重装恢复/多设备同步落地自动生效）。
+- **`CategoryLearnedMapping` 对外 API 全部不变**（record/lookup/listAll/remove…调用点零改动），内部从 UserDefaults 切换到 Store。归纳样本（200 条滚动原材料）与交易候选暂存（暂态）按设计留在本地，不上云。
+- **存量迁移**：启动时把 UserDefaults 里的历史映射/规则搬入同步实体，搬运成功后删除旧 key；幂等，失败保留待重试。
+- **重建工具（找回东林已丢数据）**：设置 → AI 设置 → 分类学习映射页新增「从交易记录重建映射」——每笔 AI 创建的交易本就带着 `isAICreated` 标记与 `aiCandidate`（AI 当时的原始分类猜测），交易走 iCloud 已随重装恢复；重建按「AI 原始猜测 → 你最终确认的分类」重放学习（AI 猜对的不学，primary 维度留空由两级匹配兜住），已存在的映射不覆盖。空态页与列表底部均有入口。
+
+### 验证
+- 编译零错误；模拟器安装启动无崩溃；sqlite 确认两张新表由轻量迁移建成（ZCATEGORYMAPPINGRECORDENTITY / ZCATEGORYINDUCTIONRULEENTITY）；空库迁移标记正常，无 CoreData 错误日志。
+
+### 发版前置（重要）
+- **CloudKit schema 部署**：Debug 构建连 Development 环境首次真机运行会自动注册两个新实体的 schema；**上架/发版前必须在 CloudKit Console 将其部署到 Production**（与 TodoTask 三字段同流程），否则 App Store 版用户的学习数据不上云。
+- 纯 iOS 改动，**不需要后端发版**（归纳请求仍走既有 chat 端点）。
+
+### 验收路径（东林真机）
+1. 装开发构建后打开 设置 → AI 设置 → 分类学习映射：点「从交易记录重建映射」，应提示恢复若干条（取决于历史 AI 记账被纠正的量）。
+2. 日常用几天后再卸载重装：映射应随 iCloud 自动回来，无需重建。
+3. 新增纠正一条 AI 记账分类，重启 App 后映射仍在列表中。
+
+---
+
 ## [2026-08-31] 日回放七项打磨——想法全文可读/时间口径/拍立得版式/筛选器单显
 
 ### 背景（东林圈注）

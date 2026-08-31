@@ -6,6 +6,10 @@
 //  记录用户确认的分类映射，下次自动匹配
 //  支持精确匹配 + LLM 归纳模式匹配
 //
+//  存储架构（2026-08 起）：
+//  - 精确映射 / 归纳规则 → CloudKit 同步实体（卸载重装随 iCloud 恢复），见 CategoryLearningStore
+//  - 归纳样本 / 交易候选暂存 → 本地 UserDefaults（滚动原材料/暂态，不同步）
+//
 
 import Foundation
 import os.log
@@ -18,6 +22,7 @@ enum CategoryLearnedMapping {
     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryLearnedMapping")
 
     /// 存储键：type|primary|candidate  →  目标: primaryCategory|subCategory
+    /// （历史 UserDefaults key，现仅用于存量迁移读取）
     private static let storageKey = "categoryLearnedMappings"
     /// 旧格式 key 迁移标记
     private static let migrationVersionKey = "categoryLearnedMappingSchemaVersion"
@@ -59,9 +64,7 @@ enum CategoryLearnedMapping {
         let key = makeKey(candidate: candidate, type: type, primaryCategory: primaryCategory)
         let value = "\(targetPrimary)|\(targetSub)"
 
-        var mappings = loadAll()
-        mappings[key] = value
-        saveAll(mappings)
+        CategoryLearningStore.shared.upsertMappings([key: value])
 
         logger.info("学习映射：\(key) → \(value)")
     }
@@ -84,7 +87,7 @@ enum CategoryLearnedMapping {
         }
 
         // 第二级：归纳模式匹配
-        let rules = loadInductionRules().filter { $0.transactionType == type.rawValue }
+        let rules = CategoryLearningStore.shared.cachedRules().filter { $0.transactionType == type.rawValue }
         let normalized = candidate.trimmingCharacters(in: .whitespaces).lowercased()
         for rule in rules {
             if matchPattern(candidate: normalized, rule: rule) {
@@ -117,14 +120,12 @@ enum CategoryLearnedMapping {
     /// 删除一条学习映射
     static func remove(candidate: String, type: TransactionType, primaryCategory: String = "") {
         let key = makeKey(candidate: candidate, type: type, primaryCategory: primaryCategory)
-        var mappings = loadAll()
-        mappings.removeValue(forKey: key)
-        saveAll(mappings)
+        CategoryLearningStore.shared.removeMapping(key: key)
     }
 
     /// 清除所有学习映射
     static func removeAll() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        CategoryLearningStore.shared.removeAllMappings()
         logger.info("已清除所有学习映射")
     }
 
@@ -163,9 +164,7 @@ enum CategoryLearnedMapping {
 
     /// 按原始 key 删除一条学习映射
     static func removeByKey(_ key: String) {
-        var mappings = loadAll()
-        mappings.removeValue(forKey: key)
-        saveAll(mappings)
+        CategoryLearningStore.shared.removeMapping(key: key)
         logger.info("删除学习映射：\(key)")
     }
 
@@ -202,13 +201,14 @@ enum CategoryLearnedMapping {
     // MARK: - 旧格式迁移
 
     /// 迁移旧格式 key（type|candidate）→ 新格式（type|primary|candidate）
-    /// 旧 key 无法可靠补全 primaryCategory 维度，直接删除
+    /// 旧 key 无法可靠补全 primaryCategory 维度，直接删除。
+    /// 仅操作 UserDefaults 历史数据，需在 CategoryLearningStore 的云迁移之前执行。
     static func migrateOldFormatKeys() {
         let currentVersion = 2
         let savedVersion = UserDefaults.standard.integer(forKey: migrationVersionKey)
         guard savedVersion < currentVersion else { return }
 
-        var mappings = loadAll()
+        var mappings = loadLegacyFromDefaults()
         let oldKeys = mappings.keys.filter { key in
             // 旧格式: "type|candidate"（只有 1 个 |）
             // 新格式: "type|primary|candidate"（有 2 个 |）
@@ -223,7 +223,7 @@ enum CategoryLearnedMapping {
         for key in oldKeys {
             mappings.removeValue(forKey: key)
         }
-        saveAll(mappings)
+        saveLegacyToDefaults(mappings)
 
         UserDefaults.standard.set(currentVersion, forKey: migrationVersionKey)
         logger.info("迁移旧格式学习映射：删除 \(oldKeys.count) 条旧 key")
@@ -238,11 +238,15 @@ enum CategoryLearnedMapping {
     }
 
     private static func loadAll() -> [String: String] {
+        CategoryLearningStore.shared.cachedMappings()
+    }
+
+    private static func loadLegacyFromDefaults() -> [String: String] {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else { return [:] }
         return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
     }
 
-    private static func saveAll(_ mappings: [String: String]) {
+    private static func saveLegacyToDefaults(_ mappings: [String: String]) {
         guard let data = try? JSONEncoder().encode(mappings) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
     }
@@ -367,7 +371,7 @@ enum CategoryLearnedMapping {
         guard matchingSamples.count >= inductionThreshold else { return false }
 
         // 检查是否已有该目标的规则，避免重复归纳
-        let existingRules = loadInductionRules()
+        let existingRules = CategoryLearningStore.shared.cachedRules()
         let hasRule = existingRules.contains { rule in
             rule.targetPrimary == targetPrimary &&
             rule.targetSub == targetSub &&
@@ -484,9 +488,7 @@ enum CategoryLearnedMapping {
             createdAt: Date()
         )
 
-        var rules = loadInductionRules()
-        rules.append(rule)
-        saveInductionRules(rules)
+        CategoryLearningStore.shared.upsertRule(rule)
 
         logger.info("归纳规则已保存：\(rule.matchType.rawValue) \"\(rule.pattern)\" → \(targetPrimary)/\(targetSub)（置信度 \(result.confidence)，基于 \(sampleCount) 个样本）")
     }
@@ -512,21 +514,20 @@ enum CategoryLearnedMapping {
 
     /// 获取所有归纳规则
     static func listInductionRules() -> [InductionRule] {
-        loadInductionRules().sorted { $0.createdAt > $1.createdAt }
+        CategoryLearningStore.shared.cachedRules().sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// 删除归纳规则
+    /// 删除一条归纳规则（按规则内容定位；同步场景下索引会漂移，不再按索引删）
     static func removeInductionRule(at index: Int) {
-        var rules = loadInductionRules()
+        let rules = listInductionRules()
         guard index >= 0, index < rules.count else { return }
-        rules.remove(at: index)
-        saveInductionRules(rules)
+        CategoryLearningStore.shared.removeRule(matching: rules[index])
         logger.info("删除归纳规则：索引 \(index)")
     }
 
     /// 清除所有归纳规则
     static func removeAllInductionRules() {
-        UserDefaults.standard.removeObject(forKey: inductionRulesKey)
+        CategoryLearningStore.shared.removeAllRules()
         logger.info("已清除所有归纳规则")
     }
 
@@ -555,13 +556,13 @@ enum CategoryLearnedMapping {
         UserDefaults.standard.set(data, forKey: inductionSamplesKey)
     }
 
-    private static func loadInductionRules() -> [InductionRule] {
-        guard let data = UserDefaults.standard.data(forKey: inductionRulesKey) else { return [] }
-        return (try? JSONDecoder().decode([InductionRule].self, from: data)) ?? []
-    }
+    // MARK: - 从交易历史重建
 
-    private static func saveInductionRules(_ rules: [InductionRule]) {
-        guard let data = try? JSONEncoder().encode(rules) else { return }
-        UserDefaults.standard.set(data, forKey: inductionRulesKey)
+    /// 扫描 AI 创建的交易，以「AI 原始候选 → 用户最终分类」重建学习映射。
+    /// 恢复通道：isAICreated/aiCandidate 随交易走 iCloud，卸载重装后仍在。
+    /// - Returns: 本次重建实际写入的映射条数
+    @discardableResult
+    static func rebuildFromTransactions() async -> Int {
+        await CategoryLearningStore.shared.rebuildFromTransactions()
     }
 }

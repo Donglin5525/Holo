@@ -13,6 +13,10 @@ struct CategoryLearnedMappingView: View {
     @State private var mappings: [CategoryLearnedMapping.LearnedMappingEntry] = []
     @State private var showClearAllConfirmation = false
     @State private var searchText = ""
+    @State private var showRebuildConfirmation = false
+    @State private var isRebuilding = false
+    @State private var rebuildResult: Int?
+    @State private var showRebuildResult = false
 
     private var filteredMappings: [CategoryLearnedMapping.LearnedMappingEntry] {
         let query = searchText.lowercased()
@@ -51,6 +55,24 @@ struct CategoryLearnedMappingView: View {
         .background(Color.holoBackground)
         .searchable(text: $searchText, prompt: "搜索分类映射")
         .onAppear { reload() }
+        .confirmationDialog(
+            "从交易记录重建映射？",
+            isPresented: $showRebuildConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("开始重建") { rebuildFromTransactions() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将扫描 AI 创建的交易，按「AI 原始猜测 → 你最终确认的分类」重建映射。已存在的映射不会被覆盖。")
+        }
+        .alert(
+            isPresented: $showRebuildResult
+        ) {
+            Alert(
+                title: Text(rebuildResult == 0 ? "没有找到可恢复的映射" : "重建完成"),
+                message: Text(rebuildResultMessage)
+            )
+        }
     }
 
     // MARK: - Mapping List
@@ -80,11 +102,24 @@ struct CategoryLearnedMappingView: View {
             }
 
             Section {
+                if isRebuilding {
+                    HStack {
+                        ProgressView()
+                        Text("正在扫描交易记录…")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                } else {
+                    Button("从交易记录重建映射") {
+                        showRebuildConfirmation = true
+                    }
+                }
+
                 Button("清除所有映射", role: .destructive) {
                     showClearAllConfirmation = true
                 }
             } footer: {
-                Text("共 \(mappings.count) 条映射")
+                Text("共 \(mappings.count) 条映射 · 已随 iCloud 同步")
                     .font(.caption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -150,6 +185,15 @@ struct CategoryLearnedMappingView: View {
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
 
+            Button {
+                showRebuildConfirmation = true
+            } label: {
+                Label("从交易记录重建映射", systemImage: "arrow.counterclockwise")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRebuilding)
+
             Spacer()
         }
     }
@@ -171,6 +215,24 @@ struct CategoryLearnedMappingView: View {
     }
 
     // MARK: - Helpers
+
+    private var rebuildResultMessage: String {
+        if let count = rebuildResult, count > 0 {
+            return "已从 AI 创建的交易中恢复 \(count) 条分类映射。"
+        }
+        return "未找到 AI 创建且分类被你修改过的交易，无法重建。"
+    }
+
+    private func rebuildFromTransactions() {
+        isRebuilding = true
+        Task {
+            let count = await CategoryLearnedMapping.rebuildFromTransactions()
+            isRebuilding = false
+            rebuildResult = count
+            showRebuildResult = true
+            reload()
+        }
+    }
 
     private func reload() {
         mappings = CategoryLearnedMapping.listAll()
