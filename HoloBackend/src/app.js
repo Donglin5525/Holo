@@ -232,6 +232,7 @@ export function createApp(overrides = {}) {
         taskStore: cloudAnalysisTaskStore,
         providers,
         route: config.routes.agent_loop,
+        insightRoute: config.routes.insight ?? null,
         pushNotifier: analysisPushNotifier,
         quotaLedger: quotaActionLedgerStore,
         entitlementResolver,

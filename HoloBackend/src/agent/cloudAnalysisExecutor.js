@@ -21,6 +21,9 @@ export function createCloudAnalysisExecutor({
   taskStore,
   providers,
   route,
+  // 周期回放单轮生成使用的 insight 路由（模型/温度与 Agent 循环不同）；
+  // 缺省回落 agent_loop 路由（同 provider 时行为一致）
+  insightRoute = null,
   providerRetries = MAX_PROVIDER_RETRIES,
   maxRounds = MAX_LLM_ROUNDS,
   pushNotifier = null,
@@ -86,18 +89,19 @@ export function createCloudAnalysisExecutor({
     });
   }
 
-  async function callProvider(messages) {
+  async function callProvider(messages, forRoute = route) {
     let lastError = null;
+    const upstreamRoute = forRoute ?? route;
     for (let attempt = 1; attempt <= providerRetries; attempt += 1) {
       try {
         const upstream = {
           purpose: "agent_loop",
           messages,
           stream: false,
-          model: route.model,
-          temperature: route.temperature,
-          maxTokens: route.maxTokens,
-          reasoningEffort: route.reasoningEffort,
+          model: upstreamRoute.model,
+          temperature: upstreamRoute.temperature,
+          maxTokens: upstreamRoute.maxTokens,
+          reasoningEffort: upstreamRoute.reasoningEffort,
         };
         return await provider.complete(upstream);
       } catch (error) {
@@ -155,10 +159,13 @@ export function createCloudAnalysisExecutor({
       const systemPrompted = injectServerPrompt("insight", [
         { role: "user", content: contextJSON },
       ]);
-      const response = await callProvider([
-        { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
-        { role: "user", content: contextJSON },
-      ]);
+      const response = await callProvider(
+        [
+          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "user", content: contextJSON },
+        ],
+        insightRoute ?? route,
+      );
       const content = response?.choices?.[0]?.message?.content ?? "";
       if (!content.trim()) {
         throw new Error("回放生成为空输出");
