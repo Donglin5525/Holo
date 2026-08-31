@@ -13,6 +13,7 @@ struct PolaroidMomentCard: View {
     let moment: DailyReplayMoment
     let onSelect: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var topIndex: Int = 0
     @State private var dragX: CGFloat = 0
     @State private var decodedImages: [UIImage?] = []
@@ -26,6 +27,11 @@ struct PolaroidMomentCard: View {
         moment.events.first(where: { !$0.attachmentThumbnails.isEmpty })?.attachmentThumbnails ?? []
     }
 
+    /// iPad 的时间线卡片更宽，多图照片堆同步放大，避免沿用 iPhone 尺寸后在大屏上失去焦点。
+    private var galleryScale: CGFloat {
+        horizontalSizeClass == .regular ? 1.45 : 1
+    }
+
     // MARK: - 册页几何（角度为确定值：同一想法每次渲染姿态一致，不做随机）
 
     /// 冲印照片的基础旋转（度），按片序取用；顶片单图时用更轻的 1.6°
@@ -33,34 +39,35 @@ struct PolaroidMomentCard: View {
 
     private var photoWidth: CGFloat {
         switch photos.count {
-        case 1: return 234
-        case 2: return 168
-        default: return 196
+        case 1: return 234 * galleryScale
+        case 2: return 168 * galleryScale
+        default: return 196 * galleryScale
         }
     }
 
     private var photoHeight: CGFloat {
         switch photos.count {
-        case 1: return 184
-        case 2: return 148
-        default: return 156
+        case 1: return 184 * galleryScale
+        case 2: return 148 * galleryScale
+        default: return 156 * galleryScale
         }
     }
 
-    /// 叠层姿态：depth 0 为顶片；双片左右分立，多片时顶片微偏左、右侧与左下各露一角。
-    /// 偏移量按整行卡宽收窄过——照片堆在卡内水平居中，姿态再大就会顶出窄屏的卡片边。
+    /// 叠层姿态：depth 0 为顶片；双片左右分立，多片时呈「左中右」三列阶梯展开。
+    /// 错位幅度吃满卡片两侧留白——叠得太拢时后片会被顶片完全盖住，照片糊成一摞。
     private func placement(depth: Int, count: Int) -> (dx: CGFloat, dy: CGFloat, scale: CGFloat) {
+        let factor = galleryScale
         if count == 2 {
             switch depth {
-            case 0: return (-36, 6, 1)
-            default: return (36, -4, 0.97)
+            case 0: return (-52 * factor, 4 * factor, 1)
+            default: return (52 * factor, -6 * factor, 0.97)
             }
         }
         switch depth {
-        case 0:  return (-10, 0, 1)
-        case 1:  return (42, 10, 0.93)
-        case 2:  return (-38, 16, 0.89)
-        default: return (46, 22, 0.85)
+        case 0:  return (-8 * factor, 0, 1)
+        case 1:  return (58 * factor, 12 * factor, 0.93)
+        case 2:  return (-56 * factor, 20 * factor, 0.89)
+        default: return (62 * factor, 28 * factor, 0.85)
         }
     }
 
@@ -110,7 +117,7 @@ struct PolaroidMomentCard: View {
                 sealStamp
             }
         }
-        .frame(height: photoHeight + 40)
+        .frame(height: photoHeight + 46 * galleryScale)
         .frame(maxWidth: .infinity)
         .gesture(
             DragGesture(minimumDistance: 14)
@@ -177,6 +184,7 @@ struct PolaroidMomentCard: View {
         .rotationEffect(.degrees(6))
         .offset(x: 4, y: -2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .zIndex(200)
         .allowsHitTesting(false)
     }
 
