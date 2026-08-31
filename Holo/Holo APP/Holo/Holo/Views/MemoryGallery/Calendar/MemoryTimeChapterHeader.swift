@@ -10,15 +10,19 @@ import SwiftUI
 struct MemoryTimeChapterHeader<DateControl: View>: View {
     let presentation: MemoryTimeChapterPresentation
     @Binding var moduleFilter: CalendarModule?
+    /// 底色随所处容器：周/月用全局背景，日回放册页用纸色（pinned 头必须不透明，避免滚动内容透出）
+    private let backgroundColor: Color
     private let dateControl: DateControl
 
     init(
         presentation: MemoryTimeChapterPresentation,
         moduleFilter: Binding<CalendarModule?>,
+        backgroundColor: Color = .holoBackground,
         @ViewBuilder dateControl: () -> DateControl
     ) {
         self.presentation = presentation
         self._moduleFilter = moduleFilter
+        self.backgroundColor = backgroundColor
         self.dateControl = dateControl()
     }
 
@@ -60,7 +64,7 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
         .frame(minHeight: 92)
         .background(
             LinearGradient(
-                colors: [Color.holoBackground.opacity(0.99), Color.holoBackground.opacity(0.94)],
+                colors: [backgroundColor.opacity(0.99), backgroundColor.opacity(0.94)],
                 startPoint: .top,
                 endPoint: .bottom
             )

@@ -46,6 +46,12 @@ extension Color {
     static let holoCardBackground = Color("CardBackground")
     /// 嵌套卡片背景色：用于已经位于卡片容器内的次级信息块，避免深色模式下与父卡片融为一体
     static let holoNestedCardBackground = Color("NestedCardBackground")
+    /// 册页纸色 - 记忆长廊日回放底色（米白纸感 / 暗纸）
+    static let holoPaper = Color.holoDynamic(light: UIColor(red: 0.980, green: 0.973, blue: 0.949, alpha: 1),
+                                             dark: UIColor(red: 0.106, green: 0.098, blue: 0.086, alpha: 1))
+    /// 印章红棕 - 册页风照片计数印章
+    static let holoSealRed = Color.holoDynamic(light: UIColor(red: 0.702, green: 0.275, blue: 0.235, alpha: 1),
+                                               dark: UIColor(red: 0.780, green: 0.360, blue: 0.320, alpha: 1))
     
     // MARK: - 文字颜色 (支持 Dark Mode)
     /// 主文字颜色 - 深灰色 / 浅色模式
@@ -217,9 +223,15 @@ extension Font {
     
     /// 大标题，用于主要标题；跟随系统动态字体缩放。
     static let holoTitle = Font.title.weight(.bold)
+
+    /// 次级标题别名：兼容任务实际用时弹窗的标题层级。
+    static let holoTitle3 = Font.title3.weight(.semibold)
     
     /// 页面标题，用于页面头部；跟随系统动态字体缩放。
     static let holoHeading = Font.title3.weight(.semibold)
+
+    /// 数值标题：兼容任务实际用时弹窗的时长显示。
+    static let holoTitle2 = Font.title2.weight(.bold)
     
     /// 正文，用于主要内容；跟随系统动态字体缩放。
     static let holoBody = Font.body.weight(.medium)

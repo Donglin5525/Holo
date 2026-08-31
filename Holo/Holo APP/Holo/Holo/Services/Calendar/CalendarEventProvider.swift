@@ -183,12 +183,15 @@ struct CalendarEventProvider {
                     .filter(\.isVisibleTopic)
                     .map { $0.title }
                     .sorted()
+                // 册页风照片堆：直接消费已生成的 300×300 缩略图（imageData 原图不进长廊列表）
+                let thumbnails = thought.sortedAttachments.compactMap(\.thumbnailData)
                 return CalendarEvent(
                     module: .thought,
                     date: thought.createdAt,
                     title: title,
                     detail: thought.moodType?.displayName,
                     relatedTopics: topics.isEmpty ? nil : topics,
+                    attachmentThumbnails: thumbnails,
                     originID: thought.objectID
                 )
             }

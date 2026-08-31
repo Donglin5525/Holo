@@ -33,6 +33,17 @@ struct DailyReplayEventCard: View {
     }
 
     var body: some View {
+        if moment.module == .thought, let firstImaged = moment.events.first(where: { !$0.attachmentThumbnails.isEmpty }) {
+            // 带图想法走册页风照片堆；照片随首条带图事件，轻点直达想法详情页
+            PolaroidMomentCard(moment: moment) {
+                onSelect(firstImaged)
+            }
+        } else {
+            replayCard
+        }
+    }
+
+    private var replayCard: some View {
         Button(action: openMoment) {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: HoloSpacing.sm) {

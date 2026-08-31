@@ -76,6 +76,7 @@ struct DailyReplayView: View {
                         }
                     }
                     .coordinateSpace(name: scrollSpace)
+                    .background(Color.holoPaper)
                     .onPreferenceChange(DailyReplayChapterOffsetKey.self) { offsets in
                         updateFocusedDate(from: offsets)
                         appendEarlierPageIfNeeded(
@@ -335,7 +336,8 @@ private struct DailyReplayChapterHeader: View {
     var body: some View {
         MemoryTimeChapterHeader(
             presentation: presentation,
-            moduleFilter: $moduleFilter
+            moduleFilter: $moduleFilter,
+            backgroundColor: .holoPaper
         ) {
             dateControl
         }

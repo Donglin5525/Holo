@@ -507,6 +507,12 @@ struct DomainMemorySection: View {
             showsInboxSummary = !inboxSnapshot.isEmpty
             records = try await repository.query(.all).filter(Self.isUserVisible)
             isLoading = false
+            #if DEBUG
+            if HoloAppStoreScreenshotSeeder.requestedRoute == .memoryExtraction,
+               !pendingRecords.isEmpty {
+                showsConfirmationQueue = true
+            }
+            #endif
         } catch {
             records = []
             loadError = "你原来的记录没有丢失，可以稍后重试。"

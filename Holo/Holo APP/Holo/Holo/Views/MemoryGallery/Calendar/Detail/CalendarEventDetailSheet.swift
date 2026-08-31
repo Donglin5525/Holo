@@ -145,54 +145,21 @@ struct CalendarEventDetailSheet: View {
         .disabled(isOpeningOrigin)
     }
 
-    /// 通过 originID 回查实体 UUID，再借助 DeepLinkState 跳转到对应模块详情。
-    /// 实体回查放在后台 context 进行，避免阻塞 UI；取到后回主线程 dismiss + 触发跳转。
+    /// 经 CalendarEventOriginResolver 回查实体 UUID，再借助 DeepLinkState 跳转到对应模块详情。
     private func openInOriginModule() {
         guard !isOpeningOrigin else { return }
         isOpeningOrigin = true
 
-        let originID = event.originID
-        let module = event.module
-        let backgroundContext = CoreDataStack.shared.newBackgroundContext()
-
-        Task.detached(priority: .userInitiated) {
-            let target: DeepLinkTarget? = await backgroundContext.perform {
-                guard let entity = try? backgroundContext.existingObject(with: originID) else {
-                    return nil as DeepLinkTarget?
-                }
-                // 软删除的对象仍存在于库中，但原始记录对用户已不可见，视为已删除
-                if (entity as? SoftDeletable)?.deletedAt != nil {
-                    return nil as DeepLinkTarget?
-                }
-                switch module {
-                case .finance:
-                    guard let transaction = entity as? Transaction else { return nil }
-                    return .transactionDetail(transactionId: transaction.id)
-                case .habit:
-                    guard let record = entity as? HabitRecord else { return nil }
-                    return .habitDetail(habitId: record.habitId)
-                case .todo:
-                    guard let task = entity as? TodoTask else { return nil }
-                    return .taskDetail(taskId: task.id)
-                case .thought:
-                    guard let thought = entity as? Thought else { return nil }
-                    return .thoughtDetail(thoughtId: thought.id)
-                default:
-                    return nil
-                }
+        CalendarEventOriginResolver.resolve(event) { target in
+            isOpeningOrigin = false
+            guard let target else {
+                originOpenError = "原记录可能已被删除，或当前版本暂时无法打开。"
+                return
             }
-
-            await MainActor.run {
-                isOpeningOrigin = false
-                guard let target else {
-                    originOpenError = "原记录可能已被删除，或当前版本暂时无法打开。"
-                    return
-                }
-                dismiss()
-                // 下一轮再触发跳转，确保 sheet dismiss 已开始、不被遮盖
-                DispatchQueue.main.async {
-                    DeepLinkState.shared.navigate(to: target)
-                }
+            dismiss()
+            // 下一轮再触发跳转，确保 sheet dismiss 已开始、不被遮盖
+            DispatchQueue.main.async {
+                DeepLinkState.shared.navigate(to: target)
             }
         }
     }
@@ -365,6 +332,18 @@ struct CalendarEventGroupDetailSheet: View {
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoBorder.opacity(0.75), lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // 想法行直达想法详情（与卡片直跳一致）；其他模块维持纯列表展示
+            guard event.module == .thought else { return }
+            CalendarEventOriginResolver.resolve(event) { target in
+                guard let target else { return }
+                dismiss()
+                DispatchQueue.main.async {
+                    DeepLinkState.shared.navigate(to: target)
+                }
+            }
+        }
     }
 
     private static let timeFormatter: DateFormatter = {

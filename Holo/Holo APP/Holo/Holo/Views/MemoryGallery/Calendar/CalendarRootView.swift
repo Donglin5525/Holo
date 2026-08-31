@@ -51,6 +51,21 @@ struct CalendarRootView: View {
         }
     }
 
+    // MARK: - 事件点击（想法直跳详情，其余弹层）
+
+    /// 想法事件点击直达想法详情页（长廊不再为想法设详情弹层，与册页卡/组弹层行为一致）；
+    /// 记账 / 习惯 / 待办维持原有详情弹层。
+    private func handleEventSelect(_ event: CalendarEvent) {
+        guard event.module == .thought else {
+            selectedEvent = event
+            return
+        }
+        CalendarEventOriginResolver.resolve(event) { target in
+            guard let target else { return }
+            DeepLinkState.shared.navigate(to: target)
+        }
+    }
+
     // MARK: - 内容（日 / 周 / 月）
 
     @ViewBuilder
@@ -75,7 +90,7 @@ struct CalendarRootView: View {
             eventsByDay: viewModel.eventsByDay,
             moduleFilter: $viewModel.moduleFilter,
             isInitialLoading: viewModel.isInitialLoading,
-            onSelect: { selectedEvent = $0 },
+            onSelect: { handleEventSelect($0) },
             onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
             onEnsureData: { viewModel.ensureTimelineData(around: $0) }
         )
@@ -100,7 +115,7 @@ struct CalendarRootView: View {
                 weekDays: viewModel.currentWeekDays,
                 eventsByDay: viewModel.eventsByDay,
                 focusedDate: $viewModel.focusedDate,
-                onSelect: { selectedEvent = $0 },
+                onSelect: { handleEventSelect($0) },
                 onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
                 onEnsureData: { viewModel.ensureTimelineData(around: $0) }
             )
@@ -141,7 +156,7 @@ struct CalendarRootView: View {
                 DayDetailCard(
                     day: viewModel.focusedDate,
                     events: viewModel.selectedDayEvents,
-                    onSelect: { selectedEvent = $0 },
+                    onSelect: { handleEventSelect($0) },
                     onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
                     onReplay: viewModel.selectedDayEvents.isEmpty ? nil : {
                         viewModel.enterDayReplay()

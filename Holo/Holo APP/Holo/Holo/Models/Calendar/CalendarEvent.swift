@@ -37,6 +37,9 @@ struct CalendarEvent: Identifiable, Equatable {
     /// P3：相关观点标题（仅想法模块，经 Thought.topics 间接体现观点维度）
     let relatedTopics: [String]?
 
+    /// 附件缩略图数据（仅想法模块；册页风照片堆直接消费，最大 9 张 300×300）
+    let attachmentThumbnails: [Data]
+
     /// 原始实体对象 ID（跨线程安全，用于「在 X 模块打开」回查实体；UI 不直接消费）
     let originID: NSManagedObjectID
 
@@ -49,6 +52,7 @@ struct CalendarEvent: Identifiable, Equatable {
          numericValue: Decimal? = nil,
          valueDirection: CalendarEventValueDirection? = nil,
          relatedTopics: [String]? = nil,
+         attachmentThumbnails: [Data] = [],
          originID: NSManagedObjectID) {
         self.id = id
         self.module = module
@@ -59,6 +63,7 @@ struct CalendarEvent: Identifiable, Equatable {
         self.numericValue = numericValue
         self.valueDirection = valueDirection
         self.relatedTopics = relatedTopics
+        self.attachmentThumbnails = attachmentThumbnails
         self.originID = originID
     }
 

@@ -55,7 +55,8 @@ struct MemoryGalleryView: View {
         #endif
         .task {
             #if DEBUG
-            if HoloAppStoreScreenshotSeeder.requestedRoute == .memoryInsight {
+            if HoloAppStoreScreenshotSeeder.requestedRoute == .memoryInsight ||
+               HoloAppStoreScreenshotSeeder.requestedRoute == .memoryExtraction {
                 selectedTab = .insight
             }
             #endif

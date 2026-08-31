@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆长廊 · 影像化方案原型 V3 · 双设计方向</title>
+<style>
+  :root{
+    --orange:#F46D38; --green:#22C55E; --indigo:#6366F1; --pink:#EC4899; --blue:#3B82F6;
+    --ink:#26241F; --ink2:#77746C; --ink3:#A9A59C;
+    --bg:#F6F5F2; --card:#FFFFFF; --line:#E9E7E1; --page:#EFEDE8;
+    --paper:#FAF8F2;
+    --serif:"Songti SC","Noto Serif SC",serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  body{background:var(--page);color:var(--ink);font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;padding:48px 40px 80px}
+  svg.ic{width:1em;height:1em;vertical-align:-0.12em}
+
+  /* ===== 页头 ===== */
+  .page-head{max-width:1600px;margin:0 auto 34px}
+  .page-head h1{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:.5px}
+  .page-head .sub{color:var(--ink2);font-size:14px;margin-top:8px;line-height:1.7;max-width:900px}
+  .flow-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center}
+  .flow-pill{font-size:12.5px;padding:7px 14px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink2)}
+  .flow-pill b{color:var(--ink);font-weight:600;margin-right:2px}
+  .flow-arrow{color:var(--ink3);font-size:14px}
+
+  /* ===== 屏幕区 ===== */
+  .screens{display:flex;gap:44px;flex-wrap:wrap;justify-content:center;max-width:2100px;margin:0 auto}
+  .screen-block{width:410px}
+  .screen-block h2{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .screen-block h2 .num{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+  .screen-block h2 .dir{font-family:var(--serif);letter-spacing:.5px}
+  .screen-block h2 .dirA{color:var(--pink)}
+  .screen-block h2 .dirB{color:#8A6D3B}
+  .screen-block .hint{font-size:12.5px;color:var(--ink2);margin-bottom:14px;line-height:1.6}
+  .points{margin-top:14px;font-size:12.5px;color:var(--ink2);line-height:1.9;list-style:none}
+  .points li{display:flex;gap:8px}
+  .points .pn{flex:none;width:17px;height:17px;border-radius:50%;background:var(--orange);color:#fff;font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;margin-top:5px;font-weight:700}
+
+  /* ===== 手机框 ===== */
+  .phone{width:390px;height:812px;background:var(--bg);border-radius:54px;border:11px solid #1B1B1F;box-shadow:0 30px 60px rgba(0,0,0,.18),inset 0 0 0 2px #3A3A3E;position:relative;overflow:hidden;display:flex;flex-direction:column;margin:0 auto}
+  .phone.paper{background:var(--paper)}
+  .phone.dark{background:#000}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:112px;height:26px;background:#1B1B1F;border-radius:14px;z-index:60}
+  .statusbar{flex:none;height:48px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 4px;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .statusbar .right{letter-spacing:-1px;display:flex;gap:4px;align-items:center}
+  .screen-scroll{flex:1;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}
+  .screen-scroll::-webkit-scrollbar{display:none}
+
+  /* ===== 长廊导航栏 ===== */
+  .nav{display:flex;align-items:center;height:46px;padding:0 14px;position:relative;flex:none}
+  .nav .back{font-size:24px;color:var(--ink);width:36px}
+  .nav .title{position:absolute;left:50%;transform:translateX(-50%);font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:.5px}
+  .toggle{margin-left:auto;display:flex;background:#E8E6E1;border-radius:999px;padding:2.5px;font-size:11px;font-weight:600;color:var(--ink2)}
+  .toggle span{padding:4px 11px;border-radius:999px}
+  .toggle .on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.10)}
+  .navrow{display:flex;align-items:center;gap:8px;padding:8px 18px 10px}
+  .navrow .arrow{color:var(--ink3);font-size:15px;width:16px;text-align:center}
+  .seg{display:flex;background:#E8E6E1;border-radius:999px;padding:2.5px;font-size:12px;font-weight:600;color:var(--ink2)}
+  .seg span{padding:5px 13px;border-radius:999px}
+  .seg .on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.10)}
+  .navrow .today{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink2);border:1px solid var(--line);border-radius:999px;padding:4px 11px;background:#fff}
+
+  /* ===== 时间章节头 ===== */
+  .chapter{display:flex;align-items:baseline;gap:10px;padding:18px 18px 12px}
+  .chapter .t{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink);letter-spacing:1px}
+  .chapter .sub{font-size:10.5px;color:var(--ink3);letter-spacing:.5px}
+  .chapter .ln{flex:1;height:1px;background:var(--line);transform:translateY(-3px)}
+
+  /* ===== 无图卡片（保持现状，两方向通用） ===== */
+  .cards{padding:0 16px;display:flex;flex-direction:column;gap:14px}
+  .card{background:linear-gradient(135deg,#fff,rgba(244,109,56,.025));border:1px solid rgba(233,231,225,.85);border-radius:19px;padding:13px 14px;cursor:pointer;position:relative}
+  .card .top{display:flex;align-items:center;margin-bottom:9px}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;border-radius:9px;padding:4px 9px}
+  .badge.orange{color:var(--orange);background:rgba(244,109,56,.10)}
+  .card .more{margin-left:auto;font-size:10px;color:var(--ink3);font-weight:500}
+  .card .row{display:flex;align-items:first baseline;gap:8px}
+  .card .h{font-size:15px;font-weight:600;line-height:1.45;color:var(--ink)}
+  .card .money{margin-left:auto;font-size:15px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .card .ctx{font-size:11px;color:var(--ink2);line-height:1.55;margin-top:5px}
+
+  /* ============================================================ */
+  /* 方向 A · 美术馆展签风                                          */
+  /* ============================================================ */
+  .exhibit{position:relative;border-radius:19px;border:1px solid rgba(233,231,225,.9);background:#fff;cursor:pointer}
+  .exhibit .plate{position:relative}
+  .exhibit .plate .main{width:100%;display:block;border-radius:17px 17px 0 0;position:relative;z-index:2;cursor:pointer}
+  .exhibit .plaque{background:#fff;border-radius:0 0 17px 17px;padding:12px 14px 13px;position:relative;z-index:0}
+  .exhibit .meta{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--ink3);letter-spacing:.6px;font-weight:600}
+  .exhibit .meta .bar{width:2.5px;height:11px;border-radius:2px;background:var(--pink)}
+  .exhibit .et{font-family:var(--serif);font-size:15.5px;font-weight:700;line-height:1.5;color:var(--ink);margin-top:6px}
+  .exhibit .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .exhibit .tag{font-size:9.5px;color:var(--ink2);background:#F4F2ED;border-radius:7px;padding:4px 8px;letter-spacing:.3px}
+  /* 从主图背后抽出的叠照 */
+  .drawn{position:absolute;border-radius:6px;overflow:hidden;background:#fff;padding:3.5px;box-shadow:0 4px 14px rgba(38,36,31,.16);z-index:1}
+  .drawn img{width:100%;height:100%;object-fit:cover;display:block;border-radius:4px;cursor:pointer}
+  /* 两图 / 三图拼贴 */
+  .duo{display:grid;grid-template-columns:1.45fr 1fr;gap:5px}
+  .duo div{border-radius:4px 12px 4px 4px;overflow:hidden;background:#E5E2DC}
+  .duo div:first-child{border-radius:12px 4px 4px 4px}
+  .duo img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+  .trio{display:grid;grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr;gap:5px}
+  .trio .big{grid-row:1/3;border-radius:12px 4px 4px 4px;overflow:hidden;background:#E5E2DC}
+  .trio .sm{border-radius:4px;overflow:hidden;background:#E5E2DC}
+  .trio .sm.last{border-radius:4px 12px 4px 4px}
+  .trio img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+
+  /* ============================================================ */
+  /* 方向 B · 冲印册页风                                            */
+  /* ============================================================ */
+  .polaroid-card{position:relative;cursor:pointer}
+  .polaroid{background:#fff;padding:7px 7px 9px;border-radius:4px;box-shadow:0 2px 4px rgba(38,36,31,.08),0 10px 26px rgba(38,36,31,.13);position:absolute}
+  .polaroid img{width:100%;display:block;border-radius:2px;cursor:pointer}
+  .p-caption{display:flex;align-items:baseline;gap:7px;margin-top:9px;padding:0 4px}
+  .p-caption .t{font-family:var(--serif);font-size:14.5px;font-weight:700;line-height:1.5}
+  .p-caption .d{margin-left:auto;font-size:9.5px;color:var(--ink3);letter-spacing:1px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .p-tags{display:flex;gap:6px;margin-top:6px;padding:0 4px;flex-wrap:wrap}
+  .p-tags span{font-size:9px;color:var(--ink2);letter-spacing:.5px}
+  .stamp{position:absolute;right:6px;bottom:6px;width:34px;height:34px;border:1.5px solid rgba(179,70,60,.55);border-radius:6px;color:rgba(179,70,60,.75);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--serif);transform:rotate(6deg);z-index:5;background:rgba(250,248,242,.6)}
+  .stamp b{font-size:13px;line-height:1;font-weight:700}
+  .stamp i{font-style:normal;font-size:7.5px;letter-spacing:2px;margin-top:1px}
+
+  /* ===== 想法详情页（屏3） ===== */
+  .nav.detail .title{font-family:-apple-system;font-size:17px;font-weight:600;letter-spacing:0}
+  .nav .menu{margin-left:auto;width:30px;height:30px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink2);font-weight:700}
+  .detail-body{padding:6px 16px 30px;display:flex;flex-direction:column;gap:14px}
+  .dcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 15px;position:relative}
+  .dcard .date{text-align:right;font-size:10.5px;color:var(--ink3);margin-bottom:9px}
+  .dcard .para{font-size:14px;line-height:1.85;color:var(--ink)}
+  .dcard .para + .para{margin-top:10px}
+  .dcard .thumbs{display:flex;gap:8px;overflow-x:auto;margin-top:13px;scrollbar-width:none;padding-bottom:2px;mask-image:linear-gradient(90deg,#000 90%,transparent)}
+  .dcard .thumbs::-webkit-scrollbar{display:none}
+  .dcard .thumbs .th{flex:none;width:80px;height:80px;border-radius:12px;overflow:hidden;background:#E5E2DC}
+  .dcard .thumbs img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+  .dsec .cap{font-size:11px;color:var(--ink2);font-weight:600;margin-bottom:9px}
+  .topic-row{display:flex;align-items:center;gap:9px;background:#F4F2ED;border-radius:13px;padding:10px 12px;font-size:13px;font-weight:600}
+  .topic-row .ico{font-size:17px}
+  .topic-row .arr{margin-left:auto;color:var(--ink3)}
+  .dtags{display:flex;gap:7px;flex-wrap:wrap}
+  .dtag{font-size:11.5px;color:var(--ink2);background:#F4F2ED;border-radius:9px;padding:6px 11px}
+
+  /* ===== 全屏画廊（屏4） ===== */
+  .gal-close{position:absolute;top:58px;right:20px;z-index:50;color:rgba(255,255,255,.8);font-size:26px}
+  .gal-wrap{flex:1;display:flex;flex-direction:column;color:#fff}
+  .gal-img{flex:1;display:flex;align-items:center;justify-content:center;padding:0 6px}
+  .gal-img img{max-width:100%;max-height:66vh;border-radius:10px}
+  .gal-count{text-align:center;font-size:15px;color:rgba(255,255,255,.7);padding-bottom:46px}
+
+  /* ===== 标注点 ===== */
+  .mark{position:absolute;width:20px;height:20px;border-radius:50%;background:var(--orange);color:#fff;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(244,109,56,.5);z-index:40;border:2px solid #fff}
+
+  /* ===== 决策点 ===== */
+  .decisions{max-width:1000px;margin:64px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 30px}
+  .decisions h3{font-family:var(--serif);font-size:18px;margin-bottom:6px}
+  .decisions .sub{font-size:12.5px;color:var(--ink2);margin-bottom:16px}
+  .decisions ol{list-style:none;display:flex;flex-direction:column;gap:14px}
+  .decisions li{display:flex;gap:12px;font-size:13.5px;line-height:1.7}
+  .decisions .dn{flex:none;width:22px;height:22px;border-radius:50%;background:var(--pink);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700;margin-top:2px}
+  .decisions b{font-weight:700}
+  .decisions .rec{color:#2F6B2A;font-size:12px;background:#F0F7EF;border-radius:7px;padding:1px 8px;margin-left:6px;white-space:nowrap}
+
+  /* ===== lightbox ===== */
+  .lightbox{position:fixed;inset:0;background:rgba(12,10,8,.92);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+  .lightbox.on{display:flex}
+  .lightbox img{max-width:82vw;max-height:68vh;border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  .lb-cap{color:#fff;font-size:13.5px;opacity:.9}
+  .lb-close{position:absolute;top:26px;right:30px;color:#fff;font-size:15px;opacity:.7}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>记忆长廊 · 影像化方案原型 V3 · 两个设计方向</h1>
+  <div class="sub">彻底去掉「+N 黑罩」。这次从画廊本身的语言出发做了两个方向：<b>方向 A · 美术馆展签风</b>——图片通栏成为主角，文字退居其下成为「展签」（美术馆里挂在作品旁的小标签），多图时后面的照片从主图背后<b>抽出一角</b>表达「还有更多」；<b>方向 B · 冲印册页风</b>——照片带白边、微微旋转、阶梯叠放，像一叠刚冲印好的实物照片贴在册页上，数量用一枚小印章表达。功能范围与 V2 一致：仅想法图片、只进日档、点击跳想法详情页。示例图均可点击放大。</div>
+  <div class="flow-row">
+    <div class="flow-pill"><b>① 日回放</b> 想法卡片带图（本页 2 个方向）</div>
+    <span class="flow-arrow">→ 点击卡片 →</span>
+    <div class="flow-pill"><b>② 想法详情页</b> 现成页面直接跳转</div>
+    <span class="flow-arrow">→ 点缩略图 →</span>
+    <div class="flow-pill"><b>③ 全屏画廊</b> 现成能力，横滑 + 缩放</div>
+  </div>
+</div>
+
+<div class="screens">
+
+  <!-- ================= 方向 A · 屏1：美术馆展签风 ================= -->
+  <section class="screen-block">
+    <h2><span class="num">A</span><span class="dir dirA">美术馆 · 展签风</span></h2>
+    <div class="hint">图片通栏大图是主角；下方展签 = 模块色细竖线 + 宋体标题 + 小字注释，安静克制；4 张以上照片从主图背后抽出一角。</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="right">●●●●● 5G ▮▮▮▮</span></div>
+      <div class="nav">
+        <span class="back">‹</span>
+        <span class="title">记忆长廊</span>
+        <div class="toggle"><span class="on">日历</span><span>洞察</span></div>
+      </div>
+      <div class="navrow">
+        <span class="arrow">‹</span>
+        <div class="seg"><span class="on">日</span><span>周</span><span>月</span></div>
+        <span class="arrow">›</span>
+        <span class="today">今天</span>
+      </div>
+      <div class="screen-scroll">
+        <div class="chapter"><span class="t">上午</span><span class="sub">09:00 — 12:00</span><span class="ln"></span></div>
+        <div class="cards">
+
+          <!-- 5 图：主图 + 抽出叠角 -->
+          <div class="exhibit" style="position:relative">
+            <div class="mark" style="top:-7px;right:-5px">1</div>
+            <div class="plate">
+              <img class="main" src="https://picsum.photos/seed/holo-sunset/720/440" style="height:218px;object-fit:cover" data-cap="展签风 · 多图主图 · 后面两张从主图背后抽出一角">
+              <div class="drawn" style="width:106px;height:82px;right:118px;bottom:-26px;transform:rotate(-5deg);z-index:1">
+                <img src="https://picsum.photos/seed/holo-river/220/180" data-cap="抽出的一角 · 第 4 张">
+              </div>
+              <div class="drawn" style="width:106px;height:82px;right:12px;bottom:-32px;transform:rotate(4.5deg);z-index:1">
+                <img src="https://picsum.photos/seed/holo-street/220/180" data-cap="抽出的一角 · 第 5 张">
+              </div>
+            </div>
+            <div class="plaque" style="padding-right:126px">
+              <div class="meta"><span class="bar"></span>想法 · 上午 09:47<span style="letter-spacing:2px">—</span>共 5 张</div>
+              <div class="et">周末的城市行走，在江边看到了很美的落日</div>
+              <div class="tags"><span class="tag">#城市漫步</span><span class="tag">#落日</span></div>
+            </div>
+          </div>
+
+          <!-- 记账（保持现状） -->
+          <div class="card" style="position:relative">
+            <div class="mark" style="top:-7px;right:-5px">2</div>
+            <div class="top"><span class="badge orange"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="5" width="20" height="14" rx="3"/><path fill="#fff" d="M2 9h20v2.2H2z"/></svg>记账</span><span class="more">08-28 11:52</span></div>
+            <div class="row"><span class="h">午餐 · 云南米线</span><span class="money">-38.00</span></div>
+            <div class="ctx">餐饮 · 微信支付</div>
+          </div>
+
+          <!-- 单图：通栏大图 + 展签 -->
+          <div class="exhibit" style="position:relative">
+            <div class="mark" style="top:-7px;right:-5px">3</div>
+            <div class="plate">
+              <img class="main" src="https://picsum.photos/seed/holo-coffee/720/400" style="height:196px;object-fit:cover" data-cap="展签风 · 单图通栏大图">
+            </div>
+            <div class="plaque">
+              <div class="meta"><span class="bar"></span>想法 · 上午 10:12</div>
+              <div class="et">晨间咖啡馆的读书时间，翻开新书第三章做点笔记</div>
+              <div class="tags"><span class="tag">#阅读</span></div>
+            </div>
+          </div>
+
+          <!-- 3 图：不等宽拼贴 -->
+          <div class="exhibit" style="position:relative">
+            <div class="mark" style="top:-7px;right:-5px">4</div>
+            <div class="plate" style="padding:5px">
+              <div class="trio" style="height:172px">
+                <div class="big"><img src="https://picsum.photos/seed/holo-mountain/520/380" data-cap="展签风 · 三图拼贴（左主图 + 右二）· 第 1 张"></div>
+                <div class="sm"><img src="https://picsum.photos/seed/holo-flower/280/200" data-cap="三图拼贴 · 第 2 张"></div>
+                <div class="sm last"><img src="https://picsum.photos/seed/holo-book/280/200" data-cap="三图拼贴 · 第 3 张"></div>
+              </div>
+            </div>
+            <div class="plaque">
+              <div class="meta"><span class="bar"></span>想法 · 上午 11:20<span style="letter-spacing:2px">—</span>共 3 张</div>
+              <div class="et">爬山归来，顺手拍了阳台新开的绣球和案头的新书</div>
+              <div class="tags"><span class="tag">#周末</span><span class="tag">#阳台</span></div>
+            </div>
+          </div>
+
+        </div>
+        <div style="height:36px"></div>
+      </div>
+    </div>
+    <ol class="points">
+      <li><span class="pn">1</span><span><b>多图（4 张以上）</b>：只露主图，后面照片抽出一角、微微旋转——用真实层次表达「还有更多」，替代原来的「+N」黑罩。数量写在展签小字里。</span></li>
+      <li><span class="pn">2</span><span><b>无图卡片零变化</b>：记账等卡片保持现状，与展品形成「日常记录 / 值得展出的时刻」的层级对比。</span></li>
+      <li><span class="pn">3</span><span><b>展签</b>：模块色细竖线 + 「想法 · 时间 — 共 N 张」+ 宋体标题。安静、留白，图片是绝对主角。</span></li>
+      <li><span class="pn">4</span><span><b>2–3 图</b>：不等宽拼贴（一大一小 / 一大二小），有主有次，不是机械等分。点击整卡跳想法详情页。</span></li>
+    </ol>
+  </section>
+
+  <!-- ================= 方向 B · 屏2：冲印册页风 ================= -->
+  <section class="screen-block">
+    <h2><span class="num">B</span><span class="dir dirB">冲印 · 册页风</span></h2>
+    <div class="hint">照片带白边、微微旋转、真实投影，像刚冲印出来的实物照片随手贴进册页；多图是一叠，数量是一枚小印章。</div>
+    <div class="phone paper">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="right">●●●●● 5G ▮▮▮▮</span></div>
+      <div class="nav">
+        <span class="back">‹</span>
+        <span class="title">记忆长廊</span>
+        <div class="toggle" style="background:#EAE5D9"><span class="on">日历</span><span>洞察</span></div>
+      </div>
+      <div class="navrow">
+        <span class="arrow">‹</span>
+        <div class="seg" style="background:#EAE5D9"><span class="on">日</span><span>周</span><span>月</span></div>
+        <span class="arrow">›</span>
+        <span class="today" style="background:#FDFCF8">今天</span>
+      </div>
+      <div class="screen-scroll">
+        <div class="chapter"><span class="t">上午</span><span class="sub">09:00 — 12:00</span><span class="ln" style="background:#E5DFD0"></span></div>
+        <div class="cards" style="gap:20px">
+
+          <!-- 5 图：一叠照片 + 印章 -->
+          <div class="polaroid-card" style="height:300px;position:relative">
+            <div class="mark" style="top:-7px;right:-5px">1</div>
+            <div class="polaroid" style="width:57%;left:1%;top:34px;transform:rotate(-3.2deg);z-index:1">
+              <img src="https://picsum.photos/seed/holo-river2/420/320" style="height:158px;object-fit:cover" data-cap="册页风 · 一叠照片 · 第 3 张（垫底）">
+            </div>
+            <div class="polaroid" style="width:60%;right:2%;top:12px;transform:rotate(2.6deg);z-index:2">
+              <img src="https://picsum.photos/seed/holo-street/440/330" style="height:162px;object-fit:cover" data-cap="册页风 · 一叠照片 · 第 4 张">
+            </div>
+            <div class="polaroid" style="width:64%;left:16%;top:0;transform:rotate(-1deg);z-index:3">
+              <img src="https://picsum.photos/seed/holo-sunset/470/340" style="height:170px;object-fit:cover" data-cap="册页风 · 一叠照片 · 主图（第 1 张）">
+            </div>
+            <div class="p-caption" style="position:absolute;left:2%;right:2%;bottom:14px;z-index:4">
+              <span class="t">周末的城市行走，在江边看到了很美的落日</span>
+              <span class="d">08-28 09:47</span>
+            </div>
+            <div class="p-tags" style="position:absolute;left:2%;bottom:-8px;z-index:4"><span>#城市漫步</span><span>·</span><span>#落日</span></div>
+            <div class="stamp" style="right:2%;top:-6px"><b>5</b><i>张</i></div>
+          </div>
+
+          <!-- 记账（保持现状，纸面底色微调） -->
+          <div class="card" style="position:relative;background:linear-gradient(135deg,#fff,rgba(244,109,56,.025))">
+            <div class="mark" style="top:-7px;right:-5px">2</div>
+            <div class="top"><span class="badge orange"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="5" width="20" height="14" rx="3"/><path fill="#fff" d="M2 9h20v2.2H2z"/></svg>记账</span><span class="more">08-28 11:52</span></div>
+            <div class="row"><span class="h">午餐 · 云南米线</span><span class="money">-38.00</span></div>
+            <div class="ctx">餐饮 · 微信支付</div>
+          </div>
+
+          <!-- 单图：一张随手贴的照片 -->
+          <div class="polaroid-card" style="height:250px;position:relative">
+            <div class="mark" style="top:-7px;right:-5px">3</div>
+            <div class="polaroid" style="width:78%;left:9%;top:8px;transform:rotate(1.6deg);z-index:2">
+              <img src="https://picsum.photos/seed/holo-coffee/560/360" style="height:196px;object-fit:cover" data-cap="册页风 · 单张照片，微微一歪，像随手贴上去的">
+            </div>
+            <div class="p-caption" style="position:absolute;left:12%;right:6%;bottom:2px;z-index:3">
+              <span class="t">晨间咖啡馆的读书时间</span>
+              <span class="d">10:12</span>
+            </div>
+          </div>
+
+          <!-- 2 图：错落两张 -->
+          <div class="polaroid-card" style="height:230px;position:relative">
+            <div class="mark" style="top:-7px;right:-5px">4</div>
+            <div class="polaroid" style="width:52%;left:0;top:18px;transform:rotate(-2.2deg);z-index:1">
+              <img src="https://picsum.photos/seed/holo-flower/380/300" style="height:144px;object-fit:cover" data-cap="册页风 · 两张错落 · 第 1 张">
+            </div>
+            <div class="polaroid" style="width:52%;right:0;top:0;transform:rotate(2.4deg);z-index:2">
+              <img src="https://picsum.photos/seed/holo-book/380/300" style="height:144px;object-fit:cover" data-cap="册页风 · 两张错落 · 第 2 张">
+            </div>
+            <div class="p-caption" style="position:absolute;left:4%;right:4%;bottom:-16px;z-index:3">
+              <span class="t">阳台的绣球开了，配一杯茶读新书</span>
+              <span class="d">11:20</span>
+            </div>
+          </div>
+
+        </div>
+        <div style="height:44px"></div>
+      </div>
+    </div>
+    <ol class="points">
+      <li><span class="pn">1</span><span><b>多图 = 一叠</b>：照片阶梯叠放、各有角度，一眼看出「这是一叠照片」；右上角一枚小印章注明总张数，替代「+N」。</span></li>
+      <li><span class="pn">2</span><span><b>无图卡片零变化</b>：记账卡原样压在纸面上，像册页里夹的一张小票，层级自然。</span></li>
+      <li><span class="pn">3</span><span><b>手作温度</b>：白边、微旋转、柔和投影，整页像一本被认真整理过的实体相册。适合追求「生活感」的取向。</span></li>
+      <li><span class="pn">4</span><span><b>2 图错落</b>：一高一低、一正一歪，打破网格的规整。点击照片同样跳想法详情页。</span></li>
+    </ol>
+  </section>
+
+  <!-- ============ 屏3：想法详情页（两方向共用，现成页面） ============ -->
+  <section class="screen-block">
+    <h2><span class="num">③</span>想法详情页 · 点击直达</h2>
+    <div class="hint">无论选哪个方向，点击带图想法卡都跳到这里——想法模块现有详情页，完整正文、全部图片、主题标签一页看全，零新页面开发。</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="right">●●●●● 5G ▮▮▮▮</span></div>
+      <div class="nav detail" style="position:relative">
+        <div class="mark" style="top:-4px;right:-2px">1</div>
+        <span class="back">‹</span>
+        <span class="title">想法详情</span>
+        <span class="menu">⋯</span>
+      </div>
+      <div class="screen-scroll">
+        <div class="detail-body">
+          <div class="dcard">
+            <div class="date">2026年8月28日 09:47</div>
+            <div class="para">周末的城市行走，在江边看到了很美的落日。</div>
+            <div class="para">沿江步道走了大概五公里，风把云吹开了一道缝，落日的光顺着江面铺过来。在长椅上坐了很久，把最近想不通的几件事慢慢想明白了。回程顺手拍了街角新开的小店。</div>
+            <div class="thumbs" style="position:relative">
+              <div class="mark" style="top:-8px;right:-4px">2</div>
+              <div class="th"><img src="https://picsum.photos/seed/holo-sunset/200/200" data-cap="详情页缩略图 · 点击进全屏画廊"></div>
+              <div class="th"><img src="https://picsum.photos/seed/holo-river2/200/200" data-cap="详情页缩略图 · 点击进全屏画廊"></div>
+              <div class="th"><img src="https://picsum.photos/seed/holo-street/200/200" data-cap="详情页缩略图 · 点击进全屏画廊"></div>
+              <div class="th"><img src="https://picsum.photos/seed/holo-river/200/200" data-cap="详情页缩略图 · 点击进全屏画廊"></div>
+              <div class="th"><img src="https://picsum.photos/seed/holo-night/200/200" data-cap="详情页缩略图 · 点击进全屏画廊"></div>
+            </div>
+          </div>
+          <div class="dcard dsec">
+            <div class="cap">所属主题</div>
+            <div class="topic-row"><span class="ico">🌱</span>生活观察<span class="arr">›</span></div>
+          </div>
+          <div class="dcard dsec">
+            <div class="cap">标签</div>
+            <div class="dtags"><span class="dtag">#城市漫步</span><span class="dtag">#落日</span><span class="dtag">#独处</span></div>
+          </div>
+          <div style="text-align:center;font-size:10.5px;color:var(--ink3);padding-top:6px">右上角「⋯」菜单：编辑 / 转为任务 / 重新整理</div>
+        </div>
+      </div>
+    </div>
+    <ol class="points">
+      <li><span class="pn">1</span><span><b>跳转即到达</b>：长廊里被「叠角 / 一叠照片」收起的全部图片，在这里完整横滑展示。左上返回键回到长廊原位置。</span></li>
+      <li><span class="pn">2</span><span><b>点缩略图进全屏画廊</b>（见屏 4）；编辑、转任务等都是现成功能。</span></li>
+    </ol>
+  </section>
+
+  <!-- ============ 屏4：全屏画廊 ============ -->
+  <section class="screen-block">
+    <h2><span class="num">④</span>全屏画廊 · 看大图</h2>
+    <div class="hint">详情页点缩略图后的全屏浏览：左右滑切换、双指缩放、单击退出。想法模块现成能力，直接复用，零新开发。</div>
+    <div class="phone dark">
+      <div class="notch"></div>
+      <div class="statusbar" style="color:#fff"><span>9:41</span><span class="right">●●●●● 5G ▮▮▮▮</span></div>
+      <span class="gal-close">✕</span>
+      <div class="gal-wrap">
+        <div class="gal-img" style="position:relative">
+          <div class="mark" style="top:8px;left:10px">1</div>
+          <img src="https://picsum.photos/seed/holo-sunset/800/580" data-cap="全屏画廊 · 1/5 · 左右滑切换，双指缩放，单击退出">
+        </div>
+        <div class="gal-count">1 / 5</div>
+      </div>
+    </div>
+    <ol class="points">
+      <li><span class="pn">1</span><span><b>零新开发</b>：横滑 / 缩放 / 页码指示全部复用想法模块现有的全屏画廊。</span></li>
+      <li><span class="pn">2</span><span>大图从原图数据加载（非缩略图），已随 iCloud 同步，换设备也能看。</span></li>
+    </ol>
+  </section>
+
+</div>
+
+<!-- ============ 决策点 ============ -->
+<div class="decisions">
+  <h3>待你拍板 + 已定边界</h3>
+  <div class="sub">功能范围与上轮一致，本轮只有设计方向这一个主决策。</div>
+  <ol>
+    <li><span class="dn">1</span><span><b>设计方向 A 还是 B？</b>A · 美术馆展签风——图大而安静，与长廊现有的宋体、留白气质一脉相承，整体更「高级」<span class="rec">我个人倾向 A</span>；B · 冲印册页风——白边微旋的照片更有手作温度和「生活相册」感，视觉更活泼。也可 A 为主体、B 的印章等元素点缀。</span></li>
+    <li><span class="dn">2</span><span><b>多图呈现</b>：A = 主图 + 抽出叠角；B = 一叠照片 + 小印章。两个方向都已彻底去掉「+N」黑罩，数量只在展签小字 / 印章里出现。</span></li>
+    <li><span class="dn">3</span><span><b>已定边界（不变）</b>：仅想法图片进长廊；无图卡片与其他模块卡片维持现状；点击想法卡统一跳想法详情页；「影」档 / 今日影像 / 待办图 / 月历标记均不做。</span></li>
+  </ol>
+</div>
+
+<!-- lightbox -->
+<div class="lightbox" id="lb">
+  <span class="lb-close">✕ 关闭</span>
+  <img id="lbImg" alt="">
+  <div class="lb-cap" id="lbCap"></div>
+</div>
+
+<script>
+  var lb=document.getElementById('lb'),lbImg=document.getElementById('lbImg'),lbCap=document.getElementById('lbCap');
+  document.querySelectorAll('img[data-cap]').forEach(function(im){
+    im.style.cursor='zoom-in';
+    im.addEventListener('click',function(e){e.stopPropagation();lbImg.src=im.src;lbCap.textContent=im.dataset.cap;lb.classList.add('on');});
+  });
+  lb.addEventListener('click',function(){lb.classList.remove('on');});
+</script>
+</body>
+</html>
