@@ -34,6 +34,8 @@ extension CoreDataStack {
         taskId.name = "taskId"
         taskId.attributeType = .UUIDAttributeType
         taskId.isOptional = false
+        // CloudKit 要求同步实体字段可选或有默认值；业务创建时恒显式赋值，默认值仅为合规
+        taskId.defaultValue = UUID()
         attributes.append(taskId)
 
         // EKEvent.eventIdentifier：仅加速索引，iCloud 重排会漂移（认领最终依据是事件 url 埋的任务 ID）
