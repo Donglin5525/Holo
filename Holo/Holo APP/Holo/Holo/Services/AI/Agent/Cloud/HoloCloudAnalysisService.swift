@@ -45,6 +45,9 @@ final class HoloCloudAnalysisService {
     var periodReplayFinalizer: ((_ messageID: UUID, _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult) -> Void)?
     /// 云端失败/超时后的本地回落入口（Coordinator 提供本地生成路径）
     var periodReplayFallbackHandler: ((_ messageID: UUID) -> Void)?
+    /// 云端任务位释放（poll 结束、任务位清空）后触发：Coordinator 唤醒因
+    /// 单飞排队等待的回放——云端终态不走本地 execute 的 defer 唤醒链，必须补这一枪。
+    var cloudTaskSlotReleasedHandler: (() -> Void)?
 
     /// 隐私同意版本化：v1 = 仅分析数据上云；v2 = 周期回放素材含健康与活动摘要
     /// （2026-09-01 东林拍板方案 C）。云端轨道统一要求 v2；v1 老用户重弹一次升级确认。
@@ -208,7 +211,12 @@ final class HoloCloudAnalysisService {
     /// 轮询直到终态；failed/超时回落本地（按任务类型分流）。
     private func poll(taskId: String, context: TaskContext) async {
         activeTasks[taskId] = context
-        defer { activeTasks[taskId] = nil; pollingTasks[taskId]?.cancel(); pollingTasks[taskId] = nil }
+        defer {
+            activeTasks[taskId] = nil
+            pollingTasks[taskId]?.cancel()
+            pollingTasks[taskId] = nil
+            cloudTaskSlotReleasedHandler?()
+        }
 
         let deadline = Date().addingTimeInterval(Self.pollTimeout)
         while Date() < deadline {
@@ -287,6 +295,12 @@ final class HoloCloudAnalysisService {
         } else {
             await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
         }
+    }
+
+    /// 是否有云端任务在途（深度分析或回放）。Coordinator 的本地单飞检查
+    /// 必须同时覆盖它：云端回放进行中时，新回放不得绕过排队并行本地生成。
+    var hasActiveTask: Bool {
+        !activeTasks.isEmpty
     }
 
     /// 云端轨道快查（不触发上云）：flag 开启 + 隐私 v2 已同意 + 无并发任务。

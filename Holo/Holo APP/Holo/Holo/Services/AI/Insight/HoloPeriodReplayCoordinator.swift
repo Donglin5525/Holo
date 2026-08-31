@@ -62,6 +62,10 @@ final class HoloPeriodReplayCoordinator {
             guard let job = self.repository.periodReplayJob(messageId: messageId) else { return }
             self.schedule(messageId: messageId, job: job)
         }
+        cloud.cloudTaskSlotReleasedHandler = { [weak self] in
+            // 云端任务位已释放：唤醒因单飞排队的回放（含云端失败回落后排队的那个）
+            self?.resumePendingJobs(reason: "cloud_slot_released", onlyState: .waitingForForeground)
+        }
     }
 
     /// 云端回放结果落卡：解析走与本地同一条 MemoryInsightResponseParser；
@@ -273,7 +277,9 @@ final class HoloPeriodReplayCoordinator {
             logger.debug("[dedupe] 已有执行任务 message=\(messageId.uuidString)")
             return
         }
-        guard activeTasks.isEmpty else {
+        // 云端回放/分析在途同样占用「单飞」：新回放排队等待，不并行本地生成
+        // （并行会导致双卡转圈与 memoryInsight 额度双耗）。
+        guard activeTasks.isEmpty, !HoloCloudAnalysisService.shared.hasActiveTask else {
             var queuedJob = job
             queuedJob.state = .waitingForForeground
             queuedJob.updatedAt = Date()
