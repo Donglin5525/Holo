@@ -30,7 +30,10 @@ enum HomeCoachTour {
             CoachMarkStep(
                 targetID: bottomNavID,
                 title: "随时找 Holo 聊聊",
-                message: "不用想“该去哪记”——直接告诉 Holo 一件事，比如“午饭花了 35 元”，它会帮你记好。右边是记忆长廊，你的记录会自动汇成那里。"
+                message: "不用想“该去哪记”——直接告诉 Holo 一件事，比如“午饭花了 35 元”，它会帮你记好。右边是记忆长廊，你的记录会自动汇成那里。",
+                // 底部导航的中央 AI 按钮用 offset 凸出导航条布局 frame，
+                // 洞必须外扩更多才能把凸起完整含进去，否则按钮顶部被遮罩切掉
+                padding: 40
             ),
         ]
     }

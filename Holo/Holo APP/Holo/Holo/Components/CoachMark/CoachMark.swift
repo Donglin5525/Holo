@@ -9,6 +9,36 @@
 
 import SwiftUI
 
+// MARK: - 布局计算（纯函数，供单元测试）
+
+/// 说明卡片定位规则：
+/// 下方放得下优先（视觉动线在下方）；下方放不下改放上方（贴洞上方向上生长）；
+/// 两边都放不下兜底贴洞下方——卡片延伸到屏底压住 home indicator 区域，好过向上侵入状态栏。
+enum CoachMarkLayout {
+
+    /// 顶部安全距离：状态栏 + 灵动岛
+    static let topSafeInset: CGFloat = 60
+    /// 卡片与洞的间距
+    static let gap: CGFloat = 16
+    /// 卡片距屏幕底的允许余量
+    static let bottomMargin: CGFloat = 8
+
+    /// 按文案长度估算卡片高度（定位是贴边生长，估算值只用于「选哪边」，误差几十点无碍）
+    static func estimatedCardHeight(message: String, cardWidth: CGFloat) -> CGFloat {
+        let textWidth = cardWidth - 2 * 20 // 卡片内边距 HoloSpacing.lg
+        let charsPerLine = max(Int(textWidth / 16), 6) // holoBody 中文字符近似宽 16
+        let lines = ceil(Double(message.count) / Double(charsPerLine))
+        return 24 + 8 + CGFloat(lines) * 23 + 16 + 36 + 2 * 20 + 24
+    }
+
+    /// 卡片贴容器顶（洞下方）还是贴容器底（洞上方）
+    static func cardAlignment(hole: CGRect, screenSize: CGSize, estimatedHeight: CGFloat) -> Alignment {
+        let fitsBelow = hole.maxY + gap + estimatedHeight <= screenSize.height - bottomMargin
+        let fitsAbove = estimatedHeight <= hole.minY - gap - topSafeInset
+        return (fitsBelow || !fitsAbove) ? .top : .bottom
+    }
+}
+
 // MARK: - 目标区域上报
 
 /// 收集子树内所有 .coachMarkTarget(id) 上报的全局 frame
@@ -157,20 +187,19 @@ struct CoachMarkOverlay: View {
 
     // MARK: - 说明卡片
 
-    /// 说明卡片：默认放洞下方，空间不够时放洞上方
+    /// 说明卡片：按 CoachMarkLayout.cardAlignment 选边后贴边生长，
+    /// 长文案卡片不会溢出盖住高亮目标。
     private func tooltip(step: CoachMarkStep, hole: CGRect, screenSize: CGSize) -> some View {
         let cardWidth: CGFloat = min(screenSize.width - 48, 320)
-        let estimatedHeight: CGFloat = 150
-        let gap: CGFloat = 16
-
-        let belowY = hole.maxY + gap
-        let fitsBelow = belowY + estimatedHeight <= screenSize.height - 24
-        let cardY = fitsBelow ? belowY : max(hole.minY - gap - estimatedHeight, 24)
-        let cardX = min(max(hole.midX - cardWidth / 2, 24), screenSize.width - cardWidth - 24)
+        let estimated = CoachMarkLayout.estimatedCardHeight(message: step.message, cardWidth: cardWidth)
+        let alignment = CoachMarkLayout.cardAlignment(hole: hole, screenSize: screenSize, estimatedHeight: estimated)
+        let useBelow = alignment == .top
 
         return card(step: step)
             .frame(width: cardWidth, alignment: .leading)
-            .position(x: cardX + cardWidth / 2, y: cardY + estimatedHeight / 2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+            .padding(.top, useBelow ? hole.maxY + CoachMarkLayout.gap : 0)
+            .padding(.bottom, useBelow ? 0 : screenSize.height - hole.minY + CoachMarkLayout.gap)
             .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86), value: step)
     }
 
@@ -237,7 +266,7 @@ struct CoachMarkOverlay: View {
                 )
         }
         .buttonStyle(.plain)
-        .position(x: screenSize.width - 52, y: 54)
+        .position(x: screenSize.width - 52, y: 76)
         .accessibilityLabel("跳过导览")
     }
 
