@@ -178,6 +178,7 @@ struct DailyReplayView: View {
             DailyReplayChapterHeader(
                 day: dayStart,
                 events: events,
+                isFocused: calendar.isDate(dayStart, inSameDayAs: focusedDate),
                 moduleFilter: $moduleFilter,
                 onChooseDate: {
                     pickerDate = dayStart
@@ -325,6 +326,7 @@ struct DailyReplayView: View {
 private struct DailyReplayChapterHeader: View {
     let day: Date
     let events: [CalendarEvent]
+    let isFocused: Bool
     @Binding var moduleFilter: CalendarModule?
     let onChooseDate: () -> Void
     let onPortalChanged: (Int) -> Void
@@ -337,7 +339,8 @@ private struct DailyReplayChapterHeader: View {
         MemoryTimeChapterHeader(
             presentation: presentation,
             moduleFilter: $moduleFilter,
-            backgroundColor: .holoPaper
+            backgroundColor: .holoPaper,
+            showsFilter: isFocused
         ) {
             dateControl
         }
@@ -454,8 +457,8 @@ private struct DailyReplayDayContent: View {
                 Rectangle().fill(Color.holoBorder.opacity(0.35)).frame(height: 1)
             }
             .padding(.horizontal, HoloSpacing.md)
-            .padding(.top, 20)
-            .padding(.bottom, 22)
+            .padding(.top, 14)
+            .padding(.bottom, 16)
         }
         .frame(minHeight: events.isEmpty ? minimumHeight : 0, alignment: .top)
         .contentShape(Rectangle())
@@ -464,7 +467,9 @@ private struct DailyReplayDayContent: View {
 
     private var footerText: String {
         guard events.isEmpty else {
-            return Calendar.current.isDateInToday(day) ? "此刻" : "继续向下，回看前一天"
+            // 「现在」的语义由列表顶端的「今天的记忆还在继续」承担；章节脚注只管方向引导，
+            // 不再单独给今天塞一个「此刻」，避免把连续阅读切断。
+            return "继续向下，回看前一天"
         }
         return Calendar.current.isDateInToday(day) ? "上滑回看昨天" : "上滑回看前一天"
     }
@@ -499,19 +504,30 @@ private struct DailyReplayDayContent: View {
             .padding(.leading, 56)
 
             ForEach(moments) { moment in
-                HStack(alignment: .top, spacing: 10) {
-                    Text(moment.timeText)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.holoTextSecondary)
-                        .monospacedDigit()
-                        .frame(width: 46, alignment: .trailing)
-                        .padding(.top, 14)
-
+                // 带图想法走册页风整行版式：时间已在照片下方的手记里，左侧时间列不再重复一遍，
+                // 照片堆也由此拿回整行宽度。
+                if moment.module == .thought,
+                   moment.events.contains(where: { !$0.attachmentThumbnails.isEmpty }) {
                     DailyReplayEventCard(
                         moment: moment,
                         onSelect: onSelect,
                         onSelectGroup: onSelectGroup
                     )
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(moment.timeText)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.holoTextSecondary)
+                            .monospacedDigit()
+                            .frame(width: 46, alignment: .trailing)
+                            .padding(.top, 14)
+
+                        DailyReplayEventCard(
+                            moment: moment,
+                            onSelect: onSelect,
+                            onSelectGroup: onSelectGroup
+                        )
+                    }
                 }
             }
         }

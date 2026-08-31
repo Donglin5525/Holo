@@ -31,6 +31,21 @@ struct MemoryTimeChapterPresentationStandaloneTests {
         expect(daily.evidence == "7 个记忆时刻 · 15:15—23:08", "日章节证据应包含记忆时刻与首末时间")
         expect(daily.currentBadge == "今天", "当前日应标记今天")
 
+        let single = MemoryTimeChapterPresentation.make(
+            scale: .day,
+            focusedDate: day,
+            periodStart: day,
+            periodEnd: dayEnd,
+            eventCount: 1,
+            momentCount: 1,
+            activeDayCount: 1,
+            firstEventDate: date(2026, 8, 19, 0, 49, calendar: calendar),
+            lastEventDate: date(2026, 8, 19, 0, 49, calendar: calendar),
+            isCurrentPeriod: false,
+            calendar: calendar
+        )
+        expect(single.evidence == "1 个记忆时刻 · 00:49", "首末同分钟的记录日，时间只报一次")
+
         let weekStart = date(2026, 8, 17, 0, 0, calendar: calendar)
         let weekEnd = date(2026, 8, 24, 0, 0, calendar: calendar)
         let weekly = MemoryTimeChapterPresentation.make(
@@ -86,7 +101,7 @@ struct MemoryTimeChapterPresentationStandaloneTests {
         expect(monthly.evidence == "这个月还没有留下记录", "空月应使用自然的空态文案")
         expect(monthly.currentBadge == "本月", "当前月应标记本月")
 
-        print("MemoryTimeChapterPresentationStandaloneTests passed (4 cases)")
+        print("MemoryTimeChapterPresentationStandaloneTests passed (5 cases)")
     }
 
     private static func date(

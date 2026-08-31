@@ -61,7 +61,9 @@ struct DailyReplayEventCard: View {
                         .font(titleFont)
                         .foregroundColor(.holoTextPrimary)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(moment.module == .thought ? 3 : 2)
+                        // 想法的正文就是内容本身，回看时要能直接读到当时的念头，
+                        // 因此比其他模块放得宽；仍超长的给出「查看全文」提示。
+                        .lineLimit(moment.module == .thought ? 6 : 2)
                     Spacer(minLength: 4)
                     if let valueText {
                         Text(valueText)
@@ -77,6 +79,12 @@ struct DailyReplayEventCard: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
+                }
+
+                if thoughtNeedsFullTextHint {
+                    Text("轻点查看全文")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.holoPrimary.opacity(0.85))
                 }
 
                 if moment.events.count > 1 {
@@ -119,6 +127,22 @@ struct DailyReplayEventCard: View {
         moment.module == .thought
             ? .system(size: 15, weight: .semibold, design: .serif)
             : .system(size: 15, weight: .semibold)
+    }
+
+    /// 想法正文是否长过 6 行：按卡片实际可用宽度量一次文本高度。
+    /// 宽度取「屏宽 − 页边距 − 时间列 − 卡内边距」的近似值，误差只会让临界长文少/多出一次提示。
+    private var thoughtNeedsFullTextHint: Bool {
+        guard moment.module == .thought else { return false }
+        let base = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: 15) } ?? base
+        let availableWidth = UIScreen.main.bounds.width - 116
+        let textHeight = (moment.title as NSString).boundingRect(
+            with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        ).height
+        return textHeight > font.lineHeight * 6.5
     }
 
     @ViewBuilder

@@ -47,19 +47,20 @@ struct PolaroidMomentCard: View {
         }
     }
 
-    /// 叠层姿态：depth 0 为顶片；双片左右分立，多片时顶片微偏左、右侧与左下各露一角
+    /// 叠层姿态：depth 0 为顶片；双片左右分立，多片时顶片微偏左、右侧与左下各露一角。
+    /// 偏移量按整行卡宽收窄过——照片堆在卡内水平居中，姿态再大就会顶出窄屏的卡片边。
     private func placement(depth: Int, count: Int) -> (dx: CGFloat, dy: CGFloat, scale: CGFloat) {
         if count == 2 {
             switch depth {
-            case 0: return (-46, 6, 1)
-            default: return (46, -4, 0.97)
+            case 0: return (-36, 6, 1)
+            default: return (36, -4, 0.97)
             }
         }
         switch depth {
-        case 0:  return (-12, 0, 1)
-        case 1:  return (52, 12, 0.93)
-        case 2:  return (-48, 20, 0.89)
-        default: return (56, 26, 0.85)
+        case 0:  return (-10, 0, 1)
+        case 1:  return (42, 10, 0.93)
+        case 2:  return (-38, 16, 0.89)
+        default: return (46, 22, 0.85)
         }
     }
 
@@ -110,6 +111,7 @@ struct PolaroidMomentCard: View {
             }
         }
         .frame(height: photoHeight + 40)
+        .frame(maxWidth: .infinity)
         .gesture(
             DragGesture(minimumDistance: 14)
                 .onChanged { value in

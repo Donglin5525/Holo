@@ -12,17 +12,22 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
     @Binding var moduleFilter: CalendarModule?
     /// 底色随所处容器：周/月用全局背景，日回放册页用纸色（pinned 头必须不透明，避免滚动内容透出）
     private let backgroundColor: Color
+    /// 日回放是连续章节，滚动交界会同时露出两个钉顶头——筛选器只出现在聚焦章节，
+    /// 避免两个「全部」并排让用户分不清哪个生效；周/月单章节恒为 true。
+    private let showsFilter: Bool
     private let dateControl: DateControl
 
     init(
         presentation: MemoryTimeChapterPresentation,
         moduleFilter: Binding<CalendarModule?>,
         backgroundColor: Color = .holoBackground,
+        showsFilter: Bool = true,
         @ViewBuilder dateControl: () -> DateControl
     ) {
         self.presentation = presentation
         self._moduleFilter = moduleFilter
         self.backgroundColor = backgroundColor
+        self.showsFilter = showsFilter
         self.dateControl = dateControl()
     }
 
@@ -58,7 +63,9 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
             }
 
             Spacer(minLength: 2)
-            filterMenu
+            if showsFilter {
+                filterMenu
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .frame(minHeight: 92)

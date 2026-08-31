@@ -175,11 +175,25 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
             minutesAgo: 40,
             labels: ["A"]
         )
+        // 超长纯文字想法：验收日回放卡片 6 行截断 + 「轻点查看全文」提示
+        let longText = try seed(
+            content: "深夜整理这周的收获，发现真正拉开差距的不是做了多少事，而是把重要的事放在精力最好的时段。这周试着把晨间两小时留给最难的任务，效果远超预期：原本要拖三天的方案一个上午就理清了框架。也想明白了一个道理：计划的意义不在于精确执行每一项，而在于让注意力有明确的去处。注意力落在哪里，时间就流向哪里，生活就会长成什么样子。下周想把这套节奏固定下来，再观察一周，看看是不是偶然的好运。",
+            minutesAgo: 55,
+            labels: []
+        )
+        // 昨天仅此一条：验收章节头首末同分钟时时间只报一次
+        let yesterdaySolo = try seed(
+            content: "下班路上忽然想通了一件事：焦虑大多来自把还没发生的事提前演了太多遍。",
+            minutesAgo: 26 * 60 + 30,
+            labels: []
+        )
         try ctx.save()
 
         XCTAssertEqual(three.sortedAttachments.count, 3)
         XCTAssertEqual(single.sortedAttachments.count, 1)
+        XCTAssertTrue(longText.sortedAttachments.isEmpty)
+        XCTAssertTrue(yesterdaySolo.sortedAttachments.isEmpty)
         UserDefaults.standard.set(true, forKey: seedFlag)
-        print("[seed] 册页风造数完成：3 图想法 + 1 图想法，已写入 app 沙盒库")
+        print("[seed] 册页风造数完成：3 图想法 + 1 图想法 + 长文本想法 + 昨日单条，已写入 app 沙盒库")
     }
 }

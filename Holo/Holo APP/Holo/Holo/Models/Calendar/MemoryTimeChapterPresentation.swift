@@ -76,7 +76,11 @@ struct MemoryTimeChapterPresentation: Equatable {
         } else if scale == .day,
                   let firstEventDate,
                   let lastEventDate {
-            evidence = "\(momentCount) 个记忆时刻 · \(timeFormatter(calendar: calendar).string(from: firstEventDate))—\(timeFormatter(calendar: calendar).string(from: lastEventDate))"
+            // 一天只有一条（或同分钟）记录时，起止是同一分钟——只报一次，不写「00:49—00:49」。
+            let startText = timeFormatter(calendar: calendar).string(from: firstEventDate)
+            let endText = timeFormatter(calendar: calendar).string(from: lastEventDate)
+            let rangeText = startText == endText ? startText : "\(startText)—\(endText)"
+            evidence = "\(momentCount) 个记忆时刻 · \(rangeText)"
         } else {
             evidence = "\(activeDayCount) 天有记录 · \(momentCount) 个记忆时刻"
         }
