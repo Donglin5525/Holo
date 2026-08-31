@@ -64,7 +64,42 @@ final class FinanceBudgetSettings: ObservableObject {
         })
         if let data = try? JSONEncoder().encode(raw) {
             UserDefaults.standard.set(data, forKey: Self.enabledAtByAccountKey)
+            // 同步上行 iCloud：开关时间同时是结转起算点，影响预算数字，卸载即丢不可接受
+            if let json = String(data: data, encoding: .utf8) {
+                UserPreferenceRepository.shared.set(json, forKey: Self.cloudBackupKey)
+            }
         }
+    }
+
+    // MARK: - iCloud 备份恢复
+
+    nonisolated static let cloudBackupKey = "financeBudget.strictMode.v1"
+
+    /// 本次安装没动过开关时，从云端快照恢复（重装找回场景）
+    @discardableResult
+    func restoreFromCloudIfClean() -> Bool {
+        if UserDefaults.standard.data(forKey: Self.enabledAtByAccountKey) != nil {
+            // 本地已有数据：老用户首次升级且云端尚无快照时，主动建立云备份
+            if UserPreferenceRepository.shared.value(forKey: Self.cloudBackupKey) == nil,
+               let data = UserDefaults.standard.data(forKey: Self.enabledAtByAccountKey),
+               let json = String(data: data, encoding: .utf8) {
+                UserPreferenceRepository.shared.set(json, forKey: Self.cloudBackupKey)
+            }
+            return false
+        }
+        guard let json = UserPreferenceRepository.shared.value(forKey: Self.cloudBackupKey),
+              let data = json.data(using: .utf8),
+              let raw = try? JSONDecoder().decode([String: TimeInterval].self, from: data) else {
+            return false
+        }
+        var restored: [UUID: Date] = [:]
+        for (uuidString, interval) in raw {
+            guard let uuid = UUID(uuidString: uuidString) else { continue }
+            restored[uuid] = Date(timeIntervalSince1970: interval)
+        }
+        guard !restored.isEmpty else { return false }
+        enabledAtByAccount = restored
+        return true
     }
 
     private nonisolated static func loadStored() -> [UUID: Date] {

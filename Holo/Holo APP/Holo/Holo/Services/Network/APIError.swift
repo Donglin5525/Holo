@@ -81,7 +81,9 @@ enum APIError: LocalizedError {
             ]
             return statusCode >= 500 && !outputContractCodes.contains(code ?? "")
         case .httpError(let statusCode, _):
-            return statusCode >= 500 || statusCode == 429
+            // 429 一律不自动重试：限流窗口内的 1+2+4 秒盲重试只会加重限流，
+            // 若后端按请求计费还可能重复扣额度；quota 格式的 429 在上游已提前抛出不至此
+            return statusCode >= 500
         default:
             return false
         }

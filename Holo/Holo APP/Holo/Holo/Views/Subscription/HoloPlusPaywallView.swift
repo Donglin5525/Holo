@@ -173,6 +173,14 @@ struct HoloPlusPaywallView: View {
                 ForEach(subscriptionService.products, id: \.id) { product in
                     productButton(product)
                 }
+                // 购买流程的状态反馈（等待家长审批/已扣款同步中/同步失败）在此透出：
+                // 此前 lastErrorMessage 只在商品列表为空时渲染，付费用户点了购买没有任何可见回音
+                if let message = entitlementState.lastErrorMessage {
+                    Text(message)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
         }
     }

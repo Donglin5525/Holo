@@ -207,6 +207,7 @@ final class PromptManager {
         rawTemplateCache.removeValue(forKey: type)
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("自定义 Prompt 已保存: \(type.rawValue)")
+        backupToCloud()
     }
 
     /// 重置 Prompt 为硬编码默认值
@@ -221,6 +222,55 @@ final class PromptManager {
         rawTemplateCache.removeValue(forKey: type)
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("Prompt 已重置为默认: \(type.rawValue)")
+        backupToCloud()
+    }
+
+    // MARK: - 自定义 Prompt 的 iCloud 备份（UserDefaults 卸载即丢的恢复链）
+
+    nonisolated static let cloudBackupKey = "aiPrompt.customSnapshot.v1"
+
+    /// 把全部自定义 Prompt（含版本基准）快照上行 iCloud
+    func backupToCloud() {
+        var snapshot: [String: [String: String]] = [:]
+        for type in PromptType.allCases {
+            guard let content = UserDefaults.standard.string(forKey: Self.userDefaultsKey(for: type)) else { continue }
+            var entry = ["content": content]
+            let versionKey = "com.holo.prompt.version.\(type.rawValue)"
+            if let version = UserDefaults.standard.string(forKey: versionKey) {
+                entry["version"] = version
+            }
+            snapshot[type.rawValue] = entry
+        }
+        guard let data = try? JSONEncoder().encode(snapshot),
+              let json = String(data: data, encoding: .utf8) else { return }
+        UserPreferenceRepository.shared.set(json, forKey: Self.cloudBackupKey)
+    }
+
+    /// 本次安装无任何自定义时，从云端快照恢复（重装找回场景）。
+    /// 返回是否发生了恢复。
+    @discardableResult
+    func restoreFromCloudIfClean() -> Bool {
+        if PromptType.allCases.contains(where: { isCustomized($0) }) { return false }
+        guard let json = UserPreferenceRepository.shared.value(forKey: Self.cloudBackupKey),
+              let data = json.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode([String: [String: String]].self, from: data),
+              !snapshot.isEmpty else {
+            // 云端无快照且本地有自定义 → 老用户首次升级，主动建立云备份
+            if PromptType.allCases.contains(where: { isCustomized($0) }) { backupToCloud() }
+            return false
+        }
+        for (rawType, entry) in snapshot {
+            guard let type = PromptType(rawValue: rawType),
+                  let content = entry["content"] else { continue }
+            UserDefaults.standard.set(content, forKey: Self.userDefaultsKey(for: type))
+            if let version = entry["version"] {
+                UserDefaults.standard.set(version, forKey: "com.holo.prompt.version.\(type.rawValue)")
+            }
+        }
+        rawTemplateCache.removeAll()
+        NotificationCenter.default.post(name: .promptDidChange, object: nil)
+        logger.info("自定义 Prompt 已从 iCloud 恢复 \(snapshot.count)项")
+        return true
     }
 
     /// 检查是否有自定义覆盖

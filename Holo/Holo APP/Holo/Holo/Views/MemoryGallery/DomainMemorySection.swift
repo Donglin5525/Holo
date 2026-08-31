@@ -173,7 +173,7 @@ struct DomainMemorySection: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
-            Text("每条都标明会记多久：近期观察会随数据变化淡出，长期记忆只保留跨周期规律或你确认的重要事实。")
+            Text("每条都标明会记多久：近期观察会随数据变化淡出，长期记忆只保留跨周期规律或你确认的重要事实。健康与敏感类记忆仅保存在本设备、不上传 iCloud，卸载重装后这部分不会恢复。")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
         }
