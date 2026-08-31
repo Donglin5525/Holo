@@ -84,13 +84,23 @@ struct DailyReplayView: View {
                         )
                     }
 
-                    if let portalDate {
+                    if let shownDate = portalDate {
                         DailyReplayDatePortal(
-                            date: portalDate,
-                            eventCount: eventsByDay[calendar.startOfDay(for: portalDate)]?.count ?? 0
+                            date: shownDate,
+                            eventCount: eventsByDay[calendar.startOfDay(for: shownDate)]?.count ?? 0,
+                            onScrub: { scrubbed in
+                                portalDate = scrubbed
+                            },
+                            onCommit: {
+                                guard let target = portalDate else { return }
+                                withAnimation(HoloAnimation.quick) { portalDate = nil }
+                                jump(to: target, proxy: proxy)
+                            },
+                            onCancel: {
+                                withAnimation(HoloAnimation.quick) { portalDate = nil }
+                            }
                         )
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                        .allowsHitTesting(false)
                         .zIndex(30)
                     }
                 }
@@ -176,9 +186,12 @@ struct DailyReplayView: View {
                     updatePortal(anchor: dayStart, offset: offset)
                 },
                 onPortalCommitted: { offset in
-                    let target = portalTarget(anchor: dayStart, offset: offset)
+                    // 拖动过再松手：前往门上正显示的日期。原地松手（offset 为 0）则把门留在
+                    // 屏上，交给门自身的拖动/轻点/点空白接手——长按只负责开门，不再要求
+                    // 一气呵成；这也保证了手势被系统中断时门永远有出口，不会卡死在屏上。
+                    guard offset != 0, let current = portalDate else { return }
                     withAnimation(HoloAnimation.quick) { portalDate = nil }
-                    jump(to: target, proxy: proxy)
+                    jump(to: current, proxy: proxy)
                 },
                 onPortalCancelled: {
                     withAnimation(HoloAnimation.quick) { portalDate = nil }
@@ -261,8 +274,12 @@ struct DailyReplayView: View {
     // MARK: - 日期时间门
 
     private func updatePortal(anchor: Date, offset: Int) {
-        withAnimation(HoloAnimation.quick) {
-            portalDate = portalTarget(anchor: anchor, offset: offset)
+        let target = portalTarget(anchor: anchor, offset: offset)
+        if portalDate == nil {
+            withAnimation(HoloAnimation.quick) { portalDate = target }
+        } else {
+            // 已经开门后的连续穿梭直接赋值，套动画会让数字追着手指跑，显得不跟手。
+            portalDate = target
         }
     }
 
@@ -355,7 +372,9 @@ private struct DailyReplayChapterHeader: View {
     }
 
     private var portalGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.38, maximumDistance: 18)
+        // 长按开门后同一根手指继续拖即穿梭；时长与位移阈值放得比一般长按更宽，
+        // 否则用户「按下就开始滑」时触摸会被底层列表抢走，门根本开不出来。
+        LongPressGesture(minimumDuration: 0.3, maximumDistance: 24)
             .sequenced(before: DragGesture(minimumDistance: 0))
             .onChanged { value in
                 switch value {
@@ -607,38 +626,88 @@ private struct DailyReplayDatePickerSheet: View {
     }
 }
 
+/// 时间门：长按日期唤出的模态蒙层。蒙层拦下一切触摸——点空白处退出；
+/// 门上的日期可上下拖动继续穿梭，松手或轻点门即前往所选日期。
+/// 此前它是纯展示贴图（关闭触摸测试），蒙层形同虚设且只能靠手势结束来关闭，
+/// 手势一旦被系统中断门就永远挂在屏上，与底下的交互互相打架。
 private struct DailyReplayDatePortal: View {
     let date: Date
     let eventCount: Int
+    let onScrub: (Date) -> Void
+    let onCommit: () -> Void
+    let onCancel: () -> Void
+
+    /// 拖动基准日：本次手势起点时门上显示的日期。用 GestureState 承载，
+    /// 手势结束或被系统中断都会自动归 nil，不会把上一次的基准带进下一次。
+    @GestureState private var scrubBase: Date?
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.56).ignoresSafeArea()
-            VStack(spacing: 8) {
-                Text("时间门")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.holoPrimary)
-                    .tracking(2)
-                Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.system(size: 76, weight: .medium, design: .serif))
-                    .foregroundColor(.white)
-                    .tracking(-4)
-                Text(Self.formatter.string(from: date))
-                    .font(.system(size: 15, weight: .semibold, design: .serif))
-                    .foregroundColor(.white.opacity(0.86))
-                Text("\(eventCount) 条记录 · 上下拖动穿梭")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.48))
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 24)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous)
-                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
-            )
+            Color.black.opacity(0.56)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onCancel)
+
+            portalCard
         }
+    }
+
+    private var portalCard: some View {
+        VStack(spacing: 8) {
+            Text("时间门")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.holoPrimary)
+                .tracking(2)
+            Text("\(Calendar.current.component(.day, from: date))")
+                .font(.system(size: 76, weight: .medium, design: .serif))
+                .foregroundColor(.white)
+                .tracking(-4)
+            Text(Self.formatter.string(from: date))
+                .font(.system(size: 15, weight: .semibold, design: .serif))
+                .foregroundColor(.white.opacity(0.86))
+            Text("\(eventCount) 条记录 · 上下拖动穿梭")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(0.48))
+            Text("轻点日期前往 · 点空白处退出")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(0.32))
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 24)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous))
+        .onTapGesture(perform: onCommit)
+        .highPriorityGesture(scrubGesture)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("上下拖动穿梭日期，松手或轻点前往")
+        .accessibilityAction(named: "取消并关闭") { onCancel() }
+    }
+
+    private var scrubGesture: some Gesture {
+        DragGesture(minimumDistance: 6)
+            .updating($scrubBase) { _, state, _ in
+                if state == nil { state = date }
+            }
+            .onChanged { value in
+                let base = scrubBase ?? date
+                onScrub(Self.shift(base, by: value.translation.height))
+            }
+            .onEnded { _ in
+                onCommit()
+            }
+    }
+
+    /// 与章节头长按穿梭同一口径：向上拖回看更早，每 42pt 一天，不越过今天。
+    private static func shift(_ base: Date, by translation: CGFloat) -> Date {
+        let calendar = Calendar.current
+        let target = calendar.date(byAdding: .day, value: Int((translation / 42).rounded()), to: base) ?? base
+        return calendar.startOfDay(for: min(target, Date()))
     }
 
     private static let formatter: DateFormatter = {
