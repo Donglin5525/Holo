@@ -23,6 +23,7 @@ export function createCloudAnalysisExecutor({
   route,
   providerRetries = MAX_PROVIDER_RETRIES,
   maxRounds = MAX_LLM_ROUNDS,
+  pushNotifier = null,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
@@ -220,6 +221,13 @@ export function createCloudAnalysisExecutor({
             engine: "cloud-m2a",
           };
           taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+          // 分析完成推送（fire-and-forget）：锁屏/离开 App 的用户由此被叫醒；
+          // 推送失败不影响任务终态，App 打开后轮询恢复链兜底领取。
+          if (pushNotifier) {
+            pushNotifier.notifyAnalysisCompleted(task.device_id).catch((error) => {
+              log(`完成推送发送失败 taskId=${taskId}: ${error?.message ?? error}`);
+            });
+          }
           log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}`);
           return "completed";
         }

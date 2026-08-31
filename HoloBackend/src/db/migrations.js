@@ -322,6 +322,18 @@ const MIGRATIONS = [
         ON agent_cloud_analysis_tasks(expires_at_ms, status);
     `,
   },
+  {
+    id: 17,
+    description: '创建设备推送令牌表（云端分析完成通知：APNs token 按 device_id 一行，environment 记录已验证环境供直发）',
+    up: `
+      CREATE TABLE IF NOT EXISTS agent_device_tokens (
+        device_id TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        environment TEXT,
+        updated_at_ms INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

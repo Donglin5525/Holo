@@ -38,6 +38,8 @@ import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
 import { createCloudAnalysisTaskStore } from "./agent/cloudAnalysisTaskStore.js";
 import { createCloudAnalysisExecutor } from "./agent/cloudAnalysisExecutor.js";
+import { createDeviceTokenStore } from "./push/deviceTokenStore.js";
+import { createApnsSender } from "./push/apnsSender.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
@@ -180,12 +182,57 @@ export function createApp(overrides = {}) {
   // 执行采用进程内 fire-and-forget + 启动扫描 queued 孤儿（单实例，无队列基建）。
   // 必须在 providers 声明之后（生产密钥启用时曾因顺序错误创建失败）。
   let cloudAnalysisExecutor = config.cloudAnalysisExecutor ?? null;
+  // 推送通知（云端分析完成）：token 行 → APNs 发送；环境探测结果回写、
+  // 410 卸载删行都在 notifier 内闭环；密钥未配置时整体 no-op（不影响分析链路）。
+  const deviceTokenStore = config.deviceTokenStore ?? createDeviceTokenStore(database.db);
+  let apnsSender = config.apnsSender ?? null;
+  if (!apnsSender) {
+    const rawKey = config.auth.apns.keyContent;
+    const keyPem = rawKey.startsWith("base64:")
+      ? Buffer.from(rawKey.slice("base64:".length), "base64").toString("utf8")
+      : rawKey;
+    if (config.auth.apns.keyId && keyPem.trim()) {
+      apnsSender = createApnsSender({
+        keyPem,
+        keyId: config.auth.apns.keyId,
+        teamId: config.auth.apns.teamId,
+        bundleId: config.auth.apns.bundleId,
+        log: (message) => console.log("[apns]", message),
+      });
+    }
+  }
+  const analysisPushNotifier = apnsSender?.configured
+    ? {
+        async notifyAnalysisCompleted(deviceId) {
+          const row = deviceTokenStore.get(deviceId);
+          if (!row) return;
+          const result = await apnsSender.send({
+            token: row.token,
+            environment: row.environment ?? undefined,
+            title: "深度分析完成",
+            body: "结果已就绪，点按查看",
+          });
+          if (result.ok) {
+            if (result.environment && result.environment !== row.environment) {
+              deviceTokenStore.markEnvironment(deviceId, result.environment);
+            }
+          } else if (result.reason === "unregistered") {
+            deviceTokenStore.remove(deviceId);
+          } else {
+            console.log("[apns] 推送未送达:", JSON.stringify({
+              deviceId, reason: result.reason, apnsReason: result.apnsReason ?? null, status: result.status ?? null,
+            }));
+          }
+        },
+      }
+    : null;
   if (cloudAnalysisTaskStore && !cloudAnalysisExecutor && config.routes.agent_loop) {
     try {
       cloudAnalysisExecutor = createCloudAnalysisExecutor({
         taskStore: cloudAnalysisTaskStore,
         providers,
         route: config.routes.agent_loop,
+        pushNotifier: analysisPushNotifier,
       });
     } catch (error) {
       console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
@@ -1125,6 +1172,33 @@ export function createApp(overrides = {}) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
       }
       store.consumeResult(task.id);
+      return context.json({ ok: true });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 设备推送令牌上报（云端分析完成通知用）：APNs token = 64 位十六进制；
+  // 低频上报（启动/令牌轮换），轻限流防刷。
+  app.post("/v1/ai/agent/cloud/device-token", async (context) => {
+    try {
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+      const token = typeof request.token === "string" ? request.token.trim().toLowerCase() : "";
+      if (!/^[0-9a-f]{64}$/.test(token)) {
+        throw new GatewayError("INVALID_REQUEST", "token must be 64 hex chars", 400);
+      }
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "device_token_report",
+        minuteLimit: config.limits.deviceTokenReportsPerMinute,
+        dailyLimit: config.limits.deviceTokenReportsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+      deviceTokenStore.upsert(deviceId, token);
+      context.header("Cache-Control", "no-store");
       return context.json({ ok: true });
     } catch (error) {
       return createErrorResponse(context, error);

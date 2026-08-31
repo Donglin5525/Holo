@@ -17,6 +17,15 @@ const DEFAULT_CONFIG = {
       clientId: process.env.APPLE_REVOKE_CLIENT_ID ?? "com.tangyuxuan.holo-app",
       privateKeyPem: process.env.APPLE_PRIVATE_KEY_PEM ?? "",
     },
+    // APNs 推送（云端分析完成通知）：密钥内容必须显式配置（APNS_KEY_CONTENT），
+    // 不回落 APPLE_PRIVATE_KEY_PEM——那把 key 未必勾了 APNs，误用只会得到隐晦的 403。
+    apns: {
+      keyId: process.env.APNS_KEY_ID ?? "",
+      teamId: process.env.APNS_TEAM_ID ?? process.env.APPLE_TEAM_ID ?? "6WZ5TXGPQY",
+      bundleId: process.env.APNS_BUNDLE_ID ?? "com.tangyuxuan.holo-app",
+      // PEM 文本，或 "base64:" 前缀的 base64 编码（.env 单行友好）
+      keyContent: process.env.APNS_KEY_CONTENT ?? "",
+    },
   },
   limits: {
     chatRequestsPerMinute: Number(process.env.HOLO_CHAT_REQUESTS_PER_MINUTE ?? 20),
@@ -39,6 +48,9 @@ const DEFAULT_CONFIG = {
     cloudAnalysisStartsPerMinute: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_MINUTE ?? 6),
     cloudAnalysisStartsPerDay: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_DAY ?? 30),
     cloudAnalysisSnapshotMaxBytes: Number(process.env.HOLO_CLOUD_ANALYSIS_SNAPSHOT_MAX_BYTES ?? 2 * 1024 * 1024),
+    // 推送令牌上报：启动/令牌轮换时一次，正常用户远低于此额度。
+    deviceTokenReportsPerMinute: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_MINUTE ?? 10),
+    deviceTokenReportsPerDay: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_DAY ?? 50),
   },
   routes: {
     chat: {
@@ -386,6 +398,8 @@ export function loadConfig(overrides = {}) {
     agentTelemetryStore: overrides.agentTelemetryStore,
     cloudAnalysisTaskStore: overrides.cloudAnalysisTaskStore,
     cloudAnalysisExecutor: overrides.cloudAnalysisExecutor,
+    deviceTokenStore: overrides.deviceTokenStore,
+    apnsSender: overrides.apnsSender,
     cloudAnalysisEncryptionKey:
       overrides.cloudAnalysisEncryptionKey
         ?? process.env.HOLO_CLOUD_ANALYSIS_ENCRYPTION_KEY
