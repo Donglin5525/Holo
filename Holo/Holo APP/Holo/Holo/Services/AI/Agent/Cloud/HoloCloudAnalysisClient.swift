@@ -30,6 +30,9 @@ final class HoloCloudAnalysisClient {
             let reasoning: String?
             let evidence: [CloudEvidence]?
             let completedAt: String?
+            /// 周期回放任务（kind == "period_replay"）：模型生成的回放 JSON 原文
+            let kind: String?
+            let output: String?
 
             struct CloudClaim: Decodable {
                 let summary: String?
@@ -91,13 +94,13 @@ final class HoloCloudAnalysisClient {
         ]
     }
 
-    func start(question: String) async throws -> StartResponse {
+    func start(question: String, taskType: String = "deep_analysis") async throws -> StartResponse {
         let request = APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/agent/cloud/start",
             method: .post,
             headers: ["X-Holo-Device-Id": deviceIdProvider()],
-            body: StartBody(question: question)
+            body: StartBody(question: question, taskType: taskType)
         )
         do {
             return try await apiClient.send(request)
@@ -179,6 +182,7 @@ final class HoloCloudAnalysisClient {
 
     private struct StartBody: Encodable {
         let question: String
+        let taskType: String
     }
 
     private struct TokenBody: Encodable {

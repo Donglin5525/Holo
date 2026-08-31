@@ -20,15 +20,20 @@ struct CloudAnalysisPrivacySheet: View {
                 Image(systemName: "lock.shield")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(.holoPrimary)
-                Text("这次分析的数据怎么处理")
+                Text("云端分析与回放的数据怎么处理")
                     .font(.system(size: 17, weight: .semibold))
             }
 
             VStack(alignment: .leading, spacing: 12) {
                 Label {
-                    Text("为了让你锁屏、离开 App 后分析也能完成，Holo 会把本次分析所需的数据（如任务、账目、习惯、想法记录）**加密上传到云端**完成分析。")
+                    Text("为了让你锁屏、离开 App 后分析和回放也能完成，Holo 会把本次所需的数据（如任务、账目、习惯、想法记录）**加密上传到云端**完成处理。")
                 } icon: {
                     Image(systemName: "icloud.and.arrow.up").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                }
+                Label {
+                    Text("生成周期回放时，上传的数据会**包含健康与活动摘要**（如睡眠、步数），让回放能覆盖你的生活全貌。")
+                } icon: {
+                    Image(systemName: "heart.fill").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
                 }
                 Label {
                     Text("这些数据**仅用于这一次分析**——分析结束或失败后立即删除，云端不会保留。")
@@ -49,7 +54,7 @@ struct CloudAnalysisPrivacySheet: View {
             .font(.system(size: 14))
             .foregroundColor(.holoTextPrimary)
 
-            Text("本次分析仍按原方式在本机进行，确认后从下一次分析开始启用云端模式。")
+            Text("本次仍按原方式在本机进行，确认后从下一次分析或回放开始启用云端模式。")
                 .font(.system(size: 12))
                 .foregroundColor(.holoTextSecondary)
 

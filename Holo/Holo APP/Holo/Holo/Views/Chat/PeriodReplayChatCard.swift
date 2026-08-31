@@ -126,9 +126,15 @@ struct PeriodReplayChatCard: View {
                         Text(isFailed ? "回放还没有生成完整" : "Holo 正在生成回放")
                             .font(.headline)
                             .foregroundColor(.holoTextPrimary)
-                        Text(job?.statusText ?? "正在回顾这段时间的记录…")
+                        // 云端轨道的进度文案（上传中/云端生成中）经 content 更新进快照；
+                        // 本地轨道 content 与 statusText 同源，显示逻辑不受影响。
+                        let progressText = message.content.isEmpty
+                            ? (job?.statusText ?? "正在回顾这段时间的记录…")
+                            : message.content
+                        Text(progressText)
                             .font(.subheadline.weight(.medium))
                             .foregroundColor(.holoTextSecondary)
+                            .lineLimit(3)
                     }
                 }
 

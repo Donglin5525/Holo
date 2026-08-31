@@ -47,6 +47,10 @@ struct HoloApp: App {
         // 注册后台洞察生成任务
         MemoryInsightBackgroundService.shared.registerBackgroundTask()
 
+        // 周期回放协调器先于云端轮询恢复注册回调（杀 App 后冷启动领取云端回放
+        // 结果时，进度/终态/回落处理必须已就位，否则结果落不了卡）
+        _ = HoloPeriodReplayCoordinator.shared
+
         // 注册周期性支出自动补账任务
         SpendingProjectBackgroundService.shared.registerBackgroundTask()
 

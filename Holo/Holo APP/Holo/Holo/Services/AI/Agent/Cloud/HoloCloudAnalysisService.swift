@@ -23,16 +23,35 @@ final class HoloCloudAnalysisService {
     private let analysisService: HoloAgentAnalysisService
     private let repository: ChatMessageRepository
 
-    /// 进行中的云端任务：taskId → (sourceMessageID, question)。回前台恢复轮询用。
-    /// 同步持久化（杀 App 后冷启动恢复领取——云端结果等 7 天，但没有恢复入口就等于丢失）。
-    private var activeTasks: [String: (messageID: UUID, question: String)] = [:] {
+    /// 云端任务上下文：消息、问题、任务类型（deep_analysis=多轮分析 /
+    /// period_replay=周期回放单轮生成）。轮询终态按类型分流落卡。
+    struct TaskContext {
+        let messageID: UUID
+        let question: String
+        let taskType: String
+    }
+
+    /// 进行中的云端任务。回前台恢复轮询用；同步持久化（杀 App 后冷启动恢复领取
+    /// ——云端结果等 7 天，但没有恢复入口就等于丢失）。
+    private var activeTasks: [String: TaskContext] = [:] {
         didSet { persistActiveTasks() }
     }
     private var pollingTasks: [String: Task<Void, Never>] = [:]
 
-    /// 首启确认标志（隐私文案 sheet 只出现一次）
-    static let consentDefaultsKey = "holo.cloudAnalysis.privacyConsented"
+    /// 周期回放任务的进度/终态回调（HoloPeriodReplayCoordinator 启动时注册）：
+    /// 云端轮询的进度文案与结果落卡由回放侧接管（job 状态机制与深度分析的消息
+    /// 进度机制不同；恢复场景据此重建处理路径）。
+    var periodReplayProgressHandler: ((UUID, _ title: String, _ detail: String) -> Void)?
+    var periodReplayFinalizer: ((_ messageID: UUID, _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult) -> Void)?
+    /// 云端失败/超时后的本地回落入口（Coordinator 提供本地生成路径）
+    var periodReplayFallbackHandler: ((_ messageID: UUID) -> Void)?
+
+    /// 隐私同意版本化：v1 = 仅分析数据上云；v2 = 周期回放素材含健康与活动摘要
+    /// （2026-09-01 东林拍板方案 C）。云端轨道统一要求 v2；v1 老用户重弹一次升级确认。
+    static let consentVersionDefaultsKey = "holo.cloudAnalysis.consentVersion"
     static let activeTasksDefaultsKey = "holo.cloudAnalysis.activeTasks"
+    /// 旧布尔标志（v1）——迁移读取用
+    private static let legacyConsentDefaultsKey = "holo.cloudAnalysis.privacyConsented"
 
     private static let pollInterval: TimeInterval = 5
     // 云端复合分析实测可达 6-10 分钟（多轮工具+推理）；等待云端不该比本地紧，
@@ -52,17 +71,27 @@ final class HoloCloudAnalysisService {
         self.repository = repository
     }
 
-    static var privacyConsented: Bool {
-        UserDefaults.standard.bool(forKey: consentDefaultsKey)
+    static var consentVersion: Int {
+        if UserDefaults.standard.object(forKey: consentVersionDefaultsKey) != nil {
+            return UserDefaults.standard.integer(forKey: consentVersionDefaultsKey)
+        }
+        // v1 布尔迁移：已同意过分析上云的用户视为 v1（需再确认一次健康扩展）
+        return UserDefaults.standard.bool(forKey: legacyConsentDefaultsKey) ? 1 : 0
     }
 
+    static var privacyConsented: Bool { consentVersion >= 2 }
+
     static func markPrivacyConsented() {
-        UserDefaults.standard.set(true, forKey: consentDefaultsKey)
+        UserDefaults.standard.set(2, forKey: consentVersionDefaultsKey)
     }
 
     private func persistActiveTasks() {
         let payload = activeTasks.mapValues { context in
-            ["messageID": context.messageID.uuidString, "question": context.question]
+            [
+                "messageID": context.messageID.uuidString,
+                "question": context.question,
+                "taskType": context.taskType,
+            ]
         }
         UserDefaults.standard.set(payload, forKey: Self.activeTasksDefaultsKey)
     }
@@ -71,13 +100,15 @@ final class HoloCloudAnalysisService {
         guard activeTasks.isEmpty,
               let payload = UserDefaults.standard.dictionary(forKey: Self.activeTasksDefaultsKey)
         else { return }
-        var restored: [String: (messageID: UUID, question: String)] = [:]
+        var restored: [String: TaskContext] = [:]
         for (taskId, value) in payload {
             guard let dict = value as? [String: String],
                   let messageID = UUID(uuidString: dict["messageID"] ?? ""),
                   let question = dict["question"]
             else { continue }
-            restored[taskId] = (messageID, question)
+            // 旧持久化无 taskType：按深度分析处理（v1 存量任务只有这一类）
+            let taskType = dict["taskType"] ?? "deep_analysis"
+            restored[taskId] = TaskContext(messageID: messageID, question: question, taskType: taskType)
         }
         activeTasks = restored
     }
@@ -111,8 +142,11 @@ final class HoloCloudAnalysisService {
             let started = try await client.start(question: question)
             try Task.checkCancellation()
             try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: snapshot)
-            logger.info("云端任务已提交 taskId=\(started.taskId, privacy: .public)")
-            await poll(taskId: started.taskId, question: question, sourceMessageID: sourceMessageID)
+            logger.info("云端任务已提交 taskId=\(started.taskId, privacy: .public) type=deep_analysis")
+            await poll(
+                taskId: started.taskId,
+                context: TaskContext(messageID: sourceMessageID, question: question, taskType: "deep_analysis")
+            )
             return true
         } catch is CancellationError {
             await cancelActiveIfNeeded()
@@ -124,9 +158,56 @@ final class HoloCloudAnalysisService {
         }
     }
 
-    /// 轮询直到终态；failed/超时回落本地。
-    private func poll(taskId: String, question: String, sourceMessageID: UUID) async {
-        activeTasks[taskId] = (sourceMessageID, question)
+    /// 周期回放云端轨道（2026-09-01 云端化统一）：
+    /// 素材 = iOS 聚合的回放上下文（含健康摘要——东林拍板方案 C），复用任务底座
+    /// （密文上传/轮询/推送/即焚）；完成/失败经 periodReplay 回调交回 Coordinator。
+    /// - Returns: true = 云端已接管；false = 云端不可用/未同意/并发占位，调用方走本地。
+    func attemptPeriodReplay(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date,
+        sourceMessageID: UUID
+    ) async -> Bool {
+        guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return false }
+        guard Self.privacyConsented else { return false }
+        guard activeTasks.isEmpty else { return false }
+
+        periodReplayProgressHandler?(
+            sourceMessageID,
+            "正在加密上传回放素材…",
+            "素材仅用于这一次生成，结束即从云端删除；结果只保存在这台设备。"
+        )
+
+        do {
+            // 与本地生成共用同一份聚合器（素材口径零漂移；健康摘要随素材上云）
+            let builder = MemoryInsightContextBuilder()
+            let (context, _) = try await builder.build(periodType: periodType, start: start, end: end)
+            let material = try JSONEncoder().encode(context)
+            let started = try await client.start(question: "period_replay", taskType: "period_replay")
+            try Task.checkCancellation()
+            try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: material)
+            logger.info("云端回放任务已提交 taskId=\(started.taskId, privacy: .public)")
+            await poll(
+                taskId: started.taskId,
+                context: TaskContext(
+                    messageID: sourceMessageID,
+                    question: "period_replay",
+                    taskType: "period_replay"
+                )
+            )
+            return true
+        } catch is CancellationError {
+            await cancelActiveIfNeeded()
+            return false
+        } catch {
+            logger.error("云端回放轨道失败回落本地：\(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
+    /// 轮询直到终态；failed/超时回落本地（按任务类型分流）。
+    private func poll(taskId: String, context: TaskContext) async {
+        activeTasks[taskId] = context
         defer { activeTasks[taskId] = nil; pollingTasks[taskId]?.cancel(); pollingTasks[taskId] = nil }
 
         let deadline = Date().addingTimeInterval(Self.pollTimeout)
@@ -137,7 +218,11 @@ final class HoloCloudAnalysisService {
                 switch status.status {
                 case "completed":
                     if let result = status.result {
-                        finalizeCloudResult(result, question: question, sourceMessageID: sourceMessageID)
+                        if context.taskType == "period_replay" {
+                            periodReplayFinalizer?(context.messageID, result)
+                        } else {
+                            finalizeCloudResult(result, question: context.question, sourceMessageID: context.messageID)
+                        }
                         // R1 确认制：结果已落地本地，回执服务端销毁密文副本。
                         // ack 失败无妨——结果留存 ≤7 天，属可接受的隐私延迟。
                         try? await client.ackResult(taskId: taskId)
@@ -146,16 +231,32 @@ final class HoloCloudAnalysisService {
                     // completed 但无结果（已领取过的重复轮询或异常态）：回落本地重跑
                     break
                 case "failed", "cancelled", "expired":
-                    logger.log("云端任务终态=\(status.status, privacy: .public) 回落本地")
-                    await fallbackToLocal(question: question, sourceMessageID: sourceMessageID)
+                    logger.log("云端任务终态=\(status.status, privacy: .public) type=\(context.taskType, privacy: .public)")
+                    if context.taskType == "period_replay" {
+                        // 回放失败统一回落本地执行链（Coordinator 接管）：额度类失败由本地
+                        // 生成路径撞额度墙后落标准额度卡，其余按本地重试语义续跑——
+                        // 云端/本地同一套终态呈现。
+                        periodReplayProgressHandler?(context.messageID, "云端生成中断", "正在改在本地继续…")
+                        periodReplayFallbackHandler?(context.messageID)
+                        return
+                    }
+                    await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
                     return
                 default:
-                    repository.updateAgentMessageProgress(sourceMessageID, status: HoloAgentChatStatus(
-                        title: "云端深度分析中…",
-                        detail: "分析在云端进行，锁屏或离开 App 都不影响；完成后结果自动出现在这里。",
-                        keepsMessageStreaming: true,
-                        showsActivityIndicator: true
-                    ))
+                    if context.taskType == "period_replay" {
+                        periodReplayProgressHandler?(
+                            context.messageID,
+                            "回放云端生成中…",
+                            "生成在云端进行，锁屏或离开 App 都不影响；完成后结果自动出现在这里。"
+                        )
+                    } else {
+                        repository.updateAgentMessageProgress(context.messageID, status: HoloAgentChatStatus(
+                            title: "云端深度分析中…",
+                            detail: "分析在云端进行，锁屏或离开 App 都不影响；完成后结果自动出现在这里。",
+                            keepsMessageStreaming: true,
+                            showsActivityIndicator: true
+                        ))
+                    }
                 }
             } catch let error as APIError {
                 // 任务行已被 7 天过期清理（服务端整行删除返回 404）：结果不可再领取，
@@ -163,7 +264,11 @@ final class HoloCloudAnalysisService {
                 if case .httpError(let statusCode, _) = error, statusCode == 404 {
                     logger.log("云端任务已过期清理，立即回落本地 taskId=\(taskId, privacy: .public)")
                     activeTasks[taskId] = nil
-                    await fallbackToLocal(question: question, sourceMessageID: sourceMessageID)
+                    if context.taskType == "period_replay" {
+                        periodReplayFallbackHandler?(context.messageID)
+                    } else {
+                        await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
+                    }
                     return
                 }
                 logger.error("轮询失败（稍后重试）：\(String(describing: error), privacy: .public)")
@@ -177,14 +282,24 @@ final class HoloCloudAnalysisService {
         }
         logger.log("云端任务超时回落本地 taskId=\(taskId, privacy: .public)")
         try? await client.cancel(taskId: taskId)
-        await fallbackToLocal(question: question, sourceMessageID: sourceMessageID)
+        if context.taskType == "period_replay" {
+            periodReplayFallbackHandler?(context.messageID)
+        } else {
+            await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
+        }
+    }
+
+    /// 云端轨道快查（不触发上云）：flag 开启 + 隐私 v2 已同意 + 无并发任务。
+    /// Coordinator 据此决定回放先走云端还是本地；真正接管以 attempt 系列的完整检查为准。
+    func canTakeCloudTask() -> Bool {
+        HoloAIFeatureFlags.cloudDeepAnalysisEnabled && Self.privacyConsented && activeTasks.isEmpty
     }
 
     /// 回前台恢复轮询：锁屏期间轮询随进程挂起，云端结果在等领取。
     func resumePolling() {
         for (taskId, context) in activeTasks where pollingTasks[taskId] == nil {
             pollingTasks[taskId] = Task { [weak self] in
-                await self?.poll(taskId: taskId, question: context.question, sourceMessageID: context.messageID)
+                await self?.poll(taskId: taskId, context: context)
             }
         }
     }

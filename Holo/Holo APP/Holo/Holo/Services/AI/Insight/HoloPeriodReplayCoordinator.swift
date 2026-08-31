@@ -35,6 +35,57 @@ final class HoloPeriodReplayCoordinator {
             }
         }
         networkMonitor.start(queue: networkMonitorQueue)
+        registerCloudHandlers()
+    }
+
+    /// 云端回放轨道接线（2026-09-01 云端化统一）：进度/终态/回落三个回调由
+    /// HoloCloudAnalysisService 轮询驱动；恢复场景（杀 App 后冷启动领取）同样生效。
+    private func registerCloudHandlers() {
+        let cloud = HoloCloudAnalysisService.shared
+        cloud.periodReplayProgressHandler = { [weak self] messageId, title, detail in
+            guard let self else { return }
+            guard var job = self.repository.periodReplayJob(messageId: messageId) else { return }
+            job.state = .generating
+            job.updatedAt = Date()
+            self.repository.updatePeriodReplayJob(
+                messageId,
+                job: job,
+                content: title.isEmpty ? detail : "\(title)\n\(detail)",
+                isStreaming: true
+            )
+        }
+        cloud.periodReplayFinalizer = { [weak self] messageId, result in
+            self?.finalizeCloudReplay(messageId: messageId, result: result)
+        }
+        cloud.periodReplayFallbackHandler = { [weak self] messageId in
+            guard let self else { return }
+            guard let job = self.repository.periodReplayJob(messageId: messageId) else { return }
+            self.schedule(messageId: messageId, job: job)
+        }
+    }
+
+    /// 云端回放结果落卡：解析走与本地同一条 MemoryInsightResponseParser；
+    /// 解析失败如实落失败卡（云端额度已消耗，不自动重跑本地避免双扣）。
+    private func finalizeCloudReplay(
+        messageId: UUID,
+        result: HoloCloudAnalysisClient.StatusResponse.CloudResult
+    ) {
+        guard var job = repository.periodReplayJob(messageId: messageId) else { return }
+        let output = result.output ?? ""
+        switch MemoryInsightResponseParser.parseResult(output) {
+        case .success(let payload):
+            job.attemptCount += 1
+            finalizeSuccess(messageId: messageId, job: &job, payload: payload)
+            logger.info("[cloud-completed] message=\(messageId.uuidString)")
+        case .failure(let failure):
+            markFailed(
+                messageId: messageId,
+                job: job,
+                category: "cloud_parse_failure",
+                quotaMessage: nil
+            )
+            logger.error("[cloud-parse-failed] message=\(messageId.uuidString) \(String(describing: failure), privacy: .public)")
+        }
     }
 
     var hasActiveUserReplay: Bool {
@@ -107,6 +158,23 @@ final class HoloPeriodReplayCoordinator {
             extractedDataJSON: job.json
         )
         logger.info("[created] 周期回放 message=\(assistantMessageId.uuidString) period=\(periodType.rawValue)")
+        // 云端回放轨道（2026-09-01 云端化统一）：flag+隐私 v2+无并发任务时优先上云
+        // （锁屏/离开 App 不再中断生成；失败自动回落本地执行链）。
+        if HoloCloudAnalysisService.shared.canTakeCloudTask() {
+            let cloudMessageId = assistantMessageId
+            Task { @MainActor in
+                let handled = await HoloCloudAnalysisService.shared.attemptPeriodReplay(
+                    periodType: periodType,
+                    start: start,
+                    end: end,
+                    sourceMessageID: cloudMessageId
+                )
+                if !handled {
+                    self.schedule(messageId: cloudMessageId, job: job)
+                }
+            }
+            return
+        }
         schedule(messageId: assistantMessageId, job: job)
     }
 
@@ -368,7 +436,7 @@ final class HoloPeriodReplayCoordinator {
         )
     }
 
-    private func finalizeSuccess(
+    func finalizeSuccess(
         messageId: UUID,
         job: inout HoloPeriodReplayJob,
         payload: MemoryInsightPayload

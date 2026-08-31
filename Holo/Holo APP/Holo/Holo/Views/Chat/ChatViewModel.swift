@@ -2816,6 +2816,14 @@ final class ChatViewModel: ObservableObject {
 
     /// 周期回放交给应用级协调器执行，页面销毁、息屏或冷启动都能从原消息继续。
     func startPeriodReplay(periodType: MemoryInsightPeriodType, start: Date, end: Date) async {
+        // 云端回放轨道的首次确认（v2：含健康摘要说明）：未同意时本次走本地，下次生效
+        if HoloAIFeatureFlags.cloudDeepAnalysisEnabled,
+           !HoloCloudAnalysisService.privacyConsented {
+            showCloudPrivacySheet = true
+        } else if HoloCloudAnalysisService.shared.canTakeCloudTask() {
+            // 云端接管即注册推送（「回放已生成」通知）；拒绝不影响生成
+            HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+        }
         await HoloPeriodReplayCoordinator.shared.start(
             periodType: periodType,
             start: start,
