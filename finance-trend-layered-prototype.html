@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>统计趋势卡 · 方案B 精修版 vs 原版</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #F7F2EA;
+    display: flex;
+    justify-content: center;
+    padding: 32px 0 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { width: 390px; }
+
+  .proto-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #8A8378;
+    margin: 0 4px 10px;
+  }
+  .proto-label .tag {
+    display: inline-block;
+    background: #F46D38;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 2px 7px;
+    margin-right: 8px;
+    vertical-align: 1px;
+  }
+  .proto-label.alt .tag { background: #B8B2A6; }
+  .proto-sub {
+    font-size: 12px;
+    color: #A8A196;
+    margin: -4px 4px 12px;
+    line-height: 1.5;
+  }
+
+  .card {
+    background: #FFFFFF;
+    border-radius: 20px;
+    padding: 18px 16px 14px;
+    margin-bottom: 28px;
+    box-shadow: 0 2px 12px rgba(90, 70, 40, 0.06);
+  }
+
+  .sec-head {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    color: #6E675C;
+    margin-bottom: 8px;
+  }
+  .sec-head .spacer { flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot.red { background: #EF4444; }
+  .dot.green { background: #22C55E; }
+  .dot.orange { background: #F46D38; }
+  .sec-head .legend-item { margin-right: 14px; display: inline-flex; align-items: center; }
+  .delta-up { color: #16A34A; font-weight: 600; font-size: 13px; }
+
+  svg { display: block; width: 100%; }
+  svg text { font-family: inherit; }
+
+  /* v2：柱子静默态淡色，悬停那天变饱和 */
+  #svgB2 g.day { opacity: 0.38; transition: opacity 0.15s; }
+  #svgB2 g.day.hot { opacity: 1; }
+  /* v1 对照：悬停时压暗其他天 */
+  #svgB1 g.day { transition: opacity 0.15s; }
+  #svgB1 g.day.dim { opacity: 0.25; }
+
+  .footnote {
+    font-size: 12px;
+    color: #A8A196;
+    line-height: 1.7;
+    margin: 0 4px;
+  }
+
+  #tip {
+    position: fixed;
+    display: none;
+    background: rgba(40, 34, 26, 0.94);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 11px;
+    font-size: 12px;
+    line-height: 1.7;
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  #tip .d { font-weight: 600; margin-bottom: 1px; }
+  #tip .v { display: flex; align-items: center; }
+  #tip .v i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="proto-label"><span class="tag">方案 B · 精修版</span>同一张画布，分成上下两个安静区</div>
+  <div class="proto-sub">余额线住上层、收支柱住下层，只有真出事的那天（8/26 大额支出）线才会碰到柱尖。柱子默认淡色、悬停变饱和；网格线和 Y 轴数字全部拿掉，精确值靠点按读取。对照下面这张原版卡，感受「变干净」的每一步。</div>
+  <div class="card">
+    <div class="sec-head">
+      <span class="legend-item"><span class="dot red"></span>支出</span>
+      <span class="legend-item"><span class="dot green"></span>收入</span>
+      <span class="legend-item"><span class="dot orange"></span>余额</span>
+      <span class="spacer"></span>
+      <span class="delta-up" id="deltaB2"></span>
+    </div>
+    <svg id="svgB2" height="236"></svg>
+  </div>
+
+  <div class="proto-label alt"><span class="tag">方案 B · 原版</span>改动前的样子，留着对照</div>
+  <div class="card">
+    <div class="sec-head">
+      <span class="legend-item"><span class="dot red"></span>支出</span>
+      <span class="legend-item"><span class="dot green"></span>收入</span>
+      <span class="legend-item"><span class="dot orange"></span>余额</span>
+    </div>
+    <svg id="svgB1" height="238"></svg>
+  </div>
+
+  <div class="footnote">
+    数据为示意（按 8 月截图形态模拟）。8/28 收入 ¥21,800 超出柱轴上限（8千），两版都做「断口」截断+标注。根治思路仍是先查清这笔的性质：若是转账/还款，从收支统计里剔除后，断口处理整个都不需要了。鼠标悬停看每日明细。
+  </div>
+
+</div>
+<div id="tip"></div>
+
+<script>
+// ---------- 数据（模拟 8 月截图形态，无 Date 对象，纯数组） ----------
+const labels = Array.from({ length: 31 }, (_, i) => '8/' + (i + 1));
+
+const expense = [186,2050,640,880,320,540,410,760,290,1120,380,620,450,980,340,760,520,1310,430,380,890,460,1180,540,2150,6280,890,2420,2540,680,420];
+const income  = [0,0,0,120,0,0,860,0,420,0,0,680,0,340,0,520,0,0,260,0,880,0,1350,0,0,0,0,21800,0,640,280];
+const balance = [24178,23960,24120,23680,23840,23420,23180,23460,23120,22840,23060,22620,22380,22640,22260,21980,22240,21820,21560,21240,20860,21120,20680,20320,19840,14320,13980,24180,23940,24320,24209];
+
+const C = { red: '#EF4444', green: '#22C55E', orange: '#F46D38', grid: '#F2ECE2', axis: '#B8B2A6' };
+const BAR_CAP = 8000;
+const fmt = n => '¥' + n.toLocaleString('zh-CN');
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function smoothPath(pts) {
+  let d = 'M' + pts[0][0] + ',' + pts[0][1];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+    d += ' Q' + x1 + ',' + y1 + ' ' + (x1 + x2) / 2 + ',' + (y1 + y2) / 2;
+  }
+  const last = pts[pts.length - 1];
+  return d + ' L' + last[0] + ',' + last[1];
+}
+
+// 收支柱绘制（无网格线版 / 带网格线版共用柱逻辑）
+// padL: 左留白；saturated: 柱子用全饱和色（v1）还是交给 CSS 淡色（v2）
+function drawBars(svg, padL, padR, plotTop, plotBottom, labelY, opts) {
+  const slot = (326 - padL - padR) / 31;
+  const cx = i => padL + slot * i + slot / 2;
+
+  if (opts.gridlines) {
+    [0, 4000, 8000].forEach(v => {
+      const y = plotBottom - (v / BAR_CAP) * (plotBottom - plotTop);
+      el('line', { x1: padL, x2: 326 - padR, y1: y, y2: y, stroke: C.grid, 'stroke-width': 1 }, svg);
+      el('text', { x: padL - 6, y: y + 3, 'text-anchor': 'end', 'font-size': 10, fill: C.axis }, svg)
+        .textContent = v === 0 ? '0' : (v / 1000) + '千';
+    });
+  } else {
+    // 只留一条底部基线
+    el('line', { x1: padL, x2: 326 - padR, y1: plotBottom, y2: plotBottom, stroke: C.grid, 'stroke-width': 1 }, svg);
+  }
+
+  const groups = [];
+  const bw = opts.wide ? 3.8 : 3.2, gap = opts.wide ? 1.2 : 1.6;
+  const yOf = v => plotBottom - (v / BAR_CAP) * (plotBottom - plotTop);
+  for (let i = 0; i < 31; i++) {
+    const g = el('g', { class: 'day', 'data-i': i }, svg);
+    groups.push(g);
+    if (expense[i] > 0) {
+      const v = Math.min(expense[i], BAR_CAP);
+      el('rect', { x: cx(i) - bw - gap / 2, y: yOf(v), width: bw, height: plotBottom - yOf(v), rx: 1.8, fill: C.red }, g);
+    }
+    if (income[i] > 0) {
+      const x = cx(i) + gap / 2;
+      if (income[i] > BAR_CAP) {
+        el('rect', { x, y: plotTop + 7, width: bw, height: plotBottom - plotTop - 7, rx: 1.8, fill: C.green }, g);
+        el('rect', { x, y: plotTop, width: bw, height: 4, rx: 1.8, fill: C.green }, g);
+        [-1, 2.5].forEach(dy => {
+          el('line', {
+            x1: x - 1.8, y1: plotTop + 5 + dy, x2: x + bw + 1.8, y2: plotTop + 2.5 + dy,
+            stroke: '#FFFFFF', 'stroke-width': opts.wide ? 2 : 1.6
+          }, g);
+        });
+        const t = el('text', {
+          x: x - 5, y: plotTop + 10, 'text-anchor': 'end',
+          'font-size': 9, 'font-weight': 600, fill: '#16A34A'
+        }, g);
+        t.textContent = '2.2万';
+      } else {
+        el('rect', { x, y: yOf(income[i]), width: bw, height: plotBottom - yOf(income[i]), rx: 1.8, fill: C.green }, g);
+      }
+    }
+  }
+  [0, 6, 12, 18, 24, 30].forEach(i => {
+    el('text', { x: cx(i), y: labelY, 'text-anchor': 'middle', 'font-size': 10, fill: C.axis }, svg).textContent = labels[i];
+  });
+  return { groups, cx, slot };
+}
+
+function drawBalanceLine(svg, cxOf, top, bottom) {
+  const min = 13900, max = 24400;
+  const yB = v => top + (max - v) / (max - min) * (bottom - top);
+  const pts = balance.map((v, i) => [cxOf(i), yB(v)]);
+  el('path', { d: smoothPath(pts), fill: 'none', stroke: '#FFFFFF', 'stroke-width': 3.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: 0.85 }, svg);
+  el('path', { d: smoothPath(pts), fill: 'none', stroke: C.orange, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+  return pts;
+}
+
+// ---------- 精修版 ----------
+const B2 = {};
+(function () {
+  const svg = document.getElementById('svgB2');
+  // 分区：余额线住上层 [12,130]，收支柱住下层 [106,190]，中间留 8px 呼吸带
+  const bars = drawBars(svg, 8, 8, 106, 190, 214, { gridlines: false, wide: true });
+  const pts = drawBalanceLine(svg, bars.cx, 12, 130);
+
+  // 余额线末端：小圆点 + 现值标注（替代大面积渐变与图例强依赖）
+  const end = pts[30];
+  el('circle', { cx: end[0], cy: end[1], r: 3, fill: C.orange, stroke: '#fff', 'stroke-width': 1.5 }, svg);
+  el('text', { x: end[0] - 2, y: end[1] + 17, 'text-anchor': 'end', 'font-size': 10, 'font-weight': 600, fill: '#EA580C' }, svg)
+    .textContent = fmt(balance[30]);
+
+  // 悬停时余额线上的定位圆点（默认隐藏）
+  B2.hoverDot = el('circle', { r: 3.5, fill: C.orange, stroke: '#fff', 'stroke-width': 1.5, visibility: 'hidden' }, svg);
+  B2.pts = pts;
+  B2.groups = bars.groups;
+  B2.slot = bars.slot;
+  B2.padL = 8;
+
+  document.getElementById('deltaB2').textContent =
+    '余额较月初 +' + (balance[30] - balance[0]).toLocaleString('zh-CN');
+})();
+
+// ---------- 原版对照 ----------
+const B1 = {};
+(function () {
+  const svg = document.getElementById('svgB1');
+  const bars = drawBars(svg, 30, 8, 26, 208, 228, { gridlines: true, wide: false });
+  drawBalanceLine(svg, bars.cx, 14, 208);
+  B1.groups = bars.groups;
+  B1.slot = bars.slot;
+  B1.padL = 30;
+})();
+
+// ---------- 悬停联动 + 提示 ----------
+(function () {
+  const tip = document.getElementById('tip');
+
+  function bind(svg, state, isRefined) {
+    const H = +svg.getAttribute('height');
+    for (let i = 0; i < 31; i++) {
+      const hit = el('rect', {
+        x: state.padL + state.slot * i, y: 0, width: state.slot, height: H, fill: 'transparent'
+      }, svg);
+      const show = ev => {
+        if (isRefined) {
+          state.groups.forEach(g => g.classList.toggle('hot', +g.dataset.i === i));
+          state.hoverDot.setAttribute('cx', state.pts[i][0]);
+          state.hoverDot.setAttribute('cy', state.pts[i][1]);
+          state.hoverDot.setAttribute('visibility', 'visible');
+        } else {
+          state.groups.forEach(g => g.classList.toggle('dim', +g.dataset.i !== i));
+        }
+        tip.innerHTML =
+          '<div class="d">' + labels[i] + '</div>' +
+          '<div class="v"><i style="background:' + C.red + '"></i>支出 ' + fmt(expense[i]) + '</div>' +
+          '<div class="v"><i style="background:' + C.green + '"></i>收入 ' + fmt(income[i]) + '</div>' +
+          '<div class="v"><i style="background:' + C.orange + '"></i>余额 ' + fmt(balance[i]) + '</div>';
+        tip.style.display = 'block';
+        move(ev);
+      };
+      const move = ev => {
+        tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 150) + 'px';
+        tip.style.top = (ev.clientY + 16) + 'px';
+      };
+      hit.addEventListener('mouseenter', show);
+      hit.addEventListener('mousemove', move);
+      hit.addEventListener('mouseleave', () => {
+        tip.style.display = 'none';
+        state.groups.forEach(g => g.classList.remove('hot', 'dim'));
+        if (isRefined) state.hoverDot.setAttribute('visibility', 'hidden');
+      });
+    }
+  }
+  bind(document.getElementById('svgB2'), B2, true);
+  bind(document.getElementById('svgB1'), B1, false);
+})();
+</script>
+</body>
+</html>

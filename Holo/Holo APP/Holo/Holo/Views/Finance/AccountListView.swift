@@ -3,27 +3,46 @@
 //  Holo
 //
 //  账户总览页 - 财务模块底部第 1 个 Tab
-//  净资产卡 + 钱包式账户卡堆（点卡头翻卡/上下滑动/信息联动）+ 可切换的全部账户管理列表
-//  视觉规范见 docs/design-mockups/finance-account-cards-brand.html
+//  净资产卡 + 全部账户平铺列表（点行进详情、长按弹出管理菜单）
+//  【1.0.1 改版】收起卡堆拟物形式，回归信息密度优先的列表骨架：
+//  一屏看全所有账户，点哪进哪，无翻卡、无置顶、无屏中空白。
 //
 
 import SwiftUI
 
 extension Account: Identifiable {}
 
+// MARK: - 列表行数据
+
+/// 账户列表一行需要的数据（余额在父视图统一取数，避免行内反复查询）
+struct AccountRowItem: Identifiable {
+    let account: Account
+    let balance: Decimal
+
+    var id: UUID { account.id }
+
+    /// 信用卡余额为负（欠款），行内语义「已用额度」取其绝对值
+    var outstanding: Decimal? {
+        guard account.accountType.isCreditCard, balance < 0 else { return nil }
+        return -balance
+    }
+
+    /// 普通账户余额为负 = 负债状态，与净资产卡「总负债」同一口径
+    var isDebt: Bool {
+        !account.accountType.isCreditCard && balance < 0
+    }
+}
+
+// MARK: - AccountListView
+
 struct AccountListView: View {
 
     /// 返回上一级（与其他 Tab 一致的返回交互）
     let onBack: () -> Void
 
-    /// 记住上次置顶的账户，下次进入自动置顶
-    @AppStorage("finance.accountStack.topAccountId") private var storedTopId: String?
-
-    @State private var items: [AccountStackItem] = []
-    @State private var archivedItems: [AccountStackItem] = []
+    @State private var items: [AccountRowItem] = []
+    @State private var archivedItems: [AccountRowItem] = []
     @State private var netWorthData: (assets: Decimal, liabilities: Decimal, netWorth: Decimal) = (0, 0, 0)
-    @State private var dynData: AccountDynamicData?
-    @State private var showListView = false
 
     @State private var detailAccount: Account?
     @State private var showDetail = false
@@ -37,32 +56,21 @@ struct AccountListView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                ZStack(alignment: .top) {
-                    // 环境光：随当前选中卡变色的顶部微光（克制：只铺净资产卡区域）
-                    LinearGradient(
-                        colors: [ambientColor.opacity(0.10), .clear],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: 120)
-                    .allowsHitTesting(false)
-                    .animation(.easeInOut(duration: 0.7), value: currentTopId)
+                VStack(spacing: HoloSpacing.md) {
+                    netWorthCard
 
-                    VStack(spacing: HoloSpacing.md) {
-                        netWorthCard
-
-                        if items.isEmpty {
-                            emptyStateView
-                        } else if showListView {
-                            manageListSection
-                                .transition(.opacity.combined(with: .offset(y: 10)))
-                        } else {
-                            stackSection
-                                .transition(.opacity)
-                        }
+                    if items.isEmpty {
+                        emptyStateView
+                    } else {
+                        accountListSection
                     }
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.xs)
+
+                    if !archivedItems.isEmpty {
+                        archivedSection
+                    }
                 }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.xs)
             }
             // 背景贯穿到导航栏/状态栏后面，避免玻璃导航栏下露出黑底
             .background(Color.holoBackground.ignoresSafeArea())
@@ -91,7 +99,7 @@ struct AccountListView: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.holoPrimary)
                     }
-                    // 添加账户唯一入口（卡堆底虚线卡已删），无障碍标签供读屏与 UI 测试定位
+                    // 添加账户唯一入口，无障碍标签供读屏与 UI 测试定位
                     .accessibilityLabel("添加账户")
                 }
             }
@@ -115,7 +123,6 @@ struct AccountListView: View {
                 Text(errorMessage ?? "未知错误")
             }
             .onAppear { loadData() }
-            .onChange(of: currentTopId) { _, _ in loadDynData() }
             // 从账户详情返回后刷新（详情内可能改了余额/归档/删除）
             .onChange(of: showDetail) { _, showing in
                 if !showing { loadData() }
@@ -123,74 +130,19 @@ struct AccountListView: View {
         }
     }
 
-    // MARK: - 卡堆区
-
-    private var stackSection: some View {
-        VStack(spacing: HoloSpacing.md) {
-            AccountCardStackView(
-                items: items,
-                topAccountId: topBinding,
-                onOpenDetail: { account in
-                    detailAccount = account
-                    showDetail = true
-                },
-                onEdit: { account in editingAccount = account },
-                onAdjustBalance: { account in adjustingAccount = account },
-                onSetDefault: { account in
-                    FinanceRepository.shared.setDefaultAccount(account)
-                    loadData()
-                },
-                onArchive: { account in
-                    do {
-                        try FinanceRepository.shared.archiveAccount(account)
-                        loadData()
-                    } catch {
-                        errorMessage = error.localizedDescription
-                        showError = true
-                    }
-                }
-            )
-
-            if let top = currentTopAccount, let dynData {
-                AccountDynamicPanel(account: top, data: dynData) { account in
-                    detailAccount = account
-                    showDetail = true
-                }
-                .id(top.id) // 切卡时整体过渡，避免内容串帧
-                .transition(.opacity.combined(with: .offset(y: 8)))
-            }
-        }
-        .animation(HoloAnimation.standard, value: currentTopId)
-    }
-
-    // MARK: - 净资产卡（Holo 暖深褐 + 品牌橙负债比例条）
+    // MARK: - 净资产卡（暖深褐材质 + 品牌橙负债比例条）
 
     private var netWorthCard: some View {
         VStack(spacing: HoloSpacing.md) {
-            HStack {
-                Text("总净资产 · NET WORTH")
-                    .font(.system(size: 11, weight: .medium))
-                    .tracking(1.1)
-                    .foregroundColor(Color(hex: "#F0C9A8"))
-                Spacer()
-                Button {
-                    withAnimation(HoloAnimation.standard) { showListView.toggle() }
-                } label: {
-                    // 按钮文案 = 切换去往的视图，不是当前视图（卡堆页里写「卡片视图」会被读成当前模式）
-                    Text(showListView ? "‹ 卡堆" : "› 列表")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(hex: "#F0C9A8"))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(.white.opacity(0.07)))
-                        .overlay(Capsule().strokeBorder(Color(hex: "#FED7AA").opacity(0.22), lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-            }
+            Text("总净资产 · NET WORTH")
+                .font(.system(size: 11, weight: .medium))
+                .tracking(1.1)
+                .foregroundColor(Color(hex: "#F0C9A8"))
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(formatAmount(netWorthData.netWorth))
                 .font(.system(size: 31, weight: .heavy, design: .rounded))
-                .foregroundColor(netWorthData.netWorth >= 0 ? Color(hex: "#FFE8D5") : Color(hex: "#FFA98F"))
+                .foregroundColor(netWorthData.netWorth >= 0 ? Color(hex: "#FFE8D5") : AccountCardMaterial.debtColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -211,7 +163,7 @@ struct AccountListView: View {
                         .foregroundColor(Color(hex: "#F0C9A8"))
                     Text(formatAmount(netWorthData.liabilities))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: "#FFA98F"))
+                        .foregroundColor(AccountCardMaterial.debtColor)
                 }
             }
 
@@ -255,80 +207,87 @@ struct AccountListView: View {
         return min(max(CGFloat(ratio), 0), 1)
     }
 
-    // MARK: - 全部账户管理列表（卡片视图）
+    // MARK: - 账户列表（单卡容器，N 行平铺）
 
-    private var manageListSection: some View {
-        VStack(spacing: HoloSpacing.md) {
-            HStack {
-                Text("全部账户 · \(items.count + archivedItems.count) 个")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
-                Spacer()
-            }
-            .padding(.horizontal, 4)
-            // 返回卡堆统一走净资产卡右上角的「‹ 卡堆视图」，这里不再放第二个入口
-
-            VStack(spacing: 0) {
-                Text("使用中 · \(items.count) 个")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 4)
-
-                ForEach(items) { item in
-                    manageRow(item: item, isArchived: false)
+    private var accountListSection: some View {
+        VStack(spacing: 0) {
+            ForEach(items) { item in
+                accountRow(item: item, isArchived: false)
+                if item.id != items.last?.id {
+                    Divider()
+                        .background(Color.holoDivider.opacity(0.55))
+                        .padding(.leading, 68)
                 }
-            }
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).strokeBorder(Color.holoDivider.opacity(0.4), lineWidth: 0.5))
-
-            if !archivedItems.isEmpty {
-                VStack(spacing: 0) {
-                    Text("已归档 · \(archivedItems.count) 个（不计入净资产）")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
-
-                    ForEach(archivedItems) { item in
-                        manageRow(item: item, isArchived: true)
-                    }
-                }
-                .background(Color.holoCardBackground.opacity(0.72))
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).strokeBorder(Color.holoDivider.opacity(0.4), lineWidth: 0.5))
             }
         }
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .strokeBorder(Color.holoDivider.opacity(0.4), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
     }
 
-    private func manageRow(item: AccountStackItem, isArchived: Bool) -> some View {
-        let accent = AccountCardPalette.palette(for: item.account).accent
+    // MARK: 已归档账户（不计入净资产）
+
+    @ViewBuilder
+    private var archivedSection: some View {
+        VStack(spacing: 0) {
+            Text("已归档 · \(archivedItems.count) 个（不计入净资产）")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.holoTextSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+
+            ForEach(archivedItems) { item in
+                accountRow(item: item, isArchived: true)
+                if item.id != archivedItems.last?.id {
+                    Divider()
+                        .background(Color.holoDivider.opacity(0.55))
+                        .padding(.leading, 68)
+                }
+            }
+        }
+        .background(Color.holoCardBackground.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .strokeBorder(Color.holoDivider.opacity(0.4), lineWidth: 0.5)
+        )
+    }
+
+    // MARK: 账户行
+
+    private func accountRow(item: AccountRowItem, isArchived: Bool) -> some View {
+        let palette = AccountCardPalette.palette(for: item.account)
         return Button {
-            if isArchived { return }
-            storedTopId = item.id.uuidString
-            withAnimation(HoloAnimation.standard) { showListView = false }
-            loadDynData()
+            guard !isArchived else { return }
+            detailAccount = item.account
+            showDetail = true
         } label: {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(accent.opacity(0.12))
+                        .fill(palette.accent.opacity(0.16))
                     Image(systemName: item.account.icon)
                         .font(.system(size: 17, weight: .medium))
-                        .foregroundColor(accent)
+                        .foregroundColor(palette.accent)
                 }
                 .frame(width: 40, height: 40)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(palette.accent.opacity(0.25), lineWidth: 0.5)
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(item.account.name)
-                            .font(.system(size: 14.5, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
                         if item.account.isDefault && !isArchived {
                             Text("默认")
                                 .font(.system(size: 9.5, weight: .semibold))
@@ -351,33 +310,75 @@ struct AccountListView: View {
                         .foregroundColor(.holoTextSecondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                if isArchived {
-                    Button {
-                        FinanceRepository.shared.unarchiveAccount(item.account)
-                        loadData()
-                    } label: {
-                        Text("解归档")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.holoPrimaryDark)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Capsule().fill(Color.holoPrimary.opacity(0.09)))
-                            .overlay(Capsule().strokeBorder(Color.holoPrimaryDark.opacity(0.22), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Text(AccountCardFormat.prefixed(item.balance))
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(displayAmount(for: item))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(item.balance >= 0 ? .holoTextPrimary : AccountCardMaterial.debtColor)
+                        .foregroundColor(rowAmountColor(for: item))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(rowAmountLabel(for: item))
+                        .font(.system(size: 9.5))
+                        .tracking(0.6)
+                        .foregroundColor(.holoTextSecondary)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(isArchived)
+        .contextMenu {
+            if !isArchived {
+                Button { editingAccount = item.account } label: {
+                    Label("编辑账户", systemImage: "pencil")
+                }
+                Button { adjustingAccount = item.account } label: {
+                    Label("调整余额", systemImage: "arrow.triangle.2.circlepath")
+                }
+                if item.account.isDefault {
+                    Label("设为默认（当前默认）", systemImage: "star.fill")
+                } else {
+                    Button {
+                        FinanceRepository.shared.setDefaultAccount(item.account)
+                        loadData()
+                    } label: {
+                        Label("设为默认", systemImage: "star")
+                    }
+                }
+                Divider()
+                Button(role: .destructive) {
+                    do {
+                        try FinanceRepository.shared.archiveAccount(item.account)
+                        loadData()
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
+                } label: {
+                    Label("归档账户", systemImage: "archivebox")
+                }
+            }
+        }
+    }
+
+    /// 行内金额：信用卡欠款显示「已用额度」，普通负余额显示「负债」
+    private func displayAmount(for item: AccountRowItem) -> String {
+        if let outstanding = item.outstanding {
+            return "¥\(AccountCardFormat.amount(outstanding))"
+        }
+        return AccountCardFormat.prefixed(item.balance)
+    }
+
+    private func rowAmountLabel(for item: AccountRowItem) -> String {
+        if item.outstanding != nil { return "已用额度" }
+        return item.isDebt ? "负债" : "当前余额"
+    }
+
+    private func rowAmountColor(for item: AccountRowItem) -> Color {
+        (item.isDebt || item.outstanding != nil) ? AccountCardMaterial.debtColor : .holoTextPrimary
     }
 
     // MARK: - 空状态
@@ -410,65 +411,21 @@ struct AccountListView: View {
 
     // MARK: - 数据
 
-    /// 卡堆置顶账户的双向绑定（AppStorage 存字符串）
-    private var topBinding: Binding<UUID?> {
-        Binding(
-            get: { storedTopId.flatMap(UUID.init(uuidString:)) },
-            set: { storedTopId = $0?.uuidString }
-        )
-    }
-
-    private var currentTopId: UUID? {
-        topBinding.wrappedValue ?? items.first?.id
-    }
-
-    private var currentTopAccount: Account? {
-        items.first { $0.id == currentTopId }?.account ?? items.first?.account
-    }
-
-    private var ambientColor: Color {
-        currentTopAccount.map { AccountCardPalette.palette(for: $0).accent } ?? .holoPrimary
-    }
-
     private func loadData() {
         let all = FinanceRepository.shared.getAccounts(includeArchived: true)
-        let active = all.filter { !$0.isArchived }
+        items = all.filter { !$0.isArchived }.map { account in
+            AccountRowItem(
+                account: account,
+                balance: FinanceRepository.shared.getAccountBalance(account)
+            )
+        }
         archivedItems = all.filter { $0.isArchived }.map { account in
-            AccountStackItem(
+            AccountRowItem(
                 account: account,
-                balance: FinanceRepository.shared.getAccountBalance(account),
-                monthlyIncome: 0,
-                monthlyExpense: 0
+                balance: FinanceRepository.shared.getAccountBalance(account)
             )
         }
-
-        items = active.map { account in
-            let balance = FinanceRepository.shared.getAccountBalance(account)
-            let monthly = FinanceRepository.shared.getAccountMonthlySummary(accountId: account.id, month: Date())
-            return AccountStackItem(
-                account: account,
-                balance: balance,
-                monthlyIncome: monthly.income,
-                monthlyExpense: monthly.expense
-            )
-        }
-
         netWorthData = FinanceRepository.shared.getTotalNetWorth()
-
-        // 置顶账户失效（删除/归档）时回落到第一个
-        if let id = topBinding.wrappedValue, !active.contains(where: { $0.id == id }) {
-            storedTopId = active.first?.id.uuidString
-        }
-
-        loadDynData()
-    }
-
-    private func loadDynData() {
-        guard let top = currentTopAccount else {
-            dynData = nil
-            return
-        }
-        dynData = AccountDynamicData.load(for: top)
     }
 
     private func formatAmount(_ amount: Decimal) -> String {

@@ -70,6 +70,30 @@ extension AccountCardPalette {
     }
 }
 
+// MARK: - 金额格式化
+
+/// 账户卡面/列表的金额格式化
+enum AccountCardFormat {
+    private static let formatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.locale = Locale(identifier: "zh_CN")
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
+
+    /// 千分位数字（不含货币符号）："8,420.50"
+    static func amount(_ value: Decimal) -> String {
+        formatter.string(from: NSDecimalNumber(decimal: value)) ?? "0.00"
+    }
+
+    /// 带货币符号的金额：负数输出「-¥298.00」（负号在 ¥ 前，与净资产卡口径一致）
+    static func prefixed(_ value: Decimal) -> String {
+        value < 0 ? "-¥\(amount(-value))" : "¥\(amount(value))"
+    }
+}
+
 // MARK: - 噪点肌理
 
 /// 一次性生成的灰度噪点纹理：叠在渐变上（overlay 混合、5% 透明度），
