@@ -53,7 +53,7 @@ function makeProvider(responses) {
   };
 }
 
-function makeExecutor(provider) {
+function makeExecutor(provider, extras = {}) {
   const database = createDatabase({ dbPath: ":memory:" });
   const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
   const executor = createCloudAnalysisExecutor({
@@ -62,9 +62,98 @@ function makeExecutor(provider) {
     route: { provider: "fake", model: "m", temperature: 0.2, maxTokens: 1024 },
     providerRetries: 1,
     log: () => {},
+    ...extras,
   });
   return { database, store, executor };
 }
+
+// —— 周期回放（period_replay）单轮生成（2026-09-01 云端化统一）——
+
+function makeQuotaLedger({ allowed = true } = {}) {
+  const calls = { commit: 0, release: 0 };
+  return {
+    calls,
+    reserve() {
+      return allowed
+        ? { allowed: true, subjectId: "s", tier: "free", quotaType: "memoryInsight", actionId: "a", periodKey: "p" }
+        : { allowed: false, reason: "quota_exceeded", userMessage: "本周洞察额度已用完" };
+    },
+    commit() { calls.commit += 1; },
+    release() { calls.release += 1; },
+  };
+}
+
+const RESOLVER = { resolve: () => ({ usageSubjectId: "subj-1", tier: "free" }) };
+
+test("period_replay：素材→单轮生成→complete+推送「回放已生成」+额度提交", async () => {
+  const provider = makeProvider([
+    JSON.stringify({ status: "final_claims" }),
+  ]);
+  // period_replay 不走 Agent 循环——第一轮 provider 响应直接作为生成输出
+  const pushes = [];
+  const quota = makeQuotaLedger();
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async (deviceId, payload) => pushes.push({ deviceId, payload }) },
+  });
+
+  const task = store.create({ deviceId: "device-replay", question: "本月", taskType: "period_replay" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify({ period: "2026-08", summary: "素材含健康摘要" }) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.kind, "period_replay");
+  assert.equal(result.output, JSON.stringify({ status: "final_claims" }));
+  // 额度：提交且未释放
+  assert.equal(quota.calls.commit, 1);
+  assert.equal(quota.calls.release, 0);
+  // 推送文案区分任务类型
+  assert.equal(pushes.length, 1);
+  assert.equal(pushes[0].payload.title, "回放已生成");
+  // 完成即焚仍适用
+  assert.ok(store.isDataDestroyed(task.id));
+});
+
+test("period_replay：额度不足→直接 failed（不调模型、失败原因回传）", async () => {
+  const provider = makeProvider([]);
+  const quota = makeQuotaLedger({ allowed: false });
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+  });
+  const task = store.create({ deviceId: "d", question: "本月", taskType: "period_replay" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify({ p: 1 }) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(provider.calls.length, 0, "额度不足不得调用模型");
+  const row = store.getDecrypted(task.id, ["failureReason"]);
+  assert.ok(row.failureReason.includes("额度"));
+});
+
+test("period_replay：生成失败→额度释放+failed", async () => {
+  const provider = makeProvider([]); // provider 立即耗尽 → 抛错
+  const quota = makeQuotaLedger();
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+  });
+  const task = store.create({ deviceId: "d", question: "本月", taskType: "period_replay" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify({ p: 1 }) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(quota.calls.release, 1);
+  assert.equal(quota.calls.commit, 0);
+});
+
+test("period_replay：素材缺失→failed 不进 running", async () => {
+  const provider = makeProvider([]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d", question: "本月", taskType: "period_replay" });
+  // 不上传素材直接触发（模拟启动扫描孤儿）
+  store.transition(task.id, "queued");
+  assert.equal(await executor.run(task.id), "failed");
+});
 
 test("查询引擎：filter+groupBy+sum 输出 iOS 同构结构", () => {
   const engine = createCloudAnalysisQueryEngine();

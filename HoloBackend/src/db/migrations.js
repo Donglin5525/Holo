@@ -334,6 +334,14 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    id: 18,
+    description: '云端任务类型列（deep_analysis=多轮 Agent 循环；period_replay=周期回放单轮生成，2026-09-01 云端化统一）',
+    up: `
+      ALTER TABLE agent_cloud_analysis_tasks
+        ADD COLUMN task_type TEXT NOT NULL DEFAULT 'deep_analysis';
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

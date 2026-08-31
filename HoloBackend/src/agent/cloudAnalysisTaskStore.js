@@ -51,8 +51,8 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
 
   const insertStmt = db.prepare(`
     INSERT INTO agent_cloud_analysis_tasks
-      (id, device_id, status, question_ciphertext, created_at_ms, expires_at_ms)
-    VALUES (?, ?, ?, ?, ?, ?)
+      (id, device_id, status, question_ciphertext, created_at_ms, expires_at_ms, task_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const getStmt = db.prepare(`
     SELECT * FROM agent_cloud_analysis_tasks WHERE id = ?
@@ -122,7 +122,7 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
   }
 
   return {
-    create({ deviceId, question, now = Date.now(), ttlMs = RESULT_RETENTION_MS }) {
+    create({ deviceId, question, taskType = "deep_analysis", now = Date.now(), ttlMs = RESULT_RETENTION_MS }) {
       const id = randomUUID();
       insertStmt.run(
         id,
@@ -131,6 +131,7 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
         encryptField(key, question, id),
         now,
         now + ttlMs,
+        taskType,
       );
       return { id, expiresAt: now + ttlMs };
     },

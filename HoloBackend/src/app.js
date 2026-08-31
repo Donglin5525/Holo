@@ -203,14 +203,14 @@ export function createApp(overrides = {}) {
   }
   const analysisPushNotifier = apnsSender?.configured
     ? {
-        async notifyAnalysisCompleted(deviceId) {
+        async notifyTaskCompleted(deviceId, { title, body }) {
           const row = deviceTokenStore.get(deviceId);
           if (!row) return;
           const result = await apnsSender.send({
             token: row.token,
             environment: row.environment ?? undefined,
-            title: "深度分析完成",
-            body: "结果已就绪，点按查看",
+            title,
+            body,
           });
           if (result.ok) {
             if (result.environment && result.environment !== row.environment) {
@@ -233,6 +233,8 @@ export function createApp(overrides = {}) {
         providers,
         route: config.routes.agent_loop,
         pushNotifier: analysisPushNotifier,
+        quotaLedger: quotaActionLedgerStore,
+        entitlementResolver,
       });
     } catch (error) {
       console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
@@ -1081,6 +1083,11 @@ export function createApp(overrides = {}) {
       if (!question || question.length > 2000) {
         throw new GatewayError("INVALID_REQUEST", "question must be 1-2000 chars", 400);
       }
+      // 任务类型白名单：deep_analysis=多轮 Agent 循环；period_replay=周期回放单轮生成
+      const taskType = typeof request.taskType === "string" ? request.taskType : "deep_analysis";
+      if (!["deep_analysis", "period_replay"].includes(taskType)) {
+        throw new GatewayError("INVALID_REQUEST", `Unsupported taskType: ${taskType}`, 400);
+      }
 
       const usage = usageStore.consume({
         deviceId,
@@ -1092,7 +1099,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
       }
 
-      const task = store.create({ deviceId, question });
+      const task = store.create({ deviceId, question, taskType });
       context.header("Cache-Control", "no-store");
       return context.json({ taskId: task.id, status: "uploading", expiresAt: task.expiresAt });
     } catch (error) {

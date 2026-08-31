@@ -198,3 +198,31 @@ test("重复上传快照与非法快照被拒", async () => {
     method: "PUT", headers: headers(), body: '{"tasks":[]}',
   })).status, 409);
 });
+
+
+// —— 任务类型（2026-09-01 周期回放云端化）——
+test("start 端点：taskType 白名单校验与落库", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
+  const app = createTestApp({ database, cloudAnalysisTaskStore: store });
+
+  const bad = await app.request("/v1/ai/agent/cloud/start", {
+    method: "POST", headers: headers(), body: JSON.stringify({ question: "q", taskType: "evil" }),
+  });
+  assert.equal(bad.status, 400);
+
+  const replay = await app.request("/v1/ai/agent/cloud/start", {
+    method: "POST", headers: headers(), body: JSON.stringify({ question: "本月", taskType: "period_replay" }),
+  });
+  assert.equal(replay.status, 200);
+  const { taskId } = await replay.json();
+  assert.equal(store.get(taskId).task_type, "period_replay");
+
+  // 不传 taskType：默认 deep_analysis（存量客户端兼容）
+  const def = await app.request("/v1/ai/agent/cloud/start", {
+    method: "POST", headers: headers(), body: JSON.stringify({ question: "分析一下" }),
+  });
+  assert.equal(def.status, 200);
+  const { taskId: defId } = await def.json();
+  assert.equal(store.get(defId).task_type, "deep_analysis");
+});

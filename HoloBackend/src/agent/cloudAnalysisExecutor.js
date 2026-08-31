@@ -24,6 +24,10 @@ export function createCloudAnalysisExecutor({
   providerRetries = MAX_PROVIDER_RETRIES,
   maxRounds = MAX_LLM_ROUNDS,
   pushNotifier = null,
+  // 周期回放（period_replay）任务的额度台账与权益解析：消耗 memoryInsight 池，
+  // 预订-提交语义（生成失败自动释放），与端点层同一套真相源。
+  quotaLedger = null,
+  entitlementResolver = null,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
@@ -105,6 +109,84 @@ export function createCloudAnalysisExecutor({
     throw lastError ?? new Error("PROVIDER_FAILED");
   }
 
+  /** 完成推送（fire-and-forget）：文案随任务类型；失败只记日志不影响任务终态。 */
+  function pushTaskCompleted(deviceId, { title, body }) {
+    if (!pushNotifier) return;
+    pushNotifier.notifyTaskCompleted(deviceId, { title, body }).catch((error) => {
+      log(`完成推送发送失败: ${error?.message ?? error}`);
+    });
+  }
+
+  /**
+   * 周期回放（period_replay）：单轮生成。
+   * - 素材 = iOS 聚合的回放上下文 JSON（复用快照密文列，含健康摘要——2026-09-01
+   *   东林拍板方案 C：健康数据允许随回放任务上云，即焚语义不变）
+   * - 生成走 insight 服务端提示词（与端点层 memory_insight_generation 同一模板）
+   * - 额度消耗 memoryInsight 池：预订-提交，失败自动释放
+   * - 结果只轻校验（非空文本），MemoryInsight 完整 schema 校验以 iOS 解析器为真相源
+   */
+  async function runPeriodReplay(taskId, task) {
+    const contextJSON = typeof task.snapshot === "string" ? task.snapshot.trim() : "";
+    if (!contextJSON) {
+      taskStore.fail({ id: taskId, reason: "回放素材缺失或为空" });
+      return "failed";
+    }
+    if (!taskStore.transition(taskId, "running")) {
+      return taskStore.get(taskId)?.status ?? "conflict";
+    }
+
+    let reservation = null;
+    if (quotaLedger && entitlementResolver) {
+      const entitlement = entitlementResolver.resolve(task.device_id);
+      const attempt = quotaLedger.reserve({
+        subjectId: entitlement.usageSubjectId,
+        tier: entitlement.tier,
+        quotaType: "memoryInsight",
+        actionId: `cloud-period-replay-${taskId}`,
+      });
+      if (!attempt.allowed) {
+        taskStore.fail({ id: taskId, reason: attempt.userMessage ?? "洞察额度已用完" });
+        return "failed";
+      }
+      reservation = attempt;
+    }
+
+    try {
+      const systemPrompted = injectServerPrompt("insight", [
+        { role: "user", content: contextJSON },
+      ]);
+      const response = await callProvider([
+        { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+        { role: "user", content: contextJSON },
+      ]);
+      const content = response?.choices?.[0]?.message?.content ?? "";
+      if (!content.trim()) {
+        throw new Error("回放生成为空输出");
+      }
+      const result = {
+        kind: "period_replay",
+        output: content,
+        completedAt: new Date().toISOString(),
+        engine: "cloud-m2a-replay",
+      };
+      taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      if (reservation) quotaLedger.commit(reservation);
+      pushTaskCompleted(task.device_id, { title: "回放已生成", body: "点按查看这段时光的回顾" });
+      log(`回放任务完成 taskId=${taskId} chars=${content.length}`);
+      return "completed";
+    } catch (error) {
+      if (reservation) quotaLedger.release(reservation);
+      const reason = `云端回放生成失败：${error?.message ?? error}`;
+      try {
+        taskStore.fail({ id: taskId, reason });
+      } catch (failError) {
+        log(`fail 落库也失败 taskId=${taskId}: ${failError?.message ?? failError}`);
+      }
+      log(`回放任务失败 taskId=${taskId}: ${error?.message ?? error}`);
+      return "failed";
+    }
+  }
+
   /**
    * 执行一个任务（queued → running → completed/failed）。
    * 返回最终状态；所有异常落 fail() 不上抛（fire-and-forget 调用安全）。
@@ -118,6 +200,11 @@ export function createCloudAnalysisExecutor({
       }
       if (task.status !== "queued") {
         return task.status;
+      }
+      // 任务类型分发：period_replay = 周期回放单轮生成（素材复用快照密文列，
+      // 不走 Agent 循环）；其余 = 深度分析多轮循环。
+      if (task.task_type === "period_replay") {
+        return await runPeriodReplay(taskId, task);
       }
       let snapshot;
       try {
@@ -221,13 +308,7 @@ export function createCloudAnalysisExecutor({
             engine: "cloud-m2a",
           };
           taskStore.complete({ id: taskId, result: JSON.stringify(result) });
-          // 分析完成推送（fire-and-forget）：锁屏/离开 App 的用户由此被叫醒；
-          // 推送失败不影响任务终态，App 打开后轮询恢复链兜底领取。
-          if (pushNotifier) {
-            pushNotifier.notifyAnalysisCompleted(task.device_id).catch((error) => {
-              log(`完成推送发送失败 taskId=${taskId}: ${error?.message ?? error}`);
-            });
-          }
+          pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看" });
           log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}`);
           return "completed";
         }
