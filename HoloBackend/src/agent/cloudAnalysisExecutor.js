@@ -39,6 +39,10 @@ export function createCloudAnalysisExecutor({
       const tool = request.tool;
       const envelope = (fields) => ({ toolRequestID: id, tool, coverage: null, warnings: [], ...fields });
       try {
+        if (tool === "snapshot_rows") {
+          // 行明细取样：parameters 整体即取样计划（source/filters/sortBy/sortDirection/limit）
+          return engine.sampleRows(request.parameters ?? {}, snapshot, { toolRequestID: id, tool });
+        }
         // validateAgentLoopContent 会把 parameters.dynamicPlan 规范化提升到请求顶层；两种位置都接受
         const plan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
         if (plan) {
@@ -139,6 +143,45 @@ export function createCloudAnalysisExecutor({
       });
       messages.push({ role: "user", content: task.question });
 
+      // 证据池：跨轮次累积模型查得的指标与行样本，final_claims 时随结果回传设备
+      // （iOS 端据此渲染「依据」与数据样例；2026-08-31 验收：此前结果只带 claims，
+      // 设备端证据区块永远为空）。metric 按 metricKey 去重，rows 按数据集保留最新一次取样。
+      const metricEvidence = new Map();
+      const rowsEvidence = new Map();
+
+      function collectEvidence(toolRequests, toolResults) {
+        toolResults.forEach((result, index) => {
+          if (result.status !== "success") return;
+          for (const metric of result.metrics ?? []) {
+            if (!metric?.metricKey || metricEvidence.has(metric.metricKey)) continue;
+            metricEvidence.set(metric.metricKey, {
+              kind: "metric",
+              metricKey: metric.metricKey,
+              dataset: metric.dataset ?? null,
+              group: metric.comparison ?? null,
+              value: metric.value,
+              unit: metric.unit ?? null,
+              formula: metric.formula ?? null,
+              sourceCount: Array.isArray(metric.sourceRecordIDs) ? metric.sourceRecordIDs.length : 0,
+            });
+          }
+          const request = toolRequests[index];
+          if (request?.tool === "snapshot_rows" && Array.isArray(result.events)) {
+            const dataset = request.parameters?.source ?? null;
+            const excerpts = result.events.map((event) => event.excerpt).filter(Boolean);
+            if (excerpts.length > 0) {
+              rowsEvidence.set(dataset ?? "_", { kind: "rows", dataset, count: excerpts.length, excerpts });
+            }
+          }
+        });
+      }
+
+      function evidenceSnapshot() {
+        const metrics = [...metricEvidence.values()].slice(-16);
+        const rows = [...rowsEvidence.values()].slice(-4);
+        return [...metrics, ...rows];
+      }
+
       for (let round = 1; round <= maxRounds; round += 1) {
         const response = await callProvider(messages);
         const content = response?.choices?.[0]?.message?.content ?? "";
@@ -172,17 +215,19 @@ export function createCloudAnalysisExecutor({
             title: output.title ?? null,
             claims: output.claims ?? [],
             reasoning: output.reasoning ?? "",
+            evidence: evidenceSnapshot(),
             completedAt: new Date().toISOString(),
             engine: "cloud-m2a",
           };
           taskStore.complete({ id: taskId, result: JSON.stringify(result) });
-          log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length}`);
+          log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}`);
           return "completed";
         }
 
         const toolRequests = Array.isArray(output.toolRequests) ? output.toolRequests : [];
         if (toolRequests.length > 0) {
           const toolResults = executeToolRequests(toolRequests, snapshot);
+          collectEvidence(toolRequests, toolResults);
           const failures = toolResults
             .filter((r) => r.status === "error")
             .map((r) => `${r.tool}:${r.error?.code}`);

@@ -87,6 +87,80 @@ export function createCloudAnalysisQueryEngine() {
   }
 
   /**
+   * 行明细查询（snapshot_rows 工具）：dynamicPlan 只有聚合统计，模型看不到
+   * 「某笔大额支出的备注」这类记录原文——归因类问题的必备证据。按过滤器取样、
+   * 可排序、限量，返回匹配行的人话摘录（行内 excerpt 优先，缺省拼前几个字段值）。
+   * parameters 经 validateAgentLoopContent 规范化后值全是字符串（iOS [String:String] 约定），
+   * 数组/数字字段在此归一化回结构。
+   */
+  function normalizeRowsPlan(raw) {
+    const plan = { ...raw };
+    if (typeof plan.filters === "string") {
+      try { plan.filters = JSON.parse(plan.filters); } catch { plan.filters = []; }
+    }
+    if (typeof plan.limit === "string") {
+      const parsed = Number(plan.limit);
+      plan.limit = Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return plan;
+  }
+
+  function sampleRows(rawPlan, snapshot, context = {}) {
+    const plan = normalizeRowsPlan(rawPlan);
+    const toolRequestID = context.toolRequestID ?? "rows";
+    const tool = context.tool ?? "snapshot_rows";
+    const dataset = snapshot?.datasets?.[plan.source];
+    if (!dataset) {
+      return toolResultEnvelope(toolRequestID, tool, {
+        status: "error",
+        error: {
+          code: "INVALID_DATASET",
+          message: `快照中没有数据集 ${plan.source}（云端可用：${Object.keys(snapshot?.datasets ?? {}).join("、 ") || "无"}）`,
+          recoverable: true,
+        },
+      });
+    }
+    let rows = dataset.rows ?? [];
+    for (const filter of plan.filters ?? []) {
+      rows = rows.filter((row) => filterPasses(row, filter));
+    }
+    if (plan.sortBy) {
+      const field = plan.sortBy;
+      rows = [...rows].sort((a, b) => plan.sortDirection === "ascending"
+        ? compareByKind(a[field], b[field])
+        : compareByKind(b[field], a[field]));
+    }
+    const limit = Math.min(Math.max(Number(plan.limit) || 5, 1), 10);
+    const fieldNames = (dataset.fields ?? []).map((f) => f.name);
+    const events = rows.slice(0, limit).map((row, index) => ({
+      id: `rows-${sanitize(plan.source)}-${index}`,
+      dataset: plan.source,
+      excerpt: typeof row.excerpt === "string" && row.excerpt.trim() !== ""
+        ? row.excerpt
+        : rowExcerpt(row, fieldNames),
+    }));
+    if (events.length === 0) {
+      return toolResultEnvelope(toolRequestID, tool, {
+        status: "empty",
+        warnings: [{ code: "NO_MATCHING_DATA", message: "过滤后没有匹配的数据行" }],
+      });
+    }
+    return toolResultEnvelope(toolRequestID, tool, { status: "success", metrics: [], events });
+  }
+
+  /** 行摘录兜底：行没有现成 excerpt 时按字段定义顺序拼前 4 个非空值。 */
+  function rowExcerpt(row, fieldNames) {
+    const parts = [];
+    for (const name of fieldNames) {
+      const value = row[name];
+      if (value == null || String(value).trim() === "") continue;
+      parts.push(String(value));
+      if (parts.length >= 4) break;
+    }
+    return parts.join(" ");
+  }
+
+  /**
    * 执行一条 dynamicPlan，返回 iOS HoloDataToolResult 同构结构。
    */
   function execute(plan, snapshot, context = {}) {
@@ -157,6 +231,7 @@ export function createCloudAnalysisQueryEngine() {
         const sourceRecordIDs = target.slice(0, plan.evidenceLimit ?? 20).map((row) => String(row.id ?? ""));
         metrics.push({
           metricKey,
+          dataset: plan.source,
           value: rounded(value),
           unit: agg.unit ?? null,
           baselineValue: null,
@@ -174,6 +249,7 @@ export function createCloudAnalysisQueryEngine() {
         id: `dynamic-${metric.metricKey}`,
         metricKey: metric.metricKey,
         metricValue: metric.value,
+        dataset: plan.source,
         excerpt: `动态计算 ${metric.metricKey}${group}：${valueText} ${metric.unit ?? ""}；公式：${metric.formula}；来源 ${metric.sourceRecordIDs.length} 条`,
         formula: metric.formula,
         sourceRecordIDs: metric.sourceRecordIDs,
@@ -210,7 +286,7 @@ export function createCloudAnalysisQueryEngine() {
     });
   }
 
-  return { execute };
+  return { execute, sampleRows };
 }
 
 /** 从快照生成云端工具目录（模型可用的数据集+字段说明），替代 iOS 端 toolDescriptions。 */
@@ -218,8 +294,10 @@ export function buildCloudToolCatalog(snapshot) {
   const lines = [];
   const datasets = snapshot?.datasets ?? {};
   for (const [name, dataset] of Object.entries(datasets)) {
+    // 字段说明必须进目录：模型不知道 text 是「备注、说明和标签合并文本」，
+    // 就永远不会拿备注做归因（2026-08-31 验收：音乐 3316 的「TIMA音乐盛典」备注被漏）。
     const fields = (dataset.fields ?? [])
-      .map((f) => `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}`)
+      .map((f) => `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}${f.description ? `(${f.description})` : ""}`)
       .join(" ");
     const rows = dataset.rows?.length ?? 0;
     lines.push(`【${name}】rows=${rows} fields: ${fields}`);
@@ -228,5 +306,10 @@ export function buildCloudToolCatalog(snapshot) {
   if (statics.length > 0) {
     lines.push(`（预取静态块：${statics.join("、 ")}——query 用同名 tool 名直接取）`);
   }
+  lines.push(
+    "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
+    'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',
+    "返回匹配行的人话摘录（含备注、内容原文）。例：查音乐分类最大 3 笔支出 → filters:[{field:\"category\",operation:\"equal\",value:{text:\"音乐\"}}], sortBy:\"amount\", sortDirection:\"descending\", limit:3。",
+  );
   return `云端工具目录（数据来自设备快照，仅覆盖快照时间窗）：\n${lines.join("\n")}`;
 }
