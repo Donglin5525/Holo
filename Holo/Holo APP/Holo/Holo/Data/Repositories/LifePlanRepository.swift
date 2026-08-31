@@ -138,7 +138,9 @@ final class LifePlanRepository: ObservableObject {
             }
         }
 
-        return snapshot(planID: plan.id) ?? fatalErrorSnapshot(plan.id)
+        // 刚落库的对象就在当前 context 内存中，直接构建快照；
+        // 不再重新走 fetch（磁盘满/store 忙等瞬时读故障会把已成功落库的计划变成闪退）
+        return buildSnapshot(plan)
     }
 
     /// 降级运行也记录（schema 校验失败 → 普通分析文本）
@@ -572,10 +574,6 @@ final class LifePlanRepository: ObservableObject {
         return json
     }
 
-    private func fatalErrorSnapshot(_ id: UUID) -> LifePlanSnapshot {
-        // 落库后立刻 snapshot 失败属不变量破坏，直接暴露
-        fatalError("LifePlanRepository: snapshot missing after save, planID=\(id)")
-    }
 }
 
 private nonisolated extension Date {

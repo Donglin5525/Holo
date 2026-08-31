@@ -468,8 +468,10 @@ struct FinanceAnalysisContextBuilder {
             compCategoryMap[parentName, default: 0] += tx.amount.decimalValue
         }
 
+        // 用户可建出与默认分类同名的一级分类，同名金额相加合并，不能按唯一键建字典
         let currentMap = Dictionary(
-            uniqueKeysWithValues: currentCategoryAggregations.map { ($0.category.name, $0.amount) }
+            currentCategoryAggregations.map { ($0.category.name, $0.amount) },
+            uniquingKeysWith: { lhs, rhs in lhs + rhs }
         )
 
         let allNames = Set(currentMap.keys).union(Set(compCategoryMap.keys))

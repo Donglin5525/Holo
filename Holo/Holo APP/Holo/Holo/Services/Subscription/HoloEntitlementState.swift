@@ -23,7 +23,22 @@ final class HoloEntitlementState: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastErrorMessage: String?
 
-    private init() {}
+    private static let cacheKey = "holo.entitlement.snapshot.v1"
+
+    private init() {
+        // 冷启动先恢复上次成功刷新的权益快照：断网/弱网冷启动时 Plus 用户
+        // 不被误当免费版（付费墙误弹、语音 60 秒截断）。正式权益仍以服务端校验为准。
+        if let data = UserDefaults.standard.data(forKey: Self.cacheKey),
+           let cached = try? JSONDecoder().decode(CachedEntitlementSnapshot.self, from: data) {
+            tier = HoloSubscriptionTier(rawValue: cached.tier) ?? .free
+            isPlusActive = cached.isPlusActive
+            productId = cached.productId
+            expiresAt = cached.expiresAt
+            quotas = cached.quotas
+            source = .backend
+            acceptanceMode = cached.acceptanceModeRaw.flatMap(HoloAcceptanceMode.init(rawValue:)) ?? .followPurchase
+        }
+    }
 
     func apply(status: HoloSubscriptionStatusResponse) {
         tier = HoloSubscriptionTier(rawValue: status.tier) ?? .free
@@ -35,6 +50,23 @@ final class HoloEntitlementState: ObservableObject {
         acceptanceMode = HoloAcceptanceMode(rawValue: status.acceptanceMode ?? "")
             ?? (source == .acceptance ? (tier == .plus ? .plus : .free) : .followPurchase)
         lastErrorMessage = nil
+        persistSnapshotIfBackend()
+    }
+
+    /// 仅缓存正式权益；内部验收态（acceptance）不落盘，避免验收残留污染正式启动
+    private func persistSnapshotIfBackend() {
+        guard source == .backend else { return }
+        let snapshot = CachedEntitlementSnapshot(
+            tier: tier.rawValue,
+            isPlusActive: isPlusActive,
+            productId: productId,
+            expiresAt: expiresAt,
+            quotas: quotas,
+            acceptanceModeRaw: acceptanceMode.rawValue
+        )
+        if let data = try? JSONEncoder().encode(snapshot) {
+            UserDefaults.standard.set(data, forKey: Self.cacheKey)
+        }
     }
 
     func setRefreshing(_ value: Bool) {
@@ -98,7 +130,17 @@ final class HoloEntitlementState: ObservableObject {
     }()
 }
 
-struct HoloQuotaSnapshot: Decodable, Equatable {
+/// 权益磁盘快照：仅用于冷启动兜底展示，服务端仍是权益唯一事实源
+private struct CachedEntitlementSnapshot: Codable {
+    let tier: String
+    let isPlusActive: Bool
+    let productId: String?
+    let expiresAt: Date?
+    let quotas: [String: HoloQuotaSnapshot]
+    let acceptanceModeRaw: String?
+}
+
+struct HoloQuotaSnapshot: Codable, Equatable {
     let limit: Int
     let used: Int
     let remaining: Int

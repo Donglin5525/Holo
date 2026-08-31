@@ -238,4 +238,45 @@ final class ScheduleSyncPlannerTests: XCTestCase {
 
         XCTAssertTrue(ops.isEmpty)
     }
+
+    // MARK: - 跨天事件（时间块语义失效，撤镜像+清时间段，绝不允许回流跨天值）
+
+    func test_事件改成跨天_未完成任务_撤镜像清时间段不回流() {
+        let taskId = UUID()
+        let task = makeTask(id: taskId, start: date(10), end: date(12))
+        // 用户在系统日历把事件拖成跨天（23:00 → 次日 01:00）
+        let event = makeEvent(id: "EVT-1", claimedTaskId: taskId, start: date(23), end: date(1, day: 1))
+        let ops = ScheduleSyncPlanner.plan(tasks: [task], events: [event], mirrors: [makeMirror(taskId: taskId)], now: now)
+
+        XCTAssertEqual(ops, [.detachCrossDayMirror(taskId: taskId, eventIdentifier: "EVT-1")],
+                       "跨天值绝不能回流进任务（updateTask 对非法时间段是断言），应撤镜像+清时间段")
+    }
+
+    func test_事件改成跨天_零长事件_同样撤镜像() {
+        let taskId = UUID()
+        let task = makeTask(id: taskId, start: date(10), end: date(12))
+        let event = makeEvent(id: "EVT-1", claimedTaskId: taskId, start: date(10), end: date(10))
+        let ops = ScheduleSyncPlanner.plan(tasks: [task], events: [event], mirrors: [makeMirror(taskId: taskId)], now: now)
+
+        XCTAssertEqual(ops, [.detachCrossDayMirror(taskId: taskId, eventIdentifier: "EVT-1")])
+    }
+
+    func test_双边变更_事件新且跨天_撤镜像清时间段() {
+        let taskId = UUID()
+        // 任务改过标题（taskChanged）；事件改时间成跨天且改得更晚（事件赢）
+        let task = makeTask(id: taskId, title: "长跑", start: date(10), end: date(12), updatedAt: date(8))
+        let event = makeEvent(id: "EVT-1", claimedTaskId: taskId, title: "长跑", start: date(23), end: date(2, day: 1), modified: date(9))
+        let ops = ScheduleSyncPlanner.plan(tasks: [task], events: [event], mirrors: [makeMirror(taskId: taskId)], now: now)
+
+        XCTAssertEqual(ops, [.detachCrossDayMirror(taskId: taskId, eventIdentifier: "EVT-1")])
+    }
+
+    func test_事件改成跨天_已完成任务_保留事件不回流() {
+        let taskId = UUID()
+        let task = makeTask(id: taskId, start: date(10), end: date(12), completed: true)
+        let event = makeEvent(id: "EVT-1", claimedTaskId: taskId, start: date(23), end: date(1, day: 1))
+        let ops = ScheduleSyncPlanner.plan(tasks: [task], events: [event], mirrors: [makeMirror(taskId: taskId)], now: now)
+
+        XCTAssertTrue(ops.isEmpty, "已完成任务历史以日历侧为准，跨天也不动事件")
+    }
 }

@@ -139,11 +139,11 @@ struct HoloToolRegistryTests {
         let expected: Set<String> = [
             "anniversary", "conversation", "cross_domain", "discover", "feedback",
             "finance", "goal", "habit", "health", "insight", "memory", "profile",
-            "project", "task", "thought", "thought_reference"
+            "project", "schedule", "task", "thought", "thought_reference"
         ]
         expect(
             Set(HoloAgentToolCoverage.requiredToolNames) == expected,
-            "生产工具覆盖契约应包含全部 16 个已发布工具"
+            "生产工具覆盖契约应包含全部 17 个已发布工具"
         )
     }
 

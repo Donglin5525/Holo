@@ -523,7 +523,9 @@ struct FeedbackSheet: View {
         errorMessage = nil
 
         Task {
-            do {
+            // 弱网兜底：底层 APIClient 对超时会自动重试多次（最坏可挂数分钟），
+            // 提交界面既禁下滑又无取消手段；20 秒上限保证用户不会被锁死在提交中
+            let job = Task {
                 try await service.submit(
                     category: category,
                     content: content.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -533,10 +535,20 @@ struct FeedbackSheet: View {
                     appVersion: appVersionText,
                     osVersion: osVersionText
                 )
+            }
+            let timeoutTask = Task {
+                try? await Task.sleep(for: .seconds(20))
+                job.cancel()
+            }
+            do {
+                try await job.value
                 didSucceed = true
+            } catch is CancellationError {
+                errorMessage = "网络不稳定，提交超时，请稍后重试"
             } catch {
                 errorMessage = "提交失败：\(error.localizedDescription)"
             }
+            timeoutTask.cancel()
             isSubmitting = false
         }
     }

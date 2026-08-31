@@ -122,7 +122,15 @@ nonisolated final class CategoryLearningStore {
             let request = CategoryMappingRecordEntity.fetchRequest()
             request.predicate = NSPredicate(format: "mappingKey IN %@", keys)
             let existing = (try? self.context.fetch(request)) ?? []
-            let existingByKey = Dictionary(uniqueKeysWithValues: existing.map { ($0.mappingKey, $0) })
+            // CloudKit 同步实体无唯一约束，双设备可产生同 mappingKey 多行；只保留最早一行，防重复键崩溃
+            var existingByKey: [String: CategoryMappingRecordEntity] = [:]
+            for row in existing {
+                if let current = existingByKey[row.mappingKey] {
+                    if row.updatedAt < current.updatedAt { existingByKey[row.mappingKey] = row }
+                } else {
+                    existingByKey[row.mappingKey] = row
+                }
+            }
 
             let now = Date()
             var changed = false

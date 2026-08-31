@@ -759,6 +759,9 @@ final class ChatViewModel: ObservableObject {
                                 self.concludeStreamingSession(aiMessageId: aiMessageId)
                                 return
                             }
+                            // 云端轨道因用户点「停止」而退出（attempt 返回 false）：
+                            // 取消语义到此为止，不得再启动本地全量分析（结果不展示但额度照烧）
+                            try Task.checkCancellation()
                         }
                     }
                     let rendered = await self.analysisService.runAnalysis(

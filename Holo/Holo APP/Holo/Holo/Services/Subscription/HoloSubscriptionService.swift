@@ -112,10 +112,16 @@ final class HoloSubscriptionService: ObservableObject {
                 }
                 #endif
 
-                try await sync(verified)
-                await verified.transaction.finish()
-                await refreshStatus()
-                await HoloPlusActionCoordinator.shared.resumeAfterSuccessfulPurchase()
+                do {
+                    try await sync(verified)
+                    await verified.transaction.finish()
+                    await refreshStatus()
+                    await HoloPlusActionCoordinator.shared.resumeAfterSuccessfulPurchase()
+                } catch {
+                    // 扣款已发生：交易保持未 finish，等 Transaction.updates 重发补偿；
+                    // 文案必须与「未扣款失败」区分，否则用户以为被骗
+                    entitlementState.setError("购买已成功，会员状态同步中，可能需要几分钟生效")
+                }
 
             case .userCancelled:
                 break
@@ -134,9 +140,32 @@ final class HoloSubscriptionService: ObservableObject {
     func restorePurchases() async {
         do {
             try await AppStore.sync()
+            // AppStore.sync 之后必须把 Apple 侧有效凭证逐笔回传服务器：
+            // 服务器权益按 deviceId 归属，重装/换设备后 deviceId 变更时，
+            // 仅刷新 status 会返回 free；已 finish 的历史交易也不会再经 Transaction.updates 下发
+            await syncCurrentEntitlements()
             await refreshStatus()
         } catch {
             entitlementState.setError("恢复购买失败")
+        }
+    }
+
+    /// 遍历当前设备上的全部有效权益交易，逐笔同步给服务器并补 finish
+    private func syncCurrentEntitlements() async {
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard let verified = try? checkVerifiedTransaction(result) else { continue }
+
+            #if DEBUG
+            if Self.isXcodeTransaction(verified.transaction) { continue }
+            #endif
+
+            do {
+                try await sync(verified)
+                await verified.transaction.finish()
+            } catch {
+                // 单笔失败不中断其余交易同步；未 finish 的交易仍可经 updates 补偿
+                continue
+            }
         }
     }
 

@@ -655,26 +655,52 @@ nonisolated final class HoloBackendDeviceIdentity {
     static let shared = HoloBackendDeviceIdentity()
 
     private let key = "holo.backend.deviceId"
+    /// Keychain 账号：同设备卸载重装后 Keychain 存活而 UserDefaults 清空，
+    /// 设备身份以 Keychain 为最高优先来源，付费权益（按 deviceId 归属）不因重装丢失
+    private static let keychainAccount = "com.holo.device.identity"
     private let userDefaults: UserDefaults
-    /// iCloud 键值存储：卸载重装后 UserDefaults 清空，但 iCloud KVS 保留，
-    /// AI 额度/订阅的设备归属不因重装而重置（后端 entitlement 按 deviceId 判定）
+    /// iCloud 键值存储：换机/抹机重装（Keychain 与 UserDefaults 都不迁移）后，
+    /// 登录同一 iCloud 账号的设备仍可找回同一 deviceId（后端 entitlement 按 deviceId 判定）
     private let iCloudStore = NSUbiquitousKeyValueStore.default
 
+    /// 进程内缓存：deviceId 在一次运行内不会变化，避免每个请求都走 Keychain/UserDefaults
+    private var cachedDeviceId: String?
+
     var deviceId: String {
-        // 1) 本地缓存命中（含历史用户）
+        if let cached = cachedDeviceId { return cached }
+
+        let resolved = resolveDeviceId()
+        cachedDeviceId = resolved
+        return resolved
+    }
+
+    private func resolveDeviceId() -> String {
+        // 1) Keychain：同设备卸载重装后仍存活，最高优先
+        if let keychainValue = Self.loadFromKeychain(), !keychainValue.isEmpty {
+            if userDefaults.string(forKey: key) != keychainValue {
+                userDefaults.set(keychainValue, forKey: key)
+            }
+            syncToICloudIfNeeded(keychainValue)
+            return keychainValue
+        }
+        // 2) 本地缓存命中（含历史用户：顺带迁入 Keychain）
         if let existing = userDefaults.string(forKey: key), !existing.isEmpty {
+            Self.saveToKeychain(existing)
             syncToICloudIfNeeded(existing)
             return existing
         }
-        // 2) iCloud 有（重装后恢复）
+        // 3) iCloud KVS 有（换机/抹机后恢复）
         if let restored = iCloudStore.string(forKey: key), !restored.isEmpty {
             userDefaults.set(restored, forKey: key)
+            Self.saveToKeychain(restored)
             return restored
         }
-        // 3) 全新设备：生成并双写
+        // 4) 全新设备：生成并三写
         let created = UUID().uuidString
         userDefaults.set(created, forKey: key)
+        Self.saveToKeychain(created)
         iCloudStore.set(created, forKey: key)
+        iCloudStore.synchronize()
         return created
     }
 
@@ -682,6 +708,33 @@ nonisolated final class HoloBackendDeviceIdentity {
     private func syncToICloudIfNeeded(_ deviceId: String) {
         guard iCloudStore.string(forKey: key) != deviceId else { return }
         iCloudStore.set(deviceId, forKey: key)
+        iCloudStore.synchronize()
+    }
+
+    private static func loadFromKeychain() -> String? {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func saveToKeychain(_ value: String) {
+        SecItemDelete([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: keychainAccount
+        ] as CFDictionary)
+        SecItemAdd([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: keychainAccount,
+            kSecValueData as String: Data(value.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ] as CFDictionary, nil)
     }
 
     private init(userDefaults: UserDefaults = .standard) {

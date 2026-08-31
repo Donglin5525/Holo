@@ -35,6 +35,11 @@ class HomeIconConfigRepository: ObservableObject {
     /// 主上下文（延迟初始化，避免 init 时触发 Core Data）
     private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
 
+    /// 云同步数据到达后重跑去重：启动时只修一次，而 iCloud 恢复往往在启动后数分钟才落地，
+    /// 期间「种子 + 云端旧行」并存会重现图标折叠——remote change 防抖后重修+重载
+    private var remoteChangeObserver: NSObjectProtocol?
+    private var repairDebounceTask: Task<Void, Never>?
+
     // MARK: - Initialization
 
     /// init 不做任何 I/O 操作，避免阻塞主线程
@@ -50,6 +55,32 @@ class HomeIconConfigRepository: ObservableObject {
         seedDefaultData()
         loadConfigs()
         isReady = true
+
+        remoteChangeObserver = NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: CoreDataStack.shared.persistentContainer.persistentStoreCoordinator,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.scheduleCloudRestoreRepair()
+            }
+        }
+    }
+
+    /// 防抖重修：CloudKit import/本地保存都会连发 remote change；
+    /// repair 幂等（无重复时零写入），防抖只为避免高频空转
+    private func scheduleCloudRestoreRepair() {
+        repairDebounceTask?.cancel()
+        repairDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, let self else { return }
+            self.repairDuplicateConfigsAndReload()
+        }
+    }
+
+    private func repairDuplicateConfigsAndReload() {
+        HomeIconConfig.repairDuplicateConfigs(in: context)
+        loadConfigs()
     }
 
     // MARK: - Seed Data

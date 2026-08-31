@@ -44,7 +44,8 @@ final class ChatMessageRepository: ObservableObject {
 
         do {
             let fetched = try context.fetch(request)
-            liveMessageCache = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+            // CloudKit 同步理论上可产生同 id 双行；重复时保留后者（时间戳排序中更靠前=更新的）
+            liveMessageCache = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { _, rhs in rhs })
             messages = fetched.reversed().map(ChatMessageViewData.init)
         } catch {
             logger.error("加载消息失败：\(error.localizedDescription)")

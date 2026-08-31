@@ -167,6 +167,9 @@ final class HoloCloudAnalysisService {
                     return
                 }
                 logger.error("轮询失败（稍后重试）：\(String(describing: error), privacy: .public)")
+            } catch is CancellationError {
+                // 用户已取消：立即退出轮询，不做僵尸轮询烧电烧流量（sleep 吞取消由下轮 checkCancellation 兜住）
+                return
             } catch {
                 logger.error("轮询异常（稍后重试）：\(String(describing: error), privacy: .public)")
             }

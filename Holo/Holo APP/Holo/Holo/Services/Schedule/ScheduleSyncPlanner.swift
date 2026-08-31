@@ -65,6 +65,9 @@ enum ScheduleSyncOperation: Equatable {
     case deleteEventAndMirror(eventIdentifier: String, taskId: UUID)
     /// 事件认领超时/用户删事件 → 断开映射（任务保留）
     case disconnectMirror(taskId: UUID)
+    /// 事件被改成跨天 → 清任务时间段+删事件+删映射（任务保留）
+    /// 任务计划时间段语义是「当天内的时间块」，跨天不属于它；镜像撤除后一轮收敛，不再反复对账
+    case detachCrossDayMirror(taskId: UUID, eventIdentifier: String)
 }
 
 // MARK: - 决策核心
@@ -82,7 +85,7 @@ enum ScheduleSyncPlanner {
     ) -> [ScheduleSyncOperation] {
         var operations: [ScheduleSyncOperation] = []
 
-        let tasksById = Dictionary(uniqueKeysWithValues: tasks.map { ($0.taskId, $0) })
+        let tasksById = Dictionary(tasks.map { ($0.taskId, $0) }, uniquingKeysWith: { first, _ in first })
         let activeMirrors = mirrors.filter { $0.state == "active" }
         // 断开过的任务不自动重建镜像（用户在日历删事件=断开意图；重建等于删了又冒出来）
         var mirroredTaskIds = Set(mirrors.map(\.taskId))
@@ -145,12 +148,20 @@ enum ScheduleSyncPlanner {
             case (false, true):
                 // 已完成任务不回流（历史记录以日历侧为准）；未完成任务回流
                 if !task.completed {
-                    operations.append(.updateTask(
-                        taskId: task.taskId,
-                        title: event.title,
-                        plannedStart: event.startDate,
-                        plannedEnd: event.endDate
-                    ))
+                    if Self.isValidTaskRange(event.startDate, event.endDate) {
+                        operations.append(.updateTask(
+                            taskId: task.taskId,
+                            title: event.title,
+                            plannedStart: event.startDate,
+                            plannedEnd: event.endDate
+                        ))
+                    } else {
+                        // 事件被改成跨天（或零长）：当天时间块语义失效，撤镜像+清任务时间段
+                        operations.append(.detachCrossDayMirror(
+                            taskId: task.taskId,
+                            eventIdentifier: event.eventIdentifier
+                        ))
+                    }
                 }
             case (true, true):
                 // 冲突：新者胜
@@ -159,12 +170,19 @@ enum ScheduleSyncPlanner {
                     operations.append(.updateEvent(task: task, eventIdentifier: event.eventIdentifier))
                 } else {
                     if !task.completed {
-                        operations.append(.updateTask(
-                            taskId: task.taskId,
-                            title: event.title,
-                            plannedStart: event.startDate,
-                            plannedEnd: event.endDate
-                        ))
+                        if Self.isValidTaskRange(event.startDate, event.endDate) {
+                            operations.append(.updateTask(
+                                taskId: task.taskId,
+                                title: event.title,
+                                plannedStart: event.startDate,
+                                plannedEnd: event.endDate
+                            ))
+                        } else {
+                            operations.append(.detachCrossDayMirror(
+                                taskId: task.taskId,
+                                eventIdentifier: event.eventIdentifier
+                            ))
+                        }
                     } else {
                         operations.append(.updateEvent(task: task, eventIdentifier: event.eventIdentifier))
                     }
@@ -181,5 +199,11 @@ enum ScheduleSyncPlanner {
         }
 
         return operations
+    }
+
+    /// 任务计划时间段合法性：同一天且开始早于结束（与 TodoTask.isValidPlannedRange 同规则）
+    private static func isValidTaskRange(_ start: Date, _ end: Date, calendar: Calendar = .current) -> Bool {
+        guard end > start else { return false }
+        return calendar.isDate(start, inSameDayAs: end)
     }
 }

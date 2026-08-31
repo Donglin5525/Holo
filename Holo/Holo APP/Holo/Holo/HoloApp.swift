@@ -249,6 +249,8 @@ struct HoloApp: App {
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
                     // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
                     ThoughtOrganizationQueue.shared.appWillEnterForeground()
+                    // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
+                    Task { await HoloSubscriptionService.shared.refreshStatus() }
                     Task {
                         // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
                         await DailyBriefScheduler.shared.handleAppActivity()

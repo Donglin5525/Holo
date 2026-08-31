@@ -262,6 +262,22 @@ final class ScheduleSyncEngine {
                 // 设计稿：断开轻提示一次（断开后 state=disconnected 不再进对账，天然只提示这一回）
                 let taskTitle = fetchTask(id: taskId)?.title ?? "任务"
                 HoloToastCenter.shared.show("「\(taskTitle)」的日历事件已删除，任务保留、同步已断开", type: .warning)
+
+            case .detachCrossDayMirror(let taskId, let eventIdentifier):
+                // 事件被改成跨天：任务计划时间段（当天时间块语义）一并清掉，撤镜像；任务本体保留
+                if let event = eventStore.event(withIdentifier: eventIdentifier) {
+                    try? eventStore.remove(event, span: .thisEvent)
+                }
+                let detachedTask = fetchTask(id: taskId)
+                if let task = detachedTask {
+                    try? TodoRepository.shared.updateTask(task, plannedTime: .clear)
+                }
+                if let mirror = fetchMirror(taskId: taskId) {
+                    context.delete(mirror)
+                    try? context.save()
+                }
+                let taskTitle = detachedTask?.title ?? "任务"
+                HoloToastCenter.shared.show("「\(taskTitle)」的事件已改为跨天，超出任务时间块范围，已解除同步", type: .warning)
             }
         }
     }
