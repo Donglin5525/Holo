@@ -109,6 +109,20 @@ test("apnsSender：已验证 sandbox 环境直发不再试探 production", async
   assert.equal(connect.calls[0].authority.includes("sandbox"), true);
 });
 
+test("apnsSender：403 BadEnvironmentKeyInToken 同样触发环境回退（真机开发包实测应答）", async () => {
+  const connect = fakeConnect(({ authority }) => {
+    if (authority.includes("sandbox")) return { status: 200 };
+    return { status: 403, body: { reason: "BadEnvironmentKeyInToken" } };
+  });
+  const sender = createApnsSender({
+    keyPem: TEST_KEY_PEM, keyId: "K", teamId: "T", bundleId: "com.test.app", connect,
+  });
+  const result = await sender.send({ token: TOKEN, title: "t", body: "b" });
+  assert.equal(result.ok, true);
+  assert.equal(result.environment, "sandbox");
+  assert.equal(connect.calls.length, 2);
+});
+
 test("apnsSender：410 Unregistered 返回 unregistered（调用方删行）", async () => {
   const sender = makeSender(() => ({ status: 410, body: { reason: "Unregistered" } }));
   const result = await sender.send({ token: TOKEN, title: "t", body: "b" });

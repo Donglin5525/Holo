@@ -100,7 +100,12 @@ export function createApnsSender({
           try { bodyText = JSON.parse(raw)?.reason ?? raw; } catch { /* keep raw */ }
           if (status === 410) {
             finish({ ok: false, status, reason: "unregistered", apnsReason: bodyText });
-          } else if (status === 400 && String(bodyText).includes("BadDeviceToken")) {
+          } else if (
+            (status === 400 && String(bodyText).includes("BadDeviceToken")) ||
+            // 403 BadEnvironmentKeyInToken：device token 属另一环境（如开发版 token 发正式通道）——
+            // 真机调试包的常见应答，同样应触发环境回退（生产 E2E 实测 2026-09-01）
+            (status === 403 && String(bodyText).includes("BadEnvironmentKeyInToken"))
+          ) {
             finish({ ok: false, status, reason: "badDeviceToken", apnsReason: bodyText });
           } else {
             finish({ ok: false, status, reason: "error", apnsReason: bodyText });
