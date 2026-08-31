@@ -13,13 +13,17 @@ import Foundation
 enum HoloAppStoreScreenshotSeeder {
     static let modeKey = "HOLO_APP_STORE_SCREENSHOT_MODE"
     static let routeKey = "HOLO_APP_STORE_SCREENSHOT_ROUTE"
-    private static let seededKey = "holo_app_store_screenshot_seed_v2"
+    private static let seededKey = "holo_app_store_screenshot_seed_v3"
 
     enum Route: String {
         case home
         case aiActions = "ai-actions"
         case aiAnalysis = "ai-analysis"
         case memoryCalendar = "memory-calendar"
+        case memoryExtraction = "memory-extraction"
+        case aiMemory = "ai-memory"
+        case periodReplayMonthly = "period-replay-monthly"
+        case dailyKanban = "daily-kanban"
         case financeStats = "finance-stats"
         case memoryInsight = "memory-insight"
     }
@@ -65,11 +69,19 @@ enum HoloAppStoreScreenshotSeeder {
         let context = CoreDataStack.shared.viewContext
         do {
             if defaults.bool(forKey: seededKey) {
-                try await replaceInsight(in: context, now: now)
+                try await replaceInsight(
+                    in: context,
+                    now: now,
+                    route: Route(rawValue: environment[routeKey] ?? "")
+                )
                 navigateIfRequested(environment: environment)
                 return true
             }
-            let seeded = try await seedAll(in: context, now: now)
+            let seeded = try await seedAll(
+                in: context,
+                now: now,
+                route: Route(rawValue: environment[routeKey] ?? "")
+            )
             guard seeded else { return false }
             defaults.set(true, forKey: seededKey)
             NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
@@ -89,13 +101,56 @@ enum HoloAppStoreScreenshotSeeder {
         guard let rawValue = environment[routeKey],
               let route = Route(rawValue: rawValue) else { return }
 
+        // 月度周期回放的宣传图直接展示“生成完成后的真实卡片”。
+        // 数据仍由上面的 Seeder 构造，卡片仍复用生产用 PeriodReplayChatCard；
+        // 这里只跳过窗口焦点不稳定的手动点选过程，避免截图停在首页。
+        if route == .periodReplayMonthly {
+            let now = Date()
+            let range = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: .monthly,
+                referenceDate: now,
+                now: now
+            )
+            let request = MemoryInsight.fetchRequest()
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(
+                    format: "periodType == %@ AND periodStart == %@ AND status IN %@",
+                    MemoryInsightPeriodType.monthly.rawValue,
+                    range.start as CVarArg,
+                    [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+                ),
+                NSPredicate(format: "deletedAt == nil")
+            ])
+            request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
+            request.fetchLimit = 1
+
+            if let insight = try? CoreDataStack.shared.viewContext.fetch(request).first {
+                HoloPeriodReplayCoordinator.shared.presentCachedInsight(insight)
+            }
+
+            let target = DeepLinkTarget.ai(voiceInput: false)
+            DeepLinkState.shared.navigate(to: target)
+            // 冷启动时 ContentView/HomeView 可能尚未完成第一次挂载，补一次只导航不落卡。
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                if DeepLinkState.shared.pendingTarget == nil {
+                    DeepLinkState.shared.navigate(to: target)
+                }
+            }
+            return
+        }
+
         switch route {
         case .home:
             break
-        case .aiActions, .aiAnalysis:
+        case .periodReplayMonthly:
+            break
+        case .aiActions, .aiAnalysis, .aiMemory:
             DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
-        case .memoryCalendar, .memoryInsight:
+        case .memoryCalendar, .memoryExtraction, .memoryInsight:
             DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
+        case .dailyKanban:
+            DeepLinkState.shared.navigate(to: .dailyReminder)
         case .financeStats:
             let range = TimeRange.month.dateRange()
             DeepLinkState.shared.navigate(to: .financeAnalysis(FinanceAnalysisDeepLink(
@@ -108,7 +163,8 @@ enum HoloAppStoreScreenshotSeeder {
 
     private static func replaceInsight(
         in context: NSManagedObjectContext,
-        now: Date
+        now: Date,
+        route: Route?
     ) async throws {
         let request = MemoryInsight.fetchRequest()
         request.predicate = NSPredicate(
@@ -130,12 +186,26 @@ enum HoloAppStoreScreenshotSeeder {
         )!
         try seedInsight(context: context, startOfWeek: startOfWeek)
         try context.save()
-        try await seedStableMemory(now: now)
+        let memoryIDs = try await seedScreenshotMemoryRecords(now: now)
+        try await seedMonthlyReplayInsight(
+            context: context,
+            now: now,
+            memoryIDs: memoryIDs
+        )
+        if route == .aiMemory {
+            try seedPersonalizedMemoryConversation(
+                context: context,
+                memoryIDs: [memoryIDs.readingID, memoryIDs.focusID],
+                timestamp: now
+            )
+            try context.save()
+        }
     }
 
     private static func seedAll(
         in context: NSManagedObjectContext,
-        now: Date
+        now: Date,
+        route: Route?
     ) async throws -> Bool {
         FinanceRepository.shared.setup()
         guard let account = Account.getDefaultAccount(in: context) else { return false }
@@ -154,17 +224,460 @@ enum HoloAppStoreScreenshotSeeder {
         let habit = try seedHabits(context: context, startOfWeek: startOfWeek)
         let task = try seedTasks(context: context, startOfWeek: startOfWeek)
         try seedThoughts(context: context, startOfWeek: startOfWeek)
+        let memoryIDs = try await seedScreenshotMemoryRecords(now: now)
         try seedConversation(
             context: context,
             transaction: transactions.actionTransaction,
             task: task,
             habit: habit,
-            startOfWeek: startOfWeek
+            now: now,
+            startOfWeek: startOfWeek,
+            memoryIDs: [memoryIDs.readingID, memoryIDs.focusID]
         )
+        if route == .aiMemory {
+            try seedPersonalizedMemoryConversation(
+                context: context,
+                memoryIDs: [memoryIDs.readingID, memoryIDs.focusID],
+                timestamp: now
+            )
+        }
         try seedInsight(context: context, startOfWeek: startOfWeek)
+        try await seedMonthlyReplayInsight(
+            context: context,
+            now: now,
+            memoryIDs: memoryIDs
+        )
         try context.save()
-        try await seedStableMemory(now: now)
         return true
+    }
+
+    /// 为截图准备一份真实可命中的月度回放缓存。
+    /// 用户仍然通过「周期回放 → 本月 → 生成回放」进入，生成服务只是在本地命中这份
+    /// 与当前模拟数据快照一致的缓存，因此不会依赖网络或随机模型输出。
+    private static func seedMonthlyReplayInsight(
+        context: NSManagedObjectContext,
+        now: Date,
+        memoryIDs: SeededMemoryIDs
+    ) async throws {
+        let range = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: .monthly,
+            referenceDate: now,
+            now: now
+        )
+        let builder = MemoryInsightContextBuilder()
+        let (_, snapshotHash) = await builder.build(
+            periodType: .monthly,
+            start: range.start,
+            end: range.end
+        )
+
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@",
+            MemoryInsightPeriodType.monthly.rawValue
+        )
+        for insight in try context.fetch(request) {
+            context.delete(insight)
+        }
+
+        let insight = MemoryInsight.createGenerating(
+            in: context,
+            periodType: .monthly,
+            start: range.start,
+            end: range.end,
+            snapshotHash: snapshotHash
+        )
+        let payload = makeMonthlyReplayPayload(memoryIDs: memoryIDs)
+        try await MainActor.run {
+            insight.markReady(
+                payload: payload,
+                rawResponse: try encode(payload),
+                providerName: "screenshot-seed",
+                promptVersion: 0
+            )
+        }
+        try context.save()
+    }
+
+    private static func makeMonthlyReplayPayload(
+        memoryIDs: SeededMemoryIDs
+    ) -> MemoryInsightPayload {
+        MemoryInsightPayload(
+            title: "这个月，你正在把生活收拢起来",
+            summary: "从支出、习惯、待办和想法放在一起看，稳定的节奏已经开始出现：晨间阅读在变得规律，专注时间也被你认真留了出来。",
+            cards: [
+                MemoryInsightCard(
+                    id: "screenshot-monthly-overview",
+                    type: .overview,
+                    title: "生活开始有了自己的节拍",
+                    body: "你不是每天都做同样的事，而是在重要的事情上逐渐形成了可重复的节奏。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "overview-1", label: "本月有多天留下完整记录", date: nil, sourceType: "thought", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "overview-2", label: "晨间阅读与夜间散步多次出现在记录中", date: nil, sourceType: "habit", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "下个月最值得保持什么？"
+                ),
+                MemoryInsightCard(
+                    id: "screenshot-monthly-finance",
+                    type: .finance,
+                    title: "日常支出更集中，也更容易看懂",
+                    body: "餐饮和日常补给是本月的主要支出；当支出被持续记录下来，变化就不再只是月底的一个数字。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "finance-1", label: "餐饮是出现频率最高的支出类别", date: nil, sourceType: "transaction", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "finance-2", label: "本月多天都有可回看的消费明细", date: nil, sourceType: "transaction", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "哪些支出最值得继续观察？"
+                ),
+                MemoryInsightCard(
+                    id: "screenshot-monthly-habit",
+                    type: .habit,
+                    title: "晨间阅读正在从安排变成习惯",
+                    body: "连续的晨间记录说明，它已经不只是偶尔想起来才做的事，而是逐渐成为工作日的启动方式。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "habit-1", label: "晨间阅读连续记录了多个工作日", date: nil, sourceType: "habit", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "habit-2", label: "习惯记录覆盖了本月的大部分时间", date: nil, sourceType: "habit", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "怎样让这个习惯更轻松？"
+                ),
+                MemoryInsightCard(
+                    id: "screenshot-monthly-cross",
+                    type: .crossDomain,
+                    title: "专注时间和稳定节奏互相支持",
+                    body: "当你为重要的事情留出不被打扰的时间，晚间散步也更像是在收回一天，而不是临时补救。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "cross-1", label: "记录中出现了不被打扰的一小时", date: nil, sourceType: "thought", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "cross-2", label: "夜间散步与工作日记录多次相邻出现", date: nil, sourceType: "habit", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "帮我把这个节奏延续到下周"
+                ),
+                MemoryInsightCard(
+                    id: "screenshot-monthly-thought",
+                    type: .thought,
+                    title: "你越来越知道什么值得留下",
+                    body: "记录不再只是保存发生过的事，也在帮你辨认哪些安排真正让生活变得更顺。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "thought-1", label: "多条想法都围绕拆解、留白与复盘", date: nil, sourceType: "thought", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "把这些发现整理成一个计划"
+                )
+            ],
+            suggestedQuestions: [
+                "下个月最值得保持什么？",
+                "帮我把这个节奏延续到下周",
+                "把这些发现整理成一个计划"
+            ],
+            usedMemoryIDs: [memoryIDs.readingID, memoryIDs.focusID]
+        )
+    }
+
+    private static func seedPersonalizedMemoryConversation(
+        context: NSManagedObjectContext,
+        memoryIDs: [String],
+        timestamp: Date
+    ) throws {
+        let marker = "最近怎么安排工作日更顺？"
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "content == %@", marker)
+        guard try context.fetch(request).isEmpty else { return }
+
+        let latestMessageDate = try context.fetch(ChatMessage.fetchRequest())
+            .compactMap(\.timestamp)
+            .max() ?? timestamp
+        let messageBase = max(timestamp, latestMessageDate).addingTimeInterval(120)
+
+        let queryID = insertMessage(
+            in: context,
+            role: "user",
+            content: marker,
+            timestamp: messageBase
+        )
+        let assistant = ChatMessage(context: context)
+        assistant.id = UUID()
+        assistant.role = "assistant"
+        assistant.content = "按你最近的记录，可以把晨间阅读和一段完整专注时间放在工作日的前半段；晚上再留一点散步的余地，节奏会更容易保持。"
+        assistant.timestamp = messageBase.addingTimeInterval(5)
+        assistant.intent = nil
+        assistant.isStreaming = false
+        assistant.parentMessageId = queryID
+        assistant.messageType = ChatMessageType.normal.rawValue
+        assistant.extractedDataJSON = try encode([
+            "memoryUsedCount": String(memoryIDs.count),
+            "memoryUsedIDs": memoryIDs.joined(separator: ",")
+        ])
+    }
+
+    private struct SeededMemoryIDs {
+        let readingID: String
+        let focusID: String
+        let rhythmID: String
+        let recoveryID: String
+    }
+
+    private static func screenshotMemoryIDs() throws -> SeededMemoryIDs {
+        let readingAnchor = try HoloMemoryAnchorRef(
+            type: .userTheme,
+            value: "weekday-morning-reading"
+        )
+        let readingID = try HoloMemoryIdentity.makeStableID(
+            scope: .domain,
+            primaryDomain: .habit,
+            sourceDomains: [.habit],
+            claimKind: .recurringPattern,
+            anchors: [readingAnchor]
+        )
+
+        let focusAnchor = try HoloMemoryAnchorRef(
+            type: .thoughtTopic,
+            value: "protected-focus-time",
+            displayLabel: "不被打扰的一小时"
+        )
+        let focusID = try HoloMemoryIdentity.makeStableID(
+            scope: .domain,
+            primaryDomain: .thought,
+            sourceDomains: [.thought],
+            claimKind: .recurringPattern,
+            anchors: [focusAnchor]
+        )
+
+        let rhythmAnchor = try HoloMemoryAnchorRef(
+            type: .userTheme,
+            value: "weekday-rhythm",
+            displayLabel: "工作日节奏"
+        )
+        let rhythmID = try HoloMemoryIdentity.makeStableID(
+            scope: .crossDomain,
+            primaryDomain: nil,
+            sourceDomains: [.habit, .thought],
+            claimKind: .association,
+            anchors: [rhythmAnchor]
+        )
+
+        let recoveryAnchor = try HoloMemoryAnchorRef(
+            type: .habit,
+            value: "evening-walk-recovery",
+            displayLabel: "夜间散步"
+        )
+        let recoveryID = try HoloMemoryIdentity.makeStableID(
+            scope: .domain,
+            primaryDomain: .habit,
+            sourceDomains: [.habit],
+            claimKind: .hypothesis,
+            anchors: [recoveryAnchor]
+        )
+        return SeededMemoryIDs(
+            readingID: readingID,
+            focusID: focusID,
+            rhythmID: rhythmID,
+            recoveryID: recoveryID
+        )
+    }
+
+    private static func makeScreenshotMemoryRecord(
+        id: String,
+        scope: HoloMemoryScope,
+        primaryDomain: HoloMemoryDomain?,
+        sourceDomains: [HoloMemoryDomain],
+        subjectKey: String,
+        anchorRefs: [HoloMemoryAnchorRef],
+        claimKind: HoloMemoryClaimKind,
+        persistenceClass: HoloMemoryPersistenceClass,
+        displaySummary: String,
+        aiUseSummary: String,
+        prohibitedInferences: [String],
+        evidenceRefs: [HoloMemoryEvidenceRef],
+        upstreamMemoryIDs: [String],
+        confidenceScore: Double,
+        state: HoloMemoryState,
+        adoptionMetadata: HoloMemoryAdoptionMetadata? = nil,
+        now: Date
+    ) -> HoloMemoryRecord {
+        HoloMemoryRecord(
+            id: id,
+            scope: scope,
+            primaryDomain: primaryDomain,
+            sourceDomains: sourceDomains,
+            subjectKey: subjectKey,
+            anchorRefs: anchorRefs,
+            claimKind: claimKind,
+            persistenceClass: persistenceClass,
+            displaySummary: displaySummary,
+            aiUseSummary: aiUseSummary,
+            prohibitedInferences: prohibitedInferences,
+            evidenceRefs: evidenceRefs,
+            upstreamMemoryIDs: upstreamMemoryIDs,
+            counterEvidenceRefs: [],
+            lastSupportedAt: now,
+            confidenceScore: confidenceScore,
+            freshnessScore: 1,
+            scoringVersion: HoloMemoryScorer.currentVersion,
+            scoreComputedAt: now,
+            extractorVersion: 1,
+            promptVersion: 1,
+            state: state,
+            sensitivity: .normal,
+            userDecision: .none,
+            adoptionMetadata: adoptionMetadata,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
+    /// 构造宣传图需要的「正在越来越懂你」数据：两条已形成的理解 + 两条等待用户确认的候选记忆。
+    /// 所有记录都走真实统一记忆仓库，避免宣传图掩盖真实产品行为。
+    private static func seedScreenshotMemoryRecords(now: Date) async throws -> SeededMemoryIDs {
+        let ids = try screenshotMemoryIDs()
+        try await seedStableMemory(now: now)
+
+        let focusAnchor = try HoloMemoryAnchorRef(
+            type: .thoughtTopic,
+            value: "protected-focus-time",
+            displayLabel: "不被打扰的一小时"
+        )
+        let focusRecord = makeScreenshotMemoryRecord(
+            id: ids.focusID,
+            scope: .domain,
+            primaryDomain: .thought,
+            sourceDomains: [.thought],
+            subjectKey: "protected-focus-time",
+            anchorRefs: [focusAnchor],
+            claimKind: .recurringPattern,
+            persistenceClass: .phase,
+            displaySummary: "你会主动为真正重要的事留出不被打扰的时间。",
+            aiUseSummary: "用户重视完整专注时段，安排任务时可优先保留连续的独处时间。",
+            prohibitedInferences: ["不要据此推断用户每天都拥有完整空闲时间"],
+            evidenceRefs: [HoloMemoryEvidenceRef(
+                id: "app-store-screenshot-focus-time",
+                kind: .explicitUserStatement,
+                sourceDomain: .thought,
+                lineageKey: "app-store-screenshot-focus-time",
+                sourceID: "thought-protected-focus-time",
+                revisionDigest: "v1",
+                observedAt: now,
+                summary: "今天最值得记住的是留出了真正不被打扰的一小时。"
+            )],
+            upstreamMemoryIDs: [],
+            confidenceScore: 0.88,
+            state: .active,
+            now: now
+        )
+
+        let rhythmAnchor = try HoloMemoryAnchorRef(
+            type: .userTheme,
+            value: "weekday-rhythm",
+            displayLabel: "工作日节奏"
+        )
+        let rhythmRecord = makeScreenshotMemoryRecord(
+            id: ids.rhythmID,
+            scope: .crossDomain,
+            primaryDomain: nil,
+            sourceDomains: [.habit, .thought],
+            subjectKey: "weekday-rhythm",
+            anchorRefs: [rhythmAnchor],
+            claimKind: .association,
+            persistenceClass: .phase,
+            displaySummary: "工作日的稳定节奏，通常从晨间阅读和一段专注时间开始。",
+            aiUseSummary: "规划工作日时，可把晨间阅读和连续专注时间作为用户偏好的节奏锚点。",
+            prohibitedInferences: ["不要据此推断每个工作日都能完整执行这套节奏"],
+            evidenceRefs: [
+                HoloMemoryEvidenceRef(
+                    id: "app-store-screenshot-rhythm-habit",
+                    kind: .entityRef,
+                    sourceDomain: .habit,
+                    lineageKey: "app-store-screenshot-reading-streak",
+                    sourceID: "weekday-morning-reading",
+                    revisionDigest: "v1",
+                    observedAt: now,
+                    summary: "晨间阅读已连续记录 5 天。"
+                ),
+                HoloMemoryEvidenceRef(
+                    id: "app-store-screenshot-rhythm-thought",
+                    kind: .explicitUserStatement,
+                    sourceDomain: .thought,
+                    lineageKey: "app-store-screenshot-focus-time",
+                    sourceID: "thought-protected-focus-time",
+                    revisionDigest: "v1",
+                    observedAt: now,
+                    summary: "用户记录过不被打扰的专注时段。"
+                )
+            ],
+            upstreamMemoryIDs: [ids.readingID, ids.focusID],
+            confidenceScore: 0.76,
+            state: .candidate,
+            adoptionMetadata: HoloMemoryAdoptionMetadata(
+                policyVersion: HoloMemoryActivationPolicy.currentVersion,
+                disposition: .pendingConfirmation,
+                reason: .firstCrossDomainInference,
+                evaluatedAt: now
+            ),
+            now: now
+        )
+
+        let recoveryAnchor = try HoloMemoryAnchorRef(
+            type: .habit,
+            value: "evening-walk-recovery",
+            displayLabel: "夜间散步"
+        )
+        let recoveryRecord = makeScreenshotMemoryRecord(
+            id: ids.recoveryID,
+            scope: .domain,
+            primaryDomain: .habit,
+            sourceDomains: [.habit],
+            subjectKey: "evening-walk-recovery",
+            anchorRefs: [recoveryAnchor],
+            claimKind: .hypothesis,
+            persistenceClass: .phase,
+            displaySummary: "忙碌之后，你更容易通过夜间散步把一天收回来。",
+            aiUseSummary: "当用户安排晚间恢复时，可以温和地建议一段短时散步，并允许用户忽略。",
+            prohibitedInferences: ["不要把散步当作用户每晚固定的要求"],
+            evidenceRefs: [HoloMemoryEvidenceRef(
+                id: "app-store-screenshot-evening-walk",
+                kind: .entityRef,
+                sourceDomain: .habit,
+                lineageKey: "app-store-screenshot-evening-walk",
+                sourceID: "evening-walk",
+                revisionDigest: "v1",
+                observedAt: now,
+                summary: "本周有 4 次夜间散步记录。"
+            )],
+            upstreamMemoryIDs: [],
+            confidenceScore: 0.7,
+            state: .candidate,
+            adoptionMetadata: HoloMemoryAdoptionMetadata(
+                policyVersion: HoloMemoryActivationPolicy.currentVersion,
+                disposition: .pendingConfirmation,
+                reason: .hypothesis,
+                evaluatedAt: now
+            ),
+            now: now
+        )
+
+        let repository = try await HoloMemoryRuntime.shared.repository()
+        for (record, observationKey) in [
+            (focusRecord, "app-store-screenshot-memory-focus-v2"),
+            (rhythmRecord, "app-store-screenshot-memory-rhythm-v2"),
+            (recoveryRecord, "app-store-screenshot-memory-recovery-v2")
+        ] {
+            _ = try await repository.upsert(record, observationKey: observationKey)
+        }
+        HoloMemoryReceiptStore.record(
+            kind: .write,
+            channel: .insight,
+            memoryIDs: [ids.readingID, ids.focusID],
+            message: "Holo 已记住 2 件与你有关的事",
+            adoptionKind: .automaticallyAdopted,
+            batchKey: "app-store-screenshot-memory-automatic-v2",
+            now: now
+        )
+        HoloMemoryReceiptStore.record(
+            kind: .write,
+            channel: .insight,
+            memoryIDs: [ids.rhythmID, ids.recoveryID],
+            message: "Holo 从你的记录里整理出 2 条候选记忆",
+            adoptionKind: .needsConfirmation,
+            batchKey: "app-store-screenshot-memory-candidate-v2",
+            now: now
+        )
+        return ids
     }
 
     private static func seedStableMemory(now: Date) async throws {
@@ -234,6 +747,29 @@ enum HoloAppStoreScreenshotSeeder {
         let categories = try context.fetch(Category.fetchRequest())
         let byName = Dictionary(grouping: categories.filter(\.isSubCategory), by: \.name)
         let samples: [(day: Int, hour: Int, minute: Int, amount: Decimal, category: String, note: String)] = [
+            (-23, 8, 20, 32, "早餐", "工作日早餐"),
+            (-22, 12, 10, 38, "午餐", "午餐"),
+            (-21, 19, 15, 46, "晚餐", "晚餐"),
+            (-20, 8, 5, 22, "咖啡", "晨间咖啡"),
+            (-19, 18, 40, 4, "地铁", "回家地铁"),
+            (-18, 12, 30, 44, "午餐", "工作日午餐"),
+            (-17, 15, 20, 79, "书籍", "阅读补给"),
+            (-16, 18, 50, 126, "超市", "本周补给"),
+            (-15, 9, 10, 26, "早餐", "周末早餐"),
+            (-14, 20, 10, 52, "晚餐", "晚餐"),
+            (-13, 12, 20, 36, "午餐", "午餐"),
+            (-12, 17, 40, 18, "茶饮", "下午茶"),
+            (-11, 19, 0, 75, "火锅", "朋友小聚"),
+            (-10, 8, 30, 20, "咖啡", "晨间咖啡"),
+            (-9, 13, 0, 48, "午餐", "午餐"),
+            (-8, 16, 20, 58, "水果", "水果补给"),
+            (-7, 18, 30, 96, "超市", "周末食材"),
+            (-6, 11, 30, 28, "鲜花", "给生活买花"),
+            (-5, 19, 20, 88, "火锅", "朋友小聚"),
+            (-4, 9, 40, 24, "茶饮", "上午茶饮"),
+            (-3, 12, 15, 42, "午餐", "工作日午餐"),
+            (-2, 19, 30, 48, "晚餐", "晚餐"),
+            (-1, 8, 20, 20, "咖啡", "晨间咖啡"),
             (0, 8, 15, 18, "早餐", "早餐和豆浆"),
             (0, 19, 10, 42, "晚餐", "下班后的简餐"),
             (1, 7, 55, 22, "咖啡", "晨间咖啡"),
@@ -254,11 +790,14 @@ enum HoloAppStoreScreenshotSeeder {
             (6, 16, 40, 24, "茶饮", "下午茶")
         ]
 
+        // 截图发生在当前周的早些时候；把账单放到上一周，既能保证“已发生”，
+        // 也能让“本月收支”在模拟器的当前日期下稳定显示完整趋势。
+        let transactionWeek = Calendar.current.date(byAdding: .day, value: -7, to: startOfWeek) ?? startOfWeek
         var actionTransaction: Transaction?
         for sample in samples {
             guard let category = byName[sample.category]?.first else { continue }
             let date = date(
-                from: startOfWeek,
+                from: transactionWeek,
                 dayOffset: sample.day,
                 hour: sample.hour,
                 minute: sample.minute
@@ -322,12 +861,27 @@ enum HoloAppStoreScreenshotSeeder {
             record.date = date(from: startOfWeek, dayOffset: day, hour: 8, minute: 35)
             record.createdAt = record.date
         }
+        for day in Array(stride(from: -24, through: -1, by: 1)).filter({ $0 % 6 != 0 }) {
+            let record = HabitRecord.createCheckIn(in: context, habit: reading)
+            record.date = date(from: startOfWeek, dayOffset: day, hour: 8, minute: 35)
+            record.createdAt = record.date
+        }
         for day in [0, 2, 3, 5] {
             let record = HabitRecord.createCheckIn(in: context, habit: walk)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 20, minute: 25)
             record.createdAt = record.date
         }
+        for day in [-23, -21, -18, -16, -13, -11, -9, -6, -4, -2] {
+            let record = HabitRecord.createCheckIn(in: context, habit: walk)
+            record.date = date(from: startOfWeek, dayOffset: day, hour: 20, minute: 25)
+            record.createdAt = record.date
+        }
         for day in [1, 2, 4] {
+            let record = HabitRecord.createCheckIn(in: context, habit: sleep)
+            record.date = date(from: startOfWeek, dayOffset: day, hour: 23, minute: 10)
+            record.createdAt = record.date
+        }
+        for day in [-22, -20, -17, -14, -12, -8, -5, -3] {
             let record = HabitRecord.createCheckIn(in: context, habit: sleep)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 23, minute: 10)
             record.createdAt = record.date
@@ -359,6 +913,36 @@ enum HoloAppStoreScreenshotSeeder {
             task.createdAt = completedAt.addingTimeInterval(-7_200)
             task.updatedAt = completedAt
         }
+        let historicalSamples: [(String, Int, Int)] = [
+            ("整理上月复盘", -22, 18),
+            ("确认阅读计划", -17, 16),
+            ("清理收件箱", -12, 19),
+            ("安排周末留白", -7, 17)
+        ]
+        for sample in historicalSamples {
+            let completedAt = date(from: startOfWeek, dayOffset: sample.1, hour: sample.2, minute: 20)
+            let task = TodoTask.create(
+                in: context,
+                title: sample.0,
+                priority: .medium,
+                dueDate: completedAt
+            )
+            task.completed = true
+            task.status = TaskStatus.completed.rawValue
+            task.completedAt = completedAt
+            task.createdAt = completedAt.addingTimeInterval(-7_200)
+            task.updatedAt = completedAt
+        }
+
+        let focusStart = date(from: startOfWeek, dayOffset: 0, hour: 16, minute: 0)
+        let focusTask = TodoTask.create(
+            in: context,
+            title: "完成产品复盘",
+            priority: .high,
+            dueDate: focusStart
+        )
+        focusTask.plannedStart = focusStart
+        focusTask.plannedEnd = date(from: startOfWeek, dayOffset: 0, hour: 17, minute: 30)
 
         let tomorrow = date(from: startOfWeek, dayOffset: 5, hour: 8, minute: 0)
         let actionTask = TodoTask.create(
@@ -376,6 +960,11 @@ enum HoloAppStoreScreenshotSeeder {
     ) throws {
         let repository = ThoughtRepository(context: context)
         let samples: [(String, String, [String], Int, Int)] = [
+            ("最近发现，提前给重要的事留出时间，整天会更从容。", "calm", ["节奏"], -21, 21),
+            ("花钱之前先问自己是不是需要，月底回看时会更轻松。", "calm", ["财务"], -16, 20),
+            ("真正的休息不是把事情推迟，而是让注意力有地方落下。", "inspired", ["生活"], -11, 22),
+            ("这周的安排没有排满，反而完成了更多重要的事。", "happy", ["复盘"], -6, 21),
+            ("想把稳定的部分留下，把临时起意的部分放轻一点。", "inspired", ["成长"], -2, 22),
             ("把复杂的计划拆小之后，开始反而变得容易了。", "calm", ["成长"], 0, 21),
             ("今天最值得记住的，是留出了真正不被打扰的一小时。", "happy", ["生活"], 2, 22),
             ("记录不是为了追求完美，而是为了看见自己正在发生什么。", "inspired", ["复盘"], 4, 21)
@@ -403,9 +992,12 @@ enum HoloAppStoreScreenshotSeeder {
         transaction: Transaction,
         task: TodoTask,
         habit: Habit,
-        startOfWeek: Date
+        now: Date,
+        startOfWeek: Date,
+        memoryIDs: [String]
     ) throws {
-        let base = date(from: startOfWeek, dayOffset: 4, hour: 20, minute: 10)
+        // 让生成后的周期回放自然落在聊天流最底部，避免宣传图先看到未来日期的演示消息。
+        let base = now.addingTimeInterval(-15 * 60)
         let userActionID = insertMessage(
             in: context,
             role: "user",
@@ -537,6 +1129,10 @@ enum HoloAppStoreScreenshotSeeder {
         analysisAssistant.parentMessageId = queryID
         analysisAssistant.messageType = ChatMessageType.normal.rawValue
         analysisAssistant.analysisContextJSON = try encode(analysis)
+        analysisAssistant.extractedDataJSON = try encode([
+            "memoryUsedCount": String(memoryIDs.count),
+            "memoryUsedIDs": memoryIDs.joined(separator: ",")
+        ])
     }
 
     private static func seedInsight(

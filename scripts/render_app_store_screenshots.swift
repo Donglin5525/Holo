@@ -14,51 +14,140 @@ struct MarketingFrame {
 
 private let arguments = Array(CommandLine.arguments.dropFirst())
 private let root = URL(fileURLWithPath: arguments.first ?? FileManager.default.currentDirectoryPath)
-private let isIPad = arguments.dropFirst().first == "ipad"
+private let isIPad = arguments.contains("ipad")
+private let requestedVariant = arguments.dropFirst().first(where: { $0 == "a" || $0 == "b" })
 private let canvasWidth = isIPad ? 2064 : 1320
 private let canvasHeight = isIPad ? 2752 : 2868
 private let deviceDirectory = isIPad ? "ipad-13" : "iphone-6.9"
-private let rawDirectory = root.appendingPathComponent("docs/app-store/screenshots/zh-Hans/\(deviceDirectory)/raw")
-private let outputDirectory = root.appendingPathComponent("docs/app-store/screenshots/zh-Hans/\(deviceDirectory)/final")
+private let contentDirectory: URL = {
+    let base = root.appendingPathComponent("docs/app-store/screenshots/zh-Hans")
+    guard let requestedVariant else { return base }
+    return base.appendingPathComponent("candidates/\(requestedVariant)")
+}()
+private let rawDirectory = contentDirectory.appendingPathComponent("\(deviceDirectory)/raw")
+private let outputDirectory = contentDirectory.appendingPathComponent("\(deviceDirectory)/final")
 
-private let frames: [MarketingFrame] = [
-    MarketingFrame(
-        input: "01-home.png",
-        output: "01-one-holo.png",
-        title: ["把散落的生活", "放进同一个 Holo"],
-        subtitle: "任务、想法、财务、健康与习惯，一处管理"
-    ),
-    MarketingFrame(
-        input: "02-ai-actions.png",
-        output: "02-one-sentence.png",
-        title: ["说一句", "三件事都办好"],
-        subtitle: "记账、建待办、完成打卡，一次说清"
-    ),
-    MarketingFrame(
-        input: "03-ai-analysis.png",
-        output: "03-ask-your-data.png",
-        title: ["问自己的数据", "得到真正有用的回答"],
-        subtitle: "从记录里看见趋势，而不只是得到一段泛泛回复"
-    ),
-    MarketingFrame(
-        input: "04-memory-calendar.png",
-        output: "04-life-calendar.png",
-        title: ["用一张日历", "复盘每天发生了什么"],
-        subtitle: "账单、习惯、待办和想法，自动汇成生活时间线"
-    ),
-    MarketingFrame(
-        input: "05-finance-stats.png",
-        output: "05-see-the-change.png",
-        title: ["看见消费变化", "也看见生活节奏"],
-        subtitle: "用清晰的统计，把零散记录变成可理解的趋势"
-    ),
-    MarketingFrame(
-        input: "06-memory-insight.png",
-        output: "06-long-term-change.png",
-        title: ["把今天的记录", "变成长期变化"],
-        subtitle: "每周 AI 回放，帮你发现正在形成的习惯与节奏"
-    )
-]
+private let frames: [MarketingFrame] = {
+    switch requestedVariant {
+    case "a":
+        return [
+            MarketingFrame(
+                input: "01-home.png",
+                output: "01-context.png",
+                title: ["一个 Holo，装下", "你的整段生活"],
+                subtitle: "记账、待办、习惯、想法与健康，汇入同一个上下文"
+            ),
+            MarketingFrame(
+                input: "02-ai-actions.png",
+                output: "02-one-sentence.png",
+                title: ["说一句，Holo", "就能帮你做完"],
+                subtitle: "记账、创建任务、完成打卡，一次说清"
+            ),
+            MarketingFrame(
+                input: "03-memory-calendar.png",
+                output: "03-memory-gallery.png",
+                title: ["你的生活，随时", "可以回看"],
+                subtitle: "记忆长廊把每天发生的事，串成可探索的时间线"
+            ),
+            MarketingFrame(
+                input: "04-memory-extraction.png",
+                output: "04-memory-extraction.png",
+                title: ["Holo 会从记录里", "提炼出你的节奏"],
+                subtitle: "候选记忆带着证据出现，由你决定要不要记住"
+            ),
+            MarketingFrame(
+                input: "05-ai-memory.png",
+                output: "05-personalized-answer.png",
+                title: ["你用得越久，", "Holo 越懂你"],
+                subtitle: "回答引用你的真实记忆，而不是泛泛而谈"
+            ),
+            MarketingFrame(
+                input: "06-memory-insight.png",
+                output: "06-next-step.png",
+                title: ["让理解，", "变成下一步"],
+                subtitle: "从洞察继续追问、创建任务或调整习惯"
+            )
+        ]
+    case "b":
+        return [
+            MarketingFrame(
+                input: "01-home.png",
+                output: "01-today.png",
+                title: ["把今天的生活", "放在一页"],
+                subtitle: "任务、日程、习惯、预算和心情，一眼看清"
+            ),
+            MarketingFrame(
+                input: "02-ai-actions.png",
+                output: "02-natural-actions.png",
+                title: ["说一句，记录和", "行动一起完成"],
+                subtitle: "自然表达也能完成记账、待办和打卡"
+            ),
+            MarketingFrame(
+                input: "03-period-replay.png",
+                output: "03-deep-analysis.png",
+                title: ["用 HoloAI，", "看懂这个月"],
+                subtitle: "把支出、习惯、待办和想法，汇成有证据的洞察"
+            ),
+            MarketingFrame(
+                input: "04-finance-stats.png",
+                output: "04-finance-trends.png",
+                title: ["钱花在哪，", "趋势会说话"],
+                subtitle: "余额、收支与分类变化，用一张图看懂"
+            ),
+            MarketingFrame(
+                input: "05-memory-calendar.png",
+                output: "05-life-replay.png",
+                title: ["每一天，都能回到", "发生的现场"],
+                subtitle: "消费、任务、习惯和想法，按时间重新串联"
+            ),
+            MarketingFrame(
+                input: "06-memory-insight.png",
+                output: "06-next-action.png",
+                title: ["从看见变化，", "到马上行动"],
+                subtitle: "AI 把数据变成问题、计划和下一步"
+            )
+        ]
+    default:
+        return [
+            MarketingFrame(
+                input: "01-home.png",
+                output: "01-one-holo.png",
+                title: ["把散落的生活", "放进同一个 Holo"],
+                subtitle: "任务、想法、财务、健康与习惯，一处管理"
+            ),
+            MarketingFrame(
+                input: "02-ai-actions.png",
+                output: "02-one-sentence.png",
+                title: ["说一句", "三件事都办好"],
+                subtitle: "记账、建待办、完成打卡，一次说清"
+            ),
+            MarketingFrame(
+                input: "03-ai-analysis.png",
+                output: "03-ask-your-data.png",
+                title: ["问自己的数据", "得到真正有用的回答"],
+                subtitle: "从记录里看见趋势，而不只是得到一段泛泛回复"
+            ),
+            MarketingFrame(
+                input: "04-memory-calendar.png",
+                output: "04-life-calendar.png",
+                title: ["用一张日历", "复盘每天发生了什么"],
+                subtitle: "账单、习惯、待办和想法，自动汇成生活时间线"
+            ),
+            MarketingFrame(
+                input: "05-finance-stats.png",
+                output: "05-see-the-change.png",
+                title: ["看见消费变化", "也看见生活节奏"],
+                subtitle: "用清晰的统计，把零散记录变成可理解的趋势"
+            ),
+            MarketingFrame(
+                input: "06-memory-insight.png",
+                output: "06-long-term-change.png",
+                title: ["把今天的记录", "变成长期变化"],
+                subtitle: "每周 AI 回放，帮你发现正在形成的习惯与节奏"
+            )
+        ]
+    }
+}()
 
 private func color(_ hex: UInt32, alpha: CGFloat = 1) -> NSColor {
     NSColor(
