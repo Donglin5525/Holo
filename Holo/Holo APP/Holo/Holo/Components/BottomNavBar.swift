@@ -29,14 +29,6 @@ struct BottomNavBar: View {
     /// 中心按钮点击回调（Holo One 快捷动作）
     var onCenterTap: (() -> Void)? = nil
 
-    /// 是否在中央 AI 按钮上方显示一次性入口提示气泡
-    var centerHintVisible: Bool = false
-
-    /// 入口提示气泡点击回调（关闭提示并进入 Chat）
-    var onHintTap: (() -> Void)? = nil
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     /// 导航项枚举
     enum TabItem: String, CaseIterable {
         case profile = "个人"
@@ -115,13 +107,9 @@ struct BottomNavBar: View {
         }
     }
     
-    /// 中央 AI 按钮（上方可挂一次性入口提示气泡）
+    /// 中央 AI 按钮
     private var centerAIButton: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            if centerHintVisible {
-                HoloAIEntryHint(onTap: onHintTap)
-            }
-
+        VStack(spacing: 6) {
             Button {
                 if let onCenterTap {
                     onCenterTap()
@@ -151,7 +139,6 @@ struct BottomNavBar: View {
             }
         }
         .offset(y: -24)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: centerHintVisible)
     }
 }
 
@@ -161,7 +148,7 @@ struct BottomNavBar: View {
     ZStack {
         Color.holoBackground
             .ignoresSafeArea()
-        
+
         VStack {
             Spacer()
             BottomNavBar(selectedTab: .constant(.ai))

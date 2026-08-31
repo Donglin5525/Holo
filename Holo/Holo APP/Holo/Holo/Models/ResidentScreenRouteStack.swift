@@ -58,4 +58,9 @@ struct ResidentScreenRouteStack: Equatable {
         routes.removeLast()
         return current
     }
+
+    /// 清空整栈回到首页（设置页「重看新手引导」等需要直接回首页的场景）
+    mutating func dismissAll() {
+        routes.removeAll()
+    }
 }

@@ -38,6 +38,19 @@ struct MemoryGalleryView: View {
             // 顶部导航栏（右侧并入页级 tab，L1 轻头部）
             navigationBar
 
+            // 首访欢迎条：第一次进长廊时讲清「这里会自动汇集你的记录」，
+            // 挂在默认落地的日历 tab（新用户长廊是空的，日历本身看不出用途）
+            if selectedTab == .calendar {
+                FirstVisitWelcomeBar(
+                    icon: "book.fill",
+                    title: "欢迎来到记忆长廊",
+                    message: "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。",
+                    seenKey: OnboardingProgressStore.memoryGalleryWelcomeKey
+                )
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.top, HoloSpacing.sm)
+            }
+
             // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
             // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
             tabContent

@@ -24,8 +24,8 @@ struct HomeView: View {
     /// 是否展示轻量新人引导
     @State private var showOnboarding: Bool = false
 
-    /// 是否展示一次性 HoloAI 入口提示（仅本次会话，不持久化）
-    @State private var showAIEntryHint: Bool = false
+    /// 是否播放首页三步导览（V1 引导结束后自动一次，或设置页「重看新手引导」手动触发）
+    @State private var showHomeCoachTour: Bool = false
 
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
@@ -127,14 +127,9 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            // 背景色（点击空白处关闭一次性 HoloAI 入口提示）
+            // 背景色
             Color.holoBackground
                 .ignoresSafeArea()
-                .onTapGesture {
-                    if showAIEntryHint {
-                        showAIEntryHint = false
-                    }
-                }
 
             // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）
             homeContent
@@ -150,6 +145,12 @@ struct HomeView: View {
                     .accessibilityHidden(index != residentNavigation.routes.count - 1)
                     .zIndex(Double(index + 1))
                     .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
+            }
+        }
+        // 首页三步聚光灯导览：挂在根 ZStack 上，覆盖首页内容与常驻模块
+        .coachMarkTour(isPresented: showHomeCoachTour, steps: HomeCoachTour.steps) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showHomeCoachTour = false
             }
         }
         // 常驻层所有模块共用同一个 root hosting controller：
@@ -190,10 +191,6 @@ struct HomeView: View {
                 pendingFinanceAnalysisDeepLink = nil
                 pendingFinanceEvidenceReviewDeepLink = nil
             }
-            // 进入 AI 时关闭首页一次性提示
-            if newValue == .ai {
-                showAIEntryHint = false
-            }
         }
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
         .task {
@@ -215,9 +212,9 @@ struct HomeView: View {
             AnniversaryRepository.shared.setup()
             _ = await AnniversaryTaskGenerator.shared.generateDueTasks()
         }
-        // 轻量新人引导（完成后触发一次 HoloAI 入口提示）
+        // 轻量新人引导（结束后紧接着播放一次首页三步导览）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
-            showAIEntryHint = true
+            startHomeCoachTourIfNeeded()
         }) {
             HoloLightweightOnboardingView { _ in
                 showOnboarding = false
@@ -315,6 +312,35 @@ struct HomeView: View {
         .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
             guard let event else { return }
             handleShortcut(event.action)
+        }
+        // 设置页「重看新手引导」：先退回首页（导览锚点都在首页上），再播放导览
+        .onReceive(NotificationCenter.default.publisher(for: .replayHomeCoachTour)) { _ in
+            replayHomeCoachTour()
+        }
+    }
+
+    // MARK: - 首页导览触发
+
+    /// V1 引导结束（完成或跳过）后触发一次首页导览。
+    /// 开始即落盘：中途杀 App 也不会下次重放（首启导览体验只来一次）。
+    private func startHomeCoachTourIfNeeded() {
+        guard !OnboardingProgressStore.hasSeen(OnboardingProgressStore.homeCoachTourKey) else { return }
+        OnboardingProgressStore.markSeen(OnboardingProgressStore.homeCoachTourKey)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showHomeCoachTour = true
+        }
+    }
+
+    /// 设置页手动重看：不受「已看过」限制，但需要先回到首页。
+    private func replayHomeCoachTour() {
+        if activeScreen != nil {
+            withAnimation(.holoScreenTransition) {
+                residentNavigation.dismissAll()
+            }
+            selectedTab = .ai
+        }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showHomeCoachTour = true
         }
     }
 
@@ -451,7 +477,7 @@ struct HomeView: View {
 
             Spacer()
 
-            // 底部导航栏
+            // 底部导航栏；导览第 3 步高亮整条（AI 入口 + 记忆长廊）
             BottomNavBar(
                 selectedTab: $selectedTab,
                 onProfileTap: {
@@ -463,15 +489,10 @@ struct HomeView: View {
                     openRootScreen(.memoryGallery)
                 },
                 onCenterTap: {
-                    showAIEntryHint = false
-                    openRootScreen(.ai)
-                },
-                centerHintVisible: showAIEntryHint,
-                onHintTap: {
-                    showAIEntryHint = false
                     openRootScreen(.ai)
                 }
             )
+            .coachMarkTarget(HomeCoachTour.bottomNavID)
         }
         .background(
             backgroundDecorations
@@ -616,13 +637,15 @@ struct HomeView: View {
     /// 中央主内容区域
     private var mainContent: some View {
         ZStack {
-            // 五角形功能入口按钮（支持拖拽排序）
+            // 五角形功能入口按钮（支持拖拽排序）；导览第 1 步高亮整块区域
             featureButtons
+                .coachMarkTarget(HomeCoachTour.featureButtonsID)
 
             // 中央今日看板入口按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
             DailyKanbanEntryButton {
                 showDailyKanban = true
             }
+            .coachMarkTarget(HomeCoachTour.kanbanEntryID)
         }
         .padding(.horizontal, HoloSpacing.lg)
     }

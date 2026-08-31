@@ -788,6 +788,19 @@ struct SettingsView: View {
                 FeedbackSheet()
             }
 
+            // 重看新手引导（首页三步导览；先关设置页再播放）
+            settingsRow(
+                icon: "sparkles",
+                iconColor: .holoPurple,
+                title: "重看新手引导",
+                subtitle: "三步回顾首页的功能入口"
+            ) {
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    NotificationCenter.default.post(name: .replayHomeCoachTour, object: nil)
+                }
+            }
+
             // 关于
             settingsRow(
                 icon: "info.circle",
