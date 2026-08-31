@@ -28,12 +28,28 @@ final class HoloCloudAnalysisClient {
             let title: String?
             let claims: [CloudClaim]?
             let reasoning: String?
+            let evidence: [CloudEvidence]?
             let completedAt: String?
 
             struct CloudClaim: Decodable {
                 let summary: String?
                 let displayText: String?
                 let evidenceIDs: [String]?
+            }
+
+            /// 云端回传的证据原料：metric = 聚合统计口径；rows = 行明细样本
+            /// （人话摘录，含备注原文）。设备端据此渲染「依据」区块。
+            struct CloudEvidence: Decodable {
+                let kind: String?
+                let metricKey: String?
+                let dataset: String?
+                let group: String?
+                let value: Double?
+                let unit: String?
+                let formula: String?
+                let sourceCount: Int?
+                let count: Int?
+                let excerpts: [String]?
             }
         }
     }

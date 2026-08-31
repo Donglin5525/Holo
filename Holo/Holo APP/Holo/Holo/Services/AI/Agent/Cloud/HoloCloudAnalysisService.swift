@@ -137,7 +137,7 @@ final class HoloCloudAnalysisService {
                 switch status.status {
                 case "completed":
                     if let result = status.result {
-                        finalizeCloudResult(result, sourceMessageID: sourceMessageID)
+                        finalizeCloudResult(result, question: question, sourceMessageID: sourceMessageID)
                         // R1 确认制：结果已落地本地，回执服务端销毁密文副本。
                         // ack 失败无妨——结果留存 ≤7 天，属可接受的隐私延迟。
                         try? await client.ackResult(taskId: taskId)
@@ -195,31 +195,46 @@ final class HoloCloudAnalysisService {
         pollingTasks.removeAll()
     }
 
-    /// 云端结果 → 结构化卡片落消息（复用 Agent 消息管道）
+    /// 云端结果 → 结构化卡片落消息（复用 Agent 消息管道）。
+    /// 渲染规则与本地轨道对齐（2026-08-31 验收修复）：
+    /// - summary 用 claims 人话拼接，不再把模型内部 reasoning（含工具名/协议术语）直接上屏；
+    /// - scope 标注快照时间窗（卡片展示「近N天」口径）；
+    /// - 证据引用由云端回传的 evidence 原料翻译成中文口径（metric）与行样本（rows）；
+    /// - claim 文本走与本地同一条内部 token 防线（含 metricKey/工具名的整条丢弃）。
     private func finalizeCloudResult(
         _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult,
+        question: String,
         sourceMessageID: UUID
     ) {
         let claims = (result.claims ?? []).compactMap { claim -> String? in
-            claim.displayText ?? claim.summary
+            let text = (claim.displayText ?? claim.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty, !HoloAnswerCoverageVerifier.containsInternalToken(text) else { return nil }
+            return text
         }
+        let sections = claims.enumerated().map { index, text in
+            HoloRenderedAgentSection(title: "发现 \(index + 1)", body: text, confidence: nil, kind: nil, interpretation: nil)
+        }
+        let summary = claims.isEmpty
+            ? "本期暂无显著观察"
+            : claims.joined(separator: "；")
         let rendered = HoloRenderedAgentResult(
             title: result.title ?? "深度分析",
-            summary: result.reasoning ?? "",
-            sections: claims.enumerated().map { index, text in
-                HoloRenderedAgentSection(
-                    title: "发现 \(index + 1)",
-                    body: text,
-                    confidence: nil,
-                    kind: nil,
-                    interpretation: nil
-                )
-            },
-            evidenceReferences: [],
-            failure: nil
+            summary: summary,
+            sections: sections,
+            evidenceReferences: HoloCloudEvidencePresenter.evidenceReferences(from: result.evidence ?? []),
+            failure: nil,
+            question: question,
+            scope: HoloRenderedAnswerScope(
+                label: "近\(HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays)天",
+                start: nil,
+                end: nil,
+                snapshotCutoffAt: nil,
+                attribution: nil
+            ),
+            dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: result.evidence ?? [])
         )
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
-        logger.info("云端结果已落地 claims=\(claims.count, privacy: .public)")
+        logger.info("云端结果已落地 claims=\(claims.count, privacy: .public) evidence=\(result.evidence?.count ?? 0, privacy: .public)")
     }
 
     private func fallbackToLocal(question: String, sourceMessageID: UUID) async {

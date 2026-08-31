@@ -21,6 +21,9 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             let name: String
             let type: String
             let unit: String?
+            /// 字段语义说明（如 text =「备注、说明和标签合并文本」）。
+            /// 云端把它拼进工具目录，模型才知道备注类字段查什么、怎么查。
+            let description: String
         }
         struct Dataset: Encodable {
             let fields: [FieldDef]
@@ -90,7 +93,7 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
                 let limited = Array(rows.sorted { $0.occurredAt > $1.occurredAt }.prefix(maxRows))
                 datasets[schema.name] = Snapshot.Dataset(
                     fields: schema.fields.map {
-                        Snapshot.FieldDef(name: $0.name, type: $0.type.rawValue, unit: $0.unit)
+                        Snapshot.FieldDef(name: $0.name, type: $0.type.rawValue, unit: $0.unit, description: $0.description)
                     },
                     rows: limited.map { row in
                         var fields: [String: JSONValue] = [
