@@ -412,10 +412,12 @@ enum HoloMemoryOperationalControls {
 enum HoloAIFeatureFlags {
     static var capabilityLaunchpadEnabled: Bool { true }
 
-    /// 云端异步深度分析（二期 M2b）：默认关。验收时经 UserDefaults 打开，
-    /// 正式开放改为服务端 feature_flags 下发（复用 subscription/status 管道）。
+    /// 云端异步深度分析（二期 M2b）：真机验收期默认开；正式放量改为服务端
+    /// feature_flags 下发（复用 subscription/status 管道），届时把默认值收回 false。
     static var cloudDeepAnalysisEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "holo_cloud_deepAnalysisEnabled")
+        UserDefaults.standard.object(forKey: "holo_cloud_deepAnalysisEnabled") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "holo_cloud_deepAnalysisEnabled")
     }
     static var aiDataProcessingConsentGranted: Bool { HoloAIDataProcessingConsent.shared.isGranted }
     static var memorySummaryInjectionEnabled: Bool {
