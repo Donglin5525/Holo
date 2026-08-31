@@ -164,8 +164,25 @@ final class HoloCloudAnalysisClient {
         let _: CancelResponse = try await apiClient.send(request)
     }
 
+    /// 设备推送令牌上报（「分析完成」通知用）：token = APNs 64 位十六进制
+    func registerDeviceToken(_ token: String) async throws {
+        struct AckResponse: Decodable { let ok: Bool }
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/ai/agent/cloud/device-token",
+            method: .post,
+            headers: ["X-Holo-Device-Id": deviceIdProvider()],
+            body: TokenBody(token: token)
+        )
+        let _: AckResponse = try await apiClient.send(request)
+    }
+
     private struct StartBody: Encodable {
         let question: String
+    }
+
+    private struct TokenBody: Encodable {
+        let token: String
     }
 
     private struct AckBody: Encodable {}

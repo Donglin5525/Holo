@@ -23,6 +23,10 @@ struct HoloApp: App {
     /// 应用锁：isLocked 在冷启动首帧前同步确定，根部闸门层防内容闪现（方案 §5.3）
     @ObservedObject private var appLock = AppLockManager.shared
 
+    /// APNs 推送（云端分析完成通知）：UIApplicationDelegateAdaptor 只为接收
+    /// 远程通知 token 回调（didRegister/didFail），SwiftUI App 没有该回调入口。
+    @UIApplicationDelegateAdaptor(HoloPushAppDelegate.self) private var pushAppDelegate
+
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
 

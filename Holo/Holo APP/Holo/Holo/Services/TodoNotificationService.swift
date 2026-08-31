@@ -437,6 +437,12 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // 远程推送（云端分析完成）：前台时轮询每 5 秒领取结果，无需横幅打扰，静默即可；
+        // 点按通知回前台的路径不受影响（scenePhase 恢复链自动领取）
+        if notification.request.trigger is UNPushNotificationTrigger {
+            completionHandler([])
+            return
+        }
         // 前台也显示横幅和声音
         completionHandler([.banner, .sound])
     }

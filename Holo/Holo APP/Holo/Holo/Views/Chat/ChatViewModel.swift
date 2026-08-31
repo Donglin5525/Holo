@@ -750,6 +750,9 @@ final class ChatViewModel: ObservableObject {
                         if !HoloCloudAnalysisService.privacyConsented {
                             self.showCloudPrivacySheet = true
                         } else {
+                            // 云端轨道启动即请求通知授权+注册 APNs（「分析完成」推送）；
+                            // 权限拒绝/注册失败不影响分析本身（打开 App 照常领取结果）
+                            HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                             let cloudHandled = await HoloCloudAnalysisService.shared.attempt(
                                 question: text,
                                 sourceMessageID: aiMessageId
