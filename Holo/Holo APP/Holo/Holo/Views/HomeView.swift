@@ -571,17 +571,6 @@ struct HomeView: View {
             .offset(x: radius * cos(radians - .pi / 2), y: radius * sin(radians - .pi / 2))
     }
     
-    /// 根据当前时间返回问候语
-    private var timeGreeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 0..<6: return "夜深了"
-        case 6..<12: return "早上好"
-        case 12..<18: return "下午好"
-        default: return "晚上好"
-        }
-    }
-
     /// 顶部 Header
     private var headerView: some View {
         HStack {
@@ -592,7 +581,10 @@ struct HomeView: View {
                     .foregroundColor(.holoTextSecondary)
                     .kerning(1.2)
                 
-                Text("\(timeGreeting)，\(userName)")
+                Text(UserDisplayNameSettings.greetingText(
+                    hour: Calendar.current.component(.hour, from: Date()),
+                    rawName: userName
+                ))
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
             }

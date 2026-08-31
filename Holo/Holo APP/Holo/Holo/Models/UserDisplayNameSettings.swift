@@ -15,6 +15,8 @@ struct UserDisplayNameSettings {
     /// 用于云端昵称采纳的冲突判定：主动设置过 → 本地意图优先，不被云端覆盖
     static let displayNameSetThisInstallKey = "displayNameSetThisInstall"
     static let fallbackDisplayName = "你"
+    /// 昵称从未设置时的展示占位（用于昵称行等独立展示位；句子拼接走 greetingText，不用它）
+    static let unsetDisplayNamePlaceholder = "未设置"
     static let standard = UserDisplayNameSettings()
 
     private let userDefaults: UserDefaults
@@ -62,5 +64,35 @@ struct UserDisplayNameSettings {
     static func normalizedDisplayName(_ rawName: String?) -> String? {
         let name = rawName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? nil : name
+    }
+
+    /// 用户是否真正设置过昵称（非空且不是兜底代词）
+    static func isDisplayNameSet(_ rawName: String?) -> Bool {
+        guard let name = normalizedDisplayName(rawName) else { return false }
+        return name != fallbackDisplayName
+    }
+
+    /// 统一问候语组装：时段问候 + 称呼。
+    /// 没设置过昵称时省略称呼（「下午好」而不是「下午好，你」），首页与看板页共用。
+    static func greetingText(hour: Int, rawName: String?) -> String {
+        let hourPart: String
+        switch hour {
+        case 0..<6: hourPart = "夜深了"
+        case 6..<12: hourPart = "早上好"
+        case 12..<18: hourPart = "下午好"
+        default: hourPart = "晚上好"
+        }
+        guard let name = normalizedDisplayName(rawName), name != fallbackDisplayName else {
+            return hourPart
+        }
+        return "\(hourPart)，\(name)"
+    }
+
+    /// 昵称独立展示位的取值：未设置时返回占位文案，避免把兜底代词「你」当成昵称展示
+    static func displayOrPlaceholder(_ rawName: String?) -> String {
+        guard let name = normalizedDisplayName(rawName), name != fallbackDisplayName else {
+            return unsetDisplayNamePlaceholder
+        }
+        return name
     }
 }

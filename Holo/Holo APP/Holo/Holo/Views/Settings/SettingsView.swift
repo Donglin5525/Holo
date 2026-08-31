@@ -176,7 +176,7 @@ struct SettingsView: View {
 
                     Spacer()
 
-                    Text(userName)
+                    Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
 
@@ -215,7 +215,7 @@ struct SettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(authService.session?.displayName ?? userName)
+                    Text(authService.session?.displayName ?? UserDisplayNameSettings.displayOrPlaceholder(userName))
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 

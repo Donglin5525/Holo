@@ -139,16 +139,10 @@ struct KanbanProgressHero: View {
     // MARK: - Computed Values
 
     private var greetingMessage: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 6 { return "夜深了" }
-        if hour < 12 { return "早上好，\(displayName)" }
-        if hour < 18 { return "下午好，\(displayName)" }
-        return "晚上好，\(displayName)"
-    }
-
-    private var displayName: String {
-        UserDisplayNameSettings.normalizedDisplayName(userName)
-            ?? UserDisplayNameSettings.fallbackDisplayName
+        UserDisplayNameSettings.greetingText(
+            hour: Calendar.current.component(.hour, from: Date()),
+            rawName: userName
+        )
     }
 
     private var progressMessage: String {

@@ -331,7 +331,7 @@ struct PersonalView: View {
 
                     Spacer()
 
-                    Text(userName)
+                    Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
 
