@@ -68,6 +68,10 @@ struct CloudAnalysisPrivacySheet: View {
             .buttonStyle(.plain)
         }
         .padding(20)
+        // 撑满 sheet 容器（medium detent），内容顶部对齐，避免容器露毛玻璃底
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.holoCardBackground)
+        // 容器底色与内容同色，杜绝上下安全区露出系统材质
+        .presentationBackground(Color.holoCardBackground)
     }
 }
