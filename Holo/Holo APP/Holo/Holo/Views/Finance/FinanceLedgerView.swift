@@ -104,10 +104,10 @@ struct FinanceLedgerView: View {
         effectiveCalendarHeight / maxCalendarHeight
     }
 
-    /// 周视图固定高度：贴合周视图实际内容，避免日期下方留下额外空白
-    private let weekViewHeight: CGFloat = 80
+    /// 周视图固定高度：内容约 81pt，多留 9pt 让日期行与下方卡片保持呼吸间距
+    private let weekViewHeight: CGFloat = 90
 
-    /// 日历区域总高度（唯一驱动外层布局的值）：80 → 280 线性过渡
+    /// 日历区域总高度（唯一驱动外层布局的值）：90 → 280 线性过渡
     private var calendarAreaHeight: CGFloat {
         weekViewHeight + (maxCalendarHeight - weekViewHeight) * revealProgress
     }
