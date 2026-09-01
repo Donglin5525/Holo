@@ -396,11 +396,26 @@ class TodoRepository: ObservableObject {
         }
     }
 
+    /// 主任务标记完成时，级联勾上所有未完成子任务。
+    /// 「已完成任务 ⇒ 子任务全部完成」是展示与统计共同依赖的不变式；
+    /// 取消完成则保留子任务勾选（重开任务时已做步骤的进度仍在）。
+    private func checkOffAllItems(of task: TodoTask) {
+        let items = task.checkItems?.allObjects as? [CheckItem] ?? []
+        for item in items where !item.isChecked {
+            item.isChecked = true
+        }
+    }
+
     /// 切换任务完成状态
     @discardableResult
     func toggleTaskCompletion(_ task: TodoTask) throws -> Bool {
         task.completed.toggle()
-        task.completed ? (task.completedAt = Date()) : (task.completedAt = nil)
+        if task.completed {
+            task.completedAt = Date()
+            checkOffAllItems(of: task)
+        } else {
+            task.completedAt = nil
+        }
         task.updatedAt = Date()
         try context.save()
         loadActiveTasks()
@@ -419,6 +434,7 @@ class TodoRepository: ObservableObject {
         task.completed = true
         task.completedAt = Date()
         task.updatedAt = Date()
+        checkOffAllItems(of: task)
 
         try context.save()
         loadActiveTasks()
@@ -503,6 +519,7 @@ class TodoRepository: ObservableObject {
             task.completed = true
             task.completedAt = Date()
             task.updatedAt = Date()
+            checkOffAllItems(of: task)
             try context.save()
             loadActiveTasks()
             notifyDataChange()
@@ -518,6 +535,7 @@ class TodoRepository: ObservableObject {
             task.completed = true
             task.completedAt = Date()
             task.updatedAt = Date()
+            checkOffAllItems(of: task)
             try context.save()
             loadActiveTasks()
             notifyDataChange()
@@ -544,6 +562,7 @@ class TodoRepository: ObservableObject {
         task.completed = true
         task.completedAt = Date()
         task.updatedAt = Date()
+        checkOffAllItems(of: task)
 
         // 解除当前任务与重复规则的关系（保留规则给下一个任务）
         task.repeatRule = nil

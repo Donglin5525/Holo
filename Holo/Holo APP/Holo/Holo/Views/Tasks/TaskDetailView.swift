@@ -974,6 +974,13 @@ struct TaskDetailView: View {
             if let task = existingTask {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
                 checkItems = items.sorted { $0.order < $1.order }
+
+                // 与任务卡同一条联动规则：子任务全勾 → 自动完成主任务；
+                // 已完成任务出现未勾子任务 → 自动回未完成，避免「父完成 + 子未完成」矛盾状态
+                let allChecked = !items.isEmpty && items.allSatisfy(\.isChecked)
+                if allChecked != task.completed {
+                    toggleCompletion()
+                }
             }
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
         } catch {
