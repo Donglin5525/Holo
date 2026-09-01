@@ -30,6 +30,12 @@ struct HoloApp: App {
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
 
+    #if DEBUG
+    /// 调试钩子：HOLO_DEBUG_AUTO_SURFACE=membership 时启动后直接弹会员中心，
+    /// 供锁屏/无 idb 环境下的自动化截图与验收使用。Release 构建不参与编译。
+    @State private var isDebugMembershipPresented = false
+    #endif
+
     /// 场景阶段：前后台切换驱动 Agent 后台续跑（Agent Runtime 为产品默认能力）
     @Environment(\.scenePhase) private var scenePhase
 
@@ -130,6 +136,23 @@ struct HoloApp: App {
                 HoloPlusPaywallView(context: plusActionCoordinator.context)
                     .holoContentColumn()
             }
+            #if DEBUG
+            .fullScreenCover(isPresented: $isDebugMembershipPresented) {
+                HoloMembershipCenterView()
+                    .holoContentColumn()
+            }
+            .task {
+                // HOLO_DEBUG_AUTO_SURFACE=paywall 走既有协调器弹付费墙
+                guard let surface = ProcessInfo.processInfo.environment["HOLO_DEBUG_AUTO_SURFACE"] else { return }
+                // 等启动链的首批 task 与订阅状态刷新跑完，避免弹层被抢占或闪断
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if surface == "paywall" {
+                    HoloPlusActionCoordinator.shared.requirePlus(context: .membershipCenter)
+                } else if surface == "membership" {
+                    isDebugMembershipPresented = true
+                }
+            }
+            #endif
             .task {
                 await SensitiveDebugDataMigration.runIfNeeded()
                 await HoloSubscriptionService.shared.refreshStatus()

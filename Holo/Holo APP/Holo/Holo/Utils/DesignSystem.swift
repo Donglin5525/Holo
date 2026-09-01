@@ -362,6 +362,26 @@ enum HoloPlusTheme {
     static let plusColumnTint = Color.holoPrimary.opacity(0.06)
     /// Plus 列数字色
     static let plusValueColor = Color.holoPrimary
+
+    // MARK: 付费墙行动区
+    /// 主购买按钮的橙色渐变（浅色底上使用，白字）
+    static let ctaGradient = LinearGradient(
+        colors: [Color.holoPrimary, Color.holoPrimaryDark],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    /// 深底卡片上的 Plus 金色字渐变
+    static let wordmarkGradient = LinearGradient(
+        colors: [
+            Color(hex: "#FFF4E2"),  // 暖白
+            Color(hex: "#F8C48F"),  // 浅金
+            Color(hex: "#EFA35C")   // 蜜金
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    /// 方案卡选中态的浅橙底
+    static let planSelectedTint = Color.holoPrimary.opacity(0.07)
 }
 
 // MARK: - 卡片样式

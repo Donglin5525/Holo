@@ -156,11 +156,13 @@ struct PersonalView: View {
 
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     HStack(alignment: .top, spacing: HoloSpacing.md) {
-                        HoloPlusEmblem(size: 58)
+                        HoloPlusEmblem(size: 58, tier: entitlementState.isPlusActive ? .plus : .free)
 
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: HoloSpacing.xs) {
-                                Text("Holo Plus")
+                                // 图文必须与真实档位一致：免费用户看到「免费版」，
+                                // 不能让卡片读起来像已经开通了 Plus
+                                Text(entitlementState.isPlusActive ? "Holo Plus" : "免费版")
                                     .font(.holoTitle)
                                     .foregroundColor(HoloPlusTheme.accentText)
 
@@ -178,7 +180,7 @@ struct PersonalView: View {
                             Text(
                                 entitlementState.isPlusActive
                                     ? "更高额度已为你开启"
-                                    : "解锁 AI、语音与记忆洞察额度"
+                                    : "升级解锁 2 倍 AI 额度与全部小组件"
                             )
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(HoloPlusTheme.subtleText)
@@ -204,7 +206,7 @@ struct PersonalView: View {
                     }
 
                     HStack(spacing: HoloSpacing.xs) {
-                        Text(entitlementState.isPlusActive ? "查看会员权益" : "进入会员中心")
+                        Text(entitlementState.isPlusActive ? "查看会员权益" : "升级 Holo Plus")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(HoloPlusTheme.accentText)
 

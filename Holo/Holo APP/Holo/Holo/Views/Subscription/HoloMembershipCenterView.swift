@@ -24,10 +24,10 @@ struct HoloMembershipCenterView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 statusCard
+                primaryAction
                 benefitComparisonSection
                 footnote
 
-                primaryAction
                 quotaSection
 
                 #if DEBUG
@@ -70,7 +70,7 @@ struct HoloMembershipCenterView: View {
 
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 HStack(alignment: .top, spacing: HoloSpacing.md) {
-                    HoloPlusEmblem(size: 56)
+                    HoloPlusEmblem(size: 56, tier: entitlementState.isPlusActive ? .plus : .free)
 
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: HoloSpacing.xs) {
@@ -92,7 +92,7 @@ struct HoloMembershipCenterView: View {
                         Text(
                             entitlementState.isPlusActive
                                 ? "会员权益已生效"
-                                : "升级后解锁更高每日额度"
+                                : "升级解锁 2 倍 AI 额度与全部小组件"
                         )
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(HoloPlusTheme.subtleText)
@@ -217,8 +217,19 @@ struct HoloMembershipCenterView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 15)
-                .background(Color.holoPrimary)
+                .background(
+                    // 未订阅时用渐变强调「这是主行动」；已订阅的管理操作保持扁平
+                    entitlementState.isPlusActive
+                        ? AnyShapeStyle(Color.holoPrimary)
+                        : AnyShapeStyle(HoloPlusTheme.ctaGradient)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(
+                    color: entitlementState.isPlusActive
+                        ? Color.clear
+                        : Color.holoPrimary.opacity(0.32),
+                    radius: 14, x: 0, y: 8
+                )
         }
     }
 
