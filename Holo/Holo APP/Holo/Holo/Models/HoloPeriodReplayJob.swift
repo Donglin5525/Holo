@@ -113,13 +113,65 @@ nonisolated struct HoloPeriodReplayJob: Equatable, Sendable {
         return String(data: data, encoding: .utf8)
     }
 
+    /// 聊天消息等处的周期称谓。按实际起止生成具体称谓（“8月”“8月24日-30日”“9月1日-2日”），
+    /// 不用“本周/本月”：一是周期初智能回退后标签会与数据不符，二是消息持久化后相对词会过时。
     var periodLabel: String {
+        Self.rangeLabel(start: periodStart, end: periodEnd, periodType: periodType)
+    }
+
+    /// 完整自然周期给整期称谓，其余（进行中/自定义）给日期区间。
+    /// 跨年时末端补年份（只有自定义长周期才可能跨年）。
+    static func rangeLabel(start: Date, end: Date, periodType: MemoryInsightPeriodType) -> String {
+        if isFullNaturalPeriod(start: start, end: end, periodType: periodType) {
+            let calendar = Calendar.current
+            switch periodType {
+            case .monthly:
+                return "\(calendar.component(.month, from: start))月"
+            case .quarterly:
+                let fromMonth = calendar.component(.month, from: start)
+                let toMonth = calendar.component(.month, from: end)
+                return "\(fromMonth)月-\(toMonth)月"
+            default:
+                break
+            }
+        }
+        return dateRangeLabel(start: start, end: end)
+    }
+
+    /// 日期区间称谓：同日“9月1日”；同月“9月1日-2日”；跨月“8月28日-9月1日”；跨年末端带年
+    static func dateRangeLabel(start: Date, end: Date) -> String {
+        let calendar = Calendar.current
+        let sameDay = start.isSameDay(as: end)
+        let sameMonth = start.isSameMonth(as: end)
+        let sameYear = calendar.component(.year, from: start) == calendar.component(.year, from: end)
+        if sameDay {
+            return "\(calendar.component(.month, from: start))月\(calendar.component(.day, from: start))日"
+        }
+        let head = "\(calendar.component(.month, from: start))月\(calendar.component(.day, from: start))日"
+        if sameMonth {
+            return "\(head)-\(calendar.component(.day, from: end))日"
+        }
+        let tailMonth = "\(calendar.component(.month, from: end))月"
+        let tail = sameYear
+            ? "\(tailMonth)\(calendar.component(.day, from: end))日"
+            : "\(calendar.component(.year, from: end))年\(tailMonth)\(calendar.component(.day, from: end))日"
+        return "\(head)-\(tail)"
+    }
+
+    /// 是否恰好覆盖一个完整自然周期（周一到周日 / 月初到月末 / 季初到季末）
+    static func isFullNaturalPeriod(start: Date, end: Date, periodType: MemoryInsightPeriodType) -> Bool {
         switch periodType {
-        case .daily: return "今日"
-        case .weekly: return "本周"
-        case .monthly: return "本月"
-        case .quarterly: return "本季度"
-        case .custom: return "自定义周期"
+        case .weekly:
+            return start.startOfWeek == start.startOfDay
+                && end.startOfDay == start.addingDays(6).startOfDay
+        case .monthly:
+            return start.startOfMonth == start.startOfDay
+                && end.startOfDay == start.startOfMonth.addingDays(start.daysInMonth - 1).startOfDay
+        case .quarterly:
+            return start.startOfQuarter == start.startOfDay
+                && end.startOfDay == start.startOfQuarter.addingMonths(3).addingDays(-1).startOfDay
+        case .custom, .daily:
+            return false
         }
     }
 

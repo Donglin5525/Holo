@@ -5,6 +5,10 @@
 //  周期回放选择 Sheet（从记忆长廊 AI 回放迁移到聊天）
 //  用户选周期后回调，触发生成并在聊天消息流里以卡片显示
 //
+//  周期初数据不足时不再把「本周/本月」悄悄替换成上一周期的数据：
+//  上一完整周期与进行中的当前周期各占一行，标签与数据范围一一对应，
+//  用户想直接分析当前周期（哪怕只有一两天）随时可选。
+//
 
 import SwiftUI
 
@@ -13,9 +17,18 @@ struct PeriodReplayPickerSheet: View {
     let onSelect: (MemoryInsightPeriodType, Date, Date) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedPeriod: MemoryInsightPeriodType = .weekly
+    /// nil = 尚未点选，落到默认选中项（周视图的有效范围，与历史行为一致）
+    @State private var selectedID: ReplayOption.ID?
     @State private var customStart: Date = Date().addingDays(-6).startOfDay
     @State private var customEnd: Date = Date().startOfDay
+
+    private var options: [ReplayOption] {
+        ReplayOption.buildOptions(now: Date())
+    }
+
+    private var effectiveSelectedID: ReplayOption.ID {
+        selectedID ?? ReplayOption.ID.defaultSelection(now: Date())
+    }
 
     var body: some View {
         NavigationStack {
@@ -23,7 +36,7 @@ struct PeriodReplayPickerSheet: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     headerSection
                     periodOptionsSection
-                    if selectedPeriod == .custom {
+                    if effectiveSelectedID == .custom {
                         customDatePicker
                     }
                 }
@@ -39,8 +52,17 @@ struct PeriodReplayPickerSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("生成回放") {
-                        let range = resolvedRange()
-                        onSelect(selectedPeriod, range.start, range.end)
+                        guard let option = options.first(where: { $0.id == effectiveSelectedID }) else { return }
+                        if option.periodType == .custom {
+                            // 自定义周期：结束日期取当天结束（23:59:59）
+                            let end = Calendar.current.date(
+                                bySettingHour: 23, minute: 59, second: 59,
+                                of: customEnd.startOfDay
+                            ) ?? customEnd.startOfDay
+                            onSelect(.custom, customStart.startOfDay, end)
+                        } else if let range = option.range {
+                            onSelect(option.periodType, range.start, range.end)
+                        }
                         dismiss()
                     }
                 }
@@ -61,19 +83,18 @@ struct PeriodReplayPickerSheet: View {
 
     private var periodOptionsSection: some View {
         VStack(spacing: HoloSpacing.sm) {
-            periodRow(.weekly, title: "本周", subtitle: weeklySubtitle, icon: "calendar")
-            periodRow(.monthly, title: "本月", subtitle: monthlySubtitle, icon: "calendar.badge.clock")
-            periodRow(.quarterly, title: "本季度", subtitle: quarterlySubtitle, icon: "calendar.circle")
-            periodRow(.custom, title: "自定义周期", subtitle: customSubtitle, icon: "slider.horizontal.3")
+            ForEach(options) { option in
+                periodRow(option)
+            }
         }
     }
 
-    private func periodRow(_ period: MemoryInsightPeriodType, title: String, subtitle: String, icon: String) -> some View {
+    private func periodRow(_ option: ReplayOption) -> some View {
         Button {
-            selectedPeriod = period
+            selectedID = option.id
         } label: {
             HStack(spacing: HoloSpacing.md) {
-                Image(systemName: icon)
+                Image(systemName: option.icon)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.holoPrimary)
                     .frame(width: 32, height: 32)
@@ -81,10 +102,10 @@ struct PeriodReplayPickerSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
+                    Text(option.title)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
-                    Text(subtitle)
+                    Text(rowSubtitle(for: option))
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(1)
@@ -92,7 +113,7 @@ struct PeriodReplayPickerSheet: View {
 
                 Spacer()
 
-                if selectedPeriod == period {
+                if effectiveSelectedID == option.id {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.holoPrimary)
                         .font(.system(size: 20))
@@ -110,8 +131,8 @@ struct PeriodReplayPickerSheet: View {
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .stroke(
-                        selectedPeriod == period ? Color.holoPrimary.opacity(0.4) : Color.holoBorder.opacity(0.5),
-                        lineWidth: selectedPeriod == period ? 1.5 : 1
+                        effectiveSelectedID == option.id ? Color.holoPrimary.opacity(0.4) : Color.holoBorder.opacity(0.5),
+                        lineWidth: effectiveSelectedID == option.id ? 1.5 : 1
                     )
             )
         }
@@ -154,60 +175,109 @@ struct PeriodReplayPickerSheet: View {
         }
     }
 
-    // MARK: - Period Resolution
+    /// 自定义行选中后副标题跟随所选日期，其余行直接用构建时的固定副标题
+    private func rowSubtitle(for option: ReplayOption) -> String {
+        guard option.id == .custom, effectiveSelectedID == .custom else { return option.subtitle }
+        return "\(customStart.formattedZhRangeShort()) - \(customEnd.formattedZhRangeShort())"
+    }
+}
 
-    /// 解析周期的实际起止时间（复用 MemoryInsightContextBuilder 的范围逻辑）
-    /// - Parameter period: 指定要解析的周期；缺省时使用当前选中的 `selectedPeriod`（用于"生成回放"按钮）。
-    ///   注意：每个副标题必须显式传入自身周期，避免依赖全局选中态导致串显。
-    private func resolvedRange(for period: MemoryInsightPeriodType? = nil) -> (start: Date, end: Date) {
-        let resolved = period ?? selectedPeriod
-        let now = Date()
-        switch resolved {
-        case .weekly:
-            // 取上一完整自然周（与记忆长廊原逻辑一致）
-            let r = MemoryInsightContextBuilder.effectivePeriodRange(periodType: .weekly, referenceDate: now)
-            return (r.start, r.end)
-        case .monthly:
-            let r = MemoryInsightContextBuilder.effectivePeriodRange(periodType: .monthly, referenceDate: now)
-            return (r.start, r.end)
-        case .quarterly:
-            let r = MemoryInsightContextBuilder.effectivePeriodRange(periodType: .quarterly, referenceDate: now)
-            return (r.start, r.end)
-        case .daily:
-            let r = MemoryInsightContextBuilder.effectivePeriodRange(periodType: .daily, referenceDate: now)
-            return (r.start, r.end)
-        case .custom:
-            // 自定义周期：结束日期取当天结束（23:59:59）
-            let end = Calendar.current.date(
-                bySettingHour: 23, minute: 59, second: 59,
-                of: customEnd.startOfDay
-            ) ?? customEnd.startOfDay
-            return (customStart.startOfDay, end)
+// MARK: - 选项模型
+
+/// 一行周期选项。标签必须描述真实数据范围（所见即所得）：
+/// 智能回退触发时拆成「上一周期（完整）」与「当前周期（进行中）」两行。
+private struct ReplayOption: Identifiable {
+    enum ID: String {
+        case prevWeekly, currentWeekly
+        case prevMonthly, currentMonthly
+        case prevQuarterly, currentQuarterly
+        case custom
+
+        /// 打开面板时的默认选中：周视图的有效范围（与历史行为一致，
+        /// 周期初数据不足时默认落在上一完整周）。
+        static func defaultSelection(now: Date) -> ID {
+            let effective = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: .weekly, referenceDate: now
+            )
+            return effective.isFallback ? .prevWeekly : .currentWeekly
         }
     }
 
-    // MARK: - Subtitles
+    let id: ID
+    let periodType: MemoryInsightPeriodType
+    let title: String
+    let subtitle: String
+    /// 固定起止（custom 行无固定范围，由日期选择器决定）
+    let range: (start: Date, end: Date)?
+    let icon: String
 
-    private var weeklySubtitle: String {
-        // 显式传入 .weekly，避免依赖全局 selectedPeriod 导致首次打开时显示成其他周期的范围
-        let range = resolvedRange(for: .weekly)
-        return "\(range.start.formattedZhMonthDay()) - \(range.end.formattedZhMonthDay())"
+    static func buildOptions(now: Date) -> [ReplayOption] {
+        let specs: [(
+            type: MemoryInsightPeriodType, prev: ID, current: ID,
+            prevTitle: String, currentTitle: String, icon: String
+        )] = [
+            (.weekly, .prevWeekly, .currentWeekly, "上周", "本周", "calendar"),
+            (.monthly, .prevMonthly, .currentMonthly, "上月", "本月", "calendar.badge.clock"),
+            (.quarterly, .prevQuarterly, .currentQuarterly, "上季度", "本季度", "calendar.circle"),
+        ]
+
+        var options: [ReplayOption] = []
+        for spec in specs {
+            let current = MemoryInsightContextBuilder.periodRange(
+                periodType: spec.type, referenceDate: now, now: now
+            )
+            let effective = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: spec.type, referenceDate: now, now: now
+            )
+            if effective.isFallback {
+                let dayCount = daySpan(from: current.start, to: current.end)
+                options.append(ReplayOption(
+                    id: spec.prev,
+                    periodType: spec.type,
+                    title: spec.prevTitle,
+                    subtitle: subtitleText(effective.start, effective.end, badge: "完整"),
+                    range: (effective.start, effective.end),
+                    icon: spec.icon
+                ))
+                options.append(ReplayOption(
+                    id: spec.current,
+                    periodType: spec.type,
+                    title: spec.currentTitle,
+                    subtitle: subtitleText(current.start, current.end, badge: "进行中\(dayCount)天"),
+                    range: (current.start, current.end),
+                    icon: spec.icon
+                ))
+            } else {
+                options.append(ReplayOption(
+                    id: spec.current,
+                    periodType: spec.type,
+                    title: spec.currentTitle,
+                    subtitle: subtitleText(current.start, current.end, badge: nil),
+                    range: (current.start, current.end),
+                    icon: spec.icon
+                ))
+            }
+        }
+        options.append(ReplayOption(
+            id: .custom,
+            periodType: .custom,
+            title: "自定义周期",
+            subtitle: "自定义起止日期",
+            range: nil,
+            icon: "slider.horizontal.3"
+        ))
+        return options
     }
 
-    private var monthlySubtitle: String {
-        let range = resolvedRange(for: .monthly)
-        return "\(range.start.formattedZhMonthDay()) - \(range.end.formattedZhMonthDay())"
+    private static func subtitleText(_ start: Date, _ end: Date, badge: String?) -> String {
+        let text = "\(start.formattedZhMonthDay()) - \(end.formattedZhMonthDay())"
+        guard let badge else { return text }
+        return "\(text) · \(badge)"
     }
 
-    private var quarterlySubtitle: String {
-        let range = resolvedRange(for: .quarterly)
-        return "\(range.start.formattedZhMonthDay()) - \(range.end.formattedZhMonthDay())"
-    }
-
-    private var customSubtitle: String {
-        selectedPeriod == .custom
-            ? "\(customStart.formattedZhRangeShort()) - \(customEnd.formattedZhRangeShort())"
-            : "自定义起止日期"
+    /// 起止天数（闭区间：8月31日–9月1日 = 2 天）
+    private static func daySpan(from start: Date, to end: Date) -> Int {
+        (Calendar.current.dateComponents([.day], from: start, to: end).day ?? 0) + 1
     }
 }
 
