@@ -28,7 +28,9 @@ final class CloudEvidencePresenterTests: XCTestCase {
 
     func test_metric口径句_中文翻译() {
         let summary = HoloCloudEvidencePresenter.metricEvidenceSummary(metric())
-        XCTAssertEqual(summary, "收入与支出交易明细·「音乐」：合计「交易金额」= 3316 元（来源 1 条）")
+        // 2026-09-01 口径修复：数据集/字段展示名改用 schema.label 短标签（「交易明细」「金额」），
+        // 不再拿写给模型的说明长文（「收入与支出交易明细」「交易金额=每日次数/测量值…」）冒充
+        XCTAssertEqual(summary, "交易明细·「音乐」：合计「金额」= 3316 元（来源 1 条）")
     }
 
     func test_metric无分组与无formula的兜底() {
@@ -53,10 +55,10 @@ final class CloudEvidencePresenterTests: XCTestCase {
         )
         let references = HoloCloudEvidencePresenter.evidenceReferences(from: [rows])
         XCTAssertEqual(references.count, 1)
-        XCTAssertEqual(references[0].summary, "已核对 2 条收入与支出交易明细：8月15日 音乐 TIMA音乐盛典 -¥3316；8月21日 音乐 专辑 -¥120")
+        XCTAssertEqual(references[0].summary, "已核对 2 条交易明细：8月15日 音乐 TIMA音乐盛典 -¥3316；8月21日 音乐 专辑 -¥120")
 
         let preview = HoloCloudEvidencePresenter.dataSamplePreview(from: [rows])
-        XCTAssertEqual(preview?.domainLabel, "收入与支出交易明细")
+        XCTAssertEqual(preview?.domainLabel, "交易明细")
         XCTAssertEqual(preview?.count, 2)
         XCTAssertEqual(preview?.excerpts.first, "8月15日 音乐 TIMA音乐盛典 -¥3316")
     }

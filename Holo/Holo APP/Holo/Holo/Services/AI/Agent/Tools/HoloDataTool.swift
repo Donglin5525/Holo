@@ -49,17 +49,45 @@ nonisolated struct HoloDataField: Codable, Equatable, Sendable {
     var groupable: Bool
     var aggregatable: Bool
     var description: String
+    /// 用户可读短标签（证据口径句用）。description 是写给模型的长说明，
+    /// 直接展示会把整段口径念给用户听——两者必须分开；nil 时展示层隐藏该字段名，不回退英文。
+    var label: String? = nil
+
+    init(name: String, type: HoloDataFieldType, unit: String?, filterable: Bool, groupable: Bool, aggregatable: Bool, description: String, label: String? = nil) {
+        self.name = name
+        self.type = type
+        self.unit = unit
+        self.filterable = filterable
+        self.groupable = groupable
+        self.aggregatable = aggregatable
+        self.description = description
+        self.label = label
+    }
 }
 
 nonisolated struct HoloDataSetSchema: Codable, Equatable, Sendable {
     var name: String
     var domain: String
     var description: String
+    /// 用户可读短名（证据口径句用）；nil 时展示层回退「数据」，不用 description 冒充。
+    var label: String? = nil
     var timeField: String
     var fields: [HoloDataField]
     var sensitivity: HoloEvidenceSensitivity
     var maximumRangeDays: Int
     var coverageSemantics: HoloDataCoverageSemantics? = nil
+
+    init(name: String, domain: String, description: String, label: String? = nil, timeField: String, fields: [HoloDataField], sensitivity: HoloEvidenceSensitivity, maximumRangeDays: Int, coverageSemantics: HoloDataCoverageSemantics? = nil) {
+        self.name = name
+        self.domain = domain
+        self.description = description
+        self.label = label
+        self.timeField = timeField
+        self.fields = fields
+        self.sensitivity = sensitivity
+        self.maximumRangeDays = maximumRangeDays
+        self.coverageSemantics = coverageSemantics
+    }
 
     var resolvedCoverageSemantics: HoloDataCoverageSemantics {
         coverageSemantics ?? .eventRecords
@@ -266,41 +294,41 @@ nonisolated struct HoloDynamicToolDecorator: HoloDataTool {
 }
 
 nonisolated enum HoloAgentDynamicCatalogs {
-    private static func field(_ name: String, _ type: HoloDataFieldType, _ unit: String? = nil, filterable: Bool = true, groupable: Bool = true, aggregatable: Bool = false, _ description: String) -> HoloDataField {
-        HoloDataField(name: name, type: type, unit: unit, filterable: filterable, groupable: groupable, aggregatable: aggregatable, description: description)
+    private static func field(_ name: String, _ type: HoloDataFieldType, _ unit: String? = nil, filterable: Bool = true, groupable: Bool = true, aggregatable: Bool = false, _ description: String, label: String? = nil) -> HoloDataField {
+        HoloDataField(name: name, type: type, unit: unit, filterable: filterable, groupable: groupable, aggregatable: aggregatable, description: description, label: label)
     }
-    private static func schema(_ name: String, domain: String, description: String, fields: [HoloDataField], sensitivity: HoloEvidenceSensitivity = .normal, maximumRangeDays: Int = 366) -> HoloDataCatalog {
-        HoloDataCatalog(datasets: [HoloDataSetSchema(name: name, domain: domain, description: description, timeField: "date", fields: fields, sensitivity: sensitivity, maximumRangeDays: maximumRangeDays)])
+    private static func schema(_ name: String, domain: String, description: String, label: String? = nil, fields: [HoloDataField], sensitivity: HoloEvidenceSensitivity = .normal, maximumRangeDays: Int = 366) -> HoloDataCatalog {
+        HoloDataCatalog(datasets: [HoloDataSetSchema(name: name, domain: domain, description: description, label: label, timeField: "date", fields: fields, sensitivity: sensitivity, maximumRangeDays: maximumRangeDays)])
     }
 
     static let habit = HoloDataCatalog(datasets: [HoloCrossDomainTool.habitSchema])
     static let task = HoloDataCatalog(datasets: [HoloCrossDomainTool.taskSchema])
     static let goal = HoloDataCatalog(datasets: [HoloCrossDomainTool.goalSchema])
-    static let thought = schema("thought.daily", domain: "thought", description: "每日想法记录数", fields: [
-        field("date", .date, nil, "日期"), field("value", .number, "条", groupable: false, aggregatable: true, "每日想法数")
+    static let thought = schema("thought.daily", domain: "thought", description: "每日想法记录数", label: "想法记录", fields: [
+        field("date", .date, nil, "日期", label: "日期"), field("value", .number, "条", groupable: false, aggregatable: true, "每日想法数", label: "想法条数")
     ], sensitivity: .sensitive)
-    static let memory = schema("memory.entries", domain: "memory", description: "受控记忆条目", fields: [
-        field("date", .date, nil, "记忆日期"), field("kind", .text, nil, "longTerm 或 episodic"),
-        field("title", .text, nil, groupable: false, "标题"), field("summary", .text, nil, groupable: false, "摘要"),
-        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "条目计数")
+    static let memory = schema("memory.entries", domain: "memory", description: "受控记忆条目", label: "记忆条目", fields: [
+        field("date", .date, nil, "记忆日期", label: "日期"), field("kind", .text, nil, "longTerm 或 episodic", label: "类型"),
+        field("title", .text, nil, groupable: false, "标题", label: "标题"), field("summary", .text, nil, groupable: false, "摘要", label: "摘要"),
+        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "条目计数", label: "条目数")
     ], sensitivity: .sensitive)
-    static let insight = schema("insight.records", domain: "insight", description: "历史观察摘要", fields: [
-        field("date", .date, nil, "生成日期"), field("periodType", .text, nil, "周期类型"), field("status", .text, nil, "状态"),
-        field("title", .text, nil, groupable: false, "标题"), field("summary", .text, nil, groupable: false, "摘要"),
-        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "观察计数")
+    static let insight = schema("insight.records", domain: "insight", description: "历史观察摘要", label: "观察记录", fields: [
+        field("date", .date, nil, "生成日期", label: "日期"), field("periodType", .text, nil, "周期类型", label: "周期类型"), field("status", .text, nil, "状态", label: "状态"),
+        field("title", .text, nil, groupable: false, "标题", label: "标题"), field("summary", .text, nil, groupable: false, "摘要", label: "摘要"),
+        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "观察计数", label: "观察条数")
     ], sensitivity: .sensitive)
-    static let profile = schema("profile.items", domain: "profile", description: "用户主动档案字段", fields: [
-        field("date", .date, nil, filterable: false, "读取日期"), field("category", .text, nil, "字段类别"),
-        field("valueText", .text, nil, groupable: false, "档案值"), field("value", .number, "项", filterable: false, groupable: false, aggregatable: true, "字段计数")
+    static let profile = schema("profile.items", domain: "profile", description: "用户主动档案字段", label: "个人档案", fields: [
+        field("date", .date, nil, filterable: false, "读取日期", label: "日期"), field("category", .text, nil, "字段类别", label: "类别"),
+        field("valueText", .text, nil, groupable: false, "档案值", label: "档案值"), field("value", .number, "项", filterable: false, groupable: false, aggregatable: true, "字段计数", label: "字段数")
     ], sensitivity: .sensitive, maximumRangeDays: 366)
-    static let conversation = schema("conversation.metadata", domain: "conversation", description: "受控对话元数据，不含消息原文", fields: [
-        field("date", .date, nil, "消息时间"), field("role", .text, nil, "角色"), field("intent", .text, nil, "意图"),
-        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "消息计数")
+    static let conversation = schema("conversation.metadata", domain: "conversation", description: "受控对话元数据，不含消息原文", label: "对话记录", fields: [
+        field("date", .date, nil, "消息时间", label: "时间"), field("role", .text, nil, "角色", label: "角色"), field("intent", .text, nil, "意图", label: "意图"),
+        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "消息计数", label: "消息条数")
     ], sensitivity: .sensitive, maximumRangeDays: 90)
-    static let anniversary = schema("anniversary.events", domain: "anniversary", description: "纪念日/生日等固定事件：下次发生日期与倒计时", fields: [
-        field("date", .date, nil, "下次发生日期"), field("title", .text, nil, groupable: false, "事件名称，如 妈妈生日"),
-        field("daysUntil", .number, "天", groupable: false, aggregatable: true, "距离下次发生的天数（负数=已过去）"),
-        field("repeatYearly", .text, nil, groupable: false, "是否每年重复（true/false）")
+    static let anniversary = schema("anniversary.events", domain: "anniversary", description: "纪念日/生日等固定事件：下次发生日期与倒计时", label: "纪念日", fields: [
+        field("date", .date, nil, "下次发生日期", label: "下次日期"), field("title", .text, nil, groupable: false, "事件名称，如 妈妈生日", label: "事件名称"),
+        field("daysUntil", .number, "天", groupable: false, aggregatable: true, "距离下次发生的天数（负数=已过去）", label: "距离天数"),
+        field("repeatYearly", .text, nil, groupable: false, "是否每年重复（true/false）", label: "每年重复")
     ], sensitivity: .normal, maximumRangeDays: 366)
 }
 
@@ -308,13 +336,18 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
     static let habitSchema = HoloDataSetSchema(
         name: "habit.daily",
         domain: "habit",
-        description: "习惯每日完成次数或测量值",
+        description: "习惯每日完成情况。判定口径（必须遵守）：统计坚持天数/完成天数时只能数 value 达到 goal 的天数；count(rows) 只是有记录的天数，绝不等于完成天数，不能据此说满勤/全勤；value=0 表示当天没做（不是数据缺失）；type=measure（测量型）没记录的天不出现在数据里，只能算没测量，不能算完成也不能算缺席",
+        label: "习惯每日记录",
         timeField: "date",
         fields: [
-            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期"),
-            HoloDataField(name: "value", type: .number, unit: nil, filterable: true, groupable: false, aggregatable: true, description: "打卡/计数型为每日次数；测量型（如体重）为当日测量值，单位是习惯自身单位（如 kg）。unit 留空表示单位因习惯而异，由 discover 返回具体单位"),
-            HoloDataField(name: "habit", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "习惯名称"),
-            HoloDataField(name: "polarity", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "positive 或 negative")
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期", label: "日期"),
+            HoloDataField(name: "value", type: .number, unit: nil, filterable: true, groupable: false, aggregatable: true, description: "打卡/计数型为每日完成次数（0=当天没做）；测量型为当日测量值，单位见 unit 字段", label: "完成次数"),
+            HoloDataField(name: "habit", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "习惯名称", label: "习惯"),
+            HoloDataField(name: "polarity", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "positive 或 negative", label: "方向"),
+            HoloDataField(name: "goal", type: .number, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "每日目标：正向习惯=当天完成需 value≥goal；负向习惯=每日上限，value≤goal 才算达标；空=未设目标（value>0 即视为当天完成）", label: "每日目标"),
+            HoloDataField(name: "type", type: .text, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "check=打卡型；count=计数型（每日累加次数）；measure=测量型（如体重，当天没测量则该天无行）", label: "类型"),
+            HoloDataField(name: "unit", type: .text, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "计数/测量型的单位（如 次、分钟、kg）；打卡型为空", label: "单位"),
+            HoloDataField(name: "retroactiveCount", type: .number, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "该日含事后补录（补签/补记）的条数；行为真实，仅记录时间靠后", label: "补录条数")
         ],
         sensitivity: .normal,
         maximumRangeDays: 366
@@ -324,11 +357,12 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
         name: "task.daily",
         domain: "task",
         description: "每日完成任务数",
+        label: "每日任务完成",
         timeField: "date",
         fields: [
-            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "完成日期"),
-            HoloDataField(name: "value", type: .number, unit: "个", filterable: true, groupable: false, aggregatable: true, description: "每日完成任务数"),
-            HoloDataField(name: "highPriorityValue", type: .number, unit: "个", filterable: true, groupable: false, aggregatable: true, description: "每日完成高优任务数")
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "完成日期", label: "日期"),
+            HoloDataField(name: "value", type: .number, unit: "个", filterable: true, groupable: false, aggregatable: true, description: "每日完成任务数", label: "完成任务数"),
+            HoloDataField(name: "highPriorityValue", type: .number, unit: "个", filterable: true, groupable: false, aggregatable: true, description: "每日完成高优任务数", label: "高优任务数")
         ],
         sensitivity: .normal,
         maximumRangeDays: 366
@@ -338,26 +372,27 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
         name: "goal.progress.daily",
         domain: "goal",
         description: "活跃目标关联任务的每日累计完成进度",
+        label: "目标进度",
         timeField: "date",
         fields: [
-            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期"),
-            HoloDataField(name: "value", type: .number, unit: "%", filterable: true, groupable: false, aggregatable: true, description: "目标关联任务平均完成进度")
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期", label: "日期"),
+            HoloDataField(name: "value", type: .number, unit: "%", filterable: true, groupable: false, aggregatable: true, description: "目标关联任务平均完成进度", label: "完成进度")
         ],
         sensitivity: .normal,
         maximumRangeDays: 366
     )
 
     static let healthSchemas: [HoloDataSetSchema] = [
-        ("health.steps", "步", "每日步数"),
-        ("health.sleep", "小时", "每日睡眠时长"),
-        ("health.stand", "小时", "每日站立小时"),
-        ("health.activity", "分钟", "每日活动分钟")
-    ].map { name, unit, description in
+        ("health.steps", "步", "每日步数", "每日步数", "步数"),
+        ("health.sleep", "小时", "每日睡眠时长", "每日睡眠", "睡眠时长"),
+        ("health.stand", "小时", "每日站立小时", "每日站立", "站立时长"),
+        ("health.activity", "分钟", "每日活动分钟", "每日活动", "活动时长")
+    ].map { name, unit, description, datasetLabel, valueLabel in
         HoloDataSetSchema(
-            name: name, domain: "health", description: description, timeField: "date",
+            name: name, domain: "health", description: description, label: datasetLabel, timeField: "date",
             fields: [
-                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
-                HoloDataField(name: "value", type: .number, unit: unit, filterable: true, groupable: false, aggregatable: true, description: description)
+                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期", label: "日期"),
+                HoloDataField(name: "value", type: .number, unit: unit, filterable: true, groupable: false, aggregatable: true, description: description, label: valueLabel)
             ],
             sensitivity: .sensitive,
             maximumRangeDays: 366,
@@ -366,13 +401,13 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
     }
 
     static let financeSchema = HoloDataSetSchema(
-        name: "finance.transactions", domain: "finance", description: "交易明细", timeField: "date",
+        name: "finance.transactions", domain: "finance", description: "交易明细", label: "交易明细", timeField: "date",
         fields: [
-            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期"),
-            HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额"),
-            HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "分类"),
-            HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户"),
-            HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "商户或备注")
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期", label: "日期"),
+            HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额", label: "金额"),
+            HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "分类", label: "分类"),
+            HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户", label: "账户"),
+            HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "商户或备注", label: "商户备注")
         ],
         sensitivity: .normal, maximumRangeDays: 366
     )

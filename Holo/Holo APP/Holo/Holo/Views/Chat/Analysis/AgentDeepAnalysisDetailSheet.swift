@@ -997,10 +997,11 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             // 计算口径与对比基线：让「这个数怎么来的」可核对，不只给结果。
-            // 口径优先显示人话翻译，括号内保留公式原文供精确核对。
-            if let formula = evidence.formula {
-                let readable = HoloEvidenceFormulaPresentation.text(formula)
-                Text(readable == formula ? "口径：\(formula)" : "口径：\(readable)（\(formula)）")
+            // 只显示人话翻译；翻译不到（nil）整行隐藏——公式原文含 value/rows 等内部字段名，
+            // 不对普通用户展示（东林 2026-09-01 拍板）。
+            if let formula = evidence.formula,
+               let readable = HoloEvidenceFormulaPresentation.text(formula) {
+                Text("口径：\(readable)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.holoTextSecondary.opacity(0.9))
                     .fixedSize(horizontal: false, vertical: true)

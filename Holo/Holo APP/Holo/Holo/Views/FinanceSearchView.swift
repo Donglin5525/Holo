@@ -85,7 +85,10 @@ struct FinanceSearchView: View {
             .frame(maxHeight: .infinity)
         }
         .background(Color.holoBackground)
-        .swipeBackToDismiss { dismiss() }
+        // 全屏页统一边缘右滑返回（fullScreenCover 体系）。
+        // 旧 swipeBackToDismiss 的 NavigationStack 让位逻辑会递归扫整个窗口，
+        // 首页常驻模块有推送内容时手势被误杀导致右滑失灵（2026-09-01 深度分析数据依据跳入此页复现）。
+        .holoEdgeSwipeBack { dismiss() }
         .onAppear {
             if let exactTransactionIDs {
                 searchText = initialSearchText ?? "本次查询结果"

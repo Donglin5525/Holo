@@ -1589,6 +1589,48 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 按 agentResultID 从消息库重读云端报告的 canonical rendered（追问方案B）。
+    /// 云端结果 ack 即焚、不落本地 Job/Result 档案——消息库里的 agentResultJSON 就是它的权威存储；
+    /// Runtime 追问时经此重读父报告内容，不经 UI，防篡改语义与本地档案路径一致。
+    func loadRenderedResultByResultID(_ resultID: String) async -> HoloRenderedAgentResult? {
+        await CoreDataStack.shared.waitUntilReady()
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = ["id", "agentResultJSON"]
+                    // 带 key 前缀精确锚定：子报告的 lineage 里也含父任务号（parentResultID 字段），
+                    // 只匹配 agentResultID 本身才不会被子报告淹没；fetchLimit 仍放宽兜底
+                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(
+                            format: "intent == %@ AND agentResultJSON CONTAINS %@ AND isStreaming == NO",
+                            "query_analysis", "\"agentResultID\":\"\(resultID)\""
+                        ),
+                        NSPredicate(format: "deletedAt == nil")
+                    ])
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = 20
+
+                    let dicts = try context.fetch(request)
+                    for dict in dicts {
+                        guard let json = dict["agentResultJSON"] as? String,
+                              let data = json.data(using: .utf8),
+                              let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data),
+                              rendered.agentResultID == resultID
+                        else { continue }
+                        return rendered
+                    }
+                    return nil
+                }
+            }.value
+        } catch {
+            logger.error("按 resultID 重读父报告失败：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// 档案行字典 → DTO 的唯一出口（列表/搜索/收藏/追问共用）：
     /// 深度分析走 agentResultJSON 解码，回放走 content/extratedData。
     private static func makeArchiveDTO(

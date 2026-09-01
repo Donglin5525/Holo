@@ -47,6 +47,9 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                 ?? calendar.startOfDay(for: Date())
             return habits.flatMap { habit -> [HoloQueryRow] in
                 let unitText = habit.unit?.isEmpty == false ? habit.unit! : "次"
+                // 行级携带判定口径：goal（每日目标/上限）+ type（check/count/measure）+ unit，
+                // AI 统计完成天数靠 value≥goal（负向 ≤goal），而不是数行数
+                let habitType = habit.isMeasureType ? "measure" : (habit.unit == nil ? "check" : "count")
                 return habit.dailyCounts.compactMap { count -> HoloQueryRow? in
                     // 测量型习惯（体重/体脂）：未记录日 count==0 是缺失值而非真实测量，
                     // 若发射会污染 average/trend（如全年体重平均被 ~330 个 0 稀释到 ≈0）。
@@ -59,8 +62,11 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                         "date": .date(date),
                         "value": .number(count.count),
                         "habit": .text(habit.name),
-                        "polarity": .text(habit.polarity.rawValue)
+                        "polarity": .text(habit.polarity.rawValue),
+                        "type": .text(habitType)
                     ]
+                    if let goal = habit.dailyGoal { fields["goal"] = .number(goal) }
+                    if let unit = habit.unit, !unit.isEmpty { fields["unit"] = .text(unit) }
                     if retroCount > 0 { fields["retroactiveCount"] = .number(Double(retroCount)) }
                     let excerptSuffix = retroCount > 0 ? "（其中 \(retroCount) 次后补）" : ""
                     return HoloQueryRow(
@@ -324,7 +330,11 @@ extension HoloLocalAgentRuntime {
             checkpointStore: checkpointStore,
             llmClient: llmClient,
             toolExecutor: toolExecutor,
-            eventRecorder: HoloAgentEventStore.shared
+            eventRecorder: HoloAgentEventStore.shared,
+            // 云端报告追问（方案B）：按 agentResultID 从消息库重读 canonical 父报告
+            cloudParentLoader: { resultID in
+                await ChatMessageRepository.shared.loadRenderedResultByResultID(resultID)
+            }
         )
     }()
 }

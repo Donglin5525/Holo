@@ -229,7 +229,7 @@ final class HoloCloudAnalysisService {
                         if context.taskType == "period_replay" {
                             periodReplayFinalizer?(context.messageID, result)
                         } else {
-                            finalizeCloudResult(result, question: context.question, sourceMessageID: context.messageID)
+                            finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID)
                         }
                         // R1 确认制：结果已落地本地，回执服务端销毁密文副本。
                         // ack 失败无妨——结果留存 ≤7 天，属可接受的隐私延迟。
@@ -336,6 +336,7 @@ final class HoloCloudAnalysisService {
     private func finalizeCloudResult(
         _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult,
         question: String,
+        taskId: String,
         sourceMessageID: UUID
     ) {
         let claims = (result.claims ?? []).compactMap { claim -> String? in
@@ -349,7 +350,7 @@ final class HoloCloudAnalysisService {
         let summary = claims.isEmpty
             ? "本期暂无显著观察"
             : claims.joined(separator: "；")
-        let rendered = HoloRenderedAgentResult(
+        var rendered = HoloRenderedAgentResult(
             title: result.title ?? "深度分析",
             summary: summary,
             sections: sections,
@@ -365,6 +366,12 @@ final class HoloCloudAnalysisService {
             ),
             dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: result.evidence ?? [])
         )
+        // 追问血统身份（方案B）：云端结果不落本地 Job/Result 档案，用「cloud-任务ID」作本地等价编号——
+        // 报告页据此显示追问入口，追问记录据此挂载血统；cloud- 前缀与本地 UUID 空间天然不冲突
+        let cloudIdentity = "cloud-\(taskId)"
+        rendered.agentJobID = cloudIdentity
+        rendered.agentResultID = cloudIdentity
+        rendered.rootUserQuestion = question
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
         logger.info("云端结果已落地 claims=\(claims.count, privacy: .public) evidence=\(result.evidence?.count ?? 0, privacy: .public)")
     }

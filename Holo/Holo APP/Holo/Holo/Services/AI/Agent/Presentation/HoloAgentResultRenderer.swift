@@ -43,9 +43,11 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
 
 /// 证据公式的用户可读翻译。证据计算全部发生在本地工具层（HoloDataTool 等），
 /// 公式词表封闭、由本目录跟进——不在后端做，也不做开放式机器翻译。
+/// 返回 nil = 没有可信的人话翻译：展示层必须整行隐藏，不回退公式原文
+/// （公式原文含 value/rows 等内部字段名，不应出现在用户界面）。
 nonisolated enum HoloEvidenceFormulaPresentation {
-    /// 已知分析方法公式的完整人话；未命中时尝试聚合模式，仍不中则原样返回。
-    static func text(_ formula: String) -> String {
+    /// 已知分析方法公式的完整人话；未命中时尝试聚合模式，仍不中则返回 nil。
+    static func text(_ formula: String) -> String? {
         let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
         switch trimmed {
         case "pearson(left,right)":
@@ -58,11 +60,13 @@ nonisolated enum HoloEvidenceFormulaPresentation {
         case "opening_balance + posted_income - posted_expense":
             return "期初余额 + 已入账收入 − 已入账支出"
         default:
-            return aggregationText(trimmed) ?? trimmed
+            return aggregationText(trimmed)
         }
     }
 
-    /// 聚合模式 `op(field)`：sum(amount) → 按「amount」字段合计。
+    /// 聚合模式 `op(field)`：sum(amount) → 合计。
+    /// 只输出聚合词本身：公式里没有数据集上下文，字段名（value/rows）无法可靠翻译，
+    /// 按「宁缺勿漏」不展示；具体「合计的是什么」由证据 summary 的人话口径句承载。
     private static func aggregationText(_ formula: String) -> String? {
         guard let open = formula.firstIndex(of: "("),
               let close = formula.lastIndex(of: ")"),
@@ -71,10 +75,13 @@ nonisolated enum HoloEvidenceFormulaPresentation {
         let field = String(formula[formula.index(after: open)..<close])
         let operations = [
             "sum": "合计", "average": "均值", "count": "计数",
-            "max": "最大值", "min": "最小值", "median": "中位数"
+            "max": "最大值", "min": "最小值", "median": "中位数",
+            "distinctCount": "去重计数"
         ]
-        guard let operation = operations[op], !field.isEmpty else { return nil }
-        return "按「\(field)」字段计算\(operation)"
+        guard let operation = operations[op] else { return nil }
+        return field.isEmpty || field == "rows"
+            ? "按记录条数\(operation)"
+            : operation
     }
 }
 

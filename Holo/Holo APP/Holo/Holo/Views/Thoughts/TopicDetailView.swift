@@ -156,6 +156,8 @@ struct TopicDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             Task { await loadData() }
         }
+        // 全屏阅读页：边缘右滑返回（fullScreenCover 无系统返回）
+        .holoEdgeSwipeBack { dismiss() }
     }
 
     // MARK: - 数据

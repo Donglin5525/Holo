@@ -243,6 +243,9 @@ struct ThoughtDetailView: View {
                 loadData()
             }
         }
+        // 全屏详情形态（showsDismissButton=true）补边缘右滑返回；编辑器导航栈形态保留系统返回。
+        // 条件挂载：holoEdgeSwipeBack 无让位逻辑，与系统手势并存会双重 pop。
+        .holoEdgeSwipeBack(isEnabled: showsDismissButton) { dismiss() }
     }
 
     // MARK: - 数据加载

@@ -63,6 +63,8 @@ struct AttachmentGalleryView: View {
                     .padding(.bottom, 40)
             }
         }
+        // 全屏图库阅读页：边缘右滑返回（fullScreenCover 无系统返回；左缘与翻页手势共存）
+        .holoEdgeSwipeBack { dismiss() }
         .task {
             loadAllImages()
         }

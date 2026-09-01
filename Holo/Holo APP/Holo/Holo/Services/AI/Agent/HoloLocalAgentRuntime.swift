@@ -24,6 +24,9 @@ actor HoloLocalAgentRuntime {
     private let toolExecutor: HoloAgentToolExecuting?
     private let memoryQueryService: HoloMemoryQueryService?
     private let eventRecorder: any HoloAgentEventRecording
+    /// 云端报告追问的父报告加载器（按 agentResultID 从消息库重读 canonical rendered）。
+    /// 生产由 Factory 注入消息库实现；standalone 编译/测试不注入（nil=云端追问不可用，走原校验失败路径）。
+    private let cloudParentLoader: (@Sendable (String) async -> HoloRenderedAgentResult?)?
 
     /// mock 阶段模拟的步骤序列：plan → executeTools → minePatterns → integrateResults → persistResult。
     private static let mockSequence: [HoloAgentStep] = [
@@ -46,7 +49,8 @@ actor HoloLocalAgentRuntime {
          llmClient: HoloAgentLLMClientProtocol? = nil,
          toolExecutor: HoloAgentToolExecuting? = nil,
          memoryQueryService: HoloMemoryQueryService? = nil,
-         eventRecorder: any HoloAgentEventRecording = HoloNoopAgentEventRecorder.shared) {
+         eventRecorder: any HoloAgentEventRecording = HoloNoopAgentEventRecorder.shared,
+         cloudParentLoader: (@Sendable (String) async -> HoloRenderedAgentResult?)? = nil) {
         self.persistence = persistence
         self.jobStore = jobStore
         self.checkpointStore = checkpointStore
@@ -54,6 +58,7 @@ actor HoloLocalAgentRuntime {
         self.toolExecutor = toolExecutor
         self.memoryQueryService = memoryQueryService
         self.eventRecorder = eventRecorder
+        self.cloudParentLoader = cloudParentLoader
     }
 
     /// 创建并启动一个 mock job：立即进入 running，写初始 checkpoint（step=plan）。
@@ -132,49 +137,65 @@ actor HoloLocalAgentRuntime {
         }
         job.sourceMessageID = sourceMessageID
 
-        // 连续追问只认本地 Store 中的 canonical 父 Job/Result；UI 不得直接注入父结论正文。
+        // 连续追问只认持久层的 canonical 父身份；UI 不得直接注入父结论正文。
+        // 两条 canonical 路径：本地档案（Job/Result 档案表）与云端报告（消息库 agentResultJSON，
+        // 方案B：云端 ack 即焚不落档案，追问从消息库重读父报告内容，本轮重新取证）。
         let preparedContinuation: HoloAgentPreparedContinuationContext?
         if let continuation {
-            guard let parentJob = try await loadJob(continuation.parentJobID),
-                  let parentResult = try await persistence.loadResult(jobID: continuation.parentJobID),
-                  parentResult.id == continuation.parentResultID else {
-                throw HoloAgentRuntimeError.continuationParentUnavailable("父分析已被清理或无法读取")
-            }
-            let parentEvidence = try await persistence.loadEvidence(forIDs: parentResult.evidenceIDs)
-            let prepared = try HoloAgentContinuationContextCompiler.prepare(
-                request: continuation,
-                childJobID: jobID,
-                parentJob: parentJob,
-                parentResult: parentResult,
-                parentEvidence: parentEvidence,
-                now: now
-            )
-            preparedContinuation = prepared
-            job.lineage = prepared.lineage
-            job.originalUserQuestion = prepared.rootUserQuestion
-            switch continuation.relation {
-            case .explain, .drillDown:
-                job.timeRange = parentJob.timeRange
-                job.baseline = parentJob.baseline
-                job.referenceDate = parentJob.referenceDate ?? parentJob.createdAt
-                job.snapshotCutoffAt = parentJob.snapshotCutoffAt ?? parentJob.createdAt
-            case .correct, .crossDomain:
-                if job.timeRange == nil { job.timeRange = parentJob.timeRange }
-                if job.baseline == nil { job.baseline = parentJob.baseline }
-                if continuation.relation == .crossDomain {
+            if let parentJob = try await loadJob(continuation.parentJobID),
+               let parentResult = try await persistence.loadResult(jobID: continuation.parentJobID),
+               parentResult.id == continuation.parentResultID {
+                let parentEvidence = try await persistence.loadEvidence(forIDs: parentResult.evidenceIDs)
+                let prepared = try HoloAgentContinuationContextCompiler.prepare(
+                    request: continuation,
+                    childJobID: jobID,
+                    parentJob: parentJob,
+                    parentResult: parentResult,
+                    parentEvidence: parentEvidence,
+                    now: now
+                )
+                preparedContinuation = prepared
+                job.lineage = prepared.lineage
+                job.originalUserQuestion = prepared.rootUserQuestion
+                switch continuation.relation {
+                case .explain, .drillDown:
+                    job.timeRange = parentJob.timeRange
+                    job.baseline = parentJob.baseline
+                    job.referenceDate = parentJob.referenceDate ?? parentJob.createdAt
                     job.snapshotCutoffAt = parentJob.snapshotCutoffAt ?? parentJob.createdAt
+                case .correct, .crossDomain:
+                    if job.timeRange == nil { job.timeRange = parentJob.timeRange }
+                    if job.baseline == nil { job.baseline = parentJob.baseline }
+                    if continuation.relation == .crossDomain {
+                        job.snapshotCutoffAt = parentJob.snapshotCutoffAt ?? parentJob.createdAt
+                    }
+                case .changeScope:
+                    // 结果卡片「换范围」入口：UI 显式注入目标窗口，绕开文本解析层，确定性 100%。
+                    if let override = continuation.overrideTimeRange {
+                        job.timeRange = override
+                        job.timeRangeAttribution = HoloAgentTimeRangeAttribution(
+                            provenance: .userOverride,
+                            matchedText: nil
+                        )
+                    }
+                case .executeFromResult, .newTopic, .ambiguous:
+                    break
                 }
-            case .changeScope:
-                // 结果卡片「换范围」入口：UI 显式注入目标窗口，绕开文本解析层，确定性 100%。
-                if let override = continuation.overrideTimeRange {
-                    job.timeRange = override
-                    job.timeRangeAttribution = HoloAgentTimeRangeAttribution(
-                        provenance: .userOverride,
-                        matchedText: nil
-                    )
-                }
-            case .executeFromResult, .newTopic, .ambiguous:
-                break
+            } else if let parentRendered = await cloudParentLoader?(continuation.parentResultID) {
+                // 云端报告父：从消息库重读 canonical rendered，本轮结论重新取证
+                let prepared = try HoloAgentContinuationContextCompiler.prepare(
+                    request: continuation,
+                    childJobID: jobID,
+                    parentRendered: parentRendered,
+                    now: now
+                )
+                preparedContinuation = prepared
+                job.lineage = prepared.lineage
+                job.originalUserQuestion = prepared.rootUserQuestion
+                // 云端父报告 scope 只有口径标签（近N天）无起止日期可继承：
+                // 时间窗按本轮解析走，与「重新取证」语义一致
+            } else {
+                throw HoloAgentRuntimeError.continuationParentUnavailable("父分析已被清理或无法读取")
             }
         } else {
             preparedContinuation = nil

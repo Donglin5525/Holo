@@ -12,25 +12,30 @@ import Foundation
 nonisolated enum HoloCloudEvidencePresenter {
 
     /// 数据集中文名：key 为快照数据集名（finance.transactions 等）。
+    /// 只取 schema.label（人看短名）；description 是写给模型的口径长文，禁止冒充展示名。
     static let datasetLabels: [String: String] = {
         var labels: [String: String] = [:]
         for catalog in HoloCloudAnalysisSnapshotBuilder.snapshotCatalogs {
             for schema in catalog.datasets {
-                labels[schema.name] = schema.description
+                if let label = schema.label, !label.isEmpty {
+                    labels[schema.name] = label
+                }
             }
         }
         return labels
     }()
 
-    /// 字段中文名：dataset → field → 说明（与上传侧目录同源）。
+    /// 字段中文名：dataset → field → 短标签（与上传侧目录同源）。
+    /// 只收录声明了 label 的字段；查不到的展示层一律省略字段名，不回退英文/长说明。
     static let fieldLabels: [String: [String: String]] = {
         var result: [String: [String: String]] = [:]
         for catalog in HoloCloudAnalysisSnapshotBuilder.snapshotCatalogs {
             for schema in catalog.datasets {
-                result[schema.name] = Dictionary(
-                    schema.fields.map { ($0.name, $0.description) },
-                    uniquingKeysWith: { first, _ in first }
-                )
+                let labeled = schema.fields.compactMap { field -> (String, String)? in
+                    guard let label = field.label, !label.isEmpty else { return nil }
+                    return (field.name, label)
+                }
+                result[schema.name] = Dictionary(labeled, uniquingKeysWith: { first, _ in first })
             }
         }
         return result
@@ -89,9 +94,10 @@ nonisolated enum HoloCloudEvidencePresenter {
            let close = formula.lastIndex(of: ")"), open < close {
             let op = String(formula[formula.startIndex..<open])
             let field = String(formula[formula.index(after: open)..<close])
-            operation = aggregationLabels[op] ?? op
+            // 聚合词翻译不到回退通用词「统计」，不回退英文原文
+            operation = aggregationLabels[op] ?? "统计"
             if !field.isEmpty {
-                fieldLabel = fieldLabels[item.dataset ?? ""]?[field] ?? field
+                fieldLabel = fieldLabels[item.dataset ?? ""]?[field]
             }
         }
         let valueText = value.truncatingRemainder(dividingBy: 1) == 0

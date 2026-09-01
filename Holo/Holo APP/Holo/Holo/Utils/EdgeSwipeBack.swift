@@ -18,6 +18,9 @@ import UIKit
 
 struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
     var onBack: () -> Void
+    /// false 时不识别手势：用于「同一视图多形态」的页面（如全屏详情/导航栈 push 共用），
+    /// push 形态保留系统返回，两种边缘手势并存会双重 pop
+    var isEnabled: Bool = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onBack: onBack)
@@ -34,16 +37,20 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
         )
         pan.edges = .left
         pan.delegate = context.coordinator
+        pan.isEnabled = isEnabled
         controller.view.addGestureRecognizer(pan)
+        context.coordinator.gesture = pan
         return controller
     }
 
     func updateUIViewController(_ controller: UIViewController, context: Context) {
         context.coordinator.onBack = onBack
+        context.coordinator.gesture?.isEnabled = isEnabled
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onBack: () -> Void
+        weak var gesture: UIScreenEdgePanGestureRecognizer?
 
         init(onBack: @escaping () -> Void) {
             self.onBack = onBack
@@ -66,7 +73,8 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
 
 extension View {
     /// 全屏页边缘右滑返回。挂在使用 fullScreenCover 呈现的页面根部。
-    func holoEdgeSwipeBack(action: @escaping () -> Void) -> some View {
-        background(EdgeSwipeBackRepresentable(onBack: action))
+    /// isEnabled=false 时不识别（多形态页面 push 形态让位给系统返回）。
+    func holoEdgeSwipeBack(isEnabled: Bool = true, action: @escaping () -> Void) -> some View {
+        background(EdgeSwipeBackRepresentable(onBack: action, isEnabled: isEnabled))
     }
 }
