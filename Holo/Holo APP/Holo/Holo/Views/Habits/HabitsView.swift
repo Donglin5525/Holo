@@ -101,6 +101,7 @@ struct HabitsView: View {
     // MARK: - 底部 Tab 栏
 
     /// 底部导航栏：统计 / 习惯 / 设置
+    /// 骨架层（ContentView）已限宽 720：iPad 上整条栏跟随内容列宽，iPhone 撑满
     private var habitTabBar: some View {
         GeometryReader { geo in
             let bottomInset = max(geo.safeAreaInsets.bottom, 20)

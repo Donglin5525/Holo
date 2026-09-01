@@ -191,6 +191,7 @@ struct FinanceView: View {
     // MARK: - 底部 Tab 栏（fixed bottom-0 left-0 w-full，无浮动圆角）
 
     /// 底部导航栏：吸底全宽，5 个平等 Tab（账户/账本/统计/固定支出/设置）
+    /// 骨架层（ContentView）已限宽 720：iPad 上整条栏跟随内容列宽，iPhone 撑满
     private var financeTabBarOnly: some View {
         GeometryReader { geo in
             let bottomInset = max(geo.safeAreaInsets.bottom, 20)

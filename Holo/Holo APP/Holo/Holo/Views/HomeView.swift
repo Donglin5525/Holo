@@ -138,8 +138,11 @@ struct HomeView: View {
 
             // 每一层在首次进入时创建，跳到下一模块后仅隐藏、不销毁。
             // 因此返回来源时，对话、日期筛选、滚动位置等现场仍然存在。
+            // 常驻模块统一在此限宽居中：骨架层（ContentView 三 tab）的列对部分
+            // 模块（如记忆长廊）不生效，模块自己的公共出口兜底，iPhone（compact）无操作。
             ForEach(Array(residentNavigation.routes.enumerated()), id: \.element.id) { index, route in
                 residentDestination(for: route.screen)
+                    .holoContentColumn(paintsBackground: false)
                     .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
                     .allowsHitTesting(index == residentNavigation.routes.count - 1)
                     .accessibilityHidden(index != residentNavigation.routes.count - 1)
@@ -635,6 +638,7 @@ struct HomeView: View {
     }
     
     /// 中央主内容区域
+    /// iPad（regular 宽度）整体放大主视觉，消除「iPhone 尺寸漂在大屏中央」的空旷感
     private var mainContent: some View {
         ZStack {
             // 五角形功能入口按钮（支持拖拽排序）；导览第 1 步高亮整块区域
@@ -647,7 +651,14 @@ struct HomeView: View {
             }
             .coachMarkTarget(HomeCoachTour.kanbanEntryID)
         }
+        .scaleEffect(heroScale, anchor: .center)
         .padding(.horizontal, HoloSpacing.lg)
+    }
+
+    /// 首页主视觉缩放：iPhone 1.0；iPad regular 宽度放大，补偿大屏空旷感
+    @Environment(\.horizontalSizeClass) private var heroSizeClass
+    private var heroScale: CGFloat {
+        HoloAdaptiveLayout.isRegularWidth(heroSizeClass) ? 1.25 : 1.0
     }
     
     // MARK: - 五角形功能按钮布局

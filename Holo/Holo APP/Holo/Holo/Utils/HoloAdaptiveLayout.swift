@@ -53,20 +53,31 @@ struct ContentColumnContainer<Content: View>: View {
 
 // MARK: - 便捷用法
 
-/// 限宽修饰器：regular 宽度下内容限宽居中，并自带全幅背景衬底
-/// （覆盖层/弹层没有外层背景可依赖，两侧留白须自己画，否则露出系统底色）。
+/// 限宽修饰器：regular 宽度下内容限宽居中。
+/// paintsBackground=true 时自带全幅背景衬底（覆盖层/弹层没有外层背景可依赖，
+/// 两侧留白须自己画，否则露出系统底色）。
+/// paintsBackground=false 时只做限宽居中——模块容器已有全屏背景时用这档，
+/// 避免内嵌 ignoresSafeArea 的背景层与外层 safeAreaInset（吸底 Tab 栏）互相干扰，
+/// 导致 Tab 栏宽度提议也被限到列宽。
 struct HoloContentColumnModifier: ViewModifier {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let maxWidth: CGFloat
+    let paintsBackground: Bool
 
     func body(content: Content) -> some View {
         if HoloAdaptiveLayout.isRegularWidth(horizontalSizeClass) {
-            ZStack {
-                Color.holoBackground.ignoresSafeArea()
+            if paintsBackground {
+                ZStack {
+                    Color.holoBackground.ignoresSafeArea()
+                    content
+                        .frame(maxWidth: maxWidth)
+                }
+            } else {
                 content
                     .frame(maxWidth: maxWidth)
+                    .frame(maxWidth: .infinity)
             }
         } else {
             content
@@ -78,7 +89,8 @@ extension View {
 
     /// 把内容包进限宽居中容器：iPhone 无感（自然撑满），iPad 内容列居中、
     /// 两侧画全幅背景。骨架层（ContentView 三 tab）与全屏覆盖层内容统一用它。
-    func holoContentColumn(maxWidth: CGFloat = HoloAdaptiveLayout.contentColumnMaxWidth) -> some View {
-        modifier(HoloContentColumnModifier(maxWidth: maxWidth))
+    func holoContentColumn(maxWidth: CGFloat = HoloAdaptiveLayout.contentColumnMaxWidth,
+                           paintsBackground: Bool = true) -> some View {
+        modifier(HoloContentColumnModifier(maxWidth: maxWidth, paintsBackground: paintsBackground))
     }
 }

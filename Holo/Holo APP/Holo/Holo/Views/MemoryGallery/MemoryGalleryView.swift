@@ -34,30 +34,36 @@ struct MemoryGalleryView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 顶部导航栏（右侧并入页级 tab，L1 轻头部）
-            navigationBar
+        ZStack {
+            // 背景独立铺层（与任务/财务等模块同一模式）。
+            // 不能写成 .background(Color.ignoresSafeArea())：该写法会把「忽略安全区」
+            // 包装住整个内容 VStack，突破骨架层 720 列的布局上限，导致长廊通铺全宽。
+            Color.holoBackground.ignoresSafeArea()
 
-            // 首访欢迎条：第一次进长廊时讲清「这里会自动汇集你的记录」，
-            // 挂在默认落地的日历 tab（新用户长廊是空的，日历本身看不出用途）
-            if selectedTab == .calendar {
-                FirstVisitWelcomeBar(
-                    icon: "book.fill",
-                    title: "欢迎来到记忆长廊",
-                    message: "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。",
-                    seenKey: OnboardingProgressStore.memoryGalleryWelcomeKey
-                )
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.top, HoloSpacing.sm)
+            VStack(spacing: 0) {
+                // 顶部导航栏（右侧并入页级 tab，L1 轻头部）
+                navigationBar
+
+                // 首访欢迎条：第一次进长廊时讲清「这里会自动汇集你的记录」，
+                // 挂在默认落地的日历 tab（新用户长廊是空的，日历本身看不出用途）
+                if selectedTab == .calendar {
+                    FirstVisitWelcomeBar(
+                        icon: "book.fill",
+                        title: "欢迎来到记忆长廊",
+                        message: "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。",
+                        seenKey: OnboardingProgressStore.memoryGalleryWelcomeKey
+                    )
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.top, HoloSpacing.sm)
+                }
+
+                // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
+                // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
+                tabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-
-            // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
-            // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
-            tabContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.holoBackground.ignoresSafeArea())
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         #if DEBUG
         .sheet(isPresented: $showAISettings) {

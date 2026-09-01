@@ -39,49 +39,52 @@ struct BottomNavBar: View {
     // MARK: - Body
     
     var body: some View {
-        HStack(spacing: 0) {
-            // 左侧 - 个人按钮
-            navButton(
-                icon: "person.fill",
-                title: "个人",
-                isSelected: selectedTab == .profile
-            ) {
-                if let onProfileTap {
-                    onProfileTap()
-                } else {
-                    selectedTab = .profile
+        // iPad：整条导航栏限宽居中（浮动毛玻璃条不横跨大屏），iPhone 撑满不变
+        ContentColumnContainer(maxWidth: 520) {
+            HStack(spacing: 0) {
+                // 左侧 - 个人按钮
+                navButton(
+                    icon: "person.fill",
+                    title: "个人",
+                    isSelected: selectedTab == .profile
+                ) {
+                    if let onProfileTap {
+                        onProfileTap()
+                    } else {
+                        selectedTab = .profile
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity)
 
-            // 中央 - AI 按钮（凸起）
-            centerAIButton
+                // 中央 - AI 按钮（凸起）
+                centerAIButton
 
-            // 右侧 - 记忆长廊按钮
-            navButton(
-                icon: "book.fill",
-                title: "记忆长廊",
-                isSelected: selectedTab == .memory
-            ) {
-                if let onMemoryTap {
-                    onMemoryTap()
-                } else {
-                    selectedTab = .memory
+                // 右侧 - 记忆长廊按钮
+                navButton(
+                    icon: "book.fill",
+                    title: "记忆长廊",
+                    isSelected: selectedTab == .memory
+                ) {
+                    if let onMemoryTap {
+                        onMemoryTap()
+                    } else {
+                        selectedTab = .memory
+                    }
                 }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.vertical, HoloSpacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.xl)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HoloRadius.xl)
+                            .stroke(Color.holoBorder, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 5)
+            )
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.vertical, HoloSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.xl)
-                        .stroke(Color.holoBorder, lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 5)
-        )
         .padding(.horizontal, HoloSpacing.lg)
     }
     
