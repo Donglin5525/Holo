@@ -198,4 +198,39 @@ final class CloudFollowUpChainTests: XCTestCase {
         XCTAssertEqual(idleRow?.fields["value"]?.numberValue, 0)
         XCTAssertEqual(idleRow?.fields["type"]?.textValue, "check")
     }
+
+    // MARK: - 4. 存量旧文案清洗（修复前落库的报告带英文残留）
+
+    func test_sanitizeLegacy_translatesKnownEnglishFields() {
+        // 旧版云端报告的典型残留（东林 2026-09-01 真机反馈实测样例）
+        XCTAssertEqual(
+            HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields("习惯每日记录·全部：合计「value」= 540 次（来源 20 条）"),
+            "习惯每日记录·全部：合计「完成次数」= 540 次（来源 20 条）"
+        )
+        XCTAssertEqual(
+            HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields("习惯每日记录·「23:30 前休息」：去重计数「date」= 180 天（来源 20 条）"),
+            "习惯每日记录·「23:30 前休息」：去重计数「日期」= 180 天（来源 20 条）"
+        )
+        // 财务行内线索 → 金额
+        XCTAssertEqual(
+            HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields("交易明细·「音乐」：合计「amount」= 3316 元（来源 1 条）"),
+            "交易明细·「音乐」：合计「金额」= 3316 元（来源 1 条）"
+        )
+    }
+
+    func test_sanitizeLegacy_removesUnknownAndKeepsChinese() {
+        // 认不出的英文字段：整段移除（宁缺勿漏）
+        XCTAssertEqual(
+            HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields("口径：均值「mysteryField」= 3"),
+            "口径：均值= 3"
+        )
+        // 中文片段与用户内容（如歌名）不受影响
+        XCTAssertEqual(
+            HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields("已核对 2 条交易明细：8月15日 音乐 TIMA音乐盛典 -¥3316"),
+            "已核对 2 条交易明细：8月15日 音乐 TIMA音乐盛典 -¥3316"
+        )
+        // 已是人话的新文案原样返回
+        let fresh = "习惯每日记录·全部：计数「日期」= 540 天（来源 20 条）"
+        XCTAssertEqual(HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields(fresh), fresh)
+    }
 }

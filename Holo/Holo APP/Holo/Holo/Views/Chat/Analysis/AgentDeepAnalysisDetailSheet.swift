@@ -117,7 +117,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             let labelPrefix = isFinanceLedgerMode ? "账单依据" : (isHealthMode ? "健康依据" : "依据")
             return Evidence(
                 label: ref.financeDrilldown == nil ? labelPrefix : "\(labelPrefix) · 点按核对",
-                summary: Self.clean(ref.summary),
+                // 存量旧报告（修复前落库）的口径句带英文残留（「合计「value」…」），展示前清洗
+                summary: HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields(Self.clean(ref.summary)),
                 drilldown: ref.financeDrilldown,
                 formula: ref.formula,
                 baselineText: ref.baselineText

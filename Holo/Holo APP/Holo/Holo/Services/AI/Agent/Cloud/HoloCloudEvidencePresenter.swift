@@ -46,6 +46,52 @@ nonisolated enum HoloCloudEvidencePresenter {
         "min": "最小值", "max": "最大值", "distinctCount": "去重计数",
     ]
 
+    // MARK: - 存量旧文案清洗
+
+    /// 旧版翻译代码把查不到标签的字段名原样上屏（如「合计「value」= 540 次」），
+    /// 修复前落库的存量报告 JSON 里带着这些英文残留。展示层渲染时过一遍本函数：
+    /// 书名号内是英文标识符的，按行内数据集线索翻译成中文标签；认不出的整段移除（宁缺勿漏）。
+    /// 不改落库数据，只清展示。
+    static func sanitizeLegacyEnglishFields(_ text: String) -> String {
+        // 行内数据集线索 → 该数据集的字段标签表（旧文案里的数据集名是说明长文，用关键词认）
+        func fieldTable(for line: String) -> [String: String] {
+            let hints: [(keywords: [String], dataset: String)] = [
+                (["习惯", "打卡", "完成次数"], "habit.daily"),
+                (["交易", "支出", "收入", "金额", "账单"], "finance.transactions"),
+                (["任务"], "task.daily"),
+                (["想法"], "thought.daily"),
+                (["记忆"], "memory.entries"),
+                (["对话", "消息"], "conversation.metadata"),
+                (["档案"], "profile.items"),
+                (["纪念日"], "anniversary.events"),
+                (["步数", "睡眠", "站立", "活动时长"], "health.steps"),
+            ]
+            for hint in hints where hint.keywords.contains(where: line.contains) {
+                if let table = fieldLabels[hint.dataset] { return table }
+            }
+            return [:]
+        }
+        // 跨数据集重名字段的通用兜底（value 在不同数据集含义不同，无行内线索时用中性词）
+        let commonFallback = ["date": "日期", "value": "数值", "rows": "记录", "amount": "金额", "goal": "目标"]
+
+        guard let regex = try? NSRegularExpression(pattern: "「([A-Za-z_][A-Za-z0-9_.]*)」") else { return text }
+        let ns = text as NSString
+        var output = ""
+        var cursor = 0
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard let range = Range(match.range, in: text),
+                  let nameRange = Range(match.range(at: 1), in: text) else { continue }
+            output += String(text[text.index(text.startIndex, offsetBy: cursor)..<range.lowerBound])
+            let field = String(text[nameRange])
+            if let replacement = fieldTable(for: text)[field] ?? commonFallback[field] {
+                output += "「\(replacement)」"
+            }
+            cursor = text.distance(from: text.startIndex, to: range.upperBound)
+        }
+        output += String(text[text.index(text.startIndex, offsetBy: cursor)...])
+        return output
+    }
+
     /// 证据引用：metric → 中文口径句；rows → 行样本摘录。最多 8 条防长列表。
     static func evidenceReferences(
         from evidence: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudEvidence]
