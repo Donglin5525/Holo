@@ -27,7 +27,7 @@ struct OnboardingAIConsentPage: View {
                         .font(.holoTitle)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("当你使用 HoloAI、AI 洞察、语音转文字，或另行开启“自动形成记忆”时，完成该功能所需的问题，以及财务、习惯、待办、观点、健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
+                    Text("当你使用 HoloAI、AI 洞察、语音转文字，或另行开启“自动形成记忆”时，完成该功能所需的信息，以及财务、习惯、待办、观点、健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)

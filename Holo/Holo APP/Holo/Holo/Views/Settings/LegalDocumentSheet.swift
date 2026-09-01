@@ -118,7 +118,11 @@ enum LegalHTMLTemplates {
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif;
+        /*
+         * 先指定 iOS 的中文字体，避免 WKWebView 在模拟器或未配置系统字体时
+         * 优先选到不含中文字形的拉丁字体，导致法律正文显示为方框。
+         */
+        font-family: "PingFang SC", "Hiragino Sans GB", "Heiti SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
         background: var(--bg);
         color: var(--fg);
         line-height: 1.7;

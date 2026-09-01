@@ -25,7 +25,7 @@ struct PersonalMemorySettingsView: View {
             .padding(.vertical, HoloSpacing.md)
         }
         .background(Color.holoBackground.ignoresSafeArea())
-        .navigationTitle("我的记忆")
+        .navigationTitle("长期记忆")
         .navigationBarTitleDisplayMode(.inline)
     }
 

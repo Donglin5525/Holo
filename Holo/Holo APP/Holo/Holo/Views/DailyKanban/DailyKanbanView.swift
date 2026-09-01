@@ -21,6 +21,7 @@ struct DailyKanbanView: View {
 
     @State private var editingHabit: Habit? = nil
     @State private var inputValue: String = ""
+    @State private var showGoalCreate = false
     @FocusState private var isInputFocused: Bool
 
     /// 键盘高度：数值输入弹窗是手写 overlay（非系统 sheet），系统键盘避让管不到，
@@ -41,7 +42,8 @@ struct DailyKanbanView: View {
                         todoRepo: todoRepo,
                         habitRepo: habitRepo,
                         healthRepo: healthRepo,
-                        userName: userName
+                        userName: userName,
+                        onCreateGoal: { showGoalCreate = true }
                     )
                     KanbanBudgetSection()
                     KanbanHabitSection(
@@ -68,6 +70,12 @@ struct DailyKanbanView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: editingHabit != nil)
+        .sheet(isPresented: $showGoalCreate) {
+            GoalManualCreateSheet(
+                onSaved: { _ in showGoalCreate = false },
+                onCancel: { showGoalCreate = false }
+            )
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
             let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25

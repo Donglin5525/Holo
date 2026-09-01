@@ -449,7 +449,7 @@ struct PersonalView: View {
         }
     }
 
-    // MARK: - 我的记忆
+    // MARK: - 长期记忆
 
     private var memorySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -457,7 +457,7 @@ struct PersonalView: View {
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 18))
                     .foregroundColor(.holoPrimary)
-                Text("我的记忆")
+                Text("长期记忆")
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)

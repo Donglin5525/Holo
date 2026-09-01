@@ -12,7 +12,10 @@ struct KanbanProgressHero: View {
     @ObservedObject var todoRepo: TodoRepository
     @ObservedObject var habitRepo: HabitRepository
     @ObservedObject var healthRepo: HealthRepository
+    @ObservedObject private var goalRepo = GoalRepository.shared
     let userName: String
+    /// 没有目标时，直接打开目标创建表单
+    var onCreateGoal: () -> Void = {}
     @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
 
     /// 今日支出：nil = 加载中/失败，统一显示占位符，避免误导成「¥0=没花钱」
@@ -100,9 +103,25 @@ struct KanbanProgressHero: View {
             Text(progressMessage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.white)
+            goalContributionView
+        }
+    }
+
+    @ViewBuilder
+    private var goalContributionView: some View {
+        if hasActiveGoals {
             Text(goalContributionMessage)
                 .font(.holoTinyLabel)
                 .foregroundColor(.white.opacity(0.7))
+        } else {
+            Button(action: onCreateGoal) {
+                Text(goalContributionMessage)
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("创建目标")
+            .accessibilityHint("打开创建目标页面")
         }
     }
 
@@ -156,8 +175,7 @@ struct KanbanProgressHero: View {
 
     /// 目标贡献文案：今天做的事有多少关联着目标
     private var goalContributionMessage: String {
-        let hasGoals = !GoalRepository.shared.activeGoalsForAI(limit: 1).isEmpty
-        if !hasGoals {
+        if !hasActiveGoals {
             return "设个目标，让每天的忙碌有方向 →"
         }
         let c = TodoRepository.shared.getTodayGoalContribution()
@@ -169,6 +187,10 @@ struct KanbanProgressHero: View {
                 : "今天还没有行动落在目标上"
         }
         return "\(total)件事在为目标添砖加瓦"
+    }
+
+    private var hasActiveGoals: Bool {
+        !goalRepo.activeGoalsForAI(limit: 1).isEmpty
     }
 
     private var habitProgressText: String {
