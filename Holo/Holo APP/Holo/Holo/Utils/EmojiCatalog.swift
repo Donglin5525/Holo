@@ -24,13 +24,33 @@ nonisolated enum EmojiCatalog {
         !name.isEmpty && name.unicodeScalars.contains { !$0.isASCII }
     }
 
-    /// 按中英文关键词搜索 emoji（关键词索引见 EmojiSearchIndex），结果按目录顺序返回
+    /// 按中英文关键词搜索 emoji（生成索引见 EmojiSearchIndex，口语补充见 EmojiSearchSupplement）。
+    /// 排序：命中关键词越短，查询词在该 emoji 语义中占比越高（搜「车」时「汽车」优于「过山车」）；
+    /// 同长度时人工补充词优先于机器标注（如「汽车」🚗 应排在同样标注了「汽车」的警车前），再按目录顺序
     static func search(matching query: String) -> [String] {
         let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !keyword.isEmpty else { return [] }
-        return categories.flatMap(\.emojis).filter { emoji in
-            EmojiSearchIndex.entries[emoji]?.contains { $0.lowercased().contains(keyword) } ?? false
+        var ranked: [(index: Int, bestLen: Int, source: Int, emoji: String)] = []
+        for (index, emoji) in categories.flatMap(\.emojis).enumerated() {
+            let candidates: [(len: Int, source: Int)] =
+                (EmojiSearchSupplement.entries[emoji] ?? []).compactMap {
+                    $0.lowercased().contains(keyword) ? ($0.count, 0) : nil
+                } + (EmojiSearchIndex.entries[emoji] ?? []).compactMap {
+                    $0.lowercased().contains(keyword) ? ($0.count, 1) : nil
+                }
+            if let best = candidates.min(by: {
+                $0.len != $1.len ? $0.len < $1.len : $0.source < $1.source
+            }) {
+                ranked.append((index, best.len, best.source, emoji))
+            }
         }
+        return ranked
+            .sorted {
+                $0.bestLen != $1.bestLen ? $0.bestLen < $1.bestLen
+                : $0.source != $1.source ? $0.source < $1.source
+                : $0.index < $1.index
+            }
+            .map(\.emoji)
     }
 
     static let categories: [Category] = [
