@@ -162,9 +162,13 @@ struct PersonalView: View {
                             HStack(spacing: HoloSpacing.xs) {
                                 // 图文必须与真实档位一致：免费用户看到「免费版」，
                                 // 不能让卡片读起来像已经开通了 Plus
+                                // 标题是 title 级大字，与徽章同行时 HStack 的 Spacer 会挤压
+                                // Text 触发折行；固定单行宽度后剩余空间全部让给 Spacer。
                                 Text(entitlementState.isPlusActive ? "Holo Plus" : "免费版")
                                     .font(.holoTitle)
                                     .foregroundColor(HoloPlusTheme.accentText)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
 
                                 if entitlementState.isPlusActive {
                                     Text("已生效")

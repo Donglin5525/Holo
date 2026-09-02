@@ -687,6 +687,7 @@ struct ChatView: View {
     // MARK: - Message List
 
     private var messageList: some View {
+        ScrollViewReader { proxy in
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 12) {
                 if viewModel.hasLoadedMessages
@@ -734,8 +735,20 @@ struct ChatView: View {
                         onAgentResumePaused: {
                             viewModel.resumePausedAgentJobs(sourceMessageID: message.id)
                         },
-                        onPeriodReplayExpansionChanged: { _, isExpanded in
-                            guard !isExpanded else { return }
+                        onPeriodReplayExpansionChanged: { message, isExpanded in
+                            // 收起方向：内容变短可能让偏移越过新边界，交给底层 UIScrollView 校正。
+                            guard !isExpanded else {
+                                // 展开方向：内容只增不减，偏移天然合法，但 defaultScrollAnchor(.bottom)
+                                // 会让视口按旧几何对位，落进 LazyVStack 尚未物化的区域，表现为整屏空白。
+                                // 被点击的卡片必然已物化，scrollTo 重锚定即可强制滚动视图回到真实内容上。
+                                Task { @MainActor in
+                                    await Task.yield()
+                                    withAnimation(.easeInOut(duration: 0.22)) {
+                                        proxy.scrollTo(message.id, anchor: .bottom)
+                                    }
+                                }
+                                return
+                            }
                             scrollController.requestOffsetClamp()
                         },
                         onGoalDraftCardTap: {
@@ -882,6 +895,7 @@ struct ChatView: View {
             if scrollController.viewport.isNearBottom {
                 scrollController.scrollToBottom(animated: false)
             }
+        }
         }
     }
 

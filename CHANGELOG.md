@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-09-02] AI 页展开洞察清屏修复 + 个人页 Plus 标题折行修复
+
+### 背景
+东林真机反馈两处：①AI 页周期回放卡点「展开 N 张洞察」后整屏空白，要上下滑一下才恢复——这是 7月28日 b914d015 修「收起空白」时的回归：当时把老版 ScrollViewReader 双向校正砍成只保留收起方向的 offset clamp，展开方向从此无人校正（内容只增不减、offset 本来合法，但 `defaultScrollAnchor(.bottom)` 会让视口按旧几何对位，落进 LazyVStack 尚未物化的区域，表现为整屏空白）；②个人页会员卡「Holo Plus」标题被折成两行——title 级大字与「已生效」徽章同行时，HStack 的 Spacer 挤压 Text 触发折行。
+
+### 改动（纯 iOS，无后端）
+- `ChatView`：`onPeriodReplayExpansionChanged` 补回展开方向校正——`Task.yield` 等一拍布局后 `scrollTo(message.id, anchor: .bottom)` 重锚定（0.22s easeInOut 动画），messageList 重新包上 ScrollViewReader；收起方向维持 `requestOffsetClamp` 不变。
+- `PersonalView`：会员卡标题加 `lineLimit(1)` + `fixedSize(horizontal:)` 锁死单行，剩余空间让给 Spacer，徽章不再挤折标题。
+
+### 验证
+- 模拟器（iPhone 17 Pro / iOS 26.3，截图 seeder 造月度回放对话）：展开→内容完整、自动锚定到卡片尾部「收起」按钮；收起→目录态正常无空白；再展开→复现良好。个人页免费版卡片布局无回归；Plus 徽章态因权益以服务端为准无法在模拟器本地造出，待东林真机确认。
+
 ## [2026-09-02] 财务趋势图触摸错位修复 + 触摸气泡补日期
 
 ### 背景
