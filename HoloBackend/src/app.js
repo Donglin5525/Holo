@@ -14,7 +14,7 @@ import { createStepIdempotencyStore } from "./agent/stepIdempotencyStore.js";
 import { createStepResponseCipher } from "./agent/stepResponseCipher.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { normalizeChineseNumbers } from "./chineseNumberConverter.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, insightMaxTokensFor } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
 import { registerAdminRoutes } from "./admin/adminRoutes.js";
 import { createRequestLogger } from "./middleware/requestLogger.js";
@@ -1305,7 +1305,7 @@ function createProviders(config) {
 }
 
 async function completeInsightWithRetry(complete, request) {
-  const retryRequest = { ...request, responseFormat: undefined };
+  const retryRequest = bumpInsightTokenBudget({ ...request, responseFormat: undefined });
   let result = await complete(retryRequest);
   let failure = classifyInsightResponse(result);
   if (!failure) return result;
@@ -1314,6 +1314,24 @@ async function completeInsightWithRetry(complete, request) {
   failure = classifyInsightResponse(result);
   if (!failure) return result;
   throw new GatewayError(failure, failure, 502);
+}
+
+/// 洞察调用前按周期档位调整输出预算（口径见 config.insightMaxTokensFor）。
+/// 素材（user message JSON）里的 periodType 是分档依据。
+function bumpInsightTokenBudget(request) {
+  try {
+    const userContent = [...(request.messages ?? [])]
+      .reverse()
+      .find((m) => m.role === "user")?.content ?? "";
+    const periodType = JSON.parse(userContent)?.periodType;
+    return {
+      ...request,
+      maxTokens: insightMaxTokensFor(periodType, request.maxTokens),
+    };
+  } catch {
+    // 素材不是合法 JSON（调用方直接传文本测试等）：维持原预算
+    return request;
+  }
 }
 
 function classifyInsightResponse(result) {

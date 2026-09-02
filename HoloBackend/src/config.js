@@ -345,6 +345,17 @@ function csv(value) {
   return [...new Set(String(value).split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
+/// 洞察输出预算按周期档位分档：monthly/quarterly/custom 的长内容（4-7 张卡 +
+/// evidence + memoryCandidate）提到 ≥8192，其余周期维持 route 原值。
+/// 思考型模型的 reasoning 与正文共享 maxTokens，4096 下长周期内容会被截断
+/// （TRUNCATED_MODEL_RESPONSE = 额度已扣但客户端拿到失败）。periodType 来自
+/// iOS 组装的素材 JSON（本地端点与云端 executor 两处共用此函数）。
+export function insightMaxTokensFor(periodType, baseMaxTokens) {
+  const longForm = periodType === "monthly" || periodType === "quarterly" || periodType === "custom";
+  if (!longForm) return baseMaxTokens;
+  return Math.max(baseMaxTokens ?? 0, 8192);
+}
+
 export function loadConfig(overrides = {}) {
   return {
     auth: {

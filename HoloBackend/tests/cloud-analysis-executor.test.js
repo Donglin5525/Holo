@@ -6,6 +6,7 @@ import { createDatabase } from "../src/db/database.js";
 import { createCloudAnalysisTaskStore } from "../src/agent/cloudAnalysisTaskStore.js";
 import { createCloudAnalysisExecutor } from "../src/agent/cloudAnalysisExecutor.js";
 import { createCloudAnalysisQueryEngine } from "../src/agent/cloudAnalysisQueryEngine.js";
+import { insightMaxTokensFor } from "../src/config.js";
 
 const TEST_KEY = randomBytes(32).toString("base64");
 
@@ -446,4 +447,17 @@ test("执行器：聚合+行明细混合查询→final result.evidence 回传 me
   assert.equal(rows.length, 1, "须回传行样本证据");
   assert.equal(rows[0].dataset, "finance.transactions");
   assert.ok(rows[0].excerpts[0].includes("TIMA音乐盛典"), "行样本含备注原文");
+});
+
+test("insightMaxTokensFor: 长周期提到 8192，短周期与非周期维持原值", () => {
+  // 长周期（月/季/自定义）：提到 ≥8192，思考模型 reasoning+正文共享预算不再截断
+  assert.equal(insightMaxTokensFor("monthly", 4096), 8192);
+  assert.equal(insightMaxTokensFor("quarterly", 4096), 8192);
+  assert.equal(insightMaxTokensFor("custom", 4096), 8192);
+  assert.equal(insightMaxTokensFor("monthly", 12288), 12288, "原值更大时保留原值");
+  // 短周期与未知周期：维持 route 原值
+  assert.equal(insightMaxTokensFor("daily", 4096), 4096);
+  assert.equal(insightMaxTokensFor("weekly", 4096), 4096);
+  assert.equal(insightMaxTokensFor(null, 4096), 4096);
+  assert.equal(insightMaxTokensFor(undefined, 4096), 4096);
 });

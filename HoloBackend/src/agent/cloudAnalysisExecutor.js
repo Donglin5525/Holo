@@ -11,6 +11,7 @@
  */
 
 import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
+import { insightMaxTokensFor } from "../config.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
 import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAnalysisQueryEngine.js";
 
@@ -159,12 +160,25 @@ export function createCloudAnalysisExecutor({
       const systemPrompted = injectServerPrompt("insight", [
         { role: "user", content: contextJSON },
       ]);
+      // 输出预算按周期档位分档（口径见 config.insightMaxTokensFor）：
+      // 素材里的 periodType 是分档依据（快照由 iOS 组装，字段可信）。
+      let periodType = null;
+      try {
+        periodType = JSON.parse(contextJSON)?.periodType ?? null;
+      } catch {
+        periodType = null;
+      }
+      const replayRoute = insightRoute ?? route;
+      const replayCallRoute = {
+        ...replayRoute,
+        maxTokens: insightMaxTokensFor(periodType, replayRoute.maxTokens),
+      };
       const response = await callProvider(
         [
           { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
           { role: "user", content: contextJSON },
         ],
-        insightRoute ?? route,
+        replayCallRoute,
       );
       const content = response?.choices?.[0]?.message?.content ?? "";
       if (!content.trim()) {
