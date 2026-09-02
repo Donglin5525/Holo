@@ -106,6 +106,34 @@ enum ChartGranularity {
     }
 }
 
+// MARK: - 触摸态日期标注
+
+/// 触摸态 tooltip 的日期行：按数据点间距自适应粒度
+/// 日粒度（间距1天）→「9月1日 周二」；周粒度（间距7天）→「9月1日 当周」；月粒度（间距约30天）→「2026年9月」
+enum ChartTooltipDateLabel {
+    private static let dayFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "zh_CN")
+        df.dateFormat = "M月d日 EEE"
+        return df
+    }()
+
+    private static let monthFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "zh_CN")
+        df.dateFormat = "yyyy年M月"
+        return df
+    }()
+
+    static func string(for point: ChartDataPoint, points: [ChartDataPoint]) -> String {
+        guard points.count > 1 else { return dayFormatter.string(from: point.date) }
+        let spacing = points[1].date.timeIntervalSince(points[0].date)
+        if spacing < 1.5 * 86400 { return dayFormatter.string(from: point.date) }
+        if spacing < 1.5 * 7 * 86400 { return dayFormatter.string(from: point.date) + " 当周" }
+        return monthFormatter.string(from: point.date)
+    }
+}
+
 // MARK: - 图表数据点
 
 /// 图表数据点（用于柱状图和折线图）

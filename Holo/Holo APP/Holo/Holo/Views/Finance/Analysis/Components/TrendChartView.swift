@@ -19,7 +19,7 @@ import Charts
 struct TrendChartView: View {
     let dataPoints: [ChartDataPoint]
 
-    @State private var hoveredLabel: String? = nil
+    @State private var hoveredIndex: Int? = nil
 
     // MARK: 画布几何（y 抽象单位，domain [0, plotUnitMax]，值越大越靠上）
     private let plotUnitMax: Double = 100
@@ -89,50 +89,53 @@ struct TrendChartView: View {
                     let plotFrame = proxy.plotFrame.map { geometry[$0] }
 
                     // —— 触摸当日：柱后淡色高亮带 ——
-                    if let label = hoveredLabel,
-                       let index = dataPoints.firstIndex(where: { $0.label == label }),
+                    // position(forX/Y:) 返回的是绘图区（plot area）内坐标，作为全图 overlay 坐标使用时必须补回 plotFrame 偏移，
+                    // 否则高亮带/气泡整体左移一个 Y 轴刻度栏宽（≈3 天），看起来「不跟手、有错位」
+                    if let index = hoveredIndex,
                        let slotXPos = proxy.position(forX: Double(index)), let plotFrame {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(Color.holoTextPrimary.opacity(0.05))
                             .frame(width: plotFrame.width / CGFloat(dataPoints.count), height: plotFrame.height)
-                            .position(x: slotXPos, y: plotFrame.midY)
+                            .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
                     }
 
                     // —— 断口截断标注 ——
-                    ForEach(plan.clippedIndices, id: \.self) { index in
-                        if let capTopY = proxy.position(forY: barTopUnit),
-                           let barXPos = proxy.position(forX: breakBarX(index)) {
-                            clippedBreakAnnotations(
-                                capTopY: capTopY,
-                                barXPos: barXPos,
-                                amountLabel: Self.axisAmountLabel(clippedAmount(index))
-                            )
+                    if let plotFrame {
+                        ForEach(plan.clippedIndices, id: \.self) { index in
+                            if let capTopY = proxy.position(forY: barTopUnit),
+                               let barXPos = proxy.position(forX: breakBarX(index)) {
+                                clippedBreakAnnotations(
+                                    capTopY: plotFrame.minY + capTopY,
+                                    barXPos: plotFrame.minX + barXPos,
+                                    amountLabel: Self.axisAmountLabel(clippedAmount(index))
+                                )
+                            }
                         }
                     }
 
                     // —— 触摸手势：拖动/点按查看单日，纵向手势交还页面滚动 ——
                     DirectionalChartGestureOverlay(
                         onChanged: { location in
-                            hoveredLabel = touchedLabel(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredLabel
+                            hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
                         },
                         onEnded: { _ in
-                            hoveredLabel = nil
+                            hoveredIndex = nil
                         },
                         onCancelled: {
-                            hoveredLabel = nil
+                            hoveredIndex = nil
                         },
                         onTap: { location in
-                            hoveredLabel = touchedLabel(location, proxy: proxy, plotFrame: plotFrame)
+                            hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame)
                         }
                     )
 
                     // —— 触摸态：明细 tooltip ——
-                    if let label = hoveredLabel,
-                       let index = dataPoints.firstIndex(where: { $0.label == label }),
+                    if let index = hoveredIndex,
                        let anchorXPos = proxy.position(forX: Double(index)), let plotFrame {
                         amountTooltip(
                             point: dataPoints[index],
-                            x: min(max(anchorXPos, 60), overlayFrame.width - 60),
+                            dateLabel: ChartTooltipDateLabel.string(for: dataPoints[index], points: dataPoints),
+                            x: min(max(plotFrame.minX + anchorXPos, 60), overlayFrame.width - 60),
                             y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), overlayFrame.height - 16)
                         )
                     }
@@ -368,16 +371,15 @@ struct TrendChartView: View {
         }
     }
 
-    private func touchedLabel(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?) -> String? {
+    private func touchedIndex(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?) -> Int? {
         guard !dataPoints.isEmpty, let plotFrame else { return nil }
         let touchXInPlot = location.x - plotFrame.minX
         let pointPositions = dataPoints.indices.compactMap { proxy.position(forX: Double($0)) }
-        guard let index = ChartTouchSelection.nearestPointIndex(
+        return ChartTouchSelection.nearestPointIndex(
             touchXInPlot: touchXInPlot,
             plotWidth: plotFrame.width,
             pointXPositions: pointPositions
-        ) else { return nil }
-        return dataPoints[index].label
+        )
     }
 
     /// 柱轴规划：单日尖峰超过次高值 2 倍时，轴上限压缩到次高值附近并截断尖峰，
@@ -451,8 +453,11 @@ struct TrendChartView: View {
 
     // MARK: Tooltip
 
-    private func amountTooltip(point: ChartDataPoint, x: CGFloat, y: CGFloat) -> some View {
+    private func amountTooltip(point: ChartDataPoint, dateLabel: String, x: CGFloat, y: CGFloat) -> some View {
         VStack(spacing: 2) {
+            Text(dateLabel)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
             HStack(spacing: 6) {
                 if point.expense > 0 {
                     Text("-\(NumberFormatter.compactCurrency(point.expense))")

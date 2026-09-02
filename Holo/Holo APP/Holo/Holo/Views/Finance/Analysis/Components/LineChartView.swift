@@ -258,7 +258,10 @@ struct LineChartView: View {
     // MARK: - 触摸金额标注
 
     private func lineTooltip(point: ChartDataPoint, x: CGFloat, y: CGFloat) -> some View {
-        HStack(spacing: 4) {
+        VStack(spacing: 2) {
+            Text(ChartTooltipDateLabel.string(for: point, points: dataPoints))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
             Text("\(displayedType == .expense ? "-" : "+")\(NumberFormatter.compactCurrency(amount(for: point)))")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(lineColor)
