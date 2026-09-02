@@ -31,7 +31,12 @@ struct CalendarRootView: View {
             await viewModel.loadInitial()
         }
         .sheet(item: $selectedEvent) { event in
-            CalendarEventDetailSheet(event: event)
+            CalendarEventDetailSheet(event: event, onShowInTimeline: {
+                withAnimation(HoloAnimation.quick) {
+                    viewModel.focusDay(event.date)
+                    viewModel.scale = .timeline
+                }
+            })
         }
         .sheet(item: $selectedEventGroup) { group in
             CalendarEventGroupDetailSheet(group: group)
@@ -124,7 +129,7 @@ struct CalendarRootView: View {
 
     private var weekNarrativeActionTitle: String? {
         let count = viewModel.weekMilestones.count + viewModel.weekHighlights.count
-        return count == 0 ? nil : "高光 \(count)"
+        return count == 0 ? nil : String(localized: "高光 \(count)")
     }
 
     /// 月档：时间章节 + 安静月历 + 当天记忆时刻。健康周摘要移出月历，避免跨口径信息干扰。
@@ -185,8 +190,8 @@ struct CalendarRootView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(viewModel.chapterPresentation.accessibilityLabel)，选择日期")
-            .accessibilityHint("轻点打开日期选择器")
+            .accessibilityLabel(String(localized: "\(viewModel.chapterPresentation.accessibilityLabel)，选择日期"))
+            .accessibilityHint(String(localized: "轻点打开日期选择器"))
         }
     }
 

@@ -14,23 +14,27 @@ struct CalendarEventGroup: Identifiable {
     let events: [CalendarEvent]
 
     var title: String {
-        guard let first = events.first else { return "记录明细" }
+        guard let first = events.first else { return String(localized: "记录明细") }
         let hour = Calendar.current.component(.hour, from: first.date)
         let moduleCount = Set(events.map(\.module)).count
         if moduleCount == 1, let module = events.first?.module {
-            return "\(hour):00 \(module.displayName) +\(events.count)"
+            return String(localized: "\(hour):00 \(module.displayName) +\(events.count)")
         }
-        return "\(hour):00 记录 +\(events.count)"
+        return String(localized: "\(hour):00 记录 +\(events.count)")
     }
 }
 
 struct CalendarEventDetailSheet: View {
     let event: CalendarEvent
+    /// 待办带时间段时的「在轴上查看排布」回跳（由日历根容器提供：关弹层、聚焦该天、切轴档）
+    var onShowInTimeline: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var isOpeningOrigin = false
     @State private var originOpenError: String?
     /// 原始实体已删除（详情打开时后台回查，直接呈现删除态而非点击才报错）
     @State private var originDeleted = false
+    /// 待办原记录带时间段（决定是否展示「在轴上查看排布」）
+    @State private var todoHasPlannedRange = false
 
     /// 当前事件是否支持「在原模块打开」
     private var supportsOpenInModule: Bool {
@@ -56,6 +60,9 @@ struct CalendarEventDetailSheet: View {
                             openInModuleButton
                         }
                     }
+                    if todoHasPlannedRange, onShowInTimeline != nil {
+                        showInTimelineButton
+                    }
                 }
                 .padding(HoloSpacing.md)
             }
@@ -69,6 +76,7 @@ struct CalendarEventDetailSheet: View {
             }
             .task {
                 await checkOriginAlive()
+                await checkPlannedRange()
             }
         }
         .alert("无法打开原记录", isPresented: Binding(
@@ -89,6 +97,18 @@ struct CalendarEventDetailSheet: View {
             (try? context.existingObject(with: originID)) != nil
         }
         originDeleted = !exists
+    }
+
+    /// 待办事件回查原记录是否带时间段：带时间段才提供「在轴上查看排布」
+    private func checkPlannedRange() async {
+        guard event.module == .todo, onShowInTimeline != nil else { return }
+        let originID = event.originID
+        let context = CoreDataStack.shared.newBackgroundContext()
+        let hasRange: Bool = await context.perform {
+            guard let task = try? context.existingObject(with: originID) as? TodoTask else { return false }
+            return task.plannedStart != nil
+        }
+        todoHasPlannedRange = hasRange
     }
 
     // MARK: - 原记录已删除态
@@ -153,7 +173,7 @@ struct CalendarEventDetailSheet: View {
         CalendarEventOriginResolver.resolve(event) { target in
             isOpeningOrigin = false
             guard let target else {
-                originOpenError = "原记录可能已被删除，或当前版本暂时无法打开。"
+                originOpenError = String(localized: "原记录可能已被删除，或当前版本暂时无法打开。")
                 return
             }
             dismiss()
@@ -162,6 +182,34 @@ struct CalendarEventDetailSheet: View {
                 DeepLinkState.shared.navigate(to: target)
             }
         }
+    }
+
+    // MARK: - 在轴上查看排布（待办带时间段时）
+
+    private var showInTimelineButton: some View {
+        Button {
+            dismiss()
+            // 下一轮再触发跳转，确保 sheet dismiss 已开始、不被遮盖
+            DispatchQueue.main.async {
+                onShowInTimeline?()
+            }
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "chart.timeline.selection")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("在轴上查看排布")
+                    .font(.holoBody)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(.holoPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, HoloSpacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(Color.holoPrimary.opacity(0.08))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 模块标识
