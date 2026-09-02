@@ -23,7 +23,7 @@ struct ConvergenceConfirmView: View {
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle("AI 主题归并")
+                .navigationTitle("发现新主题")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -84,7 +84,7 @@ struct ConvergenceConfirmView: View {
         VStack(spacing: HoloSpacing.md) {
             ProgressView()
                 .scaleEffect(1.2)
-            Text("AI 正在分析你的观点…")
+            Text("AI 正在分析你的想法…")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
         }
@@ -98,7 +98,7 @@ struct ConvergenceConfirmView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 40))
                 .foregroundColor(.holoPrimary)
-            Text("观点还不足够形成主题")
+            Text("想法还不足够形成主题")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
             Text("继续记录，AI 会自动发现可归并的长期主题。")
@@ -120,7 +120,7 @@ struct ConvergenceConfirmView: View {
             Text("没有新的可归纳变化")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-            Text("上次归纳后，观点、标签和主题没有变化，本次已跳过 AI 调用。")
+            Text("上次归纳后，想法、标签和主题没有变化，本次已跳过 AI 调用。")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
@@ -184,7 +184,7 @@ struct ConvergenceConfirmView: View {
             Text("已生成 \(count) 个主题")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-            Text("这些主题已经出现在观点知识树里。")
+            Text("这些主题已经出现在你的主题列表里。")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
@@ -208,7 +208,7 @@ struct ConvergenceConfirmView: View {
             Text("暂未发现可归并的主题")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-            Text("继续积累观点，AI 会自动发现长期主题。")
+            Text("继续积累想法，AI 会自动发现长期主题。")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
@@ -333,7 +333,7 @@ private struct ConvergenceSuggestionCard: View {
                 Image(systemName: "text.bubble")
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
-                Text("关联 \(suggestion.thoughtIds.count) 条观点")
+                Text("关联 \(suggestion.thoughtIds.count) 条想法")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }

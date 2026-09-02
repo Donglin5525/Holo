@@ -447,4 +447,9 @@ func test_090_ThoughtTagPresentationStandaloneTests() async throws {
     // 来源：Views/Thoughts/ThoughtTagPresentationStandaloneTests.swift
     ThoughtTagPresentationStandaloneTests.main()
 }
+
+func test_092_ThoughtClusterEngineStandaloneTests() async throws {
+    // 来源：Services/Thoughts/ThoughtClusterEngineStandaloneTests.swift
+    ThoughtClusterEngineStandaloneTests.main()
+}
 }

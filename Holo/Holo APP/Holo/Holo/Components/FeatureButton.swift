@@ -122,11 +122,11 @@ extension FeatureButtonConfig {
         color: .holoInfo
     )
     
-    /// 观点/想法按钮配置
+    /// 想法模块按钮配置（术语统一：全 App 一个名字）
     static let thoughts = FeatureButtonConfig(
         id: "thoughts",
         icon: "lightbulb.fill",
-        title: "观点",
+        title: "想法",
         color: .holoPurple
     )
     

@@ -203,11 +203,11 @@ struct ThoughtEditorView: View {
             if smartSummaryEnabled {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
-                    readySubtitle: "确认后插入到观点内容",
+                    readySubtitle: "确认后插入到想法内容",
                     submitButtonTitle: "插入",
                     resultConfig: VoiceResultConfig(
                         title: "智能总结完成",
-                        subtitle: "已整理成更适合观点记录的表达",
+                        subtitle: "已整理成更适合想法记录的表达",
                         showsOriginalToggle: true
                     ),
                     postProcessor: ThoughtVoiceSummaryProcessor(),
@@ -219,7 +219,7 @@ struct ThoughtEditorView: View {
             } else {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
-                    readySubtitle: "确认后插入到观点内容",
+                    readySubtitle: "确认后插入到想法内容",
                     submitButtonTitle: "插入",
                     transcriptFormatter: formatThoughtVoiceTranscript
                 ) { transcript in

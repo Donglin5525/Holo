@@ -103,7 +103,7 @@ struct RecentDayCoverView: View {
             if summary.thoughtCount > 0 {
                 chipRow(
                     icon: "bubble.left",
-                    text: "\(summary.thoughtCount) 条观点",
+                    text: "\(summary.thoughtCount) 条想法",
                     color: .holoPurple
                 )
             }

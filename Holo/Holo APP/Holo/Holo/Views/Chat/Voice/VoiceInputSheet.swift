@@ -373,7 +373,7 @@ struct VoiceInputSheet: View {
             let maxDesc = viewModel.maximumDuration >= 60 ? "\(Int(viewModel.maximumDuration / 60)) 分钟" : "\(Int(viewModel.maximumDuration)) 秒"
             return viewModel.didAutoFinishBecauseOfLimit ? "已到 \(maxDesc)，正在整理你的语音" : "正在整理你的语音"
         case .summarizing:
-            return "正在将语音整理成更适合观点记录的表达"
+            return "正在将语音整理成更适合想法记录的表达"
         case .transcriptReady:
             if let notice = viewModel.summaryNotice {
                 return notice

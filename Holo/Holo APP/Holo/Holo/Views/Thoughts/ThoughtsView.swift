@@ -65,8 +65,11 @@ struct ThoughtsView: View {
                 .zIndex(30)
         }
         .task {
-            // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
+            // P1.5.7: 进入想法页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
+            // 冷启动新心智的存量切换：撤掉创建超 7 天仍无想法的空预设主题（幂等，
+            // 有想法的主题——用户真正建立过的体系——分毫不动）
+            _ = try? topicRepository.pruneEmptyPresetTopics()
         }
         .swipeBackToDismiss(isEnabled: true, isResidentScreenRoot: true) { close() }
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容

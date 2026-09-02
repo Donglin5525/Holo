@@ -123,9 +123,28 @@ struct ThoughtCardView: View {
         onMoveToTopic != nil || onArchive != nil || onRetryOrganize != nil || onDelete != nil
     }
 
+    @ViewBuilder
     private var statusBadge: some View {
-        let status = organizationDisplayStatus
-        return HStack(spacing: 4) {
+        // 正常态不说话：已归类/已整理对用户没有信息量，徽章只在需要用户知道异动时亮
+        if let status = organizationDisplayStatus {
+            Group {
+                if status.isRetryable, let onRetryOrganize {
+                    Button {
+                        onRetryOrganize()
+                    } label: {
+                        badgeLabel(status)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("整理失败，点按重试")
+                } else {
+                    badgeLabel(status)
+                }
+            }
+        }
+    }
+
+    private func badgeLabel(_ status: (title: String, icon: String, color: Color, isRetryable: Bool)) -> some View {
+        HStack(spacing: 4) {
             Image(systemName: status.icon)
                 .font(.system(size: 9, weight: .semibold))
             Text(status.title)
@@ -138,34 +157,27 @@ struct ThoughtCardView: View {
         .clipShape(Capsule())
     }
 
-    private var organizationDisplayStatus: (title: String, icon: String, color: Color) {
-        if thought.hasActiveTopic {
-            return ("已入主题", "folder.fill", .holoSuccess)
-        }
+    /// 徽章三态：整理中（含等网络）/ 待确认 / 整理失败（可点重试）；正常态返回 nil 不渲染
+    private var organizationDisplayStatus: (title: String, icon: String, color: Color, isRetryable: Bool)? {
         if thought.organizedStatus == "processing" {
-            return ("整理中", "sparkles", .holoPrimary)
+            return ("整理中", "sparkles", .holoPrimary, false)
         }
         if thought.organizedStatus == "pending" {
             // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
             if orgQueue.isOffline {
-                return ("等待网络", "wifi.slash", .holoTextSecondary)
+                return ("整理中", "wifi.slash", .holoTextSecondary, false)
             }
-            return ("整理中", "sparkles", .holoPrimary)
+            return ("整理中", "sparkles", .holoPrimary, false)
         }
-        // P0「等待确认」：含新标签或低置信主题，中性色不算失败（D-07′，规则集中在 Policy）
-        if showsPendingConfirmation {
-            return ("等待确认", "questionmark.circle", .holoTextSecondary)
-        }
+        // failed 优先于待确认：用户需要先知道失败并可一键重试
         if thought.organizedStatus == "failed" {
-            return ("整理失败", "exclamationmark.circle.fill", .holoError)
+            return ("整理失败", "exclamationmark.circle.fill", .holoError, true)
         }
-        if !thought.visibleAITagNames.isEmpty {
-            return ("已整理", "checkmark.seal.fill", .holoPrimary)
+        // 「待确认」：含新标签或低置信主题，点卡片进详情即达确认位（D-07′，规则集中在 Policy）
+        if showsPendingConfirmation {
+            return ("待确认", "questionmark.circle", .holoAI, false)
         }
-        if thought.organizedStatus == "organized" {
-            return ("未归类", "circle.dashed", .holoTextSecondary)
-        }
-        return ("待整理", "circle.dotted", .holoTextSecondary)
+        return nil
     }
 
     /// 卡片层待确认判定：优先用精确认可集合（D-07′ 新标签语义），降级为「有 ai 标签」

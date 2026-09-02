@@ -75,7 +75,7 @@ struct TopicManagementView: View {
                 }
             }
         }
-        .navigationTitle("管理分类主题")
+        .navigationTitle("主题管理")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

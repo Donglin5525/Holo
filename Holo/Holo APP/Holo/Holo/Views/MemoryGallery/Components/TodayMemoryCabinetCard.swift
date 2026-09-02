@@ -62,7 +62,7 @@ struct TodayMemoryCabinetCard: View {
                         cabinetItem(
                             icon: "bubble.left",
                             value: "\(summary.thoughtCount)",
-                            label: "观点",
+                            label: "想法",
                             color: .holoPurple
                         )
                     }

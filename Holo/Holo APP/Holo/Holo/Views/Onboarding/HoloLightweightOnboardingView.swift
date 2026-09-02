@@ -20,7 +20,8 @@ struct HoloLightweightOnboardingView: View {
 
     @State private var currentPage: Int = 0
     @State private var nicknameDraft: String = ""
-    @State private var selectedTopics = ThoughtThemeConstraint.defaultPresetTopics
+    /// 冷启动新心智：不预灌预设大类，主题从想法里长出来——可以选起步方向，也可以完全跳过
+    @State private var selectedTopics: Set<String> = []
     @State private var topicSetupError: String?
 
     /// 云端采纳的昵称（iCloud 恢复晚于引导页出现时，据此实时预填）

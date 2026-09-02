@@ -225,7 +225,7 @@ struct CalendarEventDetailSheet: View {
                 Image(systemName: "tag.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.holoPurple)
-                Text("相关观点")
+                Text("相关想法")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
             }

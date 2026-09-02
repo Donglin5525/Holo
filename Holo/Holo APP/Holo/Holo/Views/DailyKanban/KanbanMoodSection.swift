@@ -97,7 +97,7 @@ struct KanbanMoodSection: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 14))
                 .foregroundColor(.holoSuccess)
-            Text("已保存到观点模块")
+            Text("已保存到想法模块")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.holoSuccess)
         }

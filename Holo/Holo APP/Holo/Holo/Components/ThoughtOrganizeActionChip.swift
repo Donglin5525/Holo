@@ -25,7 +25,7 @@ struct ThoughtOrganizeActionChip: View {
 
     private var title: String {
         if isOrganizing { return "整理中" }
-        return pendingCount > 0 ? "整理笔记" : "归纳主题"
+        return pendingCount > 0 ? "整理想法" : "归纳主题"
     }
 
     private var badgeText: String {

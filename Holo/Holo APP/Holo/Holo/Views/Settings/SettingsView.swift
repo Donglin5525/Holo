@@ -588,7 +588,7 @@ struct SettingsView: View {
                 icon: "slider.horizontal.3",
                 iconColor: .holoPrimary,
                 title: "想法整理设置",
-                subtitle: "自动分类开关与标签治理，已移至想法页的知识树内"
+                subtitle: "自动分类开关与标签治理，已移至想法页的「主题」内"
             ) {
                 showThoughtOrganizationSettings = true
             }

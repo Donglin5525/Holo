@@ -94,19 +94,15 @@ struct ThoughtDetailView: View {
                         contentSection
                     }
 
-                    // 所属主题（知识树 v1：补齐归属展示与修改）
+                    // AI 归纳（三区合一：主题 + 标签 + 理由放一个区块——
+                    // 它们本来就是同一次 AI 调用的产出，不再让用户自己拼图）
                     if thought != nil {
-                        topicSection
+                        aiSummarySection
                     }
 
-                    // 标签区域
-                    if let thought = thought, !thought.tagArray.isEmpty {
-                        tagsSection
-                    }
-
-                    // AI 归类区域（P0 三态：建议 / 待确认 / 空分类轻文案）
-                    if shouldShowAISection {
-                        aiTagsSection
+                    // 整理失败：人话原因 + 一键重试（独立于 AI 归纳区，红色轻提示）
+                    if thought?.organizedStatus == "failed" {
+                        organizationFailedSection
                     }
 
                     // 引用区域（该想法引用的其他想法）
@@ -443,148 +439,182 @@ struct ThoughtDetailView: View {
         }
     }
 
-    // MARK: - 所属主题（知识树 v1）
+    // MARK: - AI 归纳（三区合一：主题 + 标签 + 理由）
 
-    private var topicSection: some View {
+    /// 是否还有未确认的 AI 建议（决定标题轻提示）
+    private var hasUnconfirmedAISuggestions: Bool {
+        aiAssignments.contains { $0.source == ThoughtTagAssignment.Source.ai.rawValue }
+    }
+
+    /// 一次 AI 调用的产出放一个区块：主题一行、标签一行（你的彩色 + AI 建议灰色内联 ✓✗）、理由一句。
+    /// 确认即毕业：确认后的标签立即出现在彩色池，AI 角标与按钮消失，不留残影。
+    private var aiSummarySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("所属主题")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+            HStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10))
+                Text(hasUnconfirmedAISuggestions ? "AI 归纳 · 待你确认" : "AI 归纳")
+                    .font(.holoCaption)
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(hasUnconfirmedAISuggestions ? .holoAI : .holoTextSecondary)
 
-            if let topic = thought?.classificationTopic {
-                let color = Color.topicPalette(for: topic.title)
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    Button {
-                        showTopicPicker = true
-                    } label: {
-                        HStack(spacing: HoloSpacing.sm) {
-                            Text(TopicIconProvider.icon(for: topic))
-                                .font(.system(size: 17))
+            topicRow
 
-                            Text(topic.title)
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+            Divider()
+                .overlay(Color.holoDivider)
 
-                            // AI 低置信归属给出轻提示（点击区块可确认/更换）
-                            if let confidence = thought?.topicConfidence,
-                               confidence > 0, confidence < ThoughtRepository.topicConfirmationThreshold {
-                                Text("AI \(Int(confidence * 100))%")
-                                    .font(.holoTinyLabel)
-                                    .foregroundColor(.holoAI)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.holoAI.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
+            if let thought = thought,
+               !thought.recognizedTagNames.isEmpty || hasUnconfirmedAISuggestions {
+                tagRows
+            } else if thought?.organizedStatus == "organized" {
+                // 正常空分类：不是失败，轻文案
+                Text("这条想法还没有形成稳定方向，可以先放着。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary.opacity(0.8))
+            }
 
-                            Spacer()
-
-                            Text("更换")
-                                .font(.holoCaption)
-                                .foregroundColor(.holoPrimary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    // AI 分类依据（后端随结果返回；手动归档无理由）
-                    if let reason = thought?.topicAssignmentReason, !reason.isEmpty {
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10))
-                                .foregroundColor(.holoAI)
-                                .padding(.top, 2)
-                            Text(reason)
-                                .font(.holoCaption)
-                                .foregroundColor(.holoTextSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
+            // 理由永远显示（含未归类时的「为什么不归类」）；手动归档/短内容无理由则安静
+            if let reason = thought?.topicAssignmentReason, !reason.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoAI)
+                        .padding(.top, 2)
+                    Text(reason)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(HoloSpacing.md)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+
+    /// 主题行：有主题展示归属（点击更换），无主题为「未归类 + 选择主题」
+    @ViewBuilder
+    private var topicRow: some View {
+        if let topic = thought?.classificationTopic {
+            let color = Color.topicPalette(for: topic.title)
+            Button {
+                showTopicPicker = true
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Text(TopicIconProvider.icon(for: topic))
+                        .font(.system(size: 17))
+
+                    Text(topic.title)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer()
+
+                    Text("更换 ›")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                }
+                .padding(HoloSpacing.sm)
                 .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
                         .fill(color.opacity(0.08))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
                         .stroke(color.opacity(0.35), lineWidth: 1)
                 )
-            } else {
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    Button {
-                        showTopicPicker = true
-                    } label: {
-                        HStack(spacing: HoloSpacing.sm) {
-                            Image(systemName: "square.dashed")
-                                .font(.system(size: 15))
-                                .foregroundColor(.holoTextSecondary)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button {
+                showTopicPicker = true
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "square.dashed")
+                        .font(.system(size: 15))
+                        .foregroundColor(.holoTextSecondary)
 
-                            Text("未归类")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextSecondary)
+                    Text("未归类")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
 
-                            Spacer()
+                    Spacer()
 
-                            Text("选择主题")
-                                .font(.holoCaption)
-                                .foregroundColor(.holoPrimary)
-                        }
-                        .padding(HoloSpacing.md)
-                        .background(
-                            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                                .fill(Color.holoCardBackground)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                                .stroke(Color.holoBorder, lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    // AI 判为未分类时理由已随结果落库，但此前只渲染在有主题的分支里，
-                    // 未归类时用户永远看不到「为什么不归类」——同款样式补齐
-                    if let reason = thought?.topicAssignmentReason, !reason.isEmpty {
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10))
-                                .foregroundColor(.holoAI)
-                                .padding(.top, 2)
-                            Text(reason)
-                                .font(.holoCaption)
-                                .foregroundColor(.holoTextSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
+                    Text("选择主题 ›")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
                 }
+                .padding(HoloSpacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .fill(Color.holoTextSecondary.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .stroke(Color.holoBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// 标签行：认可标签（彩色，点击跳筛选）+ 未确认 AI 建议（灰色 + AI 角标 + ✓✗）
+    private var tagRows: some View {
+        FlowLayout(spacing: HoloSpacing.sm) {
+            // 彩色池 = 自己打的 + 确认过 AI 建议的（同身份折叠，确认即毕业到此）
+            ForEach(thought?.recognizedTagNames ?? [], id: \.self) { tagName in
+                TagChip(
+                    // 展示叶段名（路径是存储结构，不进 UI 文案）
+                    text: "#\(ThoughtTagNormalizer.lastSegment(tagName))",
+                    isSelected: true,
+                    color: thought?.tagArray.first {
+                        ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(tagName)
+                    }?.tagColor ?? .holoPrimary
+                ) {
+                    // 与正文 # 标签 token 同一行为：跳列表按该标签筛选
+                    NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: tagName)
+                    dismiss()
+                }
+            }
+            // 灰池 = 仅未确认建议（确认后即从这消失，毕业为上面的彩色池）
+            ForEach(
+                aiAssignments.filter { $0.source == ThoughtTagAssignment.Source.ai.rawValue },
+                id: \.id
+            ) { assignment in
+                aiTagChip(assignment)
             }
         }
     }
 
-    // MARK: - 标签区域
+    // MARK: - 整理失败（人话原因 + 一键重试）
 
-    private var tagsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("标签")
+    private var organizationFailedSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            Label("整理失败", systemImage: "exclamationmark.triangle.fill")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-
-            FlowLayout(spacing: HoloSpacing.sm) {
-                // 认可口径（自己打的 + 确认过 AI 建议的）走 assignment 事实源：
-                // 确认 AI 标签后它立即以用户标签形态出现在这里，兑现「收进标签库」
-                ForEach(thought?.recognizedTagNames ?? [], id: \.self) { tagName in
-                    TagChip(
-                        // 展示叶段名（路径是存储结构，不进 UI 文案）
-                        text: "#\(ThoughtTagNormalizer.lastSegment(tagName))",
-                        isSelected: true,
-                        color: thought?.tagArray.first {
-                            ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(tagName)
-                        }?.tagColor ?? .holoPrimary
-                    ) {
-                        // 与正文 # 标签 token 同一行为：跳列表按该标签筛选
-                        NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: tagName)
-                        dismiss()
-                    }
+                .fontWeight(.semibold)
+                .foregroundColor(.holoError)
+            HStack(spacing: HoloSpacing.sm) {
+                Text("网络不稳定，这条想法还没整理好。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+                Button {
+                    retryOrganization()
+                } label: {
+                    Text("重新整理 ›")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
                 }
+                .buttonStyle(.plain)
+                .disabled(retryInFlight)
             }
         }
         .padding(HoloSpacing.md)
@@ -594,77 +624,8 @@ struct ThoughtDetailView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoError.opacity(0.28), lineWidth: 1)
         )
-    }
-
-    // MARK: - AI 归类区域
-
-    /// P0：AI 归类区显示条件——有可见建议，或已整理但空分类（D-08′ 轻文案，不算失败）
-    private var shouldShowAISection: Bool {
-        !aiAssignments.isEmpty || thought?.organizedStatus == "organized"
-    }
-
-    /// P0 分级：D-06′/D-07′/D-08′ 三态（规则集中在 ThoughtOrganizationPresentationPolicy）
-    private var aiPresentationLevel: ThoughtOrganizationPresentationPolicy.AIClassPresentation {
-        let unconfirmedNames = aiAssignments
-            .filter { $0.source == ThoughtTagAssignment.Source.ai.rawValue }
-            .compactMap { $0.tag?.name }
-        return ThoughtOrganizationPresentationPolicy.aiTagPresentation(
-            hasAITagAssignments: !unconfirmedNames.isEmpty,
-            aiTagNames: unconfirmedNames,
-            recognizedTagKeys: recognizedTagKeys
-        )
-    }
-
-    private var aiTagsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack {
-                Text(aiSectionTitle)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            switch aiPresentationLevel {
-            case .silent:
-                // D-08′：正常空分类，不是失败
-                Text("这条内容暂未形成稳定标签，你可以保持未分类，或稍后重新整理。")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            case .weakHint, .pendingConfirmation:
-                FlowLayout(spacing: HoloSpacing.sm) {
-                    ForEach(aiAssignments, id: \.id) { assignment in
-                        aiTagChip(assignment)
-                    }
-                }
-                if aiPresentationLevel == .pendingConfirmation {
-                    Text("含新标签，确认后将进入你的标签库")
-                        .font(.system(size: 10))
-                        .foregroundColor(.holoTextSecondary.opacity(0.7))
-                }
-            }
-        }
-        .padding(HoloSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color.holoCardBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
-    }
-
-    private var aiSectionTitle: String {
-        switch aiPresentationLevel {
-        case .pendingConfirmation: return "待确认标签"
-        case .weakHint: return "AI 建议"
-        case .silent: return "AI 整理"
-        }
     }
 
     // MARK: - AI 标签 Chip（带操作按钮）

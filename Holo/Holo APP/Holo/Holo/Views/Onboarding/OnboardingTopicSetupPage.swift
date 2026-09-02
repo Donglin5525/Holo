@@ -22,10 +22,10 @@ struct OnboardingTopicSetupPage: View {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundColor(.holoPrimary)
-                Text("选择你关注的主题")
+                Text("想从哪些方向开始？")
                     .font(.holoTitle)
                     .foregroundColor(.holoTextPrimary)
-                Text("HoloAI 只会在这些方向里分类，不再自己发明新的顶层标签。以后可随时修改。")
+                Text("可以先选几个方向，也可以直接跳过——主题会从你的想法里长出来，Holo 攒够同类想法后会建议你建立主题。")
                     .font(.holoBody)
                     .foregroundColor(.holoTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -60,10 +60,9 @@ struct OnboardingTopicSetupPage: View {
 
             Spacer()
 
-            OnboardingPrimaryButton(title: "继续") {
+            OnboardingPrimaryButton(title: selectedTopics.isEmpty ? "先不选，之后再说" : "继续") {
                 onContinue()
             }
-            .disabled(selectedTopics.isEmpty)
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.bottom, HoloSpacing.xl)

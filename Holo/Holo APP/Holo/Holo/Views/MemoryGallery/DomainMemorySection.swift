@@ -24,7 +24,7 @@ enum HoloMemoryDisplayGroup: String, CaseIterable, Identifiable {
         switch self {
         case .profile: return "关于你"
         case .finance: return "财务"
-        case .thought: return "观点"
+        case .thought: return "想法"
         case .health: return "健康"
         case .habit: return "习惯"
         case .task: return "任务"
@@ -68,7 +68,7 @@ extension HoloMemoryDomain {
     var userFacingName: String {
         switch self {
         case .finance: return "财务"
-        case .thought: return "观点"
+        case .thought: return "想法"
         case .health: return "健康"
         case .habit: return "习惯"
         case .task: return "任务"

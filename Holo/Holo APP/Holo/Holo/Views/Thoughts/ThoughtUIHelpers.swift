@@ -198,6 +198,16 @@ extension Thought {
             .compactMap { $0.tag?.name }
     }
 
+    /// 群落聚类信号：该想法全部可见标签（自己打的 + AI 的，路径或叶子词均可）
+    /// ——已有的标签天然是想法的自我描述，冷启动群落用它共现成簇，无需新增 AI 调用
+    var allVisibleTagNames: [String] {
+        var seen: Set<String> = []
+        return (userTagNames + visibleAITagNames).compactMap { name in
+            let key = ThoughtTagNormalizer.key(name)
+            return seen.insert(key).inserted ? name : nil
+        }
+    }
+
     /// AI 标签分配（可展示的，source == ai 或 confirmedAI）
     var visibleAIAssignments: [ThoughtTagAssignment] {
         guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {

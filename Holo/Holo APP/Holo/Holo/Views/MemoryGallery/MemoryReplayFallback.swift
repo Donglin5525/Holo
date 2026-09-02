@@ -48,7 +48,7 @@ enum MemoryReplayFallback {
 
         let habitDesc = habitDescription(trend: habitTrend, count: habitCompletedCount)
         let expenseDesc = expenseDescription(trend: expenseTrend, amount: totalExpense)
-        let thoughtDesc = hasThoughts ? "，观点中记录了 \(thoughtCount) 条想法" : ""
+        let thoughtDesc = hasThoughts ? "，想法模块记录了 \(thoughtCount) 条" : ""
 
         return String(format: template, habitDesc, expenseDesc, thoughtDesc)
     }
@@ -118,7 +118,7 @@ enum MemoryReplayFallback {
             "花了点钱，但也记录了想法",
             "消费和思考同时活跃",
             "这周的支出比较显眼",
-            "钱花出去了，观点也留下了",
+            "钱花出去了，想法也留下了",
             "在消费中也有自己的判断"
         ],
         "stable_up_false": [

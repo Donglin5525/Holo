@@ -347,7 +347,9 @@ struct ThoughtListView: View {
     /// AI 归纳状态条（批量进度 / 配额耗尽 / 单条增量三态）
     private var aiOrganizationBanner: some View {
         Group {
-            if orgQueue.isBatchOrganizing, let total = orgQueue.batchTotal {
+            if shouldShowAIEducation {
+                aiEducationBanner
+            } else if orgQueue.isBatchOrganizing, let total = orgQueue.batchTotal {
                 // 批量整理进度
                 HStack(spacing: 6) {
                     ProgressView()
@@ -430,6 +432,60 @@ struct ThoughtListView: View {
         .animation(.easeInOut(duration: 0.3), value: orgQueue.dailyLimitHit)
         .animation(.easeInOut(duration: 0.3), value: pendingConfirmationCount)
         .animation(.easeInOut(duration: 0.3), value: hasProcessingThoughts)
+    }
+
+    // MARK: - 首次教育（第一条 AI 建议出现时，一次性）
+
+    /// 必须用 @AppStorage：UserDefaults 裸写不是 SwiftUI 观察源，
+    /// 点击「知道了」后浮条不会消失（验收实测踩过）
+    @AppStorage("thoughtsAIEducationShownV1")
+    private var aiEducationShown: Bool = false
+
+    /// 触发时机：用户刚好看见第一条 AI 建议时才解释它——
+    /// 首次打开模块时没有上下文，说了也记不住
+    private var shouldShowAIEducation: Bool {
+        !aiEducationShown && thoughts.contains { !$0.visibleAITagNames.isEmpty }
+    }
+
+    private var aiEducationBanner: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 12))
+                .foregroundColor(.holoAI)
+
+            // 信息排序：是什么 → 可以拒绝 → 可以不管（最后一句卸下心理负担）
+            Text("Holo 会自动为想法打标签、归主题。不合适的建议点 ✗ 即可，不管它也没关系。")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                withAnimation(HoloAnimation.quick) {
+                    aiEducationShown = true
+                }
+            } label: {
+                Text("知道了")
+                    .font(.holoCaption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 4)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .fill(Color.holoAI.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .stroke(Color.holoAI.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, HoloSpacing.lg)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     // MARK: - 数据加载
@@ -720,7 +776,7 @@ struct ThoughtListView: View {
             Spacer()
 
             // 标题
-            Text("观点")
+            Text("想法")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
@@ -761,7 +817,7 @@ struct ThoughtListView: View {
     private var browseModeSegment: some View {
         HStack(spacing: 3) {
             segmentItem(title: "想法", icon: "lightbulb.fill", key: "timeline")
-            segmentItem(title: "知识树", icon: "folder.fill", key: "knowledge")
+            segmentItem(title: "主题", icon: "folder.fill", key: "knowledge")
         }
         .padding(3)
         .background(Color.holoCardBackground)

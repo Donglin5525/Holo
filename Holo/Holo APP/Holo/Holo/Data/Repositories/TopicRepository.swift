@@ -318,6 +318,36 @@ final class TopicRepository {
         return mergedCount
     }
 
+    /// 清理「创建超过 7 天仍没有任何想法挂载」的预设主题（冷启动新心智的存量切换）。
+    /// 只动空抽屉：用户真正建立过的体系（有想法的主题，无论预设还是自建）分毫不动；
+    /// 7 天护栏保护刚完成引导、还没来得及写想法的新用户选择。
+    /// - Returns: 清理的空预设主题数
+    @discardableResult
+    func pruneEmptyPresetTopics(graceDays: Int = 7) throws -> Int {
+        let request = Topic.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "status == %@",
+            Topic.TopicStatus.classification.rawValue
+        )
+        let topics = try context.fetch(request)
+        let presetKeys = Set(ThoughtThemeConstraint.presetTopics.map { Self.normalizedKey(title: $0) })
+        let cutoff = Date().addingTimeInterval(-TimeInterval(graceDays) * 86400)
+
+        var pruned = 0
+        for topic in topics
+        where presetKeys.contains(Self.normalizedKey(title: topic.title))
+            && (topic.thoughts as? Set<Thought>)?.isEmpty == true
+            && topic.createdAt < cutoff {
+            context.delete(topic)
+            pruned += 1
+        }
+        if pruned > 0 {
+            try context.save()
+            logger.info("清理空预设主题：\(pruned) 个")
+        }
+        return pruned
+    }
+
     // MARK: - thoughtCount（实时算，不缓存，spec 决策 14）
 
     func thoughtCount(of topic: Topic) -> Int {
