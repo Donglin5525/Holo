@@ -68,6 +68,16 @@ nonisolated enum ThoughtTagNormalizer {
         return !topicKey.isEmpty && pathKey.hasPrefix(topicKey + "/")
     }
 
+    /// 双形态身份匹配：完整路径 key 或叶子段 key 任一相等即视为同一标签。
+    /// 用户正文里的 #books 与 AI 按主题前缀拼接的「工作与事业/books」是同一个概念，
+    /// 去重与筛选召回都必须按此口径判定，否则同一标签会在卡片上双显示、筛选时互相漏。
+    static func sharesIdentity(_ lhs: String, _ rhs: String) -> Bool {
+        let lhsKey = key(lhs)
+        let rhsKey = key(rhs)
+        if lhsKey == rhsKey { return true }
+        return key(lastSegment(lhs)) == rhsKey || lhsKey == key(lastSegment(rhs))
+    }
+
     // MARK: - Private
 
     private static func segmentKey(_ segment: String) -> String {

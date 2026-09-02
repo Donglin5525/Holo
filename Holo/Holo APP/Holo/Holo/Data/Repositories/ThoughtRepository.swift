@@ -843,7 +843,6 @@ class ThoughtRepository {
     /// - Parameter tagName: AI 标签名
     func fetchThoughtsByAITag(_ tagName: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let normalizedKey = ThoughtTagNormalizer.key(tagName)
         let sourcePredicate = NSPredicate(format: "SUBQUERY(tagAssignments, $a, $a.source IN %@ AND $a.rejectedAt == nil).@count > 0", Self.visibleTagSourceValues)
         let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, deletePredicate])
@@ -855,7 +854,9 @@ class ThoughtRepository {
                       Self.visibleTagSourceValues.contains(assignment.source),
                       let name = assignment.tag?.name
                 else { return false }
-                return ThoughtTagNormalizer.key(name) == normalizedKey
+                // 双形态身份匹配（与 ThoughtTagPresentation.matches 同口径）：
+                // #books 与 AI 拼接的「工作与事业/books」是同一标签，筛选结果不能互相漏
+                return ThoughtTagNormalizer.sharesIdentity(name, tagName)
             }
         }
     }

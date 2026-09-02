@@ -510,35 +510,52 @@ struct ThoughtDetailView: View {
                         .stroke(color.opacity(0.35), lineWidth: 1)
                 )
             } else {
-                Button {
-                    showTopicPicker = true
-                } label: {
-                    HStack(spacing: HoloSpacing.sm) {
-                        Image(systemName: "square.dashed")
-                            .font(.system(size: 15))
-                            .foregroundColor(.holoTextSecondary)
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Button {
+                        showTopicPicker = true
+                    } label: {
+                        HStack(spacing: HoloSpacing.sm) {
+                            Image(systemName: "square.dashed")
+                                .font(.system(size: 15))
+                                .foregroundColor(.holoTextSecondary)
 
-                        Text("未归类")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            Text("未归类")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextSecondary)
 
-                        Spacer()
+                            Spacer()
 
-                        Text("选择主题")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoPrimary)
+                            Text("选择主题")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoPrimary)
+                        }
+                        .padding(HoloSpacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                                .fill(Color.holoCardBackground)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                                .stroke(Color.holoBorder, lineWidth: 1)
+                        )
                     }
-                    .padding(HoloSpacing.md)
-                    .background(
-                        RoundedRectangle(cornerRadius: HoloRadius.lg)
-                            .fill(Color.holoCardBackground)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: HoloRadius.lg)
-                            .stroke(Color.holoBorder, lineWidth: 1)
-                    )
+                    .buttonStyle(.plain)
+
+                    // AI 判为未分类时理由已随结果落库，但此前只渲染在有主题的分支里，
+                    // 未归类时用户永远看不到「为什么不归类」——同款样式补齐
+                    if let reason = thought?.topicAssignmentReason, !reason.isEmpty {
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoAI)
+                                .padding(.top, 2)
+                            Text(reason)
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -552,14 +569,20 @@ struct ThoughtDetailView: View {
                 .foregroundColor(.holoTextSecondary)
 
             FlowLayout(spacing: HoloSpacing.sm) {
-                ForEach(thought?.tagArray ?? []) { tag in
+                // 认可口径（自己打的 + 确认过 AI 建议的）走 assignment 事实源：
+                // 确认 AI 标签后它立即以用户标签形态出现在这里，兑现「收进标签库」
+                ForEach(thought?.recognizedTagNames ?? [], id: \.self) { tagName in
                     TagChip(
                         // 展示叶段名（路径是存储结构，不进 UI 文案）
-                        text: "#\(ThoughtTagNormalizer.lastSegment(tag.name))",
+                        text: "#\(ThoughtTagNormalizer.lastSegment(tagName))",
                         isSelected: true,
-                        color: tag.tagColor
+                        color: thought?.tagArray.first {
+                            ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(tagName)
+                        }?.tagColor ?? .holoPrimary
                     ) {
-                        // 无操作
+                        // 与正文 # 标签 token 同一行为：跳列表按该标签筛选
+                        NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: tagName)
+                        dismiss()
                     }
                 }
             }
@@ -675,7 +698,10 @@ struct ThoughtDetailView: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.green)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("保留标签 \(ThoughtTagNormalizer.displayPath(tagName))")
 
                 // FR-06′：× 默认仅本条不适合，不写全局抑制
@@ -691,7 +717,10 @@ struct ThoughtDetailView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.red.opacity(0.7))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("不适合这条 \(ThoughtTagNormalizer.displayPath(tagName))")
             }
         }

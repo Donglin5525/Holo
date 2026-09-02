@@ -153,6 +153,15 @@ struct ThoughtListView: View {
             .map { $0 }
     }
 
+    /// 当前生效的标签筛选名。两个入口一套状态：顶部 chip（selectedTagName）和
+    /// 知识树/详情页跳转（drawerSelection 的 aiTag）；筛选条的选中指示必须都认，
+    /// 否则抽屉筛选生效时「全部」仍高亮、用户看不出列表被过滤了。
+    var activeTagFilterName: String? {
+        if let selectedTagName { return selectedTagName }
+        if case .aiTag(let name) = drawerSelection { return name }
+        return nil
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -441,6 +450,17 @@ struct ThoughtListView: View {
             thoughts = []
         }
         hasLoadedOnce = true
+    }
+
+    /// 清空标签筛选（顶部「全部」chip 与临时筛选 chip 共用）：
+    /// 同时退出抽屉筛选态（drawerSelection 变化触发重载回全部列表）
+    private func clearTagFilter() {
+        selectedTagName = nil
+        if drawerSelection != nil {
+            drawerSelection = nil
+        } else {
+            loadThoughts()
+        }
     }
 
     /// 抽屉节点变化时按筛选意图重新加载（P1.4）
@@ -819,14 +839,13 @@ struct ThoughtListView: View {
     private var filterBarView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                // 全部标签
+                // 全部标签（两套筛选入口都没选中时才算「全部」）
                 HoloFilterChip(
                     title: "全部",
                     iconColor: .holoPrimary,
-                    isSelected: selectedTagName == nil
+                    isSelected: activeTagFilterName == nil
                 ) {
-                    selectedTagName = nil
-                    drawerSelection = nil
+                    clearTagFilter()
                 }
 
                 // 自动整理动作 chip（橙色主操作 + 小型紫色 AI 来源标识）
@@ -837,17 +856,17 @@ struct ThoughtListView: View {
                     handleOrganizeChipTap()
                 }
 
-                // 从卡片点击的非常用标签也要在顶部显示当前筛选状态。
-                if let selectedTagName,
+                // 从卡片/详情页跳转的非常用标签也要在顶部显示当前筛选状态。
+                if let activeTagFilterName,
                    !frequentTags.contains(where: {
-                       ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(selectedTagName)
+                       ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(activeTagFilterName)
                    }) {
                     HoloFilterChip(
-                        title: selectedTagName,
+                        title: activeTagFilterName,
                         iconColor: .holoPrimary,
                         isSelected: true
                     ) {
-                        self.selectedTagName = nil
+                        clearTagFilter()
                     }
                 }
 
@@ -856,7 +875,8 @@ struct ThoughtListView: View {
                     HoloFilterChip(
                         title: tag.name,
                         iconColor: tag.tagColor,
-                        isSelected: selectedTagName == tag.name
+                        isSelected: activeTagFilterName != nil
+                            && ThoughtTagNormalizer.sharesIdentity(activeTagFilterName!, tag.name)
                     ) {
                         selectedTagName = tag.name
                         drawerSelection = nil

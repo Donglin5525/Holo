@@ -55,6 +55,7 @@ final class ThoughtOrganizationService {
         let recentAITagLeaves: [String]
         let rejectedTags: [String]
         let activeTopicTitles: [String]
+        let ownRecognizedTagNames: [String]
 
         do {
             guard let thought = try repository.fetchByIdInternal(thoughtId) else {
@@ -67,6 +68,7 @@ final class ThoughtOrganizationService {
             recentAITagLeaves = (try? repository.fetchRecentAITagLeafNames()) ?? []
             rejectedTags = loadRejectedTagNames()
             activeTopicTitles = try TopicRepository().fetchClassificationTopics().map(\.title)
+            ownRecognizedTagNames = thought.recognizedTagNames
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")
             throw error
@@ -123,10 +125,16 @@ final class ThoughtOrganizationService {
             suggestedTags: result.suggestedTags,
             activeTopics: activeTopicTitles
         )
-        guard !validated.tagPaths.isEmpty else {
+        // 6.5 冗余副本过滤：AI 按「复用优先」硬约束会原样输出本想法已有的认可标签
+        //     （自己打的或确认过 AI 建议的），端侧拼上主题前缀后成为「未分类/books」这样的
+        //     AI 副本——同一身份、零新信息，还会挤进「AI 建议」等人确认。直接丢弃。
+        let effectiveTagPaths = validated.tagPaths.filter { path in
+            !ownRecognizedTagNames.contains { ThoughtTagNormalizer.sharesIdentity($0, path) }
+        }
+        guard effectiveTagPaths.isEmpty else {
             // D-08′：调用成功但有效标签为空 = 正常空分类，不是失败。
             // 清旧未确认 AI 标签；主题独立判定（有效则照写，无效保持未分类）；写 organized。
-            logger.info("AI 未形成有效标签（正常空分类），想法：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)")
+            logger.info("AI 未形成有效标签（正常空分类或全部为用户已有标签），想法：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)")
             do {
                 try repository.replaceUnconfirmedAITagAssignments(
                     thoughtId: thoughtId,
@@ -156,13 +164,13 @@ final class ThoughtOrganizationService {
         do {
             try repository.replaceUnconfirmedAITagAssignments(
                 thoughtId: thoughtId,
-                tagNames: validated.tagPaths,
+                tagNames: effectiveTagPaths,
                 confidence: result.confidence
             )
             try TopicRepository().applyClassification(
                 thoughtId: thoughtId,
                 topicTitle: validated.topicTitle,
-                tagPaths: validated.tagPaths,
+                tagPaths: effectiveTagPaths,
                 confidence: result.confidence,
                 reason: result.reason
             )
@@ -177,7 +185,7 @@ final class ThoughtOrganizationService {
         } catch {
             logger.error("更新 organized 状态失败：\(error.localizedDescription)")
         }
-        logger.info("想法整理完成：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)，标签：\(validated.tagPaths.joined(separator: ", "))")
+        logger.info("想法整理完成：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)，标签：\(effectiveTagPaths.joined(separator: ", "))")
 
         // 7. 发送数据变更通知，让 UI 刷新
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)

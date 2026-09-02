@@ -25,9 +25,10 @@ nonisolated struct ThoughtTagPresentation: Equatable {
         aiLimit: Int = 2
     ) -> ThoughtTagPresentation {
         let uniqueManualNames = uniqueNames(manualNames)
-        let manualKeys = Set(uniqueManualNames.map(ThoughtTagNormalizer.key))
-        let uniqueAINames = uniqueNames(aiNames).filter {
-            !manualKeys.contains(ThoughtTagNormalizer.key($0))
+        let uniqueAINames = uniqueNames(aiNames).filter { aiName in
+            // 双形态身份去重：AI 按主题前缀拼出的「工作与事业/books」与用户 #books
+            // 是同一概念，全路径 key 对不上时也要按叶子身份折叠，否则同一标签双显示
+            !uniqueManualNames.contains { ThoughtTagNormalizer.sharesIdentity($0, aiName) }
         }
 
         let visibleManualNames = Array(uniqueManualNames.prefix(max(0, manualLimit)))
@@ -43,6 +44,8 @@ nonisolated struct ThoughtTagPresentation: Equatable {
     }
 
     /// 标签筛选同时命中用户标签和 AI 标签，并复用统一的名称归一化规则。
+    /// 双形态身份匹配：点 #books 能召回 AI 打了「工作与事业/books」的想法，反之亦然——
+    /// 同一标签只有一个身份，筛选不能因为存储形态（叶子词 vs 主题路径）互相漏。
     static func matches(
         _ selectedName: String,
         manualNames: [String],
@@ -52,7 +55,7 @@ nonisolated struct ThoughtTagPresentation: Equatable {
         guard !selectedKey.isEmpty else { return false }
 
         return (manualNames + aiNames).contains {
-            ThoughtTagNormalizer.key($0) == selectedKey
+            ThoughtTagNormalizer.sharesIdentity(selectedName, $0)
         }
     }
 

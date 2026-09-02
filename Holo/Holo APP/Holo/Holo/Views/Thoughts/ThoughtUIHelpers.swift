@@ -124,6 +124,50 @@ extension Thought {
         (tags as? Set<ThoughtTag>)?.sorted { $0.name < $1.name } ?? []
     }
 
+    /// 用户自己打的标签名（正文 # / 手动），不含 AI。
+    /// assignment 是事实源；tagArray 是兼容镜像，编辑保存时会把保留的 AI 标签也加回去，
+    /// 直接读它会把 AI 标签伪装成用户标签（彩色 chip、丢失 AI 身份）。
+    var userTagNames: [String] {
+        guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {
+            return []
+        }
+        let userSources = [
+            ThoughtTagAssignment.Source.manual.rawValue,
+            ThoughtTagAssignment.Source.inline.rawValue
+        ]
+        return assignments
+            .filter { userSources.contains($0.source) && $0.rejectedAt == nil }
+            .sorted { $0.assignedAt > $1.assignedAt }
+            .compactMap { $0.tag?.name }
+    }
+
+    /// 用户认可的标签名（自己打的 + 确认过 AI 建议的），与治理页「我的标签」、
+    /// fetchUserRecognizedTagNames 同一口径。确认 AI 标签后它应立即以用户标签形态
+    /// 出现在卡片和详情页——否则确认的即时效果是标签「消失」。
+    /// 同身份折叠：正文 #focus 与确认后的 AI 副本「未分类/focus」保留用户自己打的形态。
+    var recognizedTagNames: [String] {
+        guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {
+            return []
+        }
+        let own = assignments
+            .filter {
+                $0.source == ThoughtTagAssignment.Source.manual.rawValue
+                    || $0.source == ThoughtTagAssignment.Source.inline.rawValue
+            }
+            .sorted { $0.assignedAt > $1.assignedAt }
+            .compactMap { $0.tag?.name }
+
+        let confirmed = assignments
+            .filter { $0.source == ThoughtTagAssignment.Source.confirmedAI.rawValue && $0.rejectedAt == nil }
+            .sorted { $0.assignedAt > $1.assignedAt }
+            .compactMap { $0.tag?.name }
+            .filter { name in
+                !own.contains { ThoughtTagNormalizer.sharesIdentity($0, name) }
+            }
+
+        return own + confirmed
+    }
+
     /// 是否已被收纳进有效主题。
     var hasActiveTopic: Bool {
         guard let topics = topics as? Set<Topic> else { return false }

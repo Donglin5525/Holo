@@ -237,11 +237,14 @@ struct ThoughtCardView: View {
 
     private var footerView: some View {
         HStack(spacing: 0) {
-            let tags = thought.tagArray
+            // 认可口径（自己打的 + 确认过 AI 建议的）走 assignment 事实源：
+            // tagArray 兼容镜像混有编辑保存时回填的 AI 标签；确认过的 AI 标签也
+            // 必须在这里出现，否则「确认=收进标签库」的承诺在卡片上看不到兑现
+            let recognizedTagNames = thought.recognizedTagNames
             let aiTagNames = thought.visibleAITagNames
             // PRD AC-05：卡片最多展示 3 个标签（手动 ≤2 + AI ≤1），超出以 +N 提示
             let presentation = ThoughtTagPresentation.card(
-                manualNames: tags.map(\.name),
+                manualNames: recognizedTagNames,
                 aiNames: aiTagNames,
                 manualLimit: 2,
                 aiLimit: 1
@@ -252,7 +255,8 @@ struct ThoughtCardView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(presentation.manualNames, id: \.self) { tagName in
-                            if let tag = tags.first(where: {
+                            // 颜色信息存在 ThoughtTag 上，按名称回查兼容镜像
+                            if let tag = thought.tagArray.first(where: {
                                 ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(tagName)
                             }) {
                                 tagChip(tag)
