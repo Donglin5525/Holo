@@ -107,4 +107,40 @@ final class HoloPeriodReplayJobTests: XCTestCase {
         XCTAssertFalse(HoloPeriodReplayJob.isFullNaturalPeriod(
             start: date(2026, 8, 24), end: date(2026, 8, 29), periodType: .weekly))
     }
+
+    // MARK: - 上期对比窗口（环比口径）
+
+    /// 月度回放的上期窗口必须覆盖上一整月：排他语义下末端落在本期 start 上。
+    /// 此前端在 start-1，导致月对比永久丢掉月末一天、周对比丢周日。
+    func testPreviousPeriodWindowMonthlyCoversWholePreviousMonth() {
+        let window = MemoryInsightContextBuilder.previousPeriodWindow(
+            start: date(2026, 8, 1), end: date(2026, 8, 31))
+        XCTAssertEqual(window.start, date(2026, 7, 1))
+        XCTAssertEqual(window.end, date(2026, 8, 1))
+        // 窗口天数 = 7 月实际天数 31，与本期等长
+        XCTAssertEqual(
+            calendar.dateComponents([.day], from: window.start, to: window.end).day,
+            calendar.dateComponents([.day], from: date(2026, 8, 1), to: date(2026, 9, 1)).day)
+    }
+
+    func testPreviousPeriodWindowWeeklyCoversSevenDays() {
+        // 2026-08-24 是周一、08-30 是周日
+        let window = MemoryInsightContextBuilder.previousPeriodWindow(
+            start: date(2026, 8, 24), end: date(2026, 8, 30))
+        XCTAssertEqual(window.start, date(2026, 8, 17))
+        XCTAssertEqual(window.end, date(2026, 8, 24))
+        XCTAssertEqual(
+            calendar.dateComponents([.day], from: window.start, to: window.end).day, 7)
+    }
+
+    func testPreviousPeriodWindowMatchesCurrentPeriodLength() {
+        // 任意自定义区间：上期窗口与本期等长且紧贴（无重叠、无缝隙）
+        let start = date(2026, 7, 10)
+        let end = date(2026, 7, 19)
+        let window = MemoryInsightContextBuilder.previousPeriodWindow(start: start, end: end)
+        XCTAssertEqual(window.end, start)
+        XCTAssertEqual(
+            calendar.dateComponents([.day], from: window.start, to: window.end).day,
+            (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1)
+    }
 }

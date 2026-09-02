@@ -441,12 +441,10 @@ struct MemoryInsightContextBuilder {
             Self.logger.error("构建财务上下文失败：\(error.localizedDescription)")
         }
 
-        // 上期对比
-        let periodLength = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 7
-        let prevStart = start.addingDays(-periodLength - 1)
-        let prevEnd = start.addingDays(-1)
+        // 上期对比窗口（口径见 previousPeriodWindow 注释）
+        let prevWindow = Self.previousPeriodWindow(start: start, end: end)
         do {
-            let prevTransactions = try await financeRepo.getTransactions(from: prevStart, to: prevEnd)
+            let prevTransactions = try await financeRepo.getStatisticsTransactions(from: prevWindow.start, to: prevWindow.end)
             for t in prevTransactions where t.type == "expense" {
                 previousPeriodExpense += (t.amount as NSDecimalNumber).decimalValue
             }
@@ -712,12 +710,11 @@ struct MemoryInsightContextBuilder {
             }
         }
 
-        // 上期对比
+        // 上期对比窗口（口径见 previousPeriodWindow 注释）
         let periodLength = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 7
-        let prevStart = start.addingDays(-periodLength - 1)
-        let prevEnd = start.addingDays(-1)
+        let prevWindow = Self.previousPeriodWindow(start: start, end: end)
         var previousPeriodCompletedRecordCount = 0
-        let prevRange = prevStart...prevEnd
+        let prevRange = prevWindow.start...prevWindow.end
         var previousPerformanceByHabitId: [UUID: HabitPerformanceSnapshot] = [:]
         for habit in habits {
             let previousPerformance = habitRepo.evaluatePerformance(for: habit, in: prevRange)
@@ -945,6 +942,7 @@ struct MemoryInsightContextBuilder {
             totalCount: totalCount,
             recentSnippets: recentSnippets,
             textContents: texts,
+            textContentsTruncated: texts.count < totalCount,
             moodDistribution: moodDist,
             topTags: tags,
             thoughtSentimentSummary: sentimentSummary
@@ -1327,6 +1325,16 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Token Budget
 
+    /// 上期对比窗口：与本期间长且紧贴的历史区间 [start-N, start)。
+    /// 统计入口的上界是排他语义（getStatisticsTransactions 用 date < end；
+    /// evaluatePerformance 对恰为当日零点的上界按排他处理），因此窗口末端必须落在
+    /// start 本身——落在 start-1 会永久丢掉上期最后一天（月对比丢月末、周对比丢
+    /// 周日），环比基数偏小、"比上期变化 X%" 被系统性夸大。
+    static func previousPeriodWindow(start: Date, end: Date) -> (start: Date, end: Date) {
+        let periodLength = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 7
+        return (start.addingDays(-periodLength - 1), start)
+    }
+
     /// CJK 友好的 token 估算
     private static func estimateTokenCount(_ string: String) -> Int {
         Int(Double(string.count) * 1.5)
@@ -1354,6 +1362,7 @@ struct MemoryInsightContextBuilder {
                     totalCount: current.thoughts.totalCount,
                     recentSnippets: current.thoughts.recentSnippets,
                     textContents: Array(current.thoughts.textContents.prefix(5)),
+                    textContentsTruncated: true,
                     moodDistribution: current.thoughts.moodDistribution,
                     topTags: current.thoughts.topTags,
                     thoughtSentimentSummary: current.thoughts.thoughtSentimentSummary
@@ -1497,6 +1506,7 @@ struct MemoryInsightContextBuilder {
                     totalCount: current.thoughts.totalCount,
                     recentSnippets: current.thoughts.recentSnippets,
                     textContents: Array(current.thoughts.textContents.prefix(3)),
+                    textContentsTruncated: true,
                     moodDistribution: current.thoughts.moodDistribution,
                     topTags: current.thoughts.topTags,
                     thoughtSentimentSummary: current.thoughts.thoughtSentimentSummary
@@ -1691,22 +1701,27 @@ struct MemoryInsightContextBuilder {
             )
         }
 
-        // 远期摘要：从 digest service 读内存快照
+        // 远期摘要：从 digest service 读内存快照。
+        // 仅当摘要覆盖范围完全早于本期时才带入：覆盖端 ≥ 本期起点说明本期
+        // （或更晚）已并入过摘要，再带入会把本期旧标题/旧结论泄漏给本次生成
+        // ——AI 会沿用旧标题重写正文，产出「同标题不同描述」的两份报告。
         let digest = HoloReplayDigestService.shared.currentSnapshot
+        let digestCoversOnlyPastPeriods = (digest.coveredRangeEnd ?? .distantPast) < currentStart
 
         // 两部分都空时不输出该字段（prompt 端会跳过历史归纳章节）
         let hasRecent = !recentEntries.isEmpty
-        let hasDigest = (digest.cumulativeDigest?.isEmpty == false) || digest.sourceInsightCount > 0
+        let hasDigest = digestCoversOnlyPastPeriods
+            && ((digest.cumulativeDigest?.isEmpty == false) || digest.sourceInsightCount > 0)
         guard hasRecent || hasDigest else { return nil }
 
         return ReplayHistory(
             recentReplays: recentEntries,
-            cumulativeDigest: digest.cumulativeDigest?.isEmpty == false ? digest.cumulativeDigest : nil,
-            digestCoveredRangeStart: digest.coveredRangeStart,
-            digestCoveredRangeEnd: digest.coveredRangeEnd,
-            digestSourceCount: digest.sourceInsightCount,
-            keyPatterns: digest.keyPatterns,
-            trackedGoals: digest.trackedGoals
+            cumulativeDigest: hasDigest && !(digest.cumulativeDigest ?? "").isEmpty ? digest.cumulativeDigest : nil,
+            digestCoveredRangeStart: hasDigest ? digest.coveredRangeStart : nil,
+            digestCoveredRangeEnd: hasDigest ? digest.coveredRangeEnd : nil,
+            digestSourceCount: hasDigest ? digest.sourceInsightCount : 0,
+            keyPatterns: hasDigest ? digest.keyPatterns : [],
+            trackedGoals: hasDigest ? digest.trackedGoals : []
         )
     }
 

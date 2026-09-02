@@ -455,6 +455,9 @@ struct MemoryInsightThoughtContext: Codable, Equatable {
     let totalCount: Int
     let recentSnippets: [String]
     let textContents: [String]
+    /// textContents 只是样本（totalCount 超出所给条数）时为 true：
+    /// 生成端据此避免把样本主题外推为全部想法的共性
+    var textContentsTruncated: Bool = false
     let moodDistribution: [String: Int]
     let topTags: [String]
     let thoughtSentimentSummary: ThoughtSentimentSummary

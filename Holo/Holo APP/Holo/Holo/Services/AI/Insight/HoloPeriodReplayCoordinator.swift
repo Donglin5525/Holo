@@ -54,8 +54,8 @@ final class HoloPeriodReplayCoordinator {
                 isStreaming: true
             )
         }
-        cloud.periodReplayFinalizer = { [weak self] messageId, result in
-            self?.finalizeCloudReplay(messageId: messageId, result: result)
+        cloud.periodReplayFinalizer = { [weak self] messageId, result, snapshotHash in
+            self?.finalizeCloudReplay(messageId: messageId, result: result, snapshotHash: snapshotHash)
         }
         cloud.periodReplayFallbackHandler = { [weak self] messageId in
             guard let self else { return }
@@ -70,16 +70,33 @@ final class HoloPeriodReplayCoordinator {
 
     /// 云端回放结果落卡：解析走与本地同一条 MemoryInsightResponseParser；
     /// 解析失败如实落失败卡（云端额度已消耗，不自动重跑本地避免双扣）。
+    /// 成功时同步落洞察档案并发 memoryInsightDidGenerate——与本地轨道同一真相源
+    /// （此后再次发起同周期回放会命中档案复用；摘要归纳/记忆候选提取同样吃到）。
     private func finalizeCloudReplay(
         messageId: UUID,
-        result: HoloCloudAnalysisClient.StatusResponse.CloudResult
+        result: HoloCloudAnalysisClient.StatusResponse.CloudResult,
+        snapshotHash: String?
     ) {
         guard var job = repository.periodReplayJob(messageId: messageId) else { return }
         let output = result.output ?? ""
         switch MemoryInsightResponseParser.parseResult(output) {
-        case .success(let payload):
+        case .success(let parsed):
             job.attemptCount += 1
-            finalizeSuccess(messageId: messageId, job: &job, payload: payload)
+            // 与本地轨道同一条后处理链：moduleHint/patternType 填充 + 偏好重排
+            // （落卡与落档案共用同一份处理结果，两条轨道零漂移）
+            var processed = MemoryInsightResponseParser.fillModuleHints(parsed)
+            if InsightFeatureFlags.rerankEnabled {
+                let profile = InsightPreferenceProfileService.shared.loadProfile()
+                processed = MemoryInsightPayload(
+                    title: processed.title,
+                    summary: processed.summary,
+                    cards: InsightCardReranker.rerank(processed.cards, with: profile),
+                    suggestedQuestions: processed.suggestedQuestions,
+                    usedMemoryIDs: processed.usedMemoryIDs
+                )
+            }
+            persistCloudInsight(job: job, payload: processed, rawResponse: output, snapshotHash: snapshotHash)
+            finalizeSuccess(messageId: messageId, job: &job, payload: processed)
             logger.info("[cloud-completed] message=\(messageId.uuidString)")
         case .failure(let failure):
             markFailed(
@@ -90,6 +107,50 @@ final class HoloPeriodReplayCoordinator {
             )
             logger.error("[cloud-parse-failed] message=\(messageId.uuidString) \(String(describing: failure), privacy: .public)")
         }
+    }
+
+    /// 云端回放结果写入洞察档案（本地轨道 generateInsight 的等价落库动作）。
+    /// snapshotHash 缺失（杀 App 恢复等旧上下文）时降级只落卡不落档案，不阻塞展示。
+    private func persistCloudInsight(
+        job: HoloPeriodReplayJob,
+        payload: MemoryInsightPayload,
+        rawResponse: String,
+        snapshotHash: String?
+    ) {
+        guard let snapshotHash, !snapshotHash.isEmpty else { return }
+        let insightRepo = MemoryInsightRepository()
+        guard let insight = try? insightRepo.saveGenerating(
+            periodType: job.periodType,
+            start: job.periodStart,
+            end: job.periodEnd,
+            snapshotHash: snapshotHash
+        ) else {
+            logger.error("[cloud-archive] 云端结果落洞察档案失败 period=\(job.periodType.rawValue)")
+            return
+        }
+        do {
+            try insightRepo.saveReady(
+                insight: insight,
+                payload: payload,
+                rawResponse: rawResponse,
+                providerName: "cloud-m2a-replay",
+                promptVersion: 0
+            )
+        } catch {
+            logger.error("[cloud-archive] 洞察档案写入 ready 失败：\(error.localizedDescription)")
+            return
+        }
+        NotificationCenter.default.post(
+            name: .memoryInsightDidGenerate,
+            object: nil,
+            userInfo: [
+                "insightID": insight.id.uuidString,
+                "periodType": job.periodType.rawValue,
+                "periodStart": insight.periodStart,
+                "periodEnd": insight.periodEnd,
+                "payload": payload
+            ]
+        )
     }
 
     var hasActiveUserReplay: Bool {
@@ -115,6 +176,16 @@ final class HoloPeriodReplayCoordinator {
             resumedJob.updatedAt = Date()
             repository.updatePeriodReplayJob(existing.messageId, job: resumedJob)
             schedule(messageId: existing.messageId, job: resumedJob)
+            return
+        }
+
+        // 同周期已有内容未变的 ready 洞察时直接展示，不再生成（云端轨道此前绕过
+        // 本地轨道的缓存复用，同一期被两次生成、两次扣额度、两份内容并存）。
+        // 素材 hash 与档案一致 = 数据没变，旧报告依然成立。
+        if let cached = await reusableInsight(periodType: periodType, start: start, end: end) {
+            let label = HoloPeriodReplayJob.rangeLabel(start: start, end: end, periodType: periodType)
+            logger.info("[cache-hit] 复用同周期 ready 洞察 period=\(periodType.rawValue)")
+            presentCachedInsight(cached, userContent: "生成\(label)回放")
             return
         }
 
@@ -182,10 +253,28 @@ final class HoloPeriodReplayCoordinator {
         schedule(messageId: assistantMessageId, job: job)
     }
 
+    /// 同周期 ready 洞察是否可直接复用：素材 hash 与档案一致（数据未变）才复用，
+    /// 数据变了（补录账单/补打卡等）走正常重新生成。
+    private func reusableInsight(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date
+    ) async -> MemoryInsight? {
+        let insightRepo = MemoryInsightRepository()
+        guard let existing = try? insightRepo.fetchInsight(periodType: periodType, start: start, end: end),
+              existing.insightStatus == .ready,
+              existing.parsedPayload != nil else { return nil }
+        let builder = MemoryInsightContextBuilder()
+        guard let (_, snapshotHash) = try? await builder.build(periodType: periodType, start: start, end: end),
+              snapshotHash == existing.sourceSnapshotHash else { return nil }
+        return existing
+    }
+
     /// 首页胶囊 / 系统通知直达：把已生成的洞察直接落成一张完成的回放卡片。
     /// 不触发生成（generateInsight 都不进）、不受额度预检拦截——额度拦的是新生成，
     /// 不是查看已有结果；因此也不进入重试/息屏接管链路。
-    func presentCachedInsight(_ insight: MemoryInsight) {
+    /// - Parameter userContent: 用户侧消息文案；nil 时用默认「查看X回放」。
+    func presentCachedInsight(_ insight: MemoryInsight, userContent: String? = nil) {
         guard let payload = insight.parsedPayload else { return }
         let job = HoloPeriodReplayJob(
             periodType: insight.insightPeriodType,
@@ -195,7 +284,7 @@ final class HoloPeriodReplayCoordinator {
         )
         let userMessageId = repository.addMessage(
             role: "user",
-            content: "查看\(job.periodLabel)回放",
+            content: userContent ?? "查看\(job.periodLabel)回放",
             messageType: .periodReplay
         )
         let assistantMessageId = repository.addStreamingMessage(

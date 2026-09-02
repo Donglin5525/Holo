@@ -25,10 +25,13 @@ final class HoloCloudAnalysisService {
 
     /// 云端任务上下文：消息、问题、任务类型（deep_analysis=多轮分析 /
     /// period_replay=周期回放单轮生成）。轮询终态按类型分流落卡。
+    /// snapshotHash：回放素材指纹，period_replay 专用——云端结果落洞察档案时
+    /// 作为 sourceSnapshotHash（后续复用判断「数据是否变化」的依据）。
     struct TaskContext {
         let messageID: UUID
         let question: String
         let taskType: String
+        var snapshotHash: String? = nil
     }
 
     /// 进行中的云端任务。回前台恢复轮询用；同步持久化（杀 App 后冷启动恢复领取
@@ -42,7 +45,7 @@ final class HoloCloudAnalysisService {
     /// 云端轮询的进度文案与结果落卡由回放侧接管（job 状态机制与深度分析的消息
     /// 进度机制不同；恢复场景据此重建处理路径）。
     var periodReplayProgressHandler: ((UUID, _ title: String, _ detail: String) -> Void)?
-    var periodReplayFinalizer: ((_ messageID: UUID, _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult) -> Void)?
+    var periodReplayFinalizer: ((_ messageID: UUID, _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult, _ snapshotHash: String?) -> Void)?
     /// 云端失败/超时后的本地回落入口（Coordinator 提供本地生成路径）
     var periodReplayFallbackHandler: ((_ messageID: UUID) -> Void)?
     /// 云端任务位释放（poll 结束、任务位清空）后触发：Coordinator 唤醒因
@@ -90,11 +93,15 @@ final class HoloCloudAnalysisService {
 
     private func persistActiveTasks() {
         let payload = activeTasks.mapValues { context in
-            [
+            var dict: [String: String] = [
                 "messageID": context.messageID.uuidString,
                 "question": context.question,
                 "taskType": context.taskType,
             ]
+            if let snapshotHash = context.snapshotHash {
+                dict["snapshotHash"] = snapshotHash
+            }
+            return dict
         }
         UserDefaults.standard.set(payload, forKey: Self.activeTasksDefaultsKey)
     }
@@ -111,7 +118,12 @@ final class HoloCloudAnalysisService {
             else { continue }
             // 旧持久化无 taskType：按深度分析处理（v1 存量任务只有这一类）
             let taskType = dict["taskType"] ?? "deep_analysis"
-            restored[taskId] = TaskContext(messageID: messageID, question: question, taskType: taskType)
+            restored[taskId] = TaskContext(
+                messageID: messageID,
+                question: question,
+                taskType: taskType,
+                snapshotHash: dict["snapshotHash"]
+            )
         }
         activeTasks = restored
     }
@@ -184,7 +196,7 @@ final class HoloCloudAnalysisService {
         do {
             // 与本地生成共用同一份聚合器（素材口径零漂移；健康摘要随素材上云）
             let builder = MemoryInsightContextBuilder()
-            let (context, _) = try await builder.build(periodType: periodType, start: start, end: end)
+            let (context, snapshotHash) = try await builder.build(periodType: periodType, start: start, end: end)
             let material = try JSONEncoder().encode(context)
             let started = try await client.start(question: "period_replay", taskType: "period_replay")
             try Task.checkCancellation()
@@ -195,7 +207,8 @@ final class HoloCloudAnalysisService {
                 context: TaskContext(
                     messageID: sourceMessageID,
                     question: "period_replay",
-                    taskType: "period_replay"
+                    taskType: "period_replay",
+                    snapshotHash: snapshotHash
                 )
             )
             return true
@@ -227,7 +240,7 @@ final class HoloCloudAnalysisService {
                 case "completed":
                     if let result = status.result {
                         if context.taskType == "period_replay" {
-                            periodReplayFinalizer?(context.messageID, result)
+                            periodReplayFinalizer?(context.messageID, result, context.snapshotHash)
                         } else {
                             finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID)
                         }
