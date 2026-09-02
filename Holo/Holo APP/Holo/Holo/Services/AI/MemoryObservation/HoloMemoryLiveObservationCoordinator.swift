@@ -134,7 +134,6 @@ private nonisolated struct HoloMemoryLiveExtractionPayload: Codable, Sendable {
 private enum HoloMemoryLiveObservationError: Error {
     case missingDomainSignals
     case invalidPayload
-    case validationRejected
     case emptyCrossDomainCandidate
 }
 
@@ -290,7 +289,7 @@ actor HoloMemoryLiveObservationCoordinator {
             foregroundCriticalOperation: false,
             thermalPressureHigh: process.thermalState == .serious || process.thermalState == .critical,
             dailyAICallCount: 0,
-            dailyAICallLimit: 8
+            dailyAICallLimit: HoloMemoryResourceSnapshot.defaultDailyAICallLimit
         )
         return await HoloMemoryObservationScheduler.shared.runIfNeeded(
             now: now,
@@ -400,7 +399,7 @@ actor HoloMemoryLiveObservationCoordinator {
                             outcome: "validatorRejected"
                         )
                         #endif
-                        throw HoloMemoryLiveObservationError.validationRejected
+                        throw HoloMemoryCommitValidationRefused()
                     }
                     do {
                         let upserts = try await HoloDomainMemoryObservationApplier.apply(
@@ -484,7 +483,7 @@ actor HoloMemoryLiveObservationCoordinator {
         } else if succeededCount > 0 {
             message = "成功：\(succeededCount) 个任务完成，\(changedDomainCount) 个领域检测到变化"
         } else if events.contains(.deferredByResource(.dailyBudgetExhausted)) {
-            message = "未执行：今日 8 次静默 AI 调用额度已用完"
+            message = "未执行：今日 \(HoloMemoryResourceSnapshot.defaultDailyAICallLimit) 次静默 AI 调用额度已用完"
         } else if events.contains(.automaticMemoryDisabled) {
             message = "未执行：自动形成记忆未开启"
         } else if events.contains(.dataProcessingConsentMissing) {
@@ -530,7 +529,7 @@ actor HoloMemoryLiveObservationCoordinator {
             rejected: rejectedCount
         )
         if !decisions.isEmpty && rejectedCount == decisions.count {
-            throw HoloMemoryLiveObservationError.validationRejected
+            throw HoloMemoryCommitValidationRefused()
         }
         for decision in decisions {
             switch decision {

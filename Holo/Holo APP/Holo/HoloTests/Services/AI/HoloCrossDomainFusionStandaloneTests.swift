@@ -167,10 +167,40 @@ struct HoloCrossDomainFusionStandaloneTests {
         }
         expect(record.scope == .crossDomain, "持久化记录必须是 crossDomain")
         expect(record.sourceDomains == [.finance, .health], "持久化记录必须保留来源领域")
-        expect(record.sensitivity == .normal, "含健康的跨域记忆不再一刀切标敏感")
+        expect(record.sensitivity == .normal, "模型未标敏感时含健康跨域记忆不得强标敏感")
         expect(record.state == .active, "重复出现的普通跨域结论应自动生效")
         expect(record.upstreamMemoryIDs.count == 2, "持久化记录必须保留上游记忆")
         try record.validate()
+
+        var sensitiveOutput = safeOutput
+        sensitiveOutput.requestedStorageClass = .sensitiveLocal
+        let sensitiveFirst = HoloCrossDomainFusionService.evaluate(
+            sensitiveOutput,
+            for: candidate,
+            priorOccurrenceCount: 0,
+            userConfirmed: false,
+            now: now
+        )
+        guard case .persist(let sensitiveFirstRecord) = sensitiveFirst else {
+            fatalError("模型标记 sensitiveLocal 的跨域结论应落盘为待确认记录")
+        }
+        expect(sensitiveFirstRecord.sensitivity == .sensitive,
+               "模型标记 sensitiveLocal 的跨域记忆必须落为敏感")
+        expect(sensitiveFirstRecord.state == .candidate,
+               "敏感跨域结论确认前不得生效")
+        let sensitiveRepeat = HoloCrossDomainFusionService.evaluate(
+            sensitiveOutput,
+            for: candidate,
+            priorOccurrenceCount: 2,
+            userConfirmed: false,
+            now: now
+        )
+        guard case .persist(let sensitiveRepeatRecord) = sensitiveRepeat else {
+            fatalError("重复出现的敏感跨域结论仍应落盘")
+        }
+        expect(sensitiveRepeatRecord.state == .candidate &&
+               sensitiveRepeatRecord.adoptionMetadata?.reason == .sensitiveMemory,
+               "涉健康跨域推断即使重复出现也必须先经用户确认")
 
         let confirmed = HoloCrossDomainFusionService.evaluate(
             safeOutput,

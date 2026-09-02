@@ -401,39 +401,16 @@ struct DomainMemorySection: View {
 
     private var inboxSummaryCard: some View {
         HStack(spacing: HoloSpacing.sm) {
-            Button {
-                guard inboxSnapshot.pendingConfirmationCount > 0 else { return }
-                showsConfirmationQueue = true
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.holoPrimary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(inboxSnapshot.summaryText)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextPrimary)
-                        Text(inboxSubtitle)
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-
-                    if inboxSnapshot.pendingConfirmationCount > 0 {
-                        HStack(spacing: 2) {
-                            Text("去确认")
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .semibold))
-                        }
-                        .font(.holoTinyLabel)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoPrimary)
-                    }
+            if inboxSnapshot.pendingConfirmationCount > 0 {
+                Button {
+                    showsConfirmationQueue = true
+                } label: {
+                    inboxLabelContent
                 }
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+            } else {
+                inboxLabelContent
             }
-            .buttonStyle(.plain)
 
             Button {
                 HoloMemoryReceiptStore.markWriteReceiptsRead()
@@ -450,6 +427,36 @@ struct DomainMemorySection: View {
         .padding(HoloSpacing.md)
         .background(Color.holoPrimary.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    private var inboxLabelContent: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "sparkles")
+                .foregroundColor(.holoPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(inboxSnapshot.summaryText)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextPrimary)
+                Text(inboxSubtitle)
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+
+            if inboxSnapshot.pendingConfirmationCount > 0 {
+                HStack(spacing: 2) {
+                    Text("去确认")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .font(.holoTinyLabel)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoPrimary)
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 
     private var loadingCard: some View {

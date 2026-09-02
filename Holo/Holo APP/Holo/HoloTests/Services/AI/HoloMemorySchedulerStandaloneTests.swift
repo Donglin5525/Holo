@@ -68,6 +68,7 @@ struct HoloMemorySchedulerStandaloneTests {
         testObservationKeyContract()
         testResourceBudget()
         try await testIdempotencyFrequencyAndRetry()
+        try await testCommitValidationRefusedDefersToNextUTCDay()
         try await testMaterialThresholdCrossDomainAndDailyBudget()
         try await testOnlyOneAIJobRunsAtATime()
         try await testControlStateRecheckBeforeCommit()
@@ -217,6 +218,55 @@ struct HoloMemorySchedulerStandaloneTests {
         let counts = await counter.snapshot()
         expect(counts.0 == 1 && counts.1 == 1,
                "同 key/同日限制与退避期间不得重复调用或提交")
+    }
+
+    private static func testCommitValidationRefusedDefersToNextUTCDay() async throws {
+        let control = SchedulerControlBox()
+        let counter = CounterBox()
+        let scheduler = HoloMemoryObservationScheduler(
+            controlStateProvider: { await control.snapshot() },
+            consentProvider: { await control.hasConsent() }
+        )
+        // 2024-03-03 12:26:40 UTC，距离下一个 UTC 日界约 11.5 小时，远大于指数退避 6 小时上限。
+        let now = Date(timeIntervalSince1970: 1_709_473_600)
+        await scheduler.markDirty(target: .domain(.thought), sourceDigest: "thought-v1", now: now)
+        let events = await scheduler.runIfNeeded(
+            now: now.addingTimeInterval(10),
+            resourceSnapshot: .init(),
+            extractorVersion: 1,
+            promptVersion: 1,
+            debounce: 5,
+            materialChange: { _ in true },
+            extract: { _ in await counter.extracted(); return Data("garbage".utf8) },
+            commit: { _, _ in throw HoloMemoryCommitValidationRefused() }
+        )
+        guard case .failed(_, let retryAt) = events.last else {
+            fatalError("校验拒绝必须按失败记录重试时间")
+        }
+        var utcCalendar = Calendar(identifier: .iso8601)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let nextMidnight = utcCalendar.nextDate(
+            after: now.addingTimeInterval(10),
+            matching: DateComponents(hour: 0, minute: 0),
+            matchingPolicy: .nextTime
+        )!
+        expect(retryAt >= nextMidnight && retryAt < nextMidnight.addingTimeInterval(1),
+               "校验拒绝必须退避到下一个 UTC 日界，不得当日按指数退避反复重试")
+        let sameDayRetry = await scheduler.runIfNeeded(
+            now: retryAt.addingTimeInterval(-60),
+            resourceSnapshot: .init(),
+            extractorVersion: 1,
+            promptVersion: 1,
+            debounce: 0,
+            materialChange: { _ in true },
+            extract: { _ in await counter.extracted(); return Data() },
+            commit: { _, _ in await counter.committed() }
+        )
+        expect(sameDayRetry.contains(where: { if case .deferredByBackoff = $0 { true } else { false } }),
+               "日界之前不得再次调用 AI")
+        let counts = await counter.snapshot()
+        expect(counts.0 == 1 && counts.1 == 0,
+               "校验拒绝当日只允许烧掉一次 AI 调用")
     }
 
     private static func testControlStateRecheckBeforeCommit() async throws {

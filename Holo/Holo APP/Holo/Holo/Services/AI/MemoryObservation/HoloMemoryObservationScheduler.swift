@@ -36,6 +36,10 @@ nonisolated enum HoloMemorySchedulerTrigger: String, Sendable {
     case dataChanged
 }
 
+/// commit 阶段本地校验拒绝（模型输出不合规）。同输入在 prompt 与模型不变时重试大概率同样被拒，
+/// 退避直接推到下一个 UTC 日，避免当日反复重试烧光静默 AI 额度。
+nonisolated struct HoloMemoryCommitValidationRefused: Error {}
+
 private nonisolated struct HoloMemoryRetryState: Codable, Sendable {
     var attempt: Int
     var retryAt: Date
@@ -134,7 +138,7 @@ actor HoloMemoryObservationScheduler {
     #if DEBUG
     func debugSnapshot(
         now: Date = Date(),
-        dailyCallLimit: Int = 8
+        dailyCallLimit: Int = HoloMemoryResourceSnapshot.defaultDailyAICallLimit
     ) -> HoloMemorySchedulerDebugSnapshot {
         let targetKeys = HoloMemoryDomain.allCases.map {
             HoloMemoryObservationTarget.domain($0).stableKey
@@ -296,7 +300,9 @@ actor HoloMemoryObservationScheduler {
             } catch {
                 let previousAttempt = state.retryByObservationKey[key]?.attempt ?? 0
                 let attempt = previousAttempt + 1
-                let delay = min(pow(2, Double(attempt - 1)) * 60, 6 * 60 * 60)
+                let delay = error is HoloMemoryCommitValidationRefused
+                    ? Self.secondsUntilNextUTCDay(now)
+                    : min(pow(2, Double(attempt - 1)) * 60, 6 * 60 * 60)
                 let retryAt = now.addingTimeInterval(delay)
                 state.retryByObservationKey[key] = HoloMemoryRetryState(
                     attempt: attempt,
@@ -346,5 +352,16 @@ actor HoloMemoryObservationScheduler {
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar.dateComponents([.year, .month, .day], from: lhs) ==
             calendar.dateComponents([.year, .month, .day], from: rhs)
+    }
+
+    private nonisolated static func secondsUntilNextUTCDay(_ now: Date) -> TimeInterval {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let nextMidnight = calendar.nextDate(
+            after: now,
+            matching: DateComponents(hour: 0, minute: 0),
+            matchingPolicy: .nextTime
+        )
+        return nextMidnight?.timeIntervalSince(now) ?? 6 * 60 * 60
     }
 }

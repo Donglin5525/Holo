@@ -173,7 +173,9 @@ nonisolated enum HoloCrossDomainFusionService {
             return .rejected(.causalOrMedicalInference)
         }
 
-        let sensitivity: HoloMemorySensitivity = .normal
+        // 域萃取的健康客观数据按 v2 政策不一刀切标敏感（见 ActivationPolicy）；
+        // 跨域推断不同：涉健康的跨域结论按模型标记走敏感确认门，2026-09-03 恢复生效。
+        let sensitivity: HoloMemorySensitivity = output.requestedStorageClass == .sensitiveLocal ? .sensitive : .normal
         do {
             let id = try HoloMemoryIdentity.makeStableID(
                 scope: .crossDomain,

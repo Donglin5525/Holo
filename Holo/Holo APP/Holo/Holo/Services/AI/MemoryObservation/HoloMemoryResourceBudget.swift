@@ -8,6 +8,10 @@
 import Foundation
 
 nonisolated struct HoloMemoryResourceSnapshot: Equatable, Sendable {
+    /// 全局静默记忆 AI 调用的每日上限。8 个领域 + 跨域融合共 9 个目标，
+    /// 额度须覆盖全部目标，否则排在队尾的跨域融合会被挤掉整天没机会跑。
+    static let defaultDailyAICallLimit = 10
+
     var networkAvailable: Bool
     var lowPowerModeEnabled: Bool
     var lowDataModeEnabled: Bool
@@ -23,7 +27,7 @@ nonisolated struct HoloMemoryResourceSnapshot: Equatable, Sendable {
         foregroundCriticalOperation: Bool = false,
         thermalPressureHigh: Bool = false,
         dailyAICallCount: Int = 0,
-        dailyAICallLimit: Int = 8
+        dailyAICallLimit: Int = HoloMemoryResourceSnapshot.defaultDailyAICallLimit
     ) {
         self.networkAvailable = networkAvailable
         self.lowPowerModeEnabled = lowPowerModeEnabled
