@@ -61,6 +61,22 @@ class AnniversaryRepository {
     /// 初始化加载（进入模块时调用）
     func setup() {
         loadActiveAnniversaries()
+        rescheduleNotificationsIfNeeded()
+    }
+
+    /// 冷启动全量重排纪念日通知（提醒 + 里程碑）。
+    /// 农历重复与里程碑都是一次性通知，跨年后需重排；幂等（先移除再排），30 分钟节流。
+    private var lastNotificationRescheduleAt: Date?
+    private func rescheduleNotificationsIfNeeded() {
+        if let last = lastNotificationRescheduleAt, Date().timeIntervalSince(last) < 1800 { return }
+        lastNotificationRescheduleAt = Date()
+        let payloads = activeAnniversaries.map { TodoNotificationService.AnniversaryReminderPayload($0) }
+        guard !payloads.isEmpty else { return }
+        Task {
+            for payload in payloads {
+                await TodoNotificationService.shared.scheduleAnniversaryNotifications(for: payload)
+            }
+        }
     }
 
     // MARK: - 查询
@@ -133,6 +149,7 @@ class AnniversaryRepository {
         note: String? = nil,
         isPinned: Bool = false,
         repeatYearly: Bool? = nil,
+        isLunar: Bool = false,
         reminderEnabled: Bool = false,
         reminderDaysBefore: Int16 = 0,
         generateTask: Bool = false
@@ -147,6 +164,7 @@ class AnniversaryRepository {
             note: note,
             isPinned: isPinned,
             repeatYearly: repeatYearly,
+            isLunar: isLunar,
             reminderEnabled: reminderEnabled,
             reminderDaysBefore: reminderDaysBefore,
             generateTask: generateTask
@@ -155,11 +173,15 @@ class AnniversaryRepository {
         loadActiveAnniversaries()
         notifyDataChange()
         // 调度通知（纯值快照，跨上下文安全）
-        if item.reminderEnabled {
-            let payload = TodoNotificationService.AnniversaryReminderPayload(item)
-            Task { await TodoNotificationService.shared.scheduleAnniversaryReminder(for: payload) }
-        }
+        scheduleNotifications(for: item)
         return item
+    }
+
+    /// 为一条纪念日排提醒与里程碑通知（新增/编辑后统一入口）
+    private func scheduleNotifications(for item: Anniversary) {
+        TodoNotificationService.shared.cancelAnniversaryNotifications(for: item.id)
+        let payload = TodoNotificationService.AnniversaryReminderPayload(item)
+        Task { await TodoNotificationService.shared.scheduleAnniversaryNotifications(for: payload) }
     }
 
     /// 更新纪念日
@@ -173,6 +195,7 @@ class AnniversaryRepository {
         note: String? = nil,
         isPinned: Bool? = nil,
         repeatYearly: Bool? = nil,
+        isLunar: Bool? = nil,
         reminderEnabled: Bool? = nil,
         reminderDaysBefore: Int16? = nil,
         generateTask: Bool? = nil
@@ -190,6 +213,7 @@ class AnniversaryRepository {
         if let note = note { item.note = note.isEmpty ? nil : note }
         if let isPinned = isPinned { item.isPinned = isPinned }
         if let repeatYearly = repeatYearly { item.repeatYearly = repeatYearly }
+        if let isLunar = isLunar { item.isLunar = isLunar }
         if let reminderEnabled = reminderEnabled { item.reminderEnabled = reminderEnabled }
         if let reminderDaysBefore = reminderDaysBefore { item.reminderDaysBefore = reminderDaysBefore }
         if let generateTask = generateTask { item.generateTask = generateTask }
@@ -198,11 +222,7 @@ class AnniversaryRepository {
         loadActiveAnniversaries()
         notifyDataChange()
         // 重新调度通知（先取消旧的，再按新配置排）
-        TodoNotificationService.shared.cancelAnniversaryReminder(for: item.id)
-        if reminderEnabled ?? item.reminderEnabled {
-            let payload = TodoNotificationService.AnniversaryReminderPayload(item)
-            Task { await TodoNotificationService.shared.scheduleAnniversaryReminder(for: payload) }
-        }
+        scheduleNotifications(for: item)
         // 同步已生成的关联任务（已完成的历史不动，未完成的「计划」跟着新数据走）。
         // syncTasks 自身幂等：无变更时各分支都不会产生写操作。
         let copyChanged = (title.map { $0 != oldTitle } ?? false)
@@ -229,7 +249,7 @@ class AnniversaryRepository {
         loadActiveAnniversaries()
         notifyDataChange()
         // 取消通知
-        TodoNotificationService.shared.cancelAnniversaryReminder(for: item.id)
+        TodoNotificationService.shared.cancelAnniversaryNotifications(for: item.id)
     }
 
     /// 切换置顶状态

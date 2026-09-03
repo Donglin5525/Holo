@@ -134,59 +134,63 @@ struct AnniversaryListView: View {
         .padding(.bottom, HoloSpacing.sm)
     }
 
-    // MARK: - 列表（系统 List + swipeActions）
+    // MARK: - 列表（Hero 主卡 + 三组分组，保留系统 List 的滑动操作）
+
+    /// Hero：到期当天的条目优先，否则最近的未来倒数
+    private var heroItem: Anniversary? {
+        let upcoming = anniversaries.filter { $0.daysFromToday() >= 0 }
+        return upcoming.first(where: { $0.isToday }) ?? upcoming.first
+    }
+
+    private var restItems: [Anniversary] {
+        anniversaries.filter { $0.id != heroItem?.id }
+    }
+
+    /// 即将到来（不重复的未来日）
+    private var upcomingOnceItems: [Anniversary] {
+        restItems.filter { $0.daysFromToday() >= 0 && !$0.repeatYearly }
+    }
+
+    /// 每年循环（重复的未来日，含「就是今天」但未被 Hero 选中的）
+    private var yearlyItems: [Anniversary] {
+        restItems.filter { $0.daysFromToday() >= 0 && $0.repeatYearly }
+    }
+
+    /// 时光已过（累计）
+    private var elapsedItems: [Anniversary] {
+        restItems.filter { $0.daysFromToday() < 0 }
+    }
 
     private var anniversaryList: some View {
         List {
-            ForEach(anniversaries, id: \.id) { item in
-                AnniversaryCardView(anniversary: item) {
-                    detailAnniversary = item
-                }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: HoloSpacing.md, bottom: 6, trailing: HoloSpacing.md))
-                // 右滑：编辑 + 删除
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button {
-                        sheetTarget = .edit(item)
-                    } label: {
-                        Label("编辑", systemImage: "pencil")
+            // 情感焦点：Hero 主卡
+            if let hero = heroItem {
+                Section {
+                    AnniversaryHeroCard(anniversary: hero) {
+                        detailAnniversary = hero
                     }
-                    .tint(.holoPrimary)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: HoloSpacing.md, bottom: 10, trailing: HoloSpacing.md))
+                    .contextMenu { rowContextMenu(hero) }
+                }
+            }
 
-                    Button(role: .destructive) {
-                        anniversaryToDelete = item
-                    } label: {
-                        Label("删除", systemImage: "trash")
-                    }
+            if !upcomingOnceItems.isEmpty {
+                section(title: String(localized: "即将到来")) {
+                    ForEach(upcomingOnceItems, id: \.id) { row($0) }
                 }
-                // 左滑：置顶
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        togglePin(item)
-                    } label: {
-                        Label(item.isPinned ? "取消置顶" : "置顶",
-                              systemImage: item.isPinned ? "pin.slash" : "pin")
-                    }
-                    .tint(.holoInfo)
+            }
+
+            if !yearlyItems.isEmpty {
+                section(title: String(localized: "每年循环")) {
+                    ForEach(yearlyItems, id: \.id) { row($0) }
                 }
-                .contextMenu {
-                    Button {
-                        sheetTarget = .edit(item)
-                    } label: {
-                        Label("编辑", systemImage: "pencil")
-                    }
-                    Button {
-                        togglePin(item)
-                    } label: {
-                        Label(item.isPinned ? "取消置顶" : "置顶",
-                              systemImage: item.isPinned ? "pin.slash" : "pin")
-                    }
-                    Button(role: .destructive) {
-                        anniversaryToDelete = item
-                    } label: {
-                        Label("删除", systemImage: "trash")
-                    }
+            }
+
+            if !elapsedItems.isEmpty {
+                section(title: String(localized: "时光已过")) {
+                    ForEach(elapsedItems, id: \.id) { row($0) }
                 }
             }
         }
@@ -194,6 +198,84 @@ struct AnniversaryListView: View {
         .scrollContentBackground(.hidden)
         .background(Color.clear)
         .padding(.bottom, 100) // 给底部 Tab 栏留空间
+    }
+
+    /// 分组 Section（小写间距标签 + 分隔线）
+    private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        Section {
+            content()
+        } header: {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 11.5, weight: .heavy))
+                    .kerning(1)
+                    .foregroundColor(Color.holoTextSecondary)
+                Rectangle()
+                    .fill(Color.holoBorder)
+                    .frame(height: 0.7)
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+            .textCase(nil)
+            .listRowInsets(EdgeInsets())
+        }
+    }
+
+    /// 普通行卡片（右滑编辑/删除 · 左滑置顶 · 长按菜单）
+    private func row(_ item: Anniversary) -> some View {
+        AnniversaryCardView(anniversary: item) {
+            detailAnniversary = item
+        }
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 6, leading: HoloSpacing.md, bottom: 6, trailing: HoloSpacing.md))
+        // 右滑：编辑 + 删除
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                sheetTarget = .edit(item)
+            } label: {
+                Label(String(localized: "编辑"), systemImage: "pencil")
+            }
+            .tint(.holoPrimary)
+
+            Button(role: .destructive) {
+                anniversaryToDelete = item
+            } label: {
+                Label(String(localized: "删除"), systemImage: "trash")
+            }
+        }
+        // 左滑：置顶
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                togglePin(item)
+            } label: {
+                Label(item.isPinned ? String(localized: "取消置顶") : String(localized: "置顶"),
+                      systemImage: item.isPinned ? "pin.slash" : "pin")
+            }
+            .tint(.holoInfo)
+        }
+        .contextMenu { rowContextMenu(item) }
+    }
+
+    @ViewBuilder
+    private func rowContextMenu(_ item: Anniversary) -> some View {
+        Button {
+            sheetTarget = .edit(item)
+        } label: {
+            Label(String(localized: "编辑"), systemImage: "pencil")
+        }
+        Button {
+            togglePin(item)
+        } label: {
+            Label(item.isPinned ? String(localized: "取消置顶") : String(localized: "置顶"),
+                  systemImage: item.isPinned ? "pin.slash" : "pin")
+        }
+        Button(role: .destructive) {
+            anniversaryToDelete = item
+        } label: {
+            Label(String(localized: "删除"), systemImage: "trash")
+        }
     }
 
     // MARK: - 空状态
@@ -213,11 +295,11 @@ struct AnniversaryListView: View {
             }
 
             VStack(spacing: HoloSpacing.sm) {
-                Text("记录第一个重要的日子")
+                Text("点亮第一个重要的日子")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
 
-                Text("生日、纪念日、倒计时……\n让每个值得记住的日子都被看见")
+                Text("生日、纪念日、倒数日……\n每点亮一个日子，等待本身就开始发光")
                     .font(.holoBody)
                     .foregroundColor(.holoTextSecondary)
                     .multilineTextAlignment(.center)
@@ -226,8 +308,8 @@ struct AnniversaryListView: View {
 
             Button(action: { sheetTarget = .add }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                    Text("添加纪念日")
+                    Image(systemName: "sparkles")
+                    Text("点亮一个日子")
                 }
                 .font(.holoLabel)
                 .foregroundColor(.white)

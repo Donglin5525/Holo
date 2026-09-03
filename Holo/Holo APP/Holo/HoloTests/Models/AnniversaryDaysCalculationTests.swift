@@ -124,7 +124,7 @@ final class AnniversaryDaysCalculationTests: XCTestCase {
     }
 
     func testYearlyRepeatDaysFromToday() {
-        // 每年重复的纪念日，距今的天数应是"距下一个周年"的天数
+        // 每年重复的纪念日，距今的天数应是"距下一个周年"的天数（按日历日对齐）
         let past = calendar.date(byAdding: .month, value: -3, to: Date())!
         let item = makeAnniversary(date: past, repeatYearly: true)
         let days = item.daysFromToday()
@@ -132,9 +132,12 @@ final class AnniversaryDaysCalculationTests: XCTestCase {
         // 应是正数（未来）
         XCTAssertGreaterThan(days, 0, "每年重复的纪念日距今应为正数（未来）")
 
-        // 验证：手动算距下一个周年的天数
+        // 验证：手动算距下一个周年的天数（零点对齐，与实现口径一致）
         let nextOccur = item.nextOccurrenceDate()
-        let expectedDays = calendar.dateComponents([.day], from: Date(), to: nextOccur).day ?? 0
+        let expectedDays = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: Date()),
+            to: calendar.startOfDay(for: nextOccur)).day ?? 0
         XCTAssertEqual(days, expectedDays, "天数应等于距下一个周年的天数")
     }
 
@@ -156,5 +159,100 @@ final class AnniversaryDaysCalculationTests: XCTestCase {
         let threeYearsAgo = calendar.date(byAdding: .year, value: -3, to: Date())!
         let item = makeAnniversary(date: threeYearsAgo, repeatYearly: true)
         XCTAssertEqual(item.anniversaryNumber, 3, "3年前的纪念日应是第3周年")
+    }
+
+    // MARK: - 农历重复推算
+
+    func testLunarRepeatNextOccurrenceKeepsLunarMonthDay() {
+        // 农历重复：下一个农历发生日的农历月日应与原始日期一致，且不早于今天
+        let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date())!
+        let item = makeAnniversary(date: threeMonthsAgo, repeatYearly: true)
+        item.isLunar = true
+
+        let next = item.nextOccurrenceDate()
+        XCTAssertGreaterThanOrEqual(
+            calendar.startOfDay(for: next),
+            calendar.startOfDay(for: Date()),
+            "下一个农历发生日不应早于今天")
+        XCTAssertEqual(
+            ChineseLunarCalendar.lunarMonth(of: next), ChineseLunarCalendar.lunarMonth(of: item.date),
+            "下一个农历发生日的农历月应与原始日期一致")
+        XCTAssertEqual(
+            ChineseLunarCalendar.lunarDay(of: next), ChineseLunarCalendar.lunarDay(of: item.date),
+            "下一个农历发生日的农历日应与原始日期一致")
+    }
+
+    func testLunarRepeatDaysMatchNextOccurrence() {
+        // 每年农历重复的 daysFromToday 应等于距下一个农历发生日的天数
+        let oneMonthAgo = calendar.date(byAdding: .month, value: -1, to: Date())!
+        let item = makeAnniversary(date: oneMonthAgo, repeatYearly: true)
+        item.isLunar = true
+
+        let days = item.daysFromToday()
+        XCTAssertGreaterThanOrEqual(days, 0, "农历重复的纪念日距今应为非负（未来或今天）")
+        let next = item.nextOccurrenceDate()
+        let expected = calendar.dateComponents([.day], from: calendar.startOfDay(for: Date()), to: calendar.startOfDay(for: next)).day ?? 0
+        XCTAssertEqual(days, expected, "天数应等于距下一个农历发生日的天数")
+    }
+
+    // MARK: - 里程碑轨道
+
+    func testMilestoneInfoAt520Days() {
+        let item = makeAnniversary(date: calendar.date(byAdding: .day, value: -520, to: Date())!)
+        let info = item.milestoneInfo
+        XCTAssertEqual(info.totalDays, 520, "520天前的日子总天数应为520")
+        XCTAssertTrue(info.isMilestoneToday, "第520天恰好是里程碑")
+        XCTAssertEqual(info.nextThreshold, 1000, "下一个里程碑应为1000天")
+        XCTAssertEqual(info.daysToNext, 480, "距1000天里程碑还有480天")
+        XCTAssertEqual(info.reached, [100, 365, 520], "已达成 100/365/520")
+    }
+
+    func testMilestoneTrackMarksStates() {
+        let item = makeAnniversary(date: calendar.date(byAdding: .day, value: -520, to: Date())!)
+        let marks = item.milestoneInfo.trackMarks
+        // 已达成最多取最近 3 个（此处恰为 100/365/520），520 是「今天」；下一个 1000 upcoming
+        XCTAssertEqual(marks.map(\.days), [100, 365, 520, 1000], "轨道标记应为 100/365/520/1000")
+        XCTAssertEqual(marks.last?.state, .upcoming, "1000天应为 upcoming")
+        XCTAssertTrue(marks.contains { $0.state == .now }, "第520天应标记为 now")
+    }
+
+    // MARK: - 年度周期进度
+
+    func testYearlyCycleProgressBounds() {
+        let past = calendar.date(byAdding: .month, value: -3, to: Date())!
+        let repeating = makeAnniversary(date: past, repeatYearly: true)
+        let progress = repeating.yearlyCycleProgress
+        XCTAssertNotNil(progress, "每年重复应有周期进度")
+        XCTAssertGreaterThanOrEqual(progress!, 0)
+        XCTAssertLessThanOrEqual(progress!, 1, "周期进度应在 0...1")
+
+        let once = makeAnniversary(date: past, repeatYearly: false)
+        XCTAssertNil(once.yearlyCycleProgress, "不重复的纪念日不应有周期进度")
+    }
+
+    func testYearlyCycleProgressAtOccurrenceDay() {
+        // 周年当天：上一个周期刚好走完（进度 100%），距下一个周年为 0 天
+        let exactlyOneYearAgo = calendar.date(byAdding: .year, value: -1, to: Date())!
+        let item = makeAnniversary(date: exactlyOneYearAgo, repeatYearly: true)
+        let progress = item.yearlyCycleProgress ?? -1
+        XCTAssertLessThan(abs(progress - 1), 0.01, "周年当天上一轮周期进度应为 100%")
+        XCTAssertEqual(item.daysFromToday(), 0, "周年当天距下一周年应为0天")
+        XCTAssertTrue(item.isToday, "周年当天 isToday 应为真")
+    }
+
+    // MARK: - 仓库写入与列表去重（Hero 主卡不与分组重复）
+
+    /// 单条插入后 fetch 结果唯一（列表 Hero/分组不重复的数据前提）。
+    /// 不经 AnniversaryRepository.setup——它会触发通知重排，在单测宿主有毒性。
+    func testSingleInsertFetchReturnsExactlyOneRow() throws {
+        let date = calendar.date(byAdding: .day, value: 30, to: Date())!
+        _ = Anniversary.create(in: context, title: "唯一的纪念日", date: date, type: .anniversary, repeatYearly: true)
+        try context.save()
+
+        let request = Anniversary.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        let rows = try context.fetch(request)
+        XCTAssertEqual(rows.count, 1, "插入一条后 fetch 应恰好一条")
+        XCTAssertEqual(Set(rows.map(\.id)).count, 1, "id 唯一")
     }
 }

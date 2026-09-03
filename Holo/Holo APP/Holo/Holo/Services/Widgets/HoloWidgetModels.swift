@@ -66,10 +66,10 @@ nonisolated enum HoloWidgetQuickAction: String, CaseIterable, Codable, Equatable
 
     var title: String {
         switch self {
-        case .askHolo: return "问 Holo"
-        case .addTransaction: return "记一笔"
-        case .recordThought: return "写想法"
-        case .addTask: return "加待办"
+        case .askHolo: return String(localized: "问 Holo")
+        case .addTransaction: return String(localized: "记一笔")
+        case .recordThought: return String(localized: "写想法")
+        case .addTask: return String(localized: "加待办")
         }
     }
 
@@ -253,45 +253,45 @@ nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
         HoloWidgetHabitSnapshot(
             completedToday: 3,
             totalToday: 5,
-            longestStreakText: "34天",
+            longestStreakText: String(localized: "34天"),
             habits: [
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-                    name: "跑步 5 公里",
+                    name: String(localized: "跑步 5 公里"),
                     icon: "🏃",
-                    streakText: "12天",
+                    streakText: String(localized: "12天"),
                     isCompletedToday: true,
                     weekPattern: [true, true, false, true, true, true, true]
                 ),
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
-                    name: "喝够 8 杯水",
+                    name: String(localized: "喝够 8 杯水"),
                     icon: "💧",
-                    streakText: "34天",
+                    streakText: String(localized: "34天"),
                     isCompletedToday: true,
                     weekPattern: [true, true, true, true, true, true, true]
                 ),
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
-                    name: "睡前阅读 20 分钟",
+                    name: String(localized: "睡前阅读 20 分钟"),
                     icon: "📚",
-                    streakText: "8天",
+                    streakText: String(localized: "8天"),
                     isCompletedToday: true,
                     weekPattern: [true, false, true, true, false, true, false]
                 ),
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
-                    name: "冥想 10 分钟",
+                    name: String(localized: "冥想 10 分钟"),
                     icon: "🧘",
-                    streakText: "5天",
+                    streakText: String(localized: "5天"),
                     isCompletedToday: false,
                     weekPattern: [true, true, true, false, true, false, false]
                 ),
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!,
-                    name: "7 点前起床",
+                    name: String(localized: "7 点前起床"),
                     icon: "🌱",
-                    streakText: "21天",
+                    streakText: String(localized: "21天"),
                     isCompletedToday: false,
                     weekPattern: [true, true, true, true, true, false, false]
                 )
@@ -337,34 +337,34 @@ nonisolated struct HoloWidgetTodoSnapshot: Codable, Equatable {
             items: [
                 HoloWidgetTodoItem(
                     id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-                    title: "回复小组件设计稿意见",
+                    title: String(localized: "回复小组件设计稿意见"),
                     isCompleted: false,
                     priority: 3,
                     isOverdue: false
                 ),
                 HoloWidgetTodoItem(
                     id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
-                    title: "预约牙医复诊",
+                    title: String(localized: "预约牙医复诊"),
                     isCompleted: false,
                     priority: 2,
                     isOverdue: false
                 ),
                 HoloWidgetTodoItem(
                     id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
-                    title: "给妈妈打电话",
+                    title: String(localized: "给妈妈打电话"),
                     isCompleted: false,
                     priority: 1,
                     isOverdue: false
                 ),
                 HoloWidgetTodoItem(
                     id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
-                    title: "买咖啡豆",
+                    title: String(localized: "买咖啡豆"),
                     isCompleted: true,
                     priority: 0,
                     isOverdue: false
                 )
             ],
-            dateText: "8.20 周三",
+            dateText: String(localized: "8.20 周三"),
             updatedAt: date
         )
     }
@@ -394,14 +394,14 @@ nonisolated struct HoloWidgetGoalSnapshot: Codable, Equatable {
         HoloWidgetGoalSnapshot(
             goal: HoloWidgetGoalItem(
                 goalId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-                title: "MacBook 基金",
+                title: String(localized: "MacBook 基金"),
                 icon: "💻",
                 progress: 0.68,
                 percentText: "68%",
                 currentText: "¥10,200",
                 targetText: "¥15,000",
                 remainingText: "¥4,800",
-                forecastText: "按当前节奏 · 预计 10.24 达成",
+                forecastText: String(localized: "按当前节奏 · 预计 10.24 达成"),
                 kindText: nil
             ),
             updatedAt: date
@@ -446,30 +446,37 @@ nonisolated struct HoloWidgetAnniversarySnapshot: Codable, Equatable {
             items: [
                 HoloWidgetAnniversaryItem(
                     id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-                    title: "妈妈生日",
-                    icon: "🎂",
-                    monthText: "9月",
-                    dayText: "01",
-                    dateText: "9.1 · 周二",
-                    days: 12
+                    title: String(localized: "和小林的纪念日"),
+                    icon: "❤️",
+                    monthText: String(localized: "10月"),
+                    dayText: "24",
+                    dateText: String(localized: "10.24 · 周六"),
+                    days: 51,
+                    themeColorHex: "#EC4899",
+                    subtitleText: String(localized: "第 3 个周年"),
+                    cycleProgress: 0.86
                 ),
                 HoloWidgetAnniversaryItem(
                     id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
-                    title: "结婚纪念日",
-                    icon: "💐",
-                    monthText: "9月",
-                    dayText: "15",
-                    dateText: "9.15 · 周二",
-                    days: 26
+                    title: String(localized: "发工资"),
+                    icon: "⏳",
+                    monthText: String(localized: "9月"),
+                    dayText: "10",
+                    dateText: String(localized: "9.10 · 周四"),
+                    days: 7,
+                    themeColorHex: "#60A5FA"
                 ),
                 HoloWidgetAnniversaryItem(
                     id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
-                    title: "东京之行出发",
-                    icon: "✈️",
-                    monthText: "10月",
-                    dayText: "03",
-                    dateText: "10.3 · 周六",
-                    days: 44
+                    title: String(localized: "领证纪念日"),
+                    icon: "💍",
+                    monthText: String(localized: "12月"),
+                    dayText: "12",
+                    dateText: String(localized: "12.12 · 周六"),
+                    days: 100,
+                    themeColorHex: "#EC4899",
+                    subtitleText: String(localized: "第 5 个周年"),
+                    cycleProgress: 0.62
                 )
             ],
             updatedAt: date
@@ -490,6 +497,51 @@ nonisolated struct HoloWidgetAnniversaryItem: Codable, Equatable, Identifiable {
     let dateText: String
     /// 正=未来还有 N 天；0=就是今天；负=已过 N 天
     let days: Int
+    /// 主题色 hex（"#EC4899"），旧快照缺失时组件回退品牌色
+    let themeColorHex: String?
+    /// 语义行（"第 3 个周年"）
+    let subtitleText: String?
+    /// 每年重复的本轮周期进度（0...1），非重复为 nil
+    let cycleProgress: Double?
+
+    init(
+        id: UUID,
+        title: String,
+        icon: String,
+        monthText: String,
+        dayText: String,
+        dateText: String,
+        days: Int,
+        themeColorHex: String? = nil,
+        subtitleText: String? = nil,
+        cycleProgress: Double? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.icon = icon
+        self.monthText = monthText
+        self.dayText = dayText
+        self.dateText = dateText
+        self.days = days
+        self.themeColorHex = themeColorHex
+        self.subtitleText = subtitleText
+        self.cycleProgress = cycleProgress
+    }
+
+    /// 旧版本快照缺新字段（themeColorHex 等）时按 nil 解码，不整包失败
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        icon = try c.decode(String.self, forKey: .icon)
+        monthText = try c.decode(String.self, forKey: .monthText)
+        dayText = try c.decode(String.self, forKey: .dayText)
+        dateText = try c.decode(String.self, forKey: .dateText)
+        days = try c.decode(Int.self, forKey: .days)
+        themeColorHex = try? c.decodeIfPresent(String.self, forKey: .themeColorHex)
+        subtitleText = try? c.decodeIfPresent(String.self, forKey: .subtitleText)
+        cycleProgress = try? c.decodeIfPresent(Double.self, forKey: .cycleProgress)
+    }
 
     var displayDays: Int { abs(days) }
 

@@ -103,6 +103,13 @@ extension CoreDataStack {
         repeatYearly.defaultValue = false
         attributes.append(repeatYearly)
 
+        let isLunar = NSAttributeDescription()
+        isLunar.name = "isLunar"
+        isLunar.attributeType = .booleanAttributeType
+        isLunar.isOptional = false
+        isLunar.defaultValue = false
+        attributes.append(isLunar)
+
         let reminderEnabled = NSAttributeDescription()
         reminderEnabled.name = "reminderEnabled"
         reminderEnabled.attributeType = .booleanAttributeType

@@ -31,6 +31,7 @@ class Anniversary: NSManagedObject, Identifiable {
     // MARK: - 重复与提醒
 
     @NSManaged var repeatYearly: Bool      // 是否每年重复
+    @NSManaged var isLunar: Bool           // 重复按农历推算（如农历生日）
     @NSManaged var reminderEnabled: Bool   // 是否开启提醒
     @NSManaged var reminderDaysBefore: Int16  // 提前几天（0=当天）
     @NSManaged var generateTask: Bool      // 是否自动生成任务

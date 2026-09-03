@@ -124,7 +124,7 @@ final class HoloWidgetSnapshotService {
 
         let calendar = Calendar.current
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
-        let monthTransactions = (try? await FinanceRepository.shared.getTransactions(for: monthStart)) ?? []
+        let monthTransactions = (try? await FinanceRepository.shared.getStatisticsTransactions(for: monthStart)) ?? []
         let budgetSummary = BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)
         let dayRange = calendar.range(of: .day, in: .month, for: date)
 
@@ -165,7 +165,7 @@ final class HoloWidgetSnapshotService {
         var transactions = monthTransactions
         let weekStartMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: weekStart)) ?? weekStart
         if weekStartMonth < monthStart {
-            let previousMonthTransactions = (try? await FinanceRepository.shared.getTransactions(for: weekStartMonth)) ?? []
+            let previousMonthTransactions = (try? await FinanceRepository.shared.getStatisticsTransactions(for: weekStartMonth)) ?? []
             transactions += previousMonthTransactions
         }
 
@@ -427,6 +427,11 @@ final class HoloWidgetSnapshotService {
             let occurrence = anniversary.repeatYearly ? anniversary.nextOccurrenceDate() : anniversary.date
             let month = Calendar.current.component(.month, from: occurrence)
             let day = Calendar.current.component(.day, from: occurrence)
+            var subtitle: String? = nil
+            if anniversary.repeatYearly {
+                let n = anniversary.anniversaryNumber + 1
+                subtitle = String(localized: "第 \(n) 个周年")
+            }
             return HoloWidgetAnniversaryItem(
                 id: anniversary.id,
                 title: anniversary.title,
@@ -434,7 +439,10 @@ final class HoloWidgetSnapshotService {
                 monthText: "\(month)月",
                 dayText: String(format: "%02d", day),
                 dateText: Self.anniversaryDateText(occurrence),
-                days: anniversary.daysFromToday()
+                days: anniversary.daysFromToday(),
+                themeColorHex: anniversary.color,
+                subtitleText: subtitle,
+                cycleProgress: anniversary.yearlyCycleProgress
             )
         }
 
