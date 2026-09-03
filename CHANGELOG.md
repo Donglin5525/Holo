@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-09-04] 发版体检P0修复——Release正式包补推送权限+出口合规声明免填
+
+### 背景
+1.0.1 上架前深度体检（2026-09-04 凌晨）发现：`HoloRelease.entitlements` 缺 `aps-environment` 键。经查 8/27 归档的 `Holo-1.0-22.xcarchive` 签名 entitlements 实证无 `aps-environment`——即正式包/AP 包从未具备推送能力（里程碑、账单提醒、云端分析完成通知等全部收不到），而 Debug 包带 `development` 环境，模拟器与开发期一直测不出该缺口。后端 APNs 发送策略为「production 优先、400 回退 sandbox、按 token 缓存环境」，本修复与其天然对齐。
+
+### 改动（纯 iOS，无后端）
+- **`HoloRelease.entitlements` 补 `aps-environment=production`**：正式包归档后签名即携带推送权限；APNs 生产环境 token 注册恢复可用。
+- **`Info.plist` 加 `ITSAppUsesNonExemptEncryption=false`**：App 仅使用 HTTPS 标准加密，声明豁免后每次上传无需再手动作答出口合规问题。
+
+### 验证与影响
+- 两文件 `plutil -lint` 通过；`aps-environment` 属标准 capability（App ID 已启用推送，真机沙盒此前已验证过 Development 环境收推送）。
+- **归档约束：本修复必须随 1.0.1 重新归档生效**（旧 build 22/23 归档产物均不含推送权限；本地也已找不到 build 23 归档）。归档请从干净工作区（本提交）进行，勿携在途多语言改动。
+- 真机验收项（TestFlight 安装后）：里程碑推送、账单到期提醒各收一条即闭环。
+
 ## [2026-09-03] 1.0.1 发版收口——四批完工功能分批入库（对账/纪念日/记忆出处/想法双修）
 
 ### 背景
