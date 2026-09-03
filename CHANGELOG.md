@@ -15,6 +15,7 @@
 - **静默 AI 额度 8→10 并收敛为单一常量**（`HoloMemoryResourceSnapshot.defaultDailyAICallLimit`）：8 领域+跨域融合共 9 个调度目标共用每日额度，原 8 次在多域活跃日必挤掉队尾的跨域融合；且数字散落 4 处硬编码，现统一为一处常量。东林拍板 8→10。
 - **收件箱卡假按钮**（`DomainMemorySection`）：长廊洞察 Tab 收件箱卡在无待确认事项时仍渲染为按钮但点击无响应，现拆出 `inboxLabelContent`，仅 pending>0 时包 Button。
 - 后端样例（随下一 commit）：`deploy/env.production.example` 补全记忆任务 10 项配置（原先缺失导致照样例部署时记忆任务静默回落聊天模型，即 8 月 73% 超时事故的同族隐患）+ 修 `HOLO_INSIGHT_MAX_TOKENS` 重复键（4096 被 2048 覆盖）。纯样例文件，不需要发版。
+- **修复 Holo scheme 内购配置路径回退**（`Holo.xcscheme`）：StoreKit 引用在 8-27 的 49a66bc7 中从正确的 `../../HoloPlus.storekit` 回退成裸文件名（疑为 Xcode 界面重存 scheme 时丢前缀），导致 Cmd+R 报「StoreKit Configuration file can't be found」；恢复 `../../` 写法（该写法经 8-17 f72d50d7 验证为正确基准）。另清除本机两份共约 1GB 的陈旧 GUI 构建缓存——同日东林遇到的整屏「Cannot find type ChatViewModel」级联报错经命令行复验为 0 error（BUILD SUCCEEDED），属 Xcode 界面缓存僵死（pbxproj 被并行会话手改 + Xcode 长开未重载，同 8-23 事故模式），非代码损坏。
 
 ### 验证
 - App 主 target BUILD SUCCEEDED；桥接测试 044（融合）/058（观察计划）/065（调度器）全绿。新增断言：融合敏感分支 6 条（敏感落盘/确认前不生效/重复出现仍需确认）+ 调度器终态退避 3 条（退到下个 UTC 日界/日界前不再调用 AI/当日只烧一次）。
