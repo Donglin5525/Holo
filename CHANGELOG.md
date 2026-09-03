@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-09-03] 习惯统计页月份条滚动悬浮——下滑随时切月+顺手修两个统计页真实缺陷
+
+### 背景
+东林提出：习惯统计页往下看习惯明细时，想切月份必须滚回最顶端，不便。诉求是月份条在下滑后悬浮起来，随时可切月。走查实现的过程中暴露出两个统计页既有缺陷，一并根治。
+
+### 改动（纯 iOS，无后端）
+- **月份条滚动悬浮**（`HabitStatsView`）：滚动超过月份条高度（约 40pt）后，导航栏下方浮出同款月份条（底色+投影+底部细分割线），左右切月/点击选月与原位一致；滑回顶部自动收起，出现/收起带 0.15s 过渡。滚动检测收敛在 `MonthSwitcherFloatTracker` modifier：iOS 18+ 用 `onScrollGeometryChange`（实测新 ScrollView 下传统 GeometryReader+preference 方案滚动中不再触发，仅首帧一次），iOS 17 保留 GeometryReader+PreferenceKey 兜底，部署线不变。
+- **修：建第一个习惯后立刻切统计页显示「还没有习惯」**（`HabitStatsState`）：`.habitDataDidChange` 监听原挂在视图 `onReceive`，通知发出时统计页视图尚未创建则事件直接丢失，state 停留在初始化时的空快照。监听挪进 state（`bindDataChangeNotifications`，与视图生死无关），视图层 onReceive 移除避免双刷。
+- **修：统计设置页与统计页「已启用」口径打架**（`HabitRepository+Stats.orderedHabitsForStats`）：设置页胶囊语义为「未配置=全部显示」（全亮），驾驶舱同口径，唯独列表排序方法把空配置当「无」→ 新用户统计页永远空态、与驾驶舱「坚持习惯 N 个」自相矛盾。对齐为「nil/空=显示全部」，与 `getOverviewStats`/`getMonthlyCompletionRate` 及看板语义一致。
+- **无障碍**（`HabitStatsSettingsView`）：启用胶囊补 `.isSelected` trait，VoiceOver/UITest 可感知亮灭；月份条左右箭头补 identifier 供自动化定位。
+- 注：习惯统计相关 5 个文件内混有并行会话「多语言一期」的机械改动（文案 `String(localized:)` 包装），同文件无法分离，随本提交一并入库（均已编译+测试验证）。
+
+### 验证
+- 新增 `HoloUITests/HabitStatsFloatUITests`（已挂 pbxproj）：建 3 习惯→统计设置→切统计页→断言顶部无悬浮条→下滑断言出现→点悬浮条左箭头切月→滑回顶部断言消失，iOS 26.3 模拟器全绿；截图确认悬浮条视觉（底色/投影/切月后月份联动）。
+- 驾驶舱与列表口径一致性经修复后同屏验证：10 习惯全量展示，不再空态。
+
 ## [2026-09-03] 记忆萃取模块体检修复——涉健康跨域推断回确认门+校验拒绝当日止损+静默额度8→10+收件箱假按钮
 
 ### 背景

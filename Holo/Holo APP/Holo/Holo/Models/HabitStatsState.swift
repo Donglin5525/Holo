@@ -22,10 +22,10 @@ enum HabitStatsDateRange: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .week: return "7天"
-        case .month: return "30天"
-        case .quarter: return "90天"
-        case .all: return "全部"
+        case .week: return String(localized: "7天")
+        case .month: return String(localized: "30天")
+        case .quarter: return String(localized: "90天")
+        case .all: return String(localized: "全部")
         }
     }
 
@@ -61,10 +61,10 @@ enum HabitTypeFilter: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .all: return "全部"
-        case .checkIn: return "打卡型"
-        case .count: return "计数类"
-        case .measure: return "测量类"
+        case .all: return String(localized: "全部")
+        case .checkIn: return String(localized: "打卡型")
+        case .count: return String(localized: "计数类")
+        case .measure: return String(localized: "测量类")
         }
     }
 
@@ -146,7 +146,7 @@ struct HabitStatsItem: Identifiable {
     }
 
     var unitText: String {
-        unit ?? (isCountType ? "次" : "")
+        unit ?? (isCountType ? String(localized: "次") : "")
     }
 
     var isCustomIcon: Bool {
@@ -274,6 +274,7 @@ class HabitStatsState: ObservableObject {
         self.repository = repository ?? .shared
         self.displaySettings = displaySettings ?? .shared
         bindDisplaySettings()
+        bindDataChangeNotifications()
         Task { await reload() }
     }
 
@@ -356,6 +357,17 @@ class HabitStatsState: ObservableObject {
         displaySettings.$visibleHabitIds
             .combineLatest(displaySettings.$orderedHabitIds)
             .sink { [weak self] _, _ in
+                guard let self else { return }
+                Task { await self.reload() }
+            }
+            .store(in: &cancellables)
+    }
+
+    /// 数据变更监听放在 state 而非视图：通知发出时统计页可能尚未创建
+    /// （如建第一个习惯后立刻切到统计页），视图级 onReceive 会错过这次变更
+    private func bindDataChangeNotifications() {
+        NotificationCenter.default.publisher(for: .habitDataDidChange)
+            .sink { [weak self] _ in
                 guard let self else { return }
                 Task { await self.reload() }
             }

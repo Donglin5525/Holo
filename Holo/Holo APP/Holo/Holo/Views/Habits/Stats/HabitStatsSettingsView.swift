@@ -183,11 +183,11 @@ struct HabitStatsSettingsView: View {
     private func habitVisibilityControls(_ habit: Habit) -> some View {
         HStack(spacing: HoloSpacing.xs) {
             visibilityPillButton(
-                title: "统计",
+                title: String(localized: "统计"),
                 isOn: statsBinding(for: habit.id)
             )
             visibilityPillButton(
-                title: "看板",
+                title: String(localized: "看板"),
                 isOn: dashboardBinding(for: habit.id)
             )
         }
@@ -213,6 +213,8 @@ struct HabitStatsSettingsView: View {
                 )
         }
         .buttonStyle(.plain)
+        // 选中态进无障碍：VoiceOver/UITest 可感知胶囊亮灭
+        .accessibilityAddTraits(isOn.wrappedValue ? [.isSelected] : [])
         .animation(.easeInOut(duration: 0.15), value: isOn.wrappedValue)
     }
 

@@ -13,6 +13,12 @@ struct HabitStatsView: View {
 
     @ObservedObject var state: HabitStatsState
     @State private var isMonthPickerPresented = false
+    @State private var isMonthSwitcherFloating = false
+
+    /// 滚动坐标系：用于追踪月份切换条是否已滚出屏幕顶部
+    private static let scrollSpace = "habitStatsScroll"
+    /// 触发悬浮的滚动距离：月份条高约 36pt，滚过它后悬浮条接管
+    private static let floatThreshold: CGFloat = 40
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,13 +26,7 @@ struct HabitStatsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
-                    HabitStatsMonthSwitcher(
-                        month: state.selectedMonth,
-                        canGoNext: state.canGoToNextMonth,
-                        onPrevious: { Task { await state.goToPreviousMonth() } },
-                        onNext: { Task { await state.goToNextMonth() } },
-                        onTap: { isMonthPickerPresented = true }
-                    )
+                    monthSwitcher
 
                     if state.hasAnyHabits {
                         HabitStatsCockpitCard(
@@ -57,16 +57,62 @@ struct HabitStatsView: View {
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.bottom, HoloSpacing.xl)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: HabitStatsScrollOffsetKey.self,
+                            value: geo.frame(in: .named(Self.scrollSpace)).minY
+                        )
+                    }
+                )
             }
+            .coordinateSpace(name: Self.scrollSpace)
+            .overlay(alignment: .top) {
+                if isMonthSwitcherFloating {
+                    floatingMonthSwitcher
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .modifier(MonthSwitcherFloatTracker(
+                threshold: Self.floatThreshold,
+                isFloating: $isMonthSwitcherFloating
+            ))
         }
         .background(Color.holoBackground)
         .navigationBarHidden(true)
         .sheet(isPresented: $isMonthPickerPresented) {
             monthPickerSheet
         }
-        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
-            state.refresh()
-        }
+    }
+
+    // MARK: - 月份切换条
+
+    private var monthSwitcher: some View {
+        HabitStatsMonthSwitcher(
+            month: state.selectedMonth,
+            canGoNext: state.canGoToNextMonth,
+            onPrevious: { Task { await state.goToPreviousMonth() } },
+            onNext: { Task { await state.goToNextMonth() } },
+            onTap: { isMonthPickerPresented = true }
+        )
+    }
+
+    /// 滚动后悬浮在顶部的月份切换条（与原位样式一致，加浮层底色与投影）。
+    /// identifier 会向下覆盖子元素：悬浮条内按钮以 floating id 暴露，与原位条区分，供 UITest 定位
+    private var floatingMonthSwitcher: some View {
+        monthSwitcher
+            .accessibilityIdentifier("habit_stats_switcher_floating")
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, HoloSpacing.sm)
+            .padding(.bottom, HoloSpacing.sm)
+            .frame(maxWidth: .infinity)
+            .background(Color.holoBackground)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.holoTextPrimary.opacity(0.06))
+                    .frame(height: 0.5)
+            }
+            .shadow(color: .black.opacity(0.05), radius: 6, y: 2)
     }
 
     // MARK: - 导航栏
@@ -161,6 +207,45 @@ struct HabitStatsView: View {
             }
         )
         .presentationDetents([.height(320)])
+    }
+}
+
+// MARK: - 滚动偏移
+
+private struct HabitStatsScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+/// 悬浮判定：滚过月份条高度后置 isFloating = true，回到顶部后复位。
+/// iOS 18+ 用 onScrollGeometryChange（新 ScrollView 下 GeometryReader preference 滚动中不再更新）；
+/// iOS 17 退回 GeometryReader + preference 的传统方案。
+private struct MonthSwitcherFloatTracker: ViewModifier {
+    /// 触发悬浮的滚动距离（正数，pt）
+    let threshold: CGFloat
+    @Binding var isFloating: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                setFloating(offset > threshold)
+            }
+        } else {
+            content.onPreferenceChange(HabitStatsScrollOffsetKey.self) { minY in
+                setFloating(minY < -threshold)
+            }
+        }
+    }
+
+    private func setFloating(_ newValue: Bool) {
+        guard newValue != isFloating else { return }
+        withAnimation(HoloAnimation.quick) {
+            isFloating = newValue
+        }
     }
 }
 

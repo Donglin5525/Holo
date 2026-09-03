@@ -557,8 +557,10 @@ extension HabitRepository {
     // MARK: - Private Helpers (月度统计)
 
     /// 按展示设置排序习惯
+    /// visibleHabitIds 为 nil 或空时显示全部（与设置页「未配置=全亮」及 overview/rate 口径一致）
     func orderedHabitsForStats(visibleHabitIds: [UUID]?, orderedHabitIds: [UUID]?) -> [Habit] {
-        let visible = Set(visibleHabitIds ?? activeHabits.map(\.id))
+        let visibleIds = (visibleHabitIds?.isEmpty ?? true) ? activeHabits.map(\.id) : visibleHabitIds!
+        let visible = Set(visibleIds)
         let filtered = activeHabits.filter { visible.contains($0.id) }
         let order = Dictionary(uniqueKeysWithValues: (orderedHabitIds ?? []).enumerated().map { ($1, $0) })
         return filtered.sorted { (order[$0.id] ?? .max) < (order[$1.id] ?? .max) }
@@ -777,9 +779,9 @@ extension HabitRepository {
                     let total = dailyValues.values.reduce(0, +)
                     let formatted: String
                     if total == floor(total) {
-                        formatted = "\(Int(total))次"
+                        formatted = String(localized: "\(Int(total))次")
                     } else {
-                        formatted = "\(String(format: "%.1f", total))次"
+                        formatted = String(localized: "\(String(format: "%.1f", total))次")
                     }
                     return .count(recordedDays: controlledDays, totalCountText: formatted)
                 } else {
@@ -805,9 +807,9 @@ extension HabitRepository {
             let total = dailyValues.values.reduce(0, +)
             let formatted: String
             if total == floor(total) {
-                formatted = "\(Int(total))次"
+                formatted = String(localized: "\(Int(total))次")
             } else {
-                formatted = "\(String(format: "%.1f", total))次"
+                formatted = String(localized: "\(String(format: "%.1f", total))次")
             }
             return .count(recordedDays: recordedDays, totalCountText: formatted)
         } else {

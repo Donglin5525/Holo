@@ -16,8 +16,7 @@ struct HabitStatsMonthSwitcher: View {
 
     private var monthText: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月"
+        formatter.setLocalizedDateFormatFromTemplate("yMMM")
         return formatter.string(from: month)
     }
 
@@ -31,6 +30,7 @@ struct HabitStatsMonthSwitcher: View {
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             }
+            .accessibilityIdentifier("habit_stats_switcher_prev")
 
             Spacer()
 
@@ -55,6 +55,7 @@ struct HabitStatsMonthSwitcher: View {
                     .contentShape(Rectangle())
             }
             .disabled(!canGoNext)
+            .accessibilityIdentifier("habit_stats_switcher_next")
         }
     }
 }
