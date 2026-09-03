@@ -58,4 +58,11 @@ nonisolated enum FinanceTransactionOccurrencePolicy {
     static func effectiveHistoricalEnd(requestedEnd: Date, asOf snapshotDate: Date = Date()) -> Date {
         min(requestedEnd, snapshotDate)
     }
+
+    /// 收支统计口径统一排除「对账调整」流水：它参与余额计算（否则对账失去意义），
+    /// 但不是真实消费，计入月度收支/预算/分类聚合会虚增支出或收入。
+    /// 只在统计聚合取数点挂载；明细列表与余额计算不挂（见 docs/finance/plans/余额对账功能方案.md §2.2）。
+    static func reconciliationExclusionPredicate() -> NSPredicate {
+        NSPredicate(format: "isReconciliationAdjustment == NO")
+    }
 }

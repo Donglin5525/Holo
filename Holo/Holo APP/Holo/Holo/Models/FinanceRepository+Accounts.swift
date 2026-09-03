@@ -96,6 +96,7 @@ extension FinanceRepository {
     }
 
     /// 更新账户信息
+    /// - Parameter initialBalance: 双层 Optional 区分「不改」（nil）与「改为某值/0」（.some）；修改会使余额直接跳变，并使已有对账锚点失效
     func updateAccount(
         _ account: Account,
         name: String? = nil,
@@ -104,7 +105,8 @@ extension FinanceRepository {
         notes: String? = nil,
         billingDay: Int? = nil,
         dueDay: Int? = nil,
-        creditLimit: Decimal?? = nil
+        creditLimit: Decimal?? = nil,
+        initialBalance: Decimal?? = nil
     ) {
         if let name = name { account.name = name }
         if let icon = icon { account.customIcon = icon }
@@ -114,6 +116,7 @@ extension FinanceRepository {
         if let billingDay = billingDay { account.billingDay = NSNumber(value: billingDay) }
         if let dueDay = dueDay { account.dueDay = NSNumber(value: dueDay) }
         if case .some(let limit) = creditLimit { account.creditLimit = limit.map { NSDecimalNumber(decimal: $0) } }
+        if case .some(.some(let balance)) = initialBalance { account.initialBalance = NSDecimalNumber(decimal: balance) }
         account.updatedAt = Date()
         try? context.save()
     }
@@ -242,9 +245,10 @@ extension FinanceRepository {
         return (totalAssets, totalLiabilities, totalAssets - totalLiabilities)
     }
 
-    // MARK: 余额调整
+    // MARK: 余额调整与对账
 
     /// 余额调整（创建 income/expense 交易 + "余额调整"分类）
+    /// 生成的交易带 isReconciliationAdjustment 标记：参与余额，不计入收支统计。
     @discardableResult
     func adjustBalance(
         account: Account,
@@ -271,13 +275,82 @@ extension FinanceRepository {
         transaction.category = adjustCategory
         transaction.account = account
         transaction.date = date
-        transaction.note = note ?? "[余额调整]"
+        transaction.note = note ?? "[对账调整]"
         transaction.remark = nil
         transaction.tags = nil
+        transaction.isReconciliationAdjustment = true
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
         try context.save()
         return transaction
+    }
+
+    /// 写入对账锚点：调用前提是「当前实时余额 == 用户确认的真实余额」。
+    /// 只在对账页内达成对平时调用；用户选择去修历史账单时不调用。
+    func markReconciled(_ account: Account, balance: Decimal) {
+        account.lastReconciledAt = Date()
+        account.lastReconciledBalance = NSDecimalNumber(decimal: balance)
+        account.updatedAt = Date()
+        try? context.save()
+    }
+
+    /// 对账状态（余额可信度）
+    enum ReconciliationStatus: Equatable {
+        /// 从未对账
+        case neverReconciled
+        /// 已对平（可信）
+        case reconciled(date: Date, balance: Decimal)
+        /// 已对平，其后有 N 笔新账（仍可信，新账未验证）
+        case reconciledWithActivity(date: Date, balance: Decimal, newCount: Int)
+        /// 基准已变动（锚点前的账被动过：改/删/软删/撤回导入），建议重新对账
+        case broken(date: Date)
+    }
+
+    /// 账户对账状态：锚点自洽检测 + 锚点后新增笔数。
+    /// 自洽 = 期初 + 锚点时刻之前已发生流水净额 == lastReconciledBalance；
+    /// 对账调整流水 date 恒为「现在」，回溯锚点前净额时天然不被污染。
+    func getReconciliationStatus(_ account: Account) -> ReconciliationStatus {
+        guard let anchorDate = account.lastReconciledAt,
+              let anchorBalance = account.lastReconciledBalance?.decimalValue else {
+            return .neverReconciled
+        }
+
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account == %@", account),
+            NSPredicate(format: "date <= %@", anchorDate as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: anchorDate),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        guard let beforeAnchor = try? context.fetch(request) else {
+            return .broken(date: anchorDate)
+        }
+
+        var theoretical = account.initialBalance.decimalValue
+        for tx in beforeAnchor {
+            if tx.transactionType == .income {
+                theoretical += tx.amount.decimalValue
+            } else {
+                theoretical -= tx.amount.decimalValue
+            }
+        }
+        guard theoretical == anchorBalance else {
+            return .broken(date: anchorDate)
+        }
+
+        let countRequest = Transaction.fetchRequest()
+        countRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account == %@", account),
+            NSPredicate(format: "date > %@", anchorDate as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        let newCount = (try? context.count(for: countRequest)) ?? 0
+
+        if newCount > 0 {
+            return .reconciledWithActivity(date: anchorDate, balance: anchorBalance, newCount: newCount)
+        }
+        return .reconciled(date: anchorDate, balance: anchorBalance)
     }
 
     private func ensureBalanceAdjustmentCategory(type: TransactionType) throws -> Category {
@@ -321,7 +394,7 @@ extension FinanceRepository {
 
     // MARK: 账户详情查询
 
-    /// 获取账户在某时间范围内的收支统计（用于账单周期统计）
+    /// 获取账户在某时间范围内的收支统计（用于账单周期统计；收支统计口径，排除对账调整流水）
     func getAccountSummary(accountId: UUID, from start: Date, to end: Date) -> (income: Decimal, expense: Decimal, net: Decimal) {
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -331,7 +404,8 @@ extension FinanceRepository {
                 start as NSDate,
                 end as NSDate
             ),
-            NSPredicate(format: "deletedAt == nil")
+            NSPredicate(format: "deletedAt == nil"),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
         ])
 
         guard let transactions = try? context.fetch(request) else {

@@ -87,8 +87,9 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         let currentTransactions: [Transaction]
         let baselineTransactions: [Transaction]
         do {
-            currentTransactions = try await repo.getTransactions(from: currentStart, to: currentEnd)
-            baselineTransactions = try await repo.getTransactions(from: baselineStart, to: baselineEnd)
+            // 统计口径：排除对账调整流水，避免虚增收支/分类占比（余额与净资产走 getTotalNetWorth 不受影响）
+            currentTransactions = try await repo.getStatisticsTransactions(from: currentStart, to: currentEnd)
+            baselineTransactions = try await repo.getStatisticsTransactions(from: baselineStart, to: baselineEnd)
         } catch {
             return nil
         }

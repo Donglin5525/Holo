@@ -339,12 +339,15 @@ struct DailySenseStateBuilder {
         }
 
         let request: NSFetchRequest<Transaction> = Transaction.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND type == %@ AND deletedAt == nil",
-            weekStart as CVarArg,
-            tomorrow as CVarArg,
-            "expense"
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "date >= %@ AND date < %@ AND type == %@ AND deletedAt == nil",
+                weekStart as CVarArg,
+                tomorrow as CVarArg,
+                "expense"
+            ),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+        ])
 
         guard let transactions = try? context.fetch(request) else {
             return ExpenseResult(todayAmount: 0, dailyAvg: 0, hasData: false)

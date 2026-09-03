@@ -55,6 +55,10 @@ public class Transaction: NSManagedObject {
     @NSManaged public var importSource: String?
     /// 账单原始交易单号（微信/支付宝全局唯一），同源防重与追溯
     @NSManaged public var importSourceRef: String?
+    /// 对账调整标记：余额对账补差生成的流水。参与余额计算，不计入收支统计。
+    @NSManaged public var isReconciliationAdjustment: Bool
+    /// 账单原始余额列（银行流水「交易后余额」），供导入后余额核对与连续性校验
+    @NSManaged public var importBalance: NSDecimalNumber?
 
     // MARK: - Computed Properties
 

@@ -12,7 +12,7 @@ extension FinanceRepository {
 
     // MARK: - 日历相关查询
     
-    /// 获取指定日期的所有交易（按时间降序）
+    /// 获取指定日期的所有交易（按时间降序）——明细语义，含对账调整流水
     func getTransactionsForDay(_ date: Date) async throws -> [Transaction] {
         let cal = Calendar.current
         let dayStart = cal.startOfDay(for: date)
@@ -25,10 +25,10 @@ extension FinanceRepository {
         req.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return try context.fetch(req)
     }
-    
-    /// 获取整月的 DailySummary 字典（key = 日期 startOfDay）
+
+    /// 获取整月的 DailySummary 字典（key = 日期 startOfDay）——收支统计口径，排除对账调整流水
     func getDailySummaries(for month: Date) async throws -> [Date: DailySummary] {
-        let txns = try await getTransactions(for: month)
+        let txns = try await getStatisticsTransactions(for: month)
         var map: [Date: (exp: Decimal, inc: Decimal, cnt: Int)] = [:]
         for tx in txns {
             let key = Calendar.current.startOfDay(for: tx.date)
@@ -47,7 +47,7 @@ extension FinanceRepository {
     
     // MARK: - 分析模块查询
 
-    /// 获取指定时间范围内的所有交易
+    /// 获取指定时间范围内的所有交易——明细语义，含对账调整流水（日历列表、AI 明细查询用）
     func getTransactions(from startDate: Date, to endDate: Date) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -61,13 +61,38 @@ extension FinanceRepository {
         return try context.fetch(request)
     }
 
-    /// 获取指定时间范围内的分类聚合数据
+    /// 获取指定时间范围内的统计交易——收支统计口径，排除对账调整流水
+    /// （调整流水参与余额计算但不属于真实消费；所有汇总/聚合/预算/AI 统计取数必须走这个入口，
+    ///  详见 docs/finance/plans/余额对账功能方案.md §2.2/§4.4）
+    func getStatisticsTransactions(from startDate: Date, to endDate: Date) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+        request.relationshipKeyPathsForPrefetching = ["category", "account"]
+        return try context.fetch(request)
+    }
+
+    /// 获取某月的统计交易（getStatisticsTransactions(from:to:) 的自然月便捷版）
+    func getStatisticsTransactions(for month: Date) async throws -> [Transaction] {
+        let calendar = Calendar.current
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month)),
+              let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else {
+            return []
+        }
+        return try await getStatisticsTransactions(from: monthStart, to: monthEnd)
+    }
+
+    /// 获取指定时间范围内的分类聚合数据（收支统计口径，排除对账调整流水）
     func getCategoryAggregations(
         from startDate: Date,
         to endDate: Date,
         type: TransactionType
     ) async throws -> [CategoryAggregation] {
-        let transactions = try await getTransactions(from: startDate, to: endDate)
+        let transactions = try await getStatisticsTransactions(from: startDate, to: endDate)
         let filtered = transactions.filter { $0.transactionType == type }
 
         guard !filtered.isEmpty else { return [] }
@@ -103,13 +128,13 @@ extension FinanceRepository {
         return aggregations
     }
 
-    /// 获取指定时间范围内按一级分类聚合的数据
+    /// 获取指定时间范围内按一级分类聚合的数据（收支统计口径，排除对账调整流水）
     func getTopLevelCategoryAggregations(
         from startDate: Date,
         to endDate: Date,
         type: TransactionType
     ) async throws -> [CategoryAggregation] {
-        let transactions = try await getTransactions(from: startDate, to: endDate)
+        let transactions = try await getStatisticsTransactions(from: startDate, to: endDate)
         let filtered = transactions.filter { $0.transactionType == type }
 
         guard !filtered.isEmpty else { return [] }
@@ -165,13 +190,13 @@ extension FinanceRepository {
         return aggregations
     }
 
-    /// 获取指定一级分类下所有二级分类的聚合数据（用于下钻）
+    /// 获取指定一级分类下所有二级分类的聚合数据（用于下钻；收支统计口径，排除对账调整流水）
     func getSubCategoryAggregations(
         parentId: UUID,
         from startDate: Date,
         to endDate: Date
     ) async throws -> [CategoryAggregation] {
-        let transactions = try await getTransactions(from: startDate, to: endDate)
+        let transactions = try await getStatisticsTransactions(from: startDate, to: endDate)
 
         // 筛选属于该一级分类的交易
         let filtered = transactions.filter { tx in

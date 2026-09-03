@@ -213,6 +213,7 @@ class BudgetRepository {
     }
 
     /// 按预算口径统计指定周期内的支出（总预算 = 账户全部支出；分类预算 = 含子分类）
+    /// 对账调整流水不属于真实消费，不计入预算已花。
     private func fetchSpentAmount(
         range: (start: Date, end: Date),
         accountId: UUID,
@@ -231,7 +232,8 @@ class BudgetRepository {
                     categoryId as CVarArg,
                     categoryId as CVarArg
                 ),
-                NSPredicate(format: "deletedAt == nil")
+                NSPredicate(format: "deletedAt == nil"),
+                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
             ])
         } else {
             request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -242,7 +244,8 @@ class BudgetRepository {
                     range.end as NSDate,
                     TransactionType.expense.rawValue
                 ),
-                NSPredicate(format: "deletedAt == nil")
+                NSPredicate(format: "deletedAt == nil"),
+                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
             ])
         }
 

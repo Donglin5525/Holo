@@ -768,6 +768,21 @@ class DataImportService {
             .flatMap { row[safe: $0]?.trimmingCharacters(in: .whitespaces) }
             .flatMap { $0.isEmpty ? nil : $0 }
 
+        // --- 账单余额列（银行流水「交易后余额」，可正可负；解析失败不阻断导入） ---
+        // 余额不走 cleanAmount 的 Double 通道（1234.56 会产生二进制误差），字符串精确解析
+        var importBalance: Decimal?
+        if let balanceIdx = mapping.balanceIndex {
+            let rawBalance = (row[safe: balanceIdx] ?? "")
+                .trimmingCharacters(in: .whitespaces)
+            if !rawBalance.isEmpty {
+                let normalized = rawBalance
+                    .replacingOccurrences(of: ",", with: "")
+                    .replacingOccurrences(of: "¥", with: "")
+                    .replacingOccurrences(of: "￥", with: "")
+                importBalance = Decimal(string: normalized)
+            }
+        }
+
         return ImportTransactionItem(
             date: date,
             type: txType,
@@ -778,7 +793,8 @@ class DataImportService {
             note: note,
             tags: tags,
             sourceRef: sourceRef,
-            source: billSource
+            source: billSource,
+            importBalance: importBalance
         )
     }
 

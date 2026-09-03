@@ -245,19 +245,22 @@ struct HighlightDetector {
 
     // MARK: - Helper
 
-    /// 查询指定时间范围内的支出总额
+    /// 查询指定时间范围内的支出总额（收支统计口径，排除对账调整流水）
     private static func fetchExpenseTotal(
         from startDate: Date,
         to endDate: Date,
         context: NSManagedObjectContext
     ) -> Double {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND type == %@",
-            startDate as NSDate,
-            endDate as NSDate,
-            TransactionType.expense.rawValue
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "date >= %@ AND date < %@ AND type == %@",
+                startDate as NSDate,
+                endDate as NSDate,
+                TransactionType.expense.rawValue
+            ),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+        ])
 
         guard let transactions = try? context.fetch(request) else { return 0 }
 

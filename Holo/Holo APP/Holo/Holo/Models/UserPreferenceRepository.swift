@@ -43,10 +43,12 @@ final class UserPreferenceRepository {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.adoptCloudValues()
+                self?.adoptCloudBackedSettings()
             }
         }
 
         adoptCloudValues()
+        adoptCloudBackedSettings()
     }
 
     // MARK: - 读写
@@ -129,5 +131,11 @@ final class UserPreferenceRepository {
 
         settings.adoptCloudDisplayName(cloudName)
         logger.info("昵称已从 iCloud 采纳（本次安装未主动设置过）")
+    }
+
+    /// 严格预算模式与自定义 Prompt 的云备份恢复/建立（随 remote change 防抖反复调用，均幂等）
+    private func adoptCloudBackedSettings() {
+        FinanceBudgetSettings.shared.restoreFromCloudIfClean()
+        PromptManager.shared.restoreFromCloudIfClean()
     }
 }

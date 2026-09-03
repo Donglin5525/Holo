@@ -22,6 +22,10 @@ struct AccountDetailView: View {
     @State private var budgetStatus: BudgetStatus?
     @State private var showEditSheet = false
     @State private var showAdjustBalance = false
+    /// 对账状态（loadData 里取一次；body 内查库会让转场掉帧）
+    @State private var reconciliationStatus: FinanceRepository.ReconciliationStatus = .neverReconciled
+    /// 从对账页引导过来的「改期初余额」编辑
+    @State private var editingFromReconcile: Account?
     @State private var showBudgetSettings = false
     @State private var showDeleteConfirm = false
     @State private var errorMessage: String?
@@ -88,7 +92,7 @@ struct AccountDetailView: View {
                     Button {
                         showAdjustBalance = true
                     } label: {
-                        Label("调整余额", systemImage: "arrow.triangle.2.circlepath")
+                        Label("对账", systemImage: "checkmark.seal")
                     }
 
                     Button {
@@ -152,7 +156,18 @@ struct AccountDetailView: View {
             }
         }
         .sheet(isPresented: $showAdjustBalance) {
-            AdjustBalanceSheet(account: account) {
+            ReconcileSheet(
+                account: account,
+                onEditInitialBalance: { target in
+                    editingFromReconcile = target
+                },
+                onComplete: {
+                    loadData()
+                }
+            )
+        }
+        .sheet(item: $editingFromReconcile) { target in
+            AddAccountSheet(mode: .edit(target)) { _ in
                 loadData()
             }
         }
@@ -279,6 +294,74 @@ struct AccountDetailView: View {
 
     // MARK: - Account Header
 
+    /// 对账状态行：余额的可信度说明，点击进入对账
+    @ViewBuilder
+    private var reconciliationStatusRow: some View {
+        let status = reconciliationStatus
+        Button {
+            showAdjustBalance = true
+        } label: {
+            HStack(spacing: HoloSpacing.xs) {
+                switch status {
+                case .neverReconciled:
+                    Image(systemName: "checkmark.seal")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                    Text("建议对账：与银行 App 核对一次，余额更可信")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                case .reconciled:
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoSuccess)
+                    Text("已对平 · \(relativeDays(status))")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoSuccess)
+                case .reconciledWithActivity:
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoSuccess)
+                    Text("已对平 · \(relativeDays(status)) · 此后 \(statusCountLabel) 笔")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoSuccess)
+                case .broken:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoError)
+                    Text("对账基准已变动，建议重新对账")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoError)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var statusCountLabel: String {
+        if case let .reconciledWithActivity(_, _, count) = reconciliationStatus {
+            return "\(count)"
+        }
+        return ""
+    }
+
+    private func relativeDays(_ status: FinanceRepository.ReconciliationStatus) -> String {
+        let date: Date
+        switch status {
+        case .reconciled(let d, _), .reconciledWithActivity(let d, _, _), .broken(let d):
+            date = d
+        case .neverReconciled:
+            return ""
+        }
+        let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+        switch days {
+        case 0: return "今天"
+        case 1: return "昨天"
+        case 2...6: return "\(days) 天前"
+        case 7...29: return "\(days / 7) 周前"
+        default: return "\(days / 30) 个月前"
+        }
+    }
+
     private var accountHeader: some View {
         VStack(spacing: HoloSpacing.md) {
             ZStack {
@@ -297,6 +380,8 @@ struct AccountDetailView: View {
             Text(formatAmount(balance))
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
+
+            reconciliationStatusRow
 
             HStack(spacing: HoloSpacing.sm) {
                 Text(account.accountType.displayName)
@@ -846,6 +931,7 @@ struct AccountDetailView: View {
 
     private func loadData() {
         balance = FinanceRepository.shared.getAccountBalance(account)
+        reconciliationStatus = FinanceRepository.shared.getReconciliationStatus(account)
         monthlySummary = FinanceRepository.shared.getAccountMonthlySummary(
             accountId: account.id,
             month: Date()

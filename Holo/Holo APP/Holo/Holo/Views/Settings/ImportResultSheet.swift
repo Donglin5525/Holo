@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct ImportResultSheet: View {
     @Environment(\.dismiss) var dismiss
@@ -18,6 +19,30 @@ struct ImportResultSheet: View {
     @State private var showUndoConfirm = false
     @State private var undoError: String?
     @State private var showUndoError = false
+    /// 按账户分组的余额核对数据（onAppear 取一次；body 内查库是既有铁律禁区）
+    @State private var balanceChecks: [BalanceCheck] = []
+    /// 「以账单为准」失败提示
+    @State private var errorMessage: String?
+    @State private var showError = false
+
+    /// 单账户的导入后余额核对
+    struct BalanceCheck: Identifiable {
+        let account: Account
+        /// 账单末行余额（组内最晚一笔的余额列；无余额列的账单为 nil）
+        let billBalance: Decimal?
+        /// 导入后当前账本余额
+        let bookBalance: Decimal
+        /// 本批净流水（收入−支出），新建账户设期初用
+        let batchNet: Decimal
+        /// 该账户是否由本批导入新建
+        let isNewAccount: Bool
+        /// 连续性校验：余额列不连续的笔数（>0 提示账单可能缺行）
+        let discontinuityCount: Int
+        /// 首个不连续点的行号（展示用）
+        let firstDiscontinuityRow: Int?
+
+        var id: UUID { account.id }
+    }
 
     init(result: BatchImportResult, onUndo: (() -> Void)? = nil) {
         self.result = result
@@ -109,6 +134,11 @@ struct ImportResultSheet: View {
                     .background(Color.holoCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
+                    // 余额核对（导入后账本余额 vs 账单末行余额）
+                    if !balanceChecks.isEmpty {
+                        balanceCheckSection
+                    }
+
                     // 失败明细（最多 5 条）
                     if !result.failedItems.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
@@ -172,6 +202,12 @@ struct ImportResultSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
+        .onAppear { loadBalanceChecks() }
+        .alert("对账失败", isPresented: $showError) {
+            Button("确定", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "未知错误")
+        }
         .alert("撤回此次导入？", isPresented: $showUndoConfirm) {
             Button("取消", role: .cancel) {}
             Button("确认撤回", role: .destructive) {
@@ -196,6 +232,175 @@ struct ImportResultSheet: View {
             Text(value)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.holoTextPrimary)
+        }
+    }
+
+    // MARK: - 余额核对
+
+    private var balanceCheckSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("余额核对")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+
+            ForEach(balanceChecks) { check in
+                balanceCheckRow(check)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    @ViewBuilder
+    private func balanceCheckRow(_ check: BalanceCheck) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let billBalance = check.billBalance {
+                let difference = check.bookBalance - billBalance
+                HStack {
+                    Image(systemName: difference == 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(difference == 0 ? .holoSuccess : .orange)
+                    Text(check.account.name)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Text(difference == 0
+                         ? "与账单一致"
+                         : "差 \(AccountCardFormat.prefixed(abs(difference)))")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(difference == 0 ? .holoSuccess : .orange)
+                }
+                Text("账单余额 \(AccountCardFormat.prefixed(billBalance)) · 账本余额 \(AccountCardFormat.prefixed(check.bookBalance))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary)
+
+                if difference != 0 {
+                    Button {
+                        alignToBill(check)
+                    } label: {
+                        Label(check.isNewAccount ? "以账单为准（补设期初余额）" : "以账单为准（生成对账调整）", systemImage: "checkmark.seal")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.holoPrimary.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let row = check.firstDiscontinuityRow {
+                    Text("第 \(row) 行起余额列不连续，账单可能缺行（如同秒交易只导出一笔）")
+                        .font(.system(size: 11))
+                        .foregroundColor(.orange)
+                }
+            } else if check.isNewAccount {
+                // 无余额列的账单：只对新建账户提示从 0 起算的问题
+                HStack {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 13))
+                        .foregroundColor(.orange)
+                    Text("\(check.account.name) 为本次新建，从 ¥0 起算（账单不含余额列，无法自动核对）")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// 「以账单为准」：已有账户生成对账调整流水；本批新建账户直接补设期初（等价于把期初补到账单开始前）。
+    /// 调整失败（如系统分类缺失）必须中止——余额未拉平时写锚点是错误锚点。
+    private func alignToBill(_ check: BalanceCheck) {
+        guard let billBalance = check.billBalance else { return }
+        let repo = FinanceRepository.shared
+        do {
+            if check.isNewAccount {
+                // 期初 = 账单末行余额 − 本批净流水 → 当前余额恰好等于账单末行余额，无需生成流水
+                repo.updateAccount(check.account, initialBalance: .some(.some(billBalance - check.batchNet)))
+            } else {
+                _ = try repo.adjustBalance(
+                    account: check.account,
+                    newBalance: billBalance,
+                    note: "导入对账：以账单末行余额为准"
+                )
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+            return
+        }
+        // 此刻余额 == 账单末行余额，锚点成立
+        repo.markReconciled(check.account, balance: repo.getAccountBalance(check.account))
+        HapticManager.success()
+        loadBalanceChecks()
+    }
+
+    private func loadBalanceChecks() {
+        guard let batchId = result.batchId, result.successCount > 0 else {
+            balanceChecks = []
+            return
+        }
+        let repo = FinanceRepository.shared
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "importBatchId == %@", batchId as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        guard let transactions = try? repo.context.fetch(request) else {
+            balanceChecks = []
+            return
+        }
+
+        let grouped = Dictionary(grouping: transactions) { $0.account?.objectID }
+        balanceChecks = grouped.compactMap { objectID, txs in
+            guard let objectID, let account = try? repo.context.existingObject(with: objectID) as? Account else {
+                return nil
+            }
+            // 同秒多笔按 createdAt 决胜：流式导入按账单行序创建，createdAt 单调，
+            // 保证「末行余额」真的是账单最后一行（仅按 date 排序时同秒行序不稳定）
+            let sorted = txs.sorted {
+                $0.date < $1.date || ($0.date == $1.date && $0.createdAt < $1.createdAt)
+            }
+
+            // 账单末行余额：最晚一笔的余额列
+            let billBalance = sorted.last?.importBalance?.decimalValue
+
+            var batchNet: Decimal = 0
+            for tx in sorted {
+                batchNet += tx.transactionType == .income
+                    ? tx.amount.decimalValue
+                    : -tx.amount.decimalValue
+            }
+
+            // 连续性校验：balance[i] − balance[i-1] 应等于该笔净额（收+/支−）
+            var discontinuity = 0
+            var firstRow: Int?
+            var previousBalance: Decimal?
+            for (offset, tx) in sorted.enumerated() {
+                guard let balance = tx.importBalance?.decimalValue else { continue }
+                if let prev = previousBalance {
+                    let expected = tx.transactionType == .income
+                        ? prev + tx.amount.decimalValue
+                        : prev - tx.amount.decimalValue
+                    if balance != expected {
+                        discontinuity += 1
+                        if firstRow == nil { firstRow = offset + 1 }
+                    }
+                }
+                previousBalance = balance
+            }
+
+            return BalanceCheck(
+                account: account,
+                billBalance: billBalance,
+                bookBalance: repo.getAccountBalance(account),
+                batchNet: batchNet,
+                isNewAccount: account.importBatchId == batchId,
+                discontinuityCount: discontinuity,
+                firstDiscontinuityRow: firstRow
+            )
         }
     }
 }

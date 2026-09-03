@@ -395,7 +395,7 @@ struct MemoryInsightContextBuilder {
         let endDate = end.addingDays(1)
 
         do {
-            let transactions = try await financeRepo.getTransactions(from: start, to: endDate)
+            let transactions = try await financeRepo.getStatisticsTransactions(from: start, to: endDate)
             let expenses = transactions.filter { $0.type == "expense" }
             let incomes = transactions.filter { $0.type == "income" }
             for t in transactions {
@@ -1097,7 +1097,7 @@ struct MemoryInsightContextBuilder {
         // 获取基线期交易
         let transactions: [Transaction]
         do {
-            transactions = try await financeRepo.getTransactions(from: baselineStart, to: endExclusive)
+            transactions = try await financeRepo.getStatisticsTransactions(from: baselineStart, to: endExclusive)
         } catch {
             Self.logger.error("构建个人基线获取交易失败：\(error.localizedDescription)")
             return nil
@@ -1748,7 +1748,7 @@ struct MemoryInsightContextBuilder {
         end: Date
     ) async -> [String: Decimal] {
         do {
-            let transactions = try await financeRepo.getTransactions(from: start, to: end)
+            let transactions = try await financeRepo.getStatisticsTransactions(from: start, to: end)
             let dateFormatter = makeDateFormatter()
             var map: [String: Decimal] = [:]
             for t in transactions where t.type == "expense" {
@@ -1878,7 +1878,7 @@ struct MemoryInsightContextBuilder {
         into events: inout [LifeEvent]
     ) async {
         do {
-            let transactions = try await financeRepo.getTransactions(from: start, to: end)
+            let transactions = try await financeRepo.getStatisticsTransactions(from: start, to: end)
 
             // 高额消费事件（> 200）
             for t in transactions where t.type == "expense" {

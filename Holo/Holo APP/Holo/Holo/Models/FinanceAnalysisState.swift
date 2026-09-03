@@ -347,22 +347,31 @@ class FinanceAnalysisState: ObservableObject {
                 tx.date >= current && tx.date < nextDate
             }
 
-            let expense = periodTxns
+            // 收支轴：统计口径，排除对账调整流水（它不是真实消费）
+            let statisticsTxns = periodTxns.filter { !$0.isReconciliationAdjustment }
+            let expense = statisticsTxns
                 .filter { $0.transactionType == .expense }
                 .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
-            let income = periodTxns
+            let income = statisticsTxns
                 .filter { $0.transactionType == .income }
                 .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
-            runningBalance += income - expense
+            // 余额轴：含对账调整流水（补差是真实余额变化，漏掉会导致余额曲线与真实余额断裂）
+            var net = income - expense
+            for tx in periodTxns where tx.isReconciliationAdjustment {
+                net += tx.transactionType == .income
+                    ? tx.amount.decimalValue
+                    : -tx.amount.decimalValue
+            }
+            runningBalance += net
 
             points.append(ChartDataPoint(
                 date: current,
                 label: label,
                 expense: expense,
                 income: income,
-                transactionCount: periodTxns.count,
+                transactionCount: statisticsTxns.count,
                 balance: runningBalance
             ))
 
@@ -372,13 +381,14 @@ class FinanceAnalysisState: ObservableObject {
         return points
     }
 
-    /// 计算周期汇总
+    /// 计算周期汇总（收支统计口径，排除对账调整流水）
     private func computePeriodSummary(from transactions: [Transaction]) -> PeriodSummary {
-        let totalExpense = transactions
+        let statisticsTxns = transactions.filter { !$0.isReconciliationAdjustment }
+        let totalExpense = statisticsTxns
             .filter { $0.transactionType == .expense }
             .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
-        let totalIncome = transactions
+        let totalIncome = statisticsTxns
             .filter { $0.transactionType == .income }
             .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
@@ -387,7 +397,7 @@ class FinanceAnalysisState: ObservableObject {
         return PeriodSummary(
             totalExpense: totalExpense,
             totalIncome: totalIncome,
-            transactionCount: transactions.count,
+            transactionCount: statisticsTxns.count,
             averageDailyExpense: totalExpense / Decimal(days),
             averageDailyIncome: totalIncome / Decimal(days),
             dayCount: days

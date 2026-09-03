@@ -277,6 +277,8 @@ struct FieldMapping {
     var incomeAmountIndex: Int? = nil
     /// 支出金额列索引（银行「收/支」分列格式；与 amountIndex 互斥使用）
     var expenseAmountIndex: Int? = nil
+    /// 余额列索引（银行流水「交易后余额」；导入后用于余额核对与连续性校验，可空）
+    var balanceIndex: Int? = nil
 }
 
 /// 账单来源类型（账单智能导入）
@@ -336,6 +338,8 @@ struct ImportTransactionItem {
     var sourceRef: String? = nil
     /// 账单来源标记；普通 CSV 为 nil
     var source: BillSourceKind? = nil
+    /// 账单原始余额列（银行流水「交易后余额」，可正可负）；无余额列的账单为 nil
+    var importBalance: Decimal? = nil
 }
 
 /// 批量导入结果

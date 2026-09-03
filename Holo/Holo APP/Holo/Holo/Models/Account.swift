@@ -35,6 +35,10 @@ public class Account: NSManagedObject {
     @NSManaged public var importBatchId: UUID?
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
+    /// 对账锚点：上次对账时间（与 lastReconciledBalance 配对）
+    @NSManaged public var lastReconciledAt: Date?
+    /// 对账锚点：对平后的余额（自洽检测 = 期初 + 锚点前净流水应等于此值）
+    @NSManaged public var lastReconciledBalance: NSDecimalNumber?
 
     /// 反向关系：该账户下的所有交易（Core Data 自动维护）
     @NSManaged public var transactions: Set<Transaction>?

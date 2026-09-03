@@ -110,7 +110,7 @@ final class HoloAcceptanceUITests: XCTestCase {
             sleep(1)
             let editItem = app.buttons["编辑账户"].firstMatch
             check("L4-menu-open", editItem.waitForExistence(timeout: 5))
-            check("L4-item-adjust", app.buttons["调整余额"].firstMatch.exists)
+            check("L4-item-adjust", app.buttons["对账"].firstMatch.exists)
             check("L4-item-default", app.buttons["设为默认"].firstMatch.exists
                 || app.staticTexts["设为默认（当前默认）"].firstMatch.exists)
             check("L4-item-archive", app.buttons["归档账户"].firstMatch.exists)

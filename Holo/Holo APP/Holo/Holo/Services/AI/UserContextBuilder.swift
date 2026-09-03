@@ -95,7 +95,7 @@ final class UserContextBuilder {
             let today = calendar.startOfDay(for: Date())
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
 
-            let todayTransactions = try await repo.getTransactions(from: today, to: tomorrow)
+            let todayTransactions = try await repo.getStatisticsTransactions(from: today, to: tomorrow)
 
             var todayExpense: Decimal = 0
             var todayIncome: Decimal = 0
@@ -429,7 +429,7 @@ final class UserContextBuilder {
     private func calculateExpense(from start: Date, to end: Date) async -> Decimal {
         do {
             let repo = FinanceRepository.shared
-            let transactions = try await repo.getTransactions(from: start, to: end)
+            let transactions = try await repo.getStatisticsTransactions(from: start, to: end)
             var total: Decimal = 0
             for t in transactions where t.type == "expense" {
                 total += t.amount as Decimal

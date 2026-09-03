@@ -194,6 +194,21 @@ extension CoreDataStack {
         importSourceRef.isOptional = true
         attributes.append(importSourceRef)
 
+        // 对账调整标记：余额对账补差生成的流水。参与余额计算，不计入收支统计。
+        let isReconciliationAdjustment = NSAttributeDescription()
+        isReconciliationAdjustment.name = "isReconciliationAdjustment"
+        isReconciliationAdjustment.attributeType = .booleanAttributeType
+        isReconciliationAdjustment.isOptional = false
+        isReconciliationAdjustment.defaultValue = false
+        attributes.append(isReconciliationAdjustment)
+
+        // 账单原始余额列（银行流水「交易后余额」），供导入后余额核对与连续性校验
+        let importBalance = NSAttributeDescription()
+        importBalance.name = "importBalance"
+        importBalance.attributeType = .decimalAttributeType
+        importBalance.isOptional = true
+        attributes.append(importBalance)
+
         let transactionSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
         attributes.append(contentsOf: transactionSoftDelete.attributes)
 
@@ -419,6 +434,20 @@ extension CoreDataStack {
         accountUpdatedAt.isOptional = false
         accountUpdatedAt.defaultValue = Date()
         accountAttributes.append(accountUpdatedAt)
+
+        // 对账锚点：上次对账时间。与 lastReconciledBalance 配对，余额可信度的依据。
+        let accountLastReconciledAt = NSAttributeDescription()
+        accountLastReconciledAt.name = "lastReconciledAt"
+        accountLastReconciledAt.attributeType = .dateAttributeType
+        accountLastReconciledAt.isOptional = true
+        accountAttributes.append(accountLastReconciledAt)
+
+        // 对账锚点：对平后的余额。自洽检测 = 期初 + 锚点前净流水应等于此值。
+        let accountLastReconciledBalance = NSAttributeDescription()
+        accountLastReconciledBalance.name = "lastReconciledBalance"
+        accountLastReconciledBalance.attributeType = .decimalAttributeType
+        accountLastReconciledBalance.isOptional = true
+        accountAttributes.append(accountLastReconciledBalance)
 
         // Account → Transaction 反向关系（to-many）
         let accountTransactionsRelation = NSRelationshipDescription()

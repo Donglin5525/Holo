@@ -151,9 +151,10 @@ extension FinanceRepository {
                 transaction.date = item.date
                 transaction.note = item.note
                 transaction.tags = item.tags
+                transaction.importBalance = item.importBalance.map { NSDecimalNumber(decimal: $0) }
                 transaction.createdAt = Date()
                 transaction.updatedAt = Date()
-                
+
                 successCount += 1
                 
                 // 分批保存
@@ -334,6 +335,7 @@ extension FinanceRepository {
                 transaction.date = item.date
                 transaction.note = item.note
                 transaction.tags = item.tags
+                transaction.importBalance = item.importBalance.map { NSDecimalNumber(decimal: $0) }
                 transaction.createdAt = Date()
                 transaction.updatedAt = Date()
 
@@ -652,6 +654,8 @@ extension FinanceRepository {
                 // 账单来源与原始单号（同源防重 + 追溯 + 对账）
                 transaction.importSource = importSourceToken
                 transaction.importSourceRef = item.sourceRef
+                // 账单原始余额列（导入后余额核对与连续性校验用）
+                transaction.importBalance = item.importBalance.map { NSDecimalNumber(decimal: $0) }
 
                 successCount += 1
                 batchCount += 1

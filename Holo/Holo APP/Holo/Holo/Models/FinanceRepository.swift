@@ -44,6 +44,35 @@ class FinanceRepository {
         migrateLegacyInstallmentNotes()
         migrateFixedExpenseSemantics()
         migrateCardToCreditCard()
+        migrateLegacyReconciliationAdjustments()
+        registerCloudRestoreRepairIfNeeded()
+    }
+
+    /// 卸载重装后 iCloud 数据晚于种子落地：远端变更防抖后清理「误种复活的默认行」
+    private static var cloudRepairObserver: NSObjectProtocol?
+    private static var cloudRepairDebounce: Task<Void, Never>?
+
+    private func registerCloudRestoreRepairIfNeeded() {
+        guard Self.cloudRepairObserver == nil else { return }
+        Self.cloudRepairObserver = NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: CoreDataStack.shared.persistentContainer.persistentStoreCoordinator,
+            queue: nil
+        ) { _ in
+            Task { @MainActor in
+                Self.scheduleCloudRestoreRepair()
+            }
+        }
+    }
+
+    @MainActor
+    private static func scheduleCloudRestoreRepair() {
+        cloudRepairDebounce?.cancel()
+        cloudRepairDebounce = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            SeedRevivalRepair.repairIfNeeded(context: FinanceRepository.shared.context)
+        }
     }
 
     // MARK: - 信用卡类型迁移
@@ -72,6 +101,35 @@ class FinanceRepository {
         }
         try? context.save()
         UserDefaults.standard.set(true, forKey: FinanceRepository.creditCardMigrationFlag)
+    }
+
+    // MARK: - 对账调整存量迁移
+
+    /// 对账功能上线前，「调整余额」生成的交易没有 isReconciliationAdjustment 标记，
+    /// 会继续污染收支统计。把挂着系统分类「余额调整」的存量交易一次性补上标记。
+    /// 按分类识别仅用于这一次迁移（库中可能同时存在种子一级/功能二级两份同名分类，谓词都能命中）；
+    /// 此后的对账调整在 adjustBalance 创建时直接写标记，不再依赖分类。
+    /// internal 供单测直调（测试 context 不得跑 setup()——那会触发 CoreDataStack.shared
+    /// 在同进程注册第二份实体模型，污染后续测试类）。
+    private static let reconciliationAdjustmentMigrationFlag = "hasMigratedReconciliationAdjustments_v1"
+
+    func migrateLegacyReconciliationAdjustments() {
+        guard !UserDefaults.standard.bool(forKey: FinanceRepository.reconciliationAdjustmentMigrationFlag) else { return }
+
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "isReconciliationAdjustment == NO AND category.isSystem == YES AND category.name == %@",
+            "余额调整"
+        )
+
+        if let transactions = try? context.fetch(request), !transactions.isEmpty {
+            for transaction in transactions {
+                transaction.isReconciliationAdjustment = true
+                transaction.updatedAt = Date()
+            }
+            try? context.save()
+        }
+        UserDefaults.standard.set(true, forKey: FinanceRepository.reconciliationAdjustmentMigrationFlag)
     }
     
     // MARK: - Seed Data

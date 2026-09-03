@@ -104,7 +104,8 @@ extension FinanceRepository {
             to: Date()
         ) ?? Date()
         
-        // 查询指定类型、指定时间范围内的所有交易
+        // 查询指定类型、指定时间范围内的所有交易（排除对账调整流水：
+        // 它挂的「余额调整」分类不该被使用频次推高、也不该进入记账推荐）
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(
@@ -112,7 +113,8 @@ extension FinanceRepository {
                 cutoffDate as NSDate,
                 type.rawValue
             ),
-            NSPredicate(format: "deletedAt == nil")
+            NSPredicate(format: "deletedAt == nil"),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
         ])
         
         let transactions = try context.fetch(request)

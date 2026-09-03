@@ -87,6 +87,14 @@ final class BillImportAIService {
         mapping.refIndex = column("refIndex")
         mapping.incomeAmountIndex = column("incomeAmountIndex")
         mapping.expenseAmountIndex = column("expenseAmountIndex")
+        mapping.balanceIndex = column("balanceIndex")
+
+        // 本地兜底：银行流水表头通常有「余额」列，AI 漏映射时按表头精确匹配补上
+        if mapping.balanceIndex == nil {
+            mapping.balanceIndex = headers.firstIndex {
+                $0.trimmingCharacters(in: .whitespaces) == "余额"
+            }
+        }
 
         return ColumnMappingResult(
             sourceType: sourceJSON["type"] as? String ?? "unknown",

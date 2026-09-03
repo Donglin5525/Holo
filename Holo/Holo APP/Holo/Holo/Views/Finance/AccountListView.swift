@@ -16,8 +16,16 @@ extension Account: Identifiable {}
 
 /// 账户列表一行需要的数据（余额在父视图统一取数，避免行内反复查询）
 struct AccountRowItem: Identifiable {
+    /// 列表行对账徽标：只显示两态（已对平/需重对），「从未对账」不显示避免列表噪音
+    enum ReconcileBadge {
+        case none
+        case ok
+        case needsRecheck
+    }
+
     let account: Account
     let balance: Decimal
+    var reconcileBadge: ReconcileBadge = .none
 
     var id: UUID { account.id }
 
@@ -115,7 +123,14 @@ struct AccountListView: View {
                 AddAccountSheet(mode: .edit(account)) { _ in loadData() }
             }
             .sheet(item: $adjustingAccount) { account in
-                AdjustBalanceSheet(account: account) { loadData() }
+                ReconcileSheet(
+                    account: account,
+                    onEditInitialBalance: { target in
+                        // 复用既有编辑 sheet：期初字段在编辑模式已放开
+                        editingAccount = target
+                    },
+                    onComplete: { loadData() }
+                )
             }
             .alert("操作失败", isPresented: $showError) {
                 Button("确定", role: .cancel) {}
@@ -305,9 +320,25 @@ struct AccountListView: View {
                                 .background(Capsule().fill(Color.holoGlassBackground))
                         }
                     }
-                    Text("\(item.account.accountType.displayName) · \(item.account.accountType.englishLabel)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                    HStack(spacing: 4) {
+                        Text("\(item.account.accountType.displayName) · \(item.account.accountType.englishLabel)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                        switch item.reconcileBadge {
+                        case .none:
+                            EmptyView()
+                        case .ok:
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.holoSuccess)
+                                .accessibilityHidden(true)
+                        case .needsRecheck:
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.holoError)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -336,7 +367,7 @@ struct AccountListView: View {
                     Label("编辑账户", systemImage: "pencil")
                 }
                 Button { adjustingAccount = item.account } label: {
-                    Label("调整余额", systemImage: "arrow.triangle.2.circlepath")
+                    Label("对账", systemImage: "checkmark.seal")
                 }
                 if item.account.isDefault {
                     Label("设为默认（当前默认）", systemImage: "star.fill")
@@ -416,7 +447,8 @@ struct AccountListView: View {
         items = all.filter { !$0.isArchived }.map { account in
             AccountRowItem(
                 account: account,
-                balance: FinanceRepository.shared.getAccountBalance(account)
+                balance: FinanceRepository.shared.getAccountBalance(account),
+                reconcileBadge: reconcileBadge(for: account)
             )
         }
         archivedItems = all.filter { $0.isArchived }.map { account in
@@ -426,6 +458,17 @@ struct AccountListView: View {
             )
         }
         netWorthData = FinanceRepository.shared.getTotalNetWorth()
+    }
+
+    private func reconcileBadge(for account: Account) -> AccountRowItem.ReconcileBadge {
+        switch FinanceRepository.shared.getReconciliationStatus(account) {
+        case .neverReconciled:
+            return .none
+        case .reconciled, .reconciledWithActivity:
+            return .ok
+        case .broken:
+            return .needsRecheck
+        }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {

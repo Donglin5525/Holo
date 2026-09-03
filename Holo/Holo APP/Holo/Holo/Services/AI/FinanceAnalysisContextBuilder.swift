@@ -31,7 +31,7 @@ struct FinanceAnalysisContextBuilder {
         }
 
         do {
-            let transactions = try await repo.getTransactions(from: startInclusive, to: endExclusive)
+            let transactions = try await repo.getStatisticsTransactions(from: startInclusive, to: endExclusive)
 
             let expenses = transactions.filter { $0.transactionType == .expense }
             let incomes = transactions.filter { $0.transactionType == .income }
@@ -87,7 +87,7 @@ struct FinanceAnalysisContextBuilder {
                 let compStartDay = calendar.startOfDay(for: compStart)
                 let compEndExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: compEnd))
                 if let compEndExcl = compEndExclusive {
-                    let compTransactions = try await repo.getTransactions(from: compStartDay, to: compEndExcl)
+                    let compTransactions = try await repo.getStatisticsTransactions(from: compStartDay, to: compEndExcl)
                     let compExpenses = compTransactions.filter { $0.transactionType == .expense }
                     previousPeriodExpense = compExpenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 

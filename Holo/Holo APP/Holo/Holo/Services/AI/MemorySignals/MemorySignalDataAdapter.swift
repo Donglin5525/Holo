@@ -45,7 +45,9 @@ enum MemorySignalDataAdapter {
         let calendar = Calendar.current
         let currentStart = calendar.date(byAdding: .day, value: -90, to: now) ?? now
         let previousStart = calendar.date(byAdding: .day, value: -180, to: now) ?? currentStart
-        let transactions = (try? await FinanceRepository.shared.getAllTransactions()) ?? []
+        // 统计口径：排除对账调整流水，避免「余额调整」混进消费信号
+        let transactions = (try? await FinanceRepository.shared.getAllTransactions())?
+            .filter { !$0.isReconciliationAdjustment } ?? []
         let mapped = transactions.compactMap { transaction -> FinanceMemoryTransactionInput? in
             guard let category = transaction.category else { return nil }
             let names = FinanceRepository.shared.resolveCategoryNames(from: category)
