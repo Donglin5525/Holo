@@ -42,6 +42,7 @@
 		3DD38C609064927B374A8A67 /* HoloMemoryConsumerPolicyIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D12F979B323B1B7D656B4D /* HoloMemoryConsumerPolicyIntegrationTests.swift */; };
 		3E810E90A87EF5F2442B4601 /* WaveformSampleMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439BD0F9196830BEB35DD79D /* WaveformSampleMapperTests.swift */; };
 		3E8A1C94D7B25F60A1174C9E /* CalendarTimelineSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */; };
+		C10D0000A1B1C1D1E1F1BB02 /* CalendarPickerWalkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D0000A1B1C1D1E1F1BB01 /* CalendarPickerWalkUITests.swift */; };
 		3F7BF18E2C8C2851AC559873 /* HabitPerformanceModelsStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FB12E724759712715FAF5F /* HabitPerformanceModelsStandaloneTests.swift */; };
 		3F9C04B6A4A90A7A96D14DAE /* HoloDomainMemoryObserverIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 976992B49B18745C696A05F9 /* HoloDomainMemoryObserverIntegrationTests.swift */; };
 		404359A9BE4A4623F4C6DB96 /* CalendarEventProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3C97A9EBFDA416A105D738 /* CalendarEventProviderTests.swift */; };
@@ -312,6 +313,7 @@
 		4CF609504BAEA1DC042A448E /* HabitStatsStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitStatsStateTests.swift; sourceTree = "<group>"; };
 		4E0BE186B40FA3BA8EB12E20 /* HoloMemoryLifecycleStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryLifecycleStandaloneTests.swift; sourceTree = "<group>"; };
 		4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarTimelineSmokeUITests.swift; sourceTree = "<group>"; };
+		C10D0000A1B1C1D1E1F1BB01 /* CalendarPickerWalkUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarPickerWalkUITests.swift; sourceTree = "<group>"; };
 		50BD1A30F4413A5FA65CE4E6 /* ThoughtTagPresentationStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtTagPresentationStandaloneTests.swift; sourceTree = "<group>"; };
 		50FB12E724759712715FAF5F /* HabitPerformanceModelsStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPerformanceModelsStandaloneTests.swift; sourceTree = "<group>"; };
 		53D13BB9A969837DFE63D4C0 /* HoloAgentResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentResponseParserTests.swift; sourceTree = "<group>"; };
@@ -958,6 +960,7 @@
 			isa = PBXGroup;
 			children = (
 				4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */,
+				C10D0000A1B1C1D1E1F1BB01 /* CalendarPickerWalkUITests.swift */,
 				FE1000000000000000000001 /* HoloAcceptanceUITests.swift */,
 				AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */,
 				AA11BB22CC33DD44EE550001 /* HoloAcceptanceR4UITests.swift */,
@@ -1351,6 +1354,7 @@
 				AA11BB22CC33DD44EE550002 /* HoloAcceptanceR4UITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1AA02 /* HoloCloudAnalysisQAUITests.swift in Sources */,
 				3E8A1C94D7B25F60A1174C9E /* CalendarTimelineSmokeUITests.swift in Sources */,
+				C10D0000A1B1C1D1E1F1BB02 /* CalendarPickerWalkUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

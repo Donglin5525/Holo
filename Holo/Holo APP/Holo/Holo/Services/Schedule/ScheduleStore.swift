@@ -38,6 +38,8 @@ final class ScheduleStore: ObservableObject {
     @AppStorage("com.holo.schedule.enabled") var isEnabled: Bool = false
     /// 勾选的日历 id 集合（JSON 数组）
     @AppStorage("com.holo.schedule.selectedCalendarIds") private var selectedCalendarIdsJSON: String = "[]"
+    /// 用户是否手动配置过勾选：区分「从未配置」与「主动全不选」，后者不可被默认值覆盖
+    @AppStorage("com.holo.schedule.selectionConfigured") private var selectionConfigured: Bool = false
 
     private var selectedCalendarIds: Set<String> {
         get {
@@ -187,13 +189,12 @@ final class ScheduleStore: ObservableObject {
 
     // MARK: - 日历来源
 
-    /// 首次开启时默认勾选：非订阅、非系统生日日历
+    /// 首次开启时默认勾选：非订阅、非系统生日日历；用户手动配置过（含全不选）后不再补写
     private func applyDefaultSelectionIfNeeded() {
-        guard let store = eventStore else { return }
+        guard !selectionConfigured, let store = eventStore else { return }
         let current = selectedCalendarIds
         guard current.isEmpty else { return }
-        let defaults = defaultSelectedCalendarIds(from: store.calendars(for: .event))
-        selectedCalendarIds = defaults
+        selectedCalendarIds = defaultSelectedCalendarIds(from: store.calendars(for: .event))
     }
 
     private func defaultSelectedCalendarIds(from calendars: [EKCalendar]) -> Set<String> {
@@ -216,10 +217,20 @@ final class ScheduleStore: ObservableObject {
                     title: cal.title,
                     color: Color(cal.cgColor),
                     isSubscribed: cal.source.sourceType == .subscribed,
+                    isHolo: cal.title == ScheduleSyncEngine.holoCalendarTitle && cal.allowsContentModifications,
+                    sourceTitle: cal.source.title,
                     isSelected: selectedCalendarIds.contains(cal.calendarIdentifier)
                 )
             }
-            .sorted { $0.title < $1.title }
+            // 语义序：Holo 专属 → 各账户日历（按来源名）→ 订阅垫底；组内按名称。
+            // 同一来源保持连续，选择页按连续段分组渲染。
+            .sorted { a, b in
+                let rankA = a.isHolo ? 0 : (a.isSubscribed ? 2 : 1)
+                let rankB = b.isHolo ? 0 : (b.isSubscribed ? 2 : 1)
+                if rankA != rankB { return rankA < rankB }
+                if a.sourceTitle != b.sourceTitle { return a.sourceTitle < b.sourceTitle }
+                return a.title < b.title
+            }
     }
 
     func toggleCalendarSelection(_ id: String) {
@@ -230,6 +241,21 @@ final class ScheduleStore: ObservableObject {
             ids.insert(id)
         }
         selectedCalendarIds = ids
+        selectionConfigured = true
+        refreshCalendars()
+        Task { await reloadActiveWindow() }
+    }
+
+    /// 组级勾选（选择页组头「全选 / 全不选」）
+    func setSelection(_ ids: [String], selected: Bool) {
+        var set = selectedCalendarIds
+        if selected {
+            ids.forEach { set.insert($0) }
+        } else {
+            ids.forEach { set.remove($0) }
+        }
+        selectedCalendarIds = set
+        selectionConfigured = true
         refreshCalendars()
         Task { await reloadActiveWindow() }
     }
@@ -400,6 +426,10 @@ struct ScheduleCalendarInfo: Identifiable, Equatable {
     let title: String
     let color: Color
     let isSubscribed: Bool
+    /// Holo 专属日历（任务同步写入目标），分组置顶展示
+    let isHolo: Bool
+    /// 所属账户名（iCloud / Outlook 等），选择页分组用
+    let sourceTitle: String
     let isSelected: Bool
 
     static func == (lhs: ScheduleCalendarInfo, rhs: ScheduleCalendarInfo) -> Bool {

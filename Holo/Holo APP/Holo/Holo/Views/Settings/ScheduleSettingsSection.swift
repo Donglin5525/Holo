@@ -12,6 +12,7 @@ struct ScheduleSettingsSection: View {
     @StateObject private var store = ScheduleStore.shared
     private let syncEngine = ScheduleSyncEngine.shared
     @State private var isRequestingPermission = false
+    @State private var showPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -56,27 +57,15 @@ struct ScheduleSettingsSection: View {
 
                         Divider().padding(.leading, HoloSpacing.md)
 
-                        calendarSelectionRows
-
-                        Divider().padding(.leading, HoloSpacing.md)
-
-                        // AI 可读性告知（设计稿：勾选处文案明示，不另设开关）
-                        HStack(alignment: .top, spacing: HoloSpacing.sm) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoPrimary)
-                                .padding(.top, 2)
-
-                            Text("勾选的日历可在 Holo 中查看；对话与周规划时 AI 也会读取这些日历来安排时间。日程数据仅在本机与当次 AI 请求中使用。")
-                                .font(.system(size: 11))
-                                .foregroundColor(.holoTextSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(HoloSpacing.md)
+                        // 来源日历勾选收进独立选择页，这里只留汇总入口
+                        calendarSummaryRow
                     }
                 }
                 .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .navigationDestination(isPresented: $showPicker) {
+                    CalendarSourcePickerView()
+                }
             }
         }
         .onAppear {
@@ -219,57 +208,44 @@ struct ScheduleSettingsSection: View {
         UIApplication.shared.open(url)
     }
 
-    // MARK: - 日历勾选
+    // MARK: - 来源日历汇总入口
 
-    @ViewBuilder
-    private var calendarSelectionRows: some View {
-        if store.availableCalendars.isEmpty {
-            HStack {
-                Text("未找到可用日历")
+    private var calendarSummaryRow: some View {
+        Button {
+            showPicker = true
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "eye")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("显示的日历")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("勾选后才在 Holo 展示、供 AI 读取")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer()
+
+                Text("已选 \(store.availableCalendars.filter(\.isSelected).count)/\(store.availableCalendars.count)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextSecondary)
+
+                Image(systemName: "chevron.right")
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
-                Spacer()
             }
             .padding(HoloSpacing.md)
-        } else {
-            VStack(spacing: 0) {
-                ForEach(store.availableCalendars) { info in
-                    Button {
-                        store.toggleCalendarSelection(info.id)
-                    } label: {
-                        HStack(spacing: HoloSpacing.md) {
-                            Circle()
-                                .fill(info.color)
-                                .frame(width: 10, height: 10)
-
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(info.title)
-                                    .font(.holoBody)
-                                    .foregroundColor(.holoTextPrimary)
-                                if info.isSubscribed {
-                                    Text("订阅日历")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.holoTextSecondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Image(systemName: info.isSelected ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 18))
-                                .foregroundColor(info.isSelected ? .holoPrimary : .holoTextSecondary.opacity(0.5))
-                        }
-                        .padding(.horizontal, HoloSpacing.md)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if info.id != store.availableCalendars.last?.id {
-                        Divider().padding(.leading, HoloSpacing.md)
-                    }
-                }
-            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
