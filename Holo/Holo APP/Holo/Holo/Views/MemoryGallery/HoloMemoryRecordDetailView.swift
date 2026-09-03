@@ -23,6 +23,7 @@ struct HoloMemoryRecordDetailView: View {
     @State private var correctionText = ""
     @State private var showForgetConfirmation = false
     @State private var selectedEvidence: HoloMemoryEvidenceRef?
+    @State private var liveEvidenceExcerpt: String?
 
     let onChange: (HoloMemoryRecordDetailChange) -> Void
 
@@ -200,7 +201,7 @@ struct HoloMemoryRecordDetailView: View {
     }
 
     private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
-        if let target = deepLinkTarget(for: evidence) {
+        if let target = HoloMemoryEvidenceRouter.deepLinkTarget(for: evidence) {
             // 跳转前校验原始记录仍存活（不存在或已进回收站都视为已清除，让用户有感知）
             guard isEvidenceSourceAlive(evidence) else {
                 HoloToastCenter.shared.show("该记录已被清除", type: .info)
@@ -213,45 +214,15 @@ struct HoloMemoryRecordDetailView: View {
         }
     }
 
-    /// entityRef 证据的 sourceID 是否仍指向一条未删除的原始记录
+    /// 可路由证据的 sourceID 是否仍指向一条未删除的原始记录
     private func isEvidenceSourceAlive(_ evidence: HoloMemoryEvidenceRef) -> Bool {
-        guard evidence.kind == .entityRef,
+        guard let entityName = HoloMemoryEvidenceRouter.sourceEntityName(for: evidence),
               let sourceID = evidence.sourceID,
               let uuid = UUID(uuidString: sourceID) else { return false }
-        let entityName: String
-        switch evidence.sourceDomain {
-        case .finance: entityName = "Transaction"
-        case .task: entityName = "TodoTask"
-        case .thought: entityName = "Thought"
-        case .habit: entityName = "Habit"
-        case .goal: entityName = "Goal"
-        default: return false
-        }
         let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", uuid as CVarArg)
         request.fetchLimit = 1
         return ((try? CoreDataStack.shared.viewContext.count(for: request)) ?? 0) > 0
-    }
-
-    /// entityRef 证据的 sourceID 指向原始业务记录；有详情页路由的域直达原记录。
-    private func deepLinkTarget(for evidence: HoloMemoryEvidenceRef) -> DeepLinkTarget? {
-        guard evidence.kind == .entityRef,
-              let sourceID = evidence.sourceID,
-              let uuid = UUID(uuidString: sourceID) else { return nil }
-        switch evidence.sourceDomain {
-        case .finance:
-            return .transactionDetail(transactionId: uuid)
-        case .task:
-            return .taskDetail(taskId: uuid)
-        case .thought:
-            return .thoughtDetail(thoughtId: uuid)
-        case .habit:
-            return .habitDetail(habitId: uuid)
-        case .goal:
-            return .goalDetail(goalId: uuid)
-        default:
-            return nil
-        }
     }
 
     private func evidencePreviewSheet(_ evidence: HoloMemoryEvidenceRef) -> some View {
@@ -265,7 +236,7 @@ struct HoloMemoryRecordDetailView: View {
                     .font(.holoLabel)
                     .foregroundColor(.holoPrimary)
 
-                    Text(evidence.summary?.isEmpty == false ? evidence.summary! : "这条证据没有留下文字摘要。")
+                    Text(previewBody(for: evidence))
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -291,8 +262,24 @@ struct HoloMemoryRecordDetailView: View {
                     Button("完成") { selectedEvidence = nil }
                 }
             }
+            .task(id: evidence.id) {
+                liveEvidenceExcerpt = nil
+                liveEvidenceExcerpt = await HoloMemoryConversationExcerptLookup.excerpt(for: evidence)
+            }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    /// 存量证据未保存摘要时按 sourceID 回查原文；查不到才落占位文案。
+    private func previewBody(for evidence: HoloMemoryEvidenceRef) -> String {
+        if let summary = evidence.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !summary.isEmpty {
+            return summary
+        }
+        if let liveEvidenceExcerpt, !liveEvidenceExcerpt.isEmpty {
+            return liveEvidenceExcerpt
+        }
+        return "这条证据没有留下文字摘要，原始内容可能已被删除。"
     }
 
     private var feedbackSection: some View {

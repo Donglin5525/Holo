@@ -52,7 +52,8 @@ nonisolated enum ConversationMemorySignalBuilder {
                 lineageKey: "conversation:user:\(input.id)",
                 sourceID: input.id,
                 revisionDigest: input.revisionDigest,
-                observedAt: input.createdAt
+                observedAt: input.createdAt,
+                summary: HoloDomainSignalBuilder.sanitizeUserText(String(input.text.prefix(200)))
             )
             let anchors = [conversationAnchor, input.profileAnchor].compactMap { $0 }
             return try? HoloDomainSignalBuilder.make(

@@ -36,7 +36,8 @@ nonisolated enum ThoughtMemorySignalBuilder {
                 lineageKey: "thought:\(input.id)",
                 sourceID: input.id,
                 revisionDigest: input.revisionDigest,
-                observedAt: input.createdAt
+                observedAt: input.createdAt,
+                summary: HoloDomainSignalBuilder.sanitizeUserText(String(input.originalText.prefix(200)))
             )
             return try? HoloDomainSignalBuilder.make(
                 id: "thought-explicit-stance-\(input.id)",

@@ -448,6 +448,11 @@ func test_090_ThoughtTagPresentationStandaloneTests() async throws {
     ThoughtTagPresentationStandaloneTests.main()
 }
 
+func test_091_HoloMemoryEvidenceRoutingTests() async throws {
+    // 来源：Views/MemoryGallery/HoloMemoryEvidenceRoutingTests.swift
+    try await HoloMemoryEvidenceRoutingTests.main()
+}
+
 func test_092_ThoughtClusterEngineStandaloneTests() async throws {
     // 来源：Services/Thoughts/ThoughtClusterEngineStandaloneTests.swift
     ThoughtClusterEngineStandaloneTests.main()
