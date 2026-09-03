@@ -65,6 +65,8 @@ struct ThoughtListView: View {
 
     /// 选中的想法（用于进入详情）
     @State private var selectedThoughtId: UUID? = nil
+    /// 从卡片「待确认」徽章进入详情时滚动到 AI 归纳确认区（普通点卡片进详情不滚动）
+    @State private var selectedThoughtFocusConfirmation = false
 
     /// 双击卡片直接进入编辑器
     @State private var editingThoughtId: UUID? = nil
@@ -207,11 +209,14 @@ struct ThoughtListView: View {
         }
         // 主列表先进入详情，阅读、引用关系与编辑入口保持同一条产品路径。
         // 编辑器仍由详情页的「编辑」动作打开，避免列表入口绕过反向链接。
-        .fullScreenCover(item: $selectedThoughtId) { thoughtId in
+        .fullScreenCover(item: $selectedThoughtId, onDismiss: {
+            selectedThoughtFocusConfirmation = false
+        }) { thoughtId in
             ThoughtDetailView(
                 thoughtId: thoughtId,
                 thoughtRepository: ThoughtRepository(),
-                showsDismissButton: true
+                showsDismissButton: true,
+                focusAIConfirmation: selectedThoughtFocusConfirmation
             )
             .holoContentColumn()
         }
@@ -328,11 +333,11 @@ struct ThoughtListView: View {
             loadUnprocessedCount()
 
             guard !orgQueue.dailyLimitHit else {
-                batchOrganizeNotice = "标签整理已暂停，配额恢复后再继续归纳主题"
+                batchOrganizeNotice = String(localized: "标签整理已暂停，配额恢复后再继续归纳主题")
                 return
             }
 
-            batchOrganizeNotice = "标签整理完成，正在归纳主题"
+            batchOrganizeNotice = String(localized: "标签整理完成，正在归纳主题")
             onAIOrganize()
         }
     }
@@ -650,11 +655,11 @@ struct ThoughtListView: View {
             return
         }
         if orgQueue.dailyLimitHit {
-            batchOrganizeNotice = "今日 AI 额度已用尽，剩余条目明天自动续做"
+            batchOrganizeNotice = String(localized: "今日 AI 额度已用尽，剩余条目明天自动续做")
             return
         }
         if unprocessedCount == 0 {
-            batchOrganizeNotice = "正在归纳主题"
+            batchOrganizeNotice = String(localized: "正在归纳主题")
             onAIOrganize()
             return
         }
@@ -667,16 +672,16 @@ struct ThoughtListView: View {
         do {
             let ids = try thoughtRepository.fetchUnprocessedThoughtIds()
             guard !ids.isEmpty else {
-                batchOrganizeNotice = "没有需要整理的想法"
+                batchOrganizeNotice = String(localized: "没有需要整理的想法")
                 return
             }
             try thoughtRepository.markBatchPending(thoughtIds: ids)
             shouldRunTopicConvergenceAfterBatch = true
             orgQueue.enqueueBatch(thoughtIds: ids)
-            batchOrganizeNotice = "已开始整理 \(ids.count) 条想法，完成后会归纳主题"
+            batchOrganizeNotice = String(localized: "已开始整理 \(ids.count) 条想法，完成后会归纳主题")
         } catch {
             logger.error("启动批量整理失败：\(error)")
-            batchOrganizeNotice = "启动失败，请稍后重试"
+            batchOrganizeNotice = String(localized: "启动失败，请稍后重试")
         }
     }
 
@@ -816,8 +821,8 @@ struct ThoughtListView: View {
 
     private var browseModeSegment: some View {
         HStack(spacing: 3) {
-            segmentItem(title: "想法", icon: "lightbulb.fill", key: "timeline")
-            segmentItem(title: "主题", icon: "folder.fill", key: "knowledge")
+            segmentItem(title: String(localized: "想法"), icon: "lightbulb.fill", key: "timeline")
+            segmentItem(title: String(localized: "主题"), icon: "folder.fill", key: "knowledge")
         }
         .padding(3)
         .background(Color.holoCardBackground)
@@ -897,7 +902,7 @@ struct ThoughtListView: View {
             HStack(spacing: 8) {
                 // 全部标签（两套筛选入口都没选中时才算「全部」）
                 HoloFilterChip(
-                    title: "全部",
+                    title: String(localized: "全部"),
                     iconColor: .holoPrimary,
                     isSelected: activeTagFilterName == nil
                 ) {
@@ -990,6 +995,12 @@ struct ThoughtListView: View {
                                     revealedThoughtId = nil
                                     editingThoughtId = thought.id
                                 },
+                                onConfirmNavigate: {
+                                    // 待确认徽章：进详情并直达 AI 归纳确认位
+                                    revealedThoughtId = nil
+                                    selectedThoughtFocusConfirmation = true
+                                    selectedThoughtId = thought.id
+                                },
                                 onTagTap: { tagName in
                                     selectedTagName = ThoughtTagNormalizer.displayName(tagName)
                                     drawerSelection = nil
@@ -1008,7 +1019,7 @@ struct ThoughtListView: View {
                                 onDelete: {
                                     deleteThought(thought)
                                 },
-                                archiveActionTitle: isArchivedView ? "恢复" : "归档",
+                                archiveActionTitle: isArchivedView ? String(localized: "恢复") : String(localized: "归档"),
                                 recognizedTagKeys: recognizedTagKeys
                             )
                             .contextMenu {
@@ -1067,7 +1078,7 @@ struct ThoughtListView: View {
     /// 想法列表的长按菜单入口——这是用户「看到一条想法想问 AI」最高频的场景。
     private func askHoloAboutThought(_ thought: Thought) {
         let snippet = thought.firstLine ?? String(thought.content.prefix(30))
-        let prefill = "关于这条想法「\(snippet)」，帮我展开想想，或者拆成可执行的待办"
+        let prefill = String(localized: "关于这条想法「\(snippet)」，帮我展开想想，或者拆成可执行的待办")
         DeepLinkState.shared.navigate(to: .chat(prefill: prefill))
     }
 
@@ -1084,7 +1095,7 @@ struct ThoughtListView: View {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
             Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("归档/恢复想法失败: \(error.localizedDescription)")
-            HoloToastCenter.shared.show("操作失败，请重试", type: .error)
+            HoloToastCenter.shared.show(String(localized: "操作失败，请重试"), type: .error)
         }
     }
 

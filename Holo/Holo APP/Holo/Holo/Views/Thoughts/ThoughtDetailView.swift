@@ -26,6 +26,13 @@ struct ThoughtDetailView: View {
     private let topicRepository = TopicRepository()
     /// 从主列表以全屏详情打开时显示关闭按钮；从编辑器的导航栈进入时保留系统返回按钮。
     var showsDismissButton: Bool = false
+    /// 从卡片「待确认」徽章进入时滚动到 AI 归纳确认区（长笔记确认位在首屏之外）
+    var focusAIConfirmation: Bool = false
+
+    /// 滚动锚点：AI 归纳确认区
+    private enum DetailScrollAnchor {
+        static let aiSummary = "aiSummarySection"
+    }
 
     /// 当前想法
     @State private var thought: Thought? = nil
@@ -82,48 +89,53 @@ struct ThoughtDetailView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                    // 目标想法已被删除/清除时的占位提示
-                    if thought == nil && hasLoadedData {
-                        deletedThoughtPlaceholder
-                    }
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                        // 目标想法已被删除/清除时的占位提示
+                        if thought == nil && hasLoadedData {
+                            deletedThoughtPlaceholder
+                        }
 
-                    // 内容区域
-                    if thought != nil {
-                        contentSection
-                    }
+                        // 内容区域
+                        if thought != nil {
+                            contentSection
+                        }
 
-                    // AI 归纳（三区合一：主题 + 标签 + 理由放一个区块——
-                    // 它们本来就是同一次 AI 调用的产出，不再让用户自己拼图）
-                    if thought != nil {
-                        aiSummarySection
-                    }
+                        // AI 归纳（三区合一：主题 + 标签 + 理由放一个区块——
+                        // 它们本来就是同一次 AI 调用的产出，不再让用户自己拼图）
+                        if thought != nil {
+                            aiSummarySection
+                                .id(DetailScrollAnchor.aiSummary)
+                        }
 
-                    // 整理失败：人话原因 + 一键重试（独立于 AI 归纳区，红色轻提示）
-                    if thought?.organizedStatus == "failed" {
-                        organizationFailedSection
-                    }
+                        // 整理失败：人话原因 + 一键重试（独立于 AI 归纳区，红色轻提示）
+                        if thought?.organizedStatus == "failed" {
+                            organizationFailedSection
+                        }
 
-                    // 引用区域（该想法引用的其他想法）
-                    if !references.isEmpty {
-                        referencesSection
-                    }
+                        // 引用区域（该想法引用的其他想法）
+                        if !references.isEmpty {
+                            referencesSection
+                        }
 
-                    // 反向链接区域（引用该想法的其他想法）
-                    if !referencedBy.isEmpty {
-                        referencedBySection
-                    }
+                        // 反向链接区域（引用该想法的其他想法）
+                        if !referencedBy.isEmpty {
+                            referencedBySection
+                        }
 
-                    // 底部间距
-                    Spacer(minLength: HoloSpacing.xxl)
+                        // 底部间距
+                        Spacer(minLength: HoloSpacing.xxl)
+                    }
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.vertical, HoloSpacing.md)
                 }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.vertical, HoloSpacing.md)
-            }
-            .background(Color.holoBackground)
-            .navigationTitle("想法详情")
-            .navigationBarTitleDisplayMode(.inline)
+                .background(Color.holoBackground)
+                .navigationTitle("想法详情")
+                .navigationBarTitleDisplayMode(.inline)
+                .onChange(of: hasLoadedData) { _, loaded in
+                    scrollToConfirmationIfRequested(loaded, proxy: proxy)
+                }
             .toolbar {
                 if showsDismissButton {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -134,7 +146,7 @@ struct ThoughtDetailView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .frame(width: 44, height: 44)
                         }
-                        .accessibilityLabel("关闭详情")
+                        .accessibilityLabel(String(localized: "关闭详情"))
                         .buttonStyle(.plain)
                     }
                 }
@@ -238,6 +250,7 @@ struct ThoughtDetailView: View {
             .onAppear {
                 loadData()
             }
+            }
         }
         // 全屏详情形态（showsDismissButton=true）补边缘右滑返回；编辑器导航栈形态保留系统返回。
         // 条件挂载：holoEdgeSwipeBack 无让位逻辑，与系统手势并存会双重 pop。
@@ -245,6 +258,15 @@ struct ThoughtDetailView: View {
     }
 
     // MARK: - 数据加载
+
+    /// 从「待确认」徽章进入时滚到 AI 归纳区（数据就绪、区块已渲染后才有效）
+    private func scrollToConfirmationIfRequested(_ loaded: Bool, proxy: ScrollViewProxy) {
+        guard loaded, focusAIConfirmation else { return }
+        // 等本帧布局完成再滚，否则 scrollTo 找不到锚点
+        DispatchQueue.main.async {
+            proxy.scrollTo(DetailScrollAnchor.aiSummary, anchor: .top)
+        }
+    }
 
     private func loadData() {
         do {
@@ -453,7 +475,7 @@ struct ThoughtDetailView: View {
             HStack(spacing: 4) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 10))
-                Text(hasUnconfirmedAISuggestions ? "AI 归纳 · 待你确认" : "AI 归纳")
+                Text(hasUnconfirmedAISuggestions ? String(localized: "AI 归纳 · 待你确认") : String(localized: "AI 归纳"))
                     .font(.holoCaption)
                     .fontWeight(.semibold)
             }
@@ -663,7 +685,7 @@ struct ThoughtDetailView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("保留标签 \(ThoughtTagNormalizer.displayPath(tagName))")
+                .accessibilityLabel(String(localized: "保留标签 \(ThoughtTagNormalizer.displayPath(tagName))"))
 
                 // FR-06′：× 默认仅本条不适合，不写全局抑制
                 Button {
@@ -682,7 +704,7 @@ struct ThoughtDetailView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("不适合这条 \(ThoughtTagNormalizer.displayPath(tagName))")
+                .accessibilityLabel(String(localized: "不适合这条 \(ThoughtTagNormalizer.displayPath(tagName))"))
             }
         }
         .padding(.horizontal, 8)
@@ -872,7 +894,7 @@ struct ReferenceCardView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(onTap == nil ? [] : .isButton)
-        .accessibilityHint(onTap == nil ? "" : "双击打开想法")
+        .accessibilityHint(onTap == nil ? "" : String(localized: "双击打开想法"))
         .accessibilityAction {
             onTap?()
         }

@@ -29,12 +29,12 @@ enum ThoughtMoodType: String, CaseIterable, Codable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .happy: return "开心"
-        case .sad: return "难过"
-        case .angry: return "愤怒"
-        case .calm: return "平静"
-        case .thinking: return "思考"
-        case .inspired: return "灵感"
+        case .happy: return String(localized: "开心")
+        case .sad: return String(localized: "难过")
+        case .angry: return String(localized: "愤怒")
+        case .calm: return String(localized: "平静")
+        case .thinking: return String(localized: "思考")
+        case .inspired: return String(localized: "灵感")
         }
     }
 
@@ -79,6 +79,21 @@ enum ThoughtMoodType: String, CaseIterable, Codable {
 
 extension Thought: Identifiable {}
 
+/// 想法卡片日期文本的固定格式缓存（创建 DateFormatter 本身昂贵，列表滚动/重渲染高频取用）
+private enum CachedDateFormatters {
+    static let timeOfDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    static let monthDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMMdd")
+        return formatter
+    }()
+}
+
 extension Thought {
     /// 心情类型
     var moodType: ThoughtMoodType? {
@@ -101,21 +116,16 @@ extension Thought {
         InlineTagDetector.extractTags(from: content)
     }
 
-    /// 格式化日期
+    /// 格式化日期。DateFormatter 创建成本高（卡片每次重渲染都会取日期文本），
+    /// 固定格式按实例缓存复用；仅主线程（SwiftUI body）调用。
     var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-
         let calendar = Calendar.current
         if calendar.isDateInToday(createdAt) {
-            formatter.dateFormat = "HH:mm"
-            return "今天 " + formatter.string(from: createdAt)
+            return String(localized: "今天 \(CachedDateFormatters.timeOfDay.string(from: createdAt))")
         } else if calendar.isDateInYesterday(createdAt) {
-            formatter.dateFormat = "HH:mm"
-            return "昨天 " + formatter.string(from: createdAt)
+            return String(localized: "昨天 \(CachedDateFormatters.timeOfDay.string(from: createdAt))")
         } else {
-            formatter.dateFormat = "MM月dd日"
-            return formatter.string(from: createdAt)
+            return CachedDateFormatters.monthDay.string(from: createdAt)
         }
     }
 

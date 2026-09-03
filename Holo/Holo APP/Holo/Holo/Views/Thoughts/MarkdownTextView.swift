@@ -490,7 +490,7 @@ struct MarkdownTextView: UIViewRepresentable {
                     refreshTaskSourceLengths(in: mutable)
                     removeEmptyTaskMarkers(in: mutable)
 
-                    performProgrammaticEdit(on: textView, actionName: "退出无序列表") {
+                    performProgrammaticEdit(on: textView, actionName: String(localized: "退出无序列表")) {
                         textView.attributedText = mutable
                         textView.selectedRange = NSRange(location: lineStart + 1, length: 0)
                     }
@@ -505,7 +505,7 @@ struct MarkdownTextView: UIViewRepresentable {
                 refreshTaskSourceLengths(in: mutable)
                 removeEmptyTaskMarkers(in: mutable)
 
-                performProgrammaticEdit(on: textView, actionName: "续写无序列表") {
+                performProgrammaticEdit(on: textView, actionName: String(localized: "续写无序列表")) {
                     textView.attributedText = mutable
                     textView.selectedRange = NSRange(location: cursorLocation + 3, length: 0)
                 }
@@ -526,7 +526,7 @@ struct MarkdownTextView: UIViewRepresentable {
                     refreshTaskSourceLengths(in: mutable)
                     removeEmptyTaskMarkers(in: mutable)
 
-                    performProgrammaticEdit(on: textView, actionName: "退出有序列表") {
+                    performProgrammaticEdit(on: textView, actionName: String(localized: "退出有序列表")) {
                         textView.attributedText = mutable
                         textView.selectedRange = NSRange(location: lineStart + 1, length: 0)
                     }
@@ -542,7 +542,7 @@ struct MarkdownTextView: UIViewRepresentable {
                 refreshTaskSourceLengths(in: mutable)
                 removeEmptyTaskMarkers(in: mutable)
 
-                performProgrammaticEdit(on: textView, actionName: "续写有序列表") {
+                performProgrammaticEdit(on: textView, actionName: String(localized: "续写有序列表")) {
                     textView.attributedText = mutable
                     textView.selectedRange = NSRange(location: cursorLocation + (newPrefix as NSString).length, length: 0)
                 }
@@ -768,7 +768,7 @@ struct MarkdownTextView: UIViewRepresentable {
         /// 语义文字当成真实坐标，选中 Token 后误删相邻正文。完整语义改放到 Hint，阅读态
         /// 仍继续使用 accessibilityText(from:) 的展开口径。
         func updateAccessibilityValue(in textView: UITextView) {
-            textView.accessibilityLabel = "想法内容"
+            textView.accessibilityLabel = String(localized: "想法内容")
             textView.accessibilityValue = MarkdownTextView.editableAccessibilityText(from: textView.attributedText)
             textView.accessibilityHint = MarkdownTextView.editableAccessibilityHint(from: nodes)
         }
@@ -1107,7 +1107,7 @@ struct MarkdownTextView: UIViewRepresentable {
             mutable.replaceCharacters(in: targetRange, with: taskAwareReplacement)
             refreshTaskSourceLengths(in: mutable)
             removeEmptyTaskMarkers(in: mutable)
-            performProgrammaticEdit(on: textView, actionName: "粘贴 Holo 内容") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "粘贴 Holo 内容")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(
                     location: targetRange.location + taskAwareReplacement.length,
@@ -1146,7 +1146,7 @@ struct MarkdownTextView: UIViewRepresentable {
             mutable.replaceCharacters(in: requestedRange, with: replacement)
             refreshTaskSourceLengths(in: mutable)
             removeEmptyTaskMarkers(in: mutable)
-            performProgrammaticEdit(on: textView, actionName: "粘贴文字") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "粘贴文字")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(
                     location: requestedRange.location + replacement.length,
@@ -1280,7 +1280,7 @@ struct MarkdownTextView: UIViewRepresentable {
             refreshTaskSourceLengths(in: mutable)
             removeEmptyTaskMarkers(in: mutable)
 
-            performProgrammaticEdit(on: textView, actionName: "编辑引用") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "编辑引用")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(location: unionRange.location + replacement.length, length: 0)
             }
@@ -1480,7 +1480,7 @@ struct MarkdownTextView: UIViewRepresentable {
             )
             mutable.replaceCharacters(in: safeRange, with: insertion)
 
-            performProgrammaticEdit(on: textView, actionName: "插入触发字符") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "插入触发字符")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(location: safeRange.location + insertion.length, length: 0)
             }
@@ -1520,7 +1520,7 @@ struct MarkdownTextView: UIViewRepresentable {
             refreshTaskSourceLengths(in: mutable)
             removeEmptyTaskMarkers(in: mutable)
 
-            performProgrammaticEdit(on: textView, actionName: type == .reference ? "插入引用" : "插入标签") {
+            performProgrammaticEdit(on: textView, actionName: type == .reference ? String(localized: "插入引用") : String(localized: "插入标签")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(location: spaceLocation + 1, length: 0)
             }
@@ -1548,7 +1548,7 @@ struct MarkdownTextView: UIViewRepresentable {
             refreshTaskSourceLengths(in: mutable)
             removeEmptyTaskMarkers(in: mutable)
 
-            performProgrammaticEdit(on: textView, actionName: "转为任务") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "转为任务")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(location: mutable.length, length: 0)
             }
@@ -1571,20 +1571,20 @@ struct MarkdownTextView: UIViewRepresentable {
             let plainText: String?
             var taskIdToRemove: UUID?
             var taskSourceLength: Int?
-            var actionName = "移除 Token"
+            var actionName = String(localized: "移除 Token")
             switch node {
             case .tag(_, let displayPath):
                 plainText = displayPath
-                actionName = "移除标签"
+                actionName = String(localized: "移除标签")
             case .reference(_, let displayText, _):
                 plainText = displayText
-                actionName = "取消引用"
+                actionName = String(localized: "取消引用")
             case .taskMark(_, let taskId, _, let sourceLength):
                 // 任务状态 Token 是纯标记，取消时删除标记，并移除它在原文上的专属下划线
                 taskIdToRemove = taskId
                 taskSourceLength = sourceLength
                 plainText = nil
-                actionName = "取消任务标记"
+                actionName = String(localized: "取消任务标记")
             case .text:
                 return
             }
@@ -1699,7 +1699,7 @@ struct MarkdownTextView: UIViewRepresentable {
                     explicitItalic: previousExplicitItalic,
                     explicitUnderline: previousExplicitUnderline,
                     explicitColorHex: previousExplicitColorHex,
-                    actionName: "修改输入样式"
+                    actionName: String(localized: "修改输入样式")
                 )
                 return
             }
@@ -1732,7 +1732,7 @@ struct MarkdownTextView: UIViewRepresentable {
             }
             mutable.endEditing()
 
-            performProgrammaticEdit(on: textView, actionName: "修改文字样式") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "修改文字样式")) {
                 textView.attributedText = mutable
                 textView.selectedRange = safeRange
             }
@@ -1760,7 +1760,7 @@ struct MarkdownTextView: UIViewRepresentable {
                     explicitItalic: previousExplicitItalic,
                     explicitUnderline: previousExplicitUnderline,
                     explicitColorHex: previousExplicitColorHex,
-                    actionName: "修改输入颜色"
+                    actionName: String(localized: "修改输入颜色")
                 )
                 return
             }
@@ -1791,7 +1791,7 @@ struct MarkdownTextView: UIViewRepresentable {
             }
             mutable.endEditing()
 
-            performProgrammaticEdit(on: textView, actionName: "修改文字颜色") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "修改文字颜色")) {
                 textView.attributedText = mutable
                 textView.selectedRange = safeRange
             }
@@ -1933,7 +1933,7 @@ struct MarkdownTextView: UIViewRepresentable {
                     range: NSRange(location: lineStart, length: lineLength)
                 )
             }
-            performProgrammaticEdit(on: textView, actionName: "插入列表") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "插入列表")) {
                 textView.attributedText = mutable
                 textView.selectedRange = newSelection
             }
@@ -1957,7 +1957,7 @@ struct MarkdownTextView: UIViewRepresentable {
             )
             mutable.replaceCharacters(in: safeRange, with: insert)
 
-            performProgrammaticEdit(on: textView, actionName: "插入语音文字") {
+            performProgrammaticEdit(on: textView, actionName: String(localized: "插入语音文字")) {
                 textView.attributedText = mutable
                 textView.selectedRange = NSRange(location: safeRange.location + insert.length, length: 0)
             }
@@ -2382,19 +2382,54 @@ extension MarkdownTextView {
 
     /// 阅读态和辅助功能使用的可读文本：保留正文顺序，并把不可见的任务附件展开成语义描述。
     /// UIKit 的 NSTextAttachment 默认可能被读成 U+FFFC，占位符对用户没有意义。
+    ///
+    /// 结果按节点内容做进程级缓存：卡片/阅读视图每次重渲染（点「…」弹菜单、整理队列
+    /// 状态变化）都会重新求值 accessibilityValue，而 text 节点要走完整
+    /// Markdown→NSAttributedString 管线才能拿到纯文本（长文几十 ms 的主线程卡顿）；
+    /// 渲染输入不变时这里直接命中缓存。
+    private static let accessibilityTextCache: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 200
+        return cache
+    }()
+
     static func accessibilityText(from nodes: [HoloContentNode]) -> String {
-        nodes.map { node in
+        let cacheKey = accessibilityTextCacheKey(nodes) as NSString
+        if let cached = accessibilityTextCache.object(forKey: cacheKey) {
+            return cached as String
+        }
+        let result = nodes.map { node in
             switch node {
             case .text(let value):
                 return makeAttributedText(from: value).string
             case .tag(_, let displayPath):
-                return "标签：#\(displayPath)"
+                return String(localized: "标签：#\(displayPath)")
             case .reference(_, let displayText, _):
-                return "引用：@\(displayText)"
+                return String(localized: "引用：@\(displayText)")
             case .taskMark(_, _, let displayText, _):
-                return displayText.isEmpty ? "已转为任务" : "已转为任务：\(displayText)"
+                return displayText.isEmpty ? String(localized: "已转为任务") : String(localized: "已转为任务：\(displayText)")
             }
         }.joined(separator: " ")
+        accessibilityTextCache.setObject(result as NSString, forKey: cacheKey)
+        return result
+    }
+
+    /// 缓存键：每个字段带长度前缀再拼接，任意内容（含分隔符本身）都不会产生碰撞。
+    private static func accessibilityTextCacheKey(_ nodes: [HoloContentNode]) -> String {
+        var key = ""
+        for node in nodes {
+            switch node {
+            case .text(let value):
+                key += "t\(value.utf16.count)|\(value)"
+            case .tag(let id, let displayPath):
+                key += "g\(id.uuidString)|\(displayPath)"
+            case .reference(let noteId, let displayText, let snapshot):
+                key += "r\(noteId.uuidString)|\(displayText.utf16.count)|\(displayText)|\(snapshot.utf16.count)|\(snapshot)"
+            case .taskMark(let id, let taskId, let displayText, _):
+                key += "k\(id.uuidString)|\(taskId.uuidString)|\(displayText.utf16.count)|\(displayText)"
+            }
+        }
+        return key
     }
 
     /// 编辑态辅助功能值：与 UITextView 的存储字符串保持相同 UTF-16 长度。
@@ -2453,11 +2488,11 @@ extension MarkdownTextView {
         for node in nodes {
             switch node {
             case .tag(_, let displayPath):
-                parts.append("标签：#\(displayPath)")
+                parts.append(String(localized: "标签：#\(displayPath)"))
             case .reference(_, let displayText, _):
-                parts.append("引用：@\(displayText)")
+                parts.append(String(localized: "引用：@\(displayText)"))
             case .taskMark(_, _, let displayText, _):
-                parts.append(displayText.isEmpty ? "已转为任务" : "已转为任务：\(displayText)")
+                parts.append(displayText.isEmpty ? String(localized: "已转为任务") : String(localized: "已转为任务：\(displayText)"))
             case .text:
                 break
             }
@@ -2661,7 +2696,7 @@ extension MarkdownTextView {
                 snapshot: snapshot ?? ""
             )
             : displayText
-        let visibleText = isDeleted ? "原记录已删除" : normalizedDisplayText
+        let visibleText = isDeleted ? String(localized: "原记录已删除") : normalizedDisplayText
 
         let result = NSMutableAttributedString()
         result.append(NSAttributedString(string: " ", attributes: attributes))
@@ -3170,14 +3205,14 @@ private final class TaskLinkAttachment: NSTextAttachment {
     override init(data contentData: Data?, ofType uti: String?) {
         super.init(data: contentData, ofType: uti)
         let font = Self.markerFont
-        let textWidth = ("任务" as NSString).size(withAttributes: [.font: font]).width
+        let textWidth = (String(localized: "任务") as NSString).size(withAttributes: [.font: font]).width
         bounds = CGRect(
             x: 0,
             y: -3,
             width: ceil(21 + textWidth + 5),
             height: max(18, ceil(font.lineHeight))
         )
-        accessibilityLabel = "已转为任务"
+        accessibilityLabel = String(localized: "已转为任务")
     }
 
     convenience init() {
@@ -3186,7 +3221,7 @@ private final class TaskLinkAttachment: NSTextAttachment {
 
     convenience init(displayText: String) {
         self.init()
-        accessibilityLabel = displayText.isEmpty ? "已转为任务" : "已转为任务：\(displayText)"
+        accessibilityLabel = displayText.isEmpty ? String(localized: "已转为任务") : String(localized: "已转为任务：\(displayText)")
     }
 
     @available(*, unavailable)
@@ -3204,7 +3239,7 @@ private final class TaskLinkAttachment: NSTextAttachment {
 
     private static func makeImage() -> UIImage {
         let font = markerFont
-        let textWidth = ("任务" as NSString).size(withAttributes: [.font: font]).width
+        let textWidth = (String(localized: "任务") as NSString).size(withAttributes: [.font: font]).width
         let size = CGSize(width: ceil(21 + textWidth + 5), height: max(18, ceil(font.lineHeight)))
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { _ in
@@ -3215,7 +3250,7 @@ private final class TaskLinkAttachment: NSTextAttachment {
             let iconSize = iconPointSize + 1
             symbol?.draw(in: CGRect(x: 5, y: (size.height - iconSize) / 2, width: iconSize, height: iconSize))
 
-            let text = "任务" as NSString
+            let text = String(localized: "任务") as NSString
             text.draw(
                 at: CGPoint(x: 21, y: (size.height - font.lineHeight) / 2),
                 withAttributes: [
@@ -3427,7 +3462,7 @@ extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
             }
 
             // 完整引用/标签仍提供复制；移除关系走点击 Token 后的 Holo 操作菜单。
-            let copyAction = UIAction(title: "复制", image: UIImage(systemName: "doc.on.doc")) { [weak textView] _ in
+            let copyAction = UIAction(title: String(localized: "复制"), image: UIImage(systemName: "doc.on.doc")) { [weak textView] _ in
                 textView?.copy(nil)
             }
             return UIMenu(children: [copyAction])
@@ -3449,7 +3484,7 @@ extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
         ) ?? selection
 
         // 普通选区：在系统建议菜单后追加「转为任务」
-        let convertAction = UIAction(title: "转为任务", image: UIImage(systemName: "text.badge.checkmark")) { [weak self] _ in
+        let convertAction = UIAction(title: String(localized: "转为任务"), image: UIImage(systemName: "text.badge.checkmark")) { [weak self] _ in
             self?.onConvertSelection?(capturedText, visibleSelection)
         }
         return UIMenu(children: suggestedActions + [convertAction])

@@ -25,6 +25,8 @@ struct ThoughtCardView: View {
     var onNavigate: (() -> Void)?
     /// 双击正文直接进入编辑器；单击仍保留阅读详情入口。
     var onEdit: (() -> Void)?
+    /// 待确认徽章点按：直达详情页确认位（列表注入滚动意图；不传时回落 onNavigate）
+    var onConfirmNavigate: (() -> Void)? = nil
     var onTagTap: ((String) -> Void)?
     /// 更多操作：移入主题（可选，由列表页接主题选择器）
     var onMoveToTopic: (() -> Void)?
@@ -35,7 +37,7 @@ struct ThoughtCardView: View {
     /// 更多操作：删除（可选）
     var onDelete: (() -> Void)?
     /// 归档操作显示文案（默认「归档」，归档视图下传「恢复」）
-    var archiveActionTitle: String = "归档"
+    var archiveActionTitle: String = String(localized: "归档")
     /// P0 分级判定输入：用户认可标签集合（归一化 key）。
     /// 列表主入口传入；其他低频调用点不传时降级为「有 ai 标签即待确认」。
     var recognizedTagKeys: Set<String>? = nil
@@ -45,18 +47,27 @@ struct ThoughtCardView: View {
     /// 整理队列断网状态：pending 徽章据此显示「等待网络」而非「整理中」
     @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
 
+    /// 徽章点按语义：整理失败可重试、待确认进详情确认位；nil = 纯展示态
+    private enum StatusBadgeAction {
+        case retryOrganize
+        case openConfirmation
+    }
+
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        // AI 标签名单次取用：状态徽章与底部标签行原本各查一遍，
+        // 每次访问都要重新遍历 Core Data 的标签分配关系
+        let aiTagNames = thought.visibleAITagNames
+        return VStack(alignment: .leading, spacing: 16) {
             // 顶部：日期 + 状态
-            headerView
+            headerView(aiTagNames: aiTagNames)
 
             // 中间：内容预览
             contentView
 
             // 底部：标签 + 引用信息
-            footerView
+            footerView(aiTagNames: aiTagNames)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,7 +85,7 @@ struct ThoughtCardView: View {
 
     // MARK: - 顶部区域
 
-    private var headerView: some View {
+    private func headerView(aiTagNames: [String]) -> some View {
         HStack(spacing: 8) {
             // 日期
             Text(thought.formattedDate)
@@ -83,7 +94,7 @@ struct ThoughtCardView: View {
 
             Spacer()
 
-            statusBadge
+            statusBadge(aiTagNames: aiTagNames)
 
             // 更多操作按钮（仅当至少有一个可用操作时才展示）
             if hasAvailableActions {
@@ -97,7 +108,7 @@ struct ThoughtCardView: View {
                         .frame(width: 44, height: 44)
                 }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("更多操作")
+                    .accessibilityLabel(String(localized: "更多操作"))
                     // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
                     .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
                         if let onRetryOrganize {
@@ -124,26 +135,44 @@ struct ThoughtCardView: View {
     }
 
     @ViewBuilder
-    private var statusBadge: some View {
+    private func statusBadge(aiTagNames: [String]) -> some View {
         // 正常态不说话：已归类/已整理对用户没有信息量，徽章只在需要用户知道异动时亮
-        if let status = organizationDisplayStatus {
-            Group {
-                if status.isRetryable, let onRetryOrganize {
+        if let status = organizationDisplayStatus(aiTagNames: aiTagNames) {
+            switch status.action {
+            case .retryOrganize:
+                // 整理失败：一键重试
+                if let onRetryOrganize {
                     Button {
                         onRetryOrganize()
                     } label: {
                         badgeLabel(status)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("整理失败，点按重试")
+                    .accessibilityLabel(String(localized: "整理失败，点按重试"))
                 } else {
                     badgeLabel(status)
                 }
+            case .openConfirmation:
+                // 待确认：直达详情页的 AI 归纳确认位（✓/✗），不再让徽章成为死胡同
+                if let handler = onConfirmNavigate ?? onNavigate {
+                    Button {
+                        handler()
+                    } label: {
+                        badgeLabel(status)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "查看 AI 归纳建议"))
+                    .accessibilityHint(String(localized: "打开详情，确认或拒绝 AI 给这条想法打的标签"))
+                } else {
+                    badgeLabel(status)
+                }
+            case nil:
+                badgeLabel(status)
             }
         }
     }
 
-    private func badgeLabel(_ status: (title: String, icon: String, color: Color, isRetryable: Bool)) -> some View {
+    private func badgeLabel(_ status: (title: String, icon: String, color: Color, action: StatusBadgeAction?)) -> some View {
         HStack(spacing: 4) {
             Image(systemName: status.icon)
                 .font(.system(size: 9, weight: .semibold))
@@ -155,40 +184,42 @@ struct ThoughtCardView: View {
         .padding(.vertical, 3)
         .background(status.color.opacity(0.1))
         .clipShape(Capsule())
+        // iOS 26 plain 按钮会把命中区收缩到文字内容：显式声明热区=可视胶囊
+        .contentShape(Capsule())
     }
 
     /// 徽章三态：整理中（含等网络）/ 待确认 / 整理失败（可点重试）；正常态返回 nil 不渲染
-    private var organizationDisplayStatus: (title: String, icon: String, color: Color, isRetryable: Bool)? {
+    private func organizationDisplayStatus(aiTagNames: [String]) -> (title: String, icon: String, color: Color, action: StatusBadgeAction?)? {
         if thought.organizedStatus == "processing" {
-            return ("整理中", "sparkles", .holoPrimary, false)
+            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
         }
         if thought.organizedStatus == "pending" {
             // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
             if orgQueue.isOffline {
-                return ("整理中", "wifi.slash", .holoTextSecondary, false)
+                return (String(localized: "整理中"), "wifi.slash", .holoTextSecondary, nil)
             }
-            return ("整理中", "sparkles", .holoPrimary, false)
+            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
         }
         // failed 优先于待确认：用户需要先知道失败并可一键重试
         if thought.organizedStatus == "failed" {
-            return ("整理失败", "exclamationmark.circle.fill", .holoError, true)
+            return (String(localized: "整理失败"), "exclamationmark.circle.fill", .holoError, .retryOrganize)
         }
-        // 「待确认」：含新标签或低置信主题，点卡片进详情即达确认位（D-07′，规则集中在 Policy）
-        if showsPendingConfirmation {
-            return ("待确认", "questionmark.circle", .holoAI, false)
+        // 「待确认」：含新标签或低置信主题，点徽章直达详情页确认位（D-07′，规则集中在 Policy）
+        if showsPendingConfirmation(aiTagNames: aiTagNames) {
+            return (String(localized: "待确认"), "questionmark.circle", .holoAI, .openConfirmation)
         }
         return nil
     }
 
     /// 卡片层待确认判定：优先用精确认可集合（D-07′ 新标签语义），降级为「有 ai 标签」
-    private var showsPendingConfirmation: Bool {
+    private func showsPendingConfirmation(aiTagNames: [String]) -> Bool {
         guard thought.organizedStatus == "organized" else { return false }
         if let recognizedTagKeys {
             return ThoughtOrganizationPresentationPolicy.cardShowsPendingConfirmation(
                 organizedStatus: thought.organizedStatus,
                 hasPendingTagConfirmation: ThoughtOrganizationPresentationPolicy.aiTagPresentation(
-                    hasAITagAssignments: !thought.visibleAITagNames.isEmpty,
-                    aiTagNames: thought.visibleAITagNames,
+                    hasAITagAssignments: !aiTagNames.isEmpty,
+                    aiTagNames: aiTagNames,
                     recognizedTagKeys: recognizedTagKeys
                 ) == .pendingConfirmation,
                 topicConfidence: thought.topicConfidence
@@ -197,7 +228,7 @@ struct ThoughtCardView: View {
         // 降级：无认可集合时以「存在 ai 标签或低置信主题」近似
         let lowConfidenceTopic = thought.topicConfidence > 0
             && thought.topicConfidence < ThoughtRepository.topicConfirmationThreshold
-        return !thought.visibleAITagNames.isEmpty || lowConfidenceTopic
+        return !aiTagNames.isEmpty || lowConfidenceTopic
     }
 
     // MARK: - 内容区域
@@ -227,10 +258,10 @@ struct ThoughtCardView: View {
         // VoiceOver 的 disabled 元素。卡片正文本身是进入想法的主入口，显式暴露
         // 同一份语义文本和按钮动作；底部标签仍保留各自的筛选操作。
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("想法内容")
+        .accessibilityLabel(String(localized: "想法内容"))
         .accessibilityValue(MarkdownTextView.accessibilityText(from: nodes))
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("单击查看详情，双击直接编辑")
+        .accessibilityHint(String(localized: "单击查看详情，双击直接编辑"))
         // 正文区域自带双击声明：双击时 SwiftUI 会先等双击窗口、不再触发下面的单击进详情，
         // 保证「双击正文直接编辑」与「单击正文进详情」在同一区域共存。
         .onTapGesture(count: 2) { onEdit?() }
@@ -240,20 +271,19 @@ struct ThoughtCardView: View {
         .accessibilityAction {
             onNavigate?()
         }
-        .accessibilityAction(named: "直接编辑") {
+        .accessibilityAction(named: String(localized: "直接编辑")) {
             onEdit?()
         }
     }
 
     // MARK: - 底部区域
 
-    private var footerView: some View {
+    private func footerView(aiTagNames: [String]) -> some View {
         HStack(spacing: 0) {
             // 认可口径（自己打的 + 确认过 AI 建议的）走 assignment 事实源：
             // tagArray 兼容镜像混有编辑保存时回填的 AI 标签；确认过的 AI 标签也
             // 必须在这里出现，否则「确认=收进标签库」的承诺在卡片上看不到兑现
             let recognizedTagNames = thought.recognizedTagNames
-            let aiTagNames = thought.visibleAITagNames
             // PRD AC-05：卡片最多展示 3 个标签（手动 ≤2 + AI ≤1），超出以 +N 提示
             let presentation = ThoughtTagPresentation.card(
                 manualNames: recognizedTagNames,
@@ -339,7 +369,7 @@ struct ThoughtCardView: View {
                 .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("按标签 \(tag.name) 筛选")
+        .accessibilityLabel(String(localized: "按标签 \(tag.name) 筛选"))
     }
 
     // MARK: - AI 标签 Chip（灰色调 + AI 角标）
@@ -365,7 +395,7 @@ struct ThoughtCardView: View {
             .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("按 AI 标签 \(tagName) 筛选")
+        .accessibilityLabel(String(localized: "按 AI 标签 \(tagName) 筛选"))
     }
 }
 
