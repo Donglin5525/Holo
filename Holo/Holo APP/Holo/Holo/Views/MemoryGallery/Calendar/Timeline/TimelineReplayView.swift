@@ -42,6 +42,9 @@ struct TimelineReplayView: View {
 
     // MARK: - 布局常量（换算统一走 axisLayout，此处只留手势阈值）
 
+    /// 轴内容坐标空间名：拖拽建任务的 DragGesture 用它取轴内坐标，
+    /// 与全局坐标之间的导航/横幅/档位条高度差与滚动偏移一次消除
+    private static let axisSpace = "holo.memoryGallery.timeline.axis"
     /// 手势吸附粒度（分钟）
     private static let snapMinutes: CGFloat = 15
     /// 新建选区的最小时长（分钟）
@@ -172,7 +175,10 @@ struct TimelineReplayView: View {
             }
             .frame(height: axisLayout.contentHeight)
             .contentShape(Rectangle())
-            .gesture(createTaskGesture)
+            .coordinateSpace(name: Self.axisSpace)
+            // highPriorityGesture：长按成立后 ScrollView 让位，垂直拖动不再被滚动吞掉；
+            // 长按未成立（<0.5s 就滑）时本手势不认，滚动完全不受影响
+            .highPriorityGesture(createTaskGesture)
         }
         .overlay(alignment: .top) {
             topOverlay(proxy: proxy)
@@ -572,7 +578,8 @@ struct TimelineReplayView: View {
     private func edgeHandle(_ task: TodoTask, edge: Edge) -> some View {
         Color.clear
             .contentShape(Rectangle())
-            .gesture(
+            // 同轴面：长按成立后拖边缘必须压过 ScrollView 滚动
+            .highPriorityGesture(
                 LongPressGesture(minimumDuration: 0.4).sequenced(before: DragGesture(minimumDistance: 8))
                     .onChanged { value in
                         switch value {
@@ -661,7 +668,10 @@ struct TimelineReplayView: View {
     @State private var dragDraft: (startMinute: CGFloat, endMinute: CGFloat)?
 
     private var createTaskGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.5).sequenced(before: DragGesture(minimumDistance: 5))
+        LongPressGesture(minimumDuration: 0.5).sequenced(before: DragGesture(
+            minimumDistance: 5,
+            coordinateSpace: .named(Self.axisSpace)
+        ))
             .onChanged { value in
                 switch value {
                 case .first(true):
