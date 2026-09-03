@@ -1519,6 +1519,10 @@ final class PromptManager {
     func loadDefaultTemplate(_ type: PromptType) -> String { "" }
     func renderTemplate(_ template: String) -> String { "" }
     func clearCache() {}
+
+    /// Release 无自定义 Prompt 入口（loadPrompt 直接 unavailable），云快照恢复无可恢复内容，恒为无操作。
+    @discardableResult
+    func restoreFromCloudIfClean() -> Bool { false }
 }
 
 enum PromptError: LocalizedError {
