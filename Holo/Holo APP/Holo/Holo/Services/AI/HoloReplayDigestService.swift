@@ -94,6 +94,11 @@ final class HoloReplayDigestService {
     /// 取略多于 24h，保证无论何时撞墙，下一个窗口开始前都不会再扫。
     private static let backfillRateLimitCooldown: TimeInterval = 25 * 60 * 60
 
+    /// 云端摘要轨道（2026-09-05 摘要云端化）：单次服务端生成实测 5-30s，
+    /// 轮询 5s 一次、3 分钟兜底；超时先 cancel 整行销毁再回落直调。
+    private static let cloudDigestPollInterval: TimeInterval = 5
+    private static let cloudDigestTimeout: TimeInterval = 3 * 60
+
     /// ISO8601 日期格式化（请求体里统一用这个，去掉小数秒避免后端解析歧义）
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -289,6 +294,8 @@ final class HoloReplayDigestService {
     // MARK: - AI Call
 
     /// 调后端 replayDigest purpose，把本期回放并入累计摘要。
+    /// 云端轨道（v2 隐私同意 + 云端开关）优先：断开/锁屏不再中止生成，
+    /// 素材在云端用完即焚；任何失败回落 direct 直调，用户无感。
     private func callConsolidateAI(
         oldDigest: HoloReplayDigestModel,
         newReplay: MemoryInsightPayload,
@@ -323,10 +330,75 @@ final class HoloReplayDigestService {
         let requestData = try JSONEncoder().encode(requestPayload)
         let requestJSON = String(data: requestData, encoding: .utf8) ?? "{}"
 
+        if Self.cloudTrackAvailable {
+            do {
+                let raw = try await Self.consolidateViaCloud(requestJSON: requestJSON)
+                return try parseConsolidateOutput(raw: raw, previous: oldDigest)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                Self.logger.error("云端摘要归纳失败，回落直调：\(String(describing: error), privacy: .public)")
+            }
+        }
+
         let messages: [ChatMessageDTO] = [.user(requestJSON)]
         let raw = try await backendProvider.chat(messages: messages, purpose: .replayDigest)
 
         return try parseConsolidateOutput(raw: raw, previous: oldDigest)
+    }
+
+    /// 云端摘要轨道门槛：云端异步开关 + v2 隐私同意。摘要素材是回放素材的
+    /// 衍生维护（本期要点+旧摘要），与周期回放同属 v2 承诺范围；
+    /// v1 老用户（只同意过分析上云）不走云端，直调不受影响。
+    private static var cloudTrackAvailable: Bool {
+        guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return false }
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: HoloCloudAnalysisService.consentVersionDefaultsKey) != nil else {
+            return false
+        }
+        return defaults.integer(forKey: HoloCloudAnalysisService.consentVersionDefaultsKey) >= 2
+    }
+
+    /// 云端摘要归纳：任务上传 → 轮询领取 → 回执即焚。
+    /// 素材即本次请求体：云端密文落存、生成完成立即销毁输入侧、结果领取回执后
+    /// 服务端销毁密文副本（与深度分析同一套代码级隐私契约，7 天兜底清理）。
+    /// 任一环节失败先 cancel（服务端整行销毁）再抛，由调用方回落 direct 直调。
+    private static func consolidateViaCloud(requestJSON: String) async throws -> String {
+        let client = HoloCloudAnalysisClient()
+        let started = try await client.start(question: "replay_digest", taskType: "replay_digest")
+        do {
+            try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: Data(requestJSON.utf8))
+        } catch {
+            try? await client.cancel(taskId: started.taskId)
+            throw error
+        }
+        Self.logger.info("云端摘要任务已提交（素材用完即焚）taskId=\(started.taskId, privacy: .public)")
+
+        let deadline = Date().addingTimeInterval(Self.cloudDigestTimeout)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            let status = try await client.fetchStatus(taskId: started.taskId)
+            switch status.status {
+            case "completed":
+                guard let result = status.result,
+                      let output = result.output?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !output.isEmpty else {
+                    try? await client.cancel(taskId: started.taskId)
+                    throw APIError.serverError("云端摘要结果为空")
+                }
+                // R1 确认制：结果已落地本地，回执服务端销毁密文副本
+                try? await client.ackResult(taskId: started.taskId)
+                Self.logger.info("云端摘要已领取并回执销毁 taskId=\(started.taskId, privacy: .public)")
+                return output
+            case "failed", "cancelled", "expired":
+                throw APIError.serverError("云端摘要任务终态=\(status.status)")
+            default:
+                try? await Task.sleep(for: .seconds(Self.cloudDigestPollInterval))
+            }
+        }
+        // 超时：云端整行销毁（素材密文即刻清除），不留孤儿任务
+        try? await client.cancel(taskId: started.taskId)
+        throw APIError.serverError("云端摘要任务超时")
     }
 
     /// 解析 AI 返回的 JSON，落到持久化模型。解析失败的字段回退用旧值。

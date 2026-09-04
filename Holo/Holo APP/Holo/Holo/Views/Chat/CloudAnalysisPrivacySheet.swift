@@ -36,6 +36,11 @@ struct CloudAnalysisPrivacySheet: View {
                     Image(systemName: "heart.fill").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
                 }
                 Label {
+                    Text("回放的**长期摘要维护**（把每一期并入跨期摘要）也在云端完成，上传的本期内容**用完即删**，云端不留存。")
+                } icon: {
+                    Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                }
+                Label {
                     Text("这些数据**仅用于这一次分析**——分析结束或失败后立即删除，云端不会保留。")
                 } icon: {
                     Image(systemName: "trash").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
