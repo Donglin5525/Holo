@@ -25,6 +25,9 @@ export function createCloudAnalysisExecutor({
   // 周期回放单轮生成使用的 insight 路由（模型/温度与 Agent 循环不同）；
   // 缺省回落 agent_loop 路由（同 provider 时行为一致）
   insightRoute = null,
+  // 回放摘要归纳使用的 replayDigest 路由（2026-09-05 摘要云端化）；
+  // 缺省回落 insight 路由再回落 agent_loop 路由
+  digestRoute = null,
   providerRetries = MAX_PROVIDER_RETRIES,
   maxRounds = MAX_LLM_ROUNDS,
   pushNotifier = null,
@@ -247,6 +250,64 @@ export function createCloudAnalysisExecutor({
   }
 
   /**
+   * 回放摘要归纳（replay_digest）：单轮生成（2026-09-05 摘要云端化）。
+   * - 素材 = iOS 组装的 ConsolidateRequest JSON（旧累计摘要+本期回放要点），
+   *   复用快照密文列，即焚语义与深度分析完全一致
+   * - 生成走 replayDigest 服务端提示词与路由（与端点层 direct 调用同一模板、
+   *   同一模型档位；成本治理后的 low 思考档在此同样生效）
+   * - 不消耗会员额度（与 direct 路径口径一致，仅任务起始限流分桶）；
+   *   不打完成推送（后台静默维护，用户无感知）
+   * - 结果只轻校验（非空文本）；ReplayDigestAIOutput 的完整解析以 iOS 解析器为真相源
+   */
+  async function runReplayDigest(taskId, task) {
+    const material = typeof task.snapshot === "string" ? task.snapshot.trim() : "";
+    if (!material) {
+      taskStore.fail({ id: taskId, reason: "摘要素材缺失或为空" });
+      return "failed";
+    }
+    if (!taskStore.transition(taskId, "running")) {
+      return taskStore.get(taskId)?.status ?? "conflict";
+    }
+
+    try {
+      const systemPrompted = injectServerPrompt("replayDigest", [
+        { role: "user", content: material },
+      ]);
+      const upstreamRoute = digestRoute ?? insightRoute ?? route;
+      const response = await callProvider(
+        [
+          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "user", content: material },
+        ],
+        upstreamRoute,
+        { taskId, deviceId: task.device_id, purpose: "cloud_replay_digest", round: 1 },
+      );
+      const content = response?.choices?.[0]?.message?.content ?? "";
+      if (!content.trim()) {
+        throw new Error("摘要生成为空输出");
+      }
+      const result = {
+        kind: "replay_digest",
+        output: content,
+        completedAt: new Date().toISOString(),
+        engine: "cloud-digest",
+      };
+      taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      log(`摘要任务完成 taskId=${taskId} chars=${content.length}`);
+      return "completed";
+    } catch (error) {
+      const reason = `云端摘要归纳失败：${error?.message ?? error}`;
+      try {
+        taskStore.fail({ id: taskId, reason });
+      } catch (failError) {
+        log(`fail 落库也失败 taskId=${taskId}: ${failError?.message ?? failError}`);
+      }
+      log(`摘要任务失败 taskId=${taskId}: ${error?.message ?? error}`);
+      return "failed";
+    }
+  }
+
+  /**
    * 执行一个任务（queued → running → completed/failed）。
    * 返回最终状态；所有异常落 fail() 不上抛（fire-and-forget 调用安全）。
    */
@@ -261,9 +322,13 @@ export function createCloudAnalysisExecutor({
         return task.status;
       }
       // 任务类型分发：period_replay = 周期回放单轮生成（素材复用快照密文列，
-      // 不走 Agent 循环）；其余 = 深度分析多轮循环。
+      // 不走 Agent 循环）；replay_digest = 回放摘要归纳（同单轮范式）；
+      // 其余 = 深度分析多轮循环。
       if (task.task_type === "period_replay") {
         return await runPeriodReplay(taskId, task);
+      }
+      if (task.task_type === "replay_digest") {
+        return await runReplayDigest(taskId, task);
       }
       let snapshot;
       try {

@@ -156,6 +156,56 @@ test("period_replay：素材缺失→failed 不进 running", async () => {
   assert.equal(await executor.run(task.id), "failed");
 });
 
+// —— 回放摘要归纳（replay_digest，2026-09-05 摘要云端化）——
+
+test("replay_digest：素材→单轮生成→complete+即焚；走 digestRoute、不推送不碰额度", async () => {
+  const provider = makeProvider(['{"cumulativeDigest":"8月吃了5次麦当劳","coveredRangeStart":"2026-08-01","coveredRangeEnd":"2026-08-31","keyPatterns":[],"trackedGoals":[]}']);
+  const quota = makeQuotaLedger();
+  const pushes = [];
+  const { store, executor } = makeExecutor(provider, {
+    digestRoute: { provider: "fake", model: "digest-m", temperature: 0.2, maxTokens: 4096, reasoningEffort: "low" },
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async (deviceId, payload) => pushes.push(payload) },
+  });
+
+  const material = JSON.stringify({ oldDigest: "7月…", newReplay: { title: "8月回放" } });
+  const task = store.create({ deviceId: "device-digest", question: "replay_digest", taskType: "replay_digest" });
+  store.attachSnapshot({ id: task.id, snapshot: material });
+
+  assert.equal(await executor.run(task.id), "completed");
+  // 路由选择：digestRoute 的 model 与 low 思考档到达 provider（与 direct 调用同档位）
+  assert.equal(provider.calls.length, 1);
+  assert.equal(provider.calls[0].model, "digest-m");
+  assert.equal(provider.calls[0].reasoningEffort, "low");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.kind, "replay_digest");
+  assert.ok(result.output.includes("cumulativeDigest"));
+  // 静默维护：无推送、无会员额度
+  assert.equal(pushes.length, 0);
+  assert.equal(quota.calls.commit, 0);
+  assert.equal(quota.calls.release, 0);
+  // 完成即焚仍适用
+  assert.ok(store.isDataDestroyed(task.id));
+});
+
+test("replay_digest：空输出→failed；素材缺失→failed 不进 running", async () => {
+  const provider = makeProvider(["   "]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d", question: "replay_digest", taskType: "replay_digest" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify({ oldDigest: null }) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  const row = store.getDecrypted(task.id, ["failureReason"]);
+  assert.ok(row.failureReason.includes("摘要"));
+
+  const provider2 = makeProvider([]);
+  const { store: store2, executor: executor2 } = makeExecutor(provider2);
+  const task2 = store2.create({ deviceId: "d", question: "replay_digest", taskType: "replay_digest" });
+  store2.transition(task2.id, "queued");
+  assert.equal(await executor2.run(task2.id), "failed");
+});
+
 test("查询引擎：filter+groupBy+sum 输出 iOS 同构结构", () => {
   const engine = createCloudAnalysisQueryEngine();
   const result = engine.execute({

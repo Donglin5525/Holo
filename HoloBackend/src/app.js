@@ -233,6 +233,7 @@ export function createApp(overrides = {}) {
         providers,
         route: config.routes.agent_loop,
         insightRoute: config.routes.insight ?? null,
+        digestRoute: config.routes.replayDigest ?? null,
         pushNotifier: analysisPushNotifier,
         quotaLedger: quotaActionLedgerStore,
         entitlementResolver,
@@ -1087,17 +1088,25 @@ export function createApp(overrides = {}) {
       if (!question || question.length > 2000) {
         throw new GatewayError("INVALID_REQUEST", "question must be 1-2000 chars", 400);
       }
-      // 任务类型白名单：deep_analysis=多轮 Agent 循环；period_replay=周期回放单轮生成
+      // 任务类型白名单：deep_analysis=多轮 Agent 循环；period_replay=周期回放单轮生成；
+      // replay_digest=回放摘要归纳（后台静默维护，2026-09-05 云端化）
       const taskType = typeof request.taskType === "string" ? request.taskType : "deep_analysis";
-      if (!["deep_analysis", "period_replay"].includes(taskType)) {
+      if (!["deep_analysis", "period_replay", "replay_digest"].includes(taskType)) {
         throw new GatewayError("INVALID_REQUEST", `Unsupported taskType: ${taskType}`, 400);
       }
 
+      // 限流分桶：摘要归纳起始沿用 direct replayDigest 的独立桶（历史回填批处理
+      // 不挤占用户可视的深度分析/回放启动额度）
+      const isDigestStart = taskType === "replay_digest";
       const usage = usageStore.consume({
         deviceId,
-        purpose: "cloud_analysis_start",
-        minuteLimit: config.limits.cloudAnalysisStartsPerMinute,
-        dailyLimit: config.limits.cloudAnalysisStartsPerDay,
+        purpose: isDigestStart ? "cloud_replay_digest_start" : "cloud_analysis_start",
+        minuteLimit: isDigestStart
+          ? config.routes.replayDigest.requestLimits.perMinute
+          : config.limits.cloudAnalysisStartsPerMinute,
+        dailyLimit: isDigestStart
+          ? config.routes.replayDigest.requestLimits.perDay
+          : config.limits.cloudAnalysisStartsPerDay,
       });
       if (!usage.allowed) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);

@@ -218,6 +218,14 @@ test("start 端点：taskType 白名单校验与落库", async () => {
   const { taskId } = await replay.json();
   assert.equal(store.get(taskId).task_type, "period_replay");
 
+  // replay_digest（2026-09-05 摘要云端化）：白名单内，独立落库
+  const digest = await app.request("/v1/ai/agent/cloud/start", {
+    method: "POST", headers: headers(), body: JSON.stringify({ question: "replay_digest", taskType: "replay_digest" }),
+  });
+  assert.equal(digest.status, 200);
+  const { taskId: digestId } = await digest.json();
+  assert.equal(store.get(digestId).task_type, "replay_digest");
+
   // 不传 taskType：默认 deep_analysis（存量客户端兼容）
   const def = await app.request("/v1/ai/agent/cloud/start", {
     method: "POST", headers: headers(), body: JSON.stringify({ question: "分析一下" }),
