@@ -62,6 +62,10 @@ struct MemoryGalleryView: View {
                 tabContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
+            // iPad 限宽必须挂在内容层自身：外层包裹（HomeView 常驻出口）会被上面
+            // ignoresSafeArea 的背景层撑回全屏宽（背景理想宽度=安全区，不吃 720 提议），
+            // 内容跟着通铺。背景通铺 + 内容限宽分离后， iPad 列宽恢复正常。
+            .holoContentColumn(paintsBackground: false)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
@@ -210,7 +214,8 @@ struct MemoryGalleryView: View {
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.bottom, HoloSpacing.lg)
                 }
-                .containerRelativeFrame(.horizontal, alignment: .leading)
+                // 不加 containerRelativeFrame(.horizontal)：它按容器全宽定宽，
+                // 在 iPad 上无视 720 列提议并沿安全区链把整个 tab 层撑回全屏（通铺根因）
             }
         }
     }
@@ -523,7 +528,6 @@ struct MemoryGalleryView: View {
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.lg)
-            .containerRelativeFrame(.horizontal, alignment: .leading)
         }
     }
 

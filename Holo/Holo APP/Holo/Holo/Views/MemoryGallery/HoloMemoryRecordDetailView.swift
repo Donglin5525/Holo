@@ -49,7 +49,8 @@ struct HoloMemoryRecordDetailView: View {
                 }
             }
             .padding(HoloSpacing.lg)
-            .containerRelativeFrame(.horizontal, alignment: .leading)
+            // iPad 限宽：containerRelativeFrame 按容器全宽定宽会通铺，改背景通铺+内容限宽
+            .holoContentColumn(paintsBackground: false)
         }
         .background(Color.holoBackground.ignoresSafeArea())
         .navigationTitle("这条记忆")

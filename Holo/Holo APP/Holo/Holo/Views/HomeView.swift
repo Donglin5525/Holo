@@ -462,7 +462,9 @@ struct HomeView: View {
         // 主内容
         VStack(spacing: 0) {
             // 顶部 Header
+            // iPad 上与底部导航条同宽（520 列），问候语/设置齿轮不再贴屏幕边缘
             headerView
+                .holoContentColumn(maxWidth: 520, paintsBackground: false)
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.xxl)
                 .padding(.bottom, HoloSpacing.md)
@@ -655,10 +657,12 @@ struct HomeView: View {
         .padding(.horizontal, HoloSpacing.lg)
     }
 
-    /// 首页主视觉缩放：iPhone 1.0；iPad regular 宽度放大，补偿大屏空旷感
+    /// 首页主视觉缩放：iPhone 1.0；iPad regular 宽度放大，补偿大屏空旷感。
+    /// 13 寸级（宽 ≥1000pt）再放大一档，11 寸维持 1.25，避免大屏竖屏上下留白失衡。
     @Environment(\.horizontalSizeClass) private var heroSizeClass
     private var heroScale: CGFloat {
-        HoloAdaptiveLayout.isRegularWidth(heroSizeClass) ? 1.25 : 1.0
+        guard HoloAdaptiveLayout.isRegularWidth(heroSizeClass) else { return 1.0 }
+        return UIScreen.main.bounds.width >= 1000 ? 1.45 : 1.25
     }
     
     // MARK: - 五角形功能按钮布局
