@@ -21,6 +21,10 @@ struct PersonalView: View {
     let onOpenLinkedEntity: (DeepLinkTarget) -> Void
     @Binding var pendingGoalDetailId: UUID?
 
+    /// 自定义关闭动作（iPad v2 页面层传入：关层并把侧边栏切回「今天」）。
+    /// 未传入（sheet / 主 tab 场景）时走系统 dismiss。
+    let onClose: (() -> Void)?
+
     // 个人档案 sheet
     @State private var showProfileEditor = false
     @State private var showGoalList = false
@@ -40,12 +44,23 @@ struct PersonalView: View {
         onPlanGoal: @escaping () -> Void = {},
         onOpenMemoryGallery: @escaping () -> Void = {},
         onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void = { _ in },
-        pendingGoalDetailId: Binding<UUID?> = .constant(nil)
+        pendingGoalDetailId: Binding<UUID?> = .constant(nil),
+        onClose: (() -> Void)? = nil
     ) {
         self.onPlanGoal = onPlanGoal
         self.onOpenMemoryGallery = onOpenMemoryGallery
         self.onOpenLinkedEntity = onOpenLinkedEntity
         self._pendingGoalDetailId = pendingGoalDetailId
+        self.onClose = onClose
+    }
+
+    /// 统一关闭入口
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
     }
 
     var body: some View {
@@ -69,7 +84,7 @@ struct PersonalView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        dismiss()
+                        close()
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .medium))
@@ -164,7 +179,7 @@ struct PersonalView: View {
                                 // 不能让卡片读起来像已经开通了 Plus
                                 // 标题是 title 级大字，与徽章同行时 HStack 的 Spacer 会挤压
                                 // Text 触发折行；固定单行宽度后剩余空间全部让给 Spacer。
-                                Text(entitlementState.isPlusActive ? "Holo Plus" : "免费版")
+                                Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
                                     .font(.holoTitle)
                                     .foregroundColor(HoloPlusTheme.accentText)
                                     .lineLimit(1)
@@ -183,8 +198,8 @@ struct PersonalView: View {
 
                             Text(
                                 entitlementState.isPlusActive
-                                    ? "更高额度已为你开启"
-                                    : "升级解锁 2 倍 AI 额度与全部小组件"
+                                    ? String(localized: "更高额度已为你开启")
+                                    : String(localized: "升级解锁 2 倍 AI 额度与全部小组件")
                             )
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(HoloPlusTheme.subtleText)
@@ -197,20 +212,20 @@ struct PersonalView: View {
                     HStack(spacing: HoloSpacing.sm) {
                         plusFeaturePill(
                             "HoloAI",
-                            value: entitlementState.isPlusActive ? "30/天" : "15/天"
+                            value: entitlementState.isPlusActive ? String(localized: "30/天") : String(localized: "15/天")
                         )
                         plusFeaturePill(
-                            "语音识别",
-                            value: entitlementState.isPlusActive ? "50/天" : "20/天"
+                            String(localized: "语音识别"),
+                            value: entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天")
                         )
                         plusFeaturePill(
-                            "任务",
-                            value: entitlementState.isPlusActive ? "50/天" : "20/天"
+                            String(localized: "任务"),
+                            value: entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天")
                         )
                     }
 
                     HStack(spacing: HoloSpacing.xs) {
-                        Text(entitlementState.isPlusActive ? "查看会员权益" : "升级 Holo Plus")
+                        Text(entitlementState.isPlusActive ? String(localized: "查看会员权益") : String(localized: "升级 Holo Plus"))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(HoloPlusTheme.accentText)
 
@@ -280,7 +295,7 @@ struct PersonalView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(profileService.hasProfile ? "已配置" : "未配置")
+                        Text(profileService.hasProfile ? String(localized: "已配置") : String(localized: "未配置"))
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
@@ -521,10 +536,10 @@ struct PersonalView: View {
 
     private var memoryStatusText: String {
         switch (memorySettings.automaticMemoryEnabled, memorySettings.memoryAssistedAnsweringEnabled) {
-        case (true, true): return "自动整理，并在回答中帮助理解你"
-        case (true, false): return "自动整理，回答时暂不使用"
-        case (false, true): return "不再新增，回答可使用已有记忆"
-        case (false, false): return "记忆功能已关闭"
+        case (true, true): return String(localized: "自动整理，并在回答中帮助理解你")
+        case (true, false): return String(localized: "自动整理，回答时暂不使用")
+        case (false, true): return String(localized: "不再新增，回答可使用已有记忆")
+        case (false, false): return String(localized: "记忆功能已关闭")
         }
     }
 

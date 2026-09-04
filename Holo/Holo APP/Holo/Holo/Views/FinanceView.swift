@@ -17,12 +17,24 @@ import AppKit
 
 /// 财务模块底部 Tab 枚举
 /// 顺序：账户 → 账本（默认落地）→ 统计 → 固定支出 → 设置
+/// 纯 UI 枚举（未持久化）：rawValue 用英文标识，中文文案走 displayName
 enum FinanceTab: String, CaseIterable {
-    case accounts = "账户"
-    case ledger = "账本"
-    case analysis = "统计"
-    case spending = "固定支出"
-    case settings = "设置"
+    case accounts
+    case ledger
+    case analysis
+    case spending
+    case settings
+
+    /// Tab 显示名（进词表）
+    var displayName: String {
+        switch self {
+        case .accounts: return String(localized: "账户")
+        case .ledger: return String(localized: "账本")
+        case .analysis: return String(localized: "统计")
+        case .spending: return String(localized: "固定支出")
+        case .settings: return String(localized: "设置")
+        }
+    }
 
     /// 对应的 SF Symbol 图标名
     var icon: String {
@@ -184,7 +196,7 @@ struct FinanceView: View {
             if let transaction = FinanceRepository.shared.findTransaction(by: transactionId) {
                 deepLinkedTransaction = transaction
             } else {
-                HoloToastCenter.shared.show("该交易已被清除", type: .info)
+                HoloToastCenter.shared.show(String(localized: "该交易已被清除"), type: .info)
             }
             deepLinkState.pendingTarget = nil
         case .financeAnalysis(let link):
@@ -297,7 +309,7 @@ struct FinanceView: View {
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
 
-                Text(tab.rawValue)
+                Text(tab.displayName)
                     .font(.holoTinyLabel)
                     .fontWeight(selectedTab == tab ? .bold : .medium)
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)

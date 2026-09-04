@@ -21,6 +21,19 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var systemColorScheme
 
+    /// 自定义关闭动作（iPad v2 页面层传入：关层并把侧边栏切回「今天」）。
+    /// 未传入（sheet 场景）时走系统 dismiss。
+    var onClose: (() -> Void)? = nil
+
+    /// 统一关闭入口
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
+    }
+
     // MARK: - Observed Objects
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
@@ -102,7 +115,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        dismiss()
+                        close()
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .medium))
@@ -119,7 +132,7 @@ struct SettingsView: View {
         }
         .preferredColorScheme(darkModeManager.colorScheme)
         .id(darkModeManager.currentSetting)
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss { close() }
         .task {
             await authService.refreshCredentialState()
             await iCloudSyncStatus.refreshAccountStatus()
@@ -273,16 +286,16 @@ struct SettingsView: View {
     private var accountStatusSubtitle: String {
         if authService.isSignedIn {
             if iCloudSyncStatus.accountStatus == .available {
-                return "已登录，iCloud 云同步已开启"
+                return String(localized: "已登录，iCloud 云同步已开启")
             }
-            return "已登录，本机数据会保存；登录 iCloud 后将自动同步"
+            return String(localized: "已登录，本机数据会保存；登录 iCloud 后将自动同步")
         }
 
         if authService.status == .credentialRevoked {
-            return "Apple 登录已失效，请重新登录"
+            return String(localized: "Apple 登录已失效，请重新登录")
         }
 
-        return "本机模式，登录后会检查 iCloud 云同步状态"
+        return String(localized: "本机模式，登录后会检查 iCloud 云同步状态")
     }
 
     // MARK: - 深色模式设置
@@ -341,7 +354,7 @@ struct SettingsView: View {
 
                     // 跟随系统时显示当前系统状态
                     if setting == .system {
-                        Text(systemColorScheme == .dark ? "当前：深色" : "当前：浅色")
+                        Text(systemColorScheme == .dark ? String(localized: "当前：深色") : String(localized: "当前：浅色"))
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -512,7 +525,7 @@ struct SettingsView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(iCloudSyncStatus.isRefreshing ? "正在请求同步…" : "请求同步并检查状态")
+                            Text(iCloudSyncStatus.isRefreshing ? String(localized: "正在请求同步…") : String(localized: "请求同步并检查状态"))
                                 .font(.holoBody)
                                 .foregroundColor(.holoInfo)
 
@@ -539,11 +552,11 @@ struct SettingsView: View {
 
     private var iCloudAccountSubtitle: String {
         guard authService.isSignedIn else {
-            return "登录 Holo 后检查云同步状态"
+            return String(localized: "登录 Holo 后检查云同步状态")
         }
 
         if iCloudSyncStatus.accountStatus == .available {
-            return "iCloud 可用，云同步已开启"
+            return String(localized: "iCloud 可用，云同步已开启")
         }
 
         return iCloudSyncStatus.accountStatusText
@@ -572,8 +585,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "hand.raised.square",
                 iconColor: .holoPrimary,
-                title: "HoloAI 数据授权",
-                subtitle: HoloAIFeatureFlags.aiDataProcessingConsentGranted ? "已授权，可随时撤回" : "未授权，AI 功能暂停"
+                title: String(localized: "HoloAI 数据授权"),
+                subtitle: HoloAIFeatureFlags.aiDataProcessingConsentGranted ? String(localized: "已授权，可随时撤回") : String(localized: "未授权，AI 功能暂停")
             ) {
                 showAIConsent = true
             }
@@ -587,8 +600,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "slider.horizontal.3",
                 iconColor: .holoPrimary,
-                title: "想法整理设置",
-                subtitle: "自动分类开关与标签治理，已移至想法页的「主题」内"
+                title: String(localized: "想法整理设置"),
+                subtitle: String(localized: "自动分类开关与标签治理，已移至想法页的「主题」内")
             ) {
                 showThoughtOrganizationSettings = true
             }
@@ -600,8 +613,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "bell.badge",
                 iconColor: .holoPrimary,
-                title: "通知设置",
-                subtitle: "每日早报 · 习惯提醒 · 周一晨报 · AI 回放"
+                title: String(localized: "通知设置"),
+                subtitle: String(localized: "每日早报 · 习惯提醒 · 周一晨报 · AI 回放")
             ) {
                 showNotificationSettings = true
             }
@@ -637,7 +650,7 @@ struct SettingsView: View {
                 insightToggleRow(
                     icon: "calendar.badge.clock",
                     iconColor: .holoPrimary,
-                    title: "每周提醒我生成周回放",
+                    title: String(localized: "每周提醒我生成周回放"),
                     subtitle: weeklyReminderSubtitle,
                     isOn: $insightSettings.weeklyReminderEnabled
                 )
@@ -649,7 +662,7 @@ struct SettingsView: View {
                 insightToggleRow(
                     icon: "calendar.circle",
                     iconColor: .holoSuccess,
-                    title: "每月提醒我生成月回放",
+                    title: String(localized: "每月提醒我生成月回放"),
                     subtitle: monthlyReminderSubtitle,
                     isOn: $insightSettings.monthlyReminderEnabled
                 )
@@ -661,8 +674,8 @@ struct SettingsView: View {
                 insightToggleRow(
                     icon: "arrow.triangle.2.circlepath",
                     iconColor: .holoInfo,
-                    title: "允许后台自动尝试生成",
-                    subtitle: "iOS 不保证准时执行，下次打开 App 时会补生成",
+                    title: String(localized: "允许后台自动尝试生成"),
+                    subtitle: String(localized: "iOS 不保证准时执行，下次打开 App 时会补生成"),
                     isOn: $insightSettings.backgroundAutoGenerationEnabled
                 )
             }
@@ -674,17 +687,17 @@ struct SettingsView: View {
     /// 周提醒描述
     private var weeklyReminderSubtitle: String {
         if insightSettings.weeklyReminderEnabled {
-            return "每\(insightSettings.weeklyReminderWeekdayName) \(String(format: "%02d", insightSettings.weeklyReminderHour)):00"
+            return String(localized: "每\(insightSettings.weeklyReminderWeekdayName) \(String(format: "%02d", insightSettings.weeklyReminderHour)):00")
         }
-        return "默认关闭"
+        return String(localized: "默认关闭")
     }
 
     /// 月提醒描述
     private var monthlyReminderSubtitle: String {
         if insightSettings.monthlyReminderEnabled {
-            return "每月\(insightSettings.monthlyReminderDay)日 \(String(format: "%02d", insightSettings.monthlyReminderHour)):00"
+            return String(localized: "每月\(insightSettings.monthlyReminderDay)日 \(String(format: "%02d", insightSettings.monthlyReminderHour)):00")
         }
-        return "默认关闭"
+        return String(localized: "默认关闭")
     }
 
     /// AI 回放 Toggle 行
@@ -749,8 +762,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "sparkles",
                 iconColor: .purple,
-                title: "AI 助手",
-                subtitle: "开发调试：Provider、Prompt 与学习映射"
+                title: String(localized: "AI 助手"),
+                subtitle: String(localized: "开发调试：Provider、Prompt 与学习映射")
             ) {
                 showAISettings = true
             }
@@ -763,8 +776,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "waveform.circle",
                 iconColor: .holoInfo,
-                title: "语音识别",
-                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? "已配置" : "开发调试：阿里云百炼 Qwen-ASR"
+                title: String(localized: "语音识别"),
+                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? String(localized: "已配置") : String(localized: "开发调试：阿里云百炼 Qwen-ASR")
             ) {
                 showVoiceRecognitionSettings = true
             }
@@ -779,8 +792,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "ellipsis.bubble",
                 iconColor: .holoPrimary,
-                title: "反馈给开发者",
-                subtitle: "建议、问题、吐槽都欢迎，留个联系方式我们能找你"
+                title: String(localized: "反馈给开发者"),
+                subtitle: String(localized: "建议、问题、吐槽都欢迎，留个联系方式我们能找你")
             ) {
                 showFeedback = true
             }
@@ -792,8 +805,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "sparkles",
                 iconColor: .holoPurple,
-                title: "重看新手引导",
-                subtitle: "三步回顾首页的功能入口"
+                title: String(localized: "重看新手引导"),
+                subtitle: String(localized: "三步回顾首页的功能入口")
             ) {
                 dismiss()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -805,7 +818,7 @@ struct SettingsView: View {
             settingsRow(
                 icon: "info.circle",
                 iconColor: .holoInfo,
-                title: "关于 Holo",
+                title: String(localized: "关于 Holo"),
                 subtitle: appVersionText
             ) {
                 showAbout = true
@@ -823,7 +836,7 @@ struct SettingsView: View {
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
-        return "版本 \(version) (\(build))"
+        return String(localized: "版本 \(version) (\(build))")
     }
 
     // MARK: - 存储与缓存
@@ -950,7 +963,7 @@ struct SettingsView: View {
                 insightToggleRow(
                     icon: "faceid",
                     iconColor: .holoPrimary,
-                    title: "应用锁",
+                    title: String(localized: "应用锁"),
                     subtitle: appLockSubtitle,
                     isOn: appLockBinding
                 )
@@ -974,9 +987,9 @@ struct SettingsView: View {
 
     private var appLockSubtitle: String {
         if !appLockSettings.isEnabled {
-            return "开启后打开 App 需面容 ID 或手机密码验证"
+            return String(localized: "开启后打开 App 需面容 ID 或手机密码验证")
         }
-        return "已开启 · \(appLockSettings.graceStyle.subtitle)"
+        return String(localized: "已开启 · \(appLockSettings.graceStyle.subtitle)")
     }
 
     /// 开启前先预检设备、再现场验证一次，成功才落开关；取消验证则弹回
@@ -1080,8 +1093,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "shield.checkered",
                 iconColor: .holoPrimary,
-                title: "隐私政策",
-                subtitle: "了解我们如何保护你的数据"
+                title: String(localized: "隐私政策"),
+                subtitle: String(localized: "了解我们如何保护你的数据")
             ) {
                 showPrivacyPolicy = true
             }
@@ -1092,8 +1105,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "doc.text",
                 iconColor: .holoInfo,
-                title: "用户协议",
-                subtitle: "服务条款与使用规范"
+                title: String(localized: "用户协议"),
+                subtitle: String(localized: "服务条款与使用规范")
             ) {
                 showTermsOfUse = true
             }
@@ -1179,10 +1192,10 @@ struct SettingsView: View {
             let result = try await AccountDataDeletionService.shared.deleteAccountAndLocalData()
             // 2. 撤销 Apple 凭证并清除内存中的登录态
             await authService.markAccountDeleted()
-            accountDataDeletionMessage = "已删除 \(result.deletedObjectCount) 条本机记录；iCloud 删除同步由系统继续处理。"
+            accountDataDeletionMessage = String(localized: "已删除 \(result.deletedObjectCount) 条本机记录；iCloud 删除同步由系统继续处理。")
             await storageService.calculateCacheSize()
         } catch {
-            accountDataDeletionMessage = "删除失败：\(error.localizedDescription)"
+            accountDataDeletionMessage = String(localized: "删除失败：\(error.localizedDescription)")
         }
     }
 
@@ -1208,8 +1221,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "heart.text.square",
                 iconColor: .holoInfo,
-                title: "健康数据诊断",
-                subtitle: "HealthKit 来源与类型汇总"
+                title: String(localized: "健康数据诊断"),
+                subtitle: String(localized: "HealthKit 来源与类型汇总")
             ) {
                 showHealthKitDiagnostics = true
             }
@@ -1224,8 +1237,8 @@ struct SettingsView: View {
             settingsRow(
                 icon: "externaldrive.badge.timemachine",
                 iconColor: .holoPrimary,
-                title: "数据管理",
-                subtitle: "数据概览 · 清空所有数据 · 最近删除（30 天可恢复）"
+                title: String(localized: "数据管理"),
+                subtitle: String(localized: "数据概览 · 清空所有数据 · 最近删除（30 天可恢复）")
             ) {
                 showDataManagement = true
             }

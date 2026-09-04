@@ -12,9 +12,18 @@ import SwiftUI
 
 /// 习惯模块底部 Tab 枚举
 enum HabitTab: String, CaseIterable {
-    case stats = "统计"
-    case habits = "习惯"
-    case settings = "设置"
+    case stats
+    case habits
+    case settings
+
+    /// 显示名称
+    var displayName: String {
+        switch self {
+        case .stats: return String(localized: "统计")
+        case .habits: return String(localized: "习惯")
+        case .settings: return String(localized: "设置")
+        }
+    }
 
     /// 对应的 SF Symbol 图标名
     var icon: String {
@@ -196,7 +205,7 @@ struct HabitsView: View {
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
 
-                Text(tab.rawValue)
+                Text(tab.displayName)
                     .font(.holoTinyLabel)
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
             }
@@ -395,7 +404,7 @@ struct HabitListView: View {
             self.requestedHabitId = nil
         } else if hasLoadedOnce {
             // 列表已加载仍找不到：习惯已被删除/清除
-            HoloToastCenter.shared.show("该习惯已被删除", type: .info)
+            HoloToastCenter.shared.show(String(localized: "该习惯已被删除"), type: .info)
             self.requestedHabitId = nil
         }
     }
@@ -448,9 +457,9 @@ struct HabitListView: View {
     }
 
     private let sampleTiles = [
-        SampleHabitTile(name: "散步", icon: "figure.walk", color: "#22C55E"),
-        SampleHabitTile(name: "阅读", icon: "book.fill", color: "#F97316"),
-        SampleHabitTile(name: "早睡", icon: "moon.fill", color: "#8B5CF6")
+        SampleHabitTile(name: String(localized: "散步"), icon: "figure.walk", color: "#22C55E"),
+        SampleHabitTile(name: String(localized: "阅读"), icon: "book.fill", color: "#F97316"),
+        SampleHabitTile(name: String(localized: "早睡"), icon: "moon.fill", color: "#8B5CF6")
     ]
 
     private var emptyStateView: some View {

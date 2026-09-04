@@ -12,10 +12,20 @@ import SwiftUI
 
 /// 待办模块底部 Tab 枚举
 enum TodoTab: String, CaseIterable {
-    case stats = "统计"
-    case tasks = "任务"
-    case anniversary = "纪念日"
-    case add = "新增"
+    case stats
+    case tasks
+    case anniversary
+    case add
+
+    /// Tab 显示文案
+    var displayName: String {
+        switch self {
+        case .stats: return String(localized: "统计")
+        case .tasks: return String(localized: "任务")
+        case .anniversary: return String(localized: "纪念日")
+        case .add: return String(localized: "新增")
+        }
+    }
 
     /// 对应的 SF Symbol 图标名
     var icon: String {
@@ -267,7 +277,7 @@ struct TasksView: View {
                 }
 
                 // 标签
-                Text(tab.rawValue)
+                Text(tab.displayName)
                     .font(.holoTinyLabel)
                     .foregroundColor(tab.isAddButton ? .holoPrimary : (selectedTab == tab ? .holoPrimary : .holoTextSecondary))
             }

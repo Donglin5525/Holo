@@ -207,8 +207,8 @@ struct WeeklyGridView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(collapseMorning ? "展开凌晨零点到七点" : "收起凌晨零点到七点")
-        .accessibilityHint("显示或隐藏凌晨零点到七点的时间轴")
+        .accessibilityLabel(collapseMorning ? String(localized: "展开凌晨零点到七点") : String(localized: "收起凌晨零点到七点"))
+        .accessibilityHint(String(localized: "显示或隐藏凌晨零点到七点的时间轴"))
     }
 
     // MARK: - 事件区（单日竖条的事件部分）
@@ -243,7 +243,7 @@ struct WeeklyGridView: View {
         // 未来日期弱化（方案 §6.3）：今天之后的列不暗示已有记忆
         let isFuture = day > Calendar.current.startOfDay(for: Date())
         let weekdayLabel = isToday
-            ? "\(Self.weekdayText(for: day)) · 今天"
+            ? String(localized: "\(Self.weekdayText(for: day)) · 今天")
             : Self.weekdayText(for: day)
         return Button {
             focusedDate = day
@@ -278,7 +278,7 @@ struct WeeklyGridView: View {
         }
         .buttonStyle(.plain)
         .disabled(isFuture)
-        .accessibilityHint(isFuture ? "未来日期还没有可回看的记忆" : "")
+        .accessibilityHint(isFuture ? String(localized: "未来日期还没有可回看的记忆") : "")
     }
 
     private func headerWeekdayColor(isToday: Bool, isFuture: Bool) -> Color {
@@ -416,8 +416,8 @@ struct WeeklyGridView: View {
         .disabled(earlyEvents.isEmpty)
         .accessibilityLabel(
             earlyEvents.isEmpty
-                ? "\(Self.weekdayText(for: day))凌晨无记录"
-                : "\(Self.weekdayText(for: day))凌晨 \(earlyEvents.count) 条记录"
+                ? String(localized: "\(Self.weekdayText(for: day))凌晨无记录")
+                : String(localized: "\(Self.weekdayText(for: day))凌晨 \(earlyEvents.count) 条记录")
         )
     }
 
@@ -644,7 +644,7 @@ struct WeeklyGridView: View {
             Spacer(minLength: 0)
             if abs(clampedHourScale - 1) > 0.001 {
                 Button(action: resetHourScale) {
-                    Text(String(format: "缩放 %.2f×", clampedHourScale))
+                    Text(String(format: String(localized: "缩放 %.2f×"), clampedHourScale))
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundColor(.holoPrimary)
                         .padding(.horizontal, 8)
@@ -652,7 +652,7 @@ struct WeeklyGridView: View {
                         .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("当前时间轴缩放 \(String(format: "%.2f", clampedHourScale)) 倍，轻点恢复一倍")
+                .accessibilityLabel(String(localized: "当前时间轴缩放 \(String(format: "%.2f", clampedHourScale)) 倍，轻点恢复一倍"))
             }
         }
         .font(.system(size: 10, weight: .medium))

@@ -55,7 +55,7 @@ struct ChatInputView: View {
                             .frame(width: 26, height: 26)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("取消承接上一份分析")
+                    .accessibilityLabel(String(localized: "取消承接上一份分析"))
                 }
                 .padding(.leading, 10)
                 .padding(.trailing, 5)
@@ -93,7 +93,7 @@ struct ChatInputView: View {
                         .foregroundColor(voiceButtonColor)
                 }
                 .disabled(viewModel.isStreaming)
-                .accessibilityLabel("语音输入")
+                .accessibilityLabel(String(localized: "语音输入"))
 
                 // 发送/停止按钮：停止键在「普通流式进行中」或「存在等待/恢复中的 Agent 消息」
                 // 时都要可见——Agent 等待网络/系统资源期间输入框已解锁可发新消息，但用户
@@ -107,7 +107,7 @@ struct ChatInputView: View {
                             .foregroundColor(.holoError)
                     }
                     .keyboardShortcut(".", modifiers: .command)
-                    .accessibilityLabel("停止生成")
+                    .accessibilityLabel(String(localized: "停止生成"))
                 } else {
                     Button {
                         Task { await viewModel.sendMessage() }

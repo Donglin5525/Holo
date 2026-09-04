@@ -21,6 +21,22 @@ struct HomeView: View {
     /// 用户昵称
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
+    /// 当前窗口宽度（v2 断点判断用，旋转自动刷新）
+    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.horizontalSizeClass) private var homeSizeClass
+
+    /// iPad v2 骨架：侧边栏是否在位（regular 宽度，即 iPad 全屏全部形态）
+    private var useIPadSidebar: Bool {
+        HoloAdaptiveLayout.isRegularWidth(homeSizeClass)
+    }
+
+    /// iPad 侧边栏选中的目的地（iPhone 下为常量绑定，不参与任何逻辑）
+    @Binding var sidebarSelection: HoloSidebarDestination
+
+    init(sidebarSelection: Binding<HoloSidebarDestination> = .constant(.today)) {
+        _sidebarSelection = sidebarSelection
+    }
+
     /// 是否展示轻量新人引导
     @State private var showOnboarding: Bool = false
 
@@ -55,6 +71,12 @@ struct HomeView: View {
 
     /// 是否显示个人页面（保留 sheet 形式：内部还要弹子页面）
     @State private var showPersonalView: Bool = false
+
+    /// iPad v2 骨架：设置页面层（侧边栏目的地，非弹窗；iPhone 走 showSettingsView sheet）
+    @State private var showSettingsPage: Bool = false
+
+    /// iPad v2 骨架：个人页面层
+    @State private var showPersonalPage: Bool = false
 
     /// 是否显示今日看板（保留 cover 形式：它本身就是首页的一个临时展开层，
     /// 不参与跨模块跳转，无需常驻）
@@ -116,12 +138,30 @@ struct HomeView: View {
     @GestureState private var isLongPressing: Bool = false
     
     // MARK: - 五角形布局常量
-    
+
     /// 五角形半径（距离语音按钮中心的距离，需大于语音按钮 192pt/2 + 按钮宽度 56pt/2 = 124pt）
-    private let pentagonRadius: CGFloat = 155
-    
+    /// v2：按宽度断点布局级分档（不再对整个主视觉 scaleEffect 硬放大——缩放会糊图标、热区错位）
+    private var pentagonRadius: CGFloat {
+        switch homeWidthTier {
+        case .compact: return 155
+        case .medium: return 195
+        case .expanded: return 235
+        }
+    }
+
     /// 五角形区域的总高度
-    private let pentagonAreaHeight: CGFloat = 420
+    private var pentagonAreaHeight: CGFloat {
+        switch homeWidthTier {
+        case .compact: return 420
+        case .medium: return 500
+        case .expanded: return 580
+        }
+    }
+
+    /// 宽度档位
+    private var homeWidthTier: HoloWidthTier {
+        HoloWidthTier(width: holoWindowWidth, isRegular: HoloAdaptiveLayout.isRegularWidth(homeSizeClass))
+    }
     
     // MARK: - Body
     
@@ -138,16 +178,63 @@ struct HomeView: View {
 
             // 每一层在首次进入时创建，跳到下一模块后仅隐藏、不销毁。
             // 因此返回来源时，对话、日期筛选、滚动位置等现场仍然存在。
-            // 常驻模块统一在此限宽居中：骨架层（ContentView 三 tab）的列对部分
-            // 模块（如记忆长廊）不生效，模块自己的公共出口兜底，iPhone（compact）无操作。
+            // v2：expanded 宽度模块通铺（各模块自行控制内容密度），
+            // 其余宽度保持 720 限宽居中。
             ForEach(Array(residentNavigation.routes.enumerated()), id: \.element.id) { index, route in
-                residentDestination(for: route.screen)
+                if HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth) {
+                    residentDestination(for: route.screen)
+                        .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
+                        .allowsHitTesting(index == residentNavigation.routes.count - 1)
+                        .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                        .zIndex(Double(index + 1))
+                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
+                } else {
+                    residentDestination(for: route.screen)
+                        .holoContentColumn(paintsBackground: false)
+                        .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
+                        .allowsHitTesting(index == residentNavigation.routes.count - 1)
+                        .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                        .zIndex(Double(index + 1))
+                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
+                }
+            }
+
+            // iPad v2 骨架：设置 / 个人页面层（侧边栏目的地，与常驻模块同款转场，
+            // 不再走 sheet——窄弹窗形态只保留给 iPhone）。
+            // 表单页内容限宽居中（表单全宽行长过长），两侧透 ZStack 背景色。
+            if showSettingsPage {
+                SettingsView(onClose: { sidebarSelection = .today })
                     .holoContentColumn(paintsBackground: false)
-                    .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
-                    .allowsHitTesting(index == residentNavigation.routes.count - 1)
-                    .accessibilityHidden(index != residentNavigation.routes.count - 1)
-                    .zIndex(Double(index + 1))
-                    .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
+                    .transition(.holoScreenTransition)
+                    .zIndex(200)
+            }
+            if showPersonalPage {
+                PersonalView(
+                    onPlanGoal: {
+                        showPersonalPage = false
+                        sidebarSelection = .today
+                        DispatchQueue.main.async {
+                            openRootScreen(.ai)
+                        }
+                    },
+                    onOpenMemoryGallery: {
+                        sidebarSelection = .today
+                        DispatchQueue.main.async {
+                            openRootScreen(.memoryGallery)
+                        }
+                    },
+                    onOpenLinkedEntity: { target in
+                        sidebarSelection = .today
+                        DispatchQueue.main.async {
+                            DeepLinkState.shared.navigate(to: target)
+                        }
+                    },
+                    pendingGoalDetailId: $pendingGoalDetailId,
+                    onClose: { sidebarSelection = .today }
+                )
+                .holoContentColumn(paintsBackground: false)
+                .transition(.holoScreenTransition)
+                .zIndex(201)
             }
         }
         // 首页三步聚光灯导览：挂在根 ZStack 上，覆盖首页内容与常驻模块
@@ -179,6 +266,13 @@ struct HomeView: View {
             // 在此统一清理高亮，避免选中态残留。
             if newValue == nil {
                 selectedTab = .ai
+                // iPad v2：常驻模块被关闭（右滑 / 模块内返回）时侧边栏同步回「今天」。
+                // 页面层（个人/设置）打开时 selection 本就指向它们，不在此列。
+                if useIPadSidebar,
+                   !showSettingsPage, !showPersonalPage,
+                   HoloSidebarDestination(rawValue: sidebarSelection.rawValue)?.activeScreen != nil {
+                    sidebarSelection = .today
+                }
             }
             // 进入任一模块时复位右滑标记，保证下次退出用默认的下滑转场
             if newValue != nil {
@@ -316,6 +410,11 @@ struct HomeView: View {
             guard let event else { return }
             handleShortcut(event.action)
         }
+        // iPad v2：侧边栏选中变化 → 统一路由（模块直跳 / 页面层切换）
+        .onChange(of: sidebarSelection) { _, newDestination in
+            guard useIPadSidebar else { return }
+            routeSidebarSelection(newDestination)
+        }
         // 设置页「重看新手引导」：先退回首页（导览锚点都在首页上），再播放导览
         .onReceive(NotificationCenter.default.publisher(for: .replayHomeCoachTour)) { _ in
             replayHomeCoachTour()
@@ -352,9 +451,19 @@ struct HomeView: View {
     private func handleShortcut(_ action: HoloShortcutAction) {
         switch action {
         case .openSettings:
-            showSettingsView = true
+            // iPad：设置是侧边栏目的地（页面层）；iPhone：保持 sheet
+            if useIPadSidebar {
+                sidebarSelection = .settings
+            } else {
+                showSettingsView = true
+            }
 
         case .closeCurrentModule:
+            // 页面层（个人/设置）打开时 ⌘W 先关页面层
+            if showSettingsPage || showPersonalPage {
+                sidebarSelection = .today
+                return
+            }
             guard activeScreen != nil else { return }
             withAnimation(.holoScreenTransition) {
                 _ = residentNavigation.dismissCurrent()
@@ -378,6 +487,48 @@ struct HomeView: View {
             // 由模块根视图自行订阅响应（TasksView/FinanceView 转发、ThoughtListView 聚焦），
             // 见 docs/ipad-adaptation/plan.md §6.1
             break
+
+        case .goToSidebar:
+            // 由 ContentView 统一处理（iPad 改侧边栏选中态；iPhone 映射主 tab）
+            break
+        }
+    }
+
+    // MARK: - iPad v2 侧边栏路由
+
+    /// 侧边栏选中变化后的统一路由：模块直跳走常驻栈（保状态），
+    /// 个人/设置走页面层；目的地切换时先收掉旧层，保证内容区一次只显示一个目的地。
+    private func routeSidebarSelection(_ destination: HoloSidebarDestination) {
+        withAnimation(.holoScreenTransition) {
+            switch destination {
+            case .today:
+                showSettingsPage = false
+                showPersonalPage = false
+                if activeScreen != nil {
+                    _ = residentNavigation.dismissAll()
+                }
+
+            case .profile:
+                showSettingsPage = false
+                showPersonalPage = true
+                if activeScreen != nil {
+                    _ = residentNavigation.dismissAll()
+                }
+
+            case .settings:
+                showPersonalPage = false
+                showSettingsPage = true
+                if activeScreen != nil {
+                    _ = residentNavigation.dismissAll()
+                }
+
+            default:
+                showSettingsPage = false
+                showPersonalPage = false
+                if let screen = destination.activeScreen {
+                    residentNavigation.openRoot(screen)
+                }
+            }
         }
     }
 
@@ -483,21 +634,27 @@ struct HomeView: View {
             Spacer()
 
             // 底部导航栏；导览第 3 步高亮整条（AI 入口 + 记忆长廊）
-            BottomNavBar(
-                selectedTab: $selectedTab,
-                onProfileTap: {
-                    selectedTab = .profile
-                    showPersonalView = true
-                },
-                onMemoryTap: {
-                    selectedTab = .memory
-                    openRootScreen(.memoryGallery)
-                },
-                onCenterTap: {
-                    openRootScreen(.ai)
-                }
-            )
-            .coachMarkTarget(HomeCoachTour.bottomNavID)
+            // iPad v2 骨架：导航由侧边栏承担，胶囊退役（iPhone 不变）
+            if !useIPadSidebar {
+                BottomNavBar(
+                    selectedTab: $selectedTab,
+                    onProfileTap: {
+                        selectedTab = .profile
+                        showPersonalView = true
+                    },
+                    onMemoryTap: {
+                        selectedTab = .memory
+                        openRootScreen(.memoryGallery)
+                    },
+                    onCenterTap: {
+                        openRootScreen(.ai)
+                    }
+                )
+                .coachMarkTarget(HomeCoachTour.bottomNavID)
+            } else {
+                // 侧边栏骨架下保留同等底部留白，主视觉不贴边
+                Spacer().frame(height: HoloSpacing.xl)
+            }
         }
         .background(
             backgroundDecorations
@@ -573,6 +730,9 @@ struct HomeView: View {
             decorDot(color: .holoInfo, size: 4, radius: 160, angle: 300, opacity: dotTwinkle * 0.9)
         }
         .allowsHitTesting(false)
+        // v2：光球/弧线按手机画布设计（最大 500pt），大屏四角露黑；
+        // 整组渐变无文字，缩放无损，宽屏放大铺满
+        .scaleEffect(homeWidthTier == .expanded ? 1.7 : (homeWidthTier == .medium ? 1.3 : 1.0))
         .onAppear {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 orbDrift = 1.0
@@ -616,31 +776,34 @@ struct HomeView: View {
             }
             
             Spacer()
-            
-            // 右侧用户按钮
-            Button {
-                showSettingsView = true
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: HoloRadius.full)
-                        .fill(.ultraThinMaterial)
-                        .frame(width: 52, height: 52)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: HoloRadius.full)
-                                .stroke(Color.holoBorder, lineWidth: 1)
-                        )
-                    
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+
+            // 右侧用户按钮（iPad v2：设置在侧边栏，齿轮退役）
+            if !useIPadSidebar {
+                Button {
+                    showSettingsView = true
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.full)
+                            .fill(.ultraThinMaterial)
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: HoloRadius.full)
+                                    .stroke(Color.holoBorder, lineWidth: 1)
+                            )
+
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.holoTextPrimary)
+                    }
                 }
+                .accessibilityLabel(String(localized: "设置"))
             }
-            .accessibilityLabel("设置")
         }
     }
     
     /// 中央主内容区域
-    /// iPad（regular 宽度）整体放大主视觉，消除「iPhone 尺寸漂在大屏中央」的空旷感
+    /// v2：五角形按宽度档位布局级放大（pentagonRadius/areaHeight 分档），
+    /// 弃用旧的整体 scaleEffect 1.25/1.45 硬放大（缩放糊图标、点按热区与视觉脱节）
     private var mainContent: some View {
         ZStack {
             // 五角形功能入口按钮（支持拖拽排序）；导览第 1 步高亮整块区域
@@ -653,16 +816,7 @@ struct HomeView: View {
             }
             .coachMarkTarget(HomeCoachTour.kanbanEntryID)
         }
-        .scaleEffect(heroScale, anchor: .center)
         .padding(.horizontal, HoloSpacing.lg)
-    }
-
-    /// 首页主视觉缩放：iPhone 1.0；iPad regular 宽度放大，补偿大屏空旷感。
-    /// 13 寸级（宽 ≥1000pt）再放大一档，11 寸维持 1.25，避免大屏竖屏上下留白失衡。
-    @Environment(\.horizontalSizeClass) private var heroSizeClass
-    private var heroScale: CGFloat {
-        guard HoloAdaptiveLayout.isRegularWidth(heroSizeClass) else { return 1.0 }
-        return UIScreen.main.bounds.width >= 1000 ? 1.45 : 1.25
     }
     
     // MARK: - 五角形功能按钮布局

@@ -21,6 +21,67 @@ enum HoloAdaptiveLayout {
     static func isRegularWidth(_ sizeClass: UserInterfaceSizeClass?) -> Bool {
         sizeClass == .regular
     }
+
+    // MARK: - v2 宽度断点（docs/ipad-adaptation/v2-plan.md 阶段 1）
+
+    /// expanded 档阈值：12.9 横屏（1366）/ 11 寸横屏（1160）/ 12.9 竖屏（1024）达标，
+    /// 11 寸竖屏（834）与 iPhone 落在 compact/medium。
+    /// 达标即启用侧边栏骨架、模块内顶部切换、通铺布局。
+    static let expandedWidthThreshold: CGFloat = 1024
+
+    /// 侧边栏宽度（v2 骨架，见设计稿 ipad-v2-0-skeleton-prototype.html）
+    static let sidebarWidth: CGFloat = 232
+
+    static func isExpandedWidth(_ width: CGFloat?) -> Bool {
+        guard let width else { return false }
+        return width >= expandedWidthThreshold
+    }
+
+    /// 实时窗口宽度。仅供快捷键命令、总线处理等**非视图**代码在事件瞬间读取；
+    /// 视图内一律用 `holoWindowWidth` 环境（旋转时自动刷新），避免读屏幕尺寸的
+    /// static 值不触发 SwiftUI 重算的问题。
+    static var currentWindowWidth: CGFloat? {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
+                return keyWindow.bounds.width
+            }
+        }
+        return nil
+    }
+}
+
+// MARK: - 窗口宽度环境
+
+/// 窗口宽度环境键：由 ContentView 根部 GeometryReader 注入。
+/// 旋转 / 窗口变化时所有读取环境的视图自动重算。
+private struct HoloWindowWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    /// 当前窗口宽度（pt）。未注入（理论上不会发生）时为 nil，按最窄档处理。
+    var holoWindowWidth: CGFloat? {
+        get { self[HoloWindowWidthKey.self] }
+        set { self[HoloWindowWidthKey.self] = newValue }
+    }
+}
+
+/// 三档宽度档位：compact（手机）/ medium（iPad 窄形态与竖屏）/ expanded（宽屏通铺）
+enum HoloWidthTier {
+    case compact
+    case medium
+    case expanded
+
+    init(width: CGFloat?, isRegular: Bool) {
+        if HoloAdaptiveLayout.isExpandedWidth(width) {
+            self = .expanded
+        } else if isRegular {
+            self = .medium
+        } else {
+            self = .compact
+        }
+    }
 }
 
 /// 限宽居中容器：iPad 上内容像「报纸栏目」居中，两侧留白显示全局背景。

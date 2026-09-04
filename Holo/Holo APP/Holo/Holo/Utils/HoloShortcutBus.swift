@@ -14,12 +14,14 @@ import Combine
 enum HoloShortcutAction: Equatable {
     /// Cmd+N：在当前模块内新建（任务/记账/想法由 HomeView 按 activeScreen 分流）
     case newItemAtCurrentModule
-    /// Cmd+F：打开当前模块的搜索（二期接入：三模块搜索形态不一，须按模块定制）
+    /// Cmd+F：打开当前模块的搜索（三模块搜索形态不一，按模块定制）
     case searchInCurrentModule
     /// Cmd+W：关闭当前常驻模块、回到模块首页
     case closeCurrentModule
     /// Cmd+,：打开设置
     case openSettings
+    /// Cmd+1…9：侧边栏直跳（iPad v2 骨架；iPhone 由 ContentView 映射到主 tab）
+    case goToSidebar(HoloSidebarDestination)
 }
 
 /// 快捷键事件：带自增 id，同一动作连按也能逐次触发订阅方。

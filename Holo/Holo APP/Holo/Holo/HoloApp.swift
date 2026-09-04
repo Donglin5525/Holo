@@ -110,6 +110,11 @@ struct HoloApp: App {
                 .animation(HoloAnimation.standard, value: appLock.isLocked)
             }
         }
+        // iPad v2 骨架：系统菜单栏命令（接硬件键盘时顶部可见，快捷键任何页面生效）。
+        // iPhone 同样注册：外接键盘时行为与旧「透明按钮」等价，菜单栏不可见无感知。
+        .commands {
+            HoloIPadCommands()
+        }
     }
 
     /// 业务根视图与启动链；hosted test 下不挂载（见 init 注释）。
@@ -309,6 +314,53 @@ struct HoloApp: App {
                     break
                 }
             }
+    }
+}
+
+// MARK: - 系统菜单栏命令（iPad v2 骨架，docs/ipad-adaptation/v2-plan.md 阶段 2c）
+
+/// 菜单栏命令：全部经 HoloShortcutBus 广播，由 ContentView（模块直跳）/ HomeView（新建/关闭/设置）响应。
+/// 替代旧「透明按钮挂快捷键」方案：接硬件键盘时菜单栏常显、任何页面都响应。
+struct HoloIPadCommands: Commands {
+
+    var body: some Commands {
+        CommandMenu(String(localized: "前往")) {
+            ForEach(HoloSidebarDestination.mainItems) { dest in
+                if let number = dest.shortcutNumber {
+                    Button(dest.title) {
+                        HoloShortcutBus.shared.post(.goToSidebar(dest))
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: .command)
+                }
+            }
+            Divider()
+            Button(String(localized: "个人")) {
+                HoloShortcutBus.shared.post(.goToSidebar(.profile))
+            }
+            .keyboardShortcut("9", modifiers: .command)
+            Button(String(localized: "设置")) {
+                HoloShortcutBus.shared.post(.openSettings)
+            }
+            .keyboardShortcut(",", modifiers: .command)
+        }
+
+        CommandMenu(String(localized: "文件")) {
+            Button(String(localized: "新建")) {
+                HoloShortcutBus.shared.post(.newItemAtCurrentModule)
+            }
+            .keyboardShortcut("n", modifiers: .command)
+            Button(String(localized: "关闭当前模块")) {
+                HoloShortcutBus.shared.post(.closeCurrentModule)
+            }
+            .keyboardShortcut("w", modifiers: .command)
+        }
+
+        CommandMenu(String(localized: "编辑")) {
+            Button(String(localized: "在当前模块搜索")) {
+                HoloShortcutBus.shared.post(.searchInCurrentModule)
+            }
+            .keyboardShortcut("f", modifiers: .command)
+        }
     }
 }
 

@@ -122,6 +122,8 @@ struct MarkdownTextView: UIViewRepresentable {
     var suggestionKeyboardEnabled: Bool = false
     /// 候选面板当前是否有可供方向键/回车操作的条目；没有条目时仍保留 Escape 关闭面板。
     var suggestionKeyboardHasItems: Bool = false
+    /// v2 妙控键盘格式快捷键（Cmd+B/I/U）回调
+    var onFormatCommand: ((MarkdownEditorAction) -> Void)? = nil
 
     /// 编辑态和阅读态共用同一种 UITextView 构造方式。
     static func makeTaskAwareTextView() -> UITextView {
@@ -146,6 +148,10 @@ struct MarkdownTextView: UIViewRepresentable {
         }
         textView.onSuggestionCommand = { [weak coordinator] command in
             coordinator?.onSuggestionCommand?(command)
+        }
+        // v2 妙控键盘 Cmd+B/I/U：与工具栏按钮走同一条 pendingAction 管线
+        textView.onFormatCommand = { action in
+            self.pendingAction = action
         }
         textView.suggestionKeyboardEnabled = suggestionKeyboardEnabled
         textView.suggestionKeyboardHasItems = suggestionKeyboardHasItems
@@ -464,6 +470,28 @@ struct MarkdownTextView: UIViewRepresentable {
                 : nil
             if let taskId {
                 prepareTaskTypingAttributes(taskId: taskId, on: textView)
+            }
+
+            // v2 妙控键盘 markdown 快打：行首输入「- / + / *」+ 空格 → 无序列表符「• 」。
+            // 与回车续行（下方）产出完全同构：同样的 • 前缀、同样的程序化编辑与撤销粒度。
+            // 仅拦「空格键入 + 前缀恰在行首」这一种形态，减号在句中等场景不受影响。
+            if text == " ", textView.markedTextRange == nil,
+               let bulletRange = Self.inlineBulletPrefixRange(textView: textView, insertLocation: range.location) {
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                let prefixAttrs = MarkdownTextView.resolvedAttributes(from: textView.typingAttributes)
+                mutable.replaceCharacters(
+                    in: bulletRange,
+                    with: NSAttributedString(string: "\u{2022} ", attributes: prefixAttrs)
+                )
+                refreshTaskSourceLengths(in: mutable)
+                removeEmptyTaskMarkers(in: mutable)
+
+                performProgrammaticEdit(on: textView, actionName: String(localized: "无序列表")) {
+                    textView.attributedText = mutable
+                    textView.selectedRange = NSRange(location: bulletRange.location + 2, length: 0)
+                }
+                syncMarkdown(from: textView)
+                return false
             }
 
             // 只处理回车键的列表续行逻辑
@@ -1985,6 +2013,20 @@ struct MarkdownTextView: UIViewRepresentable {
             return ListPrefixResult(length: match.range.length, numberValue: numberValue)
         }
 
+        /// markdown 快打判定（v2 妙控键盘）：即将插入空格的位置（insertLocation）前一字符
+        /// 是「- / + / *」之一，且该字符位于行首（其前是文本开头或换行）。
+        /// 命中返回应被整体替换为「• 」的单字符范围；否则返回 nil。
+        private static func inlineBulletPrefixRange(textView: UITextView, insertLocation: Int) -> NSRange? {
+            let ns = textView.attributedText.string as NSString
+            guard insertLocation >= 1, insertLocation <= ns.length else { return nil }
+            let prefixLocation = insertLocation - 1
+            let prefix = ns.substring(with: NSRange(location: prefixLocation, length: 1))
+            guard prefix == "-" || prefix == "+" || prefix == "*" else { return nil }
+            // 行首判定：前一字符是换行（unichar 0x0A）或已是文本开头
+            guard prefixLocation == 0 || ns.character(at: prefixLocation - 1) == 0x0A else { return nil }
+            return NSRange(location: prefixLocation, length: 1)
+        }
+
         /// 通知外部当前格式状态
         private func notifyFormatState(_ typingAttributes: [NSAttributedString.Key: Any]) {
             onFormatStateChange?(TypingFormatState(
@@ -3303,6 +3345,8 @@ private final class SelfSizingTextView: UITextView {
     var suggestionKeyboardEnabled = false
     var suggestionKeyboardHasItems = false
     var onSuggestionCommand: ((SuggestionKeyboardCommand) -> Void)?
+    /// v2 妙控键盘格式快捷键（Cmd+B/I/U）回调
+    var onFormatCommand: ((MarkdownEditorAction) -> Void)?
     /// 新建想法只在首次挂入窗口后自动聚焦一次，避免 makeUIView 时机过早导致请求丢失。
     var autoFocusWhenAttached = false
 
@@ -3324,16 +3368,36 @@ private final class SelfSizingTextView: UITextView {
     }
 
     override var keyCommands: [UIKeyCommand]? {
-        guard suggestionKeyboardEnabled else { return super.keyCommands }
-        var commands = [
-            UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(dismissSuggestion))
-        ]
-        if suggestionKeyboardHasItems {
-            commands.insert(UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(moveSuggestionUp)), at: 0)
-            commands.insert(UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(moveSuggestionDown)), at: 1)
-            commands.insert(UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(commitSuggestion)), at: 2)
+        if suggestionKeyboardEnabled {
+            var commands = [
+                UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(dismissSuggestion))
+            ]
+            if suggestionKeyboardHasItems {
+                commands.insert(UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(moveSuggestionUp)), at: 0)
+                commands.insert(UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(moveSuggestionDown)), at: 1)
+                commands.insert(UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(commitSuggestion)), at: 2)
+            }
+            return commands
         }
-        return commands
+        // v2 妙控键盘：Cmd+B / I / U 切换加粗/斜体/下划线（与工具栏动作同一条 pendingAction 管线）。
+        // 自定义 keyCommands 与系统内建编辑键（复制/粘贴等）并存，不互相屏蔽。
+        return [
+            UIKeyCommand(input: "B", modifierFlags: .command, action: #selector(toggleBoldCommand)),
+            UIKeyCommand(input: "I", modifierFlags: .command, action: #selector(toggleItalicCommand)),
+            UIKeyCommand(input: "U", modifierFlags: .command, action: #selector(toggleUnderlineCommand))
+        ]
+    }
+
+    @objc private func toggleBoldCommand() {
+        onFormatCommand?(.toggleBold)
+    }
+
+    @objc private func toggleItalicCommand() {
+        onFormatCommand?(.toggleItalic)
+    }
+
+    @objc private func toggleUnderlineCommand() {
+        onFormatCommand?(.toggleUnderline)
     }
 
     @objc private func moveSuggestionUp() {

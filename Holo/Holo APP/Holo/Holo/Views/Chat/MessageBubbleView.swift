@@ -259,7 +259,7 @@ struct MessageBubbleView: View {
             case .task(let data):
                 if let id = data.taskId ?? message.resolveLinkedEntityId(for: .task),
                     !message.isEntityDeleted(for: .task) {
-                    result.append((.task, id, "任务「\(data.title)」"))
+                    result.append((.task, id, String(localized: "任务「\(data.title)」")))
                 }
             default:
                 break
@@ -298,7 +298,7 @@ struct MessageBubbleView: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Holo，AI 生成")
+        .accessibilityLabel(String(localized: "Holo，AI 生成"))
     }
 
     private var userAvatar: some View {

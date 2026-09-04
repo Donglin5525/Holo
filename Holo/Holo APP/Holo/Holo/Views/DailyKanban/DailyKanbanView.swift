@@ -28,6 +28,12 @@ struct DailyKanbanView: View {
     /// 这里手动监听键盘，把弹窗整体上移到键盘上方，避免输入框/保存按钮被挡。
     @State private var keyboardHeight: CGFloat = 0
 
+    /// 当前窗口宽度（v2 断点：宽屏看板双栏）
+    @Environment(\.holoWindowWidth) private var kanbanWindowWidth
+    private var isExpandedWidth: Bool {
+        HoloAdaptiveLayout.isExpandedWidth(kanbanWindowWidth)
+    }
+
     var body: some View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
@@ -45,20 +51,43 @@ struct DailyKanbanView: View {
                         userName: userName,
                         onCreateGoal: { showGoalCreate = true }
                     )
-                    KanbanBudgetSection()
-                    KanbanHabitSection(
-                        habitRepo: habitRepo,
-                        inputValue: $inputValue,
-                        editingHabit: $editingHabit
-                    )
-                    // 系统日历日程（只读背景块 + 可勾完成；未开启/无日程时整块不出现）
-                    ScheduleSectionWithDetail()
-                    KanbanTaskSection(todoRepo: todoRepo)
-                    KanbanMoodSection()
-                    KanbanHealthSection(healthRepo: healthRepo)
+
+                    if isExpandedWidth {
+                        // v2 宽屏双栏：左（预算/习惯/心情）右（日程/任务/健康），
+                        // 修复单列卡片流在大屏从头滚到尾的空旷观感
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(spacing: 16) {
+                                KanbanBudgetSection()
+                                KanbanHabitSection(
+                                    habitRepo: habitRepo,
+                                    inputValue: $inputValue,
+                                    editingHabit: $editingHabit
+                                )
+                                KanbanMoodSection()
+                            }
+                            VStack(spacing: 16) {
+                                // 系统日历日程（只读背景块 + 可勾完成；未开启/无日程时整块不出现）
+                                ScheduleSectionWithDetail()
+                                KanbanTaskSection(todoRepo: todoRepo)
+                                KanbanHealthSection(healthRepo: healthRepo)
+                            }
+                        }
+                    } else {
+                        KanbanBudgetSection()
+                        KanbanHabitSection(
+                            habitRepo: habitRepo,
+                            inputValue: $inputValue,
+                            editingHabit: $editingHabit
+                        )
+                        // 系统日历日程（只读背景块 + 可勾完成；未开启/无日程时整块不出现）
+                        ScheduleSectionWithDetail()
+                        KanbanTaskSection(todoRepo: todoRepo)
+                        KanbanMoodSection()
+                        KanbanHealthSection(healthRepo: healthRepo)
+                    }
                     Spacer().frame(height: 80)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, isExpandedWidth ? 32 : 16)
             }
 
             // 数值输入弹窗
@@ -128,8 +157,7 @@ struct DailyKanbanView: View {
 
     private var todayString: String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日 E"
+        f.setLocalizedDateFormatFromTemplate("MMMdE")
         return f.string(from: Date())
     }
 
@@ -160,7 +188,7 @@ struct DailyKanbanView: View {
                             Text(habit.name)
                                 .font(.holoBody)
                                 .foregroundColor(.holoTextPrimary)
-                            Text(habit.unitText.isEmpty ? "输入数值" : "单位：\(habit.unitText)")
+                            Text(habit.unitText.isEmpty ? String(localized: "输入数值") : String(localized: "单位：\(habit.unitText)"))
                                 .font(.holoTinyLabel)
                                 .foregroundColor(.holoTextSecondary)
                         }
