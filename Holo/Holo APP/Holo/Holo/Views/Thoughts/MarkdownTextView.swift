@@ -2393,6 +2393,29 @@ extension MarkdownTextView {
         return cache
     }()
 
+    /// 按原始内容字符串为键的第二级缓存：卡片每次重渲染（点「…」弹菜单、整理队列
+    /// 状态变化都会触发全列表重算）时无需解码 JSON 就能命中朗读文本，把卡片重算
+    /// 的内容成本从 O(笔记长度) 降到 O(1)。
+    /// 键约定：富文本用 JSON 串本身（不可变 NSString 桥接零拷贝），存量平文本加
+    /// "P\0" 前缀防两类内容互相碰撞。
+    private static let accessibilityTextBySourceCache: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 500
+        return cache
+    }()
+
+    static func accessibilityText(richJSON: String?, fallbackPlainText: String) -> String {
+        let sourceKey: NSString = richJSON.flatMap { $0.isEmpty ? nil : ($0 as NSString) }
+            ?? ("P\u{0}" + fallbackPlainText) as NSString
+        if let cached = accessibilityTextBySourceCache.object(forKey: sourceKey) {
+            return cached as String
+        }
+        let nodes = RichContentSerializer.nodes(richJSON: richJSON, fallbackPlainText: fallbackPlainText)
+        let result = accessibilityText(from: nodes)
+        accessibilityTextBySourceCache.setObject(result as NSString, forKey: sourceKey)
+        return result
+    }
+
     static func accessibilityText(from nodes: [HoloContentNode]) -> String {
         let cacheKey = accessibilityTextCacheKey(nodes) as NSString
         if let cached = accessibilityTextCache.object(forKey: cacheKey) {

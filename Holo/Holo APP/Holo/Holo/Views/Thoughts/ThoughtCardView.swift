@@ -234,19 +234,12 @@ struct ThoughtCardView: View {
     // MARK: - 内容区域
 
     private var contentView: some View {
-        // 单次解析：下方 UIKit 渲染与 accessibility 各消费一次 nodes，
-        // 若走计算属性会在每次卡片重算（点「…」弹菜单等）时重复解析两遍 JSON
-        let nodes = RichContentSerializer.nodes(
-            richJSON: thought.richContentJSON,
-            fallbackPlainText: thought.content
-        )
-        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            // 所有卡片内容都走结构化阅读管线；没有 rich JSON 的存量纯文本也先转成 text/tag
-            // 节点，避免列表外层重新走一套 Text/ExpandableText，导致 Markdown、空行和行距漂移。
-            // 长文只在列表做预览，但通过同一套排版测量明确提示“点击查看全文”。
-            ReadOnlyRichTextPreview(
-                nodes: nodes,
-                lineLimit: 7
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            // 内容渲染整体下沉到 ThoughtContentBody：它只依赖内容字符串本身，
+            // 点「…」弹菜单、整理队列状态变化等状态型重算不会触碰解码与排版
+            ThoughtContentBody(
+                richJSON: thought.richContentJSON,
+                fallbackPlainText: thought.content
             )
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -257,9 +250,13 @@ struct ThoughtCardView: View {
         // 只读 UITextView 在卡片内不接管触摸，因此不能把“不可交互”泄漏成
         // VoiceOver 的 disabled 元素。卡片正文本身是进入想法的主入口，显式暴露
         // 同一份语义文本和按钮动作；底部标签仍保留各自的筛选操作。
+        // 朗读文本按内容字符串进程缓存（无需解码），重算时只是一次字典命中。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "想法内容"))
-        .accessibilityValue(MarkdownTextView.accessibilityText(from: nodes))
+        .accessibilityValue(MarkdownTextView.accessibilityText(
+            richJSON: thought.richContentJSON,
+            fallbackPlainText: thought.content
+        ))
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(String(localized: "单击查看详情，双击直接编辑"))
         // 正文区域自带双击声明：双击时 SwiftUI 会先等双击窗口、不再触发下面的单击进详情，
@@ -396,6 +393,31 @@ struct ThoughtCardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "按 AI 标签 \(tagName) 筛选"))
+    }
+}
+
+// MARK: - 内容预览子视图
+
+/// 卡片正文预览。只依赖内容字符串这两份值类型输入：SwiftUI 在父卡片因菜单、
+/// 队列状态等重算时，会因输入相等直接跳过这里的 body——JSON 解码、富文本排版
+/// （长笔记的主要成本）随之整体消失，卡片状态型重算降为常数成本。
+private struct ThoughtContentBody: View {
+
+    let richJSON: String?
+    let fallbackPlainText: String
+
+    var body: some View {
+        let nodes = RichContentSerializer.nodes(
+            richJSON: richJSON,
+            fallbackPlainText: fallbackPlainText
+        )
+        // 所有卡片内容都走结构化阅读管线；没有 rich JSON 的存量纯文本也先转成 text/tag
+        // 节点，避免列表外层重新走一套 Text/ExpandableText，导致 Markdown、空行和行距漂移。
+        // 长文只在列表做预览，但通过同一套排版测量明确提示“点击查看全文”。
+        ReadOnlyRichTextPreview(
+            nodes: nodes,
+            lineLimit: 7
+        )
     }
 }
 
