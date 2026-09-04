@@ -236,6 +236,8 @@ export function createApp(overrides = {}) {
         pushNotifier: analysisPushNotifier,
         quotaLedger: quotaActionLedgerStore,
         entitlementResolver,
+        // 云端任务 AI 调用补记账：usage 落 ai_call_logs 独立列，成本核算不再有云端盲区
+        aiCallLogger: config.aiCallLogs?.enabled ? adminLogStore : null,
       });
     } catch (error) {
       console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
@@ -766,6 +768,7 @@ export function createApp(overrides = {}) {
               : purpose === "insight"
                 ? summarizeInsightResponse(result)
                 : result,
+            usage: result?.usage ?? null,
           });
         }
         commitQuota(quotaActionLedgerStore, quotaReservation);
@@ -1551,18 +1554,43 @@ function streamModerationBlocked(options = {}) {
   });
 }
 
+/// 从 SSE 透传块提取上游 usage（DeepSeek 在最后一个 chunk 携带；一个块可能含多个 data: 帧）。
+/// 调用前先做 chunk.includes('"usage"') 廉价判断，不进流式热路径。
+function extractUsageFromSseChunk(chunk) {
+  for (const frame of chunk.split("\n\n")) {
+    const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
+    if (!dataLine || !dataLine.includes('"usage"')) continue;
+    try {
+      const parsed = JSON.parse(dataLine.slice("data:".length).trim());
+      if (parsed.usage) return parsed.usage;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 function streamChat(context, provider, request, options = {}) {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
       let capturedText = "";
+      // token 用量随流捕获：DeepSeek 把 usage 放在最后一个 chunk，而响应摘要会在
+      // 50KB 截断——长流（insight/长 agent 轮）的 usage 此前因此永久丢失，成本算不清。
+      let capturedUsage = null;
 
       try {
         for await (const chunk of provider.stream(request)) {
           if (typeof chunk === "string") {
+            if (chunk.includes('"usage"')) {
+              capturedUsage = extractUsageFromSseChunk(chunk) ?? capturedUsage;
+            }
             controller.enqueue(encoder.encode(chunk));
             capturedText = appendCapturedText(capturedText, chunk, options.logStore?.maxDetailChars);
           } else {
+            if (chunk.usage) {
+              capturedUsage = chunk.usage;
+            }
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
             capturedText = appendCapturedText(
               capturedText,
@@ -1579,6 +1607,7 @@ function streamChat(context, provider, request, options = {}) {
           response: {
             text: capturedText,
           },
+          usage: capturedUsage,
         });
         options.onSuccess?.();
         controller.close();
@@ -1589,6 +1618,7 @@ function streamChat(context, provider, request, options = {}) {
           status: "error",
           response: capturedText ? { text: capturedText } : null,
           error: serializeError(error),
+          usage: capturedUsage,
         });
         options.onFailure?.();
         controller.close();

@@ -342,6 +342,16 @@ const MIGRATIONS = [
         ADD COLUMN task_type TEXT NOT NULL DEFAULT 'deep_analysis';
     `,
   },
+  {
+    id: 19,
+    description: 'ai_call_logs 增加 token 用量独立列（成本计量：此前 usage 只藏在 response_summary 里，超 50KB 截断的调用——insight/长 agent 轮——usage 随之丢失，成本永远算不清）',
+    up: `
+      ALTER TABLE ai_call_logs ADD COLUMN prompt_tokens INTEGER;
+      ALTER TABLE ai_call_logs ADD COLUMN completion_tokens INTEGER;
+      ALTER TABLE ai_call_logs ADD COLUMN cached_tokens INTEGER;
+      ALTER TABLE ai_call_logs ADD COLUMN reasoning_tokens INTEGER;
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

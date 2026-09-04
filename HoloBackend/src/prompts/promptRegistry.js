@@ -7,7 +7,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 4,                 // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
-  intent_recognition: 28,           // v28: 新增 set_budget/create_anniversary/update_anniversary + create_task listName、update_goal_field status；v27 新增 weekly_planning
+  intent_recognition: 29,           // v29: 日期/时间从模板开头移到全提示词最末尾（缓存前缀治理）
   memory_insight_generation: 10,    // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
@@ -45,6 +45,15 @@ const PROMPT_CONTRACT_APPENDICES = {
 [HOLO_QUERY_AGGREGATE_V23]
 “最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”及同批次数/总额/平均每笔/每次/每顿→flexible_data_query；“吨”按顿。必须输出 single_action，items 仅 1 项，保留 categoryCandidate/periodLabel；不要拆成 multi_action。`,
     defaultPrompts._intent_personal_state_v24_contract,
+    // §prompt-cache（2026-09-04 成本治理）：{{currentTime}} 精确到分钟，放在提示词开头
+    // 会让分钟级变化打断 DeepSeek 前缀缓存（生产实测命中率仅 20%，恰好只命中人设前导段）。
+    // 时间语境对意图解析（今天/今晚/相对时段换算）仍是必需的，移到全提示词最末尾：
+    // 前缀（人设+模板+各契约段）日内的每次调用完全一致，只有最后 ~40 token 重编码。
+    // 注意：本附录必须是 intent_recognition 的最后一个元素，任何新增契约都要排在它前面。
+    `
+
+[HOLO_INTENT_TIME_V29]
+当前时间：{{todayDate}} {{currentTime}}。相对时间（今天/明天/今晚/现在等）一律以此为准。`,
   ],
   flexible_query_planner: `
 

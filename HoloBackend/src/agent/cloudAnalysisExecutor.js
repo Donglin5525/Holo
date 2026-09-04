@@ -32,6 +32,9 @@ export function createCloudAnalysisExecutor({
   // 预订-提交语义（生成失败自动释放），与端点层同一套真相源。
   quotaLedger = null,
   entitlementResolver = null,
+  // token 用量记账（adminLogStore 同接口）：云端任务的 AI 调用此前完全不入
+  // ai_call_logs，成本核算存在盲区。purpose 用 cloud_* 前缀与端点侧调用区分。
+  aiCallLogger = null,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
@@ -90,28 +93,62 @@ export function createCloudAnalysisExecutor({
     });
   }
 
-  async function callProvider(messages, forRoute = route) {
+  async function callProvider(messages, forRoute = route, logContext = null) {
     let lastError = null;
     const upstreamRoute = forRoute ?? route;
-    for (let attempt = 1; attempt <= providerRetries; attempt += 1) {
-      try {
-        const upstream = {
-          purpose: "agent_loop",
-          messages,
-          stream: false,
+    // 每次调用一条 ai_call_logs：重试只记最终成功/失败一次，usage 取自成功响应
+    const logId = aiCallLogger && logContext
+      ? aiCallLogger.startAiCall({
+          deviceId: logContext.deviceId,
+          purpose: logContext.purpose,
+          provider: upstreamRoute.provider,
           model: upstreamRoute.model,
-          temperature: upstreamRoute.temperature,
-          maxTokens: upstreamRoute.maxTokens,
-          reasoningEffort: upstreamRoute.reasoningEffort,
-        };
-        return await provider.complete(upstream);
-      } catch (error) {
-        lastError = error;
-        log(`provider 调用失败 attempt=${attempt}: ${error?.message ?? error}`);
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          stream: false,
+          request: {
+            taskId: logContext.taskId ?? null,
+            round: logContext.round ?? null,
+            messageCount: messages.length,
+          },
+        })
+      : null;
+    try {
+      for (let attempt = 1; attempt <= providerRetries; attempt += 1) {
+        try {
+          const upstream = {
+            purpose: "agent_loop",
+            messages,
+            stream: false,
+            model: upstreamRoute.model,
+            temperature: upstreamRoute.temperature,
+            maxTokens: upstreamRoute.maxTokens,
+            reasoningEffort: upstreamRoute.reasoningEffort,
+          };
+          const response = await provider.complete(upstream);
+          if (logId) {
+            aiCallLogger.finishAiCall(logId, {
+              status: "success",
+              response: null,
+              usage: response?.usage ?? null,
+            });
+          }
+          return response;
+        } catch (error) {
+          lastError = error;
+          log(`provider 调用失败 attempt=${attempt}: ${error?.message ?? error}`);
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+        }
       }
+      throw lastError ?? new Error("PROVIDER_FAILED");
+    } catch (error) {
+      if (logId) {
+        aiCallLogger.finishAiCall(logId, {
+          status: "error",
+          response: null,
+          error: { code: error?.code ?? "UPSTREAM_ERROR", message: String(error?.message ?? error) },
+        });
+      }
+      throw error;
     }
-    throw lastError ?? new Error("PROVIDER_FAILED");
   }
 
   /** 完成推送（fire-and-forget）：文案随任务类型；失败只记日志不影响任务终态。 */
@@ -179,6 +216,7 @@ export function createCloudAnalysisExecutor({
           { role: "user", content: contextJSON },
         ],
         replayCallRoute,
+        { taskId, deviceId: task.device_id, purpose: "cloud_period_replay", round: 1 },
       );
       const content = response?.choices?.[0]?.message?.content ?? "";
       if (!content.trim()) {
@@ -292,7 +330,12 @@ export function createCloudAnalysisExecutor({
       }
 
       for (let round = 1; round <= maxRounds; round += 1) {
-        const response = await callProvider(messages);
+        const response = await callProvider(messages, route, {
+          taskId,
+          deviceId: task.device_id,
+          purpose: "cloud_deep_analysis",
+          round,
+        });
         const content = response?.choices?.[0]?.message?.content ?? "";
         const validation = validateAgentLoopContent(content);
         if (!validation.valid) {

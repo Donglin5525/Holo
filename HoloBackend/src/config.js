@@ -70,6 +70,11 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_INTENT_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_INTENT_MAX_TOKENS ?? 4096),
+      // §reasoning-off（2026-09-04 成本治理）：意图识别是单步分类任务，输出固定 schema 短 JSON，
+      // 不需要多步推理。生产实测（近30天 ai_call_logs）thinking 档下 completion 的 81% 是
+      // reasoning tokens，全部按输出价计费。与 thought_organization 同机制配 none；
+      // 识别质量的兜底是确定性意图直判（buildDeterministicIntentCompletion）+ iOS 端澄清追问。
+      reasoningEffort: process.env.HOLO_INTENT_REASONING_EFFORT ?? "none",
     },
     flexible_query_planner: {
       provider: process.env.HOLO_FLEXIBLE_QUERY_PLANNER_PROVIDER
@@ -116,6 +121,11 @@ const DEFAULT_CONFIG = {
         perMinute: Number(process.env.HOLO_REPLAY_DIGEST_REQUESTS_PER_MINUTE ?? 10),
         perDay: Number(process.env.HOLO_REPLAY_DIGEST_REQUESTS_PER_DAY ?? 30),
       },
+      // §reasoning-budget（2026-09-04 成本治理）：此前未配 effort → 模型默认满档思考，
+      // 生产实测（近14天）completion 的 87% 是 reasoning tokens，且平均 23s 的流式时长
+      // 有 54%（74/136）撞 30s 网关超时被中止——中止前烧掉的输出 token 照常计费，
+      // 用户重试再花一遍。low 档保住跨周期归纳的串联质量，同时把时长压回超时线内。
+      reasoningEffort: process.env.HOLO_REPLAY_DIGEST_REASONING_EFFORT ?? "low",
     },
     health_insight_generation: {
       provider: process.env.HOLO_HEALTH_INSIGHT_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",

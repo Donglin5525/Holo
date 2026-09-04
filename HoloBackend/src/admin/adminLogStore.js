@@ -51,7 +51,11 @@ export function createAdminLogStore(options = {}) {
           duration_ms = ?,
           error_message = ?,
           response_summary = ?,
-          asr_result_length = ?
+          asr_result_length = ?,
+          prompt_tokens = ?,
+          completion_tokens = ?,
+          cached_tokens = ?,
+          reasoning_tokens = ?
         WHERE rowid = ?
       `),
       listLogs: db.prepare(`
@@ -150,6 +154,12 @@ export function createAdminLogStore(options = {}) {
       entry.asrResultLength = result.asrResultLength;
     }
 
+    // token 用量独立落列（成本计量）：上游 usage 形状
+    // { prompt_tokens, completion_tokens, prompt_tokens_details:{cached_tokens}, completion_tokens_details:{reasoning_tokens} }
+    // 截断的响应摘要拿不到 usage，这里必须在流结束时从内存里传进来才不丢。
+    const usage = normalizeUsage(result.usage);
+    if (usage) entry.usage = usage;
+
     // SQLite 更新
     const s = getStmts();
     if (s && entry._rowId) {
@@ -166,12 +176,34 @@ export function createAdminLogStore(options = {}) {
           entry.error ? JSON.stringify(entry.error) : null,
           responseSummary,
           entry.asrResultLength ?? null,
+          usage?.promptTokens ?? null,
+          usage?.completionTokens ?? null,
+          usage?.cachedTokens ?? null,
+          usage?.reasoningTokens ?? null,
           entry._rowId
         );
       } catch (err) {
         console.error('[AdminLogStore] SQLite update 失败:', err.message);
       }
     }
+  }
+
+  /** 上游 usage → 落库形状；非对象或全空返回 null */
+  function normalizeUsage(usage) {
+    if (!usage || typeof usage !== 'object') return null;
+    const promptTokens = positiveInt(usage.prompt_tokens);
+    const completionTokens = positiveInt(usage.completion_tokens);
+    if (promptTokens == null && completionTokens == null) return null;
+    return {
+      promptTokens,
+      completionTokens,
+      cachedTokens: positiveInt(usage.prompt_tokens_details?.cached_tokens),
+      reasoningTokens: positiveInt(usage.completion_tokens_details?.reasoning_tokens),
+    };
+  }
+
+  function positiveInt(value) {
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
   }
 
   function list() {
@@ -262,6 +294,12 @@ export function createAdminLogStore(options = {}) {
           request: row.request_summary ? JSON.parse(row.request_summary) : null,
           response: row.response_summary ? JSON.parse(row.response_summary) : null,
           error: row.error_message ? JSON.parse(row.error_message) : null,
+          usage: (row.prompt_tokens != null || row.completion_tokens != null) ? {
+            promptTokens: row.prompt_tokens,
+            completionTokens: row.completion_tokens,
+            cachedTokens: row.cached_tokens,
+            reasoningTokens: row.reasoning_tokens,
+          } : null,
           asrFileType: row.asr_file_type ?? null,
           asrResultLength: row.asr_result_length ?? null,
         };

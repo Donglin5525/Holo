@@ -11,6 +11,13 @@ function percentile(sortedValues, ratio) {
   return sortedValues[index];
 }
 
+function formatTokens(value) {
+  if (value == null || value <= 0) return "—";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return String(value);
+}
+
 export function renderAdminAiMetricsPage({ byPurpose, dailyTrend }) {
   const purposeRows = byPurpose
     .map(
@@ -23,6 +30,8 @@ export function renderAdminAiMetricsPage({ byPurpose, dailyTrend }) {
         <td>${row.p50Ms ?? "—"} ms</td>
         <td>${row.p90Ms ?? "—"} ms</td>
         <td>${row.maxMs ?? "—"} ms</td>
+        <td>${formatTokens(row.promptTokens)}${row.cachedTokenRate != null ? `（命中 ${row.cachedTokenRate}%）` : ""}</td>
+        <td>${formatTokens(row.completionTokens)}${row.reasoningTokenRate != null ? `（思考 ${row.reasoningTokenRate}%）` : ""}</td>
       </tr>`
     )
     .join("");
@@ -96,10 +105,11 @@ export function renderAdminAiMetricsPage({ byPurpose, dailyTrend }) {
     <h2>按用途汇总（近 30 天）</h2>
     <table>
       <thead>
-        <tr><th>purpose</th><th>调用</th><th>错误</th><th>平均时延</th><th>p50</th><th>p90</th><th>最大</th></tr>
+        <tr><th>purpose</th><th>调用</th><th>错误</th><th>平均时延</th><th>p50</th><th>p90</th><th>最大</th><th>输入 tokens</th><th>输出 tokens</th></tr>
       </thead>
-      <tbody>${purposeRows || '<tr><td colspan="7">暂无数据</td></tr>'}</tbody>
+      <tbody>${purposeRows || '<tr><td colspan="9">暂无数据</td></tr>'}</tbody>
     </table>
+    <p style="font-size:12px;color:#52606d">输入含缓存命中比例；输出含思考（reasoning）比例。思考 token 按输出价计费（DeepSeek v4-flash：输出 ¥4.5-9/M，输入未命中 ¥1.5-3/M，命中 ¥0.05-0.1/M）。token 列 2026-09-04 起采集，此前调用无数据。</p>
 
     <h2>近 14 日趋势</h2>
     <table>

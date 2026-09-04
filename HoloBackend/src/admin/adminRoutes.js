@@ -571,7 +571,7 @@ function adminJson(context, body, status = 200) {
 function buildAiMetrics({ db }) {
   const rows = db
     .prepare(
-      `SELECT purpose, duration_ms, error_message FROM ai_call_logs
+      `SELECT purpose, duration_ms, error_message, prompt_tokens, completion_tokens, cached_tokens, reasoning_tokens FROM ai_call_logs
        WHERE created_at >= datetime('now', '-30 days')`
     )
     .all();
@@ -579,13 +579,18 @@ function buildAiMetrics({ db }) {
   const byPurposeMap = new Map();
   for (const row of rows) {
     const purpose = row.purpose ?? "(unknown)";
-    const entry = byPurposeMap.get(purpose) ?? { durations: [], errors: 0, calls: 0 };
+    const entry = byPurposeMap.get(purpose)
+      ?? { durations: [], errors: 0, calls: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, reasoningTokens: 0 };
     entry.calls += 1;
     if (row.error_message) {
       entry.errors += 1;
     } else if (row.duration_ms != null) {
       entry.durations.push(row.duration_ms);
     }
+    entry.promptTokens += row.prompt_tokens ?? 0;
+    entry.completionTokens += row.completion_tokens ?? 0;
+    entry.cachedTokens += row.cached_tokens ?? 0;
+    entry.reasoningTokens += row.reasoning_tokens ?? 0;
     byPurposeMap.set(purpose, entry);
   }
 
@@ -602,9 +607,13 @@ function buildAiMetrics({ db }) {
         p50Ms: sorted.length > 0 ? percentile(sorted, 0.5) : null,
         p90Ms: sorted.length > 0 ? percentile(sorted, 0.9) : null,
         maxMs: sorted.length > 0 ? sorted[sorted.length - 1] : null,
+        promptTokens: entry.promptTokens,
+        completionTokens: entry.completionTokens,
+        cachedTokenRate: entry.promptTokens > 0 ? Math.round((entry.cachedTokens / entry.promptTokens) * 100) : null,
+        reasoningTokenRate: entry.completionTokens > 0 ? Math.round((entry.reasoningTokens / entry.completionTokens) * 100) : null,
       };
     })
-    .sort((a, b) => b.calls - a.calls);
+    .sort((a, b) => (b.promptTokens + b.completionTokens) - (a.promptTokens + a.completionTokens));
 
   // 近 14 日趋势（UTC 日期）
   const dailyRows = db
