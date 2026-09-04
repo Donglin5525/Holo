@@ -59,6 +59,9 @@ struct ThoughtDetailView: View {
     /// 转为任务：弹确认面板（AI 提炼 / 手动勾选），不直接建任务
     @State private var showTaskExtraction: Bool = false
 
+    /// 分享卡面板
+    @State private var showShareCard: Bool = false
+
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
     /// P0 分级判定：用户认可标签集合（归一化 key）
@@ -154,6 +157,12 @@ struct ThoughtDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
+                            showShareCard = true
+                        } label: {
+                            Label("生成分享卡", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button {
                             showTaskExtraction = true
                         } label: {
                             Label("转为任务", systemImage: "checkmark.square")
@@ -186,6 +195,11 @@ struct ThoughtDetailView: View {
                     thoughtId: refId,
                     thoughtRepository: thoughtRepository
                 )
+            }
+            .sheet(isPresented: $showShareCard) {
+                if let thought {
+                    ThoughtShareSheet(thought: thought)
+                }
             }
             .alert("原记录已删除", isPresented: deletedSnapshotPresented) {
                 Button("知道了", role: .cancel) {

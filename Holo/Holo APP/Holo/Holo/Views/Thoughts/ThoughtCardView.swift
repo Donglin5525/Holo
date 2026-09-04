@@ -44,6 +44,8 @@ struct ThoughtCardView: View {
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
+    /// 分享卡面板
+    @State private var showShareCard = false
     /// 整理队列断网状态：pending 徽章据此显示「等待网络」而非「整理中」
     @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
 
@@ -111,6 +113,9 @@ struct ThoughtCardView: View {
                     .accessibilityLabel(String(localized: "更多操作"))
                     // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
                     .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
+                        Button(String(localized: "生成分享卡")) {
+                            showShareCard = true
+                        }
                         if let onRetryOrganize {
                             Button("重新整理") { onRetryOrganize() }
                         }
@@ -124,6 +129,9 @@ struct ThoughtCardView: View {
                             Button("删除", role: .destructive) { onDelete() }
                         }
                         Button("取消", role: .cancel) {}
+                    }
+                    .sheet(isPresented: $showShareCard) {
+                        ThoughtShareSheet(thought: thought)
                     }
             }
         }

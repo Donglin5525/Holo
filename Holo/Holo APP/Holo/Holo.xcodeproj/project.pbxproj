@@ -19,7 +19,6 @@
 		0EA3F6E25D47D58F5DE4F6BC /* WeeklyGridAxisProfileStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A33B577F47BDDE214CE15D /* WeeklyGridAxisProfileStandaloneTests.swift */; };
 		0F1CFD5654844847905B3C89 /* HoloAgentEvalSeedCorpus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153D2D0E0F554C2788C8C7EC /* HoloAgentEvalSeedCorpus.swift */; };
 		153383C1FA3FF48FED398CB8 /* CategoryCandidateResolverStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6696B2DCA973283DCF537 /* CategoryCandidateResolverStandaloneTests.swift */; };
-		7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */; };
 		164E695105AEE4C78C1F3A67 /* ThoughtRepositoryAITagBucketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE87E028D77731426EB3061 /* ThoughtRepositoryAITagBucketTests.swift */; };
 		18CE77872E80FFCF40DACBC0 /* CalendarRangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873DF286F1A7241AF0612E0D /* CalendarRangeBuilderTests.swift */; };
 		1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */; };
@@ -98,6 +97,7 @@
 		7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8D2A1F9E3B4760B2D8F1A3 /* HoloDeterministicAnswerComposerStandaloneTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
 		7A9EB0466A1CC5121E0D4658 /* HoloThoughtToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */; };
+		7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */; };
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };
 		7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */; };
 		7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */; };
@@ -353,6 +353,7 @@
 		76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryOrphanCleanupTests.swift; sourceTree = "<group>"; };
 		77B02553D193169B1FC31AE3 /* HoloEpisodicMemoryStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloEpisodicMemoryStoreTests.swift; sourceTree = "<group>"; };
 		7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudKitRuntimeAvailabilityTests.swift; sourceTree = "<group>"; };
+		7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnniversaryDaysCalculationTests.swift; sourceTree = "<group>"; };
 		7CFB70A56A73477EA1897490 /* FinanceReconciliationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceReconciliationTests.swift; sourceTree = "<group>"; };
 		7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionDateResolverTests.swift; sourceTree = "<group>"; };
 		7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PromptManagerIntentRecognitionTests.swift; sourceTree = "<group>"; };
@@ -386,7 +387,6 @@
 		9BAC1B981514A4A8A30C5B10 /* HoloMemorySimulatorRepositoryIsolationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemorySimulatorRepositoryIsolationTests.swift; sourceTree = "<group>"; };
 		9D9D7062E0F40A53D5A12284 /* HoloMemoryActivationPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryActivationPolicyStandaloneTests.swift; sourceTree = "<group>"; };
 		9DC6696B2DCA973283DCF537 /* CategoryCandidateResolverStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryCandidateResolverStandaloneTests.swift; sourceTree = "<group>"; };
-		7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnniversaryDaysCalculationTests.swift; sourceTree = "<group>"; };
 		A0A33B577F47BDDE214CE15D /* WeeklyGridAxisProfileStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyGridAxisProfileStandaloneTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000004 /* HoloWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HoloWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000005 /* HoloWidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloWidgetModels.swift; path = Holo/Services/Widgets/HoloWidgetModels.swift; sourceTree = "<group>"; };
@@ -1602,6 +1602,7 @@
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Holo 需要保存权限，把分享卡和图片存入你的相册";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
@@ -1655,6 +1656,7 @@
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Holo 需要保存权限，把分享卡和图片存入你的相册";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
