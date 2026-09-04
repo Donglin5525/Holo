@@ -13,6 +13,9 @@ struct ChatInputView: View {
     @ObservedObject var viewModel: ChatViewModel
     let onVoiceInputTap: () -> Void
 
+    /// 当前窗口宽度（v2 断点：宽屏输入条收窄居中）
+    @Environment(\.holoWindowWidth) private var inputWindowWidth
+
     init(
         viewModel: ChatViewModel,
         onVoiceInputTap: @escaping () -> Void = {}
@@ -117,13 +120,16 @@ struct ChatInputView: View {
                     // 外接键盘 Cmd+回车发送。纯回车保留换行（TextField 竖轴默认行为），
                     // 不改 iPhone 软件键盘体验；停止键同样给 Cmd+.（系统标准取消）
                     .keyboardShortcut(.return, modifiers: .command)
-                    .accessibilityLabel("发送消息")
+                    .accessibilityLabel(String(localized: "发送消息"))
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.holoBackground)
+        // v2：宽屏输入条收窄居中（修复「一条宽带横在大屏中央」的观感）
+        .frame(maxWidth: HoloAdaptiveLayout.isExpandedWidth(inputWindowWidth) ? 720 : .infinity)
+        .frame(maxWidth: .infinity)
         .animation(.easeInOut(duration: 0.18), value: viewModel.continuationDraft != nil)
     }
 

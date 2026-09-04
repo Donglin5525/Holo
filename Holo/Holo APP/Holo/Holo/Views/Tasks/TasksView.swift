@@ -49,6 +49,12 @@ struct TasksView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: TodoTab = .tasks
+    /// 当前窗口宽度（v2 断点判断用）
+    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
+    private var isExpandedWidth: Bool {
+        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+    }
     @State private var showAddTask: Bool = false
     @State private var showNotificationSettings: Bool = false
     /// 任务列表当前筛选，用于底部新增按钮继承「今日」或具体清单上下文。
@@ -97,8 +103,16 @@ struct TasksView: View {
             selectedTab = .tasks
             searchTrigger += 1
         }
+        // v2：expanded 宽度 Tab 上移顶部（胶囊切换条），iPhone/窄屏保持吸底导航栏
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            todoTabBar
+            if !isExpandedWidth {
+                todoTabBar
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if isExpandedWidth {
+                todoTopTabBar
+            }
         }
         .sheet(isPresented: $showAddTask) {
             TaskDetailView(
@@ -159,6 +173,59 @@ struct TasksView: View {
         .frame(maxWidth: .infinity)
         .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
+    }
+
+    /// v2 expanded 顶部切换条：胶囊式；「新增」呈橙色胶囊（替代吸底栏中的 + 圆钮）
+    private var todoTopTabBar: some View {
+        HStack(spacing: 8) {
+            ForEach(TodoTab.allCases, id: \.self) { tab in
+                Button {
+                    if tab.isAddButton {
+                        if selectedTab == .anniversary {
+                            NotificationCenter.default.post(name: .anniversaryRequestAdd, object: nil)
+                        } else {
+                            showAddTask = true
+                        }
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedTab = tab
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if tab.isAddButton {
+                            Image(systemName: "plus")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 12, weight: .medium))
+                            Text(tab.displayName)
+                                .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule().fill(
+                            tab.isAddButton
+                                ? Color.holoPrimary
+                                : (selectedTab == tab ? Color.holoPrimary.opacity(0.15) : Color.holoCardBackground)
+                        )
+                    )
+                    .foregroundColor(
+                        tab.isAddButton
+                            ? .white
+                            : (selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(Color.holoBackground)
     }
 
     /// 统一的 Tab 按钮

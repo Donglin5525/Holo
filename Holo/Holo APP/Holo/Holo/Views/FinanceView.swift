@@ -49,6 +49,12 @@ struct FinanceView: View {
     /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
+    /// 当前窗口宽度（v2 断点判断用）
+    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
+    private var isExpandedWidth: Bool {
+        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+    }
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: FinanceTab
@@ -134,9 +140,15 @@ struct FinanceView: View {
             selectedTab = .ledger
             searchTrigger += 1
         }
+        // v2：expanded 宽度 Tab 上移顶部（胶囊切换条），iPhone/窄屏保持吸底导航栏
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if evidenceReviewDeepLink == nil {
+            if !isExpandedWidth, evidenceReviewDeepLink == nil {
                 financeTabBarOnly
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if isExpandedWidth, evidenceReviewDeepLink == nil {
+                financeTopTabBar
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -230,7 +242,43 @@ struct FinanceView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.trailing, 20)
-        .padding(.bottom, 104) // 抬高到 88pt Tab 栏之上
+        // 吸底 Tab 栏在位时抬高避开（88pt）；顶部切换条形态（v2 expanded）贴底即可
+        .padding(.bottom, isExpandedWidth ? 24 : 104)
+    }
+
+    /// v2 expanded 顶部切换条：胶囊式，替代吸底导航栏
+    private var financeTopTabBar: some View {
+        HStack(spacing: 8) {
+            ForEach(FinanceTab.allCases, id: \.self) { tab in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(tab.displayName)
+                            .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule().fill(
+                            selectedTab == tab
+                                ? Color.holoPrimary.opacity(0.15)
+                                : Color.holoCardBackground
+                        )
+                    )
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(Color.holoBackground)
     }
 
     /// 单个 Tab 按钮

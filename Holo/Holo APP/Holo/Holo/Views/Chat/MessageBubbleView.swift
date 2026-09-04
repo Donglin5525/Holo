@@ -228,7 +228,16 @@ struct MessageBubbleView: View {
                 intentTag(intent)
             }
         }
-        .frame(maxWidth: isUser ? nil : .infinity, alignment: isUser ? .trailing : .leading)
+        // v2：AI 消息宽屏限宽（约 640pt），修复长段落一行拉满 720/通铺宽导致的阅读行长失控
+        .frame(maxWidth: bubbleMaxWidth, alignment: isUser ? .trailing : .leading)
+    }
+
+    /// 气泡最大宽度：用户气泡不设限（贴右）；AI 气泡手机保持原 .infinity 满行、
+    /// 宽屏限 640pt 保护阅读行长
+    @Environment(\.holoWindowWidth) private var bubbleWindowWidth
+    private var bubbleMaxWidth: CGFloat? {
+        if isUser { return nil }
+        return HoloAdaptiveLayout.isExpandedWidth(bubbleWindowWidth) ? 640 : .infinity
     }
 
     // MARK: - Avatars

@@ -39,8 +39,13 @@ struct WeeklyGridView: View {
     /// 三条横向内容（日期、凌晨、事件）共用同一手势位移，保证任何时刻都在同一列基线上。
     @GestureState private var pagerDragOffset: CGFloat = 0
 
-    /// 一屏显示的天数
-    private let dayCount = 3
+    /// 一屏显示的天数：v2 宽屏自适应——手机/窄屏 3 天，expanded 档 5 天，
+    /// 让 12.9 寸横屏真正「多看几天」而不是把 3 列拉宽。窗口策略（周首贴左/周尾贴右）
+    /// 按可见天数通用计算，天数变化无需其他改动。
+    @Environment(\.holoWindowWidth) private var weekWindowWidth
+    private var dayCount: Int {
+        HoloAdaptiveLayout.isExpandedWidth(weekWindowWidth) ? 5 : 3
+    }
     private let startHour = 0
     private let endHour = 23
     private let collapsedMorningHours = 0..<7

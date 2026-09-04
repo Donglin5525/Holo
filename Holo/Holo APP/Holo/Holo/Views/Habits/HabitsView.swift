@@ -39,6 +39,12 @@ struct HabitsView: View {
     /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
+    /// 当前窗口宽度（v2 断点判断用）
+    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
+    private var isExpandedWidth: Bool {
+        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+    }
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: HabitTab = .habits
@@ -77,8 +83,16 @@ struct HabitsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        // v2：expanded 宽度 Tab 上移顶部（胶囊切换条），iPhone/窄屏保持吸底导航栏
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            habitTabBar
+            if !isExpandedWidth {
+                habitTabBar
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if isExpandedWidth {
+                habitTopTabBar
+            }
         }
         .sheet(item: $addHabitDraft) { draft in
             AddHabitSheet(prefill: draft)
@@ -99,6 +113,44 @@ struct HabitsView: View {
     }
 
     // MARK: - 底部 Tab 栏
+
+    /// v2 expanded 顶部切换条：胶囊式，替代吸底导航栏
+    private var habitTopTabBar: some View {
+        HStack(spacing: 8) {
+            ForEach(HabitTab.allCases, id: \.self) { tab in
+                Button {
+                    if tab != selectedTab {
+                        previousTab = selectedTab
+                    }
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(tab.displayName)
+                            .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule().fill(
+                            selectedTab == tab
+                                ? Color.holoPrimary.opacity(0.15)
+                                : Color.holoCardBackground
+                        )
+                    )
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(Color.holoBackground)
+    }
 
     /// 底部导航栏：统计 / 习惯 / 设置
     /// 骨架层（ContentView）已限宽 720：iPad 上整条栏跟随内容列宽，iPhone 撑满
@@ -194,11 +246,23 @@ struct HabitListView: View {
     /// 待执行操作（在 onDismiss 中执行，确保 sheet 完全销毁后再操作 Core Data）
     @State private var pendingAction: PendingHabitAction? = nil
 
-    /// 磁贴墙两列
-    private let tileColumns = [
-        GridItem(.flexible(), spacing: HoloSpacing.md),
-        GridItem(.flexible(), spacing: HoloSpacing.md)
-    ]
+    /// 磁贴墙列数：v2 宽屏按可用宽度自适应（每块磁贴至少约 240pt，最多 4 列），
+    /// 窄屏/手机保持两列——修复 12.9 寸横屏下磁贴稀疏（空态 2+1 排布）的松散感
+    @Environment(\.holoWindowWidth) private var tileWindowWidth
+    private var tileColumns: [GridItem] {
+        let spacing = HoloSpacing.md
+        let width = tileWindowWidth ?? 0
+        guard width >= HoloAdaptiveLayout.expandedWidthThreshold else {
+            return [
+                GridItem(.flexible(), spacing: spacing),
+                GridItem(.flexible(), spacing: spacing)
+            ]
+        }
+        // 可用宽 ≈ 窗口 - 侧边栏(232) - 内容左右边距(48)
+        let available = width - HoloAdaptiveLayout.sidebarWidth - 48
+        let count = max(2, min(4, Int(available / 240)))
+        return Array(repeating: GridItem(.flexible(), spacing: spacing), count: count)
+    }
 
     // MARK: - Body
 

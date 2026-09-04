@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>iPad v2 设计稿④ · 财务统计仪表盘</title>
+<style>
+  :root{
+    --brand:#F46D38; --brand-deep:#EA580C;
+    --screen:#1C1C1E; --card:#2C2C2E; --card2:#353538;
+    --text:#F5F5F5; --text2:#98989F; --text3:#6A6A70;
+    --line:rgba(255,255,255,.07);
+    --green:#22C55E; --red:#EF4444; --blue:#3B82F6; --yellow:#EAB308; --purple:#8B5CF6; --teal:#14B8A6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;display:flex;height:100vh;overflow:hidden;background:#ECEDEF;color:#1F2328;}
+
+  .notes{width:430px;min-width:430px;height:100vh;overflow-y:auto;background:#FAFAFB;border-right:1px solid #E3E4E7;padding:34px 32px 60px;}
+  .notes h1{font-size:21px;font-weight:700;}
+  .notes .sub{font-size:12.5px;color:#878E98;margin-top:6px;line-height:1.6;}
+  .notes .how{margin-top:16px;padding:11px 14px;background:#FFF3EB;border:1px solid #F6D9C4;border-radius:12px;font-size:12.5px;line-height:1.7;color:#9A4B12;}
+  .notes section{margin-top:28px;}
+  .notes h2{font-size:14.5px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .notes h2 .no{width:20px;height:20px;border-radius:6px;background:var(--brand);color:#fff;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;}
+  .decision{background:#fff;border:1px solid #EDEEF0;border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+  .decision .q{font-size:13px;font-weight:600;margin-bottom:5px;}
+  .decision .q .pin-no{display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--brand);color:#fff;font-size:10.5px;align-items:center;justify-content:center;margin-right:6px;vertical-align:2px;}
+  .decision .a{font-size:12.5px;line-height:1.7;color:#4B525C;}
+  .decision .a b{color:var(--brand-deep);font-weight:600;}
+  .notes .keep{font-size:12.5px;line-height:1.8;color:#3C424B;background:#fff;border:1px solid #EDEEF0;border-radius:12px;padding:12px 14px;}
+  .notes .footnote{font-size:11.5px;color:#B4BAC3;line-height:1.7;margin-top:24px;padding-top:16px;border-top:1px dashed #DDDFE3;}
+
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;background:#17171A;overflow:auto;padding:24px;}
+  .device{width:1093px;height:820px;background:#0B0B0C;border-radius:38px;border:9px solid #1B1D21;box-shadow:0 30px 80px rgba(0,0,0,.5), inset 0 0 0 2px #3A3D43;position:relative;overflow:hidden;flex-shrink:0;}
+  .pin{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(244,109,56,.22);z-index:60;}
+
+  .screen{width:100%;height:100%;background:var(--screen);display:flex;}
+  .sidebar{width:172px;background:#151517;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 9px 12px;flex-shrink:0;}
+  .sb-brand{font-size:15px;font-weight:800;color:var(--text);padding:0 8px;}
+  .sb-brand i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--brand);margin-left:5px;}
+  .sb-item{display:flex;align-items:center;gap:8px;padding:6.5px 8px;border-radius:8px;font-size:11.5px;color:var(--text2);margin-top:2px;}
+  .sb-item svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+  .sb-item.active{background:linear-gradient(90deg,rgba(244,109,56,.22),rgba(244,109,56,.10));color:#fff;}
+  .sb-item.active svg{stroke:var(--brand);}
+  .sb-cta{margin-top:auto;background:linear-gradient(135deg,var(--brand),var(--brand-deep));border-radius:9px;color:#fff;font-size:11.5px;font-weight:600;text-align:center;padding:8px 0;}
+
+  .content{flex:1;display:flex;flex-direction:column;padding:20px 28px;overflow:hidden;position:relative;}
+  .top{display:flex;align-items:center;gap:14px;position:relative;}
+  .seg{display:flex;background:var(--card2);border-radius:10px;padding:3px;}
+  .seg span{font-size:12px;color:var(--text2);padding:6px 18px;border-radius:8px;}
+  .seg span.on{background:rgba(244,109,56,.9);color:#fff;font-weight:600;}
+  .periods{margin-left:auto;display:flex;gap:6px;}
+  .periods span{font-size:11.5px;color:var(--text2);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 14px;}
+  .periods span.on{background:rgba(244,109,56,.16);border-color:rgba(244,109,56,.45);color:#FFB48E;font-weight:600;}
+
+  .grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:auto 1fr auto;gap:14px;margin-top:16px;min-height:0;}
+  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;min-height:0;}
+  .card .t{font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between;}
+  .card .t .delta{font-size:10.5px;font-weight:600;}
+  .up{color:var(--red);} .down{color:var(--green);}
+  .stat .v{font-size:24px;font-weight:800;color:var(--text);margin-top:8px;}
+  .stat .v small{font-size:12px;color:var(--text3);font-weight:400;}
+  .stat .sub{font-size:10.5px;color:var(--text3);margin-top:4px;}
+
+  .trend{grid-column:span 2;display:flex;flex-direction:column;}
+  .bars{flex:1;display:flex;align-items:flex-end;gap:16px;margin-top:14px;padding:4px 6px 0;}
+  .bgroup{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;}
+  .bpairs{display:flex;gap:4px;align-items:flex-end;height:100%;width:100%;justify-content:center;}
+  .b{width:13px;border-radius:4px 4px 2px 2px;}
+  .b.in{background:linear-gradient(180deg,#4ADE80,#22C55E);}
+  .b.out{background:linear-gradient(180deg,#FB923C,#F46D38);}
+  .bl{font-size:10px;color:var(--text3);}
+  .legend{display:flex;gap:14px;font-size:10.5px;color:var(--text2);margin-top:10px;}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0;}
+
+  .toplist .row{display:flex;align-items:center;gap:10px;margin-top:11px;}
+  .toplist .dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+  .toplist .nm{font-size:12px;color:var(--text);width:44px;flex-shrink:0;}
+  .toplist .bar{flex:1;height:6px;border-radius:99px;background:var(--card2);}
+  .toplist .bar i{display:block;height:100%;border-radius:99px;}
+  .toplist .amt{font-size:11px;color:var(--text2);width:56px;text-align:right;flex-shrink:0;}
+
+  .donut{display:flex;align-items:center;gap:16px;}
+  .ring{width:118px;height:118px;border-radius:50%;flex-shrink:0;
+    background:conic-gradient(var(--brand) 0 42%, var(--blue) 42% 65%, var(--yellow) 65% 80%, var(--purple) 80% 92%, var(--card2) 92% 100%);position:relative;}
+  .ring::after{content:"";position:absolute;inset:26px;border-radius:50%;background:var(--card);}
+  .ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;}
+  .ring .c b{font-size:15px;color:var(--text);} .ring .c span{font-size:9.5px;color:var(--text3);}
+  .dlegend{flex:1;display:flex;flex-direction:column;gap:7px;font-size:11px;color:var(--text2);}
+  .dlegend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;}
+  .dlegend .pct{margin-left:auto;color:var(--text3);}
+
+  .budget .big{display:flex;align-items:baseline;gap:8px;margin-top:8px;}
+  .budget .big b{font-size:20px;color:var(--text);}
+  .budget .big span{font-size:11px;color:var(--text3);}
+  .fbar{height:8px;border-radius:99px;background:var(--card2);margin-top:9px;overflow:hidden;}
+  .fbar i{display:block;height:100%;width:68%;border-radius:99px;background:linear-gradient(90deg,var(--brand),#F9A26C);}
+  .budget .mini{display:flex;gap:8px;margin-top:12px;}
+  .budget .mi{flex:1;font-size:10px;color:var(--text3);}
+  .budget .mi .mb{height:5px;border-radius:99px;background:var(--card2);margin-top:5px;overflow:hidden;}
+  .budget .mi .mb i{display:block;height:100%;border-radius:99px;}
+
+  .fab{position:absolute;right:30px;bottom:26px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand-deep));box-shadow:0 12px 30px rgba(244,109,56,.45);display:flex;align-items:center;justify-content:center;}
+</style>
+</head>
+<body>
+
+<div class="notes">
+  <h1>iPad 适配 v2 · 设计稿④</h1>
+  <p class="sub">财务 · 统计页仪表盘 · 12.9 寸横屏 · 深色模式<br>2026-09-05 · 阶段 4 第一批</p>
+  <div class="how">现状：统计页是「总览/明细/对比」三个单列页面，一张图 720×200 拉得又扁又长，汇总卡、趋势、TOP3 上下排，看全貌要滚三屏。本稿改为<b>一屏仪表盘</b>。</div>
+
+  <section>
+    <h2><span class="no">4</span>本稿拍板点</h2>
+    <div class="decision"><div class="q"><span class="pin-no">1</span>五个子页上移顶部切换</div>
+      <div class="a">底部「账本/统计/账户/预算/设置」小标签栏取消，改为顶部分段切换（如稿）。<b>账本页本身不变</b>：周历、左右滑切日期等手势全保留。</div></div>
+    <div class="decision"><div class="q"><span class="pin-no">2</span>统计页改为一屏仪表盘</div>
+      <div class="a">推荐组合与排序：<b>汇总三卡（收入/支出/结余）→ 趋势 + 分类 TOP → 构成 + 预算 + 环比</b>。原「总览/明细/对比」三个 tab 的内容全部并入，不再分页。</div></div>
+    <div class="decision"><div class="q"><span class="pin-no">3</span>图表高度随宽度分档</div>
+      <div class="a">趋势图 12.9 横屏高约 <b>260pt</b>（现在写死 200pt 被拉扁），11 寸 220pt，手机不变。饼图/折线同理分档。</div></div>
+    <div class="decision"><div class="q"><span class="pin-no">4</span>周期切换器放顶部右侧</div>
+      <div class="a">周 / 月 / 年切换从图表上方的小控件改为顶部工具行右侧，切换全局生效（三张汇总卡与所有图表联动）。</div></div>
+    <div class="decision"><div class="q"><span class="pin-no">5</span>账本页宽屏双栏——可选加项</div>
+      <div class="a">备选：宽屏下账本页「月历在左、流水在右」并排。默认<b>不做</b>（保持纵滑翻日习惯，改动面小）；你点头就加进第一批。</div></div>
+  </section>
+
+  <section>
+    <h2>保持不变</h2>
+    <div class="keep">记账流程、账户页、预算设置、CSV 导入等均不变；图表配色沿用现行 12 色系统；右下记账 FAB 保留。</div>
+  </section>
+
+  <p class="footnote">示意数据为虚构。明细 tab 的分类折线、对比 tab 的柱状对比并入仪表盘相应卡片；细节以实现后截图验收为准。</p>
+</div>
+
+<div class="stage">
+  <div class="device">
+    <div class="screen">
+      <div class="sidebar">
+        <div class="sb-brand">Holo<i></i></div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>今天</div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.2c-.7.6-1 1.4-1 2.3H9c0-.9-.3-1.7-1-2.3A6 6 0 0 1 12 3z"/></svg>想法</div>
+        <div class="sb-item active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 8l3 4 3-4M12 12v5M9.5 13.5h5M9.5 16h5"/></svg>财务</div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>任务</div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><path d="M17 2.5l3.5 3.5L17 9.5M3.5 12v-1.5a4 4 0 0 1 4-4H20M7 21.5L3.5 18 7 14.5M20.5 12v1.5a4 4 0 0 1-4 4H4"/></svg>习惯</div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/></svg>记忆长廊</div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.9c0 5.4-7.5 10-7.5 10z"/></svg>健康</div>
+        <div class="sb-item"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.8L18.5 9.5l-4.6 1.7L12 16l-1.9-4.8L5.5 9.5l4.6-1.7L12 3z"/></svg>AI 对话</div>
+        <div class="sb-cta">＋ 快速记录</div>
+      </div>
+
+      <div class="content">
+        <div class="top">
+          <div class="seg"><span>账本</span><span class="on">统计</span><span>账户</span><span>预算</span><span>设置</span></div>
+          <div class="pin" style="left:344px;top:-8px;">1</div>
+          <div class="periods"><span>本周</span><span class="on">本月</span><span>本年</span></div>
+          <div class="pin" style="right:0;top:0;">4</div>
+        </div>
+
+        <div class="grid">
+          <!-- 汇总三卡 -->
+          <div class="card stat"><div class="t">收入<span class="delta up">↑ 8.2%</span></div><div class="v">¥12,480</div><div class="sub">含报销入账 ¥1,200</div></div>
+          <div class="card stat"><div class="t">支出<span class="delta down">↓ 3.1%</span></div><div class="v">¥8,920</div><div class="sub">日均 ¥297</div></div>
+          <div class="card stat"><div class="t">结余<span class="delta down">↑ 21.4%</span></div><div class="v">¥3,560</div><div class="sub">储蓄率 28.5%</div></div>
+
+          <!-- 趋势 -->
+          <div class="card trend">
+            <div class="t">收支趋势 · 近 6 个月</div>
+            <div class="bars">
+              <div class="bgroup"><div class="bpairs"><div class="b in" style="height:52%"></div><div class="b out" style="height:38%"></div></div><span class="bl">4月</span></div>
+              <div class="bgroup"><div class="bpairs"><div class="b in" style="height:60%"></div><div class="b out" style="height:44%"></div></div><span class="bl">5月</span></div>
+              <div class="bgroup"><div class="bpairs"><div class="b in" style="height:48%"></div><div class="b out" style="height:56%"></div></div><span class="bl">6月</span></div>
+              <div class="bgroup"><div class="bpairs"><div class="b in" style="height:70%"></div><div class="b out" style="height:40%"></div></div><span class="bl">7月</span></div>
+              <div class="bgroup"><div class="bpairs"><div class="b in" style="height:64%"></div><div class="b out" style="height:50%"></div></div><span class="bl">8月</span></div>
+              <div class="bgroup"><div class="bpairs"><div class="b in" style="height:76%"></div><div class="b out" style="height:54%"></div></div><span class="bl">9月</span></div>
+            </div>
+            <div class="legend"><span><i style="background:#22C55E"></i>收入</span><span><i style="background:#F46D38"></i>支出</span><span style="margin-left:auto;color:var(--text3);">点按查看当日明细</span></div>
+            <div class="pin" style="right:10px;top:38%;">3</div>
+          </div>
+
+          <!-- TOP 榜 -->
+          <div class="card toplist">
+            <div class="t">分类 TOP</div>
+            <div class="row"><span class="dot" style="background:var(--brand)"></span><span class="nm">餐饮</span><div class="bar"><i style="width:86%;background:var(--brand)"></i></div><span class="amt">¥2,340</span></div>
+            <div class="row"><span class="dot" style="background:var(--blue)"></span><span class="nm">购物</span><div class="bar"><i style="width:62%;background:var(--blue)"></i></div><span class="amt">¥1,690</span></div>
+            <div class="row"><span class="dot" style="background:var(--yellow)"></span><span class="nm">交通</span><div class="bar"><i style="width:44%;background:var(--yellow)"></i></div><span class="amt">¥1,210</span></div>
+            <div class="row"><span class="dot" style="background:var(--purple)"></span><span class="nm">娱乐</span><div class="bar"><i style="width:30%;background:var(--purple)"></i></div><span class="amt">¥820</span></div>
+            <div class="row"><span class="dot" style="background:var(--teal)"></span><span class="nm">居住</span><div class="bar"><i style="width:22%;background:var(--teal)"></i></div><span class="amt">¥600</span></div>
+            <div class="pin" style="right:10px;top:6px;">2</div>
+          </div>
+
+          <!-- 构成 -->
+          <div class="card">
+            <div class="t">支出构成</div>
+            <div class="donut" style="margin-top:10px;">
+              <div class="ring"><div class="c"><b>¥8,920</b><span>本月支出</span></div></div>
+              <div class="dlegend">
+                <span><i style="background:var(--brand)"></i>餐饮<span class="pct">42%</span></span>
+                <span><i style="background:var(--blue)"></i>购物<span class="pct">23%</span></span>
+                <span><i style="background:var(--yellow)"></i>交通<span class="pct">15%</span></span>
+                <span><i style="background:var(--purple)"></i>娱乐<span class="pct">12%</span></span>
+                <span><i style="background:var(--card2)"></i>其他<span class="pct">8%</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 预算 -->
+          <div class="card budget">
+            <div class="t">预算</div>
+            <div class="big"><b>¥2,040</b><span>/ ¥3,000 · 剩 12 天</span></div>
+            <div class="fbar"><i></i></div>
+            <div class="mini">
+              <div class="mi">餐饮<div class="mb"><i style="width:78%;background:var(--brand)"></i></div></div>
+              <div class="mi">购物<div class="mb"><i style="width:56%;background:var(--blue)"></i></div></div>
+              <div class="mi">交通<div class="mb"><i style="width:40%;background:var(--yellow)"></i></div></div>
+            </div>
+          </div>
+
+          <!-- 环比 -->
+          <div class="card">
+            <div class="t">对比上月</div>
+            <div style="margin-top:12px;font-size:12px;color:var(--text2);line-height:2;">
+              支出 <b style="color:var(--green)">↓ 3.1%</b>，省下 ¥286<br>
+              餐饮 ↑ 6%（夜宵变多）<br>
+              购物 ↓ 18%（克制住了）<br>
+              <span style="color:var(--text3);font-size:11px;">一句话总结由 AI 生成 ›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="fab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="pin" style="right:16px;bottom:88px;">5</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
