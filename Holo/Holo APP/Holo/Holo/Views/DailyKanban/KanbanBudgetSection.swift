@@ -232,7 +232,7 @@ struct KanbanBudgetSection: View {
             let start = calendar.startOfDay(for: Date())
             let end = calendar.date(byAdding: .day, value: 1, to: start) ?? Date()
             do {
-                let transactions = try await FinanceRepository.shared.getTransactions(from: start, to: end)
+                let transactions = try await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end)
                 todayExpense = transactions
                     .filter { transaction in
                         transaction.transactionType == .expense

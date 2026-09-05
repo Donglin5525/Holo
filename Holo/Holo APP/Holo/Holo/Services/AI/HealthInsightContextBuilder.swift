@@ -124,7 +124,7 @@ struct HoloHealthInsightDataSource: HealthInsightDataSource {
 
     @MainActor
     private static func extractExpenseRecords(from start: Date, to end: Date) async -> [HealthInsightFinanceRecord] {
-        guard let txs = try? await FinanceRepository.shared.getTransactions(from: start, to: end) else {
+        guard let txs = try? await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end) else {
             return []
         }
         return txs.filter { $0.transactionType == .expense }.map { tx in
