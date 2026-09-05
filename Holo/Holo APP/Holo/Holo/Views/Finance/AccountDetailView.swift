@@ -58,14 +58,14 @@ struct AccountDetailView: View {
                     creditCardStatementCard
                 }
 
+                // 本月收支：核心回顾信息，排在管理工具（预算）之前
+                monthlyStatsCard
+
                 // 月度预算卡片
                 budgetCard
 
                 // 分类预算列表
                 categoryBudgetSection
-
-                // 月度统计
-                monthlyStatsCard
 
                 // 交易历史
                 transactionListSection
@@ -294,45 +294,55 @@ struct AccountDetailView: View {
 
     // MARK: - Account Header
 
-    /// 对账状态行：余额的可信度说明，点击进入对账
+    /// 对账状态条：日常灰色邀请（不说教）、对平绿色正反馈、基准变动红色警示；整行可点进对账
     @ViewBuilder
     private var reconciliationStatusRow: some View {
-        let status = reconciliationStatus
         Button {
             showAdjustBalance = true
         } label: {
-            HStack(spacing: HoloSpacing.xs) {
-                switch status {
+            HStack(spacing: 6) {
+                switch reconciliationStatus {
                 case .neverReconciled:
                     Image(systemName: "checkmark.seal")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
-                    Text("建议对账：与银行 App 核对一次，余额更可信")
+                    Text("尚未对账")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
+                    Text(verbatim: "·")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPlaceholder)
+                    Text("点此核对余额")
+                        .font(.holoCaption.weight(.medium))
+                        .foregroundColor(.holoPrimary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoTextPlaceholder)
                 case .reconciled:
                     Image(systemName: "checkmark.seal.fill")
                         .font(.holoCaption)
                         .foregroundColor(.holoSuccess)
-                    Text("已对平 · \(relativeDays(status))")
+                    Text("已对平 · \(relativeDays(reconciliationStatus))")
                         .font(.holoCaption)
                         .foregroundColor(.holoSuccess)
                 case .reconciledWithActivity:
                     Image(systemName: "checkmark.seal.fill")
                         .font(.holoCaption)
                         .foregroundColor(.holoSuccess)
-                    Text("已对平 · \(relativeDays(status)) · 此后 \(statusCountLabel) 笔")
+                    Text("已对平 · \(relativeDays(reconciliationStatus)) · 此后 \(statusCountLabel) 笔")
                         .font(.holoCaption)
                         .foregroundColor(.holoSuccess)
                 case .broken:
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.holoCaption)
                         .foregroundColor(.holoError)
-                    Text("对账基准已变动，建议重新对账")
+                    Text("账目有变动，建议重新对账")
                         .font(.holoCaption)
                         .foregroundColor(.holoError)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -362,28 +372,24 @@ struct AccountDetailView: View {
         }
     }
 
+    /// 余额卡：身份行 + 大字余额 + 对账状态条（通栏），不再放大标题（与导航栏重复）
     private var accountHeader: some View {
-        VStack(spacing: HoloSpacing.md) {
-            ZStack {
-                Circle()
-                    .fill(account.swiftUIColor.opacity(0.1))
-                    .frame(width: 64, height: 64)
-                Image(systemName: account.icon)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundColor(account.swiftUIColor)
-            }
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(account.swiftUIColor.opacity(0.1))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: account.icon)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(account.swiftUIColor)
+                }
 
-            Text(account.name)
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                Text(account.name)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
 
-            Text(formatAmount(balance))
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
-
-            reconciliationStatusRow
-
-            HStack(spacing: HoloSpacing.sm) {
                 Text(account.accountType.displayName)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
@@ -401,10 +407,23 @@ struct AccountDetailView: View {
                         .background(Color.holoPrimary.opacity(0.1))
                         .clipShape(Capsule())
                 }
+
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, HoloSpacing.lg)
+
+            Text(formatAmount(balance))
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
+                .padding(.top, HoloSpacing.sm)
+                .padding(.bottom, HoloSpacing.md)
+
+            Divider()
+
+            reconciliationStatusRow
         }
         .frame(maxWidth: .infinity)
-        .padding(HoloSpacing.lg)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
@@ -811,7 +830,7 @@ struct AccountDetailView: View {
 
     private var monthlyStatsCard: some View {
         VStack(spacing: HoloSpacing.md) {
-            Text("本期统计")
+            Text("本月收支")
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
