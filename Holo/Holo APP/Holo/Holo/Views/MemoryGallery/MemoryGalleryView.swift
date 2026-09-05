@@ -61,6 +61,7 @@ struct MemoryGalleryView: View {
                 // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
                 tabContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .holoContentColumn(paintsBackground: false)
             }
             // iPad 限宽必须挂在内容层自身：外层包裹（HomeView 常驻出口）会被上面
             // ignoresSafeArea 的背景层撑回全屏宽（背景理想宽度=安全区，不吃 720 提议），
