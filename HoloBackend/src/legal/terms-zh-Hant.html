@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>    :root {
+        --bg: #ffffff;
+        --fg: #1a1a1a;
+        --muted: #666666;
+        --accent: #007AFF;
+        --border: #e5e5e5;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #1c1c1e;
+            --fg: #f5f5f7;
+            --muted: #a1a1a6;
+            --accent: #0a84ff;
+            --border: #38383a;
+        }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        /*
+         * 先指定 iOS 的中文字体，避免 WKWebView 在模拟器或未配置系统字体时
+         * 优先选到不含中文字形的拉丁字体，导致法律正文显示为方框。
+         */
+        font-family: "PingFang SC", "Hiragino Sans GB", "Heiti SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.7;
+        padding: 20px 16px;
+    }
+    h1 { font-size: 1.6em; margin-bottom: 8px; }
+    h2 { font-size: 1.2em; margin-top: 28px; margin-bottom: 10px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    h3 { font-size: 1.05em; margin-top: 18px; margin-bottom: 6px; }
+    p { margin-bottom: 10px; }
+    .meta { color: var(--muted); font-size: 0.9em; margin-bottom: 20px; }
+    ul, ol { padding-left: 20px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    th { background: var(--accent); color: #fff; }
+    a { color: var(--accent); }
+    .highlight { background: rgba(0, 122, 255, 0.08); border-radius: 6px; padding: 10px 14px; margin: 12px 0; }
+    .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85em; }</style>
+</head>
+<body>
+
+<h1>Holo 使用者協議</h1>
+<p class="meta">最後更新日期：2026 年 8 月 13 日<br>生效日期：2026 年 8 月 13 日</p>
+
+<p>歡迎使用 Holo 應用（以下簡稱"本應用"）。在使用本應用之前，請仔細閱讀以下條款。下載、安裝或使用本應用即表示您同意受本協議的約束。</p>
+
+<h2>一、協議的範圍</h2>
+<p>本協議是您（以下簡稱"使用者"）與本應用開發者之間關於使用 Holo 應用的法律協議。本協議適用於 Holo iOS 應用的所有功能。</p>
+
+<h2>二、帳戶與登入</h2>
+<ol>
+    <li>本應用透過"Sign in with Apple"服務進行使用者身份認證。</li>
+    <li>使用者應妥善保管自己的 Apple ID 憑證，因帳戶保管不善導致的損失由使用者自行承擔。</li>
+    <li>使用者可隨時在應用設定中選擇刪除帳號及相關資料。刪除操作不可恢復。</li>
+</ol>
+
+<h2>三、服務內容</h2>
+<ol>
+    <li><strong>核心功能</strong>：本應用提供個人資料管理工具，包括財務記錄、習慣追蹤、待辦管理、健康資料展示和想法記錄等。</li>
+    <li><strong>AI 功能</strong>：本應用提供基於人工智慧的資料分析和智慧建議。AI 生成的內容僅供參考，不構成專業建議。</li>
+    <li><strong>資料儲存</strong>：使用者資料主要儲存在使用者裝置本地，可透過 iCloud 在使用者自己的裝置間同步。</li>
+    <li>開發者保留在提前通知使用者的情況下修改、暫停或終止部分服務功能的權利。</li>
+</ol>
+
+<h2>四、使用者行為規範</h2>
+<p>使用者在使用本應用時，不得：</p>
+<ul>
+    <li>利用本應用從事任何違反法律法規的活動；</li>
+    <li>透過技術手段破解、修改或逆向工程本應用；</li>
+    <li>利用 AI 功能生成違法、有害、不實或侵犯他人權益的內容；</li>
+    <li>干擾或破壞應用的正常運營。</li>
+</ul>
+
+<h2>五、智慧財產權</h2>
+<ol>
+    <li>本應用的介面設計、程式碼、圖示等所有內容的智慧財產權歸開發者所有。</li>
+    <li>使用者在本應用中建立的資料的智慧財產權歸使用者所有。</li>
+</ol>
+
+<h2>六、免責宣告</h2>
+
+<div class="highlight">
+    <strong>重要提示：</strong>本應用提供的 AI 分析和建議僅供參考，不構成任何專業建議（包括財務、醫療、法律建議）。使用者應自行判斷並承擔使用 AI 生成內容的全部風險。
+</div>
+
+<ol>
+    <li><strong>AI 內容</strong>：AI 生成的內容可能存在不準確或不完整的情況，不應作為決策的唯一依據。</li>
+    <li><strong>健康資料</strong>：本應用展示的健康資料來源於 Apple HealthKit，僅供個人參考。如有健康問題，請諮詢專業醫療人員。</li>
+    <li><strong>財務資料</strong>：本應用僅提供記帳工具，不提供財務規劃或投資建議。</li>
+    <li><strong>資料安全</strong>：雖然本應用採用業界標準的安全措施，但任何網際網路傳輸和電子儲存都無法保證絕對安全。</li>
+</ol>
+
+<h2>七、資料與隱私</h2>
+<p>關於資料的收集、使用、儲存和共享，請參閱本應用的《隱私政策》。隱私政策是本協議不可分割的一部分。</p>
+
+<h2>八、協議的變更</h2>
+<ol>
+    <li>開發者保留隨時修改本協議的權利。</li>
+    <li>重大變更將透過應用內通知告知使用者。</li>
+    <li>使用者在協議變更後繼續使用本應用，即視為同意修改後的協議。</li>
+</ol>
+
+<h2>九、終止</h2>
+<ol>
+    <li>使用者可隨時停止使用本應用並透過應用設定刪除帳號。</li>
+    <li>如使用者嚴重違反本協議，開發者有權終止向該使用者提供服務。</li>
+</ol>
+
+<h2>十、適用法律與爭議解決</h2>
+<ol>
+    <li>本協議適用中華人民共和國法律。</li>
+    <li>因本協議產生的爭議，雙方應首先透過友好協商解決。協商不成的，任何一方可向開發者所在地有管轄權的人民法院提起訴訟。</li>
+</ol>
+
+<h2>十一、聯絡方式</h2>
+<ul>
+    <li>郵箱：<a href="mailto:support@holoapp.cn">support@holoapp.cn</a></li>
+    <li>網站：https://holoapp.cn</li>
+</ul>
+
+<div class="footer">
+    <p>© 2026 Holo. 保留所有權利。</p>
+</div>
+
+</body>
+</html>

@@ -20,6 +20,15 @@ export function createMockChatProvider() {
       if (request.purpose === "agent_loop") {
         return mockAgentLoopCompletion(request);
       }
+      if (request.purpose === "thought_organize_a") {
+        return mockThoughtOrganizeACompletion(request);
+      }
+      if (request.purpose === "thought_organize_r") {
+        return mockThoughtOrganizeRCompletion(request);
+      }
+      if (request.purpose === "thought_organize_b") {
+        return mockThoughtOrganizeBCompletion(request);
+      }
 
       return {
         id: "mock-chat-completion",
@@ -64,6 +73,81 @@ export function createMockChatProvider() {
 function lastUserMessage(messages) {
   const message = messages.findLast((item) => item.role === "user");
   return message?.content ?? "";
+}
+
+/**
+ * 想法整理 V2 确定性 mock（开发/测试联调用，无真实语义）：
+ * A 取正文首个 #标签 或前 6 字为概念，quote 逐字取自原文；
+ * B 按名称/别名精确匹配复用已有词条，否则提出新概念。
+ * mock 环境的隐私闸门在端点层放行（PRIVACY_ROUTE_UNVERIFIED 不拦 mock）。
+ */
+function mockThoughtOrganizeACompletion(request) {
+  const text = lastUserMessage(request.messages);
+  const hashMatch = text.match(/#([^\s#]{1,32})/);
+  let surface;
+  let quote;
+  if (hashMatch) {
+    surface = hashMatch[1];
+    quote = hashMatch[0].slice(1);
+  } else {
+    surface = text.slice(0, 6);
+    quote = surface;
+  }
+  const anchors = surface ? [{
+    surface,
+    meaning: "mock 概念边界",
+    quote,
+    priority: "primary",
+  }] : [];
+  return completionWithContent(request, JSON.stringify({ anchors }));
+}
+
+function mockThoughtOrganizeRCompletion(request) {
+  const payload = JSON.parse(lastUserMessage(request.messages) || "{}");
+  const refs = (payload.catalog ?? []).slice(0, 12).map((entry) => entry.ref);
+  return completionWithContent(request, JSON.stringify({ refs }));
+}
+
+function mockThoughtOrganizeBCompletion(request) {
+  const payload = JSON.parse(lastUserMessage(request.messages) || "{}");
+  const anchors = payload.anchors ?? [];
+  const catalog = payload.catalog ?? [];
+  const blockedNames = new Set((payload.blockedNames ?? []).map((name) => name.toLowerCase()));
+  const blockedRefs = new Set(payload.blockedRefs ?? []);
+  const assignments = [];
+  for (const anchor of anchors.slice(0, 2)) {
+    const normalized = anchor.surface.toLowerCase();
+    if (blockedNames.has(normalized)) continue;
+    const hit = catalog.find((entry) =>
+      entry.name.toLowerCase() === normalized
+      || (entry.aliases ?? []).some((alias) => alias.toLowerCase() === normalized));
+    if (hit && !blockedRefs.has(hit.ref)) {
+      assignments.push({
+        anchorRef: anchors.indexOf(anchor),
+        existingRef: hit.ref,
+        relation: "equivalent",
+        quote: anchor.quote,
+      });
+    } else if (!hit) {
+      assignments.push({
+        anchorRef: anchors.indexOf(anchor),
+        newConcept: { name: anchor.surface, definition: "mock 概念边界" },
+        relation: "equivalent",
+        quote: anchor.quote,
+      });
+    }
+  }
+  return completionWithContent(request, JSON.stringify({ assignments }));
+}
+
+function completionWithContent(request, content) {
+  return {
+    id: "mock-chat-completion",
+    provider: "mock",
+    model: request.model,
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 },
+  };
 }
 
 function mockIntentCompletion(request) {

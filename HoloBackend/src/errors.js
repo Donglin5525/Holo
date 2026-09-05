@@ -81,6 +81,14 @@ export function publicMessage(code) {
     TRUNCATED_MODEL_RESPONSE: "模型返回内容不完整，请稍后重试",
     INVALID_INSIGHT_JSON: "模型返回格式异常，请稍后重试",
 
+    // 想法自动整理 V2
+    THOUGHT_ORGANIZE_DISABLED: "自动整理暂未开放",
+    PRIVACY_ROUTE_UNVERIFIED: "该功能正在配置中，暂时不可用",
+    INPUT_TOO_LARGE: "这条内容过长，暂时无法自动整理",
+    OPERATION_IN_PROGRESS: "这条想法正在整理中，请稍候",
+    BUDGET_EXCEEDED: "今天的自动整理额度已用完，明天会自动恢复",
+    MODEL_OUTPUT_INVALID: "整理结果异常，稍后会自动重试",
+
     // 兜底
     INTERNAL_ERROR: "服务暂时不可用，请稍后重试",
   };

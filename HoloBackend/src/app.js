@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
@@ -41,8 +42,23 @@ import { createCloudAnalysisExecutor } from "./agent/cloudAnalysisExecutor.js";
 import { createDeviceTokenStore } from "./push/deviceTokenStore.js";
 import { createApnsSender } from "./push/apnsSender.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
+import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
+import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
+import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
+
+// 想法正文类 purpose（隐私方案 §2.5）：调用方只向日志组件传元数据摘要，
+// 不把 messages/正文传进去；adminLogStore 另有 purpose 级强制白名单双保险。
+const THOUGHT_CONTENT_PURPOSES = new Set([
+  "thought_organization",
+  "thought_tag_convergence",
+  "thought_task_extraction",
+  "thought_voice_summary",
+  "thought_organize_a",
+  "thought_organize_r",
+  "thought_organize_b",
+]);
 
 // 对客户端仍是普通 JSON 响应；网关到上游内部改用流式拉取，
 // 避免长结构化任务在首字节前被 30s 网络空闲墙切断。
@@ -264,6 +280,19 @@ export function createApp(overrides = {}) {
   const contentModeration =
     config.contentModeration ?? createContentModerationService(config.moderation);
 
+  // 想法自动整理 V2：费用台账 + A/R/B 编排服务（无状态，不进持久化任务库）。
+  // recoverStale 把崩溃残留的悬挂预留按上界转入已消耗，防止预算泄漏。
+  const thoughtOrganizeBudgetStore =
+    config.thoughtOrganizeBudgetStore ?? createThoughtOrganizeBudgetStore(database.db);
+  thoughtOrganizeBudgetStore.recoverStale();
+  const thoughtOrganizeService = createThoughtOrganizeService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
   app.use('*', requestLogger.middleware);
@@ -298,6 +327,44 @@ export function createApp(overrides = {}) {
       service: "holo-ai-gateway",
     });
   });
+
+  // 公网法律文档页（App Store 审核与用户浏览器入口；内容与 App 内
+  // LegalDocumentSheet 同源，更新法务文案时两处同步改）
+  const legalDoc = (kind) => (context) => {
+    const fallback = "en";
+    let lang = context.req.query("lang");
+    if (!lang) {
+      const accept = String(context.req.header("accept-language") ?? "").toLowerCase();
+      if (/zh-(tw|hk|hant|hmo?|mo)/.test(accept)) {
+        lang = "zh-Hant";
+      } else if (/^zh|,zh/.test(accept)) {
+        lang = "zh-Hans";
+      } else if (/^en/.test(accept)) {
+        lang = "en";
+      } else {
+        lang = fallback;
+      }
+    }
+    const known = ["zh-Hans", "zh-Hant", "en"];
+    const resolved = known.includes(lang) ? lang : fallback;
+    context.header("Content-Type", "text/html; charset=utf-8");
+    context.header("Cache-Control", "public, max-age=3600");
+    try {
+      return context.body(legalDocCache[`${kind}-${resolved}`] ?? "");
+    } catch {
+      return context.text("Document unavailable", 503);
+    }
+  };
+  const legalDocCache = {
+    "privacy-zh-Hans": readFileSync(new URL("./legal/privacy-zh-Hans.html", import.meta.url), "utf8"),
+    "privacy-zh-Hant": readFileSync(new URL("./legal/privacy-zh-Hant.html", import.meta.url), "utf8"),
+    "privacy-en": readFileSync(new URL("./legal/privacy-en.html", import.meta.url), "utf8"),
+    "terms-zh-Hans": readFileSync(new URL("./legal/terms-zh-Hans.html", import.meta.url), "utf8"),
+    "terms-zh-Hant": readFileSync(new URL("./legal/terms-zh-Hant.html", import.meta.url), "utf8"),
+    "terms-en": readFileSync(new URL("./legal/terms-en.html", import.meta.url), "utf8"),
+  };
+  app.get("/privacy", legalDoc("privacy"));
+  app.get("/terms", legalDoc("terms"));
 
   app.post("/v1/auth/apple/session", async (context) => {
     try {
@@ -560,7 +627,9 @@ export function createApp(overrides = {}) {
         context.header("X-Holo-Quota-Type", quotaType);
       }
 
-      const serverPrompt = injectServerPrompt(purpose, request.messages);
+      const serverPrompt = injectServerPrompt(purpose, request.messages, {
+        language: context.req.header("x-holo-language"),
+      });
       const isAgentLoop = purpose === "agent_loop";
       const upstreamRequest = {
         purpose,
@@ -579,6 +648,25 @@ export function createApp(overrides = {}) {
         clientSignal: isAgentLoop ? undefined : context.req.raw.signal,
       };
       const stepIdentity = resolveAgentStepIdentity(isAgentLoop, request);
+      const logRequestSummary = isAgentLoop || THOUGHT_CONTENT_PURPOSES.has(purpose)
+        ? {
+            messageCount: upstreamRequest.messages.length,
+            messageRoles: upstreamRequest.messages.map((message) => message.role),
+            contentLength: upstreamRequest.messages.reduce(
+              (total, message) => total + (message.content?.length ?? 0),
+              0,
+            ),
+            responseFormat: request.response_format ?? null,
+            ...(isAgentLoop
+              ? { runId: request.runId ?? null, stepId: request.stepId ?? null }
+              : {}),
+          }
+        : {
+            messages: upstreamRequest.messages,
+            responseFormat: request.response_format ?? null,
+            temperature: route.temperature,
+            maxTokens: route.maxTokens,
+          };
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
@@ -588,24 +676,7 @@ export function createApp(overrides = {}) {
             promptType: serverPrompt.promptType,
             promptVersion: serverPrompt.promptVersion,
             stream: upstreamRequest.stream,
-            request: isAgentLoop
-              ? {
-                  runId: request.runId ?? null,
-                  stepId: request.stepId ?? null,
-                  messageCount: upstreamRequest.messages.length,
-                  messageRoles: upstreamRequest.messages.map((message) => message.role),
-                  contentLength: upstreamRequest.messages.reduce(
-                    (total, message) => total + (message.content?.length ?? 0),
-                    0,
-                  ),
-                  responseFormat: request.response_format ?? null,
-                }
-              : {
-                  messages: upstreamRequest.messages,
-                  responseFormat: request.response_format ?? null,
-                  temperature: route.temperature,
-                  maxTokens: route.maxTokens,
-                },
+            request: logRequestSummary,
           })
         : null;
 
@@ -852,6 +923,60 @@ export function createApp(overrides = {}) {
 
       context.header("Cache-Control", "no-store");
       return context.json({ model: result.model, dimensions: result.vectors[0]?.length ?? 0, vectors: result.vectors });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 想法自动整理 V2（方案 §6.1）：无状态专用端点。一次请求内完成 A/R/B 编排，
+  // 不写任务库、不缓存结果；日志走 metadata_only 强制集（adminLogStore）。
+  // 鉴权与限流与 chat 端点同范式；不占会员配额池，由模块自建金额预算台账控制成本。
+  app.post("/v1/thoughts/organize", async (context) => {
+    try {
+      if (!config.thoughtOrganize?.enabled) {
+        throw new GatewayError("THOUGHT_ORGANIZE_DISABLED", "Thought organize is disabled", 503);
+      }
+      // 隐私路由闸门（方案 §2.6）：供应商留存证据未经核实时，不向任何真实供应商发送数据。
+      // mock provider 仅用于开发/测试联调，不受此闸门限制。
+      const organizeRouteA = config.routes.thought_organize_a;
+      const usesMockProvider = organizeRouteA?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtOrganize.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!organizeRouteA) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Organize routes are not configured", 503);
+      }
+
+      const contentLength = Number(context.req.header("content-length") ?? 0);
+      if (contentLength > ORGANIZE_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${ORGANIZE_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+
+      const deviceId = getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_organize",
+        minuteLimit: config.thoughtOrganize.requestLimits.perMinute,
+        dailyLimit: config.thoughtOrganize.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const body = await readJson(context);
+      const result = await thoughtOrganizeService.organize({
+        deviceId,
+        subjectId: entitlement.usageSubjectId,
+        body,
+        clientSignal: context.req.raw.signal,
+      });
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
     } catch (error) {
       return createErrorResponse(context, error);
     }

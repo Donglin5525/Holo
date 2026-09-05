@@ -247,6 +247,30 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_THOUGHT_CONVERGENCE_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 2048),
     },
+    // 想法自动整理 V2（docs/thoughts/plans/2026-09-05-想法自动整理V2实施方案-GLM.md §5/§6）：
+    // A 提取概念 / R 目录筛选 / B 词表对齐，三段结构化短 JSON 输出，非思考模式。
+    // 输出上限按方案 §6.3：A 400 / R 160 / B 600 tokens。
+    thought_organize_a: {
+      provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_ORG_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_ORG_A_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_ORG_A_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_ORG_A_MAX_TOKENS ?? 400),
+    },
+    thought_organize_r: {
+      provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_ORG_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_ORG_R_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_ORG_R_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_ORG_R_MAX_TOKENS ?? 160),
+    },
+    thought_organize_b: {
+      provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_ORG_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_ORG_B_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_ORG_B_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_ORG_B_MAX_TOKENS ?? 600),
+    },
     category_pattern_induction: {
       provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
@@ -349,6 +373,32 @@ const DEFAULT_CONFIG = {
     endpoint: process.env.HOLO_MODERATION_ENDPOINT ?? "green-cip.cn-shanghai.aliyuncs.com",
     service: process.env.HOLO_MODERATION_SERVICE ?? "chat_detection_pro",
   },
+  // 想法自动整理 V2（方案 §6.3 默认工程预算；服务器执行，客户端不可提升）。
+  // privacyVerified：供应商留存证据（缓存/日志/审核边界）经人工核实后由 env 显式开启；
+  // 未核实 + 非 mock provider 时端点返回 PRIVACY_ROUTE_UNVERIFIED，不发送任何数据。
+  thoughtOrganize: {
+    enabled: process.env.HOLO_THOUGHT_ORGANIZE_ENABLED !== "false",
+    privacyVerified: process.env.HOLO_THOUGHT_ORG_PRIVACY_VERIFIED === "true",
+    deadlineMs: Number(process.env.HOLO_THOUGHT_ORG_DEADLINE_MS ?? 60_000),
+    catalog: {
+      fullCharBudget: Number(process.env.HOLO_THOUGHT_ORG_CATALOG_FULL_CHAR_BUDGET ?? 18_000),
+      nameCharBudget: Number(process.env.HOLO_THOUGHT_ORG_CATALOG_NAME_CHAR_BUDGET ?? 12_000),
+    },
+    budgets: {
+      perTaskMaxCNY: Number(process.env.HOLO_THOUGHT_ORG_TASK_MAX_CNY ?? 0.03),
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_ORG_DAILY_MAX_CNY ?? 0.20),
+      moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_ORG_MODERATION_CNY ?? 0.0005),
+    },
+    // 定价基准：DeepSeek V4 Flash 高峰未命中输入 ¥3/M、输出 ¥9/M（方案 §6.3 实价，env 可随路由调整）
+    pricing: {
+      inputPerMillionCNY: Number(process.env.HOLO_THOUGHT_ORG_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_THOUGHT_ORG_OUTPUT_PRICE ?? 9),
+    },
+    requestLimits: {
+      perMinute: Number(process.env.HOLO_THOUGHT_ORG_REQUESTS_PER_MINUTE ?? 20),
+      perDay: Number(process.env.HOLO_THOUGHT_ORG_REQUESTS_PER_DAY ?? 500),
+    },
+  },
 };
 
 function csv(value) {
@@ -404,6 +454,26 @@ export function loadConfig(overrides = {}) {
       ...DEFAULT_CONFIG.moderation,
       ...overrides.moderation,
     },
+    thoughtOrganize: {
+      ...DEFAULT_CONFIG.thoughtOrganize,
+      ...overrides.thoughtOrganize,
+      catalog: {
+        ...DEFAULT_CONFIG.thoughtOrganize.catalog,
+        ...(overrides.thoughtOrganize?.catalog ?? {}),
+      },
+      budgets: {
+        ...DEFAULT_CONFIG.thoughtOrganize.budgets,
+        ...(overrides.thoughtOrganize?.budgets ?? {}),
+      },
+      pricing: {
+        ...DEFAULT_CONFIG.thoughtOrganize.pricing,
+        ...(overrides.thoughtOrganize?.pricing ?? {}),
+      },
+      requestLimits: {
+        ...DEFAULT_CONFIG.thoughtOrganize.requestLimits,
+        ...(overrides.thoughtOrganize?.requestLimits ?? {}),
+      },
+    },
     asrProvider: overrides.asrProvider,
     appleIdentityVerifier: overrides.appleIdentityVerifier,
     holoSessionService: overrides.holoSessionService,
@@ -437,6 +507,7 @@ export function loadConfig(overrides = {}) {
       overrides.agentStepIdempotencyPreviousEncryptionKeys
         ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_PREVIOUS_ENCRYPTION_KEYS
         ?? "",
+    thoughtOrganizeBudgetStore: overrides.thoughtOrganizeBudgetStore,
     runtimeEnvironment: overrides.runtimeEnvironment ?? process.env.NODE_ENV ?? "development",
     agentStepIdempotencyTtlSeconds: Number(
       overrides.agentStepIdempotencyTtlSeconds
@@ -449,7 +520,8 @@ export function loadConfig(overrides = {}) {
         ?? 3_600_000,
     ),
     database: overrides.database ?? null,
-    contentCaptureEnabled: process.env.HOLO_LOG_CAPTURE_CONTENT === "true",
+    contentCaptureEnabled: overrides.contentCaptureEnabled
+      ?? (process.env.HOLO_LOG_CAPTURE_CONTENT === "true"),
     logRetentionDays: Number(process.env.HOLO_LOG_RETENTION_DAYS ?? 30),
     dbPath: process.env.HOLO_DB_PATH ?? "/data/holo-backend.db",
   };

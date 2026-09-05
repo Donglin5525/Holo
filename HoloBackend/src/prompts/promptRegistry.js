@@ -20,6 +20,10 @@ const PROMPT_VERSIONS = {
   thought_organization: 5,                  // v5: 加 semanticNeighborTags 可选字段（P2 语义候选召回，向后兼容旧客户端）；v4: 加 recentAITags 字段 + 标签复用软约束升级为硬约束
   thought_task_extraction: 2,        // v2: 注入今天日期，输出对象数组（title+dueDate/dueTime/priority 预填，向后兼容旧客户端只读 title）
   thought_tag_convergence: 2,
+  // 想法自动整理 V2（2026-09-05 方案 §5）：A 提取概念 / R 目录筛选 / B 词表对齐
+  thought_organize_a: 1,
+  thought_organize_r: 1,
+  thought_organize_b: 1,
   agent_loop: 21,                  // v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,

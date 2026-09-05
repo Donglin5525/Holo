@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>    :root {
+        --bg: #ffffff;
+        --fg: #1a1a1a;
+        --muted: #666666;
+        --accent: #007AFF;
+        --border: #e5e5e5;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #1c1c1e;
+            --fg: #f5f5f7;
+            --muted: #a1a1a6;
+            --accent: #0a84ff;
+            --border: #38383a;
+        }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        /*
+         * 先指定 iOS 的中文字体，避免 WKWebView 在模拟器或未配置系统字体时
+         * 优先选到不含中文字形的拉丁字体，导致法律正文显示为方框。
+         */
+        font-family: "PingFang SC", "Hiragino Sans GB", "Heiti SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.7;
+        padding: 20px 16px;
+    }
+    h1 { font-size: 1.6em; margin-bottom: 8px; }
+    h2 { font-size: 1.2em; margin-top: 28px; margin-bottom: 10px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    h3 { font-size: 1.05em; margin-top: 18px; margin-bottom: 6px; }
+    p { margin-bottom: 10px; }
+    .meta { color: var(--muted); font-size: 0.9em; margin-bottom: 20px; }
+    ul, ol { padding-left: 20px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    th { background: var(--accent); color: #fff; }
+    a { color: var(--accent); }
+    .highlight { background: rgba(0, 122, 255, 0.08); border-radius: 6px; padding: 10px 14px; margin: 12px 0; }
+    .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85em; }</style>
+</head>
+<body>
+
+<h1>Holo Terms of Use</h1>
+<p class="meta">Last updated: August 13, 2026<br>Effective date: August 13, 2026</p>
+
+<p>Welcome to the Holo app ("the App"). Please read these terms carefully before use. By downloading, installing, or using the App, you agree to be bound by these Terms.</p>
+
+<h2>1. Scope</h2>
+<p>These Terms is a legal agreement between you ("the User") and the developer of the App regarding the use of Holo. They apply to all features of the Holo iOS app.</p>
+
+<h2>2. Account and Sign-in</h2>
+<ol>
+    <li>The App uses Sign in with Apple for authentication.</li>
+    <li>You are responsible for keeping your Apple ID credentials safe; losses caused by poor credential safekeeping are your responsibility.</li>
+    <li>You may delete your account and related data in the App's settings at any time. Deletion is irreversible.</li>
+</ol>
+
+<h2>3. Services</h2>
+<ol>
+    <li><strong>Core features</strong>: The App provides personal data management tools, including financial records, habit tracking, to-do management, health data display, and notes.</li>
+    <li><strong>AI features</strong>: The App provides AI-based analysis and suggestions. AI-generated content is for reference only and does not constitute professional advice.</li>
+    <li><strong>Data storage</strong>: User data is stored primarily on your device and can sync across your own devices via iCloud.</li>
+    <li>The developer reserves the right to modify, suspend, or discontinue parts of the service with prior notice.</li>
+</ol>
+
+<h2>4. Acceptable Use</h2>
+<p>When using the App, you may not:</p>
+<ul>
+    <li>Use the App for any activity that violates applicable law;</li>
+    <li>Crack, modify, or reverse-engineer the App through technical means;</li>
+    <li>Use AI features to generate content that is illegal, harmful, false, or infringes others' rights;</li>
+    <li>Interfere with or disrupt the normal operation of the App.</li>
+</ul>
+
+<h2>5. Intellectual Property</h2>
+<ol>
+    <li>The intellectual property rights in the App's interface design, code, icons, and all other content belong to the developer.</li>
+    <li>The intellectual property rights in the data you create in the App belong to you.</li>
+</ol>
+
+<h2>6. Disclaimers</h2>
+
+<div class="highlight">
+    <strong>Important:</strong> AI analysis and suggestions provided by the App are for reference only and do not constitute professional advice (including financial, medical, or legal advice). You must judge for yourself and assume all risks arising from use of AI-generated content.
+</div>
+
+<ol>
+    <li><strong>AI content</strong>: AI-generated content may be inaccurate or incomplete and should not be the sole basis for decisions.</li>
+    <li><strong>Health data</strong>: Health data shown in the App comes from Apple HealthKit and is for personal reference only. Consult a qualified medical professional for health concerns.</li>
+    <li><strong>Financial data</strong>: The App is a record-keeping tool only and does not provide financial planning or investment advice.</li>
+    <li><strong>Data security</strong>: Although the App adopts industry-standard security measures, no Internet transmission or electronic storage can be guaranteed absolutely secure.</li>
+</ol>
+
+<h2>7. Data and Privacy</h2>
+<p>For the collection, use, storage, and sharing of data, please refer to the App's Privacy Policy, which is an integral part of these Terms.</p>
+
+<h2>8. Changes to These Terms</h2>
+<ol>
+    <li>The developer reserves the right to modify these Terms at any time.</li>
+    <li>Material changes will be announced in the App.</li>
+    <li>Continued use of the App after changes means you accept the modified Terms.</li>
+</ol>
+
+<h2>9. Termination</h2>
+<ol>
+    <li>You may stop using the App at any time and delete your account in the App's settings.</li>
+    <li>If you materially breach these Terms, the developer may terminate service to you.</li>
+</ol>
+
+<h2>10. Governing Law and Disputes</h2>
+<ol>
+    <li>These Terms are governed by the laws of the People's Republic of China.</li>
+    <li>Disputes shall first be resolved through friendly negotiation. If negotiation fails, either party may bring a claim in a competent court at the developer's location.</li>
+</ol>
+
+<h2>11. Contact</h2>
+<ul>
+    <li>Email: <a href="mailto:support@holoapp.cn">support@holoapp.cn</a></li>
+    <li>Website: https://holoapp.cn</li>
+</ul>
+
+<div class="footer">
+    <p>&copy; 2026 Holo. All rights reserved.</p>
+</div>
+
+</body>
+</html>

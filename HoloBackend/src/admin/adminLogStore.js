@@ -26,11 +26,65 @@ function redactText(text) {
   return result;
 }
 
+/**
+ * metadata_only 强制清单（想法自动整理 V2 隐私方案 §2.5）。
+ * 服务器代码决定，客户端与管理员内容采集开关都不能解除：这些 purpose 的
+ * 请求/响应承载用户想法正文与标签语义，日志只允许保留白名单元数据，
+ * 在任何序列化、截断、缓存之前完成——禁止把正文传进来再指望后续正则抹掉。
+ */
+const DEFAULT_METADATA_ONLY_PURPOSES = [
+  'thought_organization',
+  'thought_tag_convergence',
+  'thought_task_extraction',
+  'thought_voice_summary',
+  'thought_organize_a',
+  'thought_organize_r',
+  'thought_organize_b',
+];
+
+/** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */
+const METADATA_REQUEST_KEYS = new Set([
+  'stage', 'messageCount', 'messageRoles', 'contentLength', 'responseFormat',
+  'temperature', 'maxTokens', 'runId', 'stepId', 'catalogSize', 'anchorCount',
+]);
+
+/** response 侧白名单：状态性摘要键，无用户内容。 */
+const METADATA_RESPONSE_KEYS = new Set([
+  'stage', 'outcome', 'anchorCount', 'assignmentCount', 'catalogSize',
+  'finishReason', 'idempotencyHit', 'status', 'runId', 'stepId',
+  'labels', 'riskLevel',
+]);
+
+function pickWhitelist(value, allowedKeys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const picked = {};
+  let found = false;
+  for (const [key, nested] of Object.entries(value)) {
+    if (!allowedKeys.has(key)) continue;
+    picked[key] = typeof nested === 'object' && nested !== null ? null : nested;
+    found = true;
+  }
+  return found ? picked : null;
+}
+
+/** metadata_only purpose 的错误摘要：只留 code/status，message 可能携带上游 echo 的内容片段。 */
+function metadataErrorSummary(error) {
+  if (!error || typeof error !== 'object') return null;
+  return {
+    code: typeof error.code === 'string' ? error.code : 'UNKNOWN',
+    ...(Number.isFinite(error.status) ? { status: error.status } : {}),
+  };
+}
+
 export function createAdminLogStore(options = {}) {
   const maxEntries = positiveNumber(options.maxEntries, DEFAULT_MAX_ENTRIES);
   const maxDetailChars = positiveNumber(options.maxDetailChars, DEFAULT_MAX_DETAIL_CHARS);
   const db = options.db ?? null;
   const contentCaptureEnabled = options.contentCaptureEnabled ?? false;
+  const metadataOnlyPurposes = new Set(
+    options.forceMetadataOnlyPurposes ?? DEFAULT_METADATA_ONLY_PURPOSES,
+  );
+  const isMetadataOnly = (purpose) => metadataOnlyPurposes.has(purpose);
 
   // 内存热缓存（最近 50 条完整记录，用于快速访问）
   const hotCache = [];
@@ -77,10 +131,11 @@ export function createAdminLogStore(options = {}) {
     const now = new Date();
     const callType = input.request?.asr ? 'asr' : 'chat';
     const id = randomUUID();
+    const forceMeta = isMetadataOnly(input.purpose);
 
     // 构建请求/响应摘要
     let requestSummary = null;
-    if (contentCaptureEnabled && input.request && !input.request?.asr) {
+    if (!forceMeta && contentCaptureEnabled && input.request && !input.request?.asr) {
       requestSummary = truncateText(
         redactText(JSON.stringify(input.request)),
         CONTENT_CAPTURE_MAX_CHARS
@@ -99,7 +154,10 @@ export function createAdminLogStore(options = {}) {
       provider: input.provider,
       model: input.model,
       stream: input.stream,
-      request: truncateDeep(input.request, maxDetailChars),
+      // metadata_only purpose：白名单在 truncate/缓存之前执行，正文不进入 entry
+      request: forceMeta
+        ? pickWhitelist(input.request, METADATA_REQUEST_KEYS)
+        : truncateDeep(input.request, maxDetailChars),
       response: null,
       error: null,
       asrFileType: input.asrFileType ?? null,
@@ -125,8 +183,8 @@ export function createAdminLogStore(options = {}) {
           input.promptVersion ?? null,
           requestSummary,
           null, // response_summary — 调用完成后填充
-          contentCaptureEnabled ? 1 : 0,
-          contentCaptureEnabled ? 1 : 0,
+          forceMeta ? 0 : (contentCaptureEnabled ? 1 : 0),
+          forceMeta ? 0 : (contentCaptureEnabled ? 1 : 0),
           input.asrFileType ?? null,
           null  // asr_result_length — 调用完成后填充
         );
@@ -142,13 +200,18 @@ export function createAdminLogStore(options = {}) {
   function finishAiCall(id, result) {
     const entry = hotCache.find((item) => item.id === id);
     if (!entry) return;
+    const forceMeta = isMetadataOnly(entry.purpose);
 
     const now = new Date();
     entry.status = result.status;
     entry.finishedAt = now.toISOString();
     entry.durationMs = now.getTime() - Date.parse(entry.startedAt);
-    entry.response = result.response == null ? null : truncateDeep(result.response, maxDetailChars);
-    entry.error = result.error == null ? null : truncateDeep(result.error, maxDetailChars);
+    entry.response = forceMeta
+      ? pickWhitelist(result.response, METADATA_RESPONSE_KEYS)
+      : (result.response == null ? null : truncateDeep(result.response, maxDetailChars));
+    entry.error = forceMeta
+      ? metadataErrorSummary(result.error)
+      : (result.error == null ? null : truncateDeep(result.error, maxDetailChars));
 
     if (result.asrResultLength != null) {
       entry.asrResultLength = result.asrResultLength;
@@ -165,7 +228,7 @@ export function createAdminLogStore(options = {}) {
     if (s && entry._rowId) {
       try {
         let responseSummary = null;
-        if (contentCaptureEnabled && result.response) {
+        if (!forceMeta && contentCaptureEnabled && result.response) {
           responseSummary = truncateText(
             redactText(JSON.stringify(result.response)),
             CONTENT_CAPTURE_MAX_CHARS
