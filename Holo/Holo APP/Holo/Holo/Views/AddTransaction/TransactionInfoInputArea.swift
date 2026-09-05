@@ -250,7 +250,9 @@ extension AddTransactionSheet {
                                     .frame(width: 30)
                                     .multilineTextAlignment(.center)
                                     .onChange(of: customPeriodsText) { _, newValue in
-                                        if let val = Int(newValue), val > 0 {
+                                        // 分期定义就是≥2期（与仓储守卫一致）：
+                                        // 敲1期会在转分期「先删后建」时删掉原交易再创建失败，造成数据丢失
+                                        if let val = Int(newValue), val >= 2 {
                                             installmentPeriods = val
                                         }
                                     }

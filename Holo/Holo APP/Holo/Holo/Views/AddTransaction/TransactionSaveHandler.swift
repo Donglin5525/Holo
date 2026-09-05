@@ -25,6 +25,14 @@ extension AddTransactionSheet {
         }
     }
 
+    /// 编辑对象是否已被删除（转分期/取消分期路径会删掉原交易）。
+    /// 此时复位任何 @State 都会触发表单 body 重读已删对象字段而闪退，
+    /// 与 isDeleting「成功路径不复位」同一机制。
+    private var isEditingTransactionGone: Bool {
+        guard let transaction = editingTransaction else { return false }
+        return transaction.isDeleted || transaction.managedObjectContext == nil
+    }
+
     /// 保存交易
     func saveTransaction() {
         // 保存前先计算表达式（如果有）
@@ -60,6 +68,7 @@ extension AddTransactionSheet {
                 }
 
                 if let transaction = editingTransaction {
+                    let editedTransactionID = transaction.id
                     let wasInstallment = transaction.isInstallment
 
                     if isInstallment && !wasInstallment {
@@ -115,7 +124,9 @@ extension AddTransactionSheet {
                                 note: note.isEmpty ? nil : note,
                                 remark: remark.isEmpty ? nil : remark
                             )
-                            savedTransaction = updated.first(where: { $0.id == transaction.id }) ?? updated.first
+                            // 缩期时正在编辑的那笔可能已被删除，须用预先捕获的 ID 比对，
+                            // 不能在闭包里读已删对象的属性
+                            savedTransaction = updated.first(where: { $0.id == editedTransactionID }) ?? updated.first
                         }
                     } else {
                         // 普通编辑（无分期变更）
@@ -173,7 +184,10 @@ extension AddTransactionSheet {
                 HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
             }
 
-            isSaving = false
+            // 编辑对象已删（转分期/取消分期）时不复位：复位会触发表单 body 重读已删对象而闪退
+            if !isEditingTransactionGone {
+                isSaving = false
+            }
         }
     }
 
@@ -211,6 +225,7 @@ extension AddTransactionSheet {
             }
 
             if let transaction = editingTransaction {
+                let editedTransactionID = transaction.id
                 let wasInstallment = transaction.isInstallment
 
                 if isInstallment && !wasInstallment {
@@ -266,7 +281,8 @@ extension AddTransactionSheet {
                             note: note.isEmpty ? nil : note,
                             remark: remark.isEmpty ? nil : remark
                         )
-                        savedTransaction = updated.first(where: { $0.id == transaction.id }) ?? updated.first
+                        // 缩期时正在编辑的那笔可能已被删除，须用预先捕获的 ID 比对
+                        savedTransaction = updated.first(where: { $0.id == editedTransactionID }) ?? updated.first
                     }
                 } else {
                     // 普通编辑（无分期变更）
@@ -275,8 +291,9 @@ extension AddTransactionSheet {
                     updates.amount = amount
                     updates.category = category
                     updates.account = account
-                    updates.note = note.isEmpty ? nil : note
-                    updates.remark = remark.isEmpty ? nil : remark
+                    // 空串原样传给数据层按约定清空；这里转 nil 会变成「不修改」，备注就删不掉了
+                    updates.note = note
+                    updates.remark = remark
                     updates.date = selectedDate
 
                     try await repository.updateTransaction(transaction, updates: updates)
@@ -328,7 +345,10 @@ extension AddTransactionSheet {
         }
 
         await MainActor.run {
-            isSaving = false
+            // 编辑对象已删（转分期/取消分期）时不复位：复位会触发表单 body 重读已删对象而闪退
+            if !isEditingTransactionGone {
+                isSaving = false
+            }
         }
     }
 

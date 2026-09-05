@@ -320,6 +320,16 @@ class TodoRepository: ObservableObject {
         case clear
     }
 
+    /// 更新任务时所属清单的保存意图（与 TaskDueDateUpdate 同构）：
+    /// 单用 Optional 清单无法区分「没改」和「移回收件箱」，
+    /// 后者会被 nil 语义静默吞掉，任务永远留在原清单。
+    enum TaskListUpdate {
+        /// 移入指定清单
+        case set(TodoList)
+        /// 移回收件箱（未归类）
+        case clear
+    }
+
     /// 更新任务时计划时间段的保存意图（与 TaskDueDateUpdate 同构，nil 二义性同理）
     enum TaskPlannedTimeUpdate {
         /// 设置计划时间段（起止同一天且开始早于结束）
@@ -337,7 +347,7 @@ class TodoRepository: ObservableObject {
         priority: TaskPriority? = nil,
         dueDate: TaskDueDateUpdate? = nil,
         isAllDay: Bool? = nil,
-        list: TodoList? = nil,
+        list: TaskListUpdate? = nil,
         reminders: Set<TaskReminder>? = nil,
         plannedTime: TaskPlannedTimeUpdate? = nil
     ) throws {
@@ -354,7 +364,11 @@ class TodoRepository: ObservableObject {
         case nil: break
         }
         if let isAllDay = isAllDay { task.isAllDay = isAllDay }
-        if let list = list { task.list = list }
+        switch list {
+        case .set(let targetList): task.list = targetList
+        case .clear: task.list = nil
+        case nil: break
+        }
         switch plannedTime {
         case .set(let start, let end):
             guard TodoTask.isValidPlannedRange(start, end) else {

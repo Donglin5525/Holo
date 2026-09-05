@@ -1102,6 +1102,9 @@ struct ThoughtListView: View {
     /// 删除想法
     private func deleteThought(_ thought: Thought) {
         do {
+            // 先从本地数组移除再删库（团队纪律）：当前 delete 是软删所以删库先后都安全，
+            // 但若将来换成硬删，先删库会让本页继续渲染已删对象而闪退
+            thoughts.removeAll { $0.id == thought.id }
             try thoughtRepository.delete(thought.id)
             revealedThoughtId = nil
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)

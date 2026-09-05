@@ -122,6 +122,33 @@ final class TodoTaskPlannedTimeRangeTests: XCTestCase {
         XCTAssertEqual(task.plannedEnd, end)
     }
 
+    // MARK: - updateTask 清单 nil 语义（TaskListUpdate）
+
+    func test_更新清单clear_移回收件箱() throws {
+        let (repo, _) = try makeRepo()
+        let list = try repo.createList(name: "测试清单")
+        let task = try repo.createTask(title: "T", list: list)
+        XCTAssertEqual(task.list?.name, "测试清单")
+
+        // 「收件箱」是显式保存意图：不能被 nil=不修改 语义吞掉（历史 bug：
+        // 任务从清单改选收件箱后静默失效，永远留在原清单）
+        try repo.updateTask(task, list: .clear)
+
+        XCTAssertNil(task.list)
+    }
+
+    func test_更新清单不传list_保留原清单() throws {
+        let (repo, _) = try makeRepo()
+        let list = try repo.createList(name: "测试清单")
+        let task = try repo.createTask(title: "T", list: list)
+
+        // 只改标题，不碰清单
+        try repo.updateTask(task, title: "改名")
+
+        XCTAssertEqual(task.title, "改名")
+        XCTAssertEqual(task.list?.name, "测试清单")
+    }
+
     // MARK: - 计划 vs 实际
 
     func test_计划时长计算() throws {

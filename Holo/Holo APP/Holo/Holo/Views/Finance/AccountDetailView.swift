@@ -30,6 +30,9 @@ struct AccountDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @Environment(\.dismiss) private var dismiss
+    /// 删除已预检通过、等页面离场后落地（离场前删会让本页继续渲染已删账户而闪退）
+    @State private var pendingDeletion = false
 
     /// 正在编辑的交易（点击交易行进入编辑）
     @State private var editingTransaction: Transaction?
@@ -193,8 +196,11 @@ struct AccountDetailView: View {
             Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {
                 do {
-                    try FinanceRepository.shared.deleteAccount(account)
-                    // 返回上一页
+                    // 业务守卫（有交易/默认账户）在这里预检，失败留在本页提示；
+                    // 真正的删除延后到 onDisappear，本页不再渲染已删对象
+                    try FinanceRepository.shared.validateAccountDeletable(account)
+                    pendingDeletion = true
+                    dismiss()
                 } catch {
                     errorMessage = error.localizedDescription
                     showError = true
@@ -202,6 +208,12 @@ struct AccountDetailView: View {
             }
         } message: {
             Text("确定要删除账户「\(account.name)」吗？")
+        }
+        .onDisappear {
+            guard pendingDeletion else { return }
+            pendingDeletion = false
+            // 详情页已关闭；预检已通过，仅剩落盘级失败（磁盘异常），与 SpendingProjectsView 同口径静默
+            try? FinanceRepository.shared.deleteAccount(account)
         }
         .alert("操作失败", isPresented: $showError) {
             Button("确定", role: .cancel) {}

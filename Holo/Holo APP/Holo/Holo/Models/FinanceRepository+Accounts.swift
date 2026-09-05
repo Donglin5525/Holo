@@ -121,8 +121,9 @@ extension FinanceRepository {
         try? context.save()
     }
 
-    /// 删除账户（有交易的账户不可删除）
-    func deleteAccount(_ account: Account) throws {
+    /// 删除账户前的业务守卫（有交易的账户不可删除、默认账户不可删除）。
+    /// 单独暴露：删除延后到详情页离场后执行时，页面退场前先用它预检并向用户提示。
+    func validateAccountDeletable(_ account: Account) throws {
         let transactionCount = getTransactionCount(for: account)
         guard transactionCount == 0 else {
             throw AccountError.hasTransactions(count: transactionCount)
@@ -130,6 +131,11 @@ extension FinanceRepository {
         guard !account.isDefault else {
             throw AccountError.cannotDeleteDefault
         }
+    }
+
+    /// 删除账户（有交易的账户不可删除）
+    func deleteAccount(_ account: Account) throws {
+        try validateAccountDeletable(account)
         // 清理该账户的所有预算记录
         Budget.deleteAllForAccount(account.id, in: context)
         context.delete(account)

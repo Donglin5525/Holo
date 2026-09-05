@@ -1983,7 +1983,8 @@ struct TaskDetailView: View {
                         priority: priority,
                         dueDate: hasDueDate ? .set(dueDate) : .clear,
                         isAllDay: !hasTime,
-                        list: selectedList,
+                        // 收件箱是显式保存意图：nil 会被「不修改」语义吞掉，任务永远留在原清单
+                        list: selectedList.map { TodoRepository.TaskListUpdate.set($0) } ?? .clear,
                         reminders: remindersToSave,
                         plannedTime: hasPlannedRange ? .set(start: plannedStart, end: plannedEnd) : .clear
                     )

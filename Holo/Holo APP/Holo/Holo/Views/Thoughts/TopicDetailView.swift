@@ -319,15 +319,19 @@ struct TopicDetailView: View {
     }
 
     private func performDelete() {
-        guard let topic else { return }
+        guard let target = topic else { return }
         do {
-            let result = try topicRepository.deleteClassificationTopic(topic)
+            // 先清本地选中态再删库：硬删+落盘后对象即失效，弹窗关闭与
+            // 退场动画期间的 body 重渲染不能再见到此对象（missingTopicView 兜底展示）
+            topic = nil
+            let result = try topicRepository.deleteClassificationTopic(target)
             try ConvergenceRejectionRepository().reject(topicTitle: result.title, sourceTerms: result.sourceTerms)
             HapticManager.light()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             dismiss()
             onTopicDeleted?()
         } catch {
+            topic = target
             HoloToastCenter.shared.show(String(localized: "删除主题失败"), type: .error)
         }
     }
