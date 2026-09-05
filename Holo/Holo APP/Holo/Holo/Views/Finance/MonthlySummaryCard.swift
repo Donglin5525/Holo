@@ -96,7 +96,7 @@ struct MonthlySummaryCard: View {
                 Text("与上月同期持平")
                     .font(.system(size: 12, weight: .medium))
             } else {
-                Text(String(format: "较上月同期%.1f%%", percentage))
+                Text(String(format: String(localized: "较上月同期%.1f%%"), percentage))
                     .font(.system(size: 12, weight: .medium))
             }
         }

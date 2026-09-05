@@ -20,7 +20,7 @@ struct ReportDoorCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 7) {
-                    Text(entry.kind == .deepAnalysis ? "深度分析" : "周期回放")
+                    Text(entry.kind == .deepAnalysis ? String(localized: "深度分析") : String(localized: "周期回放"))
                         .font(.system(size: 10.5, weight: .bold))
                         .foregroundColor(entry.kind == .deepAnalysis ? .holoPrimary : .indigo)
                         .padding(.horizontal, 8)
@@ -32,7 +32,7 @@ struct ReportDoorCard: View {
 
                     if entry.kind == .deepAnalysis,
                        entry.scenarioTag != .general {
-                        Text(entry.scenarioTag == .replay ? "回放" : entry.scenarioTag.label)
+                        Text(entry.scenarioTag == .replay ? String(localized: "回放") : entry.scenarioTag.label)
                             .font(.system(size: 10.5, weight: .bold))
                             .foregroundColor(entry.scenarioTag.badgeColors.foreground)
                             .padding(.horizontal, 8)
@@ -40,7 +40,7 @@ struct ReportDoorCard: View {
                             .background(entry.scenarioTag.badgeColors.background, in: Capsule())
                     }
 
-                    Text(entry.scopeLabel ?? "自定义范围")
+                    Text(entry.scopeLabel ?? String(localized: "自定义范围"))
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
@@ -72,7 +72,7 @@ struct ReportDoorCard: View {
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    Text(entry.summary ?? entry.title ?? "本周期完成了一次报告。")
+                    Text(entry.summary ?? entry.title ?? String(localized: "本周期完成了一次报告。"))
                         .font(.system(size: 12))
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
@@ -91,7 +91,7 @@ struct ReportDoorCard: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityHint("打开 Holo AI 页的报告 Tab，查看全部报告")
+        .accessibilityHint(String(localized: "打开 Holo AI 页的报告 Tab，查看全部报告"))
     }
 
     private static let dateFormatter: DateFormatter = {

@@ -49,8 +49,8 @@ struct ImportExportView: View {
             settingsRow(
                 icon: "square.and.arrow.up",
                 iconColor: .holoPrimary,
-                title: "导出数据",
-                subtitle: "导出交易记录为 CSV 或 JSON"
+                title: String(localized: "导出数据"),
+                subtitle: String(localized: "导出交易记录为 CSV 或 JSON")
             ) {
                 showExportSheet = true
             }
@@ -59,8 +59,8 @@ struct ImportExportView: View {
             settingsRow(
                 icon: "square.and.arrow.down",
                 iconColor: .holoSuccess,
-                title: "导入数据",
-                subtitle: "支持微信/支付宝/银行账单（csv/xlsx/zip）"
+                title: String(localized: "导入数据"),
+                subtitle: String(localized: "支持微信/支付宝/银行账单（csv/xlsx/zip）")
             ) {
                 showFilePicker = true
             }
@@ -69,8 +69,8 @@ struct ImportExportView: View {
             settingsRow(
                 icon: "questionmark.circle",
                 iconColor: .blue,
-                title: "如何导出账单",
-                subtitle: "微信/支付宝/银行账单的导出步骤"
+                title: String(localized: "如何导出账单"),
+                subtitle: String(localized: "微信/支付宝/银行账单的导出步骤")
             ) {
                 showBillTutorial = true
             }
@@ -79,8 +79,8 @@ struct ImportExportView: View {
             settingsRow(
                 icon: "doc.text",
                 iconColor: .holoTextSecondary,
-                title: "下载导入模板",
-                subtitle: "获取标准 CSV 模板文件"
+                title: String(localized: "下载导入模板"),
+                subtitle: String(localized: "获取标准 CSV 模板文件")
             ) {
                 downloadTemplate()
             }
@@ -92,8 +92,8 @@ struct ImportExportView: View {
                 settingsRow(
                     icon: "flask",
                     iconColor: .orange,
-                    title: "加载测试数据",
-                    subtitle: "从 Documents/holo_import.csv 导入"
+                    title: String(localized: "加载测试数据"),
+                    subtitle: String(localized: "从 Documents/holo_import.csv 导入")
                 ) {
                     loadFromSandbox()
                 }
@@ -143,7 +143,7 @@ struct ImportExportView: View {
         .alert("操作失败", isPresented: $showError) {
             Button("确定") {}
         } message: {
-            Text(errorMessage ?? "未知错误")
+            Text(errorMessage ?? String(localized: "未知错误"))
         }
         // 导入结果 Sheet（含撤回入口）
         .sheet(isPresented: $showImportResult, onDismiss: {
@@ -236,7 +236,7 @@ struct ImportExportView: View {
             guard let url = urls.first else { return }
             // 开始安全访问（沙箱文件需要）
             guard url.startAccessingSecurityScopedResource() else {
-                errorMessage = "无法访问所选文件"
+                errorMessage = String(localized: "无法访问所选文件")
                 showError = true
                 return
             }
@@ -259,7 +259,7 @@ struct ImportExportView: View {
                 case "xlsx":
                     importFileURL = try BillExcelReader.convertToCSV(url: tempURL)
                 case "xls":
-                    throw ImportError.invalidFormat("暂不支持 xls 老格式。请在电脑上用 Excel 打开后「另存为 .xlsx 或 .csv」，再导入。")
+                    throw ImportError.invalidFormat(String(localized: "暂不支持 xls 老格式。请在电脑上用 Excel 打开后「另存为 .xlsx 或 .csv」，再导入。"))
                 default:
                     importFileURL = tempURL
                 }
@@ -269,7 +269,7 @@ struct ImportExportView: View {
             }
 
         case .failure(let error):
-            errorMessage = "选择文件失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "选择文件失败：\(error.localizedDescription)")
             showError = true
         }
     }
@@ -284,7 +284,7 @@ struct ImportExportView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             } catch {
-                errorMessage = "撤回失败：\(error.localizedDescription)"
+                errorMessage = String(localized: "撤回失败：\(error.localizedDescription)")
                 showError = true
             }
         }
@@ -358,7 +358,7 @@ struct ExportOptionsSheet: View {
                                     .tint(.white)
                                     .padding(.trailing, 4)
                             }
-                            Text(isExporting ? "导出中..." : "导出")
+                            Text(isExporting ? String(localized: "导出中...") : String(localized: "导出"))
                                 .font(.system(size: 17, weight: .semibold))
                         }
                         .foregroundColor(.white)
@@ -389,7 +389,7 @@ struct ExportOptionsSheet: View {
         .alert("导出失败", isPresented: $showError) {
             Button("确定") {}
         } message: {
-            Text(errorMessage ?? "未知错误")
+            Text(errorMessage ?? String(localized: "未知错误"))
         }
     }
     

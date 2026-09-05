@@ -232,27 +232,26 @@ struct DetailTabView: View {
 
     private func periodTitle(for date: Date) -> String {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "zh_CN")
 
         switch state.chartGranularity {
         case .hour:
-            df.dateFormat = "M月d日 HH:00"
-            return df.string(from: date) + " 时段"
+            df.setLocalizedDateFormatFromTemplate("MMMdHH")
+            return df.string(from: date) + ":00" + String(localized: " 时段")
 
         case .day:
-            df.dateFormat = "M月d日"
+            df.setLocalizedDateFormatFromTemplate("MMMd")
             return df.string(from: date)
 
         case .week:
             let weekStart = date.startOfWeek
             guard let weekEnd = Calendar.current.date(byAdding: .day, value: 6, to: weekStart) else {
-                return "本周"
+                return String(localized: "本周")
             }
-            df.dateFormat = "M月d日"
+            df.setLocalizedDateFormatFromTemplate("MMMd")
             return "\(df.string(from: weekStart)) - \(df.string(from: weekEnd))"
 
         case .month:
-            df.dateFormat = "yyyy年M月"
+            df.setLocalizedDateFormatFromTemplate("yMMM")
             return df.string(from: date)
         }
     }
@@ -418,7 +417,7 @@ struct DetailTabView: View {
             .background(Color.holoPrimary.opacity(0.1))
             .clipShape(Capsule())
         }
-        .accessibilityLabel("切换交易明细排序")
+        .accessibilityLabel(String(localized: "切换交易明细排序"))
         .accessibilityValue(sortOrder.menuTitle)
     }
 
@@ -553,14 +552,12 @@ struct DetailTabView: View {
 
 private extension DateFormatter {
     func monthDayString(from date: Date) -> String {
-        locale = Locale(identifier: "zh_CN")
-        dateFormat = "M月d日"
+        setLocalizedDateFormatFromTemplate("MMMd")
         return string(from: date)
     }
 
     func monthDayWeekdayString(from date: Date) -> String {
-        locale = Locale(identifier: "zh_CN")
-        dateFormat = "M月d日 EEEE"
+        setLocalizedDateFormatFromTemplate("MMMdEEEE")
         return string(from: date)
     }
 }

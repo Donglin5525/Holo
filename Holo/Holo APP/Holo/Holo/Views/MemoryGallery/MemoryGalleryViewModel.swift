@@ -254,7 +254,7 @@ class MemoryGalleryViewModel: ObservableObject {
             hasMoreData = currentDayOffset < 365 // 最多加载一年
 
         } catch {
-            errorMessage = "加载失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "加载失败：\(error.localizedDescription)")
         }
 
         isLoading = false
@@ -850,13 +850,13 @@ class MemoryGalleryViewModel: ObservableObject {
         guard let insight = currentInsight else { return nil }
         let periodLabel: String
         switch selectedInsightPeriod {
-        case .daily: periodLabel = "日"
-        case .weekly: periodLabel = "周"
-        case .monthly: periodLabel = "月"
-        case .quarterly: periodLabel = "季度"
-        case .custom: periodLabel = "自定义周期"
+        case .daily: periodLabel = String(localized: "日")
+        case .weekly: periodLabel = String(localized: "周")
+        case .monthly: periodLabel = String(localized: "月")
+        case .quarterly: periodLabel = String(localized: "季度")
+        case .custom: periodLabel = String(localized: "自定义周期")
         }
-        return "基于这份\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
+        return String(localized: "基于这份\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)")
     }
 
     /// 当前选中周期的洞察

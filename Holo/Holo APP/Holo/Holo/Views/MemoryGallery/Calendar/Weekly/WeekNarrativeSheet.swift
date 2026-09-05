@@ -19,14 +19,14 @@ struct WeekNarrativeSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if !milestones.isEmpty {
-                        sectionTitle("本周里程碑")
+                        sectionTitle(String(localized: "本周里程碑"))
                         ForEach(Array(milestones.enumerated()), id: \.offset) { _, data in
                             MilestoneNode(data: data)
                         }
                     }
 
                     if !highlights.isEmpty {
-                        sectionTitle("本周高光")
+                        sectionTitle(String(localized: "本周高光"))
                         ForEach(Array(highlights.enumerated()), id: \.offset) { _, data in
                             GentleHighlightNode(data: data)
                         }

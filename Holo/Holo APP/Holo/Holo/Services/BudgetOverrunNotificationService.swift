@@ -100,11 +100,11 @@ final class BudgetOverrunNotificationService {
         guard let worst = candidates.max(by: { $0.progress < $1.progress }) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "「\(Self.displayName(for: worst.budget))」预算超支了"
+        content.title = String(localized: "「\(Self.displayName(for: worst.budget))」预算超支了")
         let overAmount = worst.spentAmount - worst.budgetAmount
         content.body = overAmount > 0
-            ? "已花 \(Self.amountText(worst.spentAmount))，超了预算 \(Self.amountText(overAmount))"
-            : "已花 \(Self.amountText(worst.spentAmount))，预算正好用完"
+            ? String(localized: "已花 \(Self.amountText(worst.spentAmount))，超了预算 \(Self.amountText(overAmount))")
+            : String(localized: "已花 \(Self.amountText(worst.spentAmount))，预算正好用完")
         content.sound = .default
         content.categoryIdentifier = TodoNotificationCategory.budgetOverrun
 
@@ -153,8 +153,8 @@ final class BudgetOverrunNotificationService {
 
     /// 预算显示名：总预算固定文案，分类预算用分类名
     private static func displayName(for budget: Budget) -> String {
-        guard let categoryId = budget.categoryId else { return "本月总预算" }
-        return BudgetRepository.shared.findCategory(by: categoryId)?.name ?? "未知分类"
+        guard let categoryId = budget.categoryId else { return String(localized: "本月总预算") }
+        return BudgetRepository.shared.findCategory(by: categoryId)?.name ?? String(localized: "未知分类")
     }
 
     private static func amountText(_ amount: Decimal) -> String {

@@ -35,14 +35,14 @@ nonisolated enum HoloAgentFollowUpRelation: String, Codable, CaseIterable, Senda
 
     var shortLabel: String {
         switch self {
-        case .explain: return "继续解释"
-        case .drillDown: return "继续深挖"
-        case .correct: return "纠正口径"
-        case .changeScope: return "调整范围"
-        case .crossDomain: return "跨域补查"
-        case .executeFromResult: return "执行建议"
-        case .newTopic: return "新问题"
-        case .ambiguous: return "继续追问"
+        case .explain: return String(localized: "继续解释")
+        case .drillDown: return String(localized: "继续深挖")
+        case .correct: return String(localized: "纠正口径")
+        case .changeScope: return String(localized: "调整范围")
+        case .crossDomain: return String(localized: "跨域补查")
+        case .executeFromResult: return String(localized: "执行建议")
+        case .newTopic: return String(localized: "新问题")
+        case .ambiguous: return String(localized: "继续追问")
         }
     }
 }

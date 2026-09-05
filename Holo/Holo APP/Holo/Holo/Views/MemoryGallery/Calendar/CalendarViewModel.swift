@@ -33,10 +33,10 @@ enum CalendarScale: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .day: return "日"
-        case .week: return "周"
-        case .month: return "月"
-        case .timeline: return "轴"
+        case .day: return String(localized: "日")
+        case .week: return String(localized: "周")
+        case .month: return String(localized: "月")
+        case .timeline: return String(localized: "轴")
         }
     }
 }
@@ -116,10 +116,10 @@ final class CalendarViewModel: ObservableObject {
     /// 回正按钮按观察尺度命名，避免月档仍写「今天」造成动作语义不清。
     var todayLabel: String {
         switch scale {
-        case .day: return "今天"
-        case .week: return "本周"
-        case .month: return "本月"
-        case .timeline: return "今天"
+        case .day: return String(localized: "今天")
+        case .week: return String(localized: "本周")
+        case .month: return String(localized: "本月")
+        case .timeline: return String(localized: "今天")
         }
     }
 

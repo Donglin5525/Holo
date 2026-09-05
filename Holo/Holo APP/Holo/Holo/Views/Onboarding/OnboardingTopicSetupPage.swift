@@ -60,7 +60,7 @@ struct OnboardingTopicSetupPage: View {
 
             Spacer()
 
-            OnboardingPrimaryButton(title: selectedTopics.isEmpty ? "先不选，之后再说" : "继续") {
+            OnboardingPrimaryButton(title: selectedTopics.isEmpty ? String(localized: "先不选，之后再说") : String(localized: "继续")) {
                 onContinue()
             }
         }
@@ -111,7 +111,7 @@ struct OnboardingTopicSetupPage: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title)，\(isSelected ? "已选择" : "未选择")")
+        .accessibilityLabel(String(localized: "\(title)，\(isSelected ? String(localized: "已选择") : String(localized: "未选择"))"))
     }
 }
 

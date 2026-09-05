@@ -60,33 +60,33 @@ enum HoloPlusGateContext: Equatable {
     var title: String {
         switch self {
         case .membershipCenter:
-            return "升级 Holo Plus"
+            return String(localized: "升级 Holo Plus")
         case .holoAI:
-            return "升级 Holo Plus，继续和 HoloAI 对话"
+            return String(localized: "升级 Holo Plus，继续和 HoloAI 对话")
         case .memoryGallery:
-            return "升级 Holo Plus，刷新记忆洞察"
+            return String(localized: "升级 Holo Plus，刷新记忆洞察")
         case .financeInstallment:
-            return "升级 Holo Plus，使用财务分期"
+            return String(localized: "升级 Holo Plus，使用财务分期")
         case .billingCycle:
-            return "升级 Holo Plus，使用周期账单"
+            return String(localized: "升级 Holo Plus，使用周期账单")
         case .budget:
-            return "升级 Holo Plus，使用预算管理"
+            return String(localized: "升级 Holo Plus，使用预算管理")
         case .advancedStatistics:
-            return "升级 Holo Plus，解锁跨月类别对比"
+            return String(localized: "升级 Holo Plus，解锁跨月类别对比")
         case .desktopWidget:
-            return "升级 Holo Plus，解锁桌面小组件"
+            return String(localized: "升级 Holo Plus，解锁桌面小组件")
         case .asrQuota:
-            return "升级 Holo Plus，继续使用语音识别"
+            return String(localized: "升级 Holo Plus，继续使用语音识别")
         case .asrDuration:
-            return "升级 Holo Plus，录制更长语音"
+            return String(localized: "升级 Holo Plus，录制更长语音")
         case .naturalLanguageFinance:
-            return "升级 Holo Plus，继续智能记账"
+            return String(localized: "升级 Holo Plus，继续智能记账")
         case .naturalLanguageTask:
-            return "升级 Holo Plus，继续智能任务"
+            return String(localized: "升级 Holo Plus，继续智能任务")
         case .habitRetroactiveCheckIn:
-            return "升级 Holo Plus，无限次补签找回断签"
+            return String(localized: "升级 Holo Plus，无限次补签找回断签")
         case .billImportAI:
-            return "升级 Holo Plus，使用账单智能导入"
+            return String(localized: "升级 Holo Plus，使用账单智能导入")
         }
     }
 }

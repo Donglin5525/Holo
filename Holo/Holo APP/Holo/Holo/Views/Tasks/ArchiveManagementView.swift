@@ -13,8 +13,16 @@ import OSLog
 
 /// 归档类型标签页
 enum ArchiveTab: String, CaseIterable {
-    case tasks = "任务"
-    case lists = "清单"
+    case tasks
+    case lists
+
+    /// 标签页显示文案
+    var displayName: String {
+        switch self {
+        case .tasks: return String(localized: "任务")
+        case .lists: return String(localized: "清单")
+        }
+    }
 
     var icon: String {
         switch self {
@@ -184,7 +192,7 @@ struct ArchiveManagementView: View {
                     }
                 } label: {
                     VStack(spacing: 8) {
-                        Label(tab.rawValue, systemImage: tab.icon)
+                        Label(tab.displayName, systemImage: tab.icon)
                             .font(.holoCaption)
                             .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
 
@@ -209,11 +217,11 @@ struct ArchiveManagementView: View {
             statsHeaderView(
                 activeCount: repository.activeTasks.count,
                 archivedCount: archivedTasks.count,
-                type: "任务"
+                type: String(localized: "任务")
             )
 
             if archivedTasks.isEmpty {
-                emptyStateView(message: "暂无已归档的任务")
+                emptyStateView(message: String(localized: "暂无已归档的任务"))
             } else {
                 ForEach(archivedTasks, id: \.id) { task in
                     ArchivedTaskRow(
@@ -238,11 +246,11 @@ struct ArchiveManagementView: View {
             statsHeaderView(
                 activeCount: activeListsCount,
                 archivedCount: archivedLists.count,
-                type: "清单"
+                type: String(localized: "清单")
             )
 
             if archivedLists.isEmpty {
-                emptyStateView(message: "暂无已归档的清单")
+                emptyStateView(message: String(localized: "暂无已归档的清单"))
             } else {
                 ForEach(archivedLists, id: \.id) { list in
                     ArchivedListRow(

@@ -25,7 +25,7 @@ nonisolated enum RichContentSerializer {
     /// @ 引用 Token 显示文字的最大长度（超出截断加省略号，避免行内引用过长）
     static let referenceDisplayMaxLength = 24
     /// 存量引用缺失标题和快照时的可识别兜底，避免用户只看到无法判断对象的孤立「@」。
-    static let unnamedReferenceDisplay = "未命名想法"
+    static let unnamedReferenceDisplay = String(localized: "未命名想法")
 
     // MARK: - ContentNode[] → JSON
 

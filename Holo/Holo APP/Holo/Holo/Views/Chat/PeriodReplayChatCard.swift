@@ -123,13 +123,13 @@ struct PeriodReplayChatCard: View {
                     }
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(isFailed ? "回放还没有生成完整" : "Holo 正在生成回放")
+                        Text(isFailed ? String(localized: "回放还没有生成完整") : String(localized: "Holo 正在生成回放"))
                             .font(.headline)
                             .foregroundColor(.holoTextPrimary)
                         // 云端轨道的进度文案（上传中/云端生成中）经 content 更新进快照；
                         // 本地轨道 content 与 statusText 同源，显示逻辑不受影响。
                         let progressText = message.content.isEmpty
-                            ? (job?.statusText ?? "正在回顾这段时间的记录…")
+                            ? (job?.statusText ?? String(localized: "正在回顾这段时间的记录…"))
                             : message.content
                         Text(progressText)
                             .font(.subheadline.weight(.medium))
@@ -238,7 +238,7 @@ struct PeriodReplayChatCard: View {
                         }
                     } label: {
                         HStack(spacing: 5) {
-                            Text(isExpanded ? "收起详细内容" : "展开 \(payload.cards.count) 张洞察")
+                            Text(isExpanded ? String(localized: "收起详细内容") : String(localized: "展开 \(payload.cards.count) 张洞察"))
                                 .font(.subheadline.weight(.semibold))
                             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                                 .font(.caption.weight(.bold))

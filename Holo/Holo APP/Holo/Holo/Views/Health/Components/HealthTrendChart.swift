@@ -60,7 +60,7 @@ struct HealthTrendChart: View {
     private var chartContent: some View {
         Chart(data) { item in
             BarMark(
-                x: .value("日期", item.date, unit: .day),
+                x: .value(String(localized: "日期"), item.date, unit: .day),
                 y: .value(type.unit, item.value)
             )
             .foregroundStyle(type.color.gradient)

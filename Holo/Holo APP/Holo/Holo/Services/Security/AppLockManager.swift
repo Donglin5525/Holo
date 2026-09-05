@@ -35,7 +35,7 @@ final class AppLockManager: ObservableObject {
     @Published private(set) var isEvaluating = false
 
     /// 锁屏副文案（按设备生物识别能力）
-    private(set) var unlockHint = "使用面容 ID 或手机密码解锁"
+    private(set) var unlockHint = String(localized: "使用面容 ID 或手机密码解锁")
 
     // MARK: - Private State
 
@@ -153,7 +153,7 @@ final class AppLockManager: ObservableObject {
         let manager = self
         context.evaluatePolicy(
             .deviceOwnerAuthentication,
-            localizedReason: "验证身份以解锁 Holo"
+            localizedReason: String(localized: "验证身份以解锁 Holo")
         ) { success, error in
             let laError = error as? LAError
             Task { @MainActor in
@@ -195,9 +195,10 @@ final class AppLockManager: ObservableObject {
             return .ready
         }
         if (error as? LAError)?.code == .passcodeNotSet {
-            return .unavailable(message: "设备未设置锁屏密码，无法开启应用锁。请先在系统设置中为设备设置密码。")
+            return .unavailable(message: String(localized: "设备未设置锁屏密码，无法开启应用锁。请先在系统设置中为设备设置密码。"))
         }
-        return .unavailable(message: "当前设备暂时无法使用应用锁：\(error?.localizedDescription ?? "未知原因")")
+        let reason = error?.localizedDescription ?? String(localized: "未知原因")
+        return .unavailable(message: String(localized: "当前设备暂时无法使用应用锁：\(reason)"))
     }
 
     /// 开启应用锁前先验证一次，成功才允许开启（当场体验解锁方式）
@@ -206,7 +207,7 @@ final class AppLockManager: ObservableObject {
         return await withCheckedContinuation { continuation in
             context.evaluatePolicy(
                 .deviceOwnerAuthentication,
-                localizedReason: "验证一次以开启应用锁"
+                localizedReason: String(localized: "验证一次以开启应用锁")
             ) { success, _ in
                 continuation.resume(returning: success)
             }
@@ -219,11 +220,11 @@ final class AppLockManager: ObservableObject {
         _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         switch context.biometryType {
         case .faceID:
-            return "使用面容 ID 或手机密码解锁"
+            return String(localized: "使用面容 ID 或手机密码解锁")
         case .touchID:
-            return "使用触控 ID 或手机密码解锁"
+            return String(localized: "使用触控 ID 或手机密码解锁")
         default:
-            return "使用手机密码解锁"
+            return String(localized: "使用手机密码解锁")
         }
     }
 

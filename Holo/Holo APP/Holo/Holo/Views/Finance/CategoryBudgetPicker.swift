@@ -42,8 +42,8 @@ struct CategoryBudgetPicker: View {
             // 已选分类提示
             if let selected = selectedCategory {
                 let scopeText = selected.isTopLevel
-                    ? "覆盖全部子分类（\(childCount(of: selected)) 项）"
-                    : "仅此项"
+                    ? String(localized: "覆盖全部子分类（\(childCount(of: selected)) 项）")
+                    : String(localized: "仅此项")
                 HStack(spacing: HoloSpacing.sm) {
                     CategoryIconBadge(category: selected, diameter: 28)
                     VStack(alignment: .leading, spacing: 2) {
@@ -151,9 +151,9 @@ struct CategoryBudgetPicker: View {
         guard !children.isEmpty else { return nil }
         let names = children.prefix(3).map(\.name)
         if children.count <= 3 {
-            return "含 \(names.joined(separator: "·"))"
+            return String(localized: "含 \(names.joined(separator: "·"))")
         } else {
-            return "含 \(names.joined(separator: "·")) 等 \(children.count) 项"
+            return String(localized: "含 \(names.joined(separator: "·")) 等 \(children.count) 项")
         }
     }
 

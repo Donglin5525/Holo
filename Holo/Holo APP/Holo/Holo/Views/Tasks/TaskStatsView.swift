@@ -12,10 +12,20 @@ import SwiftUI
 
 /// 统计周期
 enum StatsPeriod: String, CaseIterable {
-    case week = "本周"
-    case month = "本月"
-    case year = "本年"
-    case all = "全部"
+    case week
+    case month
+    case year
+    case all
+
+    /// 周期显示文案
+    var displayName: String {
+        switch self {
+        case .week: return String(localized: "本周")
+        case .month: return String(localized: "本月")
+        case .year: return String(localized: "本年")
+        case .all: return String(localized: "全部")
+        }
+    }
 }
 
 struct TaskStatsView: View {
@@ -88,7 +98,7 @@ struct TaskStatsView: View {
         HStack(spacing: 8) {
             ForEach(StatsPeriod.allCases, id: \.self) { period in
                 HoloFilterChip(
-                    title: period.rawValue,
+                    title: period.displayName,
                     isSelected: selectedPeriod == period
                 ) {
                     withAnimation(.easeInOut(duration: 0.15)) {
@@ -114,21 +124,21 @@ struct TaskStatsView: View {
 
             HStack(spacing: HoloSpacing.md) {
                 StatItemView(
-                    title: "总任务",
+                    title: String(localized: "总任务"),
                     value: "\(stats.total)",
                     icon: "list.bullet",
                     color: .blue
                 )
 
                 StatItemView(
-                    title: "已完成",
+                    title: String(localized: "已完成"),
                     value: "\(stats.completed)",
                     icon: "checkmark.circle.fill",
                     color: .green
                 )
 
                 StatItemView(
-                    title: "已过期",
+                    title: String(localized: "已过期"),
                     value: "\(stats.overdue)",
                     icon: "exclamationmark.triangle.fill",
                     color: .red

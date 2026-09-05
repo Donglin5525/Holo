@@ -358,7 +358,7 @@ struct AddTransactionSheet: View {
     /// 顶部操作栏（关闭 + 标题 + 保存）
     private var topBar: some View {
         ZStack {
-            Text(isEditMode ? "编辑交易" : "记一笔")
+            Text(isEditMode ? String(localized: "编辑交易") : String(localized: "记一笔"))
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
@@ -442,7 +442,7 @@ struct AddTransactionSheet: View {
             isRemarkFocused = false
         } label: {
             HStack(spacing: 6) {
-                Text(amountString == "0" ? "金额" : "¥ \(displayAmountString)")
+                Text(amountString == "0" ? String(localized: "金额") : String(localized: "¥ \(displayAmountString)"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(amountString == "0" ? .holoTextSecondary : .holoTextPrimary)
                     .lineLimit(1)

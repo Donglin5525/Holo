@@ -122,19 +122,19 @@ public class Habit: NSManagedObject {
     
     /// 显示的单位文本
     var unitText: String {
-        unit ?? (isCountType ? "次" : "")
+        unit ?? (isCountType ? String(localized: "次") : "")
     }
     
     /// 频率目标描述（如 "每周 5 次"）
     var frequencyTargetText: String {
         if isCheckInType {
             if let target = targetCountValue {
-                return "\(habitFrequency.displayName) \(target) 次"
+                return String(localized: "\(habitFrequency.displayName) \(target) 次")
             }
             return habitFrequency.displayName
         } else {
             if let target = targetValueDouble {
-                return "目标 \(formatValue(target)) \(unitText)"
+                return String(localized: "目标 \(formatValue(target)) \(unitText)")
             }
             return habitFrequency.displayName
         }
@@ -177,9 +177,9 @@ enum HabitReminderMode: String, CaseIterable, Identifiable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .follow: return "跟随每日汇总"
-        case .solo: return "设单独提醒时间"
-        case .none: return "不提醒"
+        case .follow: return String(localized: "跟随每日汇总")
+        case .solo: return String(localized: "设单独提醒时间")
+        case .none: return String(localized: "不提醒")
         }
     }
 }

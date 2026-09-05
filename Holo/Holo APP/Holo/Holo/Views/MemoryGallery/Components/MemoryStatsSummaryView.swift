@@ -14,9 +14,9 @@ struct MemoryStatsSummaryView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            statColumn(value: memoryCount, label: "记忆")
-            statColumn(value: recordedDays, label: "记录")
-            statColumn(value: insightCount, label: "洞察")
+            statColumn(value: memoryCount, label: String(localized: "记忆"))
+            statColumn(value: recordedDays, label: String(localized: "记录"))
+            statColumn(value: insightCount, label: String(localized: "洞察"))
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.lg)
@@ -46,7 +46,7 @@ struct MemoryStatsSummaryView: View {
     private func formatCount(_ value: Int) -> String {
         if value >= 10_000 {
             let compact = Double(value) / 10_000
-            return String(format: "%.1f万", compact)
+            return String(format: String(localized: "%.1f万"), compact)
         }
         return "\(value)"
     }

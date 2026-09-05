@@ -48,14 +48,20 @@ extension Account {
 
     // MARK: - Default Accounts
 
-    /// 预设账户列表（新用户种子数据）
-    static let defaultAccounts: [(name: String, type: AccountType, icon: String, color: String)] = [
-        ("现金", .cash, "dollarsign", "#22C55E"),
-        ("微信", .digital, "wallet.pass", "#07C160"),
-        ("支付宝", .digital, "wallet.pass", "#1677FF"),
-        ("储蓄卡", .bank, "building.columns", "#6366F1"),
-        ("信用卡", .creditCard, "creditcard.fill", "#F59E0B")
+    /// 预设账户列表（新用户种子数据，词条形态：名字三语按固化种子语言落库）
+    static let localizedDefaultAccounts: [(term: SeedTerm, type: AccountType, icon: String, color: String)] = [
+        (FinanceSeedVocabulary.cash, .cash, "dollarsign", "#22C55E"),
+        (FinanceSeedVocabulary.weChatPay, .digital, "wallet.pass", "#07C160"),
+        (FinanceSeedVocabulary.alipay, .digital, "wallet.pass", "#1677FF"),
+        (FinanceSeedVocabulary.savingsCard, .bank, "building.columns", "#6366F1"),
+        (FinanceSeedVocabulary.creditCard, .creditCard, "creditcard.fill", "#F59E0B")
     ]
+
+    /// 按固化种子语言解析后的预设账户（种子与 SeedRevivalRepair 保留名单同一数据源）
+    static var defaultAccounts: [(name: String, type: AccountType, icon: String, color: String)] {
+        let language = SeedLanguage.seedLanguage
+        return localizedDefaultAccounts.map { ($0.term.value(for: language), $0.type, $0.icon, $0.color) }
+    }
 
     /// 初始化默认账户数据
     /// 在首次启动时调用，确保用户有可用的账户
@@ -63,10 +69,17 @@ extension Account {
         // 检查是否已存在账户
         let fetchRequest = Account.fetchRequest()
         fetchRequest.fetchLimit = 1
+        let accountCount = (try? context.count(for: fetchRequest)) ?? 0
 
-        if (try? context.count(for: fetchRequest)) ?? 0 > 0 {
+        // 先固化种子语言再取预设名单：已有账户 = 老用户，其数据是简体种的 → 固化简体
+        SeedLanguage.resolveSeedLanguage(hasExistingSeedData: accountCount > 0)
+
+        if accountCount > 0 {
             return // 已有账户，跳过初始化
         }
+
+        // 真正种了数据才记录种子时刻（SeedRevivalRepair 的老用户铁证判定基准）
+        SeedRevivalRepair.recordSeedMoment()
 
         // 创建默认账户（第一个设为默认账户）
         for (index, accountData) in defaultAccounts.enumerated() {

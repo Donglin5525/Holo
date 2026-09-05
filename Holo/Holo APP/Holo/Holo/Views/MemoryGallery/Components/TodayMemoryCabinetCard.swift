@@ -35,7 +35,7 @@ struct TodayMemoryCabinetCard: View {
                         cabinetItem(
                             icon: "yensign.circle",
                             value: formatExpense(expense),
-                            label: "支出",
+                            label: String(localized: "支出"),
                             color: .holoPrimary
                         )
                     }
@@ -44,7 +44,7 @@ struct TodayMemoryCabinetCard: View {
                         cabinetItem(
                             icon: "figure.run",
                             value: "\(summary.habitsCompleted)/\(summary.habitsTotal)",
-                            label: "习惯",
+                            label: String(localized: "习惯"),
                             color: .holoSuccess
                         )
                     }
@@ -53,7 +53,7 @@ struct TodayMemoryCabinetCard: View {
                         cabinetItem(
                             icon: "checkmark.circle",
                             value: "\(summary.tasksCompleted)",
-                            label: "任务",
+                            label: String(localized: "任务"),
                             color: .holoPrimary
                         )
                     }
@@ -62,7 +62,7 @@ struct TodayMemoryCabinetCard: View {
                         cabinetItem(
                             icon: "bubble.left",
                             value: "\(summary.thoughtCount)",
-                            label: "想法",
+                            label: String(localized: "想法"),
                             color: .holoPurple
                         )
                     }

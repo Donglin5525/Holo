@@ -67,7 +67,7 @@ struct FlexibleQueryChatCard: View {
             if data.totalAmountText != nil || data.averageAmountText != nil {
                 HStack(alignment: .bottom, spacing: 22) {
                     if let totalAmountText = data.totalAmountText {
-                        resultMetric(label: "合计", value: totalAmountText, isPrimary: true)
+                        resultMetric(label: String(localized: "合计"), value: totalAmountText, isPrimary: true)
                     }
                     if let averageAmountText = data.averageAmountText {
                         resultMetric(label: data.averageLabelText, value: averageAmountText, isPrimary: false)

@@ -29,11 +29,11 @@ final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
 
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
         guard config.isConfigured else {
-            throw SpeechRecognitionError.serverMessage("请先配置语音识别 API Key")
+            throw SpeechRecognitionError.serverMessage(String(localized: "请先配置语音识别 API Key"))
         }
 
         guard let url = config.endpointURL else {
-            throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
+            throw SpeechRecognitionError.serverMessage(String(localized: "语音识别服务地址无效"))
         }
 
         let audioData = try Self.extractPCMData(from: audioFileURL)
@@ -63,11 +63,11 @@ final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
 
     func makeStreamingSession(locale: String?) async throws -> SpeechRecognitionStreamingSession {
         guard config.isConfigured else {
-            throw SpeechRecognitionError.serverMessage("请先配置语音识别 API Key")
+            throw SpeechRecognitionError.serverMessage(String(localized: "请先配置语音识别 API Key"))
         }
 
         guard let url = config.endpointURL else {
-            throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
+            throw SpeechRecognitionError.serverMessage(String(localized: "语音识别服务地址无效"))
         }
 
         return try await makeStreamingSession(url: url, locale: locale)
@@ -75,10 +75,10 @@ final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
 
     func testConnection() async throws {
         guard config.isConfigured else {
-            throw SpeechRecognitionError.serverMessage("请先填写 API Key")
+            throw SpeechRecognitionError.serverMessage(String(localized: "请先填写 API Key"))
         }
         guard let url = config.endpointURL else {
-            throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
+            throw SpeechRecognitionError.serverMessage(String(localized: "语音识别服务地址无效"))
         }
 
         let task = makeWebSocketTask(url: url)
@@ -162,7 +162,7 @@ final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
     private func sendJSON(_ payload: [String: Any], task: URLSessionWebSocketTask) async throws {
         let data = try JSONSerialization.data(withJSONObject: payload)
         guard let string = String(data: data, encoding: .utf8) else {
-            throw SpeechRecognitionError.serverMessage("语音识别请求编码失败")
+            throw SpeechRecognitionError.serverMessage(String(localized: "语音识别请求编码失败"))
         }
         try await task.send(.string(string))
     }
@@ -189,7 +189,7 @@ final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
 
         let event = try JSONDecoder().decode(ASREvent.self, from: data)
         if event.type == "error" {
-            throw SpeechRecognitionError.serverMessage(event.errorMessage ?? "语音识别服务返回错误")
+            throw SpeechRecognitionError.serverMessage(event.errorMessage ?? String(localized: "语音识别服务返回错误"))
         }
         return event
     }
@@ -267,7 +267,7 @@ private final class AliyunQwenASRStreamingSession: SpeechRecognitionStreamingSes
                 }
                 return SpeechRecognitionResult(text: transcript, duration: nil, confidence: nil)
             case "conversation.item.input_audio_transcription.failed":
-                throw SpeechRecognitionError.serverMessage(event.errorMessage ?? "语音识别失败")
+                throw SpeechRecognitionError.serverMessage(event.errorMessage ?? String(localized: "语音识别失败"))
             case "session.finished":
                 throw SpeechRecognitionError.emptyTranscript
             default:
@@ -291,7 +291,7 @@ private final class AliyunQwenASRStreamingSession: SpeechRecognitionStreamingSes
     private func sendJSON(_ payload: [String: Any]) async throws {
         let data = try JSONSerialization.data(withJSONObject: payload)
         guard let string = String(data: data, encoding: .utf8) else {
-            throw SpeechRecognitionError.serverMessage("语音识别请求编码失败")
+            throw SpeechRecognitionError.serverMessage(String(localized: "语音识别请求编码失败"))
         }
         try await task.send(.string(string))
     }
@@ -311,7 +311,7 @@ private final class AliyunQwenASRStreamingSession: SpeechRecognitionStreamingSes
 
         let event = try JSONDecoder().decode(ASREvent.self, from: data)
         if event.type == "error" {
-            throw SpeechRecognitionError.serverMessage(event.errorMessage ?? "语音识别服务返回错误")
+            throw SpeechRecognitionError.serverMessage(event.errorMessage ?? String(localized: "语音识别服务返回错误"))
         }
         return event
     }

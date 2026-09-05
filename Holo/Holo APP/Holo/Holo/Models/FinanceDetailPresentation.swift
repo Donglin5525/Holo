@@ -19,19 +19,19 @@ nonisolated enum FinanceDetailSortOrder: String, CaseIterable, Identifiable {
 
     var menuTitle: String {
         switch self {
-        case .timeDescending: return "时间：从新到旧"
-        case .timeAscending: return "时间：从旧到新"
-        case .amountDescending: return "金额：从高到低"
-        case .amountAscending: return "金额：从低到高"
+        case .timeDescending: return String(localized: "时间：从新到旧")
+        case .timeAscending: return String(localized: "时间：从旧到新")
+        case .amountDescending: return String(localized: "金额：从高到低")
+        case .amountAscending: return String(localized: "金额：从低到高")
         }
     }
 
     var compactTitle: String {
         switch self {
-        case .timeDescending: return "时间↓"
-        case .timeAscending: return "时间↑"
-        case .amountDescending: return "金额↓"
-        case .amountAscending: return "金额↑"
+        case .timeDescending: return String(localized: "时间↓")
+        case .timeAscending: return String(localized: "时间↑")
+        case .amountDescending: return String(localized: "金额↓")
+        case .amountAscending: return String(localized: "金额↑")
         }
     }
 

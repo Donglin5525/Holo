@@ -49,8 +49,8 @@ struct MemoryGalleryView: View {
                 if selectedTab == .calendar {
                     FirstVisitWelcomeBar(
                         icon: "book.fill",
-                        title: "欢迎来到记忆长廊",
-                        message: "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。",
+                        title: String(localized: "欢迎来到记忆长廊"),
+                        message: String(localized: "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。"),
                         seenKey: OnboardingProgressStore.memoryGalleryWelcomeKey
                     )
                     .padding(.horizontal, HoloSpacing.md)
@@ -117,7 +117,7 @@ struct MemoryGalleryView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("返回")
+                .accessibilityLabel(String(localized: "返回"))
 
                 Spacer(minLength: 0)
 
@@ -186,7 +186,7 @@ struct MemoryGalleryView: View {
                         // 无报告时不展示，长廊对无报告用户保持零噪音。
                         if let reportEntry = viewModel.latestReportEntry {
                             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                                sectionHeading(title: "它看懂了你", icon: "sparkles")
+                                sectionHeading(title: String(localized: "它看懂了你"), icon: "sparkles")
                                 ReportDoorCard(entry: reportEntry) {
                                     DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
                                     ChatReportTabRouter.shared.openReportTab()
@@ -276,8 +276,7 @@ struct MemoryGalleryView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             let formatter = DateFormatter()
             let dateStr: String = {
-                formatter.locale = Locale(identifier: "zh_CN")
-                formatter.dateFormat = "M月d日 EEEE"
+                formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
                 return formatter.string(from: date)
             }()
 
@@ -375,7 +374,7 @@ struct MemoryGalleryView: View {
             stats.append(MemoryPreviewStatItem(
                 icon: "yensign.circle",
                 value: formatExpense(expense),
-                label: "支出",
+                label: String(localized: "支出"),
                 color: .holoPrimary
             ))
         }
@@ -384,7 +383,7 @@ struct MemoryGalleryView: View {
             stats.append(MemoryPreviewStatItem(
                 icon: "figure.run",
                 value: "\(summary.habitsCompleted)/\(summary.habitsTotal)",
-                label: "习惯",
+                label: String(localized: "习惯"),
                 color: .holoSuccess
             ))
         }
@@ -393,7 +392,7 @@ struct MemoryGalleryView: View {
             stats.append(MemoryPreviewStatItem(
                 icon: "checkmark.circle",
                 value: "\(summary.tasksCompleted)",
-                label: "任务",
+                label: String(localized: "任务"),
                 color: .holoPrimary
             ))
         }
@@ -402,7 +401,7 @@ struct MemoryGalleryView: View {
             stats.append(MemoryPreviewStatItem(
                 icon: "bubble.left",
                 value: "\(summary.thoughtCount)",
-                label: "想法",
+                label: String(localized: "想法"),
                 color: .holoPurple
             ))
         }
@@ -416,7 +415,7 @@ struct MemoryGalleryView: View {
 
         if !stories.isEmpty {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                sectionHeading(title: "可回看的片段", icon: "bookmark.fill")
+                sectionHeading(title: String(localized: "可回看的片段"), icon: "bookmark.fill")
 
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     ForEach(stories) { item in

@@ -117,9 +117,9 @@ struct HabitCalendarHeatmap: View {
         HStack(spacing: HoloSpacing.md) {
             Spacer()
 
-            legendItem(color: .holoSuccess, label: "已完成")
-            legendItem(color: .holoBackground, border: .holoDivider.opacity(0.4), label: "未完成")
-            legendItem(color: .holoPrimary.opacity(0.15), border: .holoPrimary, label: "今天")
+            legendItem(color: .holoSuccess, label: String(localized: "已完成"))
+            legendItem(color: .holoBackground, border: .holoDivider.opacity(0.4), label: String(localized: "未完成"))
+            legendItem(color: .holoPrimary.opacity(0.15), border: .holoPrimary, label: String(localized: "今天"))
         }
     }
 

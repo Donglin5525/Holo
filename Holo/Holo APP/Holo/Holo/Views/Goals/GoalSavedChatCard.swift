@@ -45,13 +45,13 @@ struct GoalSavedChatCard: View {
             ChatCardView {
                 CardHeaderView(
                     icon: "target",
-                    title: "目标已创建",
+                    title: String(localized: "目标已创建"),
                     subtitle: data.title
                 )
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    HoloAIMetricTile(label: "任务", value: "\(data.taskCount)")
-                    HoloAIMetricTile(label: "习惯", value: "\(data.habitCount)")
+                    HoloAIMetricTile(label: String(localized: "任务"), value: "\(data.taskCount)")
+                    HoloAIMetricTile(label: String(localized: "习惯"), value: "\(data.habitCount)")
                 }
 
                 HStack(spacing: 6) {

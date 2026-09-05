@@ -12,12 +12,22 @@ import SwiftUI
 
 /// 健康指标类型
 enum HealthMetricType: String, CaseIterable, Identifiable {
-    case steps = "步数"
-    case sleep = "睡眠"
-    case standHours = "站立"
-    case activeMinutes = "活动"
+    case steps = "steps"
+    case sleep = "sleep"
+    case standHours = "standHours"
+    case activeMinutes = "activeMinutes"
 
     var id: String { rawValue }
+
+    /// 显示名称（rawValue 仅作标识，不落库不传输，显示一律走 displayName）
+    var displayName: String {
+        switch self {
+        case .steps: return String(localized: "步数")
+        case .sleep: return String(localized: "睡眠")
+        case .standHours: return String(localized: "站立")
+        case .activeMinutes: return String(localized: "活动")
+        }
+    }
 
     /// SF Symbol 图标
     var icon: String {
@@ -52,10 +62,10 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
     /// 单位文本
     var unit: String {
         switch self {
-        case .steps: return "步"
-        case .sleep: return "小时"
-        case .standHours: return "小时"
-        case .activeMinutes: return "分钟"
+        case .steps: return String(localized: "步")
+        case .sleep: return String(localized: "小时")
+        case .standHours: return String(localized: "小时")
+        case .activeMinutes: return String(localized: "分钟")
         }
     }
 

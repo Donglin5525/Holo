@@ -178,13 +178,13 @@ nonisolated struct HoloPeriodReplayJob: Equatable, Sendable {
     var statusText: String {
         switch state {
         case .generating:
-            return "正在回顾这段时间的记录…"
+            return String(localized: "正在回顾这段时间的记录…")
         case .waitingForNetwork:
-            return "网络中断，已保留进度，将自动继续"
+            return String(localized: "网络中断，已保留进度，将自动继续")
         case .waitingForForeground:
-            return "系统暂停了后台生成，打开 Holo 后会继续"
+            return String(localized: "系统暂停了后台生成，打开 Holo 后会继续")
         case .failed:
-            return "这次生成没有完成，可以继续生成"
+            return String(localized: "这次生成没有完成，可以继续生成")
         case .completed:
             return ""
         }

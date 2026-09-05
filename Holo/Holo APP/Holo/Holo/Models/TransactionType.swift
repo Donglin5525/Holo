@@ -15,8 +15,8 @@ enum TransactionType: String, Codable, Sendable, Hashable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .income: return "收入"
-        case .expense: return "支出"
+        case .income: return String(localized: "收入")
+        case .expense: return String(localized: "支出")
         }
     }
     

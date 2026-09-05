@@ -83,7 +83,7 @@ struct AppLockOverlayView: View {
             .buttonStyle(PlainButtonStyle())
             .disabled(manager.isEvaluating)
             .padding(.horizontal, HoloSpacing.xl)
-            .accessibilityLabel("解锁 Holo")
+            .accessibilityLabel(String(localized: "解锁 Holo"))
         }
         .padding(.bottom, 80)
     }

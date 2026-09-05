@@ -28,7 +28,7 @@ struct WeeklyGridEventLayout {
         var primaryEvent: CalendarEvent { events[0] }
 
         var displayTitle: String {
-            isOverflow ? "还有 \(overflowCount) 条" : primaryEvent.title
+            isOverflow ? String(localized: "还有 \(overflowCount) 条") : primaryEvent.title
         }
     }
 

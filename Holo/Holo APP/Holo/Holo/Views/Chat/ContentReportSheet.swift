@@ -139,7 +139,7 @@ struct ContentReportSheet: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
 
-            Text(message.content.isEmpty ? "（内容为空）" : message.content)
+            Text(message.content.isEmpty ? String(localized: "（内容为空）") : message.content)
                 .font(.system(size: 15))
                 .foregroundColor(.holoTextPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)

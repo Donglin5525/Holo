@@ -141,8 +141,8 @@ struct PeriodReplayPickerSheet: View {
 
     private var customDatePicker: some View {
         VStack(spacing: HoloSpacing.sm) {
-            customDateRow(title: "开始", selection: $customStart)
-            customDateRow(title: "结束", selection: $customEnd)
+            customDateRow(title: String(localized: "开始"), selection: $customStart)
+            customDateRow(title: String(localized: "结束"), selection: $customEnd)
         }
         .padding(HoloSpacing.md)
         .background(Color.holoCardBackground)
@@ -216,9 +216,9 @@ private struct ReplayOption: Identifiable {
             type: MemoryInsightPeriodType, prev: ID, current: ID,
             prevTitle: String, currentTitle: String, icon: String
         )] = [
-            (.weekly, .prevWeekly, .currentWeekly, "上周", "本周", "calendar"),
-            (.monthly, .prevMonthly, .currentMonthly, "上月", "本月", "calendar.badge.clock"),
-            (.quarterly, .prevQuarterly, .currentQuarterly, "上季度", "本季度", "calendar.circle"),
+            (.weekly, .prevWeekly, .currentWeekly, String(localized: "上周"), String(localized: "本周"), "calendar"),
+            (.monthly, .prevMonthly, .currentMonthly, String(localized: "上月"), String(localized: "本月"), "calendar.badge.clock"),
+            (.quarterly, .prevQuarterly, .currentQuarterly, String(localized: "上季度"), String(localized: "本季度"), "calendar.circle"),
         ]
 
         var options: [ReplayOption] = []
@@ -235,7 +235,7 @@ private struct ReplayOption: Identifiable {
                     id: spec.prev,
                     periodType: spec.type,
                     title: spec.prevTitle,
-                    subtitle: subtitleText(effective.start, effective.end, badge: "完整"),
+                    subtitle: subtitleText(effective.start, effective.end, badge: String(localized: "完整")),
                     range: (effective.start, effective.end),
                     icon: spec.icon
                 ))
@@ -243,7 +243,7 @@ private struct ReplayOption: Identifiable {
                     id: spec.current,
                     periodType: spec.type,
                     title: spec.currentTitle,
-                    subtitle: subtitleText(current.start, current.end, badge: "进行中\(dayCount)天"),
+                    subtitle: subtitleText(current.start, current.end, badge: String(localized: "进行中\(dayCount)天")),
                     range: (current.start, current.end),
                     icon: spec.icon
                 ))
@@ -261,8 +261,8 @@ private struct ReplayOption: Identifiable {
         options.append(ReplayOption(
             id: .custom,
             periodType: .custom,
-            title: "自定义周期",
-            subtitle: "自定义起止日期",
+            title: String(localized: "自定义周期"),
+            subtitle: String(localized: "自定义起止日期"),
             range: nil,
             icon: "slider.horizontal.3"
         ))
@@ -293,8 +293,7 @@ private extension Date {
 
     func formattedZhMonthDay() -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter.string(from: self)
     }
 }

@@ -10,8 +10,14 @@ import CoreData
 
 /// 预算设置模式
 enum BudgetSheetMode: String, CaseIterable {
-    case total = "总预算"
-    case category = "分类预算"
+    case total, category
+
+    var displayName: String {
+        switch self {
+        case .total: return String(localized: "总预算")
+        case .category: return String(localized: "分类预算")
+        }
+    }
 }
 
 struct BudgetSettingsSheet: View {
@@ -176,7 +182,7 @@ struct BudgetSettingsSheet: View {
                 .padding(HoloSpacing.lg)
             }
             .background(Color.holoBackground)
-            .navigationTitle(isEditMode ? "预算设置" : "新建预算")
+            .navigationTitle(isEditMode ? String(localized: "预算设置") : String(localized: "新建预算"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -184,7 +190,7 @@ struct BudgetSettingsSheet: View {
                         .foregroundColor(.holoTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(isEditMode ? "保存" : "创建") {
+                    Button(isEditMode ? String(localized: "保存") : String(localized: "创建")) {
                         saveBudget()
                     }
                     .font(.system(size: 16, weight: .semibold))
@@ -249,7 +255,7 @@ struct BudgetSettingsSheet: View {
                         }
                     }
                 } label: {
-                    Text(modeOption.rawValue)
+                    Text(modeOption.displayName)
                         .font(.system(size: 13, weight: mode == modeOption ? .semibold : .regular))
                         .foregroundColor(mode == modeOption ? .white : .holoTextSecondary)
                         .frame(maxWidth: .infinity)
@@ -279,7 +285,7 @@ struct BudgetSettingsSheet: View {
             } else {
                 if isCategoryMode {
                     guard let category = selectedCategory else {
-                        errorMessage = "请选择一个分类"
+                        errorMessage = String(localized: "请选择一个分类")
                         showError = true
                         return
                     }

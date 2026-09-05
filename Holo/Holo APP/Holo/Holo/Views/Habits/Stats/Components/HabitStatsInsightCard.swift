@@ -35,7 +35,7 @@ struct HabitStatsInsightCard: View {
                         color: .holoSuccess,
                         main: Text("\(best.name)是本月最佳，完成率 ").foregroundColor(.holoTextPrimary)
                             + Text("\(rateText(best.completionRate))%").bold().foregroundColor(.holoSuccess),
-                        sub: "坚持得很稳，状态在线"
+                        sub: String(localized: "坚持得很稳，状态在线")
                     )
                     Divider().foregroundStyle(Color.holoDivider).padding(.vertical, 2)
                 }
@@ -46,7 +46,7 @@ struct HabitStatsInsightCard: View {
                         color: .holoPrimary,
                         main: Text("\(weak.name)需要关注，完成率 ").foregroundColor(.holoTextPrimary)
                             + Text("\(rateText(weak.completionRate))%").bold().foregroundColor(.holoPrimary),
-                        sub: "完成率最低，可以多投入一些"
+                        sub: String(localized: "完成率最低，可以多投入一些")
                     )
                     Divider().foregroundStyle(Color.holoDivider).padding(.vertical, 2)
                 }
@@ -103,8 +103,8 @@ struct HabitStatsInsightCard: View {
     }
 
     private var overallSubText: String {
-        guard let delta = rateDelta, abs(delta) > 0.5 else { return "养成好节奏" }
-        return delta > 0 ? "进步明显，再接再厉" : "略有回落，调整节奏"
+        guard let delta = rateDelta, abs(delta) > 0.5 else { return String(localized: "养成好节奏") }
+        return delta > 0 ? String(localized: "进步明显，再接再厉") : String(localized: "略有回落，调整节奏")
     }
 
     /// 完成率显示值（四舍五入，避免出现 67.0%）

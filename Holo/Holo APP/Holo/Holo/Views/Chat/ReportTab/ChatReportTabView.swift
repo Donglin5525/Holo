@@ -93,7 +93,7 @@ struct ChatReportTabView: View {
                 .font(.system(size: 13.5))
                 .foregroundColor(.holoTextPrimary)
                 .autocorrectionDisabled()
-                .accessibilityLabel("搜索报告")
+                .accessibilityLabel(String(localized: "搜索报告"))
 
             if !viewModel.searchText.isEmpty {
                 Button {
@@ -104,7 +104,7 @@ struct ChatReportTabView: View {
                         .foregroundColor(.holoTextSecondary.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("清空搜索")
+                .accessibilityLabel(String(localized: "清空搜索"))
             }
         }
         .padding(.horizontal, 12)
@@ -121,7 +121,7 @@ struct ChatReportTabView: View {
     private var scenarioFilterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                filterChip(label: "全部", tag: nil)
+                filterChip(label: String(localized: "全部"), tag: nil)
                 ForEach(viewModel.availableScenarioFilters, id: \.rawValue) { tag in
                     filterChip(label: tag.label, tag: tag)
                 }
@@ -343,7 +343,7 @@ struct ChatReportTabView: View {
                 }
             } label: {
                 Label(
-                    entry.isFavorited ? "取消收藏" : "收藏",
+                    entry.isFavorited ? String(localized: "取消收藏") : String(localized: "收藏"),
                     systemImage: entry.isFavorited ? "star.slash" : "star.fill"
                 )
             }
@@ -360,7 +360,7 @@ struct ChatReportTabView: View {
                 viewModel.toggleFavorite(entry)
             } label: {
                 Label(
-                    entry.isFavorited ? "取消收藏" : "收藏",
+                    entry.isFavorited ? String(localized: "取消收藏") : String(localized: "收藏"),
                     systemImage: entry.isFavorited ? "star.slash" : "star.fill"
                 )
             }

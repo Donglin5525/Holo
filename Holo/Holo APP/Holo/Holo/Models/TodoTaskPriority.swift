@@ -17,9 +17,9 @@ enum TaskStatus: String, Codable, CaseIterable {
 
     var displayTitle: String {
         switch self {
-        case .todo: return "待办"
-        case .inProgress: return "进行中"
-        case .completed: return "已完成"
+        case .todo: return String(localized: "待办")
+        case .inProgress: return String(localized: "进行中")
+        case .completed: return String(localized: "已完成")
         }
     }
 
@@ -43,10 +43,10 @@ enum TaskPriority: Int16, Codable, CaseIterable {
 
     var displayTitle: String {
         switch self {
-        case .urgent: return "十分紧急"
-        case .high: return "高"
-        case .medium: return "中"
-        case .low: return "低"
+        case .urgent: return String(localized: "十分紧急")
+        case .high: return String(localized: "高")
+        case .medium: return String(localized: "中")
+        case .low: return String(localized: "低")
         }
     }
 

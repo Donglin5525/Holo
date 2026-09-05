@@ -285,7 +285,7 @@ struct RepeatPicker: View {
 
     /// 第N个的文字描述
     private func ordinalText(_ ordinal: Int) -> String {
-        let names = ["", "一", "二", "三", "四", "五"]
+        let names = ["", String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五")]
         return ordinal < names.count ? names[ordinal] : "\(ordinal)"
     }
 
@@ -353,11 +353,10 @@ struct RepeatPicker: View {
     /// 格式化的结束日期显示
     private var formattedEndDate: String {
         guard let date = endDate else {
-            return "未选择"
+            return String(localized: "未选择")
         }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter.string(from: date)
     }
 

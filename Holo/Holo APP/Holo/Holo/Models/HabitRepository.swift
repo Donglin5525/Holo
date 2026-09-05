@@ -1233,9 +1233,9 @@ enum HabitError: LocalizedError {
     
     var errorDescription: String? {
         switch self {
-        case .invalidData: return "数据无效"
-        case .notFound: return "习惯不存在"
-        case .saveFailed: return "保存失败"
+        case .invalidData: return String(localized: "数据无效")
+        case .notFound: return String(localized: "习惯不存在")
+        case .saveFailed: return String(localized: "保存失败")
         }
     }
 }

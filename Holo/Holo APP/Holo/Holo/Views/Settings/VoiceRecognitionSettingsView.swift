@@ -119,7 +119,7 @@ struct VoiceRecognitionSettingsView: View {
                         ProgressView()
                             .scaleEffect(0.8)
                     }
-                    Text(viewModel.isTesting ? "测试中..." : "测试连接")
+                    Text(viewModel.isTesting ? String(localized: "测试中...") : String(localized: "测试连接"))
                         .font(.holoBody)
                 }
             }

@@ -13,8 +13,8 @@ nonisolated enum SpendingProjectFrequency: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .monthly: return "每月"
-        case .yearly: return "每年"
+        case .monthly: return String(localized: "每月")
+        case .yearly: return String(localized: "每年")
         }
     }
 }
@@ -27,8 +27,8 @@ nonisolated enum SpendingProjectAmountMode: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .perOccurrence: return "每期金额"
-        case .projectTotal: return "项目总额"
+        case .perOccurrence: return String(localized: "每期金额")
+        case .projectTotal: return String(localized: "项目总额")
         }
     }
 }

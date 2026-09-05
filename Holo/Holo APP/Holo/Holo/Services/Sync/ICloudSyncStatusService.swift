@@ -81,7 +81,7 @@ final class ICloudSyncStatusService: ObservableObject {
     @Published private(set) var accountStatus: CKAccountStatus = .couldNotDetermine
     @Published private(set) var isSyncing: Bool = false
     @Published private(set) var isRefreshing: Bool = false
-    @Published private(set) var lastEventDescription: String = "尚未检测"
+    @Published private(set) var lastEventDescription: String = String(localized: "尚未检测")
     @Published private(set) var lastErrorMessage: String?
     @Published private(set) var lastSyncTime: Date?
     @Published private(set) var lastStatusCheckTime: Date?
@@ -131,7 +131,7 @@ final class ICloudSyncStatusService: ObservableObject {
             try? await Task.sleep(for: .milliseconds(Int((0.6 - elapsed) * 1000)))
         }
         isRefreshing = false
-        refreshToast = "状态已更新：" + accountStatusText
+        refreshToast = String(localized: "状态已更新：") + accountStatusText
     }
 
     func requestManualSync() async {
@@ -144,17 +144,17 @@ final class ICloudSyncStatusService: ObservableObject {
                 let requestedAt = try await writeSyncProbe()
                 lastManualSyncRequestTime = requestedAt
                 UserDefaults.standard.set(requestedAt, forKey: lastManualSyncRequestTimeKey)
-                lastEventDescription = "已请求同步，等待系统完成"
-                refreshToast = "已请求同步"
+                lastEventDescription = String(localized: "已请求同步，等待系统完成")
+                refreshToast = String(localized: "已请求同步")
             } catch {
                 lastErrorMessage = error.localizedDescription
-                lastEventDescription = "同步请求失败"
-                refreshToast = "同步请求失败"
+                lastEventDescription = String(localized: "同步请求失败")
+                refreshToast = String(localized: "同步请求失败")
                 logger.error("写入 iCloud 同步探针失败：\(error.localizedDescription)")
             }
         } else {
             lastEventDescription = statusDescriptionForCurrentAccount()
-            refreshToast = "状态已更新：" + accountStatusText
+            refreshToast = String(localized: "状态已更新：") + accountStatusText
         }
 
         let elapsed = Date().timeIntervalSince(start)
@@ -166,32 +166,32 @@ final class ICloudSyncStatusService: ObservableObject {
 
     var accountStatusText: String {
         switch accountStatus {
-        case .available: return "已登录"
-        case .noAccount: return "未登录 iCloud"
-        case .restricted: return "账号受限"
-        case .temporarilyUnavailable: return "iCloud 暂时不可用"
-        case .couldNotDetermine: return "未检测到"
-        @unknown default: return "未知"
+        case .available: return String(localized: "已登录")
+        case .noAccount: return String(localized: "未登录 iCloud")
+        case .restricted: return String(localized: "账号受限")
+        case .temporarilyUnavailable: return String(localized: "iCloud 暂时不可用")
+        case .couldNotDetermine: return String(localized: "未检测到")
+        @unknown default: return String(localized: "未知")
         }
     }
 
     var syncStatusDetailText: String {
         if let lastSyncTime {
             if let lastManualSyncRequestTime, lastManualSyncRequestTime > lastSyncTime {
-                return "最近请求同步：" + formatTime(lastManualSyncRequestTime)
+                return String(localized: "最近请求同步：") + formatTime(lastManualSyncRequestTime)
             }
-            return "最近同步：" + formatTime(lastSyncTime)
+            return String(localized: "最近同步：") + formatTime(lastSyncTime)
         }
 
         if let lastManualSyncRequestTime {
-            return "最近请求同步：" + formatTime(lastManualSyncRequestTime)
+            return String(localized: "最近请求同步：") + formatTime(lastManualSyncRequestTime)
         }
 
         if let lastStatusCheckTime {
-            return "最近检查：" + formatTime(lastStatusCheckTime)
+            return String(localized: "最近检查：") + formatTime(lastStatusCheckTime)
         }
 
-        return "等待首次同步完成"
+        return String(localized: "等待首次同步完成")
     }
 
     private func handleCloudKitEvent(_ notification: Notification) {
@@ -203,13 +203,13 @@ final class ICloudSyncStatusService: ObservableObject {
         isSyncing = event.endDate == nil
         switch event.type {
         case .setup:
-            lastEventDescription = isSyncing ? "正在准备 iCloud 同步" : "iCloud 同步已准备"
+            lastEventDescription = isSyncing ? String(localized: "正在准备 iCloud 同步") : String(localized: "iCloud 同步已准备")
         case .import:
-            lastEventDescription = isSyncing ? "正在接收 iCloud 数据" : "已接收 iCloud 数据"
+            lastEventDescription = isSyncing ? String(localized: "正在接收 iCloud 数据") : String(localized: "已接收 iCloud 数据")
         case .export:
-            lastEventDescription = isSyncing ? "正在上传本机数据" : "已上传本机数据"
+            lastEventDescription = isSyncing ? String(localized: "正在上传本机数据") : String(localized: "已上传本机数据")
         @unknown default:
-            lastEventDescription = "iCloud 同步状态已更新"
+            lastEventDescription = String(localized: "iCloud 同步状态已更新")
         }
 
         if !isSyncing {
@@ -227,8 +227,8 @@ final class ICloudSyncStatusService: ObservableObject {
     private func updateAccountStatus() async {
         guard let container else {
             accountStatus = .couldNotDetermine
-            lastErrorMessage = "当前签名未启用 iCloud CloudKit，同步功能暂不可用"
-            lastEventDescription = "iCloud 同步未启用"
+            lastErrorMessage = String(localized: "当前签名未启用 iCloud CloudKit，同步功能暂不可用")
+            lastEventDescription = String(localized: "iCloud 同步未启用")
             let checkedAt = Date()
             lastStatusCheckTime = checkedAt
             UserDefaults.standard.set(checkedAt, forKey: lastStatusCheckTimeKey)
@@ -278,17 +278,17 @@ final class ICloudSyncStatusService: ObservableObject {
     private func statusDescriptionForCurrentAccount() -> String {
         switch accountStatus {
         case .available:
-            return "iCloud 可用，等待系统自动同步"
+            return String(localized: "iCloud 可用，等待系统自动同步")
         case .noAccount:
-            return "未登录 iCloud，无法同步"
+            return String(localized: "未登录 iCloud，无法同步")
         case .restricted:
-            return "iCloud 账号受限，无法同步"
+            return String(localized: "iCloud 账号受限，无法同步")
         case .temporarilyUnavailable:
-            return "iCloud 暂时不可用"
+            return String(localized: "iCloud 暂时不可用")
         case .couldNotDetermine:
-            return "暂时无法确认 iCloud 状态"
+            return String(localized: "暂时无法确认 iCloud 状态")
         @unknown default:
-            return "iCloud 状态未知"
+            return String(localized: "iCloud 状态未知")
         }
     }
 

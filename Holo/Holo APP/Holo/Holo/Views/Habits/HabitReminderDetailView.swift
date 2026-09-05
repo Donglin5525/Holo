@@ -240,11 +240,11 @@ struct HabitReminderDetailView: View {
         switch habit.habitReminderMode {
         case .follow:
             let time = HabitReminderScheduler.shared.reminderTime
-            return "汇总 \(Self.timeText(time.hour, time.minute))"
+            return String(localized: "汇总 \(Self.timeText(time.hour, time.minute))")
         case .solo:
-            return "单独 \(Self.timeText(Int(habit.reminderHour), Int(habit.reminderMinute)))"
+            return String(localized: "单独 \(Self.timeText(Int(habit.reminderHour), Int(habit.reminderMinute)))")
         case .none:
-            return "不提醒"
+            return String(localized: "不提醒")
         }
     }
 
@@ -256,9 +256,9 @@ struct HabitReminderDetailView: View {
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
 
-            ruleText("单独设了时间的习惯按自己的时间提醒，当天不再进每日汇总——同一习惯一天最多提醒一次")
-            ruleText("当天已打卡的习惯不会收到任何提醒")
-            ruleText("只有打卡型习惯能设提醒，数值型不参与")
+            ruleText(String(localized: "单独设了时间的习惯按自己的时间提醒，当天不再进每日汇总——同一习惯一天最多提醒一次"))
+            ruleText(String(localized: "当天已打卡的习惯不会收到任何提醒"))
+            ruleText(String(localized: "只有打卡型习惯能设提醒，数值型不参与"))
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -403,12 +403,12 @@ struct HabitReminderModePicker: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            optionCard(.follow, subtitle: "每天 \(fallbackTimeText) 与其他习惯一起汇总提醒")
-            optionCard(.solo, subtitle: "按自己设置的时间单独提醒")
+            optionCard(.follow, subtitle: String(localized: "每天 \(fallbackTimeText) 与其他习惯一起汇总提醒"))
+            optionCard(.solo, subtitle: String(localized: "按自己设置的时间单独提醒"))
             if mode == .solo {
                 timeRow
             }
-            optionCard(.none, subtitle: "不为这个习惯发送打卡提醒")
+            optionCard(.none, subtitle: String(localized: "不为这个习惯发送打卡提醒"))
         }
     }
 

@@ -37,7 +37,7 @@ extension View {
     ///   - onConfirmDismiss: 确认放弃后执行的关闭操作
     func unsavedChangesAlert(
         isPresented: Binding<Bool>,
-        message: String = "你有未保存的修改，确定要退出吗？",
+        message: String = String(localized: "你有未保存的修改，确定要退出吗？"),
         onConfirmDismiss: @escaping () -> Void
     ) -> some View {
         self.modifier(UnsavedChangesAlert(

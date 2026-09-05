@@ -340,7 +340,7 @@ private enum VoiceRecordingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .failedToCreateAudioConverter:
-            return "无法初始化录音转换器"
+            return String(localized: "无法初始化录音转换器")
         }
     }
 }

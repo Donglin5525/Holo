@@ -46,7 +46,7 @@ struct QuickActionBar: View {
                     }
                     .disabled(viewModel.isStreaming || !capability.isEnabled)
                     .opacity(capability.isEnabled ? 1.0 : 0.5)
-                    .accessibilityHint(capability.id == .recentAnalysis ? "展开分析场景目录" : "")
+                    .accessibilityHint(capability.id == .recentAnalysis ? String(localized: "展开分析场景目录") : "")
                 }
             }
             .padding(.horizontal, 16)

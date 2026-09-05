@@ -41,19 +41,19 @@ enum VoiceInputError: Equatable {
     var message: String {
         switch self {
         case .microphonePermissionDenied:
-            return "麦克风权限未开启"
+            return String(localized: "麦克风权限未开启")
         case .recordingTooShort:
-            return "说得有点短，可以再试一次"
+            return String(localized: "说得有点短，可以再试一次")
         case .recordingFailed:
-            return "暂时无法录音"
+            return String(localized: "暂时无法录音")
         case .transcriptionTimedOut:
-            return "识别超时，请稍后重试"
+            return String(localized: "识别超时，请稍后重试")
         case .emptyTranscript:
-            return "没听清楚，可以再说一次"
+            return String(localized: "没听清楚，可以再说一次")
         case .networkFailure:
-            return "识别失败，请检查网络后重试"
+            return String(localized: "识别失败，请检查网络后重试")
         case .interrupted:
-            return "录音被中断，可以继续或完成"
+            return String(localized: "录音被中断，可以继续或完成")
         case .serverMessage(let message):
             return message
         case .quotaExhausted(let message):
@@ -241,7 +241,7 @@ final class VoiceInputViewModel: ObservableObject {
         guard let result = recordingService.stopRecording() else {
             streamingSession?.cancel()
             streamingSession = nil
-            state = .failed(.recordingFailed("录音文件不可用"))
+            state = .failed(.recordingFailed(String(localized: "录音文件不可用")))
             return
         }
 
@@ -449,7 +449,7 @@ final class VoiceInputViewModel: ObservableObject {
             summaryTranscript = nil
             editableTranscript = formattedText
             transcriptDisplayMode = .original
-            summaryNotice = "正在智能总结，可先确认原文"
+            summaryNotice = String(localized: "正在智能总结，可先确认原文")
             state = .transcriptReady(formattedText)
             startSummary(text, processor: postProcessor)
         } else {
@@ -486,7 +486,7 @@ final class VoiceInputViewModel: ObservableObject {
                     self.transcriptDisplayMode = .summary
                     self.state = .transcriptReady(formattedResult)
                 } else {
-                    self.summaryNotice = self.summaryNotice ?? "智能总结已完成，可还原总结"
+                    self.summaryNotice = self.summaryNotice ?? String(localized: "智能总结已完成，可还原总结")
                     self.state = .transcriptReady(self.editableTranscript)
                 }
             } catch is CancellationError {
@@ -498,7 +498,7 @@ final class VoiceInputViewModel: ObservableObject {
                 let fallbackText = self.originalTranscript ?? self.formatTranscript(asrText)
                 self.editableTranscript = fallbackText
                 self.transcriptDisplayMode = .original
-                self.summaryNotice = "智能总结失败，已保留原文"
+                self.summaryNotice = String(localized: "智能总结失败，已保留原文")
                 self.state = .transcriptReady(fallbackText)
             }
         }
@@ -530,10 +530,10 @@ final class VoiceInputViewModel: ObservableObject {
     private static func qualityNotice(summary: String, original: String) -> String? {
         let ratio = Double(summary.count) / Double(max(original.count, 1))
         if ratio < 0.1 {
-            return "总结较原文大幅缩短，可查看原文确认"
+            return String(localized: "总结较原文大幅缩短，可查看原文确认")
         }
         if ratio > 1.5 {
-            return "总结内容较原文更长，建议查看原文对比"
+            return String(localized: "总结内容较原文更长，建议查看原文对比")
         }
         return nil
     }

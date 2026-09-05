@@ -108,7 +108,7 @@ final class AIConfigViewModel: ObservableObject {
             let config = buildConfig()
 
             guard config.isConfigured else {
-                testResult = .failure("请先填写 API Key")
+                testResult = .failure(String(localized: "请先填写 API Key"))
                 isTesting = false
                 return
             }
@@ -132,7 +132,7 @@ final class AIConfigViewModel: ObservableObject {
                     goalContext: nil
                 )
             )
-            testResult = .success("连接成功：\(result.prefix(50))...")
+            testResult = .success(String(localized: "连接成功：\(result.prefix(50))..."))
         } catch {
             testResult = .failure(error.localizedDescription)
         }

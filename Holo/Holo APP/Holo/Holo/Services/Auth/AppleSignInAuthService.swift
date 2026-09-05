@@ -103,7 +103,7 @@ final class AppleSignInAuthService: ObservableObject {
                 #endif
                 session = nil
                 status = .credentialRevoked
-                errorMessage = "Apple 登录已失效，请重新登录"
+                errorMessage = String(localized: "Apple 登录已失效，请重新登录")
             }
         }
     }
@@ -115,11 +115,11 @@ final class AppleSignInAuthService: ObservableObject {
     var statusText: String {
         switch status {
         case .signedOut:
-            return "本机模式"
+            return String(localized: "本机模式")
         case .signedIn:
-            return "已通过 Apple 登录"
+            return String(localized: "已通过 Apple 登录")
         case .credentialRevoked:
-            return "Apple 登录已失效，请重新登录"
+            return String(localized: "Apple 登录已失效，请重新登录")
         }
     }
 
@@ -134,7 +134,7 @@ final class AppleSignInAuthService: ObservableObject {
         switch result {
         case .success(let authorization):
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                errorMessage = "Apple 登录返回了无法识别的凭证"
+                errorMessage = String(localized: "Apple 登录返回了无法识别的凭证")
                 return
             }
 
@@ -160,7 +160,7 @@ final class AppleSignInAuthService: ObservableObject {
                 }
                 #endif
             } catch {
-                errorMessage = "保存登录状态失败：\(error.localizedDescription)"
+                errorMessage = String(localized: "保存登录状态失败：\(error.localizedDescription)")
                 authLogger.error("保存 Apple 登录态失败：\(error.localizedDescription)")
             }
 
@@ -169,7 +169,7 @@ final class AppleSignInAuthService: ObservableObject {
                authorizationError.code == .canceled {
                 errorMessage = nil
             } else {
-                errorMessage = "Apple 登录失败：\(error.localizedDescription)"
+                errorMessage = String(localized: "Apple 登录失败：\(error.localizedDescription)")
                 authLogger.error("Apple 登录失败：\(error.localizedDescription)")
             }
         }
@@ -194,7 +194,7 @@ final class AppleSignInAuthService: ObservableObject {
                 #endif
                 self.session = nil
                 status = .credentialRevoked
-                errorMessage = "Apple 登录已失效，请重新登录"
+                errorMessage = String(localized: "Apple 登录已失效，请重新登录")
             @unknown default:
                 status = .signedIn
             }
@@ -207,7 +207,7 @@ final class AppleSignInAuthService: ObservableObject {
         do {
             try sessionStore.delete()
         } catch {
-            errorMessage = "退出登录失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "退出登录失败：\(error.localizedDescription)")
             authLogger.error("删除 Apple 登录态失败：\(error.localizedDescription)")
             return
         }
@@ -280,7 +280,7 @@ final class AppleSignInAuthService: ObservableObject {
         } catch {
             session = nil
             status = .signedOut
-            errorMessage = "读取登录状态失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "读取登录状态失败：\(error.localizedDescription)")
             authLogger.error("读取 Apple 登录态失败：\(error.localizedDescription)")
         }
     }

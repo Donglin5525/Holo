@@ -23,12 +23,12 @@ enum TaskFilterType: Equatable {
 
     var title: String {
         switch self {
-        case .all: return "全部"
-        case .inbox: return "收件箱"
-        case .today: return "今日"
-        case .completed: return "已完成"
-        case .overdue: return "已过期"
-        case .list: return "清单"
+        case .all: return String(localized: "全部")
+        case .inbox: return String(localized: "收件箱")
+        case .today: return String(localized: "今日")
+        case .completed: return String(localized: "已完成")
+        case .overdue: return String(localized: "已过期")
+        case .list: return String(localized: "清单")
         }
     }
 
@@ -65,12 +65,12 @@ enum TaskTimeGroup: String, CaseIterable, Hashable {
 
     var title: String {
         switch self {
-        case .overdue: return "已过期"
-        case .today: return "今天"
-        case .tomorrow: return "明天"
-        case .thisWeek: return "本周"
-        case .later: return "稍后"
-        case .unscheduled: return "未安排"
+        case .overdue: return String(localized: "已过期")
+        case .today: return String(localized: "今天")
+        case .tomorrow: return String(localized: "明天")
+        case .thisWeek: return String(localized: "本周")
+        case .later: return String(localized: "稍后")
+        case .unscheduled: return String(localized: "未安排")
         }
     }
 
@@ -568,9 +568,8 @@ struct TaskListView: View {
 
     private var heroDateString: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 EEEE"
-        return formatter.string(from: Date()) + " · 今天"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
+        return formatter.string(from: Date()) + " · " + String(localized: "今天")
     }
 
     /// 庆祝态：今日清零，整块变品牌橙渐变（与习惯页「今天全部点亮」同一语言）
@@ -623,9 +622,9 @@ struct TaskListView: View {
     private func celebrateSubtitle(total: Int) -> String {
         let tomorrowCount = tasks.filter { $0.isDueTomorrow && !$0.completed }.count
         if tomorrowCount > 0 {
-            return "共 \(total) 项全部清零 · 明天还有 \(tomorrowCount) 项等着你"
+            return String(localized: "共 \(total) 项全部清零 · 明天还有 \(tomorrowCount) 项等着你")
         }
-        return "共 \(total) 项任务全部清零 · 享受你的夜晚吧"
+        return String(localized: "共 \(total) 项任务全部清零 · 享受你的夜晚吧")
     }
 
     // MARK: - 筛选器
@@ -708,7 +707,7 @@ struct TaskListView: View {
                 Image(systemName: "arrow.up.arrow.down")
                     .font(.system(size: 12, weight: .semibold))
                 Text(isDefault
-                     ? "排序"
+                     ? String(localized: "排序")
                      : "\(sortOption.title) · \(sortOption.directionLabel(ascending: sortAscending))")
                     .font(.holoCaption)
                     .lineLimit(1)
@@ -926,7 +925,7 @@ struct TaskListView: View {
     private func flatContent(_ groupingTasks: [TodoTask]) -> some View {
         let sorted = sortedMembers(groupingTasks)
         if !sorted.isEmpty {
-            SectionHeaderView(title: "按\(sortOption.title)排列", count: sorted.count)
+            SectionHeaderView(title: String(localized: "按\(sortOption.title)排列"), count: sorted.count)
             ForEach(sorted, id: \.id) { task in
                 taskRow(task)
             }
@@ -1132,7 +1131,7 @@ struct TaskListView: View {
             let snapshot = try repository.postpone(task: task, to: option)
             HapticManager.medium()
             showPostponeBanner(
-                text: "已延期到 \(bannerTargetText(option))",
+                text: String(localized: "已延期到 \(bannerTargetText(option))"),
                 snapshots: [snapshot]
             )
         } catch {
@@ -1147,7 +1146,7 @@ struct TaskListView: View {
             guard !snapshots.isEmpty else { return }
             HapticManager.medium()
             showPostponeBanner(
-                text: "已将 \(snapshots.count) 个过期任务推到今天",
+                text: String(localized: "已将 \(snapshots.count) 个过期任务推到今天"),
                 snapshots: snapshots
             )
         } catch {
@@ -1425,18 +1424,17 @@ struct TaskListView: View {
         )!
 
         if weekStart == currentWeekStart {
-            return "本周"
+            return String(localized: "本周")
         }
 
         if let lastWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart),
            weekStart == lastWeekStart {
-            return "上周"
+            return String(localized: "上周")
         }
 
         let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart)!
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return "\(formatter.string(from: weekStart)) - \(formatter.string(from: weekEnd))"
     }
 

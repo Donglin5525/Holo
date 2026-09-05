@@ -12,10 +12,10 @@ import SwiftUI
 struct HoloAgentDebugView: View {
 
     @State private var question: String = ""
-    @State private var statusText: String = "未启动"
+    @State private var statusText: String = String(localized: "未启动")
     @State private var isRunning: Bool = false
     @State private var snapshotText: String = ""
-    @State private var snapshotStatus: String = "尚未生成"
+    @State private var snapshotStatus: String = String(localized: "尚未生成")
     @State private var isGeneratingSnapshot: Bool = false
 
     private let runtime = HoloAgentRuntimeFactory.makeDefaultRuntime()
@@ -31,7 +31,7 @@ struct HoloAgentDebugView: View {
                 } label: {
                     HStack {
                         if isRunning { ProgressView().scaleEffect(0.8) }
-                        Text(isRunning ? "运行中…" : "启动 Mock Agent Job")
+                        Text(isRunning ? String(localized: "运行中…") : String(localized: "启动 Mock Agent Job"))
                     }
                 }
                 .disabled(isRunning || question.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -49,7 +49,7 @@ struct HoloAgentDebugView: View {
                 } label: {
                     HStack {
                         if isGeneratingSnapshot { ProgressView().scaleEffect(0.8) }
-                        Text(isGeneratingSnapshot ? "正在汇总…" : "生成脱敏诊断快照")
+                        Text(isGeneratingSnapshot ? String(localized: "正在汇总…") : String(localized: "生成脱敏诊断快照"))
                     }
                 }
                 .disabled(isGeneratingSnapshot)
@@ -83,7 +83,7 @@ struct HoloAgentDebugView: View {
     private func startMockJob() {
         guard !isRunning else { return }
         isRunning = true
-        statusText = "启动中…"
+        statusText = String(localized: "启动中…")
         Task {
             do {
                 let now = Date()
@@ -92,10 +92,10 @@ struct HoloAgentDebugView: View {
                 jobID: \(job.id.prefix(8))
                 state: \(job.state.rawValue)
                 step: \(job.currentStep.rawValue)
-                checkpointID: \(job.checkpointID?.prefix(8) ?? "无")
+                checkpointID: \(job.checkpointID.map { String($0.prefix(8)) } ?? String(localized: "无"))
                 """
             } catch {
-                statusText = "错误：\(error.localizedDescription)"
+                statusText = String(localized: "错误：\(error.localizedDescription)")
             }
             isRunning = false
         }
@@ -104,7 +104,7 @@ struct HoloAgentDebugView: View {
     private func generateSnapshot() {
         guard !isGeneratingSnapshot else { return }
         isGeneratingSnapshot = true
-        snapshotStatus = "正在读取本地 Agent 状态…"
+        snapshotStatus = String(localized: "正在读取本地 Agent 状态…")
         Task {
             do {
                 async let jobs = HoloAgentJobStore().load()
@@ -135,10 +135,10 @@ struct HoloAgentDebugView: View {
                     activeLeases: loadedLeases,
                     events: loadedEvents
                 )
-                snapshotStatus = "事件 \(metrics.eventCount) · 完成 \(metrics.jobsCompleted) · 恢复 \(metrics.resumesStarted) · 系统中止 \(metrics.executionExpirations)"
+                snapshotStatus = String(localized: "事件 \(metrics.eventCount) · 完成 \(metrics.jobsCompleted) · 恢复 \(metrics.resumesStarted) · 系统中止 \(metrics.executionExpirations)")
             } catch {
                 snapshotText = ""
-                snapshotStatus = "生成失败：本地状态暂不可读，请解锁设备后重试"
+                snapshotStatus = String(localized: "生成失败：本地状态暂不可读，请解锁设备后重试")
             }
             isGeneratingSnapshot = false
         }

@@ -16,10 +16,10 @@ extension AddTransactionSheet {
     /// 支出/收入切换 Tab（下划线样式）
     var typeTabBar: some View {
         HStack(spacing: 0) {
-            typeTabButton(title: "支出", isSelected: transactionType == .expense) {
+            typeTabButton(title: String(localized: "支出"), isSelected: transactionType == .expense) {
                 switchType(to: .expense)
             }
-            typeTabButton(title: "收入", isSelected: transactionType == .income) {
+            typeTabButton(title: String(localized: "收入"), isSelected: transactionType == .income) {
                 switchType(to: .income)
             }
         }
@@ -245,7 +245,7 @@ extension AddTransactionSheet {
 
     /// 一级分类末尾的快速新增入口
     private func addTopLevelCategoryButton() -> some View {
-        categoryAddButton(title: "新增", accessibilityLabel: "新增一级分类") {
+        categoryAddButton(title: String(localized: "新增"), accessibilityLabel: String(localized: "新增一级分类")) {
             addCategoryParentId = nil
             showAddCategory = true
         }
@@ -253,7 +253,7 @@ extension AddTransactionSheet {
 
     /// 二级分类末尾的快速新增入口
     private func addChildCategoryButton(_ parent: Category) -> some View {
-        categoryAddButton(title: "新增", accessibilityLabel: "在\(parent.name)下新增二级分类") {
+        categoryAddButton(title: String(localized: "新增"), accessibilityLabel: String(localized: "在\(parent.name)下新增二级分类")) {
             addCategoryParentId = parent.id
             showAddCategory = true
         }

@@ -159,9 +159,9 @@ final class ReportFollowUpController: ObservableObject {
             case .continuationUnavailable(let userMessage):
                 phase = .failed(userMessage)
             case .analysisFailed:
-                phase = .failed("这次追问没能完成，可能是网络中断。点「重试」原样再问一次，不消耗额外额度。")
+                phase = .failed(String(localized: "这次追问没能完成，可能是网络中断。点「重试」原样再问一次，不消耗额外额度。"))
             case .executionSuspended:
-                phase = .failed("系统收回了后台执行时间，这次追问中断了。点「重试」接着问。")
+                phase = .failed(String(localized: "系统收回了后台执行时间，这次追问中断了。点「重试」接着问。"))
             }
             return
         }

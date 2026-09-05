@@ -97,12 +97,12 @@ struct PolaroidMomentCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("轻点打开想法详情，左右滑动切换照片")
+        .accessibilityHint(String(localized: "轻点打开想法详情，左右滑动切换照片"))
     }
 
     private var accessibilityText: String {
-        var parts = ["想法", moment.timeText, moment.title]
-        if photos.count > 1 { parts.append("共 \(photos.count) 张照片") }
+        var parts = [String(localized: "想法"), moment.timeText, moment.title]
+        if photos.count > 1 { parts.append(String(localized: "共 \(photos.count) 张照片")) }
         return parts.joined(separator: "，")
     }
 

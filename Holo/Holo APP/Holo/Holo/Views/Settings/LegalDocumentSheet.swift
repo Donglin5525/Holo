@@ -42,8 +42,8 @@ enum LegalDocumentType {
 
     var title: String {
         switch self {
-        case .privacyPolicy: return "隐私政策"
-        case .termsOfUse: return "用户协议"
+        case .privacyPolicy: return String(localized: "隐私政策")
+        case .termsOfUse: return String(localized: "用户协议")
         }
     }
 
@@ -143,7 +143,7 @@ enum LegalHTMLTemplates {
     .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85em; }
     """
 
-    static let privacyPolicy = """
+    static let privacyPolicy = String(localized: """
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
@@ -268,9 +268,9 @@ enum LegalHTMLTemplates {
 
     </body>
     </html>
-    """
+    """)
 
-    static let termsOfUse = """
+    static let termsOfUse = String(localized: """
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
@@ -365,5 +365,5 @@ enum LegalHTMLTemplates {
 
     </body>
     </html>
-    """
+    """)
 }

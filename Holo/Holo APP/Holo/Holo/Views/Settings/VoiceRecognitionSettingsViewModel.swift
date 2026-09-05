@@ -88,14 +88,14 @@ final class VoiceRecognitionSettingsViewModel: ObservableObject {
 
         let config = buildConfig()
         guard config.isConfigured else {
-            testResult = .failure("请先填写 API Key 和模型名称")
+            testResult = .failure(String(localized: "请先填写 API Key 和模型名称"))
             isTesting = false
             return
         }
 
         do {
             try await AliyunQwenASRRealtimeProvider(config: config).testConnection()
-            testResult = .success("连接成功")
+            testResult = .success(String(localized: "连接成功"))
         } catch {
             testResult = .failure(error.localizedDescription)
         }

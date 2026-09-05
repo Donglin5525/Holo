@@ -87,7 +87,7 @@ final class PromptEditorViewModel: ObservableObject {
 
     func runTest() async {
         guard !testInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            testError = "请输入测试文本"
+            testError = String(localized: "请输入测试文本")
             return
         }
 
@@ -123,7 +123,7 @@ final class PromptEditorViewModel: ObservableObject {
                 }.value
 
                 guard let config, config.isConfigured else {
-                    testError = "请先在 AI 设置中配置 API Key"
+                    testError = String(localized: "请先在 AI 设置中配置 API Key")
                     isTesting = false
                     return
                 }
@@ -154,7 +154,7 @@ final class PromptEditorViewModel: ObservableObject {
             if let content = response.choices?.first?.message?.content {
                 testResult = content
             } else {
-                testError = "未收到有效响应"
+                testError = String(localized: "未收到有效响应")
             }
         } catch {
             testError = error.localizedDescription

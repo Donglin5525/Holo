@@ -139,7 +139,7 @@ struct ThoughtEditorView: View {
             .background(Color.holoBackground)
             // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isEditing ? "编辑想法" : "记录想法")
+            .navigationTitle(isEditing ? String(localized: "编辑想法") : String(localized: "记录想法"))
             .navigationBarTitleDisplayMode(.inline)
             // 「查看记录」跳转：通过 navigationDestination 驱动（须在 NavigationStack 内部生效）
             .navigationDestination(isPresented: Binding(
@@ -160,7 +160,7 @@ struct ThoughtEditorView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .frame(minWidth: 44, minHeight: 44)
                     }
-                    .accessibilityLabel("完成")
+                    .accessibilityLabel(String(localized: "完成"))
                     .buttonStyle(.plain)
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -203,11 +203,11 @@ struct ThoughtEditorView: View {
             if smartSummaryEnabled {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
-                    readySubtitle: "确认后插入到想法内容",
-                    submitButtonTitle: "插入",
+                    readySubtitle: String(localized: "确认后插入到想法内容"),
+                    submitButtonTitle: String(localized: "插入"),
                     resultConfig: VoiceResultConfig(
-                        title: "智能总结完成",
-                        subtitle: "已整理成更适合想法记录的表达",
+                        title: String(localized: "智能总结完成"),
+                        subtitle: String(localized: "已整理成更适合想法记录的表达"),
                         showsOriginalToggle: true
                     ),
                     postProcessor: ThoughtVoiceSummaryProcessor(),
@@ -219,8 +219,8 @@ struct ThoughtEditorView: View {
             } else {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
-                    readySubtitle: "确认后插入到想法内容",
-                    submitButtonTitle: "插入",
+                    readySubtitle: String(localized: "确认后插入到想法内容"),
+                    submitButtonTitle: String(localized: "插入"),
                     transcriptFormatter: formatThoughtVoiceTranscript
                 ) { transcript in
                     pendingVoiceTranscriptToInsert = transcript
@@ -410,8 +410,8 @@ struct ThoughtEditorView: View {
                         if failedCount > 0 {
                             HoloToastCenter.shared.show(
                                 failedCount == imagesToUpload.count
-                                    ? "图片保存失败，请重新编辑添加"
-                                    : "\(failedCount) 张图片保存失败，部分图片可能丢失",
+                                    ? String(localized: "图片保存失败，请重新编辑添加")
+                                    : String(localized: "\(failedCount) 张图片保存失败，部分图片可能丢失"),
                                 type: .error
                             )
                         }
@@ -507,7 +507,7 @@ struct ThoughtEditorView: View {
                 // 语音按钮已收进底部工具栏，正文区不再为悬浮入口预留大片底部空白
                 textContainerInset: UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16),
                 initialRichJSON: initialRichJSON,
-                placeholder: "写点什么吧…",
+                placeholder: String(localized: "写点什么吧…"),
                 onNodesChange: { newNodes in
                     editorNodes = newNodes
                     editorNodesLoaded = true
@@ -810,24 +810,24 @@ struct ThoughtEditorView: View {
             VStack(spacing: 0) {
                 switch token {
                 case .tag(_, let displayPath):
-                    tokenMenuButton("复制标签", icon: "doc.on.doc") {
+                    tokenMenuButton(String(localized: "复制标签"), icon: "doc.on.doc") {
                         selectedToken = nil
                         MarkdownTextView.copyNodesToPasteboard([token])
                     }
-                    tokenMenuButton("查看标签", icon: "tag") {
+                    tokenMenuButton(String(localized: "查看标签"), icon: "tag") {
                         selectedToken = nil
                         viewTagThoughts(displayPath)
                     }
-                    tokenMenuButton("移除标签", icon: "trash", isDestructive: true) {
+                    tokenMenuButton(String(localized: "移除标签"), icon: "trash", isDestructive: true) {
                         selectedToken = nil
                         pendingEditorAction = .removeSelectedToken
                     }
                 case .reference(let noteId, _, _):
-                    tokenMenuButton("复制引用", icon: "doc.on.doc") {
+                    tokenMenuButton(String(localized: "复制引用"), icon: "doc.on.doc") {
                         selectedToken = nil
                         MarkdownTextView.copyNodesToPasteboard([token])
                     }
-                    tokenMenuButton("查看记录", icon: "doc.text") {
+                    tokenMenuButton(String(localized: "查看记录"), icon: "doc.text") {
                         selectedToken = nil
                         // 先让 Token 操作菜单完成收起，再推进导航状态；同一事务内同时改
                         // sheet 和 navigationDestination，会被 UIKit 的弹层状态覆盖。
@@ -835,16 +835,16 @@ struct ThoughtEditorView: View {
                             navigateToThoughtId = noteId
                         }
                     }
-                    tokenMenuButton("取消引用", icon: "link.badge.minus", isDestructive: true) {
+                    tokenMenuButton(String(localized: "取消引用"), icon: "link.badge.minus", isDestructive: true) {
                         selectedToken = nil
                         pendingEditorAction = .removeSelectedToken
                     }
                 case .taskMark(_, let taskId, _, _):
-                    tokenMenuButton("查看任务", icon: "checklist") {
+                    tokenMenuButton(String(localized: "查看任务"), icon: "checklist") {
                         selectedToken = nil
                         viewTask(taskId)
                     }
-                    tokenMenuButton("取消标记", icon: "xmark.circle", isDestructive: true) {
+                    tokenMenuButton(String(localized: "取消标记"), icon: "xmark.circle", isDestructive: true) {
                         selectedToken = nil
                         pendingEditorAction = .removeSelectedToken
                     }
@@ -865,9 +865,9 @@ struct ThoughtEditorView: View {
         case .reference(_, let displayText, _):
             return "@\(displayText)"
         case .taskMark(_, _, let displayText, _):
-            return "已转任务：\(displayText)"
+            return String(localized: "已转任务：\(displayText)")
         case .text:
-            return "操作"
+            return String(localized: "操作")
         }
     }
 
@@ -879,7 +879,7 @@ struct ThoughtEditorView: View {
         guard !sourceLine.isEmpty else { return nil }
         let normalizedSource = sourceLine.hasPrefix("@") ? String(sourceLine.dropFirst()) : sourceLine
         guard normalizedSource != displayText else { return nil }
-        return "来源：\(normalizedSource)"
+        return String(localized: "来源：\(normalizedSource)")
     }
 
     private func tokenMenuButton(_ title: String, icon: String, isDestructive: Bool = false, action: @escaping () -> Void) -> some View {

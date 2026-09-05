@@ -71,7 +71,7 @@ struct HoloMemoryCandidateCard: View {
     // MARK: - Sensitivity Badge
 
     private var sensitivityBadge: some View {
-        Text(memory.sensitivity == .sensitive ? "敏感" : "高影响")
+        Text(memory.sensitivity == .sensitive ? String(localized: "敏感") : String(localized: "高影响"))
             .font(.system(size: 11))
             .foregroundColor(.orange)
             .padding(.horizontal, 6)
@@ -94,11 +94,11 @@ struct HoloMemoryCandidateCard: View {
 
     private func semanticTypeDisplayName(_ type: HoloMemorySemanticType) -> String {
         switch type {
-        case .phaseShift: return "阶段变化"
-        case .stablePattern: return "稳定习惯"
-        case .driftSignal: return "偏离提醒"
-        case .lifeEvent: return "人生节点"
-        case .statMilestone: return "轻量记录"
+        case .phaseShift: return String(localized: "阶段变化")
+        case .stablePattern: return String(localized: "稳定习惯")
+        case .driftSignal: return String(localized: "偏离提醒")
+        case .lifeEvent: return String(localized: "人生节点")
+        case .statMilestone: return String(localized: "轻量记录")
         }
     }
 

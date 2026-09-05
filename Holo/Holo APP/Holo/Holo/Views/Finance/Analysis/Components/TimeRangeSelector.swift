@@ -38,7 +38,7 @@ struct TimeRangeSelector: View {
                         Image(systemName: icon)
                             .font(.system(size: 12, weight: .medium))
                     }
-                    Text(range.rawValue)
+                    Text(range.displayName)
                         .font(.holoCaption)
                 }
                 .foregroundColor(state.timeRange == .custom ? .white : .holoTextSecondary)
@@ -58,7 +58,7 @@ struct TimeRangeSelector: View {
             .buttonStyle(.plain)
         } else {
             HoloFilterChip(
-                title: range.rawValue,
+                title: range.displayName,
                 icon: range.icon,
                 isSelected: state.timeRange == range
             ) {
@@ -78,8 +78,7 @@ struct TimeRangeLabel: View {
     private var dateRangeText: String {
         let (start, end) = state.currentDateRange
         let df = DateFormatter()
-        df.locale = Locale(identifier: "zh_CN")
-        df.dateFormat = "M月d日"
+        df.setLocalizedDateFormatFromTemplate("MMMd")
         let startStr = df.string(from: start)
         let endStr = df.string(from: end.addingDays(-1)) // end 是开区间，显示前一天
         return "\(startStr) - \(endStr)"

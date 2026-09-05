@@ -44,8 +44,8 @@ struct AIMemoryLabDomainView: View {
         Section {
             Label("只读仓库快照：不发网络请求，不写仓库", systemImage: "shield.checkered")
                 .foregroundColor(.green)
-            pipelineRow("Persisted evidence", value: "\(records.flatMap(\.evidenceRefs).count) 条证据元数据")
-            pipelineRow("Persisted records", value: "\(records.count) 条现有记录")
+            pipelineRow("Persisted evidence", value: String(localized: "\(records.flatMap(\.evidenceRefs).count) 条证据元数据"))
+            pipelineRow("Persisted records", value: String(localized: "\(records.count) 条现有记录"))
             pipelineRow(
                 "Repository state",
                 value: "active \(records.filter { $0.state == .active }.count) / candidate \(records.filter { $0.state == .candidate }.count) / archived \(records.filter { $0.state == .archived }.count)"
@@ -60,20 +60,20 @@ struct AIMemoryLabDomainView: View {
     private var livePipelineSection: some View {
         Section {
             if let trace = latestPipeline {
-                pipelineRow("Signal", value: "\(trace.signalCount ?? 0) 条真实输入信号")
+                pipelineRow("Signal", value: String(localized: "\(trace.signalCount ?? 0) 条真实输入信号"))
                 pipelineRow(
                     "Package",
-                    value: "\(trace.packageRecordCount ?? 0) 条既有记忆进入上下文"
+                    value: String(localized: "\(trace.packageRecordCount ?? 0) 条既有记忆进入上下文")
                 )
                 pipelineRow("AI request", value: aiRequestText(trace))
                 pipelineRow("Validator", value: validatorText(trace))
                 pipelineRow(
                     "Planned mutation",
-                    value: "\(trace.plannedMutationCount ?? 0) 条"
+                    value: String(localized: "\(trace.plannedMutationCount ?? 0) 条")
                 )
                 pipelineRow(
                     "Committed mutation",
-                    value: "\(trace.committedMutationCount ?? 0) 条"
+                    value: String(localized: "\(trace.committedMutationCount ?? 0) 条")
                 )
                 pipelineRow("Outcome", value: outcomeText(trace))
                 Text(trace.createdAt.formatted(.dateTime.month().day().hour().minute().second()))
@@ -102,14 +102,14 @@ struct AIMemoryLabDomainView: View {
                             Text(audit.title)
                                 .font(.caption.weight(.semibold))
                             Spacer()
-                            Text(audit.passed ? "候选" : "未通过")
+                            Text(audit.passed ? String(localized: "候选") : String(localized: "未通过"))
                                 .font(.caption2)
                                 .foregroundColor(audit.passed ? .green : .orange)
                         }
-                        gateLine("跨领域", passed: audit.crossDomainGate)
-                        gateLine("共同时间", passed: audit.timeGate)
-                        gateLine("共同锚点", passed: audit.anchorGate)
-                        gateLine("独立底层证据", passed: audit.lineageGate)
+                        gateLine(String(localized: "跨领域"), passed: audit.crossDomainGate)
+                        gateLine(String(localized: "共同时间"), passed: audit.timeGate)
+                        gateLine(String(localized: "共同锚点"), passed: audit.anchorGate)
+                        gateLine(String(localized: "独立底层证据"), passed: audit.lineageGate)
                         Text(audit.reason)
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -144,7 +144,7 @@ struct AIMemoryLabDomainView: View {
                         )
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(record.displaySummary.isEmpty ? "[正文已擦除]" : record.displaySummary)
+                            Text(record.displaySummary.isEmpty ? String(localized: "[正文已擦除]") : record.displaySummary)
                                 .lineLimit(2)
                             Text("\(record.state.rawValue) · \(record.adoptionMetadata?.disposition.rawValue ?? "legacy") · v\(record.recordVersion) · evidence \(record.evidenceRefs.count)")
                                 .font(.caption2.monospaced())
@@ -175,10 +175,10 @@ struct AIMemoryLabDomainView: View {
     }
 
     private func aiRequestText(_ trace: HoloMemoryTraceEntry) -> String {
-        guard let status = trace.aiRequestStatus else { return "未发起" }
-        if status == "succeeded" { return "成功返回" }
+        guard let status = trace.aiRequestStatus else { return String(localized: "未发起") }
+        if status == "succeeded" { return String(localized: "成功返回") }
         if status.hasPrefix("failed:") {
-            return "失败 · \(status.replacingOccurrences(of: "failed:", with: ""))"
+            return String(localized: "失败 · \(status.replacingOccurrences(of: "failed:", with: ""))")
         }
         return status
     }
@@ -186,17 +186,17 @@ struct AIMemoryLabDomainView: View {
     private func validatorText(_ trace: HoloMemoryTraceEntry) -> String {
         let accepted = trace.validatorAcceptedCount ?? 0
         let rejected = trace.validatorRejections ?? []
-        if rejected.isEmpty { return "通过 \(accepted) 条；无拒绝" }
-        return "通过 \(accepted) 条；拒绝：\(rejected.joined(separator: ", "))"
+        if rejected.isEmpty { return String(localized: "通过 \(accepted) 条；无拒绝") }
+        return String(localized: "通过 \(accepted) 条；拒绝：\(rejected.joined(separator: ", "))")
     }
 
     private func outcomeText(_ trace: HoloMemoryTraceEntry) -> String {
-        guard let outcome = trace.outcome else { return "未记录" }
-        if outcome == "succeeded" { return "成功完成" }
-        if outcome == "validatorRejected" { return "Validator 拒绝，未写入" }
-        if outcome == "requestFailed" { return "AI 请求失败，未写入" }
+        guard let outcome = trace.outcome else { return String(localized: "未记录") }
+        if outcome == "succeeded" { return String(localized: "成功完成") }
+        if outcome == "validatorRejected" { return String(localized: "Validator 拒绝，未写入") }
+        if outcome == "requestFailed" { return String(localized: "AI 请求失败，未写入") }
         if outcome.hasPrefix("persistenceFailed:") {
-            return "仓库写入失败 · \(outcome.replacingOccurrences(of: "persistenceFailed:", with: ""))"
+            return String(localized: "仓库写入失败 · \(outcome.replacingOccurrences(of: "persistenceFailed:", with: ""))")
         }
         return outcome
     }
@@ -249,11 +249,11 @@ private struct AIMemoryLabCrossDomainAudit: Identifiable {
                 let evidence = HoloEvidenceLineageResolver.independentEvidence(from: [left, right])
                 let lineage = evidence.count >= 2 && Set(evidence.map(\.sourceDomain)).count >= 2
                 let reason: String
-                if !crossDomain { reason = "未通过：两个记忆属于同一领域" }
-                else if !time { reason = "未通过：有效时间没有重叠" }
-                else if !anchor { reason = "未通过：没有共同 canonical anchor" }
-                else if !lineage { reason = "未通过：独立底层证据不足或来自同一领域" }
-                else { reason = "四道门通过，可进入融合候选" }
+                if !crossDomain { reason = String(localized: "未通过：两个记忆属于同一领域") }
+                else if !time { reason = String(localized: "未通过：有效时间没有重叠") }
+                else if !anchor { reason = String(localized: "未通过：没有共同 canonical anchor") }
+                else if !lineage { reason = String(localized: "未通过：独立底层证据不足或来自同一领域") }
+                else { reason = String(localized: "四道门通过，可进入融合候选") }
                 result.append(AIMemoryLabCrossDomainAudit(
                     id: "\(left.id)|\(right.id)",
                     title: "\(left.primaryDomain?.rawValue ?? "?") × \(right.primaryDomain?.rawValue ?? "?")",
@@ -339,7 +339,7 @@ private struct AIMemoryLabRecordInspectorView: View {
                         debugRow("lineage", evidence.lineageKey)
                         debugRow("revision", evidence.revisionDigest)
                         if revealSensitiveSummary {
-                            Text(evidence.summary ?? "[无摘要]")
+                            Text(evidence.summary ?? String(localized: "[无摘要]"))
                                 .font(.caption)
                                 .foregroundColor(.orange)
                         }

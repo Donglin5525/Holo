@@ -22,7 +22,7 @@ struct PromptEditorView: View {
     @State private var showResetConfirmation = false
     @State private var showTestSheet = false
     @State private var showSavedFeedback = false
-    @State private var feedbackMessage = "Prompt 已保存"
+    @State private var feedbackMessage = String(localized: "Prompt 已保存")
 
     init(promptType: PromptManager.PromptType) {
         self.promptType = promptType
@@ -102,7 +102,7 @@ struct PromptEditorView: View {
                 .foregroundColor(isCustomized ? .holoPrimary : .holoTextSecondary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(isCustomized ? "已自定义" : "使用默认")
+                Text(isCustomized ? String(localized: "已自定义") : String(localized: "使用默认"))
                     .font(.holoCaption)
                     .foregroundColor(isCustomized ? .holoPrimary : .holoTextSecondary)
 
@@ -147,7 +147,7 @@ struct PromptEditorView: View {
                         save()
                     }
                 } label: {
-                    Label(showSavedFeedback ? "已保存" : "保存", systemImage: showSavedFeedback ? "checkmark" : "square.and.arrow.down")
+                    Label(showSavedFeedback ? String(localized: "已保存") : String(localized: "保存"), systemImage: showSavedFeedback ? "checkmark" : "square.and.arrow.down")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .padding(.horizontal, HoloSpacing.lg)
@@ -219,7 +219,7 @@ struct PromptEditorView: View {
         PromptManager.shared.saveCustomPrompt(promptType, content: editedContent)
         initialContent = editedContent
         isCustomized = true
-        showSaveFeedback(message: "Prompt 已保存")
+        showSaveFeedback(message: String(localized: "Prompt 已保存"))
     }
 
     private func reset() {
@@ -228,7 +228,7 @@ struct PromptEditorView: View {
         editedContent = content
         initialContent = content
         isCustomized = false
-        showSaveFeedback(message: "已恢复默认", messageDuration: 1.2)
+        showSaveFeedback(message: String(localized: "已恢复默认"), messageDuration: 1.2)
     }
 
     private func showSaveFeedback(message: String, messageDuration: TimeInterval = 1.5) {

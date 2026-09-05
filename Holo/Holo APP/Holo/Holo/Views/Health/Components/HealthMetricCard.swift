@@ -88,11 +88,11 @@ struct HealthMetricCard: View {
         case .available:
             return "\(metric.type.formatValueWithUnit(metric.value)) · \(metric.targetText)"
         case .unauthorized:
-            return "需要在系统设置中授权"
+            return String(localized: "需要在系统设置中授权")
         case .noData:
-            return "等待 Apple Health 数据"
+            return String(localized: "等待 Apple Health 数据")
         case .unsupported:
-            return "当前设备不支持"
+            return String(localized: "当前设备不支持")
         }
     }
 }

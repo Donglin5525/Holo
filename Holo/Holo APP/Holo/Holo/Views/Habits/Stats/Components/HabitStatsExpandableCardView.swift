@@ -87,9 +87,9 @@ struct HabitStatsExpandableCardView: View {
 
     private var typeName: String {
         switch item.type {
-        case .checkIn: return "打卡"
-        case .count: return "计数"
-        case .measure: return "测量"
+        case .checkIn: return String(localized: "打卡")
+        case .count: return String(localized: "计数")
+        case .measure: return String(localized: "测量")
         }
     }
 
@@ -102,11 +102,11 @@ struct HabitStatsExpandableCardView: View {
     private var summaryDescription: String {
         switch item.summary {
         case .checkIn(let completedDays, let streak):
-            return "完成\(completedDays)天 · 连续\(streak.displayText)"
+            return String(localized: "完成\(completedDays)天 · 连续\(streak.displayText)")
         case .count(let recordedDays, let totalCountText):
-            return "完成\(recordedDays)天 · 累计\(totalCountText)"
+            return String(localized: "完成\(recordedDays)天 · 累计\(totalCountText)")
         case .measure(let recordedDays, _):
-            return "记录\(recordedDays)天"
+            return String(localized: "记录\(recordedDays)天")
         }
     }
 
@@ -163,14 +163,14 @@ struct HabitStatsExpandableCardView: View {
         HStack(spacing: HoloSpacing.md) {
             switch item.summary {
             case .checkIn(let completedDays, let streak):
-                expandedStat(label: "完成天数", value: "\(completedDays)")
-                expandedStat(label: "连续\(streak.unit.rawValue)", value: "\(streak.value)")
+                expandedStat(label: String(localized: "完成天数"), value: "\(completedDays)")
+                expandedStat(label: String(localized: "连续\(streak.unit.displayName)"), value: "\(streak.value)")
             case .count(let recordedDays, let totalCountText):
-                expandedStat(label: "完成天数", value: "\(recordedDays)")
-                expandedStat(label: "累计", value: totalCountText)
+                expandedStat(label: String(localized: "完成天数"), value: "\(recordedDays)")
+                expandedStat(label: String(localized: "累计"), value: totalCountText)
             case .measure(let recordedDays, let averageValueText):
-                expandedStat(label: "记录天数", value: "\(recordedDays)")
-                expandedStat(label: "平均", value: averageValueText)
+                expandedStat(label: String(localized: "记录天数"), value: "\(recordedDays)")
+                expandedStat(label: String(localized: "平均"), value: averageValueText)
             }
         }
     }

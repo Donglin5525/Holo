@@ -60,7 +60,7 @@ extension AddTransactionSheet {
                 Spacer()
 
                 HStack(spacing: 4) {
-                    Text(selectedAccount?.name ?? "默认账户")
+                    Text(selectedAccount?.name ?? String(localized: "默认账户"))
                         .font(.system(size: 15))
                         .foregroundColor(.holoTextPrimary)
                     Image(systemName: "chevron.right")
@@ -322,9 +322,9 @@ extension AddTransactionSheet {
         let totalCost = totalAmount + totalFee
 
         return VStack(spacing: HoloSpacing.xs) {
-            installmentPreviewRow(label: "每期金额", value: formatPreviewAmount(perPeriod))
-            installmentPreviewRow(label: "总手续费", value: formatPreviewAmount(totalFee))
-            installmentPreviewRow(label: "实际总支出", value: formatPreviewAmount(totalCost))
+            installmentPreviewRow(label: String(localized: "每期金额"), value: formatPreviewAmount(perPeriod))
+            installmentPreviewRow(label: String(localized: "总手续费"), value: formatPreviewAmount(totalFee))
+            installmentPreviewRow(label: String(localized: "实际总支出"), value: formatPreviewAmount(totalCost))
         }
     }
 
@@ -348,10 +348,9 @@ extension AddTransactionSheet {
     /// 格式化的日期显示文字
     private var formattedSelectedDate: String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日 EEEE"
+        f.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         let text = f.string(from: selectedDate)
-        if selectedDate.isToday { return "\(text)（今天）" }
+        if selectedDate.isToday { return String(localized: "\(text)（今天）") }
         return text
     }
 

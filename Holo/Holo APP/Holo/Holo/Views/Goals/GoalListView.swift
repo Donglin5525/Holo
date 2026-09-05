@@ -73,7 +73,7 @@ struct GoalListView: View {
                 } label: {
                     Label("新建", systemImage: "plus")
                 }
-                .accessibilityLabel("新建目标")
+                .accessibilityLabel(String(localized: "新建目标"))
             }
         }
         .sheet(isPresented: $showManualCreate) {
@@ -206,7 +206,7 @@ struct GoalListView: View {
         let unit = goal.metricUnit.map { " \($0)" } ?? ""
         if goal.goalKindEnum == .target, let baseline = goal.baselineValueDouble {
             let target = goal.metricTargetValueDouble ?? 0
-            let verb = target < baseline ? "已减" : "已增"
+            let verb = target < baseline ? String(localized: "已减") : String(localized: "已增")
             return "\(verb) \(GoalMetricEvaluator.formatValue(abs(baseline - metric.currentValue)))/\(GoalMetricEvaluator.formatValue(abs(target - baseline)))\(unit)"
         }
         return "\(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unit)"
@@ -275,7 +275,7 @@ struct GoalManualCreateSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? "保存中" : "保存") { save() }
+                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
                         .disabled(!canSave)
                         .fontWeight(.semibold)
                 }
@@ -359,7 +359,7 @@ struct GoalManualCreateSheet: View {
                             .scaleEffect(0.8)
                             .tint(.white)
                     }
-                    Text(isSaving ? "保存中" : "创建目标")
+                    Text(isSaving ? String(localized: "保存中") : String(localized: "创建目标"))
                         .font(.holoBody)
                         .foregroundColor(.white)
                 }

@@ -142,9 +142,11 @@ struct HabitStatsCockpitCard: View {
 
     private var monthLabels: [String] {
         let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
         return (0..<6).reversed().map { offset in
             guard let m = calendar.date(byAdding: .month, value: -offset, to: selectedMonth) else { return "" }
-            return "\(calendar.component(.month, from: m))月"
+            return formatter.string(from: m)
         }
     }
 
@@ -152,8 +154,8 @@ struct HabitStatsCockpitCard: View {
 
     private var bottomMetrics: some View {
         HStack(spacing: HoloSpacing.md) {
-            metricCell(icon: "flame.fill", iconColor: .holoPrimary, label: "最佳连续", value: bestStreak.displayText)
-            metricCell(icon: "checkmark.circle.fill", iconColor: .holoSuccess, label: "坚持习惯", value: "\(totalHabits)个")
+            metricCell(icon: "flame.fill", iconColor: .holoPrimary, label: String(localized: "最佳连续"), value: bestStreak.displayText)
+            metricCell(icon: "checkmark.circle.fill", iconColor: .holoSuccess, label: String(localized: "坚持习惯"), value: String(localized: "\(totalHabits)个"))
         }
     }
 

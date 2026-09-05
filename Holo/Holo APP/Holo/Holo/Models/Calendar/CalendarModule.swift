@@ -20,11 +20,11 @@ enum CalendarModule: String, CaseIterable, Identifiable, Hashable {
     /// 中文显示名
     var displayName: String {
         switch self {
-        case .finance: return "记账"
-        case .habit:   return "习惯"
-        case .todo:    return "待办"
-        case .thought: return "想法"
-        case .health:  return "健康"
+        case .finance: return String(localized: "记账")
+        case .habit:   return String(localized: "习惯")
+        case .todo:    return String(localized: "待办")
+        case .thought: return String(localized: "想法")
+        case .health:  return String(localized: "健康")
         }
     }
 

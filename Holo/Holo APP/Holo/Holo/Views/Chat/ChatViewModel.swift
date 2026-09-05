@@ -352,7 +352,7 @@ final class ChatViewModel: ObservableObject {
         guard result.failure == nil,
               let parentJobID = result.agentJobID,
               let parentResultID = result.agentResultID else {
-            errorMessage = "这份历史分析缺少可追溯依据，请重新发起一次分析。"
+            errorMessage = String(localized: "这份历史分析缺少可追溯依据，请重新发起一次分析。")
             return
         }
 
@@ -388,7 +388,7 @@ final class ChatViewModel: ObservableObject {
         guard result.failure == nil,
               let parentJobID = result.agentJobID,
               let parentResultID = result.agentResultID else {
-            errorMessage = "这份历史分析缺少可追溯依据，请重新发起一次分析。"
+            errorMessage = String(localized: "这份历史分析缺少可追溯依据，请重新发起一次分析。")
             return
         }
         continuationDraft = HoloAgentContinuationDraft(
@@ -535,7 +535,7 @@ final class ChatViewModel: ObservableObject {
             "\($0.offset + 1). \($0.element.title)"
         }.joined(separator: "\n")
         return ConversationProcessResult(
-            finalText: "这份分析有多条建议，请告诉我要执行哪一条，例如“执行第 2 条”。\n\n\(titles)",
+            finalText: String(localized: "这份分析有多条建议，请告诉我要执行哪一条，例如“执行第 2 条”。\n\n\(titles)"),
             parsedBatch: nil,
             executionBatch: nil,
             firstIntent: nil,
@@ -549,7 +549,7 @@ final class ChatViewModel: ObservableObject {
 
     private func safeActionHandoffFailure() -> ConversationProcessResult {
         ConversationProcessResult(
-            finalText: "我没能把这条建议可靠地转换成可确认的操作。你可以说“把第 2 条创建成待办”。",
+            finalText: String(localized: "我没能把这条建议可靠地转换成可确认的操作。你可以说“把第 2 条创建成待办”。"),
             parsedBatch: nil,
             executionBatch: nil,
             firstIntent: nil,
@@ -588,7 +588,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         if let session = activeGoalPlanningSession, session.status == .draftReady {
-            errorMessage = "目标草案正在等待确认，请先处理当前草案。"
+            errorMessage = String(localized: "目标草案正在等待确认，请先处理当前草案。")
             inputText = text
             return
         }
@@ -706,7 +706,7 @@ final class ChatViewModel: ObservableObject {
                             let missing = check.missing.joined(separator: "、")
                             self.chatRepo?.finalizeMessage(
                                 aiMessageId,
-                                finalContent: "这周你的记录还不够，我先不装懂。\n\n近 7 天还缺：\(missing)。再记几天，我就能给出有依据的本周重点，而不是一份谁都能用的通用计划。",
+                                finalContent: String(localized: "这周你的记录还不够，我先不装懂。\n\n近 7 天还缺：\(missing)。再记几天，我就能给出有依据的本周重点，而不是一份谁都能用的通用计划。"),
                                 intent: processResult.firstIntent?.rawValue,
                                 extractedDataJSON: nil,
                                 parsedBatchJSON: nil,
@@ -726,8 +726,8 @@ final class ChatViewModel: ObservableObject {
                         analysisContext: nil
                     )
                     let initialStatus = HoloAgentChatStatus(
-                        title: isWeeklyPlanning ? "Holo 正在为你的本周计划分析数据…" : "Holo 正在深度分析中…",
-                        detail: "可以离开当前页面；系统支持时会继续处理，中止后会保留进度并在回到 App 后恢复。",
+                    title: isWeeklyPlanning ? String(localized: "Holo 正在为你的本周计划分析数据…") : String(localized: "Holo 正在深度分析中…"),
+                    detail: String(localized: "可以离开当前页面；系统支持时会继续处理，中止后会保留进度并在回到 App 后恢复。"),
                         keepsMessageStreaming: true,
                         showsActivityIndicator: true
                     )
@@ -1058,7 +1058,7 @@ final class ChatViewModel: ObservableObject {
                     if partialContent.isEmpty {
                         finalContent = userMessage
                     } else {
-                        finalContent = partialContent + "\n\n处理中断：\(userMessage)"
+                        finalContent = partialContent + String(localized: "\n\n处理中断：\(userMessage)")
                     }
 
                     self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
@@ -1116,7 +1116,7 @@ final class ChatViewModel: ObservableObject {
             refreshLifePlanSnapshots()
             chatRepo?.finalizeMessage(
                 aiMessageId,
-                finalContent: "本周重点已生成（\(snapshot.priorities.count) 个重点 · \(snapshot.actions.count) 张行动卡）",
+                finalContent: String(localized: "本周重点已生成（\(snapshot.priorities.count) 个重点 · \(snapshot.actions.count) 张行动卡）"),
                 intent: intent,
                 extractedDataJSON: Self.encodeExtractedData(["planID": snapshot.id.uuidString]),
                 parsedBatchJSON: nil,
@@ -1132,7 +1132,7 @@ final class ChatViewModel: ObservableObject {
                 .joined(separator: "\n")
             chatRepo?.finalizeMessage(
                 aiMessageId,
-                finalContent: fallbackText + "\n\n（本周计划的结构化版暂时没有生成成功，以上是分析结论，稍后可再试一次）",
+                finalContent: fallbackText + String(localized: "\n\n（本周计划的结构化版暂时没有生成成功，以上是分析结论，稍后可再试一次）"),
                 intent: intent,
                 extractedDataJSON: nil,
                 parsedBatchJSON: nil,
@@ -1149,7 +1149,7 @@ final class ChatViewModel: ObservableObject {
                 .joined(separator: "\n")
             chatRepo?.finalizeMessage(
                 aiMessageId,
-                finalContent: fallbackText + "\n\n（\(userMessage)，本周的分析结论已在上面）",
+                finalContent: fallbackText + String(localized: "\n\n（\(userMessage)，本周的分析结论已在上面）"),
                 intent: intent,
                 extractedDataJSON: nil,
                 parsedBatchJSON: nil,
@@ -1209,12 +1209,12 @@ final class ChatViewModel: ObservableObject {
         refreshLifePlanSnapshots()
         lastPlanUndo = (planID, token)
         var summaryParts: [String] = []
-        if createdTaskCount > 0 { summaryParts.append("\(createdTaskCount) 个任务") }
-        if createdHabitCount > 0 { summaryParts.append("\(createdHabitCount) 个习惯") }
-        let summary = summaryParts.isEmpty ? "已确认" : "已创建 " + summaryParts.joined(separator: " · ")
+        if createdTaskCount > 0 { summaryParts.append(String(localized: "\(createdTaskCount) 个任务")) }
+        if createdHabitCount > 0 { summaryParts.append(String(localized: "\(createdHabitCount) 个习惯")) }
+        let summary = summaryParts.isEmpty ? String(localized: "已确认") : String(localized: "已创建 ") + summaryParts.joined(separator: " · ")
         chatRepo?.addMessage(
             role: "assistant",
-            content: "已按你的确认落库：\(summary)。可随时撤销。",
+            content: String(localized: "已按你的确认落库：\(summary)。可随时撤销。"),
             messageType: .lifePlan
         )
         lifePlanForReview = nil
@@ -1229,13 +1229,13 @@ final class ChatViewModel: ObservableObject {
             lastPlanUndo = nil
             chatRepo?.addMessage(
                 role: "assistant",
-                content: "已撤销本次确认：创建的目标、任务、习惯已删除，行动卡恢复为待确认。",
+                content: String(localized: "已撤销本次确认：创建的目标、任务、习惯已删除，行动卡恢复为待确认。"),
                 messageType: .lifePlan
             )
         } catch {
             chatRepo?.addMessage(
                 role: "assistant",
-                content: "撤销失败：\(error.localizedDescription)。可手动删除刚创建的内容。",
+                content: String(localized: "撤销失败：\(error.localizedDescription)。可手动删除刚创建的内容。"),
                 messageType: .lifePlan
             )
         }
@@ -1260,7 +1260,7 @@ final class ChatViewModel: ObservableObject {
             // 看到此标记不再把消息重新点亮成「还在分析中」，切断取消与同步的竞态。
             chatRepo?.finishStreaming(
                 cancelledMessageID,
-                finalContent: "已停止生成",
+                finalContent: String(localized: "已停止生成"),
                 messageType: .userCancelled
             )
         }
@@ -1271,7 +1271,7 @@ final class ChatViewModel: ObservableObject {
             .filter { $0.isStreaming && $0.id != cancelledMessageID }
             .map(\.id)
         for id in orphanedIDs {
-            chatRepo?.finishStreaming(id, finalContent: "已停止生成", messageType: .userCancelled)
+            chatRepo?.finishStreaming(id, finalContent: String(localized: "已停止生成"), messageType: .userCancelled)
         }
         // 关键修复：Agent 深度分析跑在 Scheduler 独立 Task 上（activeTasks[jobID]），
         // 与 chat 的 currentTask 是不同对象。此前只取消 currentTask 对 Agent 无效，
@@ -1308,7 +1308,7 @@ final class ChatViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s：进入提示段
             guard !Task.isCancelled else { return }
             guard self.activeStreamingMessageID == aiMessageId else { return }
-            self.streamingStatusHint = "AI 正在处理较长的内容，仍在工作中，可随时停止"
+            self.streamingStatusHint = String(localized: "AI 正在处理较长的内容，仍在工作中，可随时停止")
 
             try? await Task.sleep(nanoseconds: 210_000_000_000) // 累计 300s：超时
             guard !Task.isCancelled else { return }
@@ -1322,16 +1322,16 @@ final class ChatViewModel: ObservableObject {
             let partialContent = self.streamingText
             let finalContent: String
             if partialContent.isEmpty {
-                finalContent = "抱歉，AI 响应超时了，请稍后重试"
+                finalContent = String(localized: "抱歉，AI 响应超时了，请稍后重试")
             } else {
-                finalContent = partialContent + "\n\n---\n⚠️ AI 响应超时，以上为已接收的部分内容"
+                finalContent = partialContent + String(localized: "\n\n---\n⚠️ AI 响应超时，以上为已接收的部分内容")
             }
 
             self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
             self.isStreaming = false
             self.streamingText = ""
             self.streamingStatusHint = nil
-            self.errorMessage = "AI 响应超时"
+            self.errorMessage = String(localized: "AI 响应超时")
             self.currentTask = nil
             self.activeStreamingMessageID = nil
         }
@@ -1436,14 +1436,14 @@ final class ChatViewModel: ObservableObject {
         guard let taskId = taskData.taskId,
               let task = TodoRepository.shared.findTask(by: taskId),
               !task.deletedFlag else {
-            errorMessage = "该任务已不存在，无法补充条目"
+            errorMessage = String(localized: "该任务已不存在，无法补充条目")
             return
         }
         let itemTitles = ((task.checkItems as? Set<CheckItem>) ?? [])
             .sorted { $0.order < $1.order }
             .map(\.title)
         anchoredTask = RecentLinkedTaskSummary(taskId: taskId, title: task.title, itemTitles: itemTitles)
-        inputText = "给「\(task.title)」补充："
+        inputText = String(localized: "给「\(task.title)」补充：")
     }
 
     /// 查「最近对话关联的任务」：锚定任务优先（卡片显式指定，零歧义）；
@@ -1580,12 +1580,12 @@ final class ChatViewModel: ObservableObject {
                        let task = TodoRepository.shared.findTask(by: taskId) {
                         try TodoRepository.shared.deleteTask(task)
                         deleteRouteResult = IntentRouter.RouteResult(
-                            text: "已删除任务：\(task.title)",
+                            text: String(localized: "已删除任务：\(task.title)"),
                             taskId: taskId,
                             linkedEntity: LinkedEntity(type: .task, id: taskId)
                         )
                     } else {
-                        deleteRouteResult = IntentRouter.RouteResult(text: "任务已不存在，可能已被删除")
+                        deleteRouteResult = IntentRouter.RouteResult(text: String(localized: "任务已不存在，可能已被删除"))
                     }
                     await self.finalizeTaskConfirmation(
                         chatRepo: chatRepo, message: message, itemId: itemId,
@@ -1623,7 +1623,7 @@ final class ChatViewModel: ObservableObject {
                     parseItemId: pending.parseItemId,
                     intent: pending.intent,
                     status: .failed,
-                    summaryText: pending.intent == .modifyTaskItems ? "修改条目失败" : "创建任务失败",
+                    summaryText: pending.intent == .modifyTaskItems ? String(localized: "修改条目失败") : String(localized: "创建任务失败"),
                     renderData: failedRenderData,
                     linkedEntityType: nil,
                     linkedEntityId: nil,
@@ -1644,7 +1644,7 @@ final class ChatViewModel: ObservableObject {
                     parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
                     executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
                 )
-                self.errorMessage = (pending.intent == .modifyTaskItems ? "修改条目失败" : "创建任务失败") + "：\(error.localizedDescription)"
+                self.errorMessage = (pending.intent == .modifyTaskItems ? String(localized: "修改条目失败") : String(localized: "创建任务失败")) + String(localized: "：\(error.localizedDescription)")
             }
 
             self.confirmingItemIds.remove(itemId)
@@ -1734,7 +1734,7 @@ final class ChatViewModel: ObservableObject {
             parseItemId: pending.parseItemId,
             intent: pending.intent,
             status: pending.status,
-            summaryText: "已取消",
+            summaryText: String(localized: "已取消"),
             renderData: renderData,
             linkedEntityType: pending.linkedEntityType,
             linkedEntityId: pending.linkedEntityId,
@@ -1758,9 +1758,9 @@ final class ChatViewModel: ObservableObject {
     }
 
     private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
-        guard !items.isEmpty else { return "已处理" }
+        guard !items.isEmpty else { return String(localized: "已处理") }
         if items.count == 1 { return items[0].summaryText }
-        return "已为你处理 \(items.count) 件事：\n" + items.enumerated().map { index, item in
+        return String(localized: "已为你处理 \(items.count) 件事：\n") + items.enumerated().map { index, item in
             "\(index + 1). \(item.summaryText)"
         }.joined(separator: "\n")
     }
@@ -1901,7 +1901,7 @@ final class ChatViewModel: ObservableObject {
             parseItemId: pending.parseItemId,
             intent: pending.intent,
             status: pending.status,
-            summaryText: "已取消",
+            summaryText: String(localized: "已取消"),
             renderData: renderData,
             linkedEntityType: pending.linkedEntityType,
             linkedEntityId: pending.linkedEntityId,
@@ -1961,7 +1961,7 @@ final class ChatViewModel: ObservableObject {
             parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
             executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
         )
-        errorMessage = "目标操作失败：\(error.localizedDescription)"
+        errorMessage = String(localized: "目标操作失败：\(error.localizedDescription)")
     }
 
     // MARK: - Pending Transaction Confirmation
@@ -2136,7 +2136,7 @@ final class ChatViewModel: ObservableObject {
             parseItemId: pending.parseItemId,
             intent: pending.intent,
             status: pending.status,
-            summaryText: "已取消记账",
+            summaryText: String(localized: "已取消记账"),
             renderData: renderData,
             linkedEntityType: pending.linkedEntityType,
             linkedEntityId: pending.linkedEntityId,
@@ -2324,7 +2324,7 @@ final class ChatViewModel: ObservableObject {
             parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
             executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
         )
-        errorMessage = "操作失败：\(error.localizedDescription)"
+        errorMessage = String(localized: "操作失败：\(error.localizedDescription)")
     }
 
     func cancelPendingBudget(from message: ChatMessageViewData, itemID: String? = nil) {
@@ -2332,7 +2332,7 @@ final class ChatViewModel: ObservableObject {
             from: message,
             itemID: itemID,
             matcher: { $0.intent == .setBudget },
-            cancelledText: "已取消，预算未改动"
+            cancelledText: String(localized: "已取消，预算未改动")
         )
     }
 
@@ -2341,7 +2341,7 @@ final class ChatViewModel: ObservableObject {
             from: message,
             itemID: itemID,
             matcher: { $0.intent == .createAnniversary },
-            cancelledText: "已取消，未创建"
+            cancelledText: String(localized: "已取消，未创建")
         )
     }
 
@@ -2460,7 +2460,7 @@ final class ChatViewModel: ObservableObject {
             parseItemId: pending.parseItemId,
             intent: pending.intent,
             status: .success,
-            summaryText: "已确认并记录",
+            summaryText: String(localized: "已确认并记录"),
             renderData: renderData,
             linkedEntityType: createdTransaction != nil ? "finance" : pending.linkedEntityType,
             linkedEntityId: createdTransaction?.id.uuidString ?? pending.linkedEntityId,
@@ -2730,7 +2730,7 @@ final class ChatViewModel: ObservableObject {
             allowedMemoryIDs: Set(availableMemoryIDs)
         )
         if !result.usedMemoryIDs.isEmpty {
-            let notice = "Holo 参考了 \(result.usedMemoryIDs.count) 条已记住的信息"
+            let notice = String(localized: "Holo 参考了 \(result.usedMemoryIDs.count) 条已记住的信息")
             HoloMemoryReceiptStore.record(
                 kind: .use,
                 channel: channel,
@@ -2770,7 +2770,7 @@ final class ChatViewModel: ObservableObject {
                 kind: .use,
                 channel: .chat,
                 memoryIDs: marker.usedMemoryIDs,
-                message: "Holo 参考了 \(marker.usedMemoryIDs.count) 条已记住的信息"
+                message: String(localized: "Holo 参考了 \(marker.usedMemoryIDs.count) 条已记住的信息")
             )
             recordMemoryUsage(marker.usedMemoryIDs)
         }
@@ -2786,11 +2786,11 @@ final class ChatViewModel: ObservableObject {
     func handleCapabilityTap(_ capability: HoloAICapability) {
         switch capability.id {
         case .onboarding:
-            inputText = "我是新用户，能教我怎么用 Holo 吗？"
+            inputText = String(localized: "我是新用户，能教我怎么用 Holo 吗？")
         case .todayState:
             // 确认权原则（2026-08-22 东林拍板）：预填不发送，
             // 与深度分析场景面板同一底线——用户看到并确认将发出的话再按发送。
-            inputText = "帮我看看今天的整体状态"
+            inputText = String(localized: "帮我看看今天的整体状态")
             return
         case .recentAnalysis:
             // 甲方案（2026-08-22）：不再点击即发——点开场景面板，
@@ -2799,7 +2799,7 @@ final class ChatViewModel: ObservableObject {
             return
         case .longTermPatterns:
             // 与「今日状态」同类：快问快答也走预填确认
-            inputText = "你了解我哪些长期偏好和模式？"
+            inputText = String(localized: "你了解我哪些长期偏好和模式？")
             return
         case .goalPlanning:
             startGoalPlanning(seedText: nil)
@@ -2942,7 +2942,7 @@ final class ChatViewModel: ObservableObject {
                 }
                 if let draft = result.draft {
                     goalDraftForReview = draft
-                    let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                    let summary = String(localized: "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)")
                     _ = chatRepo.addMessage(
                         role: "assistant",
                         content: summary,
@@ -2968,7 +2968,7 @@ final class ChatViewModel: ObservableObject {
                     errorMessage = userMessage
                     _ = chatRepo.addMessage(
                         role: "assistant",
-                        content: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。",
+                        content: String(localized: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。"),
                         parentMessageId: userMessageId,
                         messageType: .goalPlanning
                     )
@@ -3010,7 +3010,7 @@ final class ChatViewModel: ObservableObject {
                 }
                 if let draft = result.draft {
                     goalDraftForReview = draft
-                    let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                    let summary = String(localized: "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)")
                     _ = chatRepo.addMessage(
                         role: "assistant",
                     content: summary,
@@ -3036,7 +3036,7 @@ final class ChatViewModel: ObservableObject {
                 errorMessage = userMessage
                 _ = chatRepo.addMessage(
                     role: "assistant",
-                    content: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。",
+                    content: String(localized: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。"),
                     parentMessageId: userMessageId,
                     messageType: .goalPlanning
                 )
@@ -3050,7 +3050,7 @@ final class ChatViewModel: ObservableObject {
         showGoalDraftReview = false
         _ = chatRepo?.addMessage(
             role: "assistant",
-            content: "已取消这次目标规划。",
+            content: String(localized: "已取消这次目标规划。"),
             messageType: .goalPlanning
         )
         activeGoalPlanningSession = nil
@@ -3072,7 +3072,7 @@ final class ChatViewModel: ObservableObject {
         ]
         _ = chatRepo?.addMessage(
             role: "assistant",
-            content: "已创建目标「\(result.goal.title)」，并生成 \(result.createdTaskCount) 个任务、\(result.createdHabitCount) 个习惯。",
+            content: String(localized: "已创建目标「\(result.goal.title)」，并生成 \(result.createdTaskCount) 个任务、\(result.createdHabitCount) 个习惯。"),
             extractedDataJSON: Self.encodeExtractedData(extractedData),
             messageType: .goalPlanning
         )
@@ -3118,14 +3118,14 @@ enum QuickAction: String, CaseIterable {
 
     var prompt: String {
         switch self {
-        case .recordExpense: return "帮我记一笔消费"
-        case .createTask: return "帮我创建一个任务"
-        case .recordMood: return "记录我现在的心情"
-        case .checkIn: return "帮我打卡"
-        case .weeklyReport: return "生成本周总结"
-        case .createNote: return "帮我记一条笔记"
-        case .queryTasks: return "今天有什么待办"
-        case .queryHabits: return "今天习惯完成了吗"
+        case .recordExpense: return String(localized: "帮我记一笔消费")
+        case .createTask: return String(localized: "帮我创建一个任务")
+        case .recordMood: return String(localized: "记录我现在的心情")
+        case .checkIn: return String(localized: "帮我打卡")
+        case .weeklyReport: return String(localized: "生成本周总结")
+        case .createNote: return String(localized: "帮我记一条笔记")
+        case .queryTasks: return String(localized: "今天有什么待办")
+        case .queryHabits: return String(localized: "今天习惯完成了吗")
         case .planGoal: return ""
         }
     }

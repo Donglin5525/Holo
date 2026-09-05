@@ -83,7 +83,7 @@ struct TaskImagePicker: View {
                 }
             }
         default:
-            permissionMessage = "请在系统设置中允许 Holo 访问相机"
+            permissionMessage = String(localized: "请在系统设置中允许 Holo 访问相机")
             showPermissionAlert = true
         }
     }

@@ -45,17 +45,17 @@ final class AppLockSettings: ObservableObject {
 
         var displayName: String {
             switch self {
-            case .immediate: return "立即锁定"
-            case .oneMinute: return "1 分钟内免验证"
-            case .fiveMinutes: return "5 分钟内免验证"
+            case .immediate: return String(localized: "立即锁定")
+            case .oneMinute: return String(localized: "1 分钟内免验证")
+            case .fiveMinutes: return String(localized: "5 分钟内免验证")
             }
         }
 
         var subtitle: String {
             switch self {
-            case .immediate: return "切出 App 后回来需立即验证"
-            case .oneMinute: return "离开不超过 1 分钟回来可免验证"
-            case .fiveMinutes: return "离开不超过 5 分钟回来可免验证"
+            case .immediate: return String(localized: "切出 App 后回来需立即验证")
+            case .oneMinute: return String(localized: "离开不超过 1 分钟回来可免验证")
+            case .fiveMinutes: return String(localized: "离开不超过 5 分钟回来可免验证")
             }
         }
     }

@@ -100,10 +100,10 @@ struct ThoughtFilterSheetView: View {
             if expandedSection == .dateRange {
                 VStack(spacing: 12) {
                     // 开始日期
-                    datePickerRow(title: "开始日期", date: $startDate)
+                    datePickerRow(title: String(localized: "开始日期"), date: $startDate)
 
                     // 结束日期
-                    datePickerRow(title: "结束日期", date: $endDate)
+                    datePickerRow(title: String(localized: "结束日期"), date: $endDate)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }

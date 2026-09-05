@@ -205,7 +205,7 @@ struct HealthView: View {
                         .frame(width: 4, height: 4)
                 }
 
-                Text(isRefreshing ? "同步中" : "同步")
+                Text(isRefreshing ? String(localized: "同步中") : String(localized: "同步"))
                     .font(.holoLabel)
                     .foregroundColor(.holoPrimary)
                     .lineLimit(1)
@@ -476,19 +476,19 @@ struct HealthView: View {
     /// 生活闭环空态文案：区分「数据不足」与「分析过但暂无关联」，避免生硬的「0 条」体验。
     private var lifestyleEmptyHint: String {
         if insightViewModel.snapshot?.status == .insufficientData {
-            return "数据积累中。连续记录睡眠、运动、记账、待办，HOLO 会从中发现跨域规律。"
+            return String(localized: "数据积累中。连续记录睡眠、运动、记账、待办，HOLO 会从中发现跨域规律。")
         }
-        return "这 14 天没有发现明显的跨域规律。继续记录，HOLO 会持续观察。"
+        return String(localized: "这 14 天没有发现明显的跨域规律。继续记录，HOLO 会持续观察。")
     }
 
     private func lifestyleBadge(for domain: HealthInsightDomain) -> String {
         switch domain {
-        case .health: return "健"
-        case .task: return "任"
-        case .habit: return "习"
-        case .finance: return "财"
-        case .thought: return "想"
-        case .mixed: return "联"
+        case .health: return String(localized: "健")
+        case .task: return String(localized: "任")
+        case .habit: return String(localized: "习")
+        case .finance: return String(localized: "财")
+        case .thought: return String(localized: "想")
+        case .mixed: return String(localized: "联")
         }
     }
 
@@ -594,15 +594,15 @@ struct HealthView: View {
 
         switch repository.dataSourceState {
         case .connected:
-            return isToday ? "同步自 Apple Health · 刚刚" : "查看历史健康数据"
+            return isToday ? String(localized: "同步自 Apple Health · 刚刚") : String(localized: "查看历史健康数据")
         case .partiallyConnected:
-            return isToday ? "Apple Health 部分同步" : "查看历史健康数据"
+            return isToday ? String(localized: "Apple Health 部分同步") : String(localized: "查看历史健康数据")
         case .notRequested:
-            return "等待 Apple Health 授权"
+            return String(localized: "等待 Apple Health 授权")
         case .denied:
-            return "健康权限已关闭"
+            return String(localized: "健康权限已关闭")
         case .unavailable:
-            return "此设备不支持 HealthKit"
+            return String(localized: "此设备不支持 HealthKit")
         }
     }
 

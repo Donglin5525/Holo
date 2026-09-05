@@ -78,7 +78,7 @@ final class WeeklyBriefScheduler: RollingNotificationScheduler {
             guard summary.completedTasks > 0 || summary.habitDays > 0 else { continue }
 
             let content = UNMutableNotificationContent()
-            content.title = "上周小结 · 新的一周"
+            content.title = String(localized: "上周小结 · 新的一周")
             content.body = Self.briefBody(summary: summary)
             content.sound = .default
             content.categoryIdentifier = TodoNotificationCategory.weeklyBrief
@@ -149,9 +149,9 @@ final class WeeklyBriefScheduler: RollingNotificationScheduler {
     }
 
     static func briefBody(summary: (completedTasks: Int, habitDays: Int, focus: String?)) -> String {
-        var body = "完成 \(summary.completedTasks) 件事 · 打卡 \(summary.habitDays) 天"
+        var body = String(localized: "完成 \(summary.completedTasks) 件事 · 打卡 \(summary.habitDays) 天")
         if let focus = summary.focus, !focus.isEmpty {
-            body += "｜本周重点：\(focus.holoTruncated(to: 14))"
+            body += String(localized: "｜本周重点：\(focus.holoTruncated(to: 14))")
         }
         return body
     }

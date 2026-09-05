@@ -12,8 +12,16 @@ import SwiftUI
 
 /// 记忆长廊 Tab 类型
 enum MemoryGalleryTab: String, CaseIterable {
-    case calendar = "日历"
-    case insight = "洞察"
+    case calendar
+    case insight
+
+    /// 显示名（VoiceOver 与无障碍描述用）
+    var displayName: String {
+        switch self {
+        case .calendar: return String(localized: "日历")
+        case .insight: return String(localized: "洞察")
+        }
+    }
 
     /// 拨块 / 轨道图标（SF Symbols，与全 App 图标风格一致）
     var iconName: String {
@@ -47,9 +55,9 @@ struct MemoryViewToggleSwitch: View {
         // 热区外扩：视觉 32pt 高，命中 40pt，高频操作不点空
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .accessibilityLabel("视图开关")
-        .accessibilityValue(isInsight ? "洞察" : "日历")
-        .accessibilityHint("双击在日历与洞察之间切换")
+        .accessibilityLabel(String(localized: "视图开关"))
+        .accessibilityValue(isInsight ? String(localized: "洞察") : String(localized: "日历"))
+        .accessibilityHint(String(localized: "双击在日历与洞察之间切换"))
     }
 
     // MARK: - 轨道 + 拨块

@@ -85,7 +85,7 @@ nonisolated struct ThoughtClusterEngine {
             if members.count >= minClusterSize {
                 let name = ThoughtTagNormalizer.lastSegment(identity)
                 let samples = members.prefix(sampleLimit)
-                    .map { $0.firstLine.isEmpty ? "（无内容）" : $0.firstLine }
+                    .map { $0.firstLine.isEmpty ? String(localized: "（无内容）") : $0.firstLine }
                 clusters.append(Cluster(
                     name: name,
                     thoughtIds: members.map(\.id),

@@ -106,8 +106,8 @@ struct CategoryManagementView: View {
             if let cat = categoryToDelete {
                 let hasSubs = (subCategoriesMap[cat.id]?.count ?? 0) > 0
                 Text(hasSubs
-                    ? "删除后无法恢复。该分类及其 \(subCategoriesMap[cat.id]?.count ?? 0) 个子分类将被一并删除；若已被交易使用，将无法删除。"
-                    : "删除后无法恢复；若该分类已被交易使用，将无法删除。")
+                    ? String(localized: "删除后无法恢复。该分类及其 \(subCategoriesMap[cat.id]?.count ?? 0) 个子分类将被一并删除；若已被交易使用，将无法删除。")
+                    : String(localized: "删除后无法恢复；若该分类已被交易使用，将无法删除。"))
             } else {
                 Text("删除后无法恢复。")
             }
@@ -209,8 +209,8 @@ struct CategoryManagementView: View {
                 openAddTopLevelCategory()
             } label: {
                 addCategoryRow(
-                    title: "新增一级分类",
-                    subtitle: "创建新的一级科目分组"
+                    title: String(localized: "新增一级分类"),
+                    subtitle: String(localized: "创建新的一级科目分组")
                 )
             }
             .buttonStyle(.plain)
@@ -291,7 +291,7 @@ struct CategoryManagementView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel("编辑\(category.name)")
+        .accessibilityLabel(String(localized: "编辑\(category.name)"))
     }
 
     private func subCategoryList(for parent: Category) -> some View {
@@ -379,7 +379,7 @@ struct CategoryManagementView: View {
                 .stroke(Color.holoPrimary.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("新增第一个二级分类")
+        .accessibilityLabel(String(localized: "新增第一个二级分类"))
     }
 
     private func subCategoryRowsList(for parent: Category, subs: [Category]) -> some View {
@@ -410,8 +410,8 @@ struct CategoryManagementView: View {
                 openAddSubCategory(parent)
             } label: {
                 addCategoryRow(
-                    title: "在「\(parent.name)」下新增二级分类",
-                    subtitle: "会自动归属到当前一级分类"
+                    title: String(localized: "在「\(parent.name)」下新增二级分类"),
+                    subtitle: String(localized: "会自动归属到当前一级分类")
                 )
             }
             .buttonStyle(.plain)
@@ -467,7 +467,7 @@ struct CategoryManagementView: View {
             cleanupResult = result
             await loadData()
         } catch {
-            errorMessage = "清理失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "清理失败：\(error.localizedDescription)")
         }
     }
     
@@ -550,7 +550,7 @@ struct AddCategorySheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
-            .navigationTitle(parentId != nil ? "新增二级分类" : "新增一级分类")
+            .navigationTitle(parentId != nil ? String(localized: "新增二级分类") : String(localized: "新增一级分类"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

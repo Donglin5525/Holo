@@ -59,8 +59,8 @@ struct MilestoneDetector {
 
             for threshold in matchedThresholds {
                 let milestone = MilestoneData(
-                    title: "坚持\(habit.name) \(threshold) 天",
-                    description: "已连续 \(streakInfo.displayText)不间断",
+                    title: String(localized: "坚持\(habit.name) \(threshold) 天"),
+                    description: String(localized: "已连续 \(streakInfo.displayText)不间断"),
                     icon: "flame.fill",
                     milestoneType: .streakDays
                 )
@@ -100,8 +100,8 @@ struct MilestoneDetector {
             let transactionDate = nthTransaction.date
 
             let milestone = MilestoneData(
-                title: "坚持记账 \(threshold) 笔",
-                description: "累计记录 \(count) 笔交易",
+                title: String(localized: "坚持记账 \(threshold) 笔"),
+                description: String(localized: "累计记录 \(count) 笔交易"),
                 icon: "trophy.fill",
                 milestoneType: .cumulativeCount
             )
@@ -135,8 +135,8 @@ struct MilestoneDetector {
             let achievementDate = calendar.date(byAdding: .day, value: -daysAgo, to: today)!
 
             let milestone = MilestoneData(
-                title: "掌握习惯「\(habit.name)」",
-                description: "连续完成 \(streakInfo.displayText)，习惯已融入生活",
+                title: String(localized: "掌握习惯「\(habit.name)」"),
+                description: String(localized: "连续完成 \(streakInfo.displayText)，习惯已融入生活"),
                 icon: "star.fill",
                 milestoneType: .habitMastery
             )

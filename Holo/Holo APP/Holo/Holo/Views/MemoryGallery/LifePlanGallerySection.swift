@@ -72,8 +72,8 @@ struct LifePlanGallerySection: View {
         let accepted = plan.acceptedActionCount
         let done = plan.completedActionCount
         switch plan.status {
-        case "active": return "进行中 · \(done)/\(accepted) 完成"
-        default: return "已接受 \(accepted) 张 · 完成 \(done)"
+        case "active": return String(localized: "进行中 · \(done)/\(accepted) 完成")
+        default: return String(localized: "已接受 \(accepted) 张 · 完成 \(done)")
         }
     }
 

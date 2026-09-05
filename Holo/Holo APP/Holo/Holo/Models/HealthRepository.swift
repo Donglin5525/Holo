@@ -208,7 +208,7 @@ class HealthRepository: ObservableObject {
 
         // 检查 HealthKit 是否可用
         guard HKHealthStore.isHealthDataAvailable() else {
-            self.errorMessage = "HealthKit 不可用"
+            self.errorMessage = String(localized: "HealthKit 不可用")
             self.dataSourceState = .unavailable
             return
         }
@@ -412,7 +412,7 @@ class HealthRepository: ObservableObject {
     /// 严格版步数查询（§7.1）：读取 HK 回调 error，锁屏返回 waitingForUnlock，不得伪装 0。
     private func fetchStepsStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
-            return .unavailable(.recoverable("步数类型不可用"))
+            return .unavailable(.recoverable(String(localized: "步数类型不可用")))
         }
 
         let calendar = Calendar.current
@@ -459,7 +459,7 @@ class HealthRepository: ObservableObject {
     /// 严格版睡眠查询（§7.1）：读取 HK 回调 error；空样本 → noData，不得伪装 0。
     private func fetchSleepStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
-            return .unavailable(.recoverable("睡眠类型不可用"))
+            return .unavailable(.recoverable(String(localized: "睡眠类型不可用")))
         }
 
         let calendar = Calendar.current
@@ -522,7 +522,7 @@ class HealthRepository: ObservableObject {
     /// 严格版睡眠明细查询（§7.1）：读取 HK 回调 error；无睡眠样本 → noData。
     private func fetchSleepDetailStrict(forWakeDay wakeDay: Date) async -> HoloHealthQueryOutcome<HealthSleepDetail> {
         guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
-            return .unavailable(.recoverable("睡眠类型不可用"))
+            return .unavailable(.recoverable(String(localized: "睡眠类型不可用")))
         }
         let calendar = Calendar.current
         guard let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: wakeDay),
@@ -583,7 +583,7 @@ class HealthRepository: ObservableObject {
     /// 严格版站立查询（§7.1）：读取 HK 回调 error；空样本 → noData。
     private func fetchStandTimeStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let standType = HKObjectType.categoryType(forIdentifier: .appleStandHour) else {
-            return .unavailable(.recoverable("站立类型不可用"))
+            return .unavailable(.recoverable(String(localized: "站立类型不可用")))
         }
 
         let calendar = Calendar.current
@@ -636,7 +636,7 @@ class HealthRepository: ObservableObject {
     /// 严格版活动分钟查询（§7.1）：读取 HK 回调 error，锁屏返回 waitingForUnlock。
     private func fetchActiveMinutesStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let exerciseType = HKObjectType.quantityType(forIdentifier: .appleExerciseTime) else {
-            return .unavailable(.recoverable("活动分钟类型不可用"))
+            return .unavailable(.recoverable(String(localized: "活动分钟类型不可用")))
         }
 
         let calendar = Calendar.current
@@ -1020,11 +1020,11 @@ enum HealthError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .healthKitNotAvailable:
-            return "此设备不支持 HealthKit"
+            return String(localized: "此设备不支持 HealthKit")
         case .authorizationDenied:
-            return "未获得健康数据访问权限"
+            return String(localized: "未获得健康数据访问权限")
         case .dataNotAvailable:
-            return "健康数据不可用"
+            return String(localized: "健康数据不可用")
         }
     }
 }

@@ -44,24 +44,24 @@ struct GentleHighlightNode: View {
     private var title: String {
         switch data.category {
         case .spendingAnomaly:
-            return "这天的外出支出比较集中"
+            return String(localized: "这天的外出支出比较集中")
         case .streakAchievement:
-            return "有一个习惯节奏被稳稳接住"
+            return String(localized: "有一个习惯节奏被稳稳接住")
         case .taskCompletion:
-            return "有一件重要事情被推进了"
+            return String(localized: "有一件重要事情被推进了")
         case .habitPerfect:
-            return "这天的习惯完成得比较完整"
+            return String(localized: "这天的习惯完成得比较完整")
         }
     }
 
     private var subtitle: String {
         switch data.category {
         case .spendingAnomaly:
-            return "具体金额和对比留在详情里看。"
+            return String(localized: "具体金额和对比留在详情里看。")
         case .streakAchievement, .habitPerfect:
-            return data.subtitle ?? "这是一段值得回看的稳定记录。"
+            return data.subtitle ?? String(localized: "这是一段值得回看的稳定记录。")
         case .taskCompletion:
-            return data.subtitle ?? "这件事让本期行动线更清楚了一点。"
+            return data.subtitle ?? String(localized: "这件事让本期行动线更清楚了一点。")
         }
     }
 

@@ -139,43 +139,42 @@ struct HoloEpisodicMemoryDetailView: View {
 
     private func formattedDate(_ date: Date) -> String? {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter.string(from: date)
     }
 
     private func daysUntilExpiry(_ date: Date) -> String {
         let days = Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0
-        if days <= 0 { return "已过期" }
-        return "\(days) 天"
+        if days <= 0 { return String(localized: "已过期") }
+        return String(localized: "\(days) 天")
     }
 
     private func stateLabel(_ state: HoloEpisodicMemoryState) -> String {
         switch state {
-        case .observing: return "观察中"
-        case .active: return "活跃"
-        case .suggested: return "建议"
-        case .promotionCandidate: return "提升候选"
-        case .promoted: return "已提升"
-        case .rejected: return "已拒绝"
-        case .expired: return "已过期"
-        case .archived: return "已隐藏"
+        case .observing: return String(localized: "观察中")
+        case .active: return String(localized: "活跃")
+        case .suggested: return String(localized: "建议")
+        case .promotionCandidate: return String(localized: "提升候选")
+        case .promoted: return String(localized: "已提升")
+        case .rejected: return String(localized: "已拒绝")
+        case .expired: return String(localized: "已过期")
+        case .archived: return String(localized: "已隐藏")
         }
     }
 
     private func confidenceLabel(_ confidence: HoloMemoryConfidence) -> String {
         switch confidence {
-        case .low: return "低"
-        case .medium: return "中"
-        case .high: return "高"
+        case .low: return String(localized: "低")
+        case .medium: return String(localized: "中")
+        case .high: return String(localized: "高")
         }
     }
 
     private func sensitivityLabel(_ sensitivity: HoloMemorySensitivity) -> String {
         switch sensitivity {
-        case .normal: return "普通"
-        case .highImpact: return "高影响"
-        case .sensitive: return "敏感"
+        case .normal: return String(localized: "普通")
+        case .highImpact: return String(localized: "高影响")
+        case .sensitive: return String(localized: "敏感")
         }
     }
 }

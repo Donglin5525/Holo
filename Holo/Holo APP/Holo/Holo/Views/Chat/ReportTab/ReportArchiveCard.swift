@@ -34,7 +34,7 @@ struct ReportArchiveCard: View {
                             .background(entry.scenarioTag.badgeColors.background, in: Capsule())
                     }
 
-                    Text(entry.scopeLabel ?? "自定义范围")
+                    Text(entry.scopeLabel ?? String(localized: "自定义范围"))
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
@@ -50,7 +50,7 @@ struct ReportArchiveCard: View {
                         Image(systemName: "star.fill")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color.holoStarTint)
-                            .accessibilityLabel("已收藏")
+                            .accessibilityLabel(String(localized: "已收藏"))
                     }
 
                     Text(Self.dateText(entry.timestamp))
@@ -84,7 +84,7 @@ struct ReportArchiveCard: View {
                             .fill(accentColor.opacity(0.55))
                             .frame(width: 3)
 
-                        Text(entry.summary ?? entry.title ?? "本周期完成了一次报告。")
+                        Text(entry.summary ?? entry.title ?? String(localized: "本周期完成了一次报告。"))
                             .font(.system(size: 12.5))
                             .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.35))
                             .lineLimit(3)
@@ -116,7 +116,7 @@ struct ReportArchiveCard: View {
     }
 
     private var kindBadge: some View {
-        Text(entry.kind == .deepAnalysis ? "深度分析" : "周期回放")
+        Text(entry.kind == .deepAnalysis ? String(localized: "深度分析") : String(localized: "周期回放"))
             .font(.system(size: 10.5, weight: .bold))
             .foregroundColor(accentColor)
             .padding(.horizontal, 8)
@@ -138,10 +138,10 @@ struct ReportArchiveCard: View {
     private static func countsText(_ entry: ReportArchiveDTO) -> String {
         var parts: [String] = []
         if entry.observationCount > 0 {
-            parts.append("观察 ×\(entry.observationCount)")
+            parts.append(String(localized: "观察 ×\(entry.observationCount)"))
         }
         if entry.evidenceCount > 0 {
-            parts.append("证据 ×\(entry.evidenceCount)")
+            parts.append(String(localized: "证据 ×\(entry.evidenceCount)"))
         }
         return parts.joined(separator: " · ")
     }

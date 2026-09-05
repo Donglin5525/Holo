@@ -14,9 +14,9 @@ struct UserDisplayNameSettings {
     /// 本次安装里是否主动设置过昵称（UserDefaults 随卸载清空，重装后自然复位）
     /// 用于云端昵称采纳的冲突判定：主动设置过 → 本地意图优先，不被云端覆盖
     static let displayNameSetThisInstallKey = "displayNameSetThisInstall"
-    static let fallbackDisplayName = "你"
+    static let fallbackDisplayName = String(localized: "你")
     /// 昵称从未设置时的展示占位（用于昵称行等独立展示位；句子拼接走 greetingText，不用它）
-    static let unsetDisplayNamePlaceholder = "未设置"
+    static let unsetDisplayNamePlaceholder = String(localized: "未设置")
     static let standard = UserDisplayNameSettings()
 
     private let userDefaults: UserDefaults
@@ -77,10 +77,10 @@ struct UserDisplayNameSettings {
     static func greetingText(hour: Int, rawName: String?) -> String {
         let hourPart: String
         switch hour {
-        case 0..<6: hourPart = "夜深了"
-        case 6..<12: hourPart = "早上好"
-        case 12..<18: hourPart = "下午好"
-        default: hourPart = "晚上好"
+        case 0..<6: hourPart = String(localized: "夜深了")
+        case 6..<12: hourPart = String(localized: "早上好")
+        case 12..<18: hourPart = String(localized: "下午好")
+        default: hourPart = String(localized: "晚上好")
         }
         guard let name = normalizedDisplayName(rawName), name != fallbackDisplayName else {
             return hourPart

@@ -154,30 +154,30 @@ final class DailyBriefScheduler: RollingNotificationScheduler {
             if let primary {
                 let name = primary.title.holoTruncated()
                 if let due = primary.dueDate, !primary.isAllDay {
-                    body = "最要紧：\(name)（\(timeFormatter.string(from: due)) 截止）"
+                    body = String(localized: "最要紧：\(name)（\(timeFormatter.string(from: due)) 截止）")
                 } else {
-                    body = "最要紧：\(name)"
+                    body = String(localized: "最要紧：\(name)")
                 }
             }
             if !overdue.isEmpty {
-                body += " · \(overdue.count) 件已过期"
+                body += String(localized: " · \(overdue.count) 件已过期")
             } else if dueToday.count > 1 {
-                body += " · 还有 \(dueToday.count - 1) 件"
+                body += String(localized: " · 还有 \(dueToday.count - 1) 件")
             }
-            return ("早上好，今天 \(dueToday.count) 件事", body)
+            return (String(localized: "早上好，今天 \(dueToday.count) 件事"), body)
         }
 
         // 只有过期任务
         let parts = overdue.prefix(2).map { task -> String in
             let dueStart = calendar.startOfDay(for: task.dueDate ?? dayStart)
             let days = max(1, calendar.dateComponents([.day], from: dueStart, to: dayStart).day ?? 1)
-            return "「\(task.title.holoTruncated())」拖了 \(days) 天"
+            return String(localized: "「\(task.title.holoTruncated())」拖了 \(days) 天")
         }
         var body = parts.joined(separator: "、")
         if overdue.count > 2 {
-            body += " 等 \(overdue.count) 件"
+            body += String(localized: " 等 \(overdue.count) 件")
         }
-        return ("\(overdue.count) 件任务已过期", body + "，今天清一件？")
+        return (String(localized: "\(overdue.count) 件任务已过期"), body + String(localized: "，今天清一件？"))
     }
 
 }

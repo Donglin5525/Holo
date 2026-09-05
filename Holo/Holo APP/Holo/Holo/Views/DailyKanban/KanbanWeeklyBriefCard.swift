@@ -53,9 +53,9 @@ struct KanbanWeeklyBriefCard: View {
             }
 
             HStack(spacing: HoloSpacing.lg) {
-                briefStat(value: "\(summary.completedTasks)", label: "完成事项")
+                briefStat(value: "\(summary.completedTasks)", label: String(localized: "完成事项"))
                 Divider().frame(height: 24)
-                briefStat(value: "\(summary.habitDays) 天", label: "习惯打卡")
+                briefStat(value: String(localized: "\(summary.habitDays) 天"), label: String(localized: "习惯打卡"))
             }
 
             if let focus = summary.focus, !focus.isEmpty {

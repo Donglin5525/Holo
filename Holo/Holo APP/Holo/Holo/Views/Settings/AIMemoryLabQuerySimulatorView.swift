@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct AIMemoryLabQuerySimulatorView: View {
-    @State private var question = "我最近状态如何"
+    @State private var question = String(localized: "我最近状态如何")
     @State private var context: HoloMemoryQueryContext?
     @State private var renderedContext = ""
     @State private var isRunning = false
@@ -109,7 +109,7 @@ struct AIMemoryLabQuerySimulatorView: View {
                 question: question
             )
         } catch {
-            errorMessage = "模拟失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "模拟失败：\(error.localizedDescription)")
         }
         isRunning = false
     }

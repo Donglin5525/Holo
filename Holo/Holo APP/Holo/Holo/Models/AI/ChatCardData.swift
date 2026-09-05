@@ -232,10 +232,10 @@ nonisolated enum ChatCardData: Equatable {
 
     nonisolated private static func goalChoiceActionLabel(_ intent: AIIntent) -> String {
         switch intent {
-        case .linkTaskToGoal: return "关联任务"
-        case .linkHabitToGoal: return "关联习惯"
-        case .logMetricValue: return "记录数值"
-        default: return "修改目标"
+        case .linkTaskToGoal: return String(localized: "关联任务")
+        case .linkHabitToGoal: return String(localized: "关联习惯")
+        case .logMetricValue: return String(localized: "记录数值")
+        default: return String(localized: "修改目标")
         }
     }
 
@@ -301,7 +301,7 @@ nonisolated enum ChatCardData: Equatable {
             totalAmountText: amountText,
             totalMatched: result.summary.totalMatched,
             countUnitText: averageUnit.countLabel,
-            averageLabelText: "平均\(averageUnit.averageLabel)",
+            averageLabelText: String(localized: "平均\(averageUnit.averageLabel)"),
             averageAmountText: averageAmountText,
             searchKeyword: flexibleQuerySearchKeyword(for: result),
             rows: rows,
@@ -316,33 +316,33 @@ nonisolated enum ChatCardData: Equatable {
         case .sumAmount:
             if let subject {
                 let isIncome = result.plan.filters.type == .income
-                return isIncome ? "\(subject)收入" : "\(subject)消费"
+                return isIncome ? String(localized: "\(subject)收入") : String(localized: "\(subject)消费")
             }
-            return "这次查询"
+            return String(localized: "这次查询")
         case .countTransactions:
-            return subject.map { "\($0)记录" } ?? "匹配记录"
+            return subject.map { String(localized: "\($0)记录") } ?? String(localized: "匹配记录")
         case .findLatestTransaction:
-            return subject.map { "最近一笔\($0)" } ?? "最近一笔记录"
+            return subject.map { String(localized: "最近一笔\($0)") } ?? String(localized: "最近一笔记录")
         case .findEarliestTransaction:
-            return subject.map { "最早一笔\($0)" } ?? "最早一笔记录"
+            return subject.map { String(localized: "最早一笔\($0)") } ?? String(localized: "最早一笔记录")
         case .maxTransaction:
-            return "金额最高的一笔"
+            return String(localized: "金额最高的一笔")
         case .minTransaction:
-            return "金额最低的一笔"
+            return String(localized: "金额最低的一笔")
         case .rankByDay, .listTransactions:
-            return subject.map { "\($0)明细" } ?? "查询明细"
+            return subject.map { String(localized: "\($0)明细") } ?? String(localized: "查询明细")
         }
     }
 
     nonisolated private static func flexibleQuerySummaryText(for result: FlexibleQueryResult) -> String {
         var parts: [String] = []
         if let range = result.summary.queryDateRange {
-            parts.append("查询范围：\(range)")
+            parts.append(String(localized: "查询范围：\(range)"))
         } else if let range = result.summary.dateRange {
-            parts.append("记录日期：\(range)")
+            parts.append(String(localized: "记录日期：\(range)"))
         }
         if let topCategory = result.summary.topCategory, topCategory != "未分类" {
-            parts.append("主要分类：\(topCategory)")
+            parts.append(String(localized: "主要分类：\(topCategory)"))
         }
         return parts.joined(separator: " · ")
     }
@@ -413,7 +413,7 @@ nonisolated struct TransactionCardData: Equatable {
         if let note = note, !note.isEmpty {
             return note
         }
-        return subCategory ?? primaryCategory ?? "未分类"
+        return subCategory ?? primaryCategory ?? String(localized: "未分类")
     }
 
     /// 分类路径（如 "餐饮 · 午餐"）
@@ -449,16 +449,16 @@ nonisolated struct BudgetChatCardData: Equatable {
         if let sub = subCategory, !sub.isEmpty, sub != primaryCategory {
             return "\(primaryCategory ?? "") · \(sub)"
         }
-        return primaryCategory ?? "总预算"
+        return primaryCategory ?? String(localized: "总预算")
     }
 
     var isCategoryBudget: Bool { primaryCategory != nil }
 
     var periodLabel: String {
         switch period?.lowercased() {
-        case "week", "weekly": return "每周"
-        case "year", "yearly", "annual": return "每年"
-        default: return "每月"
+        case "week", "weekly": return String(localized: "每周")
+        case "year", "yearly", "annual": return String(localized: "每年")
+        default: return String(localized: "每月")
         }
     }
 }
@@ -532,9 +532,9 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
 
     var viewAllText: String {
         if hasCompleteResultSnapshot {
-            return "查看全部 \(totalMatched) \(countUnitText)"
+            return String(localized: "查看全部 \(totalMatched) \(countUnitText)")
         }
-        return "查看本次保存的 \(resultTransactionIDs.count) \(countUnitText)明细"
+        return String(localized: "查看本次保存的 \(resultTransactionIDs.count) \(countUnitText)明细")
     }
 }
 
@@ -573,7 +573,7 @@ nonisolated struct FlexibleQueryTransactionRow: Equatable, Identifiable {
         if let remark = evidence.remark?.trimmingCharacters(in: .whitespacesAndNewlines), !remark.isEmpty {
             return remark
         }
-        return evidence.subCategory ?? evidence.primaryCategory ?? "未分类记录"
+        return evidence.subCategory ?? evidence.primaryCategory ?? String(localized: "未分类记录")
     }
 
     private static func categoryPath(for evidence: FlexibleTransactionEvidence) -> String? {
@@ -943,13 +943,13 @@ extension ChatCardData {
 
         // Summary
         var metrics: [AnalysisBreakdownRow] = [
-            AnalysisBreakdownRow(label: "总支出", value: NumberFormatter.compactCurrency(f.totalExpense), percent: nil),
-            AnalysisBreakdownRow(label: "总收入", value: NumberFormatter.compactCurrency(f.totalIncome), percent: nil),
-            AnalysisBreakdownRow(label: "交易笔数", value: "\(f.transactionCount)", percent: nil),
-            AnalysisBreakdownRow(label: "日均支出", value: NumberFormatter.compactCurrency(f.averageDailyExpense), percent: nil)
+            AnalysisBreakdownRow(label: String(localized: "总支出"), value: NumberFormatter.compactCurrency(f.totalExpense), percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "总收入"), value: NumberFormatter.compactCurrency(f.totalIncome), percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "交易笔数"), value: "\(f.transactionCount)", percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "日均支出"), value: NumberFormatter.compactCurrency(f.averageDailyExpense), percent: nil)
         ]
         if let budget = f.budgetPerformance {
-            metrics.append(AnalysisBreakdownRow(label: "预算使用率", value: String(format: "%.0f%%", budget.utilizationRate), percent: budget.utilizationRate / 100))
+            metrics.append(AnalysisBreakdownRow(label: String(localized: "预算使用率"), value: String(format: "%.0f%%", budget.utilizationRate), percent: budget.utilizationRate / 100))
         }
         cards.append(.analysisSummary(AnalysisSummaryCardData(
             domain: .finance,
@@ -962,7 +962,7 @@ extension ChatCardData {
             let rows = f.topExpenseCategories.map { cat in
                 AnalysisBreakdownRow(label: cat.categoryName, value: NumberFormatter.compactCurrency(cat.amount), percent: cat.percentage / 100)
             }
-            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "支出分类", rows: rows)))
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: String(localized: "支出分类"), rows: rows)))
         }
 
         // Trend
@@ -970,7 +970,7 @@ extension ChatCardData {
             let points = f.monthlyBreakdown.map { item in
                 AnalysisTrendPoint(label: item.month, value: NSDecimalNumber(decimal: item.expense).doubleValue, displayValue: NumberFormatter.compactCurrency(item.expense))
             }
-            cards.append(.analysisTrend(AnalysisTrendCardData(title: "月度趋势", points: points)))
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: String(localized: "月度趋势"), points: points)))
         }
 
         // Comparison
@@ -978,7 +978,7 @@ extension ChatCardData {
             let change = f.totalExpense - prev
             let changeStr = change >= 0 ? "+\(NumberFormatter.compactCurrency(change))" : NumberFormatter.compactCurrency(change)
             cards.append(.analysisComparison(AnalysisComparisonCardData(
-                title: "环比对比",
+                title: String(localized: "环比对比"),
                 currentValue: NumberFormatter.compactCurrency(f.totalExpense),
                 previousValue: NumberFormatter.compactCurrency(prev),
                 change: changeStr
@@ -997,11 +997,11 @@ extension ChatCardData {
             || h.strugglingHabits.contains { $0.polarity == .negative }
 
         var metrics: [AnalysisBreakdownRow] = [
-            AnalysisBreakdownRow(label: "活跃习惯", value: "\(h.activeHabitCount)", percent: nil),
-            AnalysisBreakdownRow(label: hasNegativeHabit ? "控制/完成记录" : "完成记录", value: "\(h.completedRecordCount)", percent: nil)
+            AnalysisBreakdownRow(label: String(localized: "活跃习惯"), value: "\(h.activeHabitCount)", percent: nil),
+            AnalysisBreakdownRow(label: hasNegativeHabit ? String(localized: "控制/完成记录") : String(localized: "完成记录"), value: "\(h.completedRecordCount)", percent: nil)
         ]
         if let rate = h.averageCompletionRate {
-            metrics.append(AnalysisBreakdownRow(label: hasNegativeHabit ? "平均控制/完成率" : "平均完成率", value: String(format: "%.0f%%", rate * 100), percent: rate))
+            metrics.append(AnalysisBreakdownRow(label: hasNegativeHabit ? String(localized: "平均控制/完成率") : String(localized: "平均完成率"), value: String(format: "%.0f%%", rate * 100), percent: rate))
         }
         cards.append(.analysisSummary(AnalysisSummaryCardData(
             domain: .habit,
@@ -1014,7 +1014,7 @@ extension ChatCardData {
             let points = h.dailyCompletionTrend.prefix(14).map { pt in
                 AnalysisTrendPoint(label: pt.date, value: pt.rate * 100, displayValue: String(format: "%.0f%%", pt.rate * 100))
             }
-            cards.append(.analysisTrend(AnalysisTrendCardData(title: hasNegativeHabit ? "控制/完成趋势" : "完成率趋势", points: points)))
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: hasNegativeHabit ? String(localized: "控制/完成趋势") : String(localized: "完成率趋势"), points: points)))
         }
 
         // Highlights
@@ -1024,7 +1024,7 @@ extension ChatCardData {
             cards.append(.analysisHighlights(AnalysisHighlightsCardData(
                 highlights: highlights,
                 warnings: h.strugglingHabits.map { item in
-                    item.polarity == .negative ? "\(item.habitName) 需要控制频率" : "\(item.habitName) 需要加油"
+                    item.polarity == .negative ? String(localized: "\(item.habitName) 需要控制频率") : String(localized: "\(item.habitName) 需要加油")
                 }
             )))
         }
@@ -1035,13 +1035,13 @@ extension ChatCardData {
     nonisolated private static func habitPerformanceText(_ item: HabitPerformanceItem) -> String {
         let rate = String(format: "%.0f%%", item.completionRate * 100)
         guard item.polarity == .negative else {
-            return "\(item.habitName)：完成率 \(rate)"
+            return String(localized: "\(item.habitName)：完成率 \(rate)")
         }
 
         if let overLimitDays = item.overLimitDays, let controlledDays = item.controlledDays {
-            return "\(item.habitName)：控制率 \(rate)，超标 \(overLimitDays) 天，控制 \(controlledDays) 天"
+            return String(localized: "\(item.habitName)：控制率 \(rate)，超标 \(overLimitDays) 天，控制 \(controlledDays) 天")
         }
-        return "\(item.habitName)：控制率 \(rate)"
+        return String(localized: "\(item.habitName)：控制率 \(rate)")
     }
 
     // MARK: - Task Cards
@@ -1050,13 +1050,13 @@ extension ChatCardData {
         var cards: [ChatCardData] = []
 
         var metrics: [AnalysisBreakdownRow] = [
-            AnalysisBreakdownRow(label: "总任务", value: "\(t.totalCount)", percent: nil),
-            AnalysisBreakdownRow(label: "已完成", value: "\(t.completedCount)", percent: nil),
-            AnalysisBreakdownRow(label: "逾期", value: "\(t.overdueCount)", percent: nil),
-            AnalysisBreakdownRow(label: "完成率", value: String(format: "%.0f%%", t.completionRate * 100), percent: t.completionRate)
+            AnalysisBreakdownRow(label: String(localized: "总任务"), value: "\(t.totalCount)", percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "已完成"), value: "\(t.completedCount)", percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "逾期"), value: "\(t.overdueCount)", percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "完成率"), value: String(format: "%.0f%%", t.completionRate * 100), percent: t.completionRate)
         ]
         if let rate = t.highPriorityCompletionRate {
-            metrics.append(AnalysisBreakdownRow(label: "高优完成率", value: String(format: "%.0f%%", rate * 100), percent: rate))
+            metrics.append(AnalysisBreakdownRow(label: String(localized: "高优完成率"), value: String(format: "%.0f%%", rate * 100), percent: rate))
         }
         cards.append(.analysisSummary(AnalysisSummaryCardData(
             domain: .task,
@@ -1069,7 +1069,7 @@ extension ChatCardData {
             let points = t.dailyCompletionTrend.prefix(14).map { pt in
                 AnalysisTrendPoint(label: pt.date, value: Double(pt.count), displayValue: "\(pt.count)")
             }
-            cards.append(.analysisTrend(AnalysisTrendCardData(title: "每日完成趋势", points: points)))
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: String(localized: "每日完成趋势"), points: points)))
         }
 
         // Comparison
@@ -1077,9 +1077,9 @@ extension ChatCardData {
             let diff = t.completedCount - prev
             let changeStr = diff >= 0 ? "+\(diff)" : "\(diff)"
             cards.append(.analysisComparison(AnalysisComparisonCardData(
-                title: "环比对比",
-                currentValue: "\(t.completedCount) 个",
-                previousValue: "\(prev) 个",
+                title: String(localized: "环比对比"),
+                currentValue: String(localized: "\(t.completedCount) 个"),
+                previousValue: String(localized: "\(prev) 个"),
                 change: changeStr
             )))
         }
@@ -1093,8 +1093,8 @@ extension ChatCardData {
         var cards: [ChatCardData] = []
 
         let metrics: [AnalysisBreakdownRow] = [
-            AnalysisBreakdownRow(label: "想法总数", value: "\(th.totalCount)", percent: nil),
-            AnalysisBreakdownRow(label: "标签数", value: "\(th.topTags.count)", percent: nil)
+            AnalysisBreakdownRow(label: String(localized: "想法总数"), value: "\(th.totalCount)", percent: nil),
+            AnalysisBreakdownRow(label: String(localized: "标签数"), value: "\(th.topTags.count)", percent: nil)
         ]
         cards.append(.analysisSummary(AnalysisSummaryCardData(
             domain: .thought,
@@ -1107,7 +1107,7 @@ extension ChatCardData {
             let rows = th.moodDistribution.map { m in
                 AnalysisBreakdownRow(label: m.mood, value: "\(m.count)", percent: m.percentage / 100)
             }
-            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "心情分布", rows: rows)))
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: String(localized: "心情分布"), rows: rows)))
         }
 
         return cards
@@ -1122,35 +1122,35 @@ extension ChatCardData {
         var metrics: [AnalysisBreakdownRow] = []
         if let steps = h.steps, !steps.isDataFree {
             metrics.append(AnalysisBreakdownRow(
-                label: "步数",
-                value: "日均 \(Int(steps.dailyAverage).formatted()) 步 · 达标 \(steps.goalMetDays)/\(steps.totalDays) 天",
+                label: String(localized: "步数"),
+                value: String(localized: "日均 \(Int(steps.dailyAverage).formatted()) 步 · 达标 \(steps.goalMetDays)/\(steps.totalDays) 天"),
                 percent: steps.totalDays > 0 ? Double(steps.goalMetDays) / Double(steps.totalDays) : nil
             ))
         }
         if let sleep = h.sleep, !sleep.isDataFree {
             metrics.append(AnalysisBreakdownRow(
-                label: "睡眠",
-                value: "日均 \(String(format: "%.1f", sleep.dailyAverage))h · 达标 \(sleep.goalMetDays)/\(sleep.totalDays) 天",
+                label: String(localized: "睡眠"),
+                value: String(localized: "日均 \(String(format: "%.1f", sleep.dailyAverage))h · 达标 \(sleep.goalMetDays)/\(sleep.totalDays) 天"),
                 percent: sleep.totalDays > 0 ? Double(sleep.goalMetDays) / Double(sleep.totalDays) : nil
             ))
         }
         if let stand = h.stand, !stand.isDataFree {
             metrics.append(AnalysisBreakdownRow(
-                label: "站立",
-                value: "日均 \(String(format: "%.1f", stand.dailyAverage))h · 达标 \(stand.goalMetDays)/\(stand.totalDays) 天",
+                label: String(localized: "站立"),
+                value: String(localized: "日均 \(String(format: "%.1f", stand.dailyAverage))h · 达标 \(stand.goalMetDays)/\(stand.totalDays) 天"),
                 percent: stand.totalDays > 0 ? Double(stand.goalMetDays) / Double(stand.totalDays) : nil
             ))
         }
         if let active = h.activeMinutes, !active.isDataFree {
             metrics.append(AnalysisBreakdownRow(
-                label: "活动",
-                value: "日均 \(Int(active.dailyAverage).formatted()) 分钟 · 达标 \(active.goalMetDays)/\(active.totalDays) 天",
+                label: String(localized: "活动"),
+                value: String(localized: "日均 \(Int(active.dailyAverage).formatted()) 分钟 · 达标 \(active.goalMetDays)/\(active.totalDays) 天"),
                 percent: active.totalDays > 0 ? Double(active.goalMetDays) / Double(active.totalDays) : nil
             ))
         }
         if let score = h.overallBodyScore {
             metrics.append(AnalysisBreakdownRow(
-                label: "体表分",
+                label: String(localized: "体表分"),
                 value: String(format: "%.0f", score),
                 percent: score / 100
             ))
@@ -1166,9 +1166,9 @@ extension ChatCardData {
         // Trend — 步数趋势
         if let steps = h.steps, steps.dailyTrend.count > 1 {
             let points = steps.dailyTrend.suffix(14).map { pt in
-                AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: "\(Int(pt.rate).formatted()) 步")
+                AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: String(localized: "\(Int(pt.rate).formatted()) 步"))
             }
-            cards.append(.analysisTrend(AnalysisTrendCardData(title: "步数趋势", points: points)))
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: String(localized: "步数趋势"), points: points)))
         }
 
         // Trend — 睡眠趋势
@@ -1176,7 +1176,7 @@ extension ChatCardData {
             let points = sleep.dailyTrend.suffix(14).map { pt in
                 AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: String(format: "%.1fh", pt.rate))
             }
-            cards.append(.analysisTrend(AnalysisTrendCardData(title: "睡眠趋势", points: points)))
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: String(localized: "睡眠趋势"), points: points)))
         }
 
         // Comparison — 体表分环比
@@ -1184,7 +1184,7 @@ extension ChatCardData {
             let diff = curr - prev
             let changeStr = diff >= 0 ? "+\(String(format: "%.0f", diff))" : String(format: "%.0f", diff)
             cards.append(.analysisComparison(AnalysisComparisonCardData(
-                title: "体表分环比",
+                title: String(localized: "体表分环比"),
                 currentValue: String(format: "%.0f", curr),
                 previousValue: String(format: "%.0f", prev),
                 change: changeStr
@@ -1209,13 +1209,13 @@ extension ChatCardData {
 
         // Summary
         var metrics: [AnalysisBreakdownRow] = [
-            AnalysisBreakdownRow(label: "活跃目标", value: "\(g.totalActiveGoals)", percent: nil)
+            AnalysisBreakdownRow(label: String(localized: "活跃目标"), value: "\(g.totalActiveGoals)", percent: nil)
         ]
         if g.completedGoalsInPeriod > 0 {
-            metrics.append(AnalysisBreakdownRow(label: "本周期完成", value: "\(g.completedGoalsInPeriod)", percent: nil))
+            metrics.append(AnalysisBreakdownRow(label: String(localized: "本周期完成"), value: "\(g.completedGoalsInPeriod)", percent: nil))
         }
         if !g.atRiskGoals.isEmpty {
-            metrics.append(AnalysisBreakdownRow(label: "风险目标", value: "\(g.atRiskGoals.count)", percent: nil))
+            metrics.append(AnalysisBreakdownRow(label: String(localized: "风险目标"), value: "\(g.atRiskGoals.count)", percent: nil))
         }
         cards.append(.analysisSummary(AnalysisSummaryCardData(
             domain: .goal,
@@ -1227,24 +1227,24 @@ extension ChatCardData {
         let progressItems = g.goals.filter { $0.overallProgress != nil || $0.linkedTaskTotal > 0 }
         if !progressItems.isEmpty {
             let rows = progressItems.map { item in
-                let progressStr = item.overallProgress.map { String(format: "%.0f%%", $0 * 100) } ?? "无数据"
-                let taskInfo = "\(item.linkedTaskCompleted)/\(item.linkedTaskTotal) 任务"
+                let progressStr = item.overallProgress.map { String(format: "%.0f%%", $0 * 100) } ?? String(localized: "无数据")
+                let taskInfo = String(localized: "\(item.linkedTaskCompleted)/\(item.linkedTaskTotal) 任务")
                 return AnalysisBreakdownRow(
                     label: item.title,
                     value: "\(progressStr) · \(taskInfo)",
                     percent: item.overallProgress
                 )
             }
-            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "目标进度", rows: rows)))
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: String(localized: "目标进度"), rows: rows)))
         }
 
         // Highlights
         var highlights: [String] = []
-        let warnings: [String] = g.atRiskGoals.map { "\($0) 需要关注" }
+        let warnings: [String] = g.atRiskGoals.map { String(localized: "\($0) 需要关注") }
         if let prev = g.previousPeriodCompleted, prev > 0 {
             let diff = g.completedGoalsInPeriod - prev
             if diff > 0 {
-                highlights.append("比上期多完成 \(diff) 个目标")
+                highlights.append(String(localized: "比上期多完成 \(diff) 个目标"))
             }
         }
         if !highlights.isEmpty || !warnings.isEmpty {

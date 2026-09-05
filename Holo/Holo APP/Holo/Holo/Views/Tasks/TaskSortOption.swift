@@ -25,10 +25,10 @@ enum TaskSortOption: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .due: return "截止时间"
-        case .priority: return "优先级"
-        case .created: return "创建时间"
-        case .completed: return "完成时间"
+        case .due: return String(localized: "截止时间")
+        case .priority: return String(localized: "优先级")
+        case .created: return String(localized: "创建时间")
+        case .completed: return String(localized: "完成时间")
         }
     }
 
@@ -43,10 +43,10 @@ enum TaskSortOption: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .due: return "按任务什么时候到期排列"
-        case .priority: return "紧急 / 高 / 中 / 低，同级内按截止时间"
-        case .created: return "按任务是什么时候创建的排列"
-        case .completed: return "按任务是什么时候完成的排列"
+        case .due: return String(localized: "按任务什么时候到期排列")
+        case .priority: return String(localized: "紧急 / 高 / 中 / 低，同级内按截止时间")
+        case .created: return String(localized: "按任务是什么时候创建的排列")
+        case .completed: return String(localized: "按任务是什么时候完成的排列")
         }
     }
 
@@ -61,10 +61,10 @@ enum TaskSortOption: String, CaseIterable, Identifiable {
     /// 方向文案说人话，不暴露「升序/降序」术语
     func directionLabel(ascending: Bool) -> String {
         switch self {
-        case .due: return ascending ? "早 → 晚" : "晚 → 早"
-        case .priority: return ascending ? "低 → 高" : "高 → 低"
-        case .created: return ascending ? "旧 → 新" : "新 → 旧"
-        case .completed: return ascending ? "最早在前" : "最近在前"
+        case .due: return ascending ? String(localized: "早 → 晚") : String(localized: "晚 → 早")
+        case .priority: return ascending ? String(localized: "低 → 高") : String(localized: "高 → 低")
+        case .created: return ascending ? String(localized: "旧 → 新") : String(localized: "新 → 旧")
+        case .completed: return ascending ? String(localized: "最早在前") : String(localized: "最近在前")
         }
     }
 

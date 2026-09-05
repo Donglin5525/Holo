@@ -12,8 +12,15 @@ import SwiftUI
 struct ThoughtTagManagementView: View {
 
     private enum Segment: String, CaseIterable {
-        case mine = "我的标签"
-        case aiSuggested = "AI 建议"
+        case mine
+        case aiSuggested
+
+        var displayName: String {
+            switch self {
+            case .mine: return String(localized: "我的标签")
+            case .aiSuggested: return String(localized: "AI 建议")
+            }
+        }
     }
 
     @State private var segment: Segment = .mine
@@ -40,7 +47,7 @@ struct ThoughtTagManagementView: View {
             List {
                 Picker("分组", selection: $segment) {
                     ForEach(Segment.allCases, id: \.self) { seg in
-                        Text(seg.rawValue).tag(seg)
+                        Text(seg.displayName).tag(seg)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -50,7 +57,7 @@ struct ThoughtTagManagementView: View {
                 Section {
                     let names = segment == .mine ? recognizedNames : unrecognizedAINames
                     if names.isEmpty {
-                        Text(segment == .mine ? "还没有你确认过的标签" : "暂无待处理的 AI 建议标签")
+                        Text(segment == .mine ? String(localized: "还没有你确认过的标签") : String(localized: "暂无待处理的 AI 建议标签"))
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -59,8 +66,8 @@ struct ThoughtTagManagementView: View {
                     }
                 } footer: {
                     Text(segment == .mine
-                         ? "你手动创建、正文 # 或确认过的标签，是 AI 优先复用的词表。"
-                         : "仅来自 AI 建议、尚未被你认可的标签；确认后才会进入你的标签库。")
+                         ? String(localized: "你手动创建、正文 # 或确认过的标签，是 AI 优先复用的词表。")
+                         : String(localized: "仅来自 AI 建议、尚未被你认可的标签；确认后才会进入你的标签库。"))
                 }
             }
             .navigationTitle("标签治理")
@@ -112,7 +119,7 @@ struct ThoughtTagManagementView: View {
                 Text("#\(display)")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
-                Text(count > 0 ? "\(count) 条想法" : "未使用")
+                Text(count > 0 ? String(localized: "\(count) 条想法") : String(localized: "未使用"))
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -129,7 +136,7 @@ struct ThoughtTagManagementView: View {
                     renameTarget = name
                     renameText = display
                 } label: {
-                    Label(segment == .mine ? "改名" : "改名后采用", systemImage: "pencil")
+                        Label(segment == .mine ? String(localized: "改名") : String(localized: "改名后采用"), systemImage: "pencil")
                 }
                 if segment == .aiSuggested, !recognizedNames.isEmpty {
                     Menu {
@@ -163,7 +170,7 @@ struct ThoughtTagManagementView: View {
             .confirm, thoughtId: UUID(), tagName: name,
             wasRecognizedTag: false
         )
-        notice = "已采用 #\(ThoughtTagNormalizer.displayName(name))（\(converted) 条）"
+        notice = String(localized: "已采用 #\(ThoughtTagNormalizer.displayName(name))（\(converted) 条）")
         loadData()
     }
 
@@ -180,10 +187,10 @@ struct ThoughtTagManagementView: View {
                 isMerge || outcome == .merged ? .merge : .rename,
                 thoughtId: UUID(), tagName: newName
             )
-            notice = outcome == .merged ? "已合并到 #\(ThoughtTagNormalizer.displayName(newName))" : "已改名 #\(ThoughtTagNormalizer.displayName(newName))"
+            notice = outcome == .merged ? String(localized: "已合并到 #\(ThoughtTagNormalizer.displayName(newName))") : String(localized: "已改名 #\(ThoughtTagNormalizer.displayName(newName))")
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "改名失败：\(error.localizedDescription)"
+            notice = String(localized: "改名失败：\(error.localizedDescription)")
         }
         loadData()
     }
@@ -192,10 +199,10 @@ struct ThoughtTagManagementView: View {
         do {
             _ = try service.renameTagEverywhere(from: name, to: target)
             ThoughtClassificationFeedbackStore.log(.merge, thoughtId: UUID(), tagName: target)
-            notice = "已合并到 #\(ThoughtTagNormalizer.displayName(target))"
+            notice = String(localized: "已合并到 #\(ThoughtTagNormalizer.displayName(target))")
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "合并失败：\(error.localizedDescription)"
+            notice = String(localized: "合并失败：\(error.localizedDescription)")
         }
         loadData()
     }
@@ -205,7 +212,7 @@ struct ThoughtTagManagementView: View {
         deleteTarget = nil
         let result = service.deleteTagEverywhere(name: name)
         ThoughtClassificationFeedbackStore.log(.deleteGlobal, thoughtId: UUID(), tagName: name)
-        notice = "已删除 #\(ThoughtTagNormalizer.displayName(name))（影响 \(result?.removedAssignmentCount ?? 0) 条）"
+        notice = String(localized: "已删除 #\(ThoughtTagNormalizer.displayName(name))（影响 \(result?.removedAssignmentCount ?? 0) 条）")
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         loadData()
     }

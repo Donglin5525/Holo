@@ -103,7 +103,7 @@ struct AnalysisDetailSheet: View {
             )
 
             if !model.facts.isEmpty {
-                HoloAISectionLabel(text: "事实")
+                HoloAISectionLabel(text: String(localized: "事实"))
 
                 VStack(spacing: 12) {
                     ForEach(model.facts) { fact in
@@ -186,24 +186,24 @@ struct AnalysisDetailSheet: View {
     private var fallbackHeadline: String {
         guard let context = message.analysisContext,
               AnalysisSummaryFormatter.format(from: context) != nil else {
-            return "这里有几条值得关注的变化。"
+            return String(localized: "这里有几条值得关注的变化。")
         }
 
         switch context.domain {
         case .finance:
-            return "最近 30 天支出有明显抬高，主要压力集中在居住、购物和餐饮。"
+            return String(localized: "最近 30 天支出有明显抬高，主要压力集中在居住、购物和餐饮。")
         case .habit:
-            return "这段时间的习惯表现可以从完成率、活跃习惯和连续记录里看。"
+            return String(localized: "这段时间的习惯表现可以从完成率、活跃习惯和连续记录里看。")
         case .task:
-            return "任务进展可以先看完成率，再看逾期和未完成事项。"
+            return String(localized: "任务进展可以先看完成率，再看逾期和未完成事项。")
         case .thought:
-            return "想法记录已经整理成几个可继续回看的主题。"
+            return String(localized: "想法记录已经整理成几个可继续回看的主题。")
         case .health:
-            return "健康数据里有几项值得优先关注的变化。"
+            return String(localized: "健康数据里有几项值得优先关注的变化。")
         case .goal:
-            return "目标进展已经整理出当前状态和潜在风险。"
+            return String(localized: "目标进展已经整理出当前状态和潜在风险。")
         case .crossModule:
-            return "这次综合分析提炼了几个跨模块的变化和提醒。"
+            return String(localized: "这次综合分析提炼了几个跨模块的变化和提醒。")
         }
     }
 
@@ -243,13 +243,13 @@ struct AnalysisDetailSheet: View {
 
     private func domainLabel(_ domain: AnalysisDomain) -> String {
         switch domain {
-        case .finance: return "账单分析"
-        case .habit: return "习惯分析"
-        case .task: return "任务分析"
-        case .thought: return "想法分析"
-        case .crossModule: return "综合分析"
-        case .health: return "健康分析"
-        case .goal: return "目标分析"
+        case .finance: return String(localized: "账单分析")
+        case .habit: return String(localized: "习惯分析")
+        case .task: return String(localized: "任务分析")
+        case .thought: return String(localized: "想法分析")
+        case .crossModule: return String(localized: "综合分析")
+        case .health: return String(localized: "健康分析")
+        case .goal: return String(localized: "目标分析")
         }
     }
 }

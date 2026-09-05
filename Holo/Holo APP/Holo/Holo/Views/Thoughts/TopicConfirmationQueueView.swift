@@ -89,7 +89,7 @@ struct TopicConfirmationQueueView: View {
             thoughts.removeAll { $0.id == thoughtId }
         }
         if confirmed {
-            notice = "已确认，AI 会记住你的判断"
+            notice = String(localized: "已确认，AI 会记住你的判断")
         }
         if thoughts.isEmpty {
             onQueueDrained?()
@@ -162,7 +162,7 @@ struct TopicConfirmationQueueView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Text(thought.classificationTopic.map { TopicIconProvider.icon(for: $0) } ?? "📥")
                     .font(.system(size: 15))
-                Text(thought.classificationTopic?.title ?? "未归类")
+                Text(thought.classificationTopic?.title ?? String(localized: "未归类"))
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
@@ -209,7 +209,7 @@ struct TopicConfirmationQueueView: View {
             HapticManager.light()
             settle(thought.id, confirmed: true)
         } catch {
-            HoloToastCenter.shared.show("操作失败，请重试", type: .error)
+            HoloToastCenter.shared.show(String(localized: "操作失败，请重试"), type: .error)
         }
     }
 

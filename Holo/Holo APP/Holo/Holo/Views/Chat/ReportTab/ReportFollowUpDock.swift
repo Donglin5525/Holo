@@ -63,7 +63,7 @@ struct ReportFollowUpDock: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
-                .accessibilityLabel("发送追问")
+                .accessibilityLabel(String(localized: "发送追问"))
             }
 
             quotaNote
@@ -86,9 +86,9 @@ struct ReportFollowUpDock: View {
 
     private var quotaNoteText: String {
         if let remaining = controller.quotaRemaining {
-            return "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度（本周剩 \(remaining) 次）"
+            return String(localized: "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度（本周剩 \(remaining) 次）")
         }
-        return "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度"
+        return String(localized: "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度")
     }
 
     private var canSend: Bool {
@@ -128,7 +128,7 @@ struct ReportFollowUpDock: View {
                     )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("取消追问")
+            .accessibilityLabel(String(localized: "取消追问"))
         }
     }
 
@@ -138,7 +138,7 @@ struct ReportFollowUpDock: View {
         if let message = controller.runningMessage {
             return HoloAgentChatStatusPresenter.display(from: message.content).title
         }
-        return "完成后出现在上面的「追问记录」里"
+        return String(localized: "完成后出现在上面的「追问记录」里")
     }
 
     // MARK: 失败重试
@@ -166,7 +166,7 @@ struct ReportFollowUpDock: View {
                         .background(Color.holoPrimary, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("原样重试这次追问")
+                .accessibilityLabel(String(localized: "原样重试这次追问"))
             }
         }
     }
@@ -243,7 +243,7 @@ struct ReportFollowUpRecordsSection: View {
             ProgressView()
                 .scaleEffect(0.75)
             VStack(alignment: .leading, spacing: 2) {
-                Text(controller.runningQuestion ?? "正在追查")
+                Text(controller.runningQuestion ?? String(localized: "正在追查"))
                     .font(.system(size: 12.5, weight: .bold))
                     .foregroundColor(.holoPrimaryDark)
                     .lineLimit(2)
@@ -267,9 +267,9 @@ struct ReportFollowUpRecordsSection: View {
     private var runningDetailText: String {
         if let message = controller.runningMessage {
             let status = HoloAgentChatStatusPresenter.display(from: message.content)
-            return status.detail.isEmpty ? "正在翻证据，通常 1 分钟内出结果" : status.detail
+            return status.detail.isEmpty ? String(localized: "正在翻证据，通常 1 分钟内出结果") : status.detail
         }
-        return "正在翻证据，通常 1 分钟内出结果"
+        return String(localized: "正在翻证据，通常 1 分钟内出结果")
     }
 
     // MARK: 记录条目
@@ -300,7 +300,7 @@ struct ReportFollowUpRecordsSection: View {
                         .foregroundColor(.holoTextSecondary.opacity(0.6))
                 }
 
-                Text(entry.question ?? entry.title ?? "一次追问")
+                Text(entry.question ?? entry.title ?? String(localized: "一次追问"))
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(2)
@@ -338,6 +338,6 @@ struct ReportFollowUpRecordsSection: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityHint("打开这份追问生成的报告")
+        .accessibilityHint(String(localized: "打开这份追问生成的报告"))
     }
 }

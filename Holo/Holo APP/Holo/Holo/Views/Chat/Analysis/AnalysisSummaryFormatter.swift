@@ -52,17 +52,17 @@ enum AnalysisSummaryFormatter {
             let diff = finance.totalExpense - previous
             let percent = Double(truncating: NSDecimalNumber(decimal: abs(diff) / previous * 100))
             if diff < 0 {
-                changePart = " · 较上期 ↓\(String(format: "%.1f", percent))%"
+                changePart = String(localized: " · 较上期 ↓\(String(format: "%.1f", percent))%")
             } else if diff > 0 {
-                changePart = " · 较上期 ↑\(String(format: "%.1f", percent))%"
+                changePart = String(localized: " · 较上期 ↑\(String(format: "%.1f", percent))%")
             }
         }
 
         return AnalysisCompactSummary(
             icon: "yensign",
-            title: "账单分析 · \(periodLabel)",
+            title: String(localized: "账单分析 · \(periodLabel)"),
             subtitle: periodLabel,
-            summaryLine: "总支出 \(totalExpense) · 日均 \(dailyAvg)\(changePart)"
+            summaryLine: String(localized: "总支出 \(totalExpense) · 日均 \(dailyAvg)\(changePart)")
         )
     }
 
@@ -73,17 +73,17 @@ enum AnalysisSummaryFormatter {
 
         var parts: [String] = []
         if let rate = habit.averageCompletionRate {
-            parts.append("达标率 \(String(format: "%.0f%%", rate * 100))")
+            parts.append(String(localized: "达标率 \(String(format: "%.0f%%", rate * 100))"))
         }
-        parts.append("活跃 \(habit.activeHabitCount) 个")
+        parts.append(String(localized: "活跃 \(habit.activeHabitCount) 个"))
         let maxStreak = habit.streaks.map(\.currentStreak).max() ?? 0
         if maxStreak > 0 {
-            parts.append("最佳连续 \(maxStreak) 天")
+            parts.append(String(localized: "最佳连续 \(maxStreak) 天"))
         }
 
         return AnalysisCompactSummary(
             icon: "flame",
-            title: "习惯分析 · \(periodLabel)",
+            title: String(localized: "习惯分析 · \(periodLabel)"),
             subtitle: periodLabel,
             summaryLine: parts.joined(separator: " · ")
         )
@@ -98,9 +98,9 @@ enum AnalysisSummaryFormatter {
 
         return AnalysisCompactSummary(
             icon: "checklist",
-            title: "任务分析 · \(periodLabel)",
+            title: String(localized: "任务分析 · \(periodLabel)"),
             subtitle: periodLabel,
-            summaryLine: "完成率 \(ratePercent) · 完成 \(task.completedCount)/\(task.totalCount) · 逾期 \(task.overdueCount)"
+            summaryLine: String(localized: "完成率 \(ratePercent) · 完成 \(task.completedCount)/\(task.totalCount) · 逾期 \(task.overdueCount)")
         )
     }
 
@@ -111,9 +111,9 @@ enum AnalysisSummaryFormatter {
 
         return AnalysisCompactSummary(
             icon: "lightbulb",
-            title: "想法分析 · \(periodLabel)",
+            title: String(localized: "想法分析 · \(periodLabel)"),
             subtitle: periodLabel,
-            summaryLine: "想法 \(thought.totalCount) 条 · 标签 \(thought.topTags.count) 个 · 心情分布 \(thought.moodDistribution.count) 类"
+            summaryLine: String(localized: "想法 \(thought.totalCount) 条 · 标签 \(thought.topTags.count) 个 · 心情分布 \(thought.moodDistribution.count) 类")
         )
     }
 
@@ -124,9 +124,9 @@ enum AnalysisSummaryFormatter {
 
         return AnalysisCompactSummary(
             icon: "chart.bar.xaxis",
-            title: "综合分析 · \(periodLabel)",
+            title: String(localized: "综合分析 · \(periodLabel)"),
             subtitle: periodLabel,
-            summaryLine: "亮点 \(cross.highlights.count) 条 · 提醒 \(cross.warnings.count) 条"
+            summaryLine: String(localized: "亮点 \(cross.highlights.count) 条 · 提醒 \(cross.warnings.count) 条")
         )
     }
 
@@ -137,23 +137,23 @@ enum AnalysisSummaryFormatter {
 
         var parts: [String] = []
         if let score = health.overallBodyScore {
-            parts.append("体表分 \(String(format: "%.0f", score))")
+            parts.append(String(localized: "体表分 \(String(format: "%.0f", score))"))
         }
         if let steps = health.steps, !steps.isDataFree {
-            parts.append("日均 \(Int(steps.dailyAverage).formatted()) 步")
+            parts.append(String(localized: "日均 \(Int(steps.dailyAverage).formatted()) 步"))
         }
         if let sleep = health.sleep, !sleep.isDataFree {
-            parts.append("日均 \(String(format: "%.1f", sleep.dailyAverage))h 睡眠")
+            parts.append(String(localized: "日均 \(String(format: "%.1f", sleep.dailyAverage))h 睡眠"))
         }
         if !health.anomalyNotes.isEmpty {
-            parts.append("\(health.anomalyNotes.count) 项提醒")
+            parts.append(String(localized: "\(health.anomalyNotes.count) 项提醒"))
         }
 
         return AnalysisCompactSummary(
             icon: "heart.fill",
-            title: "健康分析 · \(periodLabel)",
+            title: String(localized: "健康分析 · \(periodLabel)"),
             subtitle: periodLabel,
-            summaryLine: parts.isEmpty ? "暂无数据" : parts.joined(separator: " · ")
+            summaryLine: parts.isEmpty ? String(localized: "暂无数据") : parts.joined(separator: " · ")
         )
     }
 
@@ -163,17 +163,17 @@ enum AnalysisSummaryFormatter {
         guard let goal = context.goal else { return nil }
 
         var parts: [String] = []
-        parts.append("活跃 \(goal.totalActiveGoals) 个")
+        parts.append(String(localized: "活跃 \(goal.totalActiveGoals) 个"))
         if goal.completedGoalsInPeriod > 0 {
-            parts.append("完成 \(goal.completedGoalsInPeriod) 个")
+            parts.append(String(localized: "完成 \(goal.completedGoalsInPeriod) 个"))
         }
         if !goal.atRiskGoals.isEmpty {
-            parts.append("\(goal.atRiskGoals.count) 个风险")
+            parts.append(String(localized: "\(goal.atRiskGoals.count) 个风险"))
         }
 
         return AnalysisCompactSummary(
             icon: "target",
-            title: "目标分析 · \(periodLabel)",
+            title: String(localized: "目标分析 · \(periodLabel)"),
             subtitle: periodLabel,
             summaryLine: parts.joined(separator: " · ")
         )
@@ -187,8 +187,7 @@ enum AnalysisSummaryFormatter {
         }
 
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月"
+        formatter.setLocalizedDateFormatFromTemplate("yMMM")
 
         let inputFormatter = DateFormatter()
         inputFormatter.dateFormat = "yyyy-MM-dd"

@@ -22,15 +22,15 @@ enum HoloMemoryDisplayGroup: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .profile: return "关于你"
-        case .finance: return "财务"
-        case .thought: return "想法"
-        case .health: return "健康"
-        case .habit: return "习惯"
-        case .task: return "任务"
-        case .goal: return "目标"
-        case .conversation: return "对话"
-        case .crossDomain: return "综合观察"
+        case .profile: return String(localized: "关于你")
+        case .finance: return String(localized: "财务")
+        case .thought: return String(localized: "想法")
+        case .health: return String(localized: "健康")
+        case .habit: return String(localized: "习惯")
+        case .task: return String(localized: "任务")
+        case .goal: return String(localized: "目标")
+        case .conversation: return String(localized: "对话")
+        case .crossDomain: return String(localized: "综合观察")
         }
     }
 
@@ -67,14 +67,14 @@ enum HoloMemoryDisplayGroup: String, CaseIterable, Identifiable {
 extension HoloMemoryDomain {
     var userFacingName: String {
         switch self {
-        case .finance: return "财务"
-        case .thought: return "想法"
-        case .health: return "健康"
-        case .habit: return "习惯"
-        case .task: return "任务"
-        case .goal: return "目标"
-        case .conversation: return "对话"
-        case .profile: return "个人信息"
+        case .finance: return String(localized: "财务")
+        case .thought: return String(localized: "想法")
+        case .health: return String(localized: "健康")
+        case .habit: return String(localized: "习惯")
+        case .task: return String(localized: "任务")
+        case .goal: return String(localized: "目标")
+        case .conversation: return String(localized: "对话")
+        case .profile: return String(localized: "个人信息")
         }
     }
 }
@@ -112,11 +112,11 @@ struct DomainMemorySection: View {
             } else {
                 if !pendingRecords.isEmpty {
                     specialMemoryGroup(
-                        title: "想和你确认的",
+                        title: String(localized: "想和你确认的"),
                         icon: "questionmark.bubble",
                         records: pendingRecords,
-                        subtitle: "Holo 不太有把握的总结，确认后才会用于回答",
-                        actionTitle: pendingRecords.count > 3 ? "逐条过一遍" : nil,
+                        subtitle: String(localized: "Holo 不太有把握的总结，确认后才会用于回答"),
+                        actionTitle: pendingRecords.count > 3 ? String(localized: "逐条过一遍") : nil,
                         action: { showsConfirmationQueue = true },
                         showsQuickConfirm: true
                     )
@@ -126,7 +126,7 @@ struct DomainMemorySection: View {
                 }
                 if !archivedRecords.isEmpty {
                     specialMemoryGroup(
-                        title: "过去记忆",
+                        title: String(localized: "过去记忆"),
                         icon: "archivebox",
                         records: archivedRecords
                     )
@@ -240,11 +240,10 @@ struct DomainMemorySection: View {
 
     /// 组头摘要：条数 + 组内最新一条的更新日期，排序改为时间倒序后这是「新的在上面」的直接线索。
     private static func groupMetaText(count: Int, latest: Date) -> String {
-        guard latest != .distantPast else { return "\(count) 条" }
+        guard latest != .distantPast else { return String(localized: "\(count) 条") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
-        return "\(count) 条 · \(formatter.string(from: latest))更新"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return String(localized: "\(count) 条 · \(formatter.string(from: latest))更新")
     }
 
     private func specialMemoryGroup(
@@ -305,11 +304,11 @@ struct DomainMemorySection: View {
                 || feedbackBadge != nil {
                 HStack(spacing: 4) {
                     if record.state == .candidate {
-                        compactStatusBadge("待确认", icon: "questionmark", color: .orange)
+                        compactStatusBadge(String(localized: "待确认"), icon: "questionmark", color: .orange)
                     } else if newMemoryIDs.contains(record.id) {
-                        compactStatusBadge("新", icon: "sparkles", color: .holoPrimary)
+                        compactStatusBadge(String(localized: "新"), icon: "sparkles", color: .holoPrimary)
                     } else if record.state == .archived {
-                        compactStatusBadge("过去", icon: "archivebox", color: .holoTextSecondary)
+                        compactStatusBadge(String(localized: "过去"), icon: "archivebox", color: .holoTextSecondary)
                     }
                     if let badge = feedbackBadge {
                         HoloMemoryFeedbackBadgeView(badge: badge)
@@ -366,7 +365,7 @@ struct DomainMemorySection: View {
         Button {
             Task { await quickConfirm(record, accurate: accurate) }
         } label: {
-            Label(accurate ? "对" : "不对", systemImage: accurate ? "checkmark" : "xmark")
+            Label(accurate ? String(localized: "对") : String(localized: "不对"), systemImage: accurate ? "checkmark" : "xmark")
                 .font(.holoCaption)
                 .foregroundColor(accurate ? .holoSuccess : .orange)
                 .frame(maxWidth: .infinity)
@@ -394,9 +393,9 @@ struct DomainMemorySection: View {
 
     private var inboxSubtitle: String {
         if inboxSnapshot.pendingConfirmationCount > 0 {
-            return "确认后 Holo 回答会更准，几十秒就能清完"
+            return String(localized: "确认后 Holo 回答会更准，几十秒就能清完")
         }
-        return "Holo 回答时会自动用上这些记忆，下方可随时管理"
+        return String(localized: "Holo 回答时会自动用上这些记忆，下方可随时管理")
     }
 
     private var inboxSummaryCard: some View {
@@ -522,7 +521,7 @@ struct DomainMemorySection: View {
             #endif
         } catch {
             records = []
-            loadError = "你原来的记录没有丢失，可以稍后重试。"
+            loadError = String(localized: "你原来的记录没有丢失，可以稍后重试。")
             isLoading = false
         }
     }
@@ -562,7 +561,7 @@ struct DomainMemorySection: View {
             }
             refreshInboxSnapshot()
         } catch {
-            notice = "这次操作没有保存成功，请稍后重试。"
+            notice = String(localized: "这次操作没有保存成功，请稍后重试。")
         }
         workingIDs.remove(record.id)
     }
@@ -617,9 +616,9 @@ enum HoloMemoryFeedbackBadge: Equatable {
 
     var title: String {
         switch self {
-        case .accurate: return "准确"
-        case .inaccurate: return "不准确"
-        case .corrected: return "已纠正"
+        case .accurate: return String(localized: "准确")
+        case .inaccurate: return String(localized: "不准确")
+        case .corrected: return String(localized: "已纠正")
         }
     }
 
@@ -658,10 +657,10 @@ struct HoloMemoryFeedbackBadgeView: View {
 enum HoloMemoryUserPresentation {
     static func durationTitle(for record: HoloMemoryRecord) -> String {
         switch record.persistenceClass {
-        case .currentState: return "近期观察"
-        case .phase: return "当前阶段"
-        case .durable: return "长期规律"
-        case .permanentFact: return "长期事实"
+        case .currentState: return String(localized: "近期观察")
+        case .phase: return String(localized: "当前阶段")
+        case .durable: return String(localized: "长期规律")
+        case .permanentFact: return String(localized: "长期事实")
         }
     }
 
@@ -677,69 +676,68 @@ enum HoloMemoryUserPresentation {
     static func durationExplanation(for record: HoloMemoryRecord) -> String {
         switch record.persistenceClass {
         case .currentState:
-            return "只代表最近一段时间，后续记录变化后会较快淡出。"
+            return String(localized: "只代表最近一段时间，后续记录变化后会较快淡出。")
         case .phase:
-            return "代表你当前阶段的状态，通常会保留数周到数月。"
+            return String(localized: "代表你当前阶段的状态，通常会保留数周到数月。")
         case .durable:
-            return "由多个周期重复支持，会在相关问题中长期作为背景。"
+            return String(localized: "由多个周期重复支持，会在相关问题中长期作为背景。")
         case .permanentFact:
-            return "这是明确的重要事实；除非你纠正或删除，否则会长期保留。"
+            return String(localized: "这是明确的重要事实；除非你纠正或删除，否则会长期保留。")
         }
     }
 
     static func timeRange(for record: HoloMemoryRecord) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         switch (record.validFrom, record.validTo) {
         case let (start?, end?):
             if Calendar.current.isDate(start, inSameDayAs: end) {
                 return formatter.string(from: end)
             }
-            return "\(formatter.string(from: start))–\(formatter.string(from: end))"
+            return String(localized: "\(formatter.string(from: start))–\(formatter.string(from: end))")
         case let (start?, nil):
-            return "从\(formatter.string(from: start))起"
+            return String(localized: "从\(formatter.string(from: start))起")
         case let (nil, end?):
-            return "截至\(formatter.string(from: end))"
+            return String(localized: "截至\(formatter.string(from: end))")
         case (nil, nil):
-            return "持续观察中"
+            return String(localized: "持续观察中")
         }
     }
 
     static func sourceSummary(for record: HoloMemoryRecord) -> String {
         let names = record.sourceDomains.map(\.userFacingName)
         if record.scope == .crossDomain {
-            return "来自\(joined(names))的综合观察"
+            return String(localized: "来自\(joined(names))的综合观察")
         }
-        return "来自\(joined(names))记录"
+        return String(localized: "来自\(joined(names))记录")
     }
 
     static func degradedStatus(for record: HoloMemoryRecord) -> String? {
         if record.state == .candidate {
-            return "确认后才会用于 HoloAI 回答"
+            return String(localized: "确认后才会用于 HoloAI 回答")
         }
         if record.state == .archived {
-            return "这条记忆已经成为过去，不再用于当前回答"
+            return String(localized: "这条记忆已经成为过去，不再用于当前回答")
         }
         if record.state == .invalidated {
-            return "来源已经变化，这条记忆已暂停使用"
+            return String(localized: "来源已经变化，这条记忆已暂停使用")
         }
         if record.state == .disputed {
-            return "新的记录与它不完全一致，Holo 正在重新确认"
+            return String(localized: "新的记录与它不完全一致，Holo 正在重新确认")
         }
         if record.evidenceRefs.isEmpty {
-            return "来源暂不可用，这条记忆不会用于回答"
+            return String(localized: "来源暂不可用，这条记忆不会用于回答")
         }
         if record.scope == .crossDomain && record.upstreamMemoryIDs.count < record.sourceDomains.count {
-            return "部分来源暂不可用，结论仅供参考"
+            return String(localized: "部分来源暂不可用，结论仅供参考")
         }
         return nil
     }
 
     private static func joined(_ values: [String]) -> String {
         let unique = Array(Set(values)).sorted()
-        if unique.isEmpty { return "你的" }
+        if unique.isEmpty { return String(localized: "你的") }
         if unique.count == 1 { return unique[0] }
-        return unique.dropLast().joined(separator: "、") + "和" + unique.last!
+        return unique.dropLast().joined(separator: String(localized: "、")) + String(localized: "和") + unique.last!
     }
 }

@@ -41,8 +41,7 @@ struct OverviewTabView: View {
     /// 汇总卡头部的周期描述（与顶部日期选择器口径一致：range.end 是排他上界，减 1 秒显示）
     private var periodSubtitle: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return "\(formatter.string(from: state.currentDateRange.start)) - \(formatter.string(from: state.currentDateRange.end.addingTimeInterval(-1)))"
     }
 
@@ -72,9 +71,9 @@ struct OverviewTabView: View {
 
             HStack(spacing: 0) {
                 PeriodSummaryItem(
-                    title: "总支出",
+                    title: String(localized: "总支出"),
                     amount: state.periodSummary.formattedExpense,
-                    subtitle: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyExpense as NSDecimalNumber) ?? "¥0")",
+                    subtitle: String(localized: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyExpense as NSDecimalNumber) ?? "¥0")"),
                     color: .holoError
                 )
 
@@ -83,9 +82,9 @@ struct OverviewTabView: View {
                     .frame(height: 40)
 
                 PeriodSummaryItem(
-                    title: "总收入",
+                    title: String(localized: "总收入"),
                     amount: state.periodSummary.formattedIncome,
-                    subtitle: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyIncome as NSDecimalNumber) ?? "¥0")",
+                    subtitle: String(localized: "日均 \(NumberFormatter.currency.string(from: state.periodSummary.averageDailyIncome as NSDecimalNumber) ?? "¥0")"),
                     color: .holoSuccess
                 )
 
@@ -94,7 +93,7 @@ struct OverviewTabView: View {
                     .frame(height: 40)
 
                 PeriodSummaryItem(
-                    title: "净收入",
+                    title: String(localized: "净收入"),
                     amount: state.periodSummary.formattedNetIncome,
                     subtitle: "",
                     color: state.periodSummary.netIncome >= 0 ? .holoSuccess : .holoError

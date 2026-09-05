@@ -52,7 +52,7 @@ struct MemoryConfirmationQueueView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(
-                !hasLoaded ? "待确认" : records.isEmpty ? "都确认完了" : "待确认 \(records.count) 条"
+                !hasLoaded ? String(localized: "待确认") : records.isEmpty ? String(localized: "都确认完了") : String(localized: "待确认 \(records.count) 条")
             )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -118,10 +118,10 @@ struct MemoryConfirmationQueueView: View {
             .onTapGesture { selectedRecord = record }
 
             HStack(spacing: HoloSpacing.sm) {
-                quickButton("对", icon: "checkmark", color: .holoSuccess) {
+                quickButton(String(localized: "对"), icon: "checkmark", color: .holoSuccess) {
                     Task { await quickConfirm(record, accurate: true) }
                 }
-                quickButton("不对", icon: "xmark", color: .orange) {
+                quickButton(String(localized: "不对"), icon: "xmark", color: .orange) {
                     Task { await quickConfirm(record, accurate: false) }
                 }
             }
@@ -216,7 +216,7 @@ struct MemoryConfirmationQueueView: View {
             _ = try await service.apply(accurate ? .accurate : .inaccurate, to: record.id)
             removeRecord(record.id)
         } catch {
-            notice = "这次操作没有保存成功，请稍后重试。"
+            notice = String(localized: "这次操作没有保存成功，请稍后重试。")
         }
         workingIDs.remove(record.id)
     }

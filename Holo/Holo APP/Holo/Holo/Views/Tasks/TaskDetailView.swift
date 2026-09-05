@@ -332,11 +332,11 @@ struct TaskDetailView: View {
             if smartSummaryEnabled {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
-                    readySubtitle: "确认后插入到任务描述",
-                    submitButtonTitle: "插入",
+                    readySubtitle: String(localized: "确认后插入到任务描述"),
+                    submitButtonTitle: String(localized: "插入"),
                     resultConfig: VoiceResultConfig(
-                        title: "智能总结完成",
-                        subtitle: "已整理成更适合任务描述的表达",
+                        title: String(localized: "智能总结完成"),
+                        subtitle: String(localized: "已整理成更适合任务描述的表达"),
                         showsOriginalToggle: true
                     ),
                     postProcessor: ThoughtVoiceSummaryProcessor(),
@@ -348,8 +348,8 @@ struct TaskDetailView: View {
             } else {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
-                    readySubtitle: "确认后插入到任务描述",
-                    submitButtonTitle: "插入",
+                    readySubtitle: String(localized: "确认后插入到任务描述"),
+                    submitButtonTitle: String(localized: "插入"),
                     transcriptFormatter: formatTaskVoiceTranscript
                 ) { transcript in
                     pendingTaskVoiceTranscriptToInsert = transcript
@@ -396,7 +396,7 @@ struct TaskDetailView: View {
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             handleBack()
         }
-        .unsavedChangesAlert(isPresented: $showDismissAlert, message: "还没填任务名称，退出后这次填写的内容不会被保存。") {
+        .unsavedChangesAlert(isPresented: $showDismissAlert, message: String(localized: "还没填任务名称，退出后这次填写的内容不会被保存。")) {
             dismiss()
         }
         // 拦截系统 Sheet 下滑关闭，统一走 handleBack 的保存/确认分流；
@@ -580,8 +580,8 @@ struct TaskDetailView: View {
             }
             .buttonStyle(.plain)
             .disabled(isSplittingTaskVoice)
-            .accessibilityLabel("语音输入")
-            .accessibilityHint("录音并将识别结果插入到任务描述")
+            .accessibilityLabel(String(localized: "语音输入"))
+            .accessibilityHint(String(localized: "录音并将识别结果插入到任务描述"))
 
             Button {
                 smartSummaryEnabled.toggle()
@@ -596,7 +596,7 @@ struct TaskDetailView: View {
                     )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(smartSummaryEnabled ? "关闭智能总结" : "开启智能总结")
+            .accessibilityLabel(smartSummaryEnabled ? String(localized: "关闭智能总结") : String(localized: "开启智能总结"))
         }
     }
 
@@ -634,7 +634,7 @@ struct TaskDetailView: View {
                     for subtask in result.subtasks {
                         addSubtaskTitle(subtask)
                     }
-                    HoloToastCenter.shared.show("已为你拆成 \(result.subtasks.count) 个子任务，可调整", type: .success)
+                    HoloToastCenter.shared.show(String(localized: "已为你拆成 \(result.subtasks.count) 个子任务，可调整"), type: .success)
                 } else {
                     appendTextToDescription(text)
                 }
@@ -1413,15 +1413,15 @@ struct TaskDetailView: View {
 
     /// 时间段行右侧摘要：「今天 10:00–12:00」；非今明用「M/d」
     private var plannedRangeSummaryText: String {
-        guard hasPlannedRange else { return "未设置" }
+        guard hasPlannedRange else { return String(localized: "未设置") }
         let calendar = Calendar.current
         let dayFormatter = DateFormatter()
         dayFormatter.dateFormat = "M/d"
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
         let dayText = calendar.isDateInToday(plannedStart)
-            ? "今天"
-            : (calendar.isDateInTomorrow(plannedStart) ? "明天" : dayFormatter.string(from: plannedStart))
+            ? String(localized: "今天")
+            : (calendar.isDateInTomorrow(plannedStart) ? String(localized: "明天") : dayFormatter.string(from: plannedStart))
         return "\(dayText) \(timeFormatter.string(from: plannedStart))–\(timeFormatter.string(from: plannedEnd))"
     }
 
@@ -1431,7 +1431,7 @@ struct TaskDetailView: View {
               let planned = existingTask?.plannedDurationMinutes else { return nil }
         let actualText = ActualDurationSheet.durationText(actual)
         let plannedText = ActualDurationSheet.durationText(planned)
-        return actual == planned ? "实际 \(actualText)" : "实际 \(actualText)（计划 \(plannedText)）"
+        return actual == planned ? String(localized: "实际 \(actualText)") : String(localized: "实际 \(actualText)（计划 \(plannedText)）")
     }
 
     /// 延期入口条件：编辑模式 + 有截止日期 + 未完成 + 非重复（重复任务一期不接延期）。
@@ -1552,7 +1552,7 @@ struct TaskDetailView: View {
 
                 Spacer(minLength: HoloSpacing.md)
 
-                Text(existingTask?.goal?.title ?? "无")
+                Text(existingTask?.goal?.title ?? String(localized: "无"))
                     .font(.holoCaption)
                     .foregroundColor(existingTask?.goal.map { $0.goalDomain.badgeColor } ?? .holoTextSecondary)
                     .lineLimit(1)
@@ -1610,28 +1610,27 @@ struct TaskDetailView: View {
         if !selectedReminders.isEmpty {
             let absoluteCount = selectedReminders.filter { $0.isAbsolute }.count
             if hasDueDate {
-                parts.append("提醒\(selectedReminders.count)项")
+                parts.append(String(localized: "提醒\(selectedReminders.count)项"))
             } else {
                 // 无截止日时，摘要直接展示绝对提醒时刻
                 let reminder = selectedReminders.first(where: { $0.isAbsolute })
                 if let reminder = reminder {
                     parts.append("⏰ \(reminder.displayTitle)")
                     if absoluteCount > 1 {
-                        parts[parts.count - 1] += " 等\(absoluteCount)项"
+                        parts[parts.count - 1] += String(localized: " 等\(absoluteCount)项")
                     }
                 }
             }
         }
         if hasRepeat {
-            parts.append("重复\(repeatType.displayTitle)")
+            parts.append(String(localized: "重复\(repeatType.displayTitle)"))
         }
-        return parts.isEmpty ? "设置时间、提醒" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "设置时间、提醒") : parts.joined(separator: " · ")
     }
 
     private var formattedDueDateSummary: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 EEE"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdE")
         return formatter.string(from: dueDate)
     }
 
@@ -1890,9 +1889,9 @@ struct TaskDetailView: View {
 
     private var selectedListName: String {
         guard let listId = selectedListId else {
-            return "收件箱（未归类）"
+            return String(localized: "收件箱（未归类）")
         }
-        return findList(byId: listId)?.name ?? "收件箱（未归类）"
+        return findList(byId: listId)?.name ?? String(localized: "收件箱（未归类）")
     }
 
     private var selectedList: TodoList? {
@@ -2025,7 +2024,7 @@ struct TaskDetailView: View {
                 Self.logger.error("保存任务失败: \(error.localizedDescription)")
                 await MainActor.run {
                     isSaving = false
-                    saveErrorMessage = "保存失败：\(error.localizedDescription)"
+                    saveErrorMessage = String(localized: "保存失败：\(error.localizedDescription)")
                     showSaveErrorAlert = true
                 }
             }
@@ -2097,7 +2096,7 @@ struct TaskDetailView: View {
 
 private extension TaskPriority {
     var shortTitle: String {
-        self == .urgent ? "紧急" : displayTitle
+        self == .urgent ? String(localized: "紧急") : displayTitle
     }
 }
 

@@ -19,7 +19,7 @@ struct LineChartView: View {
     var displayedTypeSelection: Binding<TransactionType>? = nil
     var selectionDataPoints: [ChartDataPoint]? = nil
     /// 卡头副标题：明细 Tab 提示滑动联动，总览 Tab 等无联动场景可自定义
-    var subtitle: String = "横向滑动，明细实时定位"
+    var subtitle: String = String(localized: "横向滑动，明细实时定位")
     var onScrubDate: ((Date) -> Void)? = nil
     let onSelectDate: (Date?) -> Void
 
@@ -282,9 +282,9 @@ struct LineChartView: View {
     private func formatAxisValue(_ value: Double) -> String {
         let absValue = abs(value)
         if absValue >= 100_000_000 {
-            return String(format: "%.1f亿", value / 100_000_000)
+            return String(format: String(localized: "%.1f亿"), value / 100_000_000)
         } else if absValue >= 10_000 {
-            return String(format: "%.1f万", value / 10_000)
+            return String(format: String(localized: "%.1f万"), value / 10_000)
         } else if absValue >= 1 {
             return String(format: "%.0f", value)
         } else {

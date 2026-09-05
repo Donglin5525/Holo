@@ -42,7 +42,7 @@ struct ReportReplayReaderView: View {
                     .background(Color.holoTextSecondary.opacity(0.1), in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("返回")
+            .accessibilityLabel(String(localized: "返回"))
 
             Spacer()
 

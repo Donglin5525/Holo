@@ -27,25 +27,25 @@ struct OnboardingCapabilitiesPage: View {
 
                     OnboardingCapabilityCard(
                         icon: "square.and.pencil",
-                        title: "一句话记录",
-                        description: "不用先找入口，直接告诉 Holo 发生了什么。",
-                        example: "“午饭花了 35 元”",
-                        footnote: "还可以创建待办、记录想法、习惯打卡。"
+                        title: String(localized: "一句话记录"),
+                        description: String(localized: "不用先找入口，直接告诉 Holo 发生了什么。"),
+                        example: String(localized: "“午饭花了 35 元”"),
+                        footnote: String(localized: "还可以创建待办、记录想法、习惯打卡。")
                     )
 
                     OnboardingCapabilityCard(
                         icon: "bubble.left.and.text.bubble.right",
-                        title: "直接问自己的数据",
-                        description: "想知道最近的情况，直接用自然语言提问。",
-                        example: "“这个月餐饮花了多少？”",
+                        title: String(localized: "直接问自己的数据"),
+                        description: String(localized: "想知道最近的情况，直接用自然语言提问。"),
+                        example: String(localized: "“这个月餐饮花了多少？”"),
                         footnote: nil
                     )
 
                     OnboardingCapabilityCard(
                         icon: "book.closed",
-                        title: "回看生活变化",
-                        description: "记忆长廊会把不同模块的记录串成时间线，方便回看。",
-                        example: "财务、待办、习惯和想法会出现在同一段生活轨迹中。",
+                        title: String(localized: "回看生活变化"),
+                        description: String(localized: "记忆长廊会把不同模块的记录串成时间线，方便回看。"),
+                        example: String(localized: "财务、待办、习惯和想法会出现在同一段生活轨迹中。"),
                         footnote: nil
                     )
                 }
@@ -54,7 +54,7 @@ struct OnboardingCapabilitiesPage: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            OnboardingPrimaryButton(title: "下一步") { onNext() }
+            OnboardingPrimaryButton(title: String(localized: "下一步")) { onNext() }
                 .padding(.horizontal, HoloSpacing.xl)
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, HoloSpacing.lg)

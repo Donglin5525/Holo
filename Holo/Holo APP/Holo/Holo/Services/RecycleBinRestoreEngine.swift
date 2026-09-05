@@ -74,7 +74,7 @@ extension RecycleBinService {
                                 id: transaction.id, module: module,
                                 title: transaction.note ?? transaction.type,
                                 detail: Self.transactionSummary(transaction),
-                                existingDetail: "已存在同日同额同分类的交易"
+                                existingDetail: String(localized: "已存在同日同额同分类的交易")
                             ))
                         } else {
                             report.restorableCount += 1
@@ -89,7 +89,7 @@ extension RecycleBinService {
                                 id: task.id, module: module,
                                 title: task.title,
                                 detail: Self.taskSummary(task),
-                                existingDetail: "已存在同名同截止日的任务"
+                                existingDetail: String(localized: "已存在同名同截止日的任务")
                             ))
                         } else {
                             report.restorableCount += 1
@@ -100,11 +100,12 @@ extension RecycleBinService {
                     for habit in trashed as? [Habit] ?? [] {
                         let key = "\(habit.name.trimmed)|\(habit.type)"
                         if existingKeys.contains(key) {
+                            let typeText = habit.type == 0 ? String(localized: "打卡型") : String(localized: "数值型")
                             report.conflicts.append(RestoreConflictItem(
                                 id: habit.id, module: module,
                                 title: habit.name,
-                                detail: "习惯 · \(habit.type == 0 ? "打卡型" : "数值型")",
-                                existingDetail: "已存在同名习惯"
+                                detail: String(localized: "习惯 · \(typeText)"),
+                                existingDetail: String(localized: "已存在同名习惯")
                             ))
                         } else {
                             report.restorableCount += 1
@@ -118,8 +119,8 @@ extension RecycleBinService {
                             report.conflicts.append(RestoreConflictItem(
                                 id: thought.id, module: module,
                                 title: String(content.prefix(24)),
-                                detail: "想法 · \(thought.createdAt.formatted(.dateTime.month().day()))",
-                                existingDetail: "已存在相同内容的想法"
+                                detail: String(localized: "想法 · \(thought.createdAt.formatted(.dateTime.month().day()))"),
+                                existingDetail: String(localized: "已存在相同内容的想法")
                             ))
                         } else {
                             report.restorableCount += 1
@@ -304,16 +305,16 @@ extension RecycleBinService {
     private static func transactionSummary(_ transaction: Transaction) -> String {
         let amount = transaction.amount as Decimal
         let day = transaction.date.formatted(.dateTime.month().day())
-        let categoryName = transaction.category?.name ?? "未分类"
-        let typeText = transaction.type == "income" ? "收入" : "支出"
-        return "\(typeText) ¥\(amount) · \(day) · \(categoryName)"
+        let categoryName = transaction.category?.name ?? String(localized: "未分类")
+        let typeText = transaction.type == "income" ? String(localized: "收入") : String(localized: "支出")
+        return String(localized: "\(typeText) ¥\(String(describing: amount)) · \(day) · \(categoryName)")
     }
 
     private static func taskSummary(_ task: TodoTask) -> String {
         if let dueDate = task.dueDate {
-            return "截止 \(dueDate.formatted(.dateTime.month().day()))"
+            return String(localized: "截止 \(dueDate.formatted(.dateTime.month().day()))")
         }
-        return "无截止日"
+        return String(localized: "无截止日")
     }
 
     /// 恢复后重排任务提醒（主线程 fetch 恢复的任务，逐个调度）

@@ -68,31 +68,31 @@ extension AIIntent {
 
     nonisolated var chatDisplayLabel: String {
         switch self {
-        case .recordExpense, .recordIncome: return "已记账"
-        case .setBudget: return "已设置预算"
-        case .createTask: return "已创建任务"
-        case .completeTask: return "已完成任务"
-        case .updateTask: return "已更新任务"
-        case .modifyTaskItems: return "已修改条目"
-        case .deleteTask: return "已删除任务"
-        case .recordMood: return "已记录心情"
-        case .recordWeight: return "已记录体重"
-        case .checkIn: return "已打卡"
-        case .updateGoalField: return "已更新目标"
-        case .linkTaskToGoal, .linkHabitToGoal: return "已关联目标"
-        case .logMetricValue: return "已记录数值"
-        case .toggleGoalVisibility: return "已更新目标可见性"
-        case .createNote: return "已记录笔记"
-        case .createAnniversary: return "已创建纪念日"
-        case .updateAnniversary: return "已更新纪念日"
-        case .queryTasks: return "任务查询"
-        case .queryHabits: return "习惯查询"
-        case .queryAnalysis: return "分析卡片"
-        case .flexibleDataQuery: return "查询卡片"
-        case .generateMemoryInsight: return "已生成回放"
-        case .weeklyPlanning: return "本周重点"
-        case .unknown: return "未识别指令"
-        case .query: return "查询"
+        case .recordExpense, .recordIncome: return String(localized: "已记账")
+        case .setBudget: return String(localized: "已设置预算")
+        case .createTask: return String(localized: "已创建任务")
+        case .completeTask: return String(localized: "已完成任务")
+        case .updateTask: return String(localized: "已更新任务")
+        case .modifyTaskItems: return String(localized: "已修改条目")
+        case .deleteTask: return String(localized: "已删除任务")
+        case .recordMood: return String(localized: "已记录心情")
+        case .recordWeight: return String(localized: "已记录体重")
+        case .checkIn: return String(localized: "已打卡")
+        case .updateGoalField: return String(localized: "已更新目标")
+        case .linkTaskToGoal, .linkHabitToGoal: return String(localized: "已关联目标")
+        case .logMetricValue: return String(localized: "已记录数值")
+        case .toggleGoalVisibility: return String(localized: "已更新目标可见性")
+        case .createNote: return String(localized: "已记录笔记")
+        case .createAnniversary: return String(localized: "已创建纪念日")
+        case .updateAnniversary: return String(localized: "已更新纪念日")
+        case .queryTasks: return String(localized: "任务查询")
+        case .queryHabits: return String(localized: "习惯查询")
+        case .queryAnalysis: return String(localized: "分析卡片")
+        case .flexibleDataQuery: return String(localized: "查询卡片")
+        case .generateMemoryInsight: return String(localized: "已生成回放")
+        case .weeklyPlanning: return String(localized: "本周重点")
+        case .unknown: return String(localized: "未识别指令")
+        case .query: return String(localized: "查询")
         }
     }
 }

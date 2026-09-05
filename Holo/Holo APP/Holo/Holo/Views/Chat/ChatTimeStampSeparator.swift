@@ -31,7 +31,7 @@ struct ChatTimeStampSeparator: View {
             return time
         }
         if calendar.isDateInYesterday(date) {
-            return "昨天 \(time)"
+            return String(localized: "昨天 \(time)")
         }
         if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
             return Self.monthDayFormatter.string(from: date)
@@ -58,15 +58,13 @@ struct ChatTimeStampSeparator: View {
 
     private static let monthDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdHHmm")
         return formatter
     }()
 
     private static let fullDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月d日 HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdHHmm")
         return formatter
     }()
 }

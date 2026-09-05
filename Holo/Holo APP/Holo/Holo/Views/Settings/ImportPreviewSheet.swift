@@ -151,21 +151,21 @@ struct ImportPreviewSheet: View {
             }
 
             VStack(spacing: 8) {
-                infoRow(label: "文件名", value: summary.fileName)
-                infoRow(label: "识别格式", value: summary.detectedTemplate.rawValue)
-                infoRow(label: "总行数", value: "\(summary.totalRows) 条记录")
-                infoRow(label: "可导入", value: "\(summary.parseableCount) 条")
+                infoRow(label: String(localized: "文件名"), value: summary.fileName)
+                infoRow(label: String(localized: "识别格式"), value: summary.detectedTemplate.rawValue)
+                infoRow(label: String(localized: "总行数"), value: String(localized: "\(summary.totalRows) 条记录"))
+                infoRow(label: String(localized: "可导入"), value: String(localized: "\(summary.parseableCount) 条"))
                 let newCategoryCount = viewModel.categoryImportPlan.primaryCategoriesToCreate.count
                     + viewModel.categoryImportPlan.subCategoriesToCreate.count
                 if newCategoryCount > 0 {
-                    infoRow(label: "将新建科目", value: "\(newCategoryCount) 个")
+                    infoRow(label: String(localized: "将新建科目"), value: String(localized: "\(newCategoryCount) 个"))
                 }
                 if summary.failedCount > 0 {
-                    infoRow(label: "跳过", value: "\(summary.failedCount) 条（格式异常）")
+                    infoRow(label: String(localized: "跳过"), value: String(localized: "\(summary.failedCount) 条（格式异常）"))
                 }
                 let blockedCount = viewModel.blockingWarnings.filter { $0.isBlocking }.count
                 if blockedCount > 0 {
-                    infoRow(label: "待确认", value: "\(blockedCount) 条（日期解析失败）")
+                    infoRow(label: String(localized: "待确认"), value: String(localized: "\(blockedCount) 条（日期解析失败）"))
                 }
             }
         }
@@ -212,13 +212,13 @@ struct ImportPreviewSheet: View {
             }
 
             VStack(spacing: 6) {
-                mappingRow("日期", index: viewModel.fieldMapping.dateIndex, headers: summary.headers)
-                mappingRow("类型", index: viewModel.fieldMapping.typeIndex, headers: summary.headers)
-                mappingRow("金额", index: viewModel.fieldMapping.amountIndex, headers: summary.headers)
-                mappingRow("一级分类", index: viewModel.fieldMapping.primaryCategoryIndex, headers: summary.headers)
-                mappingRow("二级分类", index: viewModel.fieldMapping.subCategoryIndex, headers: summary.headers)
-                mappingRow("账户", index: viewModel.fieldMapping.accountIndex, headers: summary.headers)
-                mappingRow("备注", index: viewModel.fieldMapping.noteIndex, headers: summary.headers)
+                mappingRow(String(localized: "日期"), index: viewModel.fieldMapping.dateIndex, headers: summary.headers)
+                mappingRow(String(localized: "类型"), index: viewModel.fieldMapping.typeIndex, headers: summary.headers)
+                mappingRow(String(localized: "金额"), index: viewModel.fieldMapping.amountIndex, headers: summary.headers)
+                mappingRow(String(localized: "一级分类"), index: viewModel.fieldMapping.primaryCategoryIndex, headers: summary.headers)
+                mappingRow(String(localized: "二级分类"), index: viewModel.fieldMapping.subCategoryIndex, headers: summary.headers)
+                mappingRow(String(localized: "账户"), index: viewModel.fieldMapping.accountIndex, headers: summary.headers)
+                mappingRow(String(localized: "备注"), index: viewModel.fieldMapping.noteIndex, headers: summary.headers)
             }
         }
         .padding(HoloSpacing.md)
@@ -310,9 +310,9 @@ struct ImportPreviewSheet: View {
 
             // 导入统计
             HStack(spacing: HoloSpacing.md) {
-                matchStatBadge(label: "已存在", count: viewModel.matchStats.exact, color: .green)
-                matchStatBadge(label: "新一级", count: viewModel.categoryImportPlan.primaryCategoriesToCreate.count, color: .blue)
-                matchStatBadge(label: "新二级", count: viewModel.categoryImportPlan.subCategoriesToCreate.count, color: .orange)
+                matchStatBadge(label: String(localized: "已存在"), count: viewModel.matchStats.exact, color: .green)
+                matchStatBadge(label: String(localized: "新一级"), count: viewModel.categoryImportPlan.primaryCategoriesToCreate.count, color: .blue)
+                matchStatBadge(label: String(localized: "新二级"), count: viewModel.categoryImportPlan.subCategoriesToCreate.count, color: .orange)
             }
 
             // 将新建的一级分类（最多展示 10 个）
@@ -378,7 +378,7 @@ struct ImportPreviewSheet: View {
 
     /// 交易类型中文标签
     private func typeLabel(_ raw: String) -> String {
-        TransactionType(rawValue: raw) == .income ? "收入" : "支出"
+        TransactionType(rawValue: raw) == .income ? String(localized: "收入") : String(localized: "支出")
     }
 
     // MARK: - 数据预览

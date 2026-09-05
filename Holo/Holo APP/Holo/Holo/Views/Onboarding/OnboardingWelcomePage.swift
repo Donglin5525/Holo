@@ -51,7 +51,7 @@ struct OnboardingWelcomePage: View {
                                 RoundedRectangle(cornerRadius: HoloRadius.md)
                                     .stroke(Color.holoBorder, lineWidth: 1)
                             )
-                            .accessibilityLabel("昵称")
+                            .accessibilityLabel(String(localized: "昵称"))
                     }
                     .padding(.top, HoloSpacing.md)
                 }
@@ -61,7 +61,7 @@ struct OnboardingWelcomePage: View {
             .scrollDismissesKeyboard(.immediately)
         }
         .safeAreaInset(edge: .bottom) {
-            OnboardingPrimaryButton(title: "继续") {
+            OnboardingPrimaryButton(title: String(localized: "继续")) {
                 isNicknameFocused = false
                 onContinue()
             }

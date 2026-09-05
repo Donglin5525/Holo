@@ -123,7 +123,7 @@ private extension DeepLinkTarget {
             // 今日收支小组件 → 财务分析页，默认展示本月概览
             let monthRange = TimeRange.month.dateRange()
             self = .financeAnalysis(FinanceAnalysisDeepLink(
-                label: "本月收支",
+                label: String(localized: "本月收支"),
                 start: monthRange.start,
                 end: monthRange.end
             ))

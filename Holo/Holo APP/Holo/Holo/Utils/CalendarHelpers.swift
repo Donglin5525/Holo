@@ -88,10 +88,10 @@ struct CalendarGridGenerator {
 // MARK: - 日期格式化
 
 struct CalendarDateFormatter {
-    static let weekdaySymbols = ["一", "二", "三", "四", "五", "六", "日"]
+    static let weekdaySymbols = [String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六"), String(localized: "日")]
     
     static func monthTitle(for date: Date) -> String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy年M月"
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("yMMM")
         return f.string(from: date)
     }
     

@@ -15,7 +15,7 @@ struct MonthlyCalendarView: View {
     let cellStyle: MonthCellStyle              // P2
     let onSelectDay: (Date) -> Void
 
-    private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
+    private let weekdays = [String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六"), String(localized: "日")]
 
     /// 周一首的日历（与 CalendarRangeBuilder 一致）
     private var calendar: Calendar {

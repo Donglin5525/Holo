@@ -111,7 +111,7 @@ struct HealthDetailView: View {
 
     private var detailHeaderText: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(type.rawValue)
+            Text(type.displayName)
                 .font(.holoTitle)
                 .foregroundColor(.holoTextPrimary)
                 .lineLimit(1)
@@ -216,9 +216,9 @@ struct HealthDetailView: View {
 
     private var statsSection: some View {
         HStack(spacing: HoloSpacing.sm) {
-            statCard(title: "7 天平均", value: type.formatValue(weeklyAverage), unit: type.unit)
-            statCard(title: "最高值", value: type.formatValue(weeklyMax), unit: type.unit)
-            statCard(title: "达标天数", value: "\(goalDays)", unit: "天")
+            statCard(title: String(localized: "7 天平均"), value: type.formatValue(weeklyAverage), unit: type.unit)
+            statCard(title: String(localized: "最高值"), value: type.formatValue(weeklyMax), unit: type.unit)
+            statCard(title: String(localized: "达标天数"), value: "\(goalDays)", unit: String(localized: "天"))
         }
     }
 
@@ -345,12 +345,11 @@ struct HealthDetailView: View {
     private var detailSubtitleText: String {
         let calendar = Calendar.current
         if calendar.isDateInToday(selectedDate) {
-            return "近 7 天趋势与关联线索"
+            return String(localized: "近 7 天趋势与关联线索")
         }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
-        return "\(formatter.string(from: selectedDate)) 及近 7 天趋势"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return String(localized: "\(formatter.string(from: selectedDate)) 及近 7 天趋势")
     }
 
     private var weeklyMax: Double {
@@ -368,13 +367,13 @@ struct HealthDetailView: View {
     private var detailTitle: String {
         switch type {
         case .steps:
-            return remainingValue > 0 ? "还差 \(type.formatValue(remainingValue)) 步" : "步数目标已达成"
+            return remainingValue > 0 ? String(localized: "还差 \(type.formatValue(remainingValue)) 步") : String(localized: "步数目标已达成")
         case .sleep:
-            return currentValue >= 7 ? "恢复良好" : "今晚优先补睡眠"
+            return currentValue >= 7 ? String(localized: "恢复良好") : String(localized: "今晚优先补睡眠")
         case .standHours:
-            return remainingValue > 0 ? "还差 \(type.formatValue(remainingValue)) 小时" : "站立目标已达成"
+            return remainingValue > 0 ? String(localized: "还差 \(type.formatValue(remainingValue)) 小时") : String(localized: "站立目标已达成")
         case .activeMinutes:
-            return "已启用替代环"
+            return String(localized: "已启用替代环")
         }
     }
 
@@ -383,51 +382,51 @@ struct HealthDetailView: View {
         switch type {
         case .steps:
             if weeklyData.isEmpty {
-                return "近 7 天暂无步数数据。"
+                return String(localized: "近 7 天暂无步数数据。")
             }
             return goalDays >= 5
-                ? "本周步数稳定，保持节奏即可。"
-                : "本周有 \(goalDays) 天达标，还可以再稳定一些。"
+                ? String(localized: "本周步数稳定，保持节奏即可。")
+                : String(localized: "本周有 \(goalDays) 天达标，还可以再稳定一些。")
         case .sleep:
             if weeklyData.isEmpty {
-                return "近 7 天暂无睡眠数据。"
+                return String(localized: "近 7 天暂无睡眠数据。")
             }
             return weeklyAverage >= 7
-                ? "本周平均睡眠充足，适合安排高专注任务。"
-                : "本周平均睡眠偏少，注意补充休息。"
+                ? String(localized: "本周平均睡眠充足，适合安排高专注任务。")
+                : String(localized: "本周平均睡眠偏少，注意补充休息。")
         case .standHours:
             if weeklyData.isEmpty {
-                return "近 7 天暂无站立数据。"
+                return String(localized: "近 7 天暂无站立数据。")
             }
             return goalDays >= 5
-                ? "本周站立规律，久坐风险较低。"
-                : "本周有 \(goalDays) 天达标，可适当增加站立时间。"
+                ? String(localized: "本周站立规律，久坐风险较低。")
+                : String(localized: "本周有 \(goalDays) 天达标，可适当增加站立时间。")
         case .activeMinutes:
-            return "没有站立数据时，HOLO 用活动分钟替代站立环来估算久坐风险。"
+            return String(localized: "没有站立数据时，HOLO 用活动分钟替代站立环来估算久坐风险。")
         }
     }
 
     private var insightTitle: String {
         switch type {
         case .steps:
-            return "活动建议"
+            return String(localized: "活动建议")
         case .sleep:
-            return "恢复洞察"
+            return String(localized: "恢复洞察")
         case .standHours, .activeMinutes:
-            return "久坐提醒"
+            return String(localized: "久坐提醒")
         }
     }
 
     private var insightDetail: String {
         switch type {
         case .steps:
-            return "本周低步数日通常也是久坐日，可以把站立提醒和散步目标合并触发。"
+            return String(localized: "本周低步数日通常也是久坐日，可以把站立提醒和散步目标合并触发。")
         case .sleep:
-            return "高睡眠日，任务完成率更稳定；低睡眠日，咖啡支出和压力记录更值得回看。"
+            return String(localized: "高睡眠日，任务完成率更稳定；低睡眠日，咖啡支出和压力记录更值得回看。")
         case .standHours:
-            return "站立不足时，压力类想法更容易集中出现，下午适合设置轻提醒。"
+            return String(localized: "站立不足时，压力类想法更容易集中出现，下午适合设置轻提醒。")
         case .activeMinutes:
-            return "无 Apple Watch 时不隐藏健康模块，而是明确显示替代指标和当前数据精度。"
+            return String(localized: "无 Apple Watch 时不隐藏健康模块，而是明确显示替代指标和当前数据精度。")
         }
     }
 
@@ -435,18 +434,18 @@ struct HealthDetailView: View {
         switch type {
         case .steps:
             return [
-                ("习", "运动习惯正在拉动步数", "连续运动后，步数达标日更稳定。", .holoSuccess),
-                ("任", "低步数日适合少排外出任务", "活动不足时，任务安排可以更轻。", .holoChart1)
+                (String(localized: "习"), String(localized: "运动习惯正在拉动步数"), String(localized: "连续运动后，步数达标日更稳定。"), .holoSuccess),
+                (String(localized: "任"), String(localized: "低步数日适合少排外出任务"), String(localized: "活动不足时，任务安排可以更轻。"), .holoChart1)
             ]
         case .sleep:
             return [
-                ("任", "任务关联", "高睡眠日，任务完成率更稳定。", .holoChart1),
-                ("财", "消费关联", "低睡眠日，咖啡支出更容易上升。", .holoChart8)
+                (String(localized: "任"), String(localized: "任务关联"), String(localized: "高睡眠日，任务完成率更稳定。"), .holoChart1),
+                (String(localized: "财"), String(localized: "消费关联"), String(localized: "低睡眠日，咖啡支出更容易上升。"), .holoChart8)
             ]
         case .standHours, .activeMinutes:
             return [
-                ("想", "压力关联", "久坐日更适合回看压力类想法。", .holoChart7),
-                ("习", "习惯关联", "短散步和喝水习惯能帮助打断久坐。", .holoSuccess)
+                (String(localized: "想"), String(localized: "压力关联"), String(localized: "久坐日更适合回看压力类想法。"), .holoChart7),
+                (String(localized: "习"), String(localized: "习惯关联"), String(localized: "短散步和喝水习惯能帮助打断久坐。"), .holoSuccess)
             ]
         }
     }

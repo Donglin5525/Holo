@@ -123,9 +123,9 @@ struct TaskCardView: View {
 
                         // 优先级（仅紧急/高，小色胶囊）
                         if task.taskPriority == .urgent {
-                            priorityTag(text: "紧急", color: .holoError)
+                            priorityTag(text: String(localized: "紧急"), color: .holoError)
                         } else if task.taskPriority == .high {
-                            priorityTag(text: "高", color: Color(red: 0.96, green: 0.62, blue: 0.05))
+                            priorityTag(text: String(localized: "高"), color: Color(red: 0.96, green: 0.62, blue: 0.05))
                         }
 
                         // 延期痕迹：允许拖延，但让拖延可见（延期 ≥1 次才出现）
@@ -222,7 +222,7 @@ struct TaskCardView: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: isChecklistExpanded ? "chevron.up" : "ellipsis")
                                         .font(.system(size: 12, weight: .medium))
-                                    Text(isChecklistExpanded ? "收起" : "还有 \(checkItems.count - 5) 项")
+                                    Text(isChecklistExpanded ? String(localized: "收起") : String(localized: "还有 \(checkItems.count - 5) 项"))
                                         .font(.holoTinyLabel)
                                 }
                                 .foregroundColor(.holoPrimary)
@@ -269,9 +269,9 @@ struct TaskCardView: View {
         } else if task.isOverdue {
             pill(text: overdueText, bg: Color.holoError.opacity(0.09), fg: .holoError)
         } else if task.isDueToday {
-            pill(text: nearText(prefix: "今天"), bg: Color.holoPrimary.opacity(0.10), fg: .holoPrimaryDark)
+            pill(text: nearText(prefix: String(localized: "今天")), bg: Color.holoPrimary.opacity(0.10), fg: .holoPrimaryDark)
         } else if task.isDueTomorrow {
-            pill(text: nearText(prefix: "明天"),
+            pill(text: nearText(prefix: String(localized: "明天")),
                  bg: Color(red: 0.23, green: 0.51, blue: 0.96).opacity(0.09),
                  fg: Color(red: 0.23, green: 0.37, blue: 0.84))
         }
@@ -289,23 +289,23 @@ struct TaskCardView: View {
 
     /// 完成/进行完成中：绿胶囊（有完成时刻则带上）
     private var completedText: String {
-        guard !isCompleting, let completedAt = task.completedAt else { return "已完成" }
+        guard !isCompleting, let completedAt = task.completedAt else { return String(localized: "已完成") }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "HH:mm"
-        return "已完成 \(formatter.string(from: completedAt))"
+        return String(localized: "已完成 \(formatter.string(from: completedAt))")
     }
 
     /// 过期文案：过期 N 天（当天内过期只写「过期」）
     private var overdueText: String {
-        guard let due = task.dueDate else { return "过期" }
+        guard let due = task.dueDate else { return String(localized: "过期") }
         let calendar = Calendar.current
         let days = calendar.dateComponents(
             [.day],
             from: calendar.startOfDay(for: due),
             to: calendar.startOfDay(for: Date())
         ).day ?? 0
-        return days > 0 ? "过期 \(days) 天" : "过期"
+        return days > 0 ? String(localized: "过期 \(days) 天") : String(localized: "过期")
     }
 
     /// 今天/明天胶囊文案（全天任务不带时刻）
@@ -351,15 +351,14 @@ struct TaskCardView: View {
 
     private func formatDueDate(_ date: Date) -> String {
         if task.isDueToday {
-            return "今天"
+            return String(localized: "今天")
         } else if task.isDueTomorrow {
-            return "明天"
+            return String(localized: "明天")
         } else if task.isOverdue {
-            return "已过期"
+            return String(localized: "已过期")
         } else {
             let f = DateFormatter()
-            f.locale = Locale(identifier: "zh_CN")
-            f.dateFormat = "M月d日"
+            f.setLocalizedDateFormatFromTemplate("MMMd")
             return f.string(from: date)
         }
     }

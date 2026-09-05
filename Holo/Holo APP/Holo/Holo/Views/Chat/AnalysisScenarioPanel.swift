@@ -26,27 +26,27 @@ enum AnalysisScenario: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .crossDomain: return "跨域洞察"
-        case .finance: return "财务分析"
-        case .habit: return "习惯分析"
-        case .health: return "睡眠与健康"
-        case .task: return "任务效率"
-        case .thought: return "想法洞察"
-        case .goal: return "目标复盘"
-        case .longTermPattern: return "长期模式"
+        case .crossDomain: return String(localized: "跨域洞察")
+        case .finance: return String(localized: "财务分析")
+        case .habit: return String(localized: "习惯分析")
+        case .health: return String(localized: "睡眠与健康")
+        case .task: return String(localized: "任务效率")
+        case .thought: return String(localized: "想法洞察")
+        case .goal: return String(localized: "目标复盘")
+        case .longTermPattern: return String(localized: "长期模式")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .crossDomain: return "全域交叉，发现补偿回路类规律"
-        case .finance: return "支出结构 / 超预算归因 / 异常消费"
-        case .habit: return "掉档规律 / 断签恢复 / 数值走势"
-        case .health: return "睡眠规律 / 运动量 / 活跃节奏"
-        case .task: return "完成率 / 拖延模式 / 截止压力"
-        case .thought: return "反复出现的念头 / 主题走向"
-        case .goal: return "进度 / 量化走势 / 风险信号"
-        case .longTermPattern: return "Holo 眼中的你（画像问答）"
+        case .crossDomain: return String(localized: "全域交叉，发现补偿回路类规律")
+        case .finance: return String(localized: "支出结构 / 超预算归因 / 异常消费")
+        case .habit: return String(localized: "掉档规律 / 断签恢复 / 数值走势")
+        case .health: return String(localized: "睡眠规律 / 运动量 / 活跃节奏")
+        case .task: return String(localized: "完成率 / 拖延模式 / 截止压力")
+        case .thought: return String(localized: "反复出现的念头 / 主题走向")
+        case .goal: return String(localized: "进度 / 量化走势 / 风险信号")
+        case .longTermPattern: return String(localized: "Holo 眼中的你（画像问答）")
         }
     }
 
@@ -100,7 +100,7 @@ struct AnalysisScenarioPanel: View {
         guard let snapshot = HoloEntitlementState.shared.quotas["deepAnalysis"] else {
             return ""
         }
-        return " · 本月剩余 \(snapshot.remaining)/\(snapshot.limit)"
+        return String(localized: " · 本月剩余 \(snapshot.remaining)/\(snapshot.limit)")
     }
 
     var body: some View {
@@ -185,6 +185,6 @@ struct AnalysisScenarioPanel: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(scenario.title)，\(scenario.subtitle)")
-        .accessibilityHint("把该场景的问句填进输入框，由你确认发送")
+        .accessibilityHint(String(localized: "把该场景的问句填进输入框，由你确认发送"))
     }
 }

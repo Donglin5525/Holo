@@ -27,13 +27,13 @@ struct MemoryAttributionBadge: View {
                 HStack(spacing: 4) {
                     Image(systemName: isExpanded ? "chevron.down" : "brain.head.profile")
                         .font(.system(size: 10))
-                    Text(isExpanded ? "收起引用" : "引用了你 \(count) 条记忆")
+                    Text(isExpanded ? String(localized: "收起引用") : String(localized: "引用了你 \(count) 条记忆"))
                         .font(.system(size: 11))
                 }
                 .foregroundColor(.holoTextSecondary.opacity(0.85))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("本条回答引用了 \(count) 条已记住的信息")
+            .accessibilityLabel(String(localized: "本条回答引用了 \(count) 条已记住的信息"))
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {

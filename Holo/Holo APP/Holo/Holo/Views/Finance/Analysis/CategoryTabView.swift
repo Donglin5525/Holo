@@ -98,11 +98,11 @@ struct CategoryTabView: View {
 
     private var typeSwitcher: some View {
         HStack(spacing: 0) {
-            typeButton(title: "支出", isSelected: !showIncomeView) {
+            typeButton(title: String(localized: "支出"), isSelected: !showIncomeView) {
                 showIncomeView = false
             }
 
-            typeButton(title: "收入", isSelected: showIncomeView) {
+            typeButton(title: String(localized: "收入"), isSelected: showIncomeView) {
                 showIncomeView = true
             }
         }

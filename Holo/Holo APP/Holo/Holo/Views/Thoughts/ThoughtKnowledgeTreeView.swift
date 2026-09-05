@@ -52,7 +52,7 @@ struct ThoughtKnowledgeTreeView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 aiStatusBar
 
-                sectionLabel("我的主题")
+                sectionLabel(String(localized: "我的主题"))
 
                 if topics.isEmpty {
                     emptyTopicsView
@@ -297,9 +297,9 @@ struct ThoughtKnowledgeTreeView: View {
     /// 最近活跃文案；无想法时占位保持卡片结构一致
     private func recentLabel(for topic: Topic) -> String {
         guard let latest = topicStats[topic.id]?.latestDate else {
-            return "还没有想法"
+            return String(localized: "还没有想法")
         }
-        return "最近想法 · \(dayLabel(latest))"
+        return String(localized: "最近想法 · \(dayLabel(latest))")
     }
 
     /// 主题下的关键词叶段名（按命中数降序）
@@ -312,11 +312,10 @@ struct ThoughtKnowledgeTreeView: View {
     /// 相对日期（与想法卡片 formattedDate 的日期段一致）
     private func dayLabel(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "今天" }
-        if calendar.isDateInYesterday(date) { return "昨天" }
+        if calendar.isDateInToday(date) { return String(localized: "今天") }
+        if calendar.isDateInYesterday(date) { return String(localized: "昨天") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter.string(from: date)
     }
 

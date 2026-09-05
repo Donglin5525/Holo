@@ -89,16 +89,15 @@ struct HealthDateNavigator: View {
 
     private var dateDisplayText: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
         let calendar = Calendar.current
 
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         let dateStr = formatter.string(from: selectedDate)
 
         if calendar.isDateInToday(selectedDate) {
-            return "今天 · \(dateStr)"
+            return String(localized: "今天 · \(dateStr)")
         } else if calendar.isDateInYesterday(selectedDate) {
-            return "昨天 · \(dateStr)"
+            return String(localized: "昨天 · \(dateStr)")
         } else {
             formatter.dateFormat = "EEEE"
             let weekday = formatter.string(from: selectedDate)

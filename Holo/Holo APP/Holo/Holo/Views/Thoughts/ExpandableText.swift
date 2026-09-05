@@ -70,7 +70,7 @@ struct ExpandableText: View {
                 isExpanded.toggle()
             }
         } label: {
-            Text(isExpanded ? "收起" : "展开")
+            Text(isExpanded ? String(localized: "收起") : String(localized: "展开"))
                 .font(.holoCaption)
                 .foregroundColor(.holoPrimary)
         }

@@ -98,7 +98,7 @@ struct SuggestionPanelView: View {
             Image(systemName: isTagMode ? "number" : "text.bubble")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
-            Text(isTagMode ? "输入文字创建新标签" : "没有匹配的想法")
+            Text(isTagMode ? String(localized: "输入文字创建新标签") : String(localized: "没有匹配的想法"))
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.8))
             Spacer(minLength: 0)

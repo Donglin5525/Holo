@@ -67,7 +67,7 @@ struct GoalLinkManagerSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? "保存中" : "保存") { save() }
+                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
                         .disabled(isSaving)
                         .fontWeight(.semibold)
                 }

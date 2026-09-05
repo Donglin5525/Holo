@@ -106,7 +106,7 @@ struct RecycleBinView: View {
                     .foregroundColor(batch.daysRemaining <= 3 ? .holoError : .holoTextSecondary)
             }
 
-            Text(batch.summary ?? (batch.isGlobalScope ? "清空所有数据" : "清空数据"))
+            Text(batch.summary ?? (batch.isGlobalScope ? String(localized: "清空所有数据") : String(localized: "清空数据")))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
 
@@ -143,7 +143,7 @@ struct RecycleBinView: View {
         isPurgingAll = true
         defer { isPurgingAll = false }
         try? await recycleBin.purgeAll()
-        HoloToastCenter.shared.show("回收站已清空", type: .success)
+        HoloToastCenter.shared.show(String(localized: "回收站已清空"), type: .success)
     }
 }
 
@@ -226,7 +226,7 @@ struct RecycleBinBatchDetailView: View {
     private var infoCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
-                Text(batch.summary ?? "清空数据")
+                Text(batch.summary ?? String(localized: "清空数据"))
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
@@ -315,7 +315,7 @@ struct RecycleBinBatchDetailView: View {
                 showRestoreConfirm = true
             }
         } catch {
-            errorMessage = "检查失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "检查失败：\(error.localizedDescription)")
         }
     }
 
@@ -327,23 +327,23 @@ struct RecycleBinBatchDetailView: View {
 
         do {
             let outcome = try await recycleBin.restoreBatch(batchId: batch.id, skipConflictIds: skipIds)
-            var message = "已恢复 \(outcome.restored) 条"
-            if outcome.skippedConflicts > 0 { message += "，跳过 \(outcome.skippedConflicts) 条重复" }
-            if outcome.linkedRestored > 0 { message += "，连带恢复 \(outcome.linkedRestored) 条关联数据" }
+            var message = String(localized: "已恢复 \(outcome.restored) 条")
+            if outcome.skippedConflicts > 0 { message += String(localized: "，跳过 \(outcome.skippedConflicts) 条重复") }
+            if outcome.linkedRestored > 0 { message += String(localized: "，连带恢复 \(outcome.linkedRestored) 条关联数据") }
             HoloToastCenter.shared.show(message, type: .success)
             dismiss()
         } catch {
-            errorMessage = "恢复失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "恢复失败：\(error.localizedDescription)")
         }
     }
 
     private func performPurge() async {
         do {
             try await recycleBin.purgeBatch(batch.id)
-            HoloToastCenter.shared.show("已彻底删除", type: .info)
+            HoloToastCenter.shared.show(String(localized: "已彻底删除"), type: .info)
             dismiss()
         } catch {
-            errorMessage = "删除失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "删除失败：\(error.localizedDescription)")
         }
     }
 }
@@ -459,7 +459,7 @@ struct RestoreConflictSheet: View {
 
                 Spacer()
 
-                Text(isForced ? "将恢复" : "跳过")
+                Text(isForced ? String(localized: "将恢复") : String(localized: "跳过"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(isForced ? .holoPrimary : .holoTextSecondary)
             }

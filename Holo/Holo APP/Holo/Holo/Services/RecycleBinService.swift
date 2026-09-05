@@ -41,16 +41,16 @@ enum RecycleBinModule: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .finance: return "财务"
-        case .thought: return "想法"
-        case .task: return "任务"
-        case .habit: return "习惯"
-        case .anniversary: return "纪念日"
-        case .goal: return "目标"
-        case .chat: return "聊天记录"
-        case .insight: return "AI 报告"
-        case .memory: return "长期记忆"
-        case .lifePlan: return "周计划"
+        case .finance: return String(localized: "财务")
+        case .thought: return String(localized: "想法")
+        case .task: return String(localized: "任务")
+        case .habit: return String(localized: "习惯")
+        case .anniversary: return String(localized: "纪念日")
+        case .goal: return String(localized: "目标")
+        case .chat: return String(localized: "聊天记录")
+        case .insight: return String(localized: "AI 报告")
+        case .memory: return String(localized: "长期记忆")
+        case .lifePlan: return String(localized: "周计划")
         }
     }
 
@@ -100,8 +100,8 @@ enum FinanceClearScope: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .transactionsOnly: return "仅清空交易记录"
-        case .all: return "清空全部财务数据"
+        case .transactionsOnly: return String(localized: "仅清空交易记录")
+        case .all: return String(localized: "清空全部财务数据")
         }
     }
 
@@ -465,15 +465,16 @@ final class RecycleBinService: ObservableObject {
 
     private static func defaultSummary(modules: Set<RecycleBinModule>, financeScope: FinanceClearScope?) -> String {
         if modules == RecycleBinModule.globalClearModules {
-            return "清空所有数据"
+            return String(localized: "清空所有数据")
         }
         if modules.count == 1, let only = modules.first {
             if only == .finance, let scope = financeScope {
-                return "清空财务数据 · \(scope == .transactionsOnly ? "仅交易" : "全部")"
+                let scopeText = scope == .transactionsOnly ? String(localized: "仅交易") : String(localized: "全部")
+                return String(localized: "清空财务数据 · \(scopeText)")
             }
-            return "清空\(only.displayName)数据"
+            return String(localized: "清空\(only.displayName)数据")
         }
-        return "清空 " + modules.map(\.displayName).joined(separator: "、")
+        return String(localized: "清空 ") + modules.map(\.displayName).joined(separator: "、")
     }
 
     /// 批量打软删标记（只处理 deletedAt == nil 的正常数据），分批 save 控制内存
@@ -668,8 +669,8 @@ enum RecycleBinError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .emptyClearRequest: return "清空请求未包含任何有效模块"
-        case .batchNotFound: return "回收站批次不存在或已被清除"
+        case .emptyClearRequest: return String(localized: "清空请求未包含任何有效模块")
+        case .batchNotFound: return String(localized: "回收站批次不存在或已被清除")
         }
     }
 }

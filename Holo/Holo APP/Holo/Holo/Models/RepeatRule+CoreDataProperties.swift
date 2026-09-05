@@ -166,58 +166,58 @@ extension RepeatRule {
 
         switch repeatType {
         case .daily:
-            baseDescription = iv == 1 ? "每天" : "每隔 \(iv) 天"
+            baseDescription = iv == 1 ? String(localized: "每天") : String(localized: "每隔 \(iv) 天")
 
         case .weekly:
             let weekdays = weekdaysArray
             if weekdays.isEmpty {
-                baseDescription = "每周"
+                baseDescription = String(localized: "每周")
             } else if isWeekdays {
-                baseDescription = "工作日"
+                baseDescription = String(localized: "工作日")
             } else {
                 let weekdayNames = weekdays.sorted(by: { $0.rawValue < $1.rawValue })
                     .map { $0.displayTitle }
                     .joined(separator: "、")
-                baseDescription = "每周\(weekdayNames)"
+                baseDescription = String(localized: "每周\(weekdayNames)")
             }
 
         case .monthly:
             if monthWeekOrdinal > 0, let weekday = monthWeekdayValue {
-                let ordinalNames = ["", "第一", "第二", "第三", "第四", "第五"]
-                let ordinalName = monthWeekOrdinal < ordinalNames.count ? ordinalNames[Int(monthWeekOrdinal)] : "第\(monthWeekOrdinal)"
-                let prefix = iv == 1 ? "每月" : "每隔 \(iv) 个月"
-                baseDescription = "\(prefix)\(ordinalName)个\(weekday.displayTitle)"
+                let ordinalNames = ["", String(localized: "第一"), String(localized: "第二"), String(localized: "第三"), String(localized: "第四"), String(localized: "第五")]
+                let ordinalName = monthWeekOrdinal < ordinalNames.count ? ordinalNames[Int(monthWeekOrdinal)] : String(localized: "第\(monthWeekOrdinal)")
+                let prefix = iv == 1 ? String(localized: "每月") : String(localized: "每隔 \(iv) 个月")
+                baseDescription = String(localized: "\(prefix)\(ordinalName)个\(weekday.displayTitle)")
             } else if monthDay > 0 {
-                let prefix = iv == 1 ? "每月" : "每隔 \(iv) 个月"
-                baseDescription = "\(prefix)\(monthDay)日"
+                let prefix = iv == 1 ? String(localized: "每月") : String(localized: "每隔 \(iv) 个月")
+                baseDescription = String(localized: "\(prefix)\(monthDay)日")
             } else {
-                baseDescription = iv == 1 ? "每月" : "每隔 \(iv) 个月"
+                baseDescription = iv == 1 ? String(localized: "每月") : String(localized: "每隔 \(iv) 个月")
             }
 
         case .yearly:
-            baseDescription = iv == 1 ? "每年" : "每隔 \(iv) 年"
+            baseDescription = iv == 1 ? String(localized: "每年") : String(localized: "每隔 \(iv) 年")
 
         case .custom:
             let weekdays = weekdaysArray
             if weekdays.isEmpty {
-                baseDescription = "自定义"
+                baseDescription = String(localized: "自定义")
             } else if isWeekdays {
-                baseDescription = "工作日"
+                baseDescription = String(localized: "工作日")
             } else {
                 let weekdayNames = weekdays.sorted(by: { $0.rawValue < $1.rawValue })
                     .map { $0.displayTitle }
                     .joined(separator: "、")
-                baseDescription = "每周\(weekdayNames)"
+                baseDescription = String(localized: "每周\(weekdayNames)")
             }
         }
 
         // 添加结束条件描述
         if let untilDate = untilDate {
             let formatter = DateFormatter()
-            formatter.dateFormat = "M月d日"
-            return "\(baseDescription)，直到\(formatter.string(from: untilDate))"
+            formatter.setLocalizedDateFormatFromTemplate("MMMd")
+            return String(localized: "\(baseDescription)，直到\(formatter.string(from: untilDate))")
         } else if untilCount > 0 {
-            return "\(baseDescription)，重复\(untilCount)次"
+            return String(localized: "\(baseDescription)，重复\(untilCount)次")
         }
 
         return baseDescription

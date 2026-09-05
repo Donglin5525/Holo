@@ -35,73 +35,73 @@ enum HoloPlusBenefits {
     static let all: [HoloPlusBenefit] = [
         .init(
             icon: "message.badge.waveform",
-            name: "HoloAI 对话",
-            freeValue: .text("15 次/天"),
-            plusValue: .text("30 次/天")
+            name: String(localized: "HoloAI 对话"),
+            freeValue: .text(String(localized: "15 次/天")),
+            plusValue: .text(String(localized: "30 次/天"))
         ),
         .init(
             icon: "brain.head.profile",
-            name: "深度洞察",
-            freeValue: .text("2 次/天"),
-            plusValue: .text("10 次/天")
+            name: String(localized: "深度洞察"),
+            freeValue: .text(String(localized: "2 次/天")),
+            plusValue: .text(String(localized: "10 次/天"))
         ),
         .init(
             icon: "waveform",
-            name: "语音识别",
-            freeValue: .text("20 次/天"),
-            plusValue: .text("50 次/天")
+            name: String(localized: "语音识别"),
+            freeValue: .text(String(localized: "20 次/天")),
+            plusValue: .text(String(localized: "50 次/天"))
         ),
         .init(
             icon: "timer",
-            name: "单条语音时长",
-            freeValue: .text("60 秒"),
-            plusValue: .text("5 分钟")
+            name: String(localized: "单条语音时长"),
+            freeValue: .text(String(localized: "60 秒")),
+            plusValue: .text(String(localized: "5 分钟"))
         ),
         .init(
             icon: "sparkles.rectangle.stack",
-            name: "智能记账",
-            freeValue: .text("20 次/天"),
-            plusValue: .text("50 次/天")
+            name: String(localized: "智能记账"),
+            freeValue: .text(String(localized: "20 次/天")),
+            plusValue: .text(String(localized: "50 次/天"))
         ),
         .init(
             icon: "checklist",
-            name: "智能任务",
-            freeValue: .text("20 次/天"),
-            plusValue: .text("50 次/天")
+            name: String(localized: "智能任务"),
+            freeValue: .text(String(localized: "20 次/天")),
+            plusValue: .text(String(localized: "50 次/天"))
         ),
         .init(
             icon: "calendar.badge.clock",
-            name: "每周生活计划",
-            freeValue: .text("1 次/周"),
-            plusValue: .text("2 次/周")
+            name: String(localized: "每周生活计划"),
+            freeValue: .text(String(localized: "1 次/周")),
+            plusValue: .text(String(localized: "2 次/周"))
         ),
         .init(
             icon: "memories",
-            name: "记忆洞察刷新",
-            freeValue: .text("1 次/周"),
-            plusValue: .text("1 次/天")
+            name: String(localized: "记忆洞察刷新"),
+            freeValue: .text(String(localized: "1 次/周")),
+            plusValue: .text(String(localized: "1 次/天"))
         ),
         .init(
             icon: "waveform.circle",
-            name: "语音启动小组件",
+            name: String(localized: "语音启动小组件"),
             freeValue: .feature(false),
             plusValue: .feature(true)
         ),
         .init(
             icon: "square.grid.2x2",
-            name: "快捷控制台小组件",
+            name: String(localized: "快捷控制台小组件"),
             freeValue: .feature(false),
             plusValue: .feature(true)
         ),
         .init(
             icon: "chart.bar.xaxis",
-            name: "财务小组件",
+            name: String(localized: "财务小组件"),
             freeValue: .feature(false),
             plusValue: .feature(true)
         ),
         .init(
             icon: "wand.and.stars",
-            name: "随机漫步小组件",
+            name: String(localized: "随机漫步小组件"),
             freeValue: .feature(false),
             plusValue: .feature(true)
         ),
@@ -147,7 +147,7 @@ struct HoloPlusBenefitComparisonTable: View {
                 .foregroundColor(.holoTextSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            tierHeader(title: "免费版", tier: .free)
+            tierHeader(title: String(localized: "免费版"), tier: .free)
                 .frame(width: 82)
 
             tierHeader(title: "Plus", tier: .plus)

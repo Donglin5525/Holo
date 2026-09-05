@@ -121,7 +121,7 @@ struct ThoughtsView: View {
                         .clipShape(Circle())
                         .shadow(color: Color.holoPrimary.opacity(0.35), radius: 12, x: 0, y: 6)
                 }
-                .accessibilityLabel("新增想法")
+                .accessibilityLabel(String(localized: "新增想法"))
                 .padding(.trailing, HoloSpacing.lg)
                 .padding(.bottom, HoloSpacing.xl)
             }

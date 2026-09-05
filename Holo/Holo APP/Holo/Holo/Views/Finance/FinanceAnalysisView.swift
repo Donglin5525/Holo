@@ -128,7 +128,7 @@ struct FinanceAnalysisView: View {
             }
         } label: {
             HStack(spacing: 3) {
-                Text(tab.rawValue)
+                Text(tab.displayName)
                 if tab == .category && !HoloEntitlementState.shared.isPlusActive {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 8))

@@ -67,35 +67,40 @@ final class FinanceCategoryCatalogProvider {
 }
 
 extension FinanceCategoryCatalogProvider {
+    /// 极简内置 catalog（后端不可用时的兜底）。
+    /// 科目名按固化种子语言取三语词表（这份数据会被拿去匹配用户库里的分类、
+    /// 匹配不上还会作为科目名落库展示，必须与库里的分类同语言）；
+    /// 别名是微信/支付宝简体账单的匹配数据，不是显示数据，三语用户都保持简体中文不翻译。
     static func fallbackCatalog() -> FinanceCategoryCatalog {
-        FinanceCategoryCatalog(
+        let language = SeedLanguage.seedLanguage
+        return FinanceCategoryCatalog(
             version: 0,
             expense: [
                 FinanceCategoryGroup(
-                    name: "餐饮",
+                    name: FinanceSeedVocabulary.dining.value(for: language),
                     children: [
-                        FinanceCategoryLeaf(name: "早餐", aliases: ["早饭", "早点"], tags: ["meal", "breakfast"]),
-                        FinanceCategoryLeaf(name: "午餐", aliases: ["午饭", "中饭"], tags: ["meal", "lunch"]),
-                        FinanceCategoryLeaf(name: "晚餐", aliases: ["晚饭"], tags: ["meal", "dinner"]),
-                        FinanceCategoryLeaf(name: "夜宵", aliases: ["宵夜"], tags: ["meal", "lateNight"])
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.breakfast.value(for: language), aliases: ["早饭", "早点"], tags: ["meal", "breakfast"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.lunch.value(for: language), aliases: ["午饭", "中饭"], tags: ["meal", "lunch"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.dinner.value(for: language), aliases: ["晚饭"], tags: ["meal", "dinner"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.lateNightSnack.value(for: language), aliases: ["宵夜"], tags: ["meal", "lateNight"])
                     ]
                 ),
                 FinanceCategoryGroup(
-                    name: "交通",
+                    name: FinanceSeedVocabulary.transportation.value(for: language),
                     children: [
-                        FinanceCategoryLeaf(name: "打车", aliases: ["出租车", "网约车", "滴滴"], tags: ["transport", "taxi"]),
-                        FinanceCategoryLeaf(name: "地铁", aliases: ["轨道交通"], tags: ["transport", "publicTransit"]),
-                        FinanceCategoryLeaf(name: "公交", aliases: ["巴士"], tags: ["transport", "publicTransit"])
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.taxi.value(for: language), aliases: ["出租车", "网约车", "滴滴"], tags: ["transport", "taxi"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.subway.value(for: language), aliases: ["轨道交通"], tags: ["transport", "publicTransit"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.bus.value(for: language), aliases: ["巴士"], tags: ["transport", "publicTransit"])
                     ]
                 )
             ],
             income: [
                 FinanceCategoryGroup(
-                    name: "工资收入",
+                    name: FinanceSeedVocabulary.salaryIncome.value(for: language),
                     children: [
-                        FinanceCategoryLeaf(name: "工资", aliases: ["薪水", "月薪", "发工资"], tags: ["income", "stableIncome"]),
-                        FinanceCategoryLeaf(name: "报销", aliases: ["公司报销"], tags: ["income", "reimbursement"]),
-                        FinanceCategoryLeaf(name: "退款", aliases: ["退钱"], tags: ["income", "refund"])
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.salary.value(for: language), aliases: ["薪水", "月薪", "发工资"], tags: ["income", "stableIncome"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.reimbursement.value(for: language), aliases: ["公司报销"], tags: ["income", "reimbursement"]),
+                        FinanceCategoryLeaf(name: FinanceSeedVocabulary.refund.value(for: language), aliases: ["退钱"], tags: ["income", "refund"])
                     ]
                 )
             ]

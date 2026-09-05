@@ -95,7 +95,7 @@ struct ReportFavoritesView: View {
                 .frame(height: 32)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("返回报告")
+            .accessibilityLabel(String(localized: "返回报告"))
 
             Spacer()
 

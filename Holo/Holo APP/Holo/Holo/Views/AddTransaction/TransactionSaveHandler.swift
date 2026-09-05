@@ -34,12 +34,12 @@ extension AddTransactionSheet {
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
-            signalSaveBlocked(reason: "请先输入金额")
+            signalSaveBlocked(reason: String(localized: "请先输入金额"))
             return
         }
 
         guard let category = selectedCategory, category.isSubCategory else {
-            signalSaveBlocked(reason: "请先选择具体分类")
+            signalSaveBlocked(reason: String(localized: "请先选择具体分类"))
             return
         }
 
@@ -170,7 +170,7 @@ extension AddTransactionSheet {
 
             } catch {
                 logger.error("保存失败：\(error.localizedDescription)")
-                HoloToastCenter.shared.show("保存失败，请重试", type: .error)
+                HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
             }
 
             isSaving = false
@@ -182,12 +182,12 @@ extension AddTransactionSheet {
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
-            await MainActor.run { signalSaveBlocked(reason: "请先输入金额") }
+            await MainActor.run { signalSaveBlocked(reason: String(localized: "请先输入金额")) }
             return
         }
 
         guard let category = selectedCategory, category.isSubCategory else {
-            await MainActor.run { signalSaveBlocked(reason: "请先选择具体分类") }
+            await MainActor.run { signalSaveBlocked(reason: String(localized: "请先选择具体分类")) }
             return
         }
 
@@ -323,7 +323,7 @@ extension AddTransactionSheet {
         } catch {
             logger.error("保存失败：\(error.localizedDescription)")
             await MainActor.run {
-                HoloToastCenter.shared.show("保存失败，请重试", type: .error)
+                HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
             }
         }
 
@@ -361,7 +361,7 @@ extension AddTransactionSheet {
               absoluteAmountString != "0",
               let category = selectedCategory,
               category.isSubCategory else {
-            signalSaveBlocked(reason: selectedCategory?.isSubCategory == true ? "请先输入金额" : "请先选择具体分类")
+            signalSaveBlocked(reason: selectedCategory?.isSubCategory == true ? String(localized: "请先输入金额") : String(localized: "请先选择具体分类"))
             return
         }
 

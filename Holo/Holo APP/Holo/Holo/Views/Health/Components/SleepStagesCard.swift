@@ -27,13 +27,13 @@ struct SleepStagesCard: View {
     private var secondaryStages: [StageItem] {
         var items: [StageItem] = []
         if let core = detail.coreHours {
-            items.append(StageItem(id: "core", name: "核心睡眠", hours: core, color: .holoChart7))
+            items.append(StageItem(id: "core", name: String(localized: "核心睡眠"), hours: core, color: .holoChart7))
         }
         if let rem = detail.remHours {
-            items.append(StageItem(id: "rem", name: "快速眼动", hours: rem, color: .holoChart8))
+            items.append(StageItem(id: "rem", name: String(localized: "快速眼动"), hours: rem, color: .holoChart8))
         }
         if let awake = detail.awakeHours {
-            items.append(StageItem(id: "awake", name: "清醒", hours: awake, color: .holoTextSecondary))
+            items.append(StageItem(id: "awake", name: String(localized: "清醒"), hours: awake, color: .holoTextSecondary))
         }
         return items
     }
@@ -139,9 +139,9 @@ struct SleepStagesCard: View {
     }
 
     private func proportionText(for hours: Double) -> String {
-        guard detail.totalHours > 0 else { return "占总睡眠 --" }
+        guard detail.totalHours > 0 else { return String(localized: "占总睡眠 --") }
         let percent = Int((hours / detail.totalHours * 100).rounded())
-        return "占总睡眠 \(percent)%"
+        return String(localized: "占总睡眠 \(percent)%")
     }
 
     /// 小时数格式化为中文时长，如 1小时23分 / 45分钟
@@ -150,12 +150,12 @@ struct SleepStagesCard: View {
         let hourPart = totalMinutes / 60
         let minutePart = totalMinutes % 60
         if hourPart > 0, minutePart > 0 {
-            return "\(hourPart)小时\(minutePart)分"
+            return String(localized: "\(hourPart)小时\(minutePart)分")
         }
         if hourPart > 0 {
-            return "\(hourPart)小时"
+            return String(localized: "\(hourPart)小时")
         }
-        return "\(minutePart)分钟"
+        return String(localized: "\(minutePart)分钟")
     }
 }
 

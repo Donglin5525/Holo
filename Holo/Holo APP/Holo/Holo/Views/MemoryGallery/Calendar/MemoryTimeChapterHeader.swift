@@ -90,7 +90,7 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
 
     private var filterMenu: some View {
         Menu {
-            filterButton(title: "全部记录", module: nil)
+            filterButton(title: String(localized: "全部记录"), module: nil)
             ForEach(CalendarModule.allCases) { module in
                 filterButton(title: module.displayName, module: module)
             }
@@ -98,7 +98,7 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
             HStack(spacing: 5) {
                 Image(systemName: "line.3.horizontal.decrease")
                     .font(.system(size: 10, weight: .semibold))
-                Text(moduleFilter?.displayName ?? "全部")
+                    Text(moduleFilter?.displayName ?? String(localized: "全部"))
                     .lineLimit(1)
             }
             .font(.system(size: 10, weight: .semibold))
@@ -112,7 +112,7 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
                     .stroke(Color.holoBorder.opacity(0.55), lineWidth: 1)
             )
         }
-        .accessibilityLabel("筛选，当前为\(moduleFilter?.displayName ?? "全部记录")")
+        .accessibilityLabel(String(localized: "筛选，当前为\(moduleFilter?.displayName ?? String(localized: "全部记录"))"))
     }
 
     private func filterButton(title: String, module: CalendarModule?) -> some View {

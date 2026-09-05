@@ -84,9 +84,9 @@ struct HealthPermissionView: View {
 
     private var permissionCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            permissionRow(icon: "figure.walk", title: "步数", description: "生成日间活动环")
-            permissionRow(icon: "bed.double.fill", title: "睡眠", description: "生成恢复状态和效率洞察")
-            permissionRow(icon: "figure.stand", title: "站立", description: "识别久坐和提醒节奏")
+            permissionRow(icon: "figure.walk", title: String(localized: "步数"), description: String(localized: "生成日间活动环"))
+            permissionRow(icon: "bed.double.fill", title: String(localized: "睡眠"), description: String(localized: "生成恢复状态和效率洞察"))
+            permissionRow(icon: "figure.stand", title: String(localized: "站立"), description: String(localized: "识别久坐和提醒节奏"))
         }
         .padding(HoloSpacing.md)
         .frame(width: permissionCardWidth, alignment: .leading)

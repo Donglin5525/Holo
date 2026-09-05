@@ -19,12 +19,12 @@ enum AccountType: String, CaseIterable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .cash: return "现金"
-        case .digital: return "数字钱包"
-        case .bank: return "储蓄卡"
-        case .card: return "储蓄卡"
-        case .creditCard: return "信用卡"
-        case .other: return "其他"
+        case .cash: return String(localized: "现金")
+        case .digital: return String(localized: "数字钱包")
+        case .bank: return String(localized: "储蓄卡")
+        case .card: return String(localized: "储蓄卡")
+        case .creditCard: return String(localized: "信用卡")
+        case .other: return String(localized: "其他")
         }
     }
 

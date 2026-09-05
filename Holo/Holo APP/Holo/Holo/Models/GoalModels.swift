@@ -16,9 +16,9 @@ enum GoalStatus: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .active: return "进行中"
-        case .paused: return "已暂停"
-        case .completed: return "已完成"
+        case .active: return String(localized: "进行中")
+        case .paused: return String(localized: "已暂停")
+        case .completed: return String(localized: "已完成")
         }
     }
 }
@@ -36,13 +36,13 @@ enum GoalDomain: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .learning: return "学习"
-        case .health: return "健康"
-        case .career: return "职业"
-        case .finance: return "财务"
-        case .life: return "生活"
-        case .project: return "项目"
-        case .other: return "其他"
+        case .learning: return String(localized: "学习")
+        case .health: return String(localized: "健康")
+        case .career: return String(localized: "职业")
+        case .finance: return String(localized: "财务")
+        case .life: return String(localized: "生活")
+        case .project: return String(localized: "项目")
+        case .other: return String(localized: "其他")
         }
     }
 
@@ -86,18 +86,18 @@ enum GoalKind: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .process: return "过程型"
-        case .cumulative: return "累积型"
-        case .target: return "达标型"
+        case .process: return String(localized: "过程型")
+        case .cumulative: return String(localized: "累积型")
+        case .target: return String(localized: "达标型")
         }
     }
 
     /// 选择器下方的解释文案
     var descriptor: String {
         switch self {
-        case .process: return "拆成任务和习惯，靠行动推进"
-        case .cumulative: return "从 0 累计到一个总量，如跑 300km"
-        case .target: return "让当前水平到达一个值，如减到 70kg"
+        case .process: return String(localized: "拆成任务和习惯，靠行动推进")
+        case .cumulative: return String(localized: "从 0 累计到一个总量，如跑 300km")
+        case .target: return String(localized: "让当前水平到达一个值，如减到 70kg")
         }
     }
 }
@@ -115,9 +115,9 @@ enum GoalMetricSource: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .manual: return "手动记录"
-        case .habit: return "数值习惯"
-        case .ledger: return "账本"
+        case .manual: return String(localized: "手动记录")
+        case .habit: return String(localized: "数值习惯")
+        case .ledger: return String(localized: "账本")
         }
     }
 
@@ -137,7 +137,7 @@ enum GoalPlanningMode: String, Codable, CaseIterable, Identifiable {
     case complete
 
     var id: String { rawValue }
-    var displayName: String { self == .concise ? "精简" : "完整" }
+    var displayName: String { self == .concise ? String(localized: "精简") : String(localized: "完整") }
 }
 
 enum GoalPlanningStatus: String, Codable, Equatable {
@@ -202,7 +202,7 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     var cardSummary: String {
         let taskCount = tasks.filter(\.isSelected).count
         let habitCount = habits.filter(\.isSelected).count
-        return "\(taskCount) 个任务 · \(habitCount) 个习惯"
+        return String(localized: "\(taskCount) 个任务 · \(habitCount) 个习惯")
     }
 }
 

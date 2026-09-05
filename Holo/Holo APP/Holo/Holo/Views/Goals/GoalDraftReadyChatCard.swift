@@ -20,11 +20,11 @@ struct GoalDraftReadyChatCard: View {
             ChatCardView {
                 CardHeaderView(
                     icon: "target",
-                    title: "目标计划已生成",
+                    title: String(localized: "目标计划已生成"),
                     subtitle: draft.title
                 )
 
-                HoloAIFactItem(kicker: "计划摘要", bodyText: draft.cardSummary)
+                HoloAIFactItem(kicker: String(localized: "计划摘要"), bodyText: draft.cardSummary)
 
                 HStack(spacing: 6) {
                     Text("点击查看详细计划")

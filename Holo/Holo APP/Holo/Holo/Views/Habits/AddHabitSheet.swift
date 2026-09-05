@@ -109,7 +109,7 @@ struct AddHabitSheet: View {
                 .padding(.vertical, HoloSpacing.sm)
             }
             .background(Color.holoBackground)
-            .navigationTitle(isEditing ? "编辑习惯" : "新增习惯")
+            .navigationTitle(isEditing ? String(localized: "编辑习惯") : String(localized: "新增习惯"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -491,11 +491,11 @@ struct AddHabitSheet: View {
     /// 习惯性质描述文案
     private var natureDescriptionText: String {
         if isBadHabit == true {
-            return "超过目标值时将以红色标记并提醒控制"
+            return String(localized: "超过目标值时将以红色标记并提醒控制")
         } else if isBadHabit == false {
-            return "培养积极的好习惯，目标达成时给予正向反馈"
+            return String(localized: "培养积极的好习惯，目标达成时给予正向反馈")
         } else {
-            return "选择后可启用对应的提醒策略"
+            return String(localized: "选择后可启用对应的提醒策略")
         }
     }
     
@@ -572,9 +572,15 @@ struct IconPickerSheet: View {
     @Binding var selectedIcon: String
 
     enum PickerTab: String, CaseIterable, Identifiable {
-        case classic = "经典"
+        case classic
         case emoji = "Emoji"
         var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .classic: String(localized: "经典")
+            case .emoji: "Emoji"
+            }
+        }
     }
 
     @State private var pickerTab: PickerTab
@@ -593,7 +599,7 @@ struct IconPickerSheet: View {
             VStack(spacing: 0) {
                 Picker("图标类型", selection: $pickerTab) {
                     ForEach(PickerTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab.displayName).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)

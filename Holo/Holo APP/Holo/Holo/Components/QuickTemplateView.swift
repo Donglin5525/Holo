@@ -24,18 +24,19 @@ struct QuickTemplateView: View {
     /// 所有分类（含一级和二级）
     @State private var categories: [Category] = []
     
-    /// 模板定义：每项通过分类名称匹配对应的二级子分类
-    private let templates: [(amount: Decimal, categoryName: String, type: TransactionType)] = [
-        (amount: 15,   categoryName: "早餐", type: .expense),
-        (amount: 30,   categoryName: "午餐", type: .expense),
-        (amount: 40,   categoryName: "晚餐", type: .expense),
-        (amount: 5,    categoryName: "地铁", type: .expense),
-        (amount: 25,   categoryName: "打车", type: .expense),
-        (amount: 100,  categoryName: "日用", type: .expense),
-        (amount: 200,  categoryName: "服饰", type: .expense),
-        (amount: 50,   categoryName: "电影", type: .expense),
-        (amount: 8000, categoryName: "工资", type: .income),
-        (amount: 1000, categoryName: "奖金", type: .income),
+    /// 模板定义：每项通过三语词条匹配用户库里的二级子分类（简/繁/英任一命中都算，
+    /// 用户分类是种子数据，语种取决于首启语言）
+    private let templates: [(amount: Decimal, categoryTerm: SeedTerm, type: TransactionType)] = [
+        (amount: 15,   categoryTerm: FinanceSeedVocabulary.breakfast, type: .expense),
+        (amount: 30,   categoryTerm: FinanceSeedVocabulary.lunch, type: .expense),
+        (amount: 40,   categoryTerm: FinanceSeedVocabulary.dinner, type: .expense),
+        (amount: 5,    categoryTerm: FinanceSeedVocabulary.subway, type: .expense),
+        (amount: 25,   categoryTerm: FinanceSeedVocabulary.taxi, type: .expense),
+        (amount: 100,  categoryTerm: FinanceSeedVocabulary.dailyNecessities, type: .expense),
+        (amount: 200,  categoryTerm: FinanceSeedVocabulary.clothing, type: .expense),
+        (amount: 50,   categoryTerm: FinanceSeedVocabulary.movies, type: .expense),
+        (amount: 8000, categoryTerm: FinanceSeedVocabulary.salary, type: .income),
+        (amount: 1000, categoryTerm: FinanceSeedVocabulary.bonus, type: .income),
     ]
     
     // MARK: - Body
@@ -66,7 +67,7 @@ struct QuickTemplateView: View {
                 ) {
                     ForEach(templates.indices, id: \.self) { index in
                         let template = templates[index]
-                        if let category = findCategory(named: template.categoryName, type: template.type) {
+                        if let category = findCategory(for: template.categoryTerm, type: template.type) {
                             QuickTemplateButton(
                                 amount: template.amount,
                                 category: category,
@@ -97,16 +98,17 @@ struct QuickTemplateView: View {
         }
     }
     
-    /// 按名称和类型查找二级子分类
+    /// 按词条三语取值和类型查找二级子分类
     /// 优先匹配二级分类，找不到时回退到一级分类，仍找不到返回 nil
-    private func findCategory(named name: String, type: TransactionType) -> Category? {
+    private func findCategory(for term: SeedTerm, type: TransactionType) -> Category? {
+        let names = term.allValues
         let subCategory = categories.first {
-            $0.name == name && $0.transactionType == type && $0.isSubCategory
+            names.contains($0.name) && $0.transactionType == type && $0.isSubCategory
         }
         if let found = subCategory { return found }
-        
+
         return categories.first {
-            $0.name == name && $0.transactionType == type
+            names.contains($0.name) && $0.transactionType == type
         }
     }
 }

@@ -109,7 +109,7 @@ struct TopicPickerView: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(showNewTopicInput ? "列表" : "新建") {
+                    Button(showNewTopicInput ? String(localized: "列表") : String(localized: "新建")) {
                         showNewTopicInput.toggle()
                         if !showNewTopicInput { newTopicTitle = "" }
                     }

@@ -63,9 +63,9 @@ enum SummaryError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .emptyResult:
-            return "总结结果为空"
+            return String(localized: "总结结果为空")
         case .timeout:
-            return "总结超时"
+            return String(localized: "总结超时")
         }
     }
 }

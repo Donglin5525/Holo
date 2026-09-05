@@ -137,8 +137,8 @@ final class BillDueReminderScheduler {
             comps.minute = time.minute
 
             let content = UNMutableNotificationContent()
-            content.title = "\(project.name.holoTruncated())\(Self.dueOffsetText(advance))到期"
-            content.body = "周期账单 \(Self.amountText(project.amountDecimal)) · \(Self.dueDateFormatter.string(from: dueDayStart))扣款，记得留足余额"
+            content.title = String(localized: "\(project.name.holoTruncated())\(Self.dueOffsetText(advance))到期")
+            content.body = String(localized: "周期账单 \(Self.amountText(project.amountDecimal)) · \(Self.dueDateFormatter.string(from: dueDayStart))扣款，记得留足余额")
             content.sound = .default
             content.categoryIdentifier = TodoNotificationCategory.billDue
 
@@ -165,10 +165,10 @@ final class BillDueReminderScheduler {
     /// 扣款日在提醒时刻的相对表述（提醒日 = 扣款日 − advance，故相对天数即 advance）
     private static func dueOffsetText(_ days: Int) -> String {
         switch days {
-        case 0: return "今天"
-        case 1: return "明天"
-        case 2: return "后天"
-        default: return "\(days)天后"
+        case 0: return String(localized: "今天")
+        case 1: return String(localized: "明天")
+        case 2: return String(localized: "后天")
+        default: return String(localized: "\(days)天后")
         }
     }
 

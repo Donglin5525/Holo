@@ -75,13 +75,13 @@ struct InsightFeedbackSheet: View {
 
             HStack(spacing: HoloSpacing.sm) {
                 feedbackChip(
-                    title: "准",
+                    title: String(localized: "准"),
                     icon: "checkmark.circle",
                     isSelected: accuracyRating == .accurate
                 ) { accuracyRating = .accurate }
 
                 feedbackChip(
-                    title: "不准",
+                    title: String(localized: "不准"),
                     icon: "xmark.circle",
                     isSelected: accuracyRating == .inaccurate
                 ) {
@@ -105,19 +105,19 @@ struct InsightFeedbackSheet: View {
 
             HStack(spacing: HoloSpacing.sm) {
                 feedbackChip(
-                    title: "有用",
+                    title: String(localized: "有用"),
                     icon: "hand.thumbsup",
                     isSelected: valueRating == .useful
                 ) { valueRating = .useful }
 
                 feedbackChip(
-                    title: "没感觉",
+                    title: String(localized: "没感觉"),
                     icon: "minus.circle",
                     isSelected: valueRating == .notMeaningful
                 ) { valueRating = .notMeaningful }
 
                 feedbackChip(
-                    title: "没用",
+                    title: String(localized: "没用"),
                     icon: "hand.thumbsdown",
                     isSelected: valueRating == .notUseful
                 ) { valueRating = .notUseful }
@@ -134,7 +134,7 @@ struct InsightFeedbackSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             feedbackChip(
-                title: "少提醒这个",
+                title: String(localized: "少提醒这个"),
                 icon: "bell.slash",
                 isSelected: reasonType == .tooFrequent
             ) {

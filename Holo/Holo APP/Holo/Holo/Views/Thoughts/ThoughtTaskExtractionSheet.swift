@@ -196,7 +196,7 @@ struct ThoughtTaskExtractionSheet: View {
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(row.isSelected ? "取消选择任务" : "选择任务")
+                        .accessibilityLabel(row.isSelected ? String(localized: "取消选择任务") : String(localized: "选择任务"))
 
                         TextField("任务内容", text: $row.text)
                             .font(.holoBody)
@@ -248,9 +248,9 @@ struct ThoughtTaskExtractionSheet: View {
     /// 顶部说明文案：根据来源（选中文字 / 整篇想法）动态显示
     private var hintText: String {
         if isFromSelection {
-            return "已选文字将创建为一个任务，可先修改标题，并设置日期、优先级等信息。"
+            return String(localized: "已选文字将创建为一个任务，可先修改标题，并设置日期、优先级等信息。")
         }
-        return "已自动识别列表内容并勾选，可逐行调整；下方任务设置将统一应用于本批任务。"
+        return String(localized: "已自动识别列表内容并勾选，可逐行调整；下方任务设置将统一应用于本批任务。")
     }
 
     /// 批量创建任务

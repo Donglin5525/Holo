@@ -99,9 +99,9 @@ private extension AnalysisCompactSummary {
 
     var primaryLabel: String {
         let parts = summaryLine.components(separatedBy: " · ")
-        guard let first = parts.first else { return "摘要" }
+        guard let first = parts.first else { return String(localized: "摘要") }
         let tokens = first.components(separatedBy: " ")
-        return tokens.first ?? "摘要"
+        return tokens.first ?? String(localized: "摘要")
     }
 
     var primaryValue: String {

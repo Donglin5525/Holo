@@ -44,7 +44,7 @@ struct ScheduleItem: Identifiable, Equatable {
         self.calendarIdentifier = event.calendar.calendarIdentifier
         self.calendarTitle = event.calendar.title
         self.calendarColor = Color(event.calendar.cgColor)
-        self.title = event.title ?? "未命名日程"
+        self.title = event.title ?? String(localized: "未命名日程")
         self.startDate = event.startDate
         self.endDate = event.endDate
         self.isAllDay = event.isAllDay

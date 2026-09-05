@@ -29,45 +29,45 @@ enum HealthDataSourceState: Equatable {
     var title: String {
         switch self {
         case .notRequested:
-            return "Apple Health 未连接"
+            return String(localized: "Apple Health 未连接")
         case .connected:
-            return "Apple Health 已连接"
+            return String(localized: "Apple Health 已连接")
         case .partiallyConnected:
-            return "Apple Health 部分连接"
+            return String(localized: "Apple Health 部分连接")
         case .denied:
-            return "无法访问健康数据"
+            return String(localized: "无法访问健康数据")
         case .unavailable:
-            return "此设备不支持 HealthKit"
+            return String(localized: "此设备不支持 HealthKit")
         }
     }
 
     var subtitle: String {
         switch self {
         case .notRequested:
-            return "授权后只读同步健康数据"
+            return String(localized: "授权后只读同步健康数据")
         case .connected:
-            return "只读同步 · 步数 / 睡眠 / 站立"
+            return String(localized: "只读同步 · 步数 / 睡眠 / 站立")
         case .partiallyConnected:
-            return "部分指标可用 · 点按前往设置补全权限"
+            return String(localized: "部分指标可用 · 点按前往设置补全权限")
         case .denied:
-            return "请在系统设置中允许 HOLO 读取健康数据"
+            return String(localized: "请在系统设置中允许 HOLO 读取健康数据")
         case .unavailable:
-            return "可继续使用其他 HOLO 模块"
+            return String(localized: "可继续使用其他 HOLO 模块")
         }
     }
 
     var badgeText: String {
         switch self {
         case .notRequested:
-            return "待授权"
+            return String(localized: "待授权")
         case .connected:
-            return "在线"
+            return String(localized: "在线")
         case .partiallyConnected:
-            return "部分"
+            return String(localized: "部分")
         case .denied:
-            return "关闭"
+            return String(localized: "关闭")
         case .unavailable:
-            return "不可用"
+            return String(localized: "不可用")
         }
     }
 
@@ -91,7 +91,7 @@ struct HealthMetricSnapshot: Identifiable, Equatable {
     var id: String { type.id }
 
     var title: String {
-        type.rawValue
+        type.displayName
     }
 
     var goal: Double {
@@ -123,11 +123,11 @@ struct HealthMetricSnapshot: Identifiable, Equatable {
     var targetText: String {
         switch type {
         case .steps:
-            return "目标 \(Int(goal).formatted())"
+            return String(localized: "目标 \(Int(goal).formatted())")
         case .sleep, .standHours:
-            return "目标 \(type.formatValue(goal))h"
+            return String(localized: "目标 \(type.formatValue(goal))h")
         case .activeMinutes:
-            return "目标 \(Int(goal)) 分钟"
+            return String(localized: "目标 \(Int(goal)) 分钟")
         }
     }
 
@@ -136,11 +136,11 @@ struct HealthMetricSnapshot: Identifiable, Equatable {
         case .available:
             return "\(progressPercent)%"
         case .unauthorized:
-            return "未授权"
+            return String(localized: "未授权")
         case .noData:
-            return "暂无数据"
+            return String(localized: "暂无数据")
         case .unsupported:
-            return "不可用"
+            return String(localized: "不可用")
         }
     }
 }
@@ -183,55 +183,55 @@ struct HealthDashboardSnapshot: Equatable {
     }
 
     var bodyScoreText: String {
-        bodyScore.map(String.init) ?? "数据不足"
+        bodyScore.map(String.init) ?? String(localized: "数据不足")
     }
 
     var statusTitle: String {
-        guard let score = bodyScore else { return "等待健康数据" }
-        if score >= 85 { return "状态很好" }
-        if score >= 70 { return "状态不错" }
-        if score >= 45 { return "身体需要一点照顾" }
-        return "先把节奏放慢一点"
+        guard let score = bodyScore else { return String(localized: "等待健康数据") }
+        if score >= 85 { return String(localized: "状态很好") }
+        if score >= 70 { return String(localized: "状态不错") }
+        if score >= 45 { return String(localized: "身体需要一点照顾") }
+        return String(localized: "先把节奏放慢一点")
     }
 
     var statusSubtitle: String {
         if bodyScore == nil {
-            return "授权或刷新 Apple Health 后，HOLO 会生成三环状态。"
+            return String(localized: "授权或刷新 Apple Health 后，HOLO 会生成三环状态。")
         }
         if standOrActivity.type == .activeMinutes {
-            return "已启用无 Watch 模式，用活动分钟替代站立环。"
+            return String(localized: "已启用无 Watch 模式，用活动分钟替代站立环。")
         }
-        return "睡眠恢复、日间活动和久坐打断共同构成身体状态。"
+        return String(localized: "睡眠恢复、日间活动和久坐打断共同构成身体状态。")
     }
 
     var ringBadgeText: String {
         let nearlyMet = metrics.filter { $0.progress >= 0.8 }.count
-        return "三环 \(nearlyMet)/3 接近达标"
+        return String(localized: "三环 \(nearlyMet)/3 接近达标")
     }
 
     var coreInsight: HealthInsight {
         if sleep.availability == .available && sleep.value >= 7.5 {
             return HealthInsight(
-                domain: "HOLO 洞察",
-                title: "今日核心洞察",
-                detail: "你睡眠接近目标时，第二天任务完成率通常更稳定。今晚优先保住睡眠环。",
+                domain: String(localized: "HOLO 洞察"),
+                title: String(localized: "今日核心洞察"),
+                detail: String(localized: "你睡眠接近目标时，第二天任务完成率通常更稳定。今晚优先保住睡眠环。"),
                 color: .holoPrimary
             )
         }
 
         if sleep.availability == .available && sleep.value < 6.5 {
             return HealthInsight(
-                domain: "HOLO 洞察",
-                title: "今日核心洞察",
-                detail: "昨晚睡眠偏低，今天适合减少高压力安排，并提前准备休息窗口。",
+                domain: String(localized: "HOLO 洞察"),
+                title: String(localized: "今日核心洞察"),
+                detail: String(localized: "昨晚睡眠偏低，今天适合减少高压力安排，并提前准备休息窗口。"),
                 color: .holoPrimary
             )
         }
 
         return HealthInsight(
-            domain: "HOLO 洞察",
-            title: "今日核心洞察",
-            detail: "健康数据正在积累。保持连续记录后，HOLO 会把身体状态和任务、习惯、记账串起来。",
+            domain: String(localized: "HOLO 洞察"),
+            title: String(localized: "今日核心洞察"),
+            detail: String(localized: "健康数据正在积累。保持连续记录后，HOLO 会把身体状态和任务、习惯、记账串起来。"),
             color: .holoPrimary
         )
     }

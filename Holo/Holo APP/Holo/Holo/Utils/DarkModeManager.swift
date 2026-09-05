@@ -20,9 +20,9 @@ enum DarkModeSetting: String, CaseIterable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .system: return "跟随系统"
-        case .light: return "浅色模式"
-        case .dark: return "深色模式"
+        case .system: return String(localized: "跟随系统")
+        case .light: return String(localized: "浅色模式")
+        case .dark: return String(localized: "深色模式")
         }
     }
 

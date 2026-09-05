@@ -31,15 +31,15 @@ struct PersonalMemorySettingsView: View {
 
     private var memoryControlsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionTitle("Holo 如何记住你", icon: "brain.head.profile")
+            sectionTitle(String(localized: "Holo 如何记住你"), icon: "brain.head.profile")
 
             VStack(spacing: 0) {
                 memoryToggleRow(
                     icon: "arrow.triangle.2.circlepath",
-                    title: "自动形成记忆",
+                    title: String(localized: "自动形成记忆"),
                     subtitle: memorySettings.automaticMemoryEnabled
-                        ? "从你的数据变化中整理值得记住的内容"
-                        : "关闭后不再形成新记忆",
+                        ? String(localized: "从你的数据变化中整理值得记住的内容")
+                        : String(localized: "关闭后不再形成新记忆"),
                     isOn: $memorySettings.automaticMemoryEnabled
                 )
 
@@ -48,10 +48,10 @@ struct PersonalMemorySettingsView: View {
 
                 memoryToggleRow(
                     icon: "text.bubble",
-                    title: "记忆辅助回答",
+                    title: String(localized: "记忆辅助回答"),
                     subtitle: memorySettings.memoryAssistedAnsweringEnabled
-                        ? "HoloAI 会结合已记住的信息理解你"
-                        : "关闭后回答不会读取已有记忆",
+                        ? String(localized: "HoloAI 会结合已记住的信息理解你")
+                        : String(localized: "关闭后回答不会读取已有记忆"),
                     isOn: $memorySettings.memoryAssistedAnsweringEnabled
                 )
             }
@@ -66,7 +66,7 @@ struct PersonalMemorySettingsView: View {
 
     private var memoryManagementSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionTitle("记忆内容", icon: "list.bullet.rectangle")
+            sectionTitle(String(localized: "记忆内容"), icon: "list.bullet.rectangle")
 
             Button(action: onOpenMemoryGallery) {
                 HStack(spacing: HoloSpacing.md) {

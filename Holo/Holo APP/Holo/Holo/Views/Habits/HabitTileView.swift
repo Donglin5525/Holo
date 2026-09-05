@@ -212,7 +212,7 @@ struct HabitTileView: View {
             parts.append(habit.habitFrequency.displayName)
         }
         if habit.isBadHabit, let target = habit.targetValueDouble {
-            parts.append("上限 \(habit.formatValue(target))\(habit.unitText)")
+            parts.append(String(localized: "上限 \(habit.formatValue(target))\(habit.unitText)"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -708,7 +708,7 @@ struct HabitTileView: View {
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
-                        Text(habit.unitText.isEmpty ? "输入数值" : "单位：\(habit.unitText)")
+                        Text(habit.unitText.isEmpty ? String(localized: "输入数值") : String(localized: "单位：\(habit.unitText)"))
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -908,7 +908,7 @@ struct HabitProgressHeader: View {
 
     private var subtitle: String {
         if total == 0 { return "" }
-        return isAllDone ? "完美的一天" : "还有 \(total - completed) 项待点亮"
+        return isAllDone ? String(localized: "完美的一天") : String(localized: "还有 \(total - completed) 项待点亮")
     }
 }
 

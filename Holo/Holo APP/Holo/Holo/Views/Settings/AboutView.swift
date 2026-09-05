@@ -17,7 +17,7 @@ struct AboutView: View {
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
-        return "版本 \(version) (\(build))"
+        return String(localized: "版本 \(version) (\(build))")
     }
 
     var body: some View {
@@ -95,7 +95,7 @@ struct AboutView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(copiedDeviceId ? "已复制" : "设备号")
+                    Text(copiedDeviceId ? String(localized: "已复制") : String(localized: "设备号"))
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
@@ -143,8 +143,8 @@ struct AboutView: View {
                 settingsRowContent(
                     icon: "shield.checkered",
                     iconColor: .holoPrimary,
-                    title: "隐私政策",
-                    subtitle: "了解我们如何保护你的数据"
+                    title: String(localized: "隐私政策"),
+                    subtitle: String(localized: "了解我们如何保护你的数据")
                 )
             }
 
@@ -154,8 +154,8 @@ struct AboutView: View {
                 settingsRowContent(
                     icon: "doc.text",
                     iconColor: .holoInfo,
-                    title: "用户协议",
-                    subtitle: "服务条款与使用规范"
+                    title: String(localized: "用户协议"),
+                    subtitle: String(localized: "服务条款与使用规范")
                 )
             }
         }

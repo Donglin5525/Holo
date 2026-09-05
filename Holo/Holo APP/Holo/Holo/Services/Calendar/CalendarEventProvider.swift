@@ -30,8 +30,8 @@ enum TodoTimeDimension: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .completed: return "已完成"
-        case .due:       return "到期"
+        case .completed: return String(localized: "已完成")
+        case .due:       return String(localized: "到期")
         }
     }
 }
@@ -88,7 +88,7 @@ struct CalendarEventProvider {
                 let categoryName = txn.category?.name ?? "未分类"
                 let note = txn.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let genericCategories = Set(["其他", "未分类"])
-                let fallbackTitle = txn.transactionType == .expense ? "一笔支出" : "一笔收入"
+                let fallbackTitle = txn.transactionType == .expense ? String(localized: "一笔支出") : String(localized: "一笔收入")
                 let title = note.isEmpty
                     ? (genericCategories.contains(categoryName) ? fallbackTitle : categoryName)
                     : note
@@ -118,7 +118,7 @@ struct CalendarEventProvider {
             return Partial(module: .finance, events: events, state: events.isEmpty ? .empty : .loaded)
         } catch {
             Self.logger.error("日历·记账加载失败：\(String(describing: error))")
-            return Partial(module: .finance, events: [], state: .failed(message: "记账加载失败"))
+            return Partial(module: .finance, events: [], state: .failed(message: String(localized: "记账加载失败")))
         }
     }
 
@@ -136,7 +136,7 @@ struct CalendarEventProvider {
                 let unit = habit.unit ?? ""
                 detail = unit.isEmpty ? "\(value)" : "\(value) \(unit)"
             } else if habit.isCheckInType {
-                detail = record.isCompleted ? "已完成" : "未完成"
+                detail = record.isCompleted ? String(localized: "已完成") : String(localized: "未完成")
             } else {
                 detail = nil
             }
@@ -177,7 +177,7 @@ struct CalendarEventProvider {
         do {
             let thoughts = try thoughtRepo.fetchThoughts(from: range.start, to: range.end)
             let events: [CalendarEvent] = thoughts.map { thought in
-                let title = thought.previewText.isEmpty ? "未命名想法" : thought.previewText
+                let title = thought.previewText.isEmpty ? String(localized: "未命名想法") : thought.previewText
                 // P3：经 Thought.topics 间接体现观点（取所有可见状态的观点标题）
                 let topics = (thought.topics as? Set<Topic> ?? [])
                     .filter(\.isVisibleTopic)
@@ -198,7 +198,7 @@ struct CalendarEventProvider {
             return Partial(module: .thought, events: events, state: events.isEmpty ? .empty : .loaded)
         } catch {
             Self.logger.error("日历·想法加载失败：\(String(describing: error))")
-            return Partial(module: .thought, events: [], state: .failed(message: "想法加载失败"))
+            return Partial(module: .thought, events: [], state: .failed(message: String(localized: "想法加载失败")))
         }
     }
 }

@@ -157,7 +157,7 @@ struct MemoryInsightCardView: View {
                 actionErrorMessage = nil
             }
         } message: {
-            Text(actionErrorMessage ?? "请稍后重试。")
+            Text(actionErrorMessage ?? String(localized: "请稍后重试。"))
         }
     }
 
@@ -236,15 +236,15 @@ struct MemoryInsightCardView: View {
     private func actionDescription(_ action: InsightActionCandidate) -> String {
         switch action.payload {
         case .taskDraft(let title, _, _):
-            return "将创建任务「\(title)」"
+            return String(localized: "将创建任务「\(title)」")
         case .reflectionQuestion(let question):
             return question
         case .budgetReminderDraft:
-            return "将设置消费提醒"
+            return String(localized: "将设置消费提醒")
         case .habitAdjustmentDraft:
-            return "将调整习惯设置"
+            return String(localized: "将调整习惯设置")
         case .checkInReminder:
-            return "将设置提醒"
+            return String(localized: "将设置提醒")
         case .noAction:
             return ""
         }
@@ -252,9 +252,9 @@ struct MemoryInsightCardView: View {
 
     private func actionConfirmationTitle(_ action: InsightActionCandidate) -> String {
         if case .reflectionQuestion = action.payload {
-            return "去 HoloAI 继续"
+            return String(localized: "去 HoloAI 继续")
         }
-        return "确认"
+        return String(localized: "确认")
     }
 
     private func executeAction(_ action: InsightActionCandidate) {
@@ -269,7 +269,7 @@ struct MemoryInsightCardView: View {
                     actionExecuted: true
                 )
             } else {
-                actionErrorMessage = "任务没有创建成功，已保留当前页面，请稍后重试。"
+                actionErrorMessage = String(localized: "任务没有创建成功，已保留当前页面，请稍后重试。")
             }
         case .reflectionQuestion:
             if let prompt = MemoryInsightActionPromptBuilder.chatPrefill(for: action, card: card) {

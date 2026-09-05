@@ -123,7 +123,7 @@ enum TodoPostponeError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingTargetDate:
-            return "延期目标时间缺失"
+            return String(localized: "延期目标时间缺失")
         }
     }
 }

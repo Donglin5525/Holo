@@ -37,8 +37,8 @@ struct ActualDurationSheet: View {
 
     static func durationText(_ minutes: Int) -> String {
         minutes >= 60
-            ? minutes % 60 == 0 ? "\(minutes / 60) 小时" : String(format: "%.1f 小时", Double(minutes) / 60)
-            : "\(minutes) 分钟"
+            ? minutes % 60 == 0 ? String(localized: "\(minutes / 60) 小时") : String(format: String(localized: "%.1f 小时"), Double(minutes) / 60)
+            : String(localized: "\(minutes) 分钟")
     }
 
     var body: some View {

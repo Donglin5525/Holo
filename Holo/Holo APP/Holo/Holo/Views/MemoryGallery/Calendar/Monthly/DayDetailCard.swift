@@ -54,7 +54,7 @@ struct DayDetailCard: View {
                     .font(.system(size: 18, weight: .semibold, design: .serif))
                     .foregroundColor(.holoTextPrimary)
 
-                Text(moments.isEmpty ? "这一天很安静" : "\(moments.count) 个记忆时刻")
+                Text(moments.isEmpty ? String(localized: "这一天很安静") : String(localized: "\(moments.count) 个记忆时刻"))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
             }
@@ -80,7 +80,7 @@ struct DayDetailCard: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("切换到日视图，从这一天开始连续回看")
+                .accessibilityHint(String(localized: "切换到日视图，从这一天开始连续回看"))
             }
         }
         .padding(.bottom, HoloSpacing.sm)
@@ -109,21 +109,19 @@ struct DayDetailCard: View {
     }
 
     private var headerDateText: String {
-        if Calendar.current.isDateInToday(day) { return "今天 · \(Self.weekdayFormatter.string(from: day))" }
+        if Calendar.current.isDateInToday(day) { return String(localized: "今天 · \(Self.weekdayFormatter.string(from: day))") }
         return Self.dateFormatter.string(from: day)
     }
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 · EEEE"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         return formatter
     }()
 
     private static let weekdayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "EEEE"
+        formatter.setLocalizedDateFormatFromTemplate("EEEE")
         return formatter
     }()
 }

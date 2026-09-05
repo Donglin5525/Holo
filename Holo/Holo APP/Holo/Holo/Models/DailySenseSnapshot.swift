@@ -20,10 +20,10 @@ enum SenseDimension: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .task: return "待办"
-        case .habit: return "习惯"
-        case .expense: return "消费"
-        case .health: return "健康"
+        case .task: return String(localized: "待办")
+        case .habit: return String(localized: "习惯")
+        case .expense: return String(localized: "消费")
+        case .health: return String(localized: "健康")
         }
     }
 }
@@ -58,15 +58,15 @@ enum DailySenseTag: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .highPressure: return "信号偏紧"
-        case .newStage: return "出现新阶段"
+        case .highPressure: return String(localized: "信号偏紧")
+        case .newStage: return String(localized: "出现新阶段")
         }
     }
 
     var safeSummary: String {
         switch self {
-        case .highPressure: return "这几个信号像是一起偏紧，先不用过度解读。"
-        case .newStage: return "最近有一个值得单独留意的新阶段。"
+        case .highPressure: return String(localized: "这几个信号像是一起偏紧，先不用过度解读。")
+        case .newStage: return String(localized: "最近有一个值得单独留意的新阶段。")
         }
     }
 }
@@ -157,9 +157,9 @@ struct DailySenseSnapshot: Codable, Equatable {
     /// 状态标题
     var stateTitle: String {
         switch state {
-        case .stable: return "节奏不错"
-        case .atRisk: return "节奏有点乱"
-        case .recovering: return "节奏在找回"
+        case .stable: return String(localized: "节奏不错")
+        case .atRisk: return String(localized: "节奏有点乱")
+        case .recovering: return String(localized: "节奏在找回")
         }
     }
 }

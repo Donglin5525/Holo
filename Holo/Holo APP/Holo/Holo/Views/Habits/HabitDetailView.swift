@@ -410,8 +410,8 @@ struct HabitDetailView: View {
                             .foregroundColor(.holoTextPrimary)
 
                         Text(missed.count == 1
-                             ? "\(missedDayText(missed[0])) · 补上可恢复连续打卡"
-                             : "最早 \(missedDayText(missed[0])) · 补上可恢复连续打卡")
+                             ? String(localized: "\(missedDayText(missed[0])) · 补上可恢复连续打卡")
+                             : String(localized: "最早 \(missedDayText(missed[0])) · 补上可恢复连续打卡"))
                             .font(.system(size: 11))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -438,10 +438,8 @@ struct HabitDetailView: View {
 
     private func missedDayText(_ day: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
-        let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
-        let weekday = weekdays[Calendar.current.component(.weekday, from: day) - 1]
-        return "\(formatter.string(from: day))（周\(weekday)）"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
+        return formatter.string(from: day)
     }
     
     // MARK: - 时间范围选择器
@@ -473,7 +471,7 @@ struct HabitDetailView: View {
         if let selectedRange {
             return selectedRange.displayName
         }
-        return "自定义周期"
+        return String(localized: "自定义周期")
     }
 
     private var customRangeText: String {
@@ -494,7 +492,7 @@ struct HabitDetailView: View {
                     }
                 }
 
-                rangeButton(title: "自定义", isSelected: selectedRange == nil) {
+                rangeButton(title: String(localized: "自定义"), isSelected: selectedRange == nil) {
                     showCustomRangeSheet = true
                 }
             }
@@ -559,7 +557,7 @@ struct HabitDetailView: View {
         HStack(spacing: 0) {
             statItem(
                 value: "\(snapshot.streak.value)",
-                label: "连续\(snapshot.streak.unit.rawValue)",
+                label: String(localized: "连续\(snapshot.streak.unit.displayName)"),
                 icon: "flame.fill",
                 color: .holoPrimary
             )
@@ -568,7 +566,7 @@ struct HabitDetailView: View {
             
             statItem(
                 value: "\(snapshot.completedCount)",
-                label: "\(selectedRangeLabel)完成",
+                label: String(localized: "\(selectedRangeLabel)完成"),
                 icon: "checkmark.circle.fill",
                 color: .holoSuccess
             )
@@ -577,7 +575,7 @@ struct HabitDetailView: View {
             
             statItem(
                 value: String(format: "%.0f%%", snapshot.completionRate),
-                label: "完成率",
+                label: String(localized: "完成率"),
                 icon: "chart.pie.fill",
                 color: .holoInfo
             )
@@ -594,21 +592,21 @@ struct HabitDetailView: View {
                 HStack(spacing: 0) {
                     statItem(
                         value: formatValue(stats.total),
-                        label: "总计",
+                        label: String(localized: "总计"),
                         icon: "sum",
                         color: snapshot.habitColor
                     )
                     Divider().frame(height: 40)
                     statItem(
                         value: formatValue(stats.average),
-                        label: "日均",
+                        label: String(localized: "日均"),
                         icon: "divide",
                         color: .holoInfo
                     )
                     Divider().frame(height: 40)
                     statItem(
                         value: formatValue(stats.max),
-                        label: "峰值",
+                        label: String(localized: "峰值"),
                         icon: "arrow.up",
                         color: .holoPrimary
                     )
@@ -618,14 +616,14 @@ struct HabitDetailView: View {
                     if let change = stats.change {
                         statItem(
                             value: (change >= 0 ? "+" : "") + formatValue(change),
-                            label: "变化",
+                            label: String(localized: "变化"),
                             icon: change >= 0 ? "arrow.up.right" : "arrow.down.right",
                             color: change >= 0 ? .holoSuccess : .holoError
                         )
                     } else {
                         statItem(
                             value: "-",
-                            label: "变化",
+                            label: String(localized: "变化"),
                             icon: "minus",
                             color: .holoTextSecondary
                         )
@@ -633,14 +631,14 @@ struct HabitDetailView: View {
                     Divider().frame(height: 40)
                     statItem(
                         value: stats.count > 0 ? formatValue(stats.min) : "-",
-                        label: "最低",
+                        label: String(localized: "最低"),
                         icon: "arrow.down",
                         color: .holoInfo
                     )
                     Divider().frame(height: 40)
                     statItem(
                         value: stats.count > 0 ? formatValue(stats.max) : "-",
-                        label: "最高",
+                        label: String(localized: "最高"),
                         icon: "arrow.up",
                         color: .holoPrimary
                     )
@@ -878,7 +876,7 @@ struct HabitDetailView: View {
     /// 补签记录的目标日文本（date 归一到当天零点）
     private func retroDayText(_ record: HabitRecord) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter.string(from: record.date)
     }
     
@@ -992,10 +990,11 @@ private struct HabitCustomDateRangeSheet: View {
         let start = min(startDate, endDate)
         let end = max(startDate, endDate)
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = calendar.component(.year, from: start) == calendar.component(.year, from: end)
-            ? "M月d日"
-            : "yyyy年M月d日"
+        formatter.setLocalizedDateFormatFromTemplate(
+            calendar.component(.year, from: start) == calendar.component(.year, from: end)
+            ? "MMMd"
+            : "yMMMd"
+        )
         return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
     }
 }

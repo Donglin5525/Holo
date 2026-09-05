@@ -25,16 +25,16 @@ enum ReportScenarioTag: String, CaseIterable, Sendable {
     /// 筛选行与徽标共用短名
     var label: String {
         switch self {
-        case .crossDomain: return "跨域"
-        case .finance: return "财务"
-        case .habit: return "习惯"
-        case .health: return "健康"
-        case .task: return "任务"
-        case .thought: return "想法"
-        case .goal: return "目标"
-        case .longTermPattern: return "长期"
-        case .replay: return "回放"
-        case .general: return "其他"
+        case .crossDomain: return String(localized: "跨域")
+        case .finance: return String(localized: "财务")
+        case .habit: return String(localized: "习惯")
+        case .health: return String(localized: "健康")
+        case .task: return String(localized: "任务")
+        case .thought: return String(localized: "想法")
+        case .goal: return String(localized: "目标")
+        case .longTermPattern: return String(localized: "长期")
+        case .replay: return String(localized: "回放")
+        case .general: return String(localized: "其他")
         }
     }
 

@@ -66,7 +66,7 @@ struct FinanceSettingsView: View {
 
                         VStack(spacing: 0) {
                             FinanceDisplayToggleRow(
-                                title: "本月支出",
+                                title: String(localized: "本月支出"),
                                 icon: "arrow.down.right",
                                 iconColor: .holoError,
                                 isOn: $displaySettings.showMonthlyExpense
@@ -75,7 +75,7 @@ struct FinanceSettingsView: View {
                             Divider().padding(.leading, 60)
 
                             FinanceDisplayToggleRow(
-                                title: "本月收入",
+                                title: String(localized: "本月收入"),
                                 icon: "arrow.up.right",
                                 iconColor: .holoSuccess,
                                 isOn: $displaySettings.showMonthlyIncome
@@ -289,10 +289,10 @@ private extension FinanceSettingsView {
     /// 起始日的文字说明
     private var cycleDescription: String {
         if periodSettings.isNaturalMonth {
-            return "当前按自然月（1 号到月底）统计"
+            return String(localized: "当前按自然月（1 号到月底）统计")
         }
         let day = periodSettings.billingCycleStartDay
-        return "统计按 \(day) 号 → 次月 \(day - 1) 号计算，与信用卡账单对齐"
+        return String(localized: "统计按 \(day) 号 → 次月 \(day - 1) 号计算，与信用卡账单对齐")
     }
 }
 

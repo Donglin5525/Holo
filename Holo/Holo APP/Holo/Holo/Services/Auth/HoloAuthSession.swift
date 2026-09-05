@@ -19,6 +19,6 @@ struct HoloAuthSession: Codable, Equatable {
 
     var displayName: String {
         let trimmedName = fullName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmedName.isEmpty ? "Apple 用户" : trimmedName
+        return trimmedName.isEmpty ? String(localized: "Apple 用户") : trimmedName
     }
 }

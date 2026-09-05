@@ -79,7 +79,7 @@ struct TopicDetailView: View {
                 .padding(.top, HoloSpacing.sm)
             }
             .background(Color.holoBackground)
-            .navigationTitle(topic?.title ?? "主题")
+            .navigationTitle(topic?.title ?? String(localized: "主题"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -206,7 +206,7 @@ struct TopicDetailView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 HoloFilterChip(
-                    title: "全部 \(thoughts.count)",
+                    title: String(localized: "全部 \(thoughts.count)"),
                     isSelected: selectedKeywordKey == nil
                 ) {
                     selectedKeywordKey = nil
@@ -249,7 +249,7 @@ struct TopicDetailView: View {
                     Image(systemName: "lightbulb")
                         .font(.system(size: 36, weight: .light))
                         .foregroundColor(.holoTextSecondary.opacity(0.4))
-                    Text(selectedKeywordKey == nil ? "这个主题下还没有想法" : "这个关键词下暂无想法")
+                    Text(selectedKeywordKey == nil ? String(localized: "这个主题下还没有想法") : String(localized: "这个关键词下暂无想法"))
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
                 }
@@ -299,7 +299,7 @@ struct TopicDetailView: View {
             HapticManager.light()
             Task { await loadData() }
         } catch {
-            HoloToastCenter.shared.show("图标保存失败", type: .error)
+            HoloToastCenter.shared.show(String(localized: "图标保存失败"), type: .error)
         }
     }
 
@@ -314,7 +314,7 @@ struct TopicDetailView: View {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             Task { await loadData() }
         } catch {
-            HoloToastCenter.shared.show("重命名失败", type: .error)
+            HoloToastCenter.shared.show(String(localized: "重命名失败"), type: .error)
         }
     }
 
@@ -328,7 +328,7 @@ struct TopicDetailView: View {
             dismiss()
             onTopicDeleted?()
         } catch {
-            HoloToastCenter.shared.show("删除主题失败", type: .error)
+            HoloToastCenter.shared.show(String(localized: "删除主题失败"), type: .error)
         }
     }
 
@@ -347,12 +347,12 @@ struct TopicDetailView: View {
             if ThoughtTagNormalizer.key(selectedKeywordKey ?? "") == ThoughtTagNormalizer.key(target.tagName) {
                 selectedKeywordKey = nil
             }
-            actionNotice = outcome == .merged ? "已合并到 #\(ThoughtTagNormalizer.lastSegment(newName))" : "已重命名"
+            actionNotice = outcome == .merged ? String(localized: "已合并到 #\(ThoughtTagNormalizer.lastSegment(newName))") : String(localized: "已重命名")
             HapticManager.light()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             Task { await loadData() }
         } catch {
-            actionNotice = (error as? ThoughtError)?.errorDescription ?? "重命名失败"
+            actionNotice = (error as? ThoughtError)?.errorDescription ?? String(localized: "重命名失败")
         }
     }
 
@@ -363,12 +363,12 @@ struct TopicDetailView: View {
             if ThoughtTagNormalizer.key(selectedKeywordKey ?? "") == ThoughtTagNormalizer.key(target.tagName) {
                 selectedKeywordKey = nil
             }
-            actionNotice = "已从 \(result.removedAssignmentCount) 条想法移除"
+            actionNotice = String(localized: "已从 \(result.removedAssignmentCount) 条想法移除")
             HapticManager.light()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             Task { await loadData() }
         } else {
-            actionNotice = "删除失败"
+            actionNotice = String(localized: "删除失败")
         }
     }
 

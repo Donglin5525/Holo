@@ -14,7 +14,7 @@ struct MemoryHeatmapView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
+    private let weekdays = [String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六"), String(localized: "日")]
     private let cellSize: CGFloat = 16
     private let cellSpacing: CGFloat = 3
     private let hitSize: CGFloat = 22
@@ -148,7 +148,7 @@ struct MemoryHeatmapView: View {
     private func monthLabel(for weekStart: Date, index: Int) -> String {
         let calendar = Calendar.current
         if index == 0 || calendar.component(.month, from: weekStart) != calendar.component(.month, from: weekStarts[index - 1]) {
-            return "\(calendar.component(.month, from: weekStart))月"
+            return String(localized: "\(calendar.component(.month, from: weekStart))月")
         }
         return ""
     }

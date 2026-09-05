@@ -166,8 +166,10 @@ extension FinanceRepository {
             return legacy
         }
 
-        // 找到对应的父分类
-        let parentName = type == .expense ? "其他" : "其他收入"
+        // 找到对应的父分类（与种子同一词表、同一固化种子语言，保证查重命中）
+        let parentName = type == .expense
+            ? FinanceSeedVocabulary.other.value(for: .seedLanguage)
+            : FinanceSeedVocabulary.otherIncome.value(for: .seedLanguage)
         let parentRequest = Category.fetchRequest()
         parentRequest.predicate = NSPredicate(
             format: "name == %@ AND type == %@ AND parentId == nil",

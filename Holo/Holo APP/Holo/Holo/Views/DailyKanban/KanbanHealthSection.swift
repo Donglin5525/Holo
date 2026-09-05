@@ -133,7 +133,7 @@ struct KanbanHealthSection: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(
                     availability == .available
-                        ? "昨晚睡眠 \(String(format: "%.1f", healthRepo.todaySleep)) 小时"
+                        ? String(localized: "昨晚睡眠 \(String(format: "%.1f", healthRepo.todaySleep)) 小时")
                         : sleepUnavailableTitle(availability)
                 )
                     .font(.system(size: 13, weight: .medium))
@@ -162,9 +162,9 @@ struct KanbanHealthSection: View {
 
     private var sleepQualityLabel: String {
         let hours = healthRepo.todaySleep
-        if hours >= 7 { return "良好" }
-        if hours >= 6 { return "一般" }
-        return "不足"
+        if hours >= 7 { return String(localized: "良好") }
+        if hours >= 6 { return String(localized: "一般") }
+        return String(localized: "不足")
     }
 
     private var sleepQualityColor: Color {
@@ -190,11 +190,11 @@ struct KanbanHealthSection: View {
         case .available:
             return fallback
         case .unauthorized:
-            return "未授权"
+            return String(localized: "未授权")
         case .noData:
-            return "暂无数据"
+            return String(localized: "暂无数据")
         case .unsupported:
-            return "暂不支持"
+            return String(localized: "暂不支持")
         }
     }
 
@@ -203,11 +203,11 @@ struct KanbanHealthSection: View {
         case .available:
             return ""
         case .unauthorized:
-            return "尚未授权睡眠数据"
+            return String(localized: "尚未授权睡眠数据")
         case .noData:
-            return "昨晚暂无睡眠数据"
+            return String(localized: "昨晚暂无睡眠数据")
         case .unsupported:
-            return "当前设备不支持睡眠数据"
+            return String(localized: "当前设备不支持睡眠数据")
         }
     }
 }

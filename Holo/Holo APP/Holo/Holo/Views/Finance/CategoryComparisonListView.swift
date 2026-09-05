@@ -84,17 +84,17 @@ struct CategoryComparisonListView: View {
             Button {
                 sortOrder = .diffDescending
             } label: {
-                sortMenuLabel("按差额", isSelected: sortOrder == .diffDescending)
+                sortMenuLabel(String(localized: "按差额"), isSelected: sortOrder == .diffDescending)
             }
             Button {
                 sortOrder = .amountDescending
             } label: {
-                sortMenuLabel("金额从高到低", isSelected: sortOrder == .amountDescending)
+                sortMenuLabel(String(localized: "金额从高到低"), isSelected: sortOrder == .amountDescending)
             }
             Button {
                 sortOrder = .amountAscending
             } label: {
-                sortMenuLabel("金额从低到高", isSelected: sortOrder == .amountAscending)
+                sortMenuLabel(String(localized: "金额从低到高"), isSelected: sortOrder == .amountAscending)
             }
         } label: {
             HStack(spacing: 3) {
@@ -110,14 +110,14 @@ struct CategoryComparisonListView: View {
             .background(Color.holoPrimary.opacity(0.12))
             .clipShape(Capsule())
         }
-        .accessibilityLabel("切换科目排序方式")
+        .accessibilityLabel(String(localized: "切换科目排序方式"))
     }
 
     private var sortMenuTitle: String {
         switch sortOrder {
-        case .diffDescending: return "按差额"
-        case .amountDescending: return "金额↓"
-        case .amountAscending: return "金额↑"
+        case .diffDescending: return String(localized: "按差额")
+        case .amountDescending: return String(localized: "金额↓")
+        case .amountAscending: return String(localized: "金额↑")
         }
     }
 
@@ -164,11 +164,11 @@ struct CategoryComparisonListView: View {
     }
 
     private func diffSummaryText(_ diff: Decimal) -> String {
-        let verb = diff > 0 ? "多支出" : "少支出"
+        let verb = diff > 0 ? String(localized: "多支出") : String(localized: "少支出")
         let percentage = baselineTotal > 0
             ? "（\(String(format: "%+.1f%%", NSDecimalNumber(decimal: diff / baselineTotal * 100).doubleValue))）"
             : ""
-        return "比对比期\(verb) \(currency(abs(diff)))\(percentage)"
+        return String(localized: "比对比期\(verb) \(currency(abs(diff)))\(percentage)")
     }
 
     // MARK: - 列头
@@ -266,7 +266,7 @@ struct CategoryComparisonListView: View {
 
     private func diffPill(diff: Decimal, isNew: Bool) -> some View {
         let color = diffColor(diff)
-        return Text(isNew ? "新增" : diffText(diff))
+        return Text(isNew ? String(localized: "新增") : diffText(diff))
             .font(.holoTinyLabel)
             .foregroundColor(color)
             .lineLimit(1)

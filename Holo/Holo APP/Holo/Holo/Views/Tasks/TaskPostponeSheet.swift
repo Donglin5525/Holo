@@ -66,11 +66,11 @@ struct TaskPostponeSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     if !delayOptions.isEmpty {
-                        sectionLabel("今天内顺延")
+                        sectionLabel(String(localized: "今天内顺延"))
                         optionGrid(delayOptions)
                     }
 
-                    sectionLabel(delayOptions.isEmpty ? "延期到" : "推到另一天")
+                    sectionLabel(delayOptions.isEmpty ? String(localized: "延期到") : String(localized: "推到另一天"))
                     optionGrid(anotherDayOptions)
 
                     customSection
@@ -180,7 +180,7 @@ struct TaskPostponeSheet: View {
                 HapticManager.selection()
                 let customOption = TaskPostponeOption(
                     id: "custom-applied",
-                    label: "自定义",
+                    label: String(localized: "自定义"),
                     subLabel: "",
                     targetDate: customDate,
                     isAllDay: isAllDay,
@@ -225,8 +225,8 @@ struct TaskPostponeSheet: View {
                 .foregroundColor(.holoPrimary)
 
             Text(isAllDay
-                 ? "全天任务延期后仍是全天；已设置的提醒会自动跟随新日期。"
-                 : "跨天延期保留原时刻；提醒是「截止前 N 分钟」，会自动跟随。")
+                 ? String(localized: "全天任务延期后仍是全天；已设置的提醒会自动跟随新日期。")
+                 : String(localized: "跨天延期保留原时刻；提醒是「截止前 N 分钟」，会自动跟随。"))
                 .font(.system(size: 11))
                 .foregroundColor(.holoTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -245,11 +245,11 @@ struct TaskPostponeSheet: View {
     private var currentDueTag: some View {
         let calendar = Calendar.current
         if isOverdue {
-            tag("过期", color: .holoError)
+            tag(String(localized: "过期"), color: .holoError)
         } else if dueDate.map({ calendar.isDateInToday($0) }) == true {
-            tag(isAllDay ? "今天" : "今天 \(timeText(dueDate))", color: .holoPrimaryDark)
+            tag(isAllDay ? String(localized: "今天") : String(localized: "今天 \(timeText(dueDate))"), color: .holoPrimaryDark)
         } else if dueDate.map({ calendar.isDateInTomorrow($0) }) == true {
-            tag(isAllDay ? "明天" : "明天 \(timeText(dueDate))", color: Color(red: 0.23, green: 0.37, blue: 0.84))
+            tag(isAllDay ? String(localized: "明天") : String(localized: "明天 \(timeText(dueDate))"), color: Color(red: 0.23, green: 0.37, blue: 0.84))
         } else {
             tag(farDueText, color: .holoTextSecondary)
         }
@@ -259,8 +259,7 @@ struct TaskPostponeSheet: View {
     private var farDueText: String {
         guard let due = dueDate else { return "" }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = isAllDay ? "M月d日" : "M月d日 HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate(isAllDay ? "MMMd" : "MMMdHHmm")
         return formatter.string(from: due)
     }
 

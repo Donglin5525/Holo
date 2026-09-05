@@ -171,12 +171,12 @@ struct AddTransactionView: View {
             let amountValue = Decimal(string: amount) ?? 0
             
             guard let category = selectedCategory else {
-                errorMessage = "请选择分类"
+                errorMessage = String(localized: "请选择分类")
                 isSaving = false
                 return
             }
             guard let account = selectedAccount else {
-                errorMessage = "请选择账户"
+                errorMessage = String(localized: "请选择账户")
                 isSaving = false
                 return
             }
@@ -247,15 +247,13 @@ struct DatePickerRow: View {
                     displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
-                .environment(\.locale, Locale(identifier: "zh_CN"))
             }
         }
     }
 
     private var formattedDate: String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "yyyy年M月d日"
+        f.setLocalizedDateFormatFromTemplate("yMMMd")
         return f.string(from: date)
     }
 }

@@ -189,8 +189,7 @@ final class SuggestionPanelViewModel: ObservableObject {
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdHHmm")
         return formatter
     }()
 }

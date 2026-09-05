@@ -45,7 +45,7 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         textView.inputAssistantItem.leadingBarButtonGroups = []
         textView.inputAssistantItem.trailingBarButtonGroups = []
         textView.attributedText = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
-        textView.accessibilityLabel = "想法内容"
+        textView.accessibilityLabel = String(localized: "想法内容")
         textView.accessibilityValue = MarkdownTextView.accessibilityText(from: nodes)
         textView.accessibilityCustomActions = allowsTokenInteraction
             ? context.coordinator.accessibilityActions(for: nodes)
@@ -90,7 +90,7 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
 
         let rendered = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
         textView.attributedText = rendered
-        textView.accessibilityLabel = "想法内容"
+        textView.accessibilityLabel = String(localized: "想法内容")
         textView.accessibilityValue = MarkdownTextView.accessibilityText(from: nodes)
         textView.accessibilityCustomActions = allowsTokenInteraction
             ? context.coordinator.accessibilityActions(for: nodes)
@@ -173,11 +173,11 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
                 let name: String
                 switch node {
                 case .tag(_, let displayPath):
-                    name = "筛选标签 #\(displayPath)"
+                    name = String(localized: "筛选标签 #\(displayPath)")
                 case .reference(_, let displayText, _):
-                    name = "打开引用 @\(displayText)"
+                    name = String(localized: "打开引用 @\(displayText)")
                 case .taskMark(_, _, let displayText, _):
-                    name = displayText.isEmpty ? "打开任务" : "打开任务：\(displayText)"
+                    name = displayText.isEmpty ? String(localized: "打开任务") : String(localized: "打开任务：\(displayText)")
                 case .text:
                     return nil
                 }

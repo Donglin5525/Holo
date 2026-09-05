@@ -28,9 +28,9 @@ enum FeedbackCategory: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .suggestion: return "功能建议"
-        case .issue: return "问题反馈"
-        case .other: return "其他"
+        case .suggestion: return String(localized: "功能建议")
+        case .issue: return String(localized: "问题反馈")
+        case .other: return String(localized: "其他")
         }
     }
 }
@@ -55,19 +55,19 @@ enum FeedbackContactKind: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .wechat: return "微信"
+        case .wechat: return String(localized: "微信")
         case .qq: return "QQ"
-        case .email: return "邮箱"
-        case .phone: return "手机"
+        case .email: return String(localized: "邮箱")
+        case .phone: return String(localized: "手机")
         }
     }
 
     var placeholder: String {
         switch self {
-        case .wechat: return "微信号，方便我们找到你"
-        case .qq: return "你的 QQ 号"
-        case .email: return "邮箱地址，如 name@example.com"
-        case .phone: return "11 位手机号"
+        case .wechat: return String(localized: "微信号，方便我们找到你")
+        case .qq: return String(localized: "你的 QQ 号")
+        case .email: return String(localized: "邮箱地址，如 name@example.com")
+        case .phone: return String(localized: "11 位手机号")
         }
     }
 
@@ -144,7 +144,7 @@ final class HoloFeedbackService {
 
         let response: FeedbackResponse = try await apiClient.send(request)
         guard response.ok else {
-            throw APIError.serverError("反馈提交失败，请稍后重试")
+            throw APIError.serverError(String(localized: "反馈提交失败，请稍后重试"))
         }
         logger.info("用户反馈已提交：category=\(category.rawValue, privacy: .public) images=\(images.count, privacy: .public)")
     }

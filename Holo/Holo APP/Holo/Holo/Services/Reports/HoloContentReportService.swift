@@ -76,7 +76,7 @@ final class HoloContentReportService {
 
         let response: ReportResponse = try await apiClient.send(request)
         guard response.ok else {
-            throw APIError.serverError("举报提交失败，请稍后重试")
+            throw APIError.serverError(String(localized: "举报提交失败，请稍后重试"))
         }
         logger.info("AI 内容举报已提交：messageId=\(messageId, privacy: .public)")
     }

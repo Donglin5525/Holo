@@ -299,11 +299,11 @@ enum KeychainError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .saveFailed(let status):
-            return "Keychain 保存失败（错误码：\(status)）"
+            return String(localized: "Keychain 保存失败（错误码：\(status)）")
         case .loadFailed(let status):
-            return "Keychain 读取失败（错误码：\(status)）"
+            return String(localized: "Keychain 读取失败（错误码：\(status)）")
         case .deleteFailed(let status):
-            return "Keychain 删除失败（错误码：\(status)）"
+            return String(localized: "Keychain 删除失败（错误码：\(status)）")
         }
     }
 }

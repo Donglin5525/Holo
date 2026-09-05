@@ -32,7 +32,7 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
         }
 
         guard let url = URL(string: "\(baseURL)/v1/asr/transcriptions") else {
-            throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
+            throw SpeechRecognitionError.serverMessage(String(localized: "语音识别服务地址无效"))
         }
 
         let audioData = try Data(contentsOf: audioFileURL)
@@ -55,8 +55,8 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             }
             throw SpeechRecognitionError.serverMessage(
                 isPlusActive
-                    ? "单次语音最长可识别 \(Int(maxSeconds)) 秒，请缩短录音后重试"
-                    : "免费版单次最多识别 \(Int(maxSeconds)) 秒，升级 Holo Plus 可识别更长语音"
+                    ? String(localized: "单次语音最长可识别 \(Int(maxSeconds)) 秒，请缩短录音后重试")
+                    : String(localized: "免费版单次最多识别 \(Int(maxSeconds)) 秒，升级 Holo Plus 可识别更长语音")
             )
         }
 
@@ -103,11 +103,11 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
                     }
                     throw SpeechRecognitionError.quotaExhausted(quotaError.userMessage)
                 }
-                throw SpeechRecognitionError.serverMessage("今天的语音识别次数已达上限，稍后再试")
+                throw SpeechRecognitionError.serverMessage(String(localized: "今天的语音识别次数已达上限，稍后再试"))
             case 413:
-                throw SpeechRecognitionError.serverMessage("语音文件过大，请缩短录音后重试")
+                throw SpeechRecognitionError.serverMessage(String(localized: "语音文件过大，请缩短录音后重试"))
             default:
-                let message = Self.decodeErrorMessage(from: data) ?? "语音识别失败，请稍后重试"
+                let message = Self.decodeErrorMessage(from: data) ?? String(localized: "语音识别失败，请稍后重试")
                 throw SpeechRecognitionError.serverMessage(message)
             }
         } catch let error as SpeechRecognitionError {

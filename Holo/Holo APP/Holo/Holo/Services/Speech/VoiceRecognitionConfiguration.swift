@@ -14,9 +14,9 @@ nonisolated enum VoiceRecognitionRegion: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .beijing:
-            return "中国内地（北京）"
+            return String(localized: "中国内地（北京）")
         case .singapore:
-            return "国际（新加坡）"
+            return String(localized: "国际（新加坡）")
         }
     }
 

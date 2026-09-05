@@ -152,7 +152,7 @@ class HomeScheduleService: ObservableObject {
                     id: "task:\(task.id.uuidString)",
                     urgency: .overdue,
                     module: .task,
-                    message: "已过期 \u{2022} \(truncateTitle(task.title))",
+                    message: String(localized: "已过期 \u{2022} \(truncateTitle(task.title))"),
                     protectionUntil: nil
                 ),
                 .taskDetail(taskId: task.id)
@@ -165,7 +165,7 @@ class HomeScheduleService: ObservableObject {
             .sorted { ($0.effectiveDueDate ?? .distantFuture) < ($1.effectiveDueDate ?? .distantFuture) }
         if let task = todayTasks.first {
             // 全天任务表达“今天”，不能把统一截止边界 23:59 当成用户设置的具体时刻。
-            let timeStr = task.isAllDay ? "今天" : formatTime(task.effectiveDueDate)
+            let timeStr = task.isAllDay ? String(localized: "今天") : formatTime(task.effectiveDueDate)
             return (
                 ScheduleCandidate(
                     id: "task:\(task.id.uuidString)",
@@ -202,7 +202,7 @@ class HomeScheduleService: ObservableObject {
                     id: "task:pending",
                     urgency: .pending,
                     module: .task,
-                    message: "有 \(incompleteCount) 个任务待完成",
+                    message: String(localized: "有 \(incompleteCount) 个任务待完成"),
                     protectionUntil: nil
                 ),
                 .tasks
@@ -242,18 +242,18 @@ class HomeScheduleService: ObservableObject {
                 let title = insight.title
                 let periodLabel: String
                 switch periodType {
-                case .daily: periodLabel = "今日"
-                case .monthly: periodLabel = isFallback ? "上月" : "本月"
-                case .quarterly: periodLabel = isFallback ? "上季度" : "本季度"
-                case .custom: periodLabel = "自定义周期"
-                case .weekly: periodLabel = isFallback ? "上周" : "本周"
+                case .daily: periodLabel = String(localized: "今日")
+                case .monthly: periodLabel = isFallback ? String(localized: "上月") : String(localized: "本月")
+                case .quarterly: periodLabel = isFallback ? String(localized: "上季度") : String(localized: "本季度")
+                case .custom: periodLabel = String(localized: "自定义周期")
+                case .weekly: periodLabel = isFallback ? String(localized: "上周") : String(localized: "本周")
                 }
                 return (
                     ScheduleCandidate(
                         id: "insight:\(periodType.rawValue):\(insight.id.uuidString)",
                         urgency: .pending,
                         module: .insight,
-                        message: "\(periodLabel)洞察：\(title)",
+                        message: String(localized: "\(periodLabel)洞察：\(title)"),
                         protectionUntil: nil
                     ),
                     // 与周观察胶囊同构：带具体洞察 id，由 ChatView 直接打开回放卡片
@@ -285,8 +285,8 @@ class HomeScheduleService: ObservableObject {
 
         let title = insight.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = title.isEmpty
-            ? "上周洞察已准备好"
-            : "上周洞察：\(truncateTitle(title))"
+            ? String(localized: "上周洞察已准备好")
+            : String(localized: "上周洞察：\(truncateTitle(title))")
         return (
             ScheduleCandidate(
                 id: "weekly:\(insight.id.uuidString)",
@@ -315,18 +315,17 @@ class HomeScheduleService: ObservableObject {
         guard let date else { return "" }
         let calendar = Calendar.current
         if calendar.isDateInTomorrow(date) {
-            return "明天"
+            return String(localized: "明天")
         }
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfDate = calendar.startOfDay(for: date)
         let daysDiff = calendar.dateComponents([.day], from: startOfToday, to: startOfDate).day ?? 0
         switch daysDiff {
-        case 2: return "后天"
-        case 3: return "大后天"
+        case 2: return String(localized: "后天")
+        case 3: return String(localized: "大后天")
         default:
             let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "M月d日"
+            formatter.setLocalizedDateFormatFromTemplate("MMMd")
             return formatter.string(from: date)
         }
     }

@@ -22,7 +22,7 @@ enum AIMemoryLabScope: Hashable, Identifiable {
     var title: String {
         switch self {
         case .domain(let domain): return domain.userFacingName
-        case .crossDomain: return "跨域融合"
+        case .crossDomain: return String(localized: "跨域融合")
         }
     }
 
@@ -72,7 +72,7 @@ struct AIMemoryLabView: View {
             LabeledContent("记忆总数", value: "\(records.count)")
             LabeledContent(
                 "采用状态",
-                value: "自动 \(automaticCount) / 待确认 \(pendingCount) / 归档 \(archivedCount)"
+                value: String(localized: "自动 \(automaticCount) / 待确认 \(pendingCount) / 归档 \(archivedCount)")
             )
             LabeledContent("汇总回执", value: inboxSnapshot.isEmpty ? "无未读" : inboxSnapshot.summaryText)
             LabeledContent(
@@ -81,7 +81,7 @@ struct AIMemoryLabView: View {
             )
             LabeledContent(
                 "后台任务",
-                value: scheduler?.isRunning == true ? "运行中" : "空闲"
+                value: scheduler?.isRunning == true ? String(localized: "运行中") : String(localized: "空闲")
             )
 
             if isLoading {
@@ -140,7 +140,7 @@ struct AIMemoryLabView: View {
                     } else {
                         Image(systemName: "play.circle")
                     }
-                    Text(isRunningObservation ? "真实观察运行中…" : "运行一次真实观察")
+                    Text(isRunningObservation ? String(localized: "真实观察运行中…") : String(localized: "运行一次真实观察"))
                 }
             }
             .disabled(isRunningObservation || isResettingValidation)
@@ -162,7 +162,7 @@ struct AIMemoryLabView: View {
                 Task { await resetValidationState() }
             } label: {
                 Label(
-                    isResettingValidation ? "正在重置…" : "重置今日验证状态",
+                    isResettingValidation ? String(localized: "正在重置…") : String(localized: "重置今日验证状态"),
                     systemImage: "arrow.counterclockwise.circle"
                 )
             }
@@ -259,8 +259,8 @@ struct AIMemoryLabView: View {
     }
 
     private func lastRunText(_ scope: AIMemoryLabScope) -> String {
-        guard let date = schedulerTarget(scope)?.lastSuccessfulAt else { return "未成功运行" }
-        return "上次成功 \(date.formatted(.relative(presentation: .numeric)))"
+        guard let date = schedulerTarget(scope)?.lastSuccessfulAt else { return String(localized: "未成功运行") }
+        return String(localized: "上次成功 \(date.formatted(.relative(presentation: .numeric)))")
     }
 
     @MainActor
@@ -277,7 +277,7 @@ struct AIMemoryLabView: View {
             traces = await loadedTraces
             inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
         } catch {
-            errorMessage = "诊断数据读取失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "诊断数据读取失败：\(error.localizedDescription)")
         }
         isLoading = false
     }
@@ -298,8 +298,8 @@ struct AIMemoryLabView: View {
         operationResult = nil
         let didReset = await HoloMemoryLiveObservationCoordinator.shared.debugResetValidationState()
         operationResult = didReset
-            ? "已重置：可以立即重新运行；用户记忆和业务数据未改动"
-            : "未重置：记忆任务正在运行，请等待完成后重试"
+            ? String(localized: "已重置：可以立即重新运行；用户记忆和业务数据未改动")
+            : String(localized: "未重置：记忆任务正在运行，请等待完成后重试")
         await refresh()
         isResettingValidation = false
     }

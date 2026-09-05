@@ -214,7 +214,7 @@ struct FinanceLedgerView: View {
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 calendarState.refreshAfterDataChange()
-                showOperationMessage("记账已保存", isError: false)
+                showOperationMessage(String(localized: "记账已保存"), isError: false)
             }
         }
         // 长按日期快速记账 Sheet
@@ -225,7 +225,7 @@ struct FinanceLedgerView: View {
             if let date = quickAddDate {
                 AddTransactionSheet(editingTransaction: nil, presetDate: date) { _ in
                     calendarState.refreshAfterDataChange()
-                    showOperationMessage("记账已保存", isError: false)
+                    showOperationMessage(String(localized: "记账已保存"), isError: false)
                 }
             }
         }
@@ -367,8 +367,8 @@ struct FinanceLedgerView: View {
     
     /// 标题：今天显示"今日账本"，其他日期仅显示"M月d日"
     private var headerTitle: String {
-        if calendarState.selectedDate.isToday { return "今日账本" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日"
+        if calendarState.selectedDate.isToday { return String(localized: "今日账本") }
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMMd")
         return f.string(from: calendarState.selectedDate)
     }
     
@@ -441,23 +441,23 @@ struct FinanceLedgerView: View {
         return Group {
             if showExpense && showIncome {
                 HStack(spacing: HoloSpacing.sm) {
-                    monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
+                    monthlyCard(String(localized: "本月支出"), amount: calendarState.currentMonthExpense,
                                 previous: calendarState.previousPeriodExpense,
                                 icon: "arrow.down.right", color: .holoError,
                                 compact: true)
-                    monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
+                    monthlyCard(String(localized: "本月收入"), amount: calendarState.currentMonthIncome,
                                 previous: calendarState.previousPeriodIncome,
                                 icon: "arrow.up.right", color: .holoSuccess,
                                 compact: true)
                 }
             } else if showExpense {
-                monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
+                monthlyCard(String(localized: "本月支出"), amount: calendarState.currentMonthExpense,
                             previous: calendarState.previousPeriodExpense,
                             icon: "arrow.down.right", color: .holoError,
                             compact: false,
                             todayAmount: calendarState.selectedDayExpense)
             } else if showIncome {
-                monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
+                monthlyCard(String(localized: "本月收入"), amount: calendarState.currentMonthIncome,
                             previous: calendarState.previousPeriodIncome,
                             icon: "arrow.up.right", color: .holoSuccess,
                             compact: false,
@@ -591,10 +591,10 @@ struct FinanceLedgerView: View {
                 try await FinanceRepository.shared.deleteTransaction(transaction)
                 await calendarState.refreshData()
                 HapticManager.success()
-                showOperationMessage("已删除", isError: false)
+                showOperationMessage(String(localized: "已删除"), isError: false)
             } catch {
                 logger.error("删除交易失败: \(error)")
-                showOperationMessage("删除失败：\(error.localizedDescription)", isError: true)
+                showOperationMessage(String(localized: "删除失败：\(error.localizedDescription)"), isError: true)
             }
             transactionToDelete = nil
         }
@@ -607,10 +607,10 @@ struct FinanceLedgerView: View {
                 try await FinanceRepository.shared.deleteInstallmentGroup(groupId: groupId)
                 await calendarState.refreshData()
                 HapticManager.success()
-                showOperationMessage("已删除分期", isError: false)
+                showOperationMessage(String(localized: "已删除分期"), isError: false)
             } catch {
                 logger.error("删除分期组失败: \(error)")
-                showOperationMessage("删除失败：\(error.localizedDescription)", isError: true)
+                showOperationMessage(String(localized: "删除失败：\(error.localizedDescription)"), isError: true)
             }
             transactionToDelete = nil
         }
@@ -634,10 +634,10 @@ struct FinanceLedgerView: View {
                 )
                 HapticManager.success()
                 await calendarState.refreshData()
-                showOperationMessage("已复制", isError: false)
+                showOperationMessage(String(localized: "已复制"), isError: false)
             } catch {
                 logger.error("复制交易失败: \(error)")
-                showOperationMessage("复制失败：\(error.localizedDescription)", isError: true)
+                showOperationMessage(String(localized: "复制失败：\(error.localizedDescription)"), isError: true)
             }
         }
     }

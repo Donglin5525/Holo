@@ -257,7 +257,7 @@ struct TransactionRowView: View {
                 VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
                     // 主标题 + 分期标签
                     HStack(spacing: 4) {
-                        Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类"))
+                        Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? String(localized: "未分类")))
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
                             .lineLimit(1)
@@ -325,8 +325,7 @@ struct TransactionRowView: View {
 
     private func formatDateTime(_ date: Date) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日 HH:mm"
+        f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
         return f.string(from: date)
     }
 }
@@ -345,11 +344,11 @@ struct EmptyStateView: View {
                 .font(.system(size: 64, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.3))
 
-            Text(isFirstRecord ? "暂无交易记录" : "这一天还没有记录")
+            Text(isFirstRecord ? String(localized: "暂无交易记录") : String(localized: "这一天还没有记录"))
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
-            Text(isFirstRecord ? "点击 + 按钮记录第一笔交易" : "点击 + 按钮记一笔")
+            Text(isFirstRecord ? String(localized: "点击 + 按钮记录第一笔交易") : String(localized: "点击 + 按钮记一笔"))
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
                 .multilineTextAlignment(.center)

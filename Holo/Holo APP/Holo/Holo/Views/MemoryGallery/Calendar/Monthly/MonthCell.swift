@@ -28,7 +28,7 @@ struct MonthCell: View {
         .buttonStyle(.plain)
         .disabled(!isThisMonth || isFuture)
         .opacity(isThisMonth ? (isFuture ? 0.42 : 1) : 0.35)
-        .accessibilityHint(isFuture ? "未来日期还没有可回看的记忆" : "")
+        .accessibilityHint(isFuture ? String(localized: "未来日期还没有可回看的记忆") : "")
     }
 
     // MARK: - 热力色深（默认）

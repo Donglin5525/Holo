@@ -53,7 +53,7 @@ struct CategoryLearnedMappingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
-        .searchable(text: $searchText, prompt: "搜索分类映射")
+        .searchable(text: $searchText, prompt: String(localized: "搜索分类映射"))
         .onAppear { reload() }
         .confirmationDialog(
             "从交易记录重建映射？",
@@ -69,7 +69,7 @@ struct CategoryLearnedMappingView: View {
             isPresented: $showRebuildResult
         ) {
             Alert(
-                title: Text(rebuildResult == 0 ? "没有找到可恢复的映射" : "重建完成"),
+                title: Text(rebuildResult == 0 ? String(localized: "没有找到可恢复的映射") : String(localized: "重建完成")),
                 message: Text(rebuildResultMessage)
             )
         }
@@ -218,9 +218,9 @@ struct CategoryLearnedMappingView: View {
 
     private var rebuildResultMessage: String {
         if let count = rebuildResult, count > 0 {
-            return "已从 AI 创建的交易中恢复 \(count) 条分类映射。"
+            return String(localized: "已从 AI 创建的交易中恢复 \(count) 条分类映射。")
         }
-        return "未找到 AI 创建且分类被你修改过的交易，无法重建。"
+        return String(localized: "未找到 AI 创建且分类被你修改过的交易，无法重建。")
     }
 
     private func rebuildFromTransactions() {

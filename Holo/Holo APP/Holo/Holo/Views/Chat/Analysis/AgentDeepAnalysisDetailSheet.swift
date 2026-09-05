@@ -62,7 +62,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let directAnswer = Self.clean(result.directAnswer ?? "")
         let resolvedSummary = !directAnswer.isEmpty
             ? directAnswer
-            : (summary.isEmpty ? "本期暂无显著观察" : summary)
+            : (summary.isEmpty ? String(localized: "本期暂无显著观察") : summary)
         // 建议是一级交付物；只有建议而没有观察 section 的结果也不能误显示为空状态。
         let hasContent = !result.sections.isEmpty
             || !directAnswer.isEmpty
@@ -84,14 +84,14 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         } else if !semanticHeadline.isEmpty {
             self.openingTitle = semanticHeadline
         } else if isFinanceLedgerMode {
-            self.openingTitle = financeKeyword.map { "\(financeRangeLabel)「\($0)」消费结果" }
-                ?? "\(financeRangeLabel)账单结果"
+            self.openingTitle = financeKeyword.map { String(localized: "\(financeRangeLabel)「\($0)」消费结果") }
+                ?? String(localized: "\(financeRangeLabel)账单结果")
         } else if isHealthMode {
-            self.openingTitle = hasContent ? "本期的健康数据" : "暂无可用的健康数据"
+            self.openingTitle = hasContent ? String(localized: "本期的健康数据") : String(localized: "暂无可用的健康数据")
         } else {
             self.openingTitle = hasContent
-                ? "这段时间，有几个信号值得回看。"
-                : "本期暂无显著观察"
+                ? String(localized: "这段时间，有几个信号值得回看。")
+                : String(localized: "本期暂无显著观察")
         }
         // v17：openingBody 优先用 LLM 的 narrativeSummary（有人味儿的自然摘要），
         // 没有才退回 directAnswer/summary。
@@ -114,9 +114,9 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             openingBody: resolvedSummary
         )
         self.evidence = result.evidenceReferences.map { ref in
-            let labelPrefix = isFinanceLedgerMode ? "账单依据" : (isHealthMode ? "健康依据" : "依据")
+            let labelPrefix = isFinanceLedgerMode ? String(localized: "账单依据") : (isHealthMode ? String(localized: "健康依据") : String(localized: "依据"))
             return Evidence(
-                label: ref.financeDrilldown == nil ? labelPrefix : "\(labelPrefix) · 点按核对",
+                label: ref.financeDrilldown == nil ? labelPrefix : String(localized: "\(labelPrefix) · 点按核对"),
                 // 存量旧报告（修复前落库）的口径句带英文残留（「合计「value」…」），展示前清洗
                 summary: HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields(Self.clean(ref.summary)),
                 drilldown: ref.financeDrilldown,
@@ -130,8 +130,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             .map(Self.clean)
             .filter { !$0.isEmpty }
         if isFinanceLedgerMode {
-            self.closingTitle = "从金额最高的分类开始核对。"
-            self.closingBody = "如果分类或金额和你的认知不一致，可以点开账单依据回到对应明细。"
+            self.closingTitle = String(localized: "从金额最高的分类开始核对。")
+            self.closingBody = String(localized: "如果分类或金额和你的认知不一致，可以点开账单依据回到对应明细。")
         } else if hasContent, let firstRec = self.recommendations.first {
             // 有具体建议（来自 LLM suggestion claim）时，收尾跟着建议走，不再千篇一律。
             self.closingTitle = firstRec.title
@@ -139,11 +139,11 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         } else {
             // 没有建议时的兜底：承认还在观察，不堆空话。
             self.closingTitle = hasContent
-                ? "这些信号先记着，Holo 会继续帮你盯着。"
-                : "继续记录后，Holo 会再帮你回看。"
+                ? String(localized: "这些信号先记着，Holo 会继续帮你盯着。")
+                : String(localized: "继续记录后，Holo 会再帮你回看。")
             self.closingBody = hasContent
-                ? "不用一次性盯住所有指标。等哪一项出现明显变化，这里会第一时间告诉你。"
-                : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
+                ? String(localized: "不用一次性盯住所有指标。等哪一项出现明显变化，这里会第一时间告诉你。")
+                : String(localized: "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。")
         }
         // 数据查询的职责是准确回答问题；没有明确且有证据的行动建议时，不展示通用“下一步”。
         self.shouldShowClosing = result.question == nil && result.evidenceReferences.isEmpty && hasContent
@@ -213,7 +213,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             let body = clean(section.body)
             guard !body.isEmpty, normalizedForComparison(body) != openingNormalized else { return nil }
             return Recommendation(
-                title: clean(section.title).isEmpty ? "建议" : clean(section.title),
+                title: clean(section.title).isEmpty ? String(localized: "建议") : clean(section.title),
                 body: body,
                 priority: 0,
                 priorityLabel: nil,
@@ -230,7 +230,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     private static func financeRangeLabel(from evidence: [HoloRenderedEvidenceReference]) -> String {
         evidence
             .compactMap { $0.financeDrilldown?.label.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty } ?? "本期"
+            .first { !$0.isEmpty } ?? String(localized: "本期")
     }
 
     private static func financeKeyword(from evidence: [HoloRenderedEvidenceReference]) -> String? {
@@ -248,10 +248,10 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             .prefix(3)
 
         let result = Array(parts)
-        if result == ["本期暂无显著观察"] {
-            return ["暂无显著观察"]
+        if result == [String(localized: "本期暂无显著观察")] {
+            return [String(localized: "暂无显著观察")]
         }
-        return result.isEmpty ? ["暂无显著观察"] : result
+        return result.isEmpty ? [String(localized: "暂无显著观察")] : result
     }
 
     /// 数字千分位逗号（如 6,991）不是句子分隔：切段前先换成占位符，切完还原，
@@ -292,13 +292,13 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         isHealthMode: Bool
     ) -> String {
         guard !rawTitle.isEmpty, !isGenericObservationTitle(rawTitle) else {
-            if isFinanceLedgerMode { return "账单结果" }
-            if body.contains("步数") { return "步数" }
-            if body.contains("睡眠") { return "睡眠" }
-            if body.contains("站立") { return "站立" }
-            if body.contains("活动") || body.contains("运动") { return "活动与运动" }
-            if isHealthMode { return "健康数据" }
-            return "值得留意的变化"
+            if isFinanceLedgerMode { return String(localized: "账单结果") }
+            if body.contains("步数") { return String(localized: "步数") }
+            if body.contains("睡眠") { return String(localized: "睡眠") }
+            if body.contains("站立") { return String(localized: "站立") }
+            if body.contains("活动") || body.contains("运动") { return String(localized: "活动与运动") }
+            if isHealthMode { return String(localized: "健康数据") }
+            return String(localized: "值得留意的变化")
         }
         return rawTitle
     }
@@ -457,7 +457,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                         .background(Color.holoTextSecondary.opacity(0.1), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("返回")
+                .accessibilityLabel(String(localized: "返回"))
 
                 Spacer()
 
@@ -496,14 +496,14 @@ struct AgentDeepAnalysisDetailSheet: View {
     /// 双模式配色（holoLineageTint），深色模式下依然可读。
     @ViewBuilder
     private var lineageBar: some View {
-        let relation = result.continuationMetadata?.shortLabel ?? "继续追问"
+        let relation = result.continuationMetadata?.shortLabel ?? String(localized: "继续追问")
         let rootQuestion = result.continuationMetadata?.rootUserQuestion
         HStack(alignment: .top, spacing: 7) {
             Image(systemName: "link")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color.holoLineageTint)
                 .padding(.top, 2)
-            Text(rootQuestion.map { "\(relation) · 追问自报告「\($0)」" } ?? "\(relation) · 追问生成的报告")
+            Text(rootQuestion.map { String(localized: "\(relation) · 追问自报告「\($0)」") } ?? String(localized: "\(relation) · 追问生成的报告"))
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundColor(Color.holoLineageTint)
                 .lineLimit(2)
@@ -517,7 +517,7 @@ struct AgentDeepAnalysisDetailSheet: View {
             RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
                 .stroke(Color.holoLineageTint.opacity(0.3), lineWidth: 0.8)
         )
-        .accessibilityLabel("追问来源：\(relation)")
+        .accessibilityLabel(String(localized: "追问来源：\(relation)"))
     }
 
     private var emptyState: some View {
@@ -561,9 +561,9 @@ struct AgentDeepAnalysisDetailSheet: View {
     private var emptyStateSubtitle: String {
         switch narrative.emptyReason {
         case .unverifiable:
-            return "已查到相关数据，但未能形成通过核验的可信结论。可以换个问法或扩大时间范围再试一次。"
+            return String(localized: "已查到相关数据，但未能形成通过核验的可信结论。可以换个问法或扩大时间范围再试一次。")
         case .noData, nil:
-            return "所选时间范围内没有足够的可用数据，暂时无法形成可信结论。请确认数据权限和记录覆盖后再试。"
+            return String(localized: "所选时间范围内没有足够的可用数据，暂时无法形成可信结论。请确认数据权限和记录覆盖后再试。")
         }
     }
 
@@ -580,8 +580,8 @@ struct AgentDeepAnalysisDetailSheet: View {
                     .clipShape(Circle())
 
                 Text(result.continuationMetadata?.isFollowUp == true
-                    ? result.continuationMetadata?.shortLabel ?? "继续追问"
-                    : "深度分析")
+                    ? result.continuationMetadata?.shortLabel ?? String(localized: "继续追问")
+                    : String(localized: "深度分析"))
                     .font(.system(size: 19, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
             }
@@ -599,7 +599,7 @@ struct AgentDeepAnalysisDetailSheet: View {
     private func opening(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : "HOLO 数据分析")
+                Text(model.isFinanceLedgerMode ? String(localized: "HOLO 账单复核") : String(localized: "HOLO 数据分析"))
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.holoPrimary)
 
@@ -644,7 +644,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                         .textSelection(.enabled)
                 }
                 .padding(.top, 2)
-                .accessibilityLabel("核心发现")
+                .accessibilityLabel(String(localized: "核心发现"))
             }
         }
         .padding(.horizontal, 4)
@@ -1113,11 +1113,11 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     private func signalTitle(_ summary: String) -> String {
         let text = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return "观察" }
+        guard !text.isEmpty else { return String(localized: "观察") }
         let keywords = ["睡眠", "戒烟", "消费", "任务", "习惯", "收入", "支出", "步数", "心情"]
         if let keyword = keywords.first(where: { text.contains($0) }) {
             return keyword
         }
-        return "观察"
+        return String(localized: "观察")
     }
 }

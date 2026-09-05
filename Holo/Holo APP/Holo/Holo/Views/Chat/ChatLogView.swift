@@ -72,7 +72,7 @@ struct ChatLogView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: copiedSection == "all" ? "checkmark" : "doc.on.doc")
-                            Text(copiedSection == "all" ? "已复制" : "复制全部")
+                            Text(copiedSection == "all" ? String(localized: "已复制") : String(localized: "复制全部"))
                         }
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white)
@@ -225,7 +225,7 @@ struct ChatLogView: View {
     // MARK: - Helpers
 
     private func callTitle(for call: LLMCallLog) -> String {
-        call.type == "intent_recognition" ? "意图识别" : "对话回复"
+        call.type == "intent_recognition" ? String(localized: "意图识别") : String(localized: "对话回复")
     }
 
     private func formatCallRequest(_ call: LLMCallLog) -> String {
@@ -236,9 +236,9 @@ struct ChatLogView: View {
 
     private func copyAll() {
         let fullText = log.calls.map { call in
-            let header = "=== \(callTitle(for: call)) (模型: \(call.model)) ==="
+            let header = String(localized: "=== \(callTitle(for: call)) (模型: \(call.model)) ===")
             let request = call.requestMessages.map { "[\($0.role)]\n\($0.content)" }.joined(separator: "\n\n")
-            return "\(header)\n\n--- 请求 ---\n\(request)\n\n--- 响应 ---\n\(call.responseText)"
+            return String(localized: "\(header)\n\n--- 请求 ---\n\(request)\n\n--- 响应 ---\n\(call.responseText)")
         }.joined(separator: "\n\n")
 
         UIPasteboard.general.string = fullText

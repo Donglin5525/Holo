@@ -61,17 +61,17 @@ struct TransactionChatCard: View {
             } else if data.isFailed {
                 failedInfo
             } else {
-                CardFooterView(timeText: "查看明细", isDeleted: isDeleted)
+                CardFooterView(timeText: String(localized: "查看明细"), isDeleted: isDeleted)
             }
         }
-        .accessibilityLabel("记账卡片：\(data.displayTitle)，\(data.isExpense ? "支出" : "收入")\(data.amount)元")
+        .accessibilityLabel(String(localized: "记账卡片：\(data.displayTitle)，\(data.isExpense ? "支出" : "收入")\(data.amount)元"))
     }
 
     // MARK: - Header
 
     private var headerTitle: String {
         if data.requiresConfirmation {
-            return data.isExpense ? "支出待确认" : "收入待确认"
+            return data.isExpense ? String(localized: "支出待确认") : String(localized: "收入待确认")
         }
         return data.displayTitle
     }
@@ -85,10 +85,10 @@ struct TransactionChatCard: View {
 
     private var badge: CardBadge? {
         if data.requiresConfirmation {
-            return CardBadge(text: "待确认", color: .holoPrimary)
+            return CardBadge(text: String(localized: "待确认"), color: .holoPrimary)
         }
         if data.isCancelled {
-            return CardBadge(text: "已取消", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
         }
         return nil
     }
@@ -100,7 +100,7 @@ struct TransactionChatCard: View {
             HStack(spacing: 4) {
                 Image(systemName: "calendar.badge.clock")
                     .font(.system(size: 11))
-                Text(data.installmentSummary ?? "按月分期")
+                Text(data.installmentSummary ?? String(localized: "按月分期"))
                     .font(.system(size: 13, weight: .medium))
             }
             .foregroundColor(.holoPrimary)
@@ -164,7 +164,7 @@ struct TransactionChatCard: View {
             Button {
                 onConfirm?()
             } label: {
-                Text(data.isConfirming ? "正在记录…" : "确认")
+                Text(data.isConfirming ? String(localized: "正在记录…") : String(localized: "确认"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -264,16 +264,15 @@ struct TransactionChatCard: View {
               let parsed = NLDateParser.parse(raw) else { return nil }
         let calendar = Calendar.current
         if calendar.isDateInToday(parsed) { return nil }
-        if calendar.isDateInYesterday(parsed) { return "昨天" }
+        if calendar.isDateInYesterday(parsed) { return String(localized: "昨天") }
         if let dayBefore = calendar.date(byAdding: .day, value: -2, to: Date()),
-           calendar.isDate(parsed, inSameDayAs: dayBefore) { return "前天" }
+           calendar.isDate(parsed, inSameDayAs: dayBefore) { return String(localized: "前天") }
         return Self.dateFormatter.string(from: parsed)
     }
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
     }()
 }

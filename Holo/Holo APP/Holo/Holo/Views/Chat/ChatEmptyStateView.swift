@@ -16,14 +16,14 @@ struct ChatEmptyStateView: View {
     private var isNewUser: Bool { !LightweightOnboardingSettings.isCompleted }
 
     private var welcomeTitle: String {
-        isNewUser ? "你好，我是 Holo" : "想聊点什么？"
+        isNewUser ? String(localized: "你好，我是 Holo") : String(localized: "想聊点什么？")
     }
 
     private var welcomeSubtitle: String {
         if isNewUser {
-            return "你的个人数据助理。先来认识一下吧——"
+            return String(localized: "你的个人数据助理。先来认识一下吧——")
         }
-        return "挑一个方向，或者直接在下面输入。"
+        return String(localized: "挑一个方向，或者直接在下面输入。")
     }
 
     var body: some View {
@@ -110,19 +110,19 @@ private extension HoloAICapability {
     var previewPrompt: String {
         switch id {
         case .onboarding:
-            return "能教我怎么用 Holo 吗？"
+            return String(localized: "能教我怎么用 Holo 吗？")
         case .todayState:
-            return "帮我看看今天的整体状态"
+            return String(localized: "帮我看看今天的整体状态")
         case .recentAnalysis:
             // 甲方案：这颗卡点开的是场景面板，不再是直接发送的固定问句
-            return "选一个场景，发起深度分析"
+            return String(localized: "选一个场景，发起深度分析")
         case .longTermPatterns:
-            return "你了解我哪些长期偏好和模式？"
+            return String(localized: "你了解我哪些长期偏好和模式？")
         case .goalPlanning:
-            return "帮我规划一个目标"
+            return String(localized: "帮我规划一个目标")
         case .periodReplay:
             // periodReplay 不走 sendMessage（弹 Sheet 选周期），这里只作占位
-            return "生成周期回放"
+            return String(localized: "生成周期回放")
         }
     }
 }

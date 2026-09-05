@@ -200,7 +200,7 @@ nonisolated final class APIClient {
                     }
                 }
 
-                continuation.finish(throwing: lastError ?? APIError.serverError("未知错误"))
+                continuation.finish(throwing: lastError ?? APIError.serverError(String(localized: "未知错误")))
             }
             // 消费端取消迭代（用户点停止 → 上游 Task.cancel）时，把取消信号传导给
             // 真正持有网络连接的内部 Task，让 urlSession.bytes 真正中断；否则请求会在
@@ -252,23 +252,23 @@ nonisolated final class APIClient {
             case "STEP_ID_CONFLICT":
                 throw APIError.stepIdConflict(backendMessage)
             default:
-                throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求冲突，请稍后重试")
+                throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "请求冲突，请稍后重试"))
             }
         case 429:
             throw APIError.rateLimited(backendMessage)
         case 401:
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "安全校验失败，请重试")
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "安全校验失败，请重试"))
         case 400...499:
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求参数无效")
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "请求参数无效"))
         case 500...599:
             throw APIError.backendError(
                 statusCode: httpResponse.statusCode,
                 code: backendError?.code,
-                message: backendMessage ?? "服务暂时不可用，请稍后重试",
+                message: backendMessage ?? String(localized: "服务暂时不可用，请稍后重试"),
                 requestId: requestId
             )
         default:
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求失败，请稍后重试")
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "请求失败，请稍后重试"))
         }
     }
 }

@@ -58,8 +58,8 @@ enum TaskPostponePolicy {
                 options.append(
                     TaskPostponeOption(
                         id: "today",
-                        label: "今天",
-                        subLabel: "今天",
+                        label: String(localized: "今天"),
+                        subLabel: String(localized: "今天"),
                         targetDate: calendar.startOfDay(for: now),
                         isAllDay: true,
                         kind: .anotherDay,
@@ -74,8 +74,8 @@ enum TaskPostponePolicy {
                 options.append(
                     TaskPostponeOption(
                         id: "today",
-                        label: "今天",
-                        subLabel: originalTimePassed ? "\(time)（原时刻已过）" : time,
+                        label: String(localized: "今天"),
+                        subLabel: originalTimePassed ? String(localized: "\(time)（原时刻已过）") : time,
                         targetDate: target,
                         isAllDay: false,
                         kind: .anotherDay,
@@ -90,7 +90,7 @@ enum TaskPostponePolicy {
             )
         } else if isAllDay {
             // 全天：天数档（天数锚今天，落点仍是全天）
-            for (offset, label) in [(1, "明天"), (3, "三天后"), (7, "一周后")] {
+            for (offset, label) in [(1, String(localized: "明天")), (3, String(localized: "三天后")), (7, String(localized: "一周后"))] {
                 let target = calendar.date(byAdding: .day, value: offset, to: now)!
                 options.append(
                     TaskPostponeOption(
@@ -106,7 +106,7 @@ enum TaskPostponePolicy {
             }
         } else {
             // 定时·未过期：分钟档锚原时刻（始终在未来：任务一旦过点即变「过期」形态）
-            for (minutes, label) in [(15, "15分钟后"), (30, "30分钟后"), (60, "1小时后")] {
+            for (minutes, label) in [(15, String(localized: "15分钟后")), (30, String(localized: "30分钟后")), (60, String(localized: "1小时后"))] {
                 let target = calendar.date(byAdding: .minute, value: minutes, to: dueDate)!
                 let subLabel = calendar.isDate(target, inSameDayAs: now)
                     ? timeString(target, calendar: calendar)
@@ -133,8 +133,8 @@ enum TaskPostponePolicy {
         options.append(
             TaskPostponeOption(
                 id: "custom",
-                label: "自定义",
-                subLabel: "日期与时间",
+                label: String(localized: "自定义"),
+                subLabel: String(localized: "日期与时间"),
                 targetDate: nil,
                 isAllDay: isAllDay,
                 kind: .custom,
@@ -182,7 +182,7 @@ enum TaskPostponePolicy {
         now: Date,
         calendar: Calendar
     ) -> [TaskPostponeOption] {
-        let specs: [(Int, String)] = [(1, "明天"), (3, "三天后"), (7, "一周后")]
+        let specs: [(Int, String)] = [(1, String(localized: "明天")), (3, String(localized: "三天后")), (7, String(localized: "一周后"))]
         return specs.map { offset, label in
             let target: Date
             if isAllDay {
@@ -225,15 +225,15 @@ enum TaskPostponePolicy {
         ).day ?? 0
 
         // component(.weekday) 返回 1（周日）~7（周六），数组下标是 0~6，必须减一对齐
-        let weekdayNames = ["日", "一", "二", "三", "四", "五", "六"]
+        let weekdayNames = [String(localized: "日"), String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六")]
         let weekdayName = weekdayNames[calendar.component(.weekday, from: date) - 1]
         var label: String
         if dayOffset == 1 {
-            label = "明天"
+            label = String(localized: "明天")
         } else if dayOffset > 6 {
-            label = "下周" + weekdayName
+            label = String(localized: "下周") + weekdayName
         } else {
-            label = "周" + weekdayName
+            label = String(localized: "周") + weekdayName
         }
         if withTime {
             label += " " + timeString(date, calendar: calendar)

@@ -62,19 +62,19 @@ struct EditorFormatToolbar: View {
     /// 左组：内容插入（# @ 📷）+ 文字样式（B 样式菜单）+ 列表菜单
     private var formatTools: some View {
         HStack(spacing: 0) {
-            toolButton("number", "标签") {
+            toolButton("number", String(localized: "标签")) {
                 onAction(.insertTriggerCharacter("#"))
             }
-            toolButton("at", "引用想法") {
+            toolButton("at", String(localized: "引用想法")) {
                 onAction(.insertTriggerCharacter("@"))
             }
-            toolButton("photo", "添加图片") {
+            toolButton("photo", String(localized: "添加图片")) {
                 onAddImage()
             }
 
             groupDivider
 
-            toolButton("bold", "加粗", active: formatState.isBold) {
+            toolButton("bold", String(localized: "加粗"), active: formatState.isBold) {
                 onAction(.toggleBold)
             }
 
@@ -126,7 +126,7 @@ struct EditorFormatToolbar: View {
                     }
                 }
         }
-        .accessibilityLabel("文字样式")
+        .accessibilityLabel(String(localized: "文字样式"))
     }
 
     /// 列表入口（菜单：无序/有序）
@@ -148,7 +148,7 @@ struct EditorFormatToolbar: View {
                 .foregroundColor(.holoTextSecondary)
                 .frame(width: 40, height: 44)
         }
-        .accessibilityLabel("列表")
+        .accessibilityLabel(String(localized: "列表"))
     }
 
     // MARK: - 动作组
@@ -157,10 +157,10 @@ struct EditorFormatToolbar: View {
     /// 按钮宽 38/36（比左组略紧），保证最小屏（375pt）上整条工具栏不溢出。
     private var actionTools: some View {
         HStack(spacing: 0) {
-            toolButton("checklist", "转为任务", tint: .holoPrimary, width: 38) {
+            toolButton("checklist", String(localized: "转为任务"), tint: .holoPrimary, width: 38) {
                 onConvertToTask()
             }
-            .accessibilityHint("将选中的文字转为任务；未选中文字时提取整篇想法")
+            .accessibilityHint(String(localized: "将选中的文字转为任务；未选中文字时提取整篇想法"))
 
             voiceButton
         }
@@ -184,13 +184,13 @@ struct EditorFormatToolbar: View {
                 smartSummaryEnabled.toggle()
             } label: {
                 Label(
-                    smartSummaryEnabled ? "关闭智能总结" : "开启智能总结",
+                    smartSummaryEnabled ? String(localized: "关闭智能总结") : String(localized: "开启智能总结"),
                     systemImage: smartSummaryEnabled ? "sparkles" : "sparkle"
                 )
             }
         }
-        .accessibilityLabel("语音输入")
-        .accessibilityHint("长按可切换智能总结")
+        .accessibilityLabel(String(localized: "语音输入"))
+        .accessibilityHint(String(localized: "长按可切换智能总结"))
     }
 
     // MARK: - 色板
@@ -221,7 +221,7 @@ struct EditorFormatToolbar: View {
                                     )
                             )
                     }
-                    .accessibilityLabel(hex == "#000000" ? "黑色" : "颜色 \(hex)")
+                    .accessibilityLabel(hex == "#000000" ? String(localized: "黑色") : String(localized: "颜色 \(hex)"))
                 }
             }
             .padding(.horizontal, 14)

@@ -19,7 +19,7 @@ enum AccountDataDeletionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingBundleIdentifier:
-            return "无法识别当前 App 的 Bundle ID"
+            return String(localized: "无法识别当前 App 的 Bundle ID")
         }
     }
 }

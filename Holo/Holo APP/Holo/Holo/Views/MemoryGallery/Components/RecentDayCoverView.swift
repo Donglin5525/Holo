@@ -96,14 +96,14 @@ struct RecentDayCoverView: View {
             if summary.tasksCompleted > 0 {
                 chipRow(
                     icon: "checkmark.circle",
-                    text: "\(summary.tasksCompleted) 个任务",
+                    text: String(localized: "\(summary.tasksCompleted) 个任务"),
                     color: .holoPrimary
                 )
             }
             if summary.thoughtCount > 0 {
                 chipRow(
                     icon: "bubble.left",
-                    text: "\(summary.thoughtCount) 条想法",
+                    text: String(localized: "\(summary.thoughtCount) 条想法"),
                     color: .holoPurple
                 )
             }

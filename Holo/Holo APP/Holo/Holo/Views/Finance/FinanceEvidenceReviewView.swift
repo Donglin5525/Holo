@@ -118,7 +118,7 @@ struct FinanceEvidenceReviewView: View {
                 .background(Color.holoPrimary.opacity(0.12))
                 .clipShape(Capsule())
             }
-            .accessibilityLabel("回到这次分析")
+            .accessibilityLabel(String(localized: "回到这次分析"))
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.top, 0)
@@ -166,7 +166,7 @@ struct FinanceEvidenceReviewView: View {
                         .font(.holoBody)
                         .fontWeight(.semibold)
                         .foregroundColor(.holoTextPrimary)
-                    Text(hasBaseline ? "点合计切换期次，点明细看原账单" : "点明细看原账单")
+                    Text(hasBaseline ? String(localized: "点合计切换期次，点明细看原账单") : String(localized: "点明细看原账单"))
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                 }
@@ -189,12 +189,12 @@ struct FinanceEvidenceReviewView: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("进入统计分析页")
+                .accessibilityLabel(String(localized: "进入统计分析页"))
             }
 
             HStack(spacing: HoloSpacing.md) {
                 totalCard(
-                    title: "本期合计",
+                    title: String(localized: "本期合计"),
                     total: totalAmount(currentTransactions),
                     count: currentTransactions.count,
                     isSelected: selectedPeriod == .current
@@ -204,7 +204,7 @@ struct FinanceEvidenceReviewView: View {
 
                 if hasBaseline {
                     totalCard(
-                        title: "对比期合计",
+                        title: String(localized: "对比期合计"),
                         total: totalAmount(baselineTransactions),
                         count: baselineTransactions.count,
                         isSelected: selectedPeriod == .baseline
@@ -256,10 +256,10 @@ struct FinanceEvidenceReviewView: View {
     /// 明细 / 科目对比 分段切换（样式复用 CategoryTabView.typeSwitcher）
     private var modeSwitcher: some View {
         HStack(spacing: 0) {
-            modeButton(title: "明细", isSelected: viewMode == .transactions) {
+            modeButton(title: String(localized: "明细"), isSelected: viewMode == .transactions) {
                 viewMode = .transactions
             }
-            modeButton(title: "科目对比", isSelected: viewMode == .comparison) {
+            modeButton(title: String(localized: "科目对比"), isSelected: viewMode == .comparison) {
                 viewMode = .comparison
             }
         }
@@ -332,8 +332,8 @@ struct FinanceEvidenceReviewView: View {
     }
 
     private var keywordTitle: String {
-        guard let keyword = normalizedKeyword else { return "全部支出依据" }
-        return "\(keyword)相关依据"
+        guard let keyword = normalizedKeyword else { return String(localized: "全部支出依据") }
+        return String(localized: "\(keyword)相关依据")
     }
 
     private var normalizedKeyword: String? {
@@ -354,12 +354,12 @@ struct FinanceEvidenceReviewView: View {
     /// 明细列表标题（带日期区间，区分两期）
     private var detailTitle: String {
         if selectedPeriod == .current {
-            return "本期明细（\(rangeText(start: link.start, end: link.end))）"
+            return String(localized: "本期明细（\(rangeText(start: link.start, end: link.end))）")
         }
         if let baselineStart = link.baselineStart, let baselineEnd = link.baselineEnd {
-            return "对比期明细（\(rangeText(start: baselineStart, end: baselineEnd))）"
+            return String(localized: "对比期明细（\(rangeText(start: baselineStart, end: baselineEnd))）")
         }
-        return "本期明细（\(rangeText(start: link.start, end: link.end))）"
+        return String(localized: "本期明细（\(rangeText(start: link.start, end: link.end))）")
     }
 
     /// 科目对比聚合结果（本地聚合，尊重关键词过滤，零新增查询）
@@ -382,9 +382,9 @@ struct FinanceEvidenceReviewView: View {
     private func openAnalysisForSelectedPeriod() {
         let range: (label: String, start: Date, end: Date)
         if selectedPeriod == .baseline, let baselineStart = link.baselineStart, let baselineEnd = link.baselineEnd {
-            range = ("对比期合计", baselineStart, baselineEnd)
+            range = (String(localized: "对比期合计"), baselineStart, baselineEnd)
         } else {
-            range = ("本期合计", link.start, link.end)
+            range = (String(localized: "本期合计"), link.start, link.end)
         }
         onOpenAnalysis(FinanceAnalysisDeepLink(
             label: range.label,
@@ -422,7 +422,7 @@ struct FinanceEvidenceReviewView: View {
                 ))
             }, uniquingKeysWith: { first, _ in first })
         } catch {
-            errorMessage = "账单明细加载失败，请稍后再试"
+            errorMessage = String(localized: "账单明细加载失败，请稍后再试")
         }
         isLoading = false
     }

@@ -21,26 +21,26 @@ enum Weekday: Int, Codable, CaseIterable {
     /// 显示名称（如"周一"）
     var displayTitle: String {
         switch self {
-        case .sunday: return "周日"
-        case .monday: return "周一"
-        case .tuesday: return "周二"
-        case .wednesday: return "周三"
-        case .thursday: return "周四"
-        case .friday: return "周五"
-        case .saturday: return "周六"
+        case .sunday: return String(localized: "周日")
+        case .monday: return String(localized: "周一")
+        case .tuesday: return String(localized: "周二")
+        case .wednesday: return String(localized: "周三")
+        case .thursday: return String(localized: "周四")
+        case .friday: return String(localized: "周五")
+        case .saturday: return String(localized: "周六")
         }
     }
 
     /// 简短显示名称（如"一"）
     var shortDisplayTitle: String {
         switch self {
-        case .sunday: return "日"
-        case .monday: return "一"
-        case .tuesday: return "二"
-        case .wednesday: return "三"
-        case .thursday: return "四"
-        case .friday: return "五"
-        case .saturday: return "六"
+        case .sunday: return String(localized: "日")
+        case .monday: return String(localized: "一")
+        case .tuesday: return String(localized: "二")
+        case .wednesday: return String(localized: "三")
+        case .thursday: return String(localized: "四")
+        case .friday: return String(localized: "五")
+        case .saturday: return String(localized: "六")
         }
     }
 

@@ -47,8 +47,8 @@ struct MemoryTimeChapterPresentation: Equatable {
         case .day:
             primaryText = "\(calendar.component(.day, from: focusedDate))"
             title = monthWeekdayFormatter(calendar: calendar).string(from: focusedDate)
-            emptyEvidence = "这一天很安静"
-            currentBadge = isCurrentPeriod ? "今天" : nil
+            emptyEvidence = String(localized: "这一天很安静")
+            currentBadge = isCurrentPeriod ? String(localized: "今天") : nil
             accessibilityLabel = fullDayFormatter(calendar: calendar).string(from: focusedDate)
 
         case .week:
@@ -56,17 +56,17 @@ struct MemoryTimeChapterPresentation: Equatable {
             primaryText = "\(calendar.component(.day, from: periodStart))—\(calendar.component(.day, from: inclusiveEnd))"
             let startMonth = calendar.component(.month, from: periodStart)
             let endMonth = calendar.component(.month, from: inclusiveEnd)
-            let monthText = startMonth == endMonth ? "\(startMonth)月" : "\(startMonth)月—\(endMonth)月"
-            title = "\(monthText) · 第\(calendar.component(.weekOfYear, from: focusedDate))周"
-            emptyEvidence = "这一周还没有留下记录"
-            currentBadge = isCurrentPeriod ? "本周" : nil
-            accessibilityLabel = "\(fullDayFormatter(calendar: calendar).string(from: periodStart))至\(fullDayFormatter(calendar: calendar).string(from: inclusiveEnd))"
+            let monthText = startMonth == endMonth ? String(localized: "\(startMonth)月") : String(localized: "\(startMonth)月—\(endMonth)月")
+            title = String(localized: "\(monthText) · 第\(calendar.component(.weekOfYear, from: focusedDate))周")
+            emptyEvidence = String(localized: "这一周还没有留下记录")
+            currentBadge = isCurrentPeriod ? String(localized: "本周") : nil
+            accessibilityLabel = String(localized: "\(fullDayFormatter(calendar: calendar).string(from: periodStart))至\(fullDayFormatter(calendar: calendar).string(from: inclusiveEnd))")
 
         case .month:
-            primaryText = "\(calendar.component(.month, from: focusedDate))月"
-            title = "\(calendar.component(.year, from: focusedDate))年"
-            emptyEvidence = "这个月还没有留下记录"
-            currentBadge = isCurrentPeriod ? "本月" : nil
+            primaryText = String(localized: "\(calendar.component(.month, from: focusedDate))月")
+            title = String(localized: "\(calendar.component(.year, from: focusedDate))年")
+            emptyEvidence = String(localized: "这个月还没有留下记录")
+            currentBadge = isCurrentPeriod ? String(localized: "本月") : nil
             accessibilityLabel = yearMonthFormatter(calendar: calendar).string(from: focusedDate)
         }
 
@@ -80,9 +80,9 @@ struct MemoryTimeChapterPresentation: Equatable {
             let startText = timeFormatter(calendar: calendar).string(from: firstEventDate)
             let endText = timeFormatter(calendar: calendar).string(from: lastEventDate)
             let rangeText = startText == endText ? startText : "\(startText)—\(endText)"
-            evidence = "\(momentCount) 个记忆时刻 · \(rangeText)"
+            evidence = String(localized: "\(momentCount) 个记忆时刻 · \(rangeText)")
         } else {
-            evidence = "\(activeDayCount) 天有记录 · \(momentCount) 个记忆时刻"
+            evidence = String(localized: "\(activeDayCount) 天有记录 · \(momentCount) 个记忆时刻")
         }
 
         return MemoryTimeChapterPresentation(

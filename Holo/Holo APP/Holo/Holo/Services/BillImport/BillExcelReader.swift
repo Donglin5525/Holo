@@ -25,9 +25,9 @@ enum BillExcelReader {
         var errorDescription: String? {
             switch self {
             case .cannotOpen:
-                return "无法读取该 Excel 文件（可能是不支持的 xls 老格式，请用 Excel 另存为 .xlsx 后重试）"
+                return String(localized: "无法读取该 Excel 文件（可能是不支持的 xls 老格式，请用 Excel 另存为 .xlsx 后重试）")
             case .emptySheet:
-                return "Excel 文件里没有数据行"
+                return String(localized: "Excel 文件里没有数据行")
             }
         }
     }

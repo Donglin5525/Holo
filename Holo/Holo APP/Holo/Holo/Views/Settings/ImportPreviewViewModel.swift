@@ -142,9 +142,9 @@ final class ImportPreviewViewModel: ObservableObject {
 
     var importButtonText: String {
         if case .importing(let current, let total) = progress {
-            return "导入中 \(current)/\(total)"
+            return String(localized: "导入中 \(current)/\(total)")
         }
-        return "导入 \(effectiveImportCount) 条"
+        return String(localized: "导入 \(effectiveImportCount) 条")
     }
 
     // MARK: - 初始化
@@ -282,7 +282,7 @@ final class ImportPreviewViewModel: ObservableObject {
             // 应用 AI 映射并重扫（摘要与新映射保持一致；重扫后 handleBillPostScan 会重算状态）
             updateFieldMapping(result.mapping)
         } catch {
-            aiPhase = .degraded("AI 列映射失败：\(error.localizedDescription)。已切换为手动映射，请检查字段映射。")
+            aiPhase = .degraded(String(localized: "AI 列映射失败：\(error.localizedDescription)。已切换为手动映射，请检查字段映射。"))
         }
     }
 
@@ -297,7 +297,7 @@ final class ImportPreviewViewModel: ObservableObject {
         }
 
         guard let categories = try? await FinanceRepository.shared.getAllCategories() else {
-            aiPhase = .degraded("无法读取分类目录，账单将按默认分类导入")
+            aiPhase = .degraded(String(localized: "无法读取分类目录，账单将按默认分类导入"))
             return
         }
         // v1：只按支出目录匹配（账单九成以上为支出；收入行应用时会被跳过保持默认分类）

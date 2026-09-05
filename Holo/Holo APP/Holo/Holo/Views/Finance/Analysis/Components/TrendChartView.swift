@@ -52,9 +52,9 @@ struct TrendChartView: View {
 
     private var chartLegend: some View {
         HStack(spacing: HoloSpacing.lg) {
-            LegendItem(color: .holoError, label: "支出")
-            LegendItem(color: .holoSuccess, label: "收入")
-            LegendItem(color: .holoChart1, label: "余额")
+            LegendItem(color: .holoError, label: String(localized: "支出"))
+            LegendItem(color: .holoSuccess, label: String(localized: "收入"))
+            LegendItem(color: .holoChart1, label: String(localized: "余额"))
             Spacer()
             if let delta = balanceDelta {
                 Text("余额较期初 \(delta > 0 ? "+" : "-")\(NumberFormatter.compactCurrency(abs(delta)))")
@@ -444,9 +444,9 @@ struct TrendChartView: View {
         if abs(value) < 1 { return value == 0 ? "0" : "" }
         let absValue = abs(value)
         if absValue >= 10_000 {
-            return String(format: "%.1f万", value / 10_000)
+            return String(format: String(localized: "%.1f万"), value / 10_000)
         } else if absValue >= 1_000 {
-            return String(format: "%.1f千", value / 1_000)
+            return String(format: String(localized: "%.1f千"), value / 1_000)
         }
         return String(format: "%.0f", value)
     }

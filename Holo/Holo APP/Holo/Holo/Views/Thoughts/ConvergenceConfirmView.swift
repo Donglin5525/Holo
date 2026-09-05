@@ -255,7 +255,7 @@ struct ConvergenceConfirmView: View {
             job.markSuggestionReviewed(suggestion.id)
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            errorMessage = "归并失败，请重试"
+            errorMessage = String(localized: "归并失败，请重试")
         }
     }
 

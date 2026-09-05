@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 
 struct VoiceResultConfig: Equatable {
-    var title: String = "识别结果"
+    var title: String = String(localized: "识别结果")
     var subtitle: String? = nil
     var warningSubtitle: String? = nil
     var showsOriginalToggle: Bool = false
@@ -30,8 +30,8 @@ struct VoiceInputSheet: View {
         speechProvider: SpeechRecognitionProvider = MockSpeechRecognitionProvider(),
         recordingService: VoiceRecordingServiceProviding? = nil,
         maximumDuration: TimeInterval? = nil,
-        readySubtitle: String = "确认后再发送给 HoloAI",
-        submitButtonTitle: String = "发送",
+        readySubtitle: String = String(localized: "确认后再发送给 HoloAI"),
+        submitButtonTitle: String = String(localized: "发送"),
         resultConfig: VoiceResultConfig? = nil,
         postProcessor: (any VoiceTranscriptPostProcessing)? = nil,
         transcriptFormatter: @escaping (String) -> String = { $0 },
@@ -148,7 +148,7 @@ struct VoiceInputSheet: View {
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
-            Button(viewModel.state == .recording ? "暂停" : "继续") {
+            Button(viewModel.state == .recording ? String(localized: "暂停") : String(localized: "继续")) {
                 HapticManager.selection()
                 if viewModel.state == .recording {
                     viewModel.pauseRecording()
@@ -320,24 +320,24 @@ struct VoiceInputSheet: View {
     private var titleText: String {
         switch viewModel.state {
         case .idle, .requestingPermission:
-            return "准备录音"
+            return String(localized: "准备录音")
         case .recording:
-            return "正在聆听"
+            return String(localized: "正在聆听")
         case .paused:
-            return "已暂停"
+            return String(localized: "已暂停")
         case .interrupted:
-            return "录音被中断"
+            return String(localized: "录音被中断")
         case .transcribing:
-            return "正在识别"
+            return String(localized: "正在识别")
         case .summarizing:
-            return "正在智能总结"
+            return String(localized: "正在智能总结")
         case .transcriptReady:
-            if viewModel.summaryNotice == "正在智能总结，可先确认原文" {
-                return "识别结果"
+            if viewModel.summaryNotice == String(localized: "正在智能总结，可先确认原文") {
+                return String(localized: "识别结果")
             }
-            return resultConfig?.title ?? "识别结果"
+            return resultConfig?.title ?? String(localized: "识别结果")
         case .failed:
-            return "识别失败"
+            return String(localized: "识别失败")
         }
     }
 
@@ -365,26 +365,26 @@ struct VoiceInputSheet: View {
         switch viewModel.state {
         case .recording, .paused, .interrupted:
             if viewModel.state == .interrupted {
-                return viewModel.didReceiveRecoverableInterruption ? "中断已结束，可以继续或完成" : "录音被中断，可以继续或完成"
+                return viewModel.didReceiveRecoverableInterruption ? String(localized: "中断已结束，可以继续或完成") : String(localized: "录音被中断，可以继续或完成")
             }
             let maxText = formatDuration(viewModel.maximumDuration)
             return "\(formatDuration(viewModel.recordingDuration)) / \(maxText)"
         case .transcribing:
-            let maxDesc = viewModel.maximumDuration >= 60 ? "\(Int(viewModel.maximumDuration / 60)) 分钟" : "\(Int(viewModel.maximumDuration)) 秒"
-            return viewModel.didAutoFinishBecauseOfLimit ? "已到 \(maxDesc)，正在整理你的语音" : "正在整理你的语音"
+            let maxDesc = viewModel.maximumDuration >= 60 ? String(localized: "\(Int(viewModel.maximumDuration / 60)) 分钟") : String(localized: "\(Int(viewModel.maximumDuration)) 秒")
+            return viewModel.didAutoFinishBecauseOfLimit ? String(localized: "已到 \(maxDesc)，正在整理你的语音") : String(localized: "正在整理你的语音")
         case .summarizing:
-            return "正在将语音整理成更适合想法记录的表达"
+            return String(localized: "正在将语音整理成更适合想法记录的表达")
         case .transcriptReady:
             if let notice = viewModel.summaryNotice {
                 return notice
             }
             return resultConfig?.subtitle ?? readySubtitle
         case .failed(.microphonePermissionDenied):
-            return "需要使用麦克风来记录你的语音"
+            return String(localized: "需要使用麦克风来记录你的语音")
         case .failed:
             return ""
         case .idle, .requestingPermission:
-            return "需要使用麦克风来记录你的语音"
+            return String(localized: "需要使用麦克风来记录你的语音")
         }
     }
 

@@ -81,7 +81,7 @@ struct AIReadableResponseView: View {
             }
         }
         .padding(.vertical, 8)
-        .accessibilityLabel("Holo 正在回复")
+        .accessibilityLabel(String(localized: "Holo 正在回复"))
     }
 
     private var streamingText: some View {
@@ -142,7 +142,7 @@ struct AIReadableResponseView: View {
                         .foregroundColor(.holoError)
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("重新发送上一条消息")
+                .accessibilityHint(String(localized: "重新发送上一条消息"))
             }
         }
         .padding(.horizontal, 14)
@@ -163,7 +163,7 @@ struct AIReadableResponseView: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Text(isShowingDetails ? "收起详细分析" : "展开更多分析")
+                    Text(isShowingDetails ? String(localized: "收起详细分析") : String(localized: "展开更多分析"))
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.semibold))
                         .rotationEffect(.degrees(isShowingDetails ? 180 : 0))
@@ -173,7 +173,7 @@ struct AIReadableResponseView: View {
                 .padding(.vertical, 4)
             }
             .buttonStyle(.plain)
-            .accessibilityValue(isShowingDetails ? "已展开" : "已收起")
+            .accessibilityValue(isShowingDetails ? String(localized: "已展开") : String(localized: "已收起"))
 
             if isShowingDetails {
                 blockList(detailBlocks)

@@ -17,7 +17,7 @@ struct AnalysisSummaryChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: domainIcon,
-                title: "\(domainLabel)概览",
+                title: String(localized: "\(domainLabel)概览"),
                 subtitle: data.periodLabel
             )
 
@@ -35,13 +35,13 @@ struct AnalysisSummaryChatCard: View {
 
     private var domainLabel: String {
         switch data.domain {
-        case .finance: return "财务"
-        case .habit: return "习惯"
-        case .task: return "任务"
-        case .thought: return "想法"
-        case .crossModule: return "综合"
-        case .health: return "健康"
-        case .goal: return "目标"
+        case .finance: return String(localized: "财务")
+        case .habit: return String(localized: "习惯")
+        case .task: return String(localized: "任务")
+        case .thought: return String(localized: "想法")
+        case .crossModule: return String(localized: "综合")
+        case .health: return String(localized: "健康")
+        case .goal: return String(localized: "目标")
         }
     }
 
@@ -69,7 +69,7 @@ struct AnalysisBreakdownChatCard: View {
             CardHeaderView(
                 icon: "chart.pie.fill",
                 title: data.title,
-                subtitle: "分类构成"
+                subtitle: String(localized: "分类构成")
             )
 
             VStack(spacing: 10) {
@@ -89,7 +89,7 @@ struct AnalysisBreakdownChatCard: View {
                                 .lineLimit(1)
 
                             if let percent = row.percent {
-                                Text(String(format: "占比 %.0f%%", percent * 100))
+                                Text(String(format: String(localized: "占比 %.0f%%"), percent * 100))
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundColor(.holoTextSecondary)
                             }
@@ -120,7 +120,7 @@ struct AnalysisTrendChatCard: View {
             CardHeaderView(
                 icon: "chart.line.uptrend.xyaxis",
                 title: data.title,
-                subtitle: "趋势变化"
+                subtitle: String(localized: "趋势变化")
             )
 
             if let max = data.points.max(by: { $0.value < $1.value }),
@@ -130,9 +130,9 @@ struct AnalysisTrendChatCard: View {
                 let isUp = lastValue >= firstValue
 
                 HoloAIHeroMetric(
-                    label: isUp ? "整体上升" : "整体下降",
+                    label: isUp ? String(localized: "整体上升") : String(localized: "整体下降"),
                     value: data.points.last?.displayValue ?? max.displayValue,
-                    note: "最高 \(max.displayValue)（\(max.label)） · 最低 \(min.displayValue)（\(min.label)）",
+                    note: String(localized: "最高 \(max.displayValue)（\(max.label)） · 最低 \(min.displayValue)（\(min.label)）"),
                     tint: isUp ? .holoError : .holoSuccess
                 )
             }
@@ -157,13 +157,13 @@ struct AnalysisComparisonChatCard: View {
             CardHeaderView(
                 icon: "arrow.left.arrow.right",
                 title: data.title,
-                subtitle: "对比"
+                subtitle: String(localized: "对比")
             )
 
             HoloAIHeroMetric(
-                label: "当前",
+                label: String(localized: "当前"),
                 value: data.currentValue,
-                note: data.previousValue.map { "上期 \($0)" },
+                note: data.previousValue.map { String(localized: "上期 \($0)") },
                 tint: .holoTextPrimary
             )
 
@@ -173,7 +173,7 @@ struct AnalysisComparisonChatCard: View {
                     CardBadge(text: change, color: isPositive ? .holoError : .holoSuccess)
                 }
                 if let previous = data.previousValue {
-                    CardBadge(text: "上期 \(previous)", color: .holoTextSecondary)
+                    CardBadge(text: String(localized: "上期 \(previous)"), color: .holoTextSecondary)
                 }
             }
         }
@@ -190,17 +190,17 @@ struct AnalysisHighlightsChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: "star.fill",
-                title: "亮点与提醒",
-                subtitle: "\(data.highlights.count) 条亮点 · \(data.warnings.count) 条提醒"
+                title: String(localized: "亮点与提醒"),
+                subtitle: String(localized: "\(data.highlights.count) 条亮点 · \(data.warnings.count) 条提醒")
             )
 
             ForEach(data.highlights, id: \.self) { highlight in
-                HoloAIFactItem(kicker: "亮点", bodyText: highlight, tint: .holoSuccess)
+                HoloAIFactItem(kicker: String(localized: "亮点"), bodyText: highlight, tint: .holoSuccess)
             }
 
             ForEach(data.warnings, id: \.self) { warning in
                 HoloAIFactItem(
-                    kicker: "提醒",
+                    kicker: String(localized: "提醒"),
                     bodyText: warning,
                     tint: Color(red: 245/255, green: 158/255, blue: 11/255)
                 )

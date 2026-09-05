@@ -125,15 +125,15 @@ enum BillDuplicateDetector {
 
     private static func describeExisting(_ entry: ExistingEntry) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         let dateText = formatter.string(from: entry.date)
         let sourceText: String
         switch entry.importSource {
-        case "wechat": sourceText = "微信账单"
-        case "alipay": sourceText = "支付宝账单"
-        case .some(let s) where s.hasPrefix("bank"): sourceText = "银行账单"
-        case .some: sourceText = "账单导入"
-        case nil: sourceText = "手动记录"
+        case "wechat": sourceText = String(localized: "微信账单")
+        case "alipay": sourceText = String(localized: "支付宝账单")
+        case .some(let s) where s.hasPrefix("bank"): sourceText = String(localized: "银行账单")
+        case .some: sourceText = String(localized: "账单导入")
+        case nil: sourceText = String(localized: "手动记录")
         }
         let amountText = NumberFormatter.currency.string(from: NSDecimalNumber(decimal: entry.amount)) ?? ""
         return "\(dateText) \(sourceText) \(amountText)"

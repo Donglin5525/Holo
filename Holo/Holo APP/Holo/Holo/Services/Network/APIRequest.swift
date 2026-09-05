@@ -35,6 +35,13 @@ nonisolated struct APIRequest {
             request.setValue(value, forHTTPHeaderField: key)
         }
 
+        // App 实际生效语言随所有后端请求上送（zh-Hans/zh-Hant/en），
+        // 后端据此注入 AI 输出语言指令；未声明时回落源语言
+        request.setValue(
+            Bundle.main.preferredLocalizations.first ?? "zh-Hans",
+            forHTTPHeaderField: "x-holo-language"
+        )
+
         if let body = body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(body)

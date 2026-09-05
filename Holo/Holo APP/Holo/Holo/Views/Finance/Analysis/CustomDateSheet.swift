@@ -87,8 +87,8 @@ struct CustomDateSheet: View {
 
     private var phaseHint: some View {
         Text(editingDate == .start
-             ? "① 点击日历选择开始日期"
-             : "② 点击日历选择结束日期")
+             ? String(localized: "① 点击日历选择开始日期")
+             : String(localized: "② 点击日历选择结束日期"))
             .font(.holoCaption)
             .foregroundColor(.holoPrimary)
     }
@@ -98,7 +98,7 @@ struct CustomDateSheet: View {
     private var dateRangeDisplay: some View {
         HStack(spacing: HoloSpacing.md) {
             DateDisplayCard(
-                title: "开始",
+                title: String(localized: "开始"),
                 date: tempStartDate,
                 isSelected: editingDate == .start
             ) {
@@ -112,7 +112,7 @@ struct CustomDateSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             DateDisplayCard(
-                title: "结束",
+                title: String(localized: "结束"),
                 date: tempEndDate,
                 isSelected: editingDate == .end
             ) {
@@ -225,8 +225,7 @@ struct DateDisplayCard: View {
 
     private func formatDate(_ date: Date) -> String {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "zh_CN")
-        df.dateFormat = "yyyy年M月d日"
+        df.setLocalizedDateFormatFromTemplate("yMMMd")
         return df.string(from: date)
     }
 }

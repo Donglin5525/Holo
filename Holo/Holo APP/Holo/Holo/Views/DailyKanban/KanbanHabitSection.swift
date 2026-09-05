@@ -59,7 +59,7 @@ struct KanbanHabitSection: View {
             loadStatus()
         }
         .confirmationDialog(
-            undoHabit.map { "撤销「\($0.name)」今日最近一笔记录？" } ?? "",
+            undoHabit.map { String(localized: "撤销「\($0.name)」今日最近一笔记录？") } ?? "",
             isPresented: Binding(
                 get: { undoHabit != nil },
                 set: { if !$0 { undoHabit = nil } }
@@ -166,7 +166,7 @@ struct KanbanHabitSection: View {
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)
             } else {
-                Text(habit.unitText.isEmpty ? "记录数值" : habit.unitText)
+                Text(habit.unitText.isEmpty ? String(localized: "记录数值") : habit.unitText)
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -330,7 +330,7 @@ struct KanbanHabitSection: View {
             }
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("打卡失败: \(error.localizedDescription)")
-            HoloToastCenter.shared.show("打卡失败，请重试", type: .error)
+            HoloToastCenter.shared.show(String(localized: "打卡失败，请重试"), type: .error)
         }
     }
 
@@ -341,7 +341,7 @@ struct KanbanHabitSection: View {
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("计数失败: \(error.localizedDescription)")
-            HoloToastCenter.shared.show("计数失败，请重试", type: .error)
+            HoloToastCenter.shared.show(String(localized: "计数失败，请重试"), type: .error)
         }
     }
 
@@ -361,7 +361,7 @@ struct KanbanHabitSection: View {
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("撤销失败: \(error.localizedDescription)")
-            HoloToastCenter.shared.show("撤销失败，请重试", type: .error)
+            HoloToastCenter.shared.show(String(localized: "撤销失败，请重试"), type: .error)
         }
     }
 }

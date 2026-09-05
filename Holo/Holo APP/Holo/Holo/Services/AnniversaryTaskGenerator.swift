@@ -149,16 +149,16 @@ final class AnniversaryTaskGenerator {
         let unit: String
         switch anniversary.displayMode {
         case .countdown(let d):
-            unit = d == 0 ? "就是今天" : "还有\(days)天"
+            unit = d == 0 ? String(localized: "就是今天") : String(localized: "还有\(days)天")
         case .elapsed:
-            unit = "已经\(days)天"
+            unit = String(localized: "已经\(days)天")
         }
         return "\(icon) \(name) \(unit)"
     }
 
     /// 任务描述：来源说明 + 备注
     private func taskDescription(for anniversary: Anniversary) -> String {
-        var desc = "来自纪念日「\(anniversary.title)」"
+        var desc = String(localized: "来自纪念日「\(anniversary.title)」")
         if let note = anniversary.note, !note.isEmpty {
             desc += "\n\(note)"
         }

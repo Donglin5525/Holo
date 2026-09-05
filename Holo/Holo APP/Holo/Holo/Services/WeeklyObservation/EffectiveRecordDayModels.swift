@@ -107,15 +107,15 @@ struct EffectiveRecordDayResult: Equatable, Codable, Sendable {
             // 天数够但累计模块不足 → 提示多样化；模块够但天数不足 → 提示继续记录
             if recordDayCount >= EffectiveRecordDayAggregator.lightThreshold
                 && coveredModules.count < EffectiveRecordDayAggregator.moduleThreshold {
-                return "再记录一种内容，观察会更准"
+                return String(localized: "再记录一种内容，观察会更准")
             }
             let remaining = max(1, EffectiveRecordDayAggregator.lightThreshold - recordDayCount)
-            return "再记录 \(remaining) 天生成观察"
+            return String(localized: "再记录 \(remaining) 天生成观察")
         case .lightReady:
             let remaining = max(1, EffectiveRecordDayAggregator.fullThreshold - recordDayCount)
-            return "再记录 \(remaining) 天，观察会更完整"
+            return String(localized: "再记录 \(remaining) 天，观察会更完整")
         case .fullReady:
-            return "本周观察已准备好"
+            return String(localized: "本周观察已准备好")
         }
     }
 }

@@ -145,9 +145,9 @@ enum AttachmentError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .saveFailed:
-            return "保存附件失败"
+            return String(localized: "保存附件失败")
         case .tooManyAttachments:
-            return "附件数量已达上限（最多 9 张）"
+            return String(localized: "附件数量已达上限（最多 9 张）")
         }
     }
 }

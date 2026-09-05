@@ -92,10 +92,10 @@ struct ThoughtTaskSettingsCard: View {
             }
 
             HStack(spacing: HoloSpacing.sm) {
-                settingChip("不设置", isSelected: isChipActive(.none)) { clearDate() }
-                settingChip("今天", isSelected: isChipActive(.today)) { pickQuickDate(0) }
-                settingChip("明天", isSelected: isChipActive(.tomorrow)) { pickQuickDate(1) }
-                settingChip("自选…", isSelected: isChipActive(.custom)) {
+                settingChip(String(localized: "不设置"), isSelected: isChipActive(.none)) { clearDate() }
+                settingChip(String(localized: "今天"), isSelected: isChipActive(.today)) { pickQuickDate(0) }
+                settingChip(String(localized: "明天"), isSelected: isChipActive(.tomorrow)) { pickQuickDate(1) }
+                settingChip(String(localized: "自选…"), isSelected: isChipActive(.custom)) {
                     showCustomDatePicker = true
                 }
             }
@@ -146,19 +146,18 @@ struct ThoughtTaskSettingsCard: View {
         if settings.userTouchedDate {
             return settings.hasDueDate
                 ? Self.summaryDateLabel(settings.dueDate, isAllDay: settings.isAllDay)
-                : "不设置"
+                : String(localized: "不设置")
         }
         switch effectiveDateUniformity {
-        case .none: return "不设置"
+        case .none: return String(localized: "不设置")
         case .uniform(let day): return Self.summaryDateLabel(day, isAllDay: true)
-        case .mixed: return "各任务不同"
+        case .mixed: return String(localized: "各任务不同")
         }
     }
 
     static func summaryDateLabel(_ date: Date, isAllDay: Bool) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = isAllDay ? "M月d日 EEE" : "M月d日 EEE HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate(isAllDay ? "MMMdE" : "MMMdEHHmm")
         return formatter.string(from: date)
     }
 
@@ -238,7 +237,7 @@ struct ThoughtTaskSettingsCard: View {
         if settings.userTouchedPriority {
             return settings.priority.displayTitle
         }
-        return effectivePriorityUniformity?.displayTitle ?? "各任务不同"
+        return effectivePriorityUniformity?.displayTitle ?? String(localized: "各任务不同")
     }
 
     // MARK: 所属清单
@@ -252,7 +251,7 @@ struct ThoughtTaskSettingsCard: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
-                Text(settings.selectedList?.name ?? "不设置")
+                Text(settings.selectedList?.name ?? String(localized: "不设置"))
                     .font(.holoBody)
                     .foregroundColor(settings.selectedList == nil ? .holoTextSecondary : .holoTextPrimary)
                     .lineLimit(1)
@@ -416,7 +415,7 @@ private struct ThoughtTaskListPickerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: HoloSpacing.xs) {
-                    listRow(id: nil, name: "不设置")
+                    listRow(id: nil, name: String(localized: "不设置"))
                     ForEach(allLists, id: \.id) { list in
                         listRow(id: list.id, name: list.name)
                     }
@@ -498,19 +497,18 @@ enum ThoughtTaskBadgeFormatter {
 
     private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
     }()
 
     /// 徽章用的短日期文案：今天/明天/后天优先，其余 M月d日
     static func shortDateLabel(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "今天" }
-        if calendar.isDateInTomorrow(date) { return "明天" }
+        if calendar.isDateInToday(date) { return String(localized: "今天") }
+        if calendar.isDateInTomorrow(date) { return String(localized: "明天") }
         if let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()),
            calendar.isDate(date, inSameDayAs: dayAfterTomorrow) {
-            return "后天"
+            return String(localized: "后天")
         }
         return dayFormatter.string(from: date)
     }

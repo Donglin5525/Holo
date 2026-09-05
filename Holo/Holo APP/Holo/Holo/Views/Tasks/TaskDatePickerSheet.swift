@@ -110,7 +110,7 @@ struct TaskDatePickerSheet: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
 
-                Text(hasDueDate ? formattedDueDateSummary : "未设置")
+                Text(hasDueDate ? formattedDueDateSummary : String(localized: "未设置"))
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -135,10 +135,10 @@ struct TaskDatePickerSheet: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.sm) {
-                    quickDateButton(title: "今天", daysFromToday: 0)
-                    quickDateButton(title: "明天", daysFromToday: 1)
-                    quickDateButton(title: "本周末", targetDate: upcomingWeekendDate)
-                    quickDateButton(title: "下周", daysFromToday: 7)
+                    quickDateButton(title: String(localized: "今天"), daysFromToday: 0)
+                    quickDateButton(title: String(localized: "明天"), daysFromToday: 1)
+                    quickDateButton(title: String(localized: "本周末"), targetDate: upcomingWeekendDate)
+                    quickDateButton(title: String(localized: "下周"), daysFromToday: 7)
                 }
             }
         }
@@ -276,8 +276,7 @@ struct TaskDatePickerSheet: View {
 
     private var formattedDueDateSummary: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = isAllDay ? "M月d日 EEE" : "M月d日 EEE HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate(isAllDay ? "MMMdE" : "MMMdEHHmm")
         return formatter.string(from: dueDate)
     }
 
@@ -707,7 +706,7 @@ struct TaskDatePickerSheet: View {
     }
 
     private func ordinalText(_ ordinal: Int) -> String {
-        let names = ["", "一", "二", "三", "四", "五"]
+        let names = ["", String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五")]
         return ordinal < names.count ? names[ordinal] : "\(ordinal)"
     }
 
@@ -793,11 +792,10 @@ struct TaskDatePickerSheet: View {
 
     private var formattedEndDate: String {
         guard let date = repeatEndDate else {
-            return "未选择"
+            return String(localized: "未选择")
         }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy 年 M 月 d 日"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter.string(from: date)
     }
 

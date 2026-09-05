@@ -95,17 +95,17 @@ struct GoalDetailView: View {
                     .foregroundColor(.holoPrimary)
             }
             if let desiredOutcome = goal.desiredOutcome, !desiredOutcome.isEmpty {
-                infoLine(icon: "checkmark.seal", label: "期望结果", value: desiredOutcome)
+                infoLine(icon: "checkmark.seal", label: String(localized: "期望结果"), value: desiredOutcome)
             }
             if let motivation = goal.motivation, !motivation.isEmpty {
-                infoLine(icon: "heart", label: "动机", value: motivation)
+                infoLine(icon: "heart", label: String(localized: "动机"), value: motivation)
             }
             if let deadline = goal.deadline {
                 let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
                 infoLine(
                     icon: "calendar",
-                    label: "截止日期",
-                    value: days >= 0 ? "\(GoalEditForm.formatDeadline(deadline))（还剩 \(days) 天）" : "\(GoalEditForm.formatDeadline(deadline))（已逾期 \(-days) 天）"
+                    label: String(localized: "截止日期"),
+                    value: days >= 0 ? String(localized: "\(GoalEditForm.formatDeadline(deadline))（还剩 \(days) 天）") : String(localized: "\(GoalEditForm.formatDeadline(deadline))（已逾期 \(-days) 天）")
                 )
             }
         }
@@ -167,7 +167,7 @@ struct GoalDetailView: View {
 
     private var taskSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(title: "关联任务")
+            sectionHeader(title: String(localized: "关联任务"))
             if goal.sortedTasks.isEmpty {
                 Text("暂无关联任务")
                     .font(.holoCaption)
@@ -184,7 +184,7 @@ struct GoalDetailView: View {
 
     private var habitSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(title: "关联习惯")
+            sectionHeader(title: String(localized: "关联习惯"))
             if goal.sortedHabits.isEmpty {
                 Text("暂无关联习惯")
                     .font(.holoCaption)
@@ -269,7 +269,7 @@ struct GoalDetailView: View {
     /// 大数字行：累积型「128.5 / 300 km」；达标型「72.5 kg · 目标 70」
     private func metricHeadlineText(_ metric: GoalMetricProgress) -> String {
         if goal.goalKindEnum == .target {
-            return "\(GoalMetricEvaluator.formatValue(metric.currentValue))\(unitDisplay) · 目标 \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))"
+            return String(localized: "\(GoalMetricEvaluator.formatValue(metric.currentValue))\(unitDisplay) · 目标 \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))")
         }
         return "\(GoalMetricEvaluator.formatValue(metric.currentValue)) / \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unitDisplay)"
     }
@@ -277,31 +277,31 @@ struct GoalDetailView: View {
     private func metricBaselineText(_ metric: GoalMetricProgress) -> String {
         guard let baseline = goal.baselineValueDouble else { return "" }
         let target = goal.metricTargetValueDouble ?? 0
-        let verb = target < baseline ? "已减" : "已增"
+        let verb = target < baseline ? String(localized: "已减") : String(localized: "已增")
         let moved = abs(baseline - metric.currentValue)
         let total = abs(target - baseline)
-        return "\(verb) \(GoalMetricEvaluator.formatValue(moved))\(unitDisplay) / 共 \(GoalMetricEvaluator.formatValue(total))\(unitDisplay)"
+        return String(localized: "\(verb) \(GoalMetricEvaluator.formatValue(moved))\(unitDisplay) / 共 \(GoalMetricEvaluator.formatValue(total))\(unitDisplay)")
     }
 
     /// 预计达成行：已达成 / 按节奏外推 / 低速段不预测
     @ViewBuilder
     private func metricForecastLine(_ metric: GoalMetricProgress) -> some View {
         if metric.isAchieved {
-            forecastLabel(icon: "checkmark.circle.fill", color: .green, text: "已达成目标")
+            forecastLabel(icon: "checkmark.circle.fill", color: .green, text: String(localized: "已达成目标"))
         } else if let forecast = metric.forecast {
             let dateText = GoalMetricEvaluator.displayDateFormatter.string(from: forecast.predictedDate)
             if let meets = forecast.meetsDeadline {
                 if meets {
-                    forecastLabel(icon: "checkmark.circle.fill", color: .green, text: "按当前节奏预计 \(dateText) 达成，赶在截止前")
+                    forecastLabel(icon: "checkmark.circle.fill", color: .green, text: String(localized: "按当前节奏预计 \(dateText) 达成，赶在截止前"))
                 } else {
-                    forecastLabel(icon: "exclamationmark.triangle.fill", color: .orange, text: "照目前进度难以在截止前达成，按当前节奏预计 \(dateText) 达成")
+                    forecastLabel(icon: "exclamationmark.triangle.fill", color: .orange, text: String(localized: "照目前进度难以在截止前达成，按当前节奏预计 \(dateText) 达成"))
                 }
             } else {
-                forecastLabel(icon: "chart.line.uptrend.xyaxis", color: .holoPrimary, text: "按当前节奏预计 \(dateText) 达成")
+                forecastLabel(icon: "chart.line.uptrend.xyaxis", color: .holoPrimary, text: String(localized: "按当前节奏预计 \(dateText) 达成"))
             }
         } else {
             // 进度 <10% 低速段：预测波动大，只提示不输出结论
-            forecastLabel(icon: "leaf", color: .holoTextSecondary, text: "刚起步，多记几笔再看趋势")
+            forecastLabel(icon: "leaf", color: .holoTextSecondary, text: String(localized: "刚起步，多记几笔再看趋势"))
         }
     }
 
@@ -327,7 +327,7 @@ struct GoalDetailView: View {
                 Button {
                     onOpenLinkedEntity(.habitDetail(habitId: habit.id))
                 } label: {
-                    sourceLabelRow(text: "数据来自：\(habit.name)")
+                    sourceLabelRow(text: String(localized: "数据来自：\(habit.name)"))
                 }
                 .buttonStyle(.plain)
             }
@@ -335,7 +335,7 @@ struct GoalDetailView: View {
             Button {
                 onOpenLinkedEntity(.finance)
             } label: {
-                sourceLabelRow(text: "数据来自：账本（按全账本净结余计算，含信用卡负债）")
+                sourceLabelRow(text: String(localized: "数据来自：账本（按全账本净结余计算，含信用卡负债）"))
             }
             .buttonStyle(.plain)
         }
@@ -579,7 +579,7 @@ struct GoalEditSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? "保存中" : "保存") { save() }
+                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
                         .disabled(!canSave)
                         .fontWeight(.semibold)
                 }
@@ -588,7 +588,7 @@ struct GoalEditSheet: View {
                 Button {
                     save()
                 } label: {
-                    Text(isSaving ? "保存中" : "保存修改")
+                    Text(isSaving ? String(localized: "保存中") : String(localized: "保存修改"))
                         .font(.holoBody)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

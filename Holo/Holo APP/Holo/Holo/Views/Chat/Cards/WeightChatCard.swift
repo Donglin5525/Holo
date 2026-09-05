@@ -15,18 +15,18 @@ struct WeightChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: "scalemass.fill",
-                title: "体重记录",
-                subtitle: "刚刚记录"
+                title: String(localized: "体重记录"),
+                subtitle: String(localized: "刚刚记录")
             )
 
             HoloAIHeroMetric(
-                label: "当前体重",
+                label: String(localized: "当前体重"),
                 value: "\(data.weight) \(data.unit)",
                 tint: .holoTextPrimary
             )
 
-            CardFooterView(timeText: "刚刚", showsChevron: false)
+            CardFooterView(timeText: String(localized: "刚刚"), showsChevron: false)
         }
-        .accessibilityLabel("体重卡片：\(data.weight) \(data.unit)")
+        .accessibilityLabel(String(localized: "体重卡片：\(data.weight) \(data.unit)"))
     }
 }

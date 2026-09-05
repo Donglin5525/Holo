@@ -139,7 +139,7 @@ final class ChatReportTabViewModel: ObservableObject {
     /// 非搜索态的档案按月份分组（「档案越来越厚」的视觉节奏）。
     var groupedEntries: [(monthLabel: String, entries: [ReportArchiveDTO])] {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy年M月"
+        formatter.setLocalizedDateFormatFromTemplate("yMMM")
         var order: [String] = []
         var buckets: [String: [ReportArchiveDTO]] = [:]
         for entry in displayEntries {

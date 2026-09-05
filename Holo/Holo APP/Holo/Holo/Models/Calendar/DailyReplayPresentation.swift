@@ -21,13 +21,13 @@ enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .untimed:      return "当天记录"
-        case .earlyMorning: return "凌晨"
-        case .morning:      return "上午"
-        case .noon:         return "中午"
-        case .afternoon:    return "下午"
-        case .evening:      return "晚上"
-        case .lateNight:    return "深夜"
+        case .untimed:      return String(localized: "当天记录")
+        case .earlyMorning: return String(localized: "凌晨")
+        case .morning:      return String(localized: "上午")
+        case .noon:         return String(localized: "中午")
+        case .afternoon:    return String(localized: "下午")
+        case .evening:      return String(localized: "晚上")
+        case .lateNight:    return String(localized: "深夜")
         }
     }
 
@@ -54,12 +54,12 @@ struct DailyReplayMoment: Identifiable {
 
     var timeText: String {
         events.allSatisfy { !$0.hasReliableTime }
-            ? "当天"
+            ? String(localized: "当天")
             : Self.timeFormatter.string(from: date)
     }
 
     var recordCountText: String? {
-        events.count > 1 ? "\(events.count) 条记录" : nil
+        events.count > 1 ? String(localized: "\(events.count) 条记录") : nil
     }
 
     var singleValueText: String? {
@@ -135,28 +135,28 @@ enum DailyReplayPresentation {
         let reliable = events.filter(\.hasReliableTime).sorted { $0.date < $1.date }
         let nightCount = reliable.filter { calendar.component(.hour, from: $0.date) >= 18 }.count
         if reliable.count >= 4, Double(nightCount) / Double(reliable.count) >= 0.65 {
-            return "这一天的记忆，大多留在夜里。"
+            return String(localized: "这一天的记忆，大多留在夜里。")
         }
 
         if let first = reliable.first?.date,
            let last = reliable.last?.date,
            calendar.component(.hour, from: first) < 8,
            calendar.component(.hour, from: last) >= 21 {
-            return "从清晨到夜晚，这一天留下了完整的生活轨迹。"
+            return String(localized: "从清晨到夜晚，这一天留下了完整的生活轨迹。")
         }
 
         let moduleCounts = Dictionary(grouping: events, by: \.module).mapValues(\.count)
         guard let dominant = moduleCounts.max(by: { $0.value < $1.value }),
               Double(dominant.value) / Double(events.count) >= 0.6 else {
-            return moduleCounts.count >= 3 ? "行动、往来与想法，在这一天交织成一段生活。" : nil
+            return moduleCounts.count >= 3 ? String(localized: "行动、往来与想法，在这一天交织成一段生活。") : nil
         }
 
         switch dominant.key {
-        case .finance: return "这一天的生活往来，被认真地留了下来。"
-        case .habit:   return "一些微小而持续的完成，构成了这一天。"
-        case .todo:    return "这一天向前推进了不少事情。"
-        case .thought: return "这一天留下了不少值得回看的念头。"
-        case .health:  return "这一天，对身体的感受格外清晰。"
+        case .finance: return String(localized: "这一天的生活往来，被认真地留了下来。")
+        case .habit:   return String(localized: "一些微小而持续的完成，构成了这一天。")
+        case .todo:    return String(localized: "这一天向前推进了不少事情。")
+        case .thought: return String(localized: "这一天留下了不少值得回看的念头。")
+        case .health:  return String(localized: "这一天，对身体的感受格外清晰。")
         }
     }
 
@@ -165,13 +165,13 @@ enum DailyReplayPresentation {
         switch module {
         case .finance:
             let directions = Set(events.compactMap(\.valueDirection))
-            if directions == [.positive] { return "\(events.count) 笔收入" }
-            if directions == [.negative] { return "\(events.count) 笔支出" }
-            return "\(events.count) 笔记账"
-        case .habit:   return "完成了 \(events.count) 个习惯"
-        case .todo:    return "完成了 \(events.count) 项待办"
-        case .thought: return "记录了 \(events.count) 条想法"
-        case .health:  return "留下了 \(events.count) 条健康记录"
+            if directions == [.positive] { return String(localized: "\(events.count) 笔收入") }
+            if directions == [.negative] { return String(localized: "\(events.count) 笔支出") }
+            return String(localized: "\(events.count) 笔记账")
+        case .habit:   return String(localized: "完成了 \(events.count) 个习惯")
+        case .todo:    return String(localized: "完成了 \(events.count) 项待办")
+        case .thought: return String(localized: "记录了 \(events.count) 条想法")
+        case .health:  return String(localized: "留下了 \(events.count) 条健康记录")
         }
     }
 

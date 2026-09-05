@@ -13,14 +13,26 @@ import SwiftUI
 
 /// 时间范围选择
 enum TimeRange: String, CaseIterable, Identifiable {
-    case day = "日"
-    case week = "周"
-    case month = "月"
-    case quarter = "季度"
-    case year = "年"
-    case custom = "自定义"
+    case day = "day"
+    case week = "week"
+    case month = "month"
+    case quarter = "quarter"
+    case year = "year"
+    case custom = "custom"
 
     var id: String { rawValue }
+
+    /// 显示名称（rawValue 仅作标识，不落库不传输，显示一律走 displayName）
+    var displayName: String {
+        switch self {
+        case .day: return String(localized: "日")
+        case .week: return String(localized: "周")
+        case .month: return String(localized: "月")
+        case .quarter: return String(localized: "季度")
+        case .year: return String(localized: "年")
+        case .custom: return String(localized: "自定义")
+        }
+    }
 
     /// 时间范围的图标
     var icon: String? {
@@ -129,7 +141,7 @@ enum ChartTooltipDateLabel {
         guard points.count > 1 else { return dayFormatter.string(from: point.date) }
         let spacing = points[1].date.timeIntervalSince(points[0].date)
         if spacing < 1.5 * 86400 { return dayFormatter.string(from: point.date) }
-        if spacing < 1.5 * 7 * 86400 { return dayFormatter.string(from: point.date) + " 当周" }
+        if spacing < 1.5 * 7 * 86400 { return dayFormatter.string(from: point.date) + String(localized: " 当周") }
         return monthFormatter.string(from: point.date)
     }
 }

@@ -23,8 +23,8 @@ struct SpendingProjectsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     summaryCard
-                    projectSection("周期性项目", projects.filter(\.isRecurring))
-                    projectSection("一次性购买", projects.filter { !$0.isRecurring })
+                    projectSection(String(localized: "周期性项目"), projects.filter(\.isRecurring))
+                    projectSection(String(localized: "一次性购买"), projects.filter { !$0.isRecurring })
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
@@ -58,9 +58,9 @@ struct SpendingProjectsView: View {
         let monthly = projects.compactMap(\.monthlyCommitment).reduce(Decimal(0), +)
         let daily = projects.filter { !$0.isRecurring }.compactMap(\.dailyCost).reduce(Decimal(0), +)
         return HStack(spacing: 0) {
-            metric("每月承诺", monthly)
+            metric(String(localized: "每月承诺"), monthly)
             Divider().frame(height: 40)
-            metric("一次性·折合每天", daily)
+            metric(String(localized: "一次性·折合每天"), daily)
             Divider().frame(height: 40)
             VStack(spacing: 4) {
                 Text("项目数").font(.holoLabel).foregroundColor(.holoTextSecondary)
@@ -115,8 +115,8 @@ struct SpendingProjectsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(project.name).font(.holoBody).foregroundColor(.holoTextPrimary).lineLimit(1)
                 Text(project.isRecurring
-                     ? "\(project.frequency == SpendingProjectFrequency.yearly.rawValue ? "每年" : "每月") · \(project.isPaused ? "已暂停" : (project.hasRemainingOccurrences ? "自动记账" : "已完成"))"
-                     : "已购 \(project.ownershipElapsedDays) 天")
+                     ? "\(project.frequency == SpendingProjectFrequency.yearly.rawValue ? String(localized: "每年") : String(localized: "每月")) · \(project.isPaused ? String(localized: "已暂停") : (project.hasRemainingOccurrences ? String(localized: "自动记账") : String(localized: "已完成")))"
+                     : String(localized: "已购 \(project.ownershipElapsedDays) 天"))
                     .font(.system(size: 12)).foregroundColor(.holoTextSecondary)
             }
             Spacer()
@@ -124,7 +124,7 @@ struct SpendingProjectsView: View {
                 Text(NumberFormatter.currency.string(from: project.amount) ?? "¥0")
                     .font(.holoBody).fontWeight(.semibold).foregroundColor(.holoTextPrimary)
                 if let cost = project.isRecurring ? project.monthlyCommitment : project.dailyCost {
-                    Text(project.isRecurring ? "月均 \(NumberFormatter.currency.string(from: cost as NSDecimalNumber) ?? "¥0")" : "日均 \(NumberFormatter.currency.string(from: cost as NSDecimalNumber) ?? "¥0")")
+                    Text(project.isRecurring ? String(localized: "月均 \(NumberFormatter.currency.string(from: cost as NSDecimalNumber) ?? "¥0")") : String(localized: "日均 \(NumberFormatter.currency.string(from: cost as NSDecimalNumber) ?? "¥0")"))
                         .font(.system(size: 11)).foregroundColor(.holoTextSecondary)
                 }
             }
@@ -157,7 +157,7 @@ struct SpendingProjectDetailView: View {
         Form {
             Section {
                 LabeledContent("类型", value: project.isRecurring ? "周期性支出" : "一次性购买")
-                LabeledContent(project.isRecurring ? "每期金额" : "金额", value: NumberFormatter.currency.string(from: project.amount) ?? "¥0")
+                LabeledContent(project.isRecurring ? String(localized: "每期金额") : String(localized: "金额"), value: NumberFormatter.currency.string(from: project.amount) ?? "¥0")
                 if project.isRecurring {
                     LabeledContent("发生周期", value: project.frequency == SpendingProjectFrequency.yearly.rawValue ? "每年" : "每月")
                     LabeledContent("月均承诺", value: NumberFormatter.currency.string(from: (project.monthlyCommitment ?? Decimal(0)) as NSDecimalNumber) ?? "¥0")
@@ -181,7 +181,7 @@ struct SpendingProjectDetailView: View {
             } else {
                 Section {
                     Button("编辑周期项目") { showEndConditionEditor = true }
-                    Button(project.isPaused ? "恢复自动记账" : "暂停自动记账") { togglePause() }
+                    Button(project.isPaused ? String(localized: "恢复自动记账") : String(localized: "暂停自动记账")) { togglePause() }
                 }
                 .listRowBackground(Color.holoCardBackground)
             }
@@ -198,7 +198,7 @@ struct SpendingProjectDetailView: View {
             ToolbarItem(placement: .cancellationAction) { Button("完成") { dismiss() } }
             ToolbarItem(placement: .destructiveAction) { Button(role: .destructive) { showDeleteConfirmation = true } label: { Image(systemName: "trash") } }
         }
-        .confirmationDialog(project.isRecurring ? "删除这个固定支出项目？已生成的账本流水会保留。" : "删除这个一次性购买项目？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+        .confirmationDialog(project.isRecurring ? String(localized: "删除这个固定支出项目？已生成的账本流水会保留。") : String(localized: "删除这个一次性购买项目？"), isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("删除项目", role: .destructive) {
                 deleteProject()
             }
@@ -215,7 +215,7 @@ struct SpendingProjectDetailView: View {
         .onDisappear { performPendingDeletion() }
     }
 
-    private func togglePause() { do { try SpendingProjectRepository.shared.updatePause(for: project, isPaused: !project.isPaused); onChanged() } catch { errorMessage = "更新项目状态失败" } }
+    private func togglePause() { do { try SpendingProjectRepository.shared.updatePause(for: project, isPaused: !project.isPaused); onChanged() } catch { errorMessage = String(localized: "更新项目状态失败") } }
     private func deleteProject() {
         pendingDeletionID = project.objectID
         dismiss()
@@ -231,7 +231,7 @@ struct SpendingProjectDetailView: View {
             // 详情页已关闭，避免对已消失视图回写状态；下次进入列表可重试删除。
         }
     }
-    private static let dateFormatter: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy年M月d日"; return f }()
+    private static let dateFormatter: DateFormatter = { let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("yMMMd"); return f }()
 }
 
 struct SpendingProjectEndConditionSheet: View {
@@ -268,7 +268,7 @@ struct SpendingProjectEndConditionSheet: View {
                 }
                 .listRowBackground(Color.holoCardBackground)
                 Picker("结束条件", selection: $mode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
-                if mode == .endDate { DatePicker("结束日期", selection: $endDate, in: project.startDate..., displayedComponents: .date) }
+                if mode == .endDate { DatePicker(String(localized: "结束日期"), selection: $endDate, in: project.startDate..., displayedComponents: .date) }
                 if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad).focused($focusedField, equals: .occurrences) }
                 if let errorMessage { Text(errorMessage).foregroundColor(.red) }
             }
@@ -293,11 +293,11 @@ struct SpendingProjectEndConditionSheet: View {
 
     private func save() {
         guard let amountValue = Decimal(string: amount), amountValue > 0 else {
-            errorMessage = "请输入有效的每期金额"
+            errorMessage = String(localized: "请输入有效的每期金额")
             return
         }
         let maxOccurrences = mode == .occurrenceCount ? (Int32(totalOccurrences) ?? 0) : 0
-        guard mode == .forever || mode == .endDate || maxOccurrences > 0 else { errorMessage = "请输入有效周期数"; return }
+        guard mode == .forever || mode == .endDate || maxOccurrences > 0 else { errorMessage = String(localized: "请输入有效周期数"); return }
         do {
             try SpendingProjectRepository.shared.updateRecurringProject(
                 project,
@@ -306,7 +306,7 @@ struct SpendingProjectEndConditionSheet: View {
                 maxOccurrences: maxOccurrences
             )
             onSaved(); dismiss()
-        } catch { errorMessage = "保存失败，请稍后重试" }
+        } catch { errorMessage = String(localized: "保存失败，请稍后重试") }
     }
 }
 
@@ -337,7 +337,7 @@ struct SpendingProjectOneOffEditorSheet: View {
                 Section("购买信息") {
                     TextField("商品名称", text: $name)
                     TextField("购买金额", text: $amount).keyboardType(.decimalPad).focused($isAmountFocused)
-                    DatePicker("购买日期", selection: $purchaseDate, displayedComponents: .date)
+                    DatePicker(String(localized: "购买日期"), selection: $purchaseDate, displayedComponents: .date)
                     SpendingProjectCategoryMenu(categories: categories, selectedCategory: $selectedCategory)
                 }
                 .listRowBackground(Color.holoCardBackground)
@@ -373,7 +373,7 @@ struct SpendingProjectOneOffEditorSheet: View {
         guard let value = Decimal(string: amount), value > 0,
               let selectedCategory,
               !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "请填写有效的名称、金额和分类"
+            errorMessage = String(localized: "请填写有效的名称、金额和分类")
             return
         }
         do {
@@ -381,7 +381,7 @@ struct SpendingProjectOneOffEditorSheet: View {
             onSaved()
             dismiss()
         } catch {
-            errorMessage = "保存失败，请稍后重试"
+            errorMessage = String(localized: "保存失败，请稍后重试")
         }
     }
 
@@ -417,16 +417,16 @@ struct AddSpendingProjectSheet: View {
                 Section("类型") {
                     Picker("项目类型", selection: $kind) { Text("周期性支出").tag(SpendingProjectKind.recurring); Text("一次性购买").tag(SpendingProjectKind.oneOff) }.pickerStyle(.segmented)
                     TextField("名称，例如 年度旅行 / 新电脑", text: $name)
-                    TextField(kind == .recurring ? "每期金额" : "购买金额", text: $amount).keyboardType(.decimalPad)
+                    TextField(kind == .recurring ? String(localized: "每期金额") : String(localized: "购买金额"), text: $amount).keyboardType(.decimalPad)
                     SpendingProjectCategoryMenu(categories: categories, selectedCategory: $selectedCategory)
                 }
                 .listRowBackground(Color.holoCardBackground)
                 Section("规则") {
-                    DatePicker(kind == .oneOff ? "购买日期" : "开始日期", selection: $startDate, displayedComponents: .date)
+                    DatePicker(kind == .oneOff ? String(localized: "购买日期") : String(localized: "开始日期"), selection: $startDate, displayedComponents: .date)
                     if kind == .recurring {
                         Picker("发生周期", selection: $frequency) { ForEach(SpendingProjectFrequency.allCases, id: \.self) { Text($0.title).tag($0) } }
                         Picker("结束条件", selection: $endMode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
-                        if endMode == .endDate { DatePicker("结束日期", selection: $endDate, in: startDate..., displayedComponents: .date) }
+                        if endMode == .endDate { DatePicker(String(localized: "结束日期"), selection: $endDate, in: startDate..., displayedComponents: .date) }
                         if endMode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad) }
                         Text("每次到期记录一笔每期金额，未来期次不会提前入账。")
                             .font(.caption)
@@ -455,17 +455,17 @@ struct AddSpendingProjectSheet: View {
     }
 
     private func save() {
-        guard let value = Decimal(string: amount), value > 0 else { errorMessage = "请输入有效金额"; return }
-        guard let selectedCategory else { errorMessage = "请选择消费分类"; return }
+        guard let value = Decimal(string: amount), value > 0 else { errorMessage = String(localized: "请输入有效金额"); return }
+        guard let selectedCategory else { errorMessage = String(localized: "请选择消费分类"); return }
         do {
             let finance = FinanceRepository.shared
             let account = kind == .recurring ? finance.getDefaultAccountSync() : nil
             let maxOccurrences = kind == .recurring && endMode == .occurrenceCount ? (Int32(totalOccurrences) ?? 0) : 0
             let projectEndDate = kind == .recurring && endMode == .endDate ? endDate : nil
-            guard kind == .oneOff || endMode == .forever || projectEndDate != nil || maxOccurrences > 0 else { errorMessage = "请设置有效的结束条件"; return }
+            guard kind == .oneOff || endMode == .forever || projectEndDate != nil || maxOccurrences > 0 else { errorMessage = String(localized: "请设置有效的结束条件"); return }
             _ = try SpendingProjectRepository.shared.create(name: name, kind: kind, amount: value, frequency: kind == .recurring ? frequency : nil, startDate: startDate, endDate: projectEndDate, maxOccurrences: maxOccurrences, plannedLifespanDays: 0, category: selectedCategory, account: account)
             onSaved(); dismiss()
-        } catch { errorMessage = "保存失败，请稍后重试" }
+        } catch { errorMessage = String(localized: "保存失败，请稍后重试") }
     }
 
     private func loadCategories() {

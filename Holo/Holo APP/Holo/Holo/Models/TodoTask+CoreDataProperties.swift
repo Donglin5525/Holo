@@ -114,7 +114,7 @@ extension TodoTask {
         let checkItemsArray = checkItems?.allObjects as? [CheckItem] ?? []
         guard !checkItemsArray.isEmpty else { return "" }
         let completedCount = checkItemsArray.filter { $0.isChecked }.count
-        return "已完成 \(completedCount)/\(checkItemsArray.count) 项"
+        return String(localized: "已完成 \(completedCount)/\(checkItemsArray.count) 项")
     }
 
     /// 检查清单完成进度百分比

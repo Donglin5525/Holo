@@ -49,6 +49,7 @@ struct FieldMappingEditor: View {
                         fieldPicker(label: "一级分类", icon: "folder", selectedIndex: $editing.primaryCategoryIndex)
                         fieldPicker(label: "二级分类", icon: "tag", selectedIndex: $editing.subCategoryIndex)
                         fieldPicker(label: "账户", icon: "wallet.pass", selectedIndex: $editing.accountIndex)
+                        fieldPicker(label: "余额（银行流水，用于导入后核对）", icon: "scalemass", selectedIndex: $editing.balanceIndex)
                         fieldPicker(label: "备注", icon: "note.text", selectedIndex: $editing.noteIndex)
                     }
                     .padding(HoloSpacing.md)

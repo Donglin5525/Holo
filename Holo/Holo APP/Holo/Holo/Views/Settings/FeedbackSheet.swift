@@ -119,7 +119,7 @@ struct FeedbackSheet: View {
 
     private var categorySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            fieldLabel("反馈类型", required: true)
+            fieldLabel(String(localized: "反馈类型"), required: true)
 
             HStack(spacing: 9) {
                 ForEach(FeedbackCategory.allCases) { item in
@@ -163,7 +163,7 @@ struct FeedbackSheet: View {
 
     private var contentSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            fieldLabel("详细描述", required: true)
+            fieldLabel(String(localized: "详细描述"), required: true)
 
             VStack(alignment: .trailing, spacing: 4) {
                 TextEditor(text: $content)
@@ -383,7 +383,7 @@ struct FeedbackSheet: View {
                 HStack(spacing: 6) {
                     diagnosticChip("App \(appVersionText)")
                     diagnosticChip(osVersionText)
-                    diagnosticChip("设备 \(maskedDeviceId)")
+                    diagnosticChip(String(localized: "设备 \(maskedDeviceId)"))
                 }
             }
         }
@@ -434,7 +434,7 @@ struct FeedbackSheet: View {
                     ProgressView()
                         .tint(.white)
                 }
-                Text(isSubmitting ? "提交中…" : "提交反馈")
+                Text(isSubmitting ? String(localized: "提交中…") : String(localized: "提交反馈"))
                     .font(.system(size: 16, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
@@ -544,9 +544,9 @@ struct FeedbackSheet: View {
                 try await job.value
                 didSucceed = true
             } catch is CancellationError {
-                errorMessage = "网络不稳定，提交超时，请稍后重试"
+                errorMessage = String(localized: "网络不稳定，提交超时，请稍后重试")
             } catch {
-                errorMessage = "提交失败：\(error.localizedDescription)"
+                errorMessage = String(localized: "提交失败：\(error.localizedDescription)")
             }
             timeoutTask.cancel()
             isSubmitting = false

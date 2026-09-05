@@ -83,14 +83,14 @@ nonisolated enum AnalysisReadableTextParser {
         var used = Set<Int>()
 
         appendFact(
-            kicker: "支出节奏",
+            kicker: String(localized: "支出节奏"),
             from: sentences,
             used: &used,
             into: &facts,
             keywords: ["总支出", "日均"]
         )
         appendCombinedFact(
-            kicker: "固定成本",
+            kicker: String(localized: "固定成本"),
             from: sentences,
             used: &used,
             into: &facts,
@@ -98,7 +98,7 @@ nonisolated enum AnalysisReadableTextParser {
             maxSentenceCount: 2
         )
         appendFact(
-            kicker: "可调整空间",
+            kicker: String(localized: "可调整空间"),
             from: sentences,
             used: &used,
             into: &facts,
@@ -155,10 +155,10 @@ nonisolated enum AnalysisReadableTextParser {
 
     private static func fallbackKicker(for index: Int) -> String {
         switch index {
-        case 0: return "核心事实"
-        case 1: return "结构变化"
-        case 2: return "下一步"
-        default: return "补充"
+        case 0: return String(localized: "核心事实")
+        case 1: return String(localized: "结构变化")
+        case 2: return String(localized: "下一步")
+        default: return String(localized: "补充")
         }
     }
 

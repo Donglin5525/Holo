@@ -47,9 +47,9 @@ struct HealthStatusChip: View {
 
     private var text: String {
         switch state {
-        case .loading:       return "健康…"
-        case .unauthorized:  return "健康未授权"
-        case .noData:        return "健康·本周暂无"
+        case .loading:       return String(localized: "健康…")
+        case .unauthorized:  return String(localized: "健康未授权")
+        case .noData:        return String(localized: "健康·本周暂无")
         case .connected(let s): return s
         }
     }
@@ -70,12 +70,12 @@ struct HealthStatusChip: View {
         let avgSleep = Self.average(sleep.map(\.value))
 
         var phrases: [String] = []
-        if let s = avgSteps, s > 0 { phrases.append("\(s) 步") }
+        if let s = avgSteps, s > 0 { phrases.append(String(localized: "\(s) 步")) }
         if let h = avgSleep, h > 0 { phrases.append(String(format: "%.1f h", h)) }
 
         state = phrases.isEmpty
             ? .noData
-            : .connected(summary: "本周 " + phrases.joined(separator: " · "))
+            : .connected(summary: String(localized: "本周 \(phrases.joined(separator: " · "))"))
     }
 
     private static func average(_ values: [Double]) -> Double? {

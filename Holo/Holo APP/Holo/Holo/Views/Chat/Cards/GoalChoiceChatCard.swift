@@ -57,7 +57,7 @@ struct GoalChoiceChatCard: View {
                 }
             }
         }
-        .accessibilityLabel("目标选择卡片：\(data.actionLabel)")
+        .accessibilityLabel(String(localized: "目标选择卡片：\(data.actionLabel)"))
     }
 
     // MARK: - 候选行
@@ -102,33 +102,33 @@ struct GoalChoiceChatCard: View {
     }
 
     private var headerTitle: String {
-        if data.isCancelled { return "已取消" }
-        if data.isFailed { return "处理失败" }
+        if data.isCancelled { return String(localized: "已取消") }
+        if data.isFailed { return String(localized: "处理失败") }
         if !data.requiresConfirmation {
-            return data.selectedGoalTitle ?? "已完成"
+            return data.selectedGoalTitle ?? String(localized: "已完成")
         }
-        return "选择目标"
+        return String(localized: "选择目标")
     }
 
     private var headerSubtitle: String? {
         if data.isCancelled { return nil }
-        if !data.requiresConfirmation { return "已\(data.actionLabel)" }
+        if !data.requiresConfirmation { return String(localized: "已\(data.actionLabel)") }
         if let subject = data.subjectTitle, !subject.isEmpty {
-            return "要\(data.actionLabel)，请为「\(subject)」选择目标"
+            return String(localized: "要\(data.actionLabel)，请为「\(subject)」选择目标")
         }
-        return "请选择一个目标"
+        return String(localized: "请选择一个目标")
     }
 
     private var headerBadge: CardBadge? {
         if data.isCancelled {
-            return CardBadge(text: "已取消", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
         }
         if data.isConfirming {
-            return CardBadge(text: "处理中", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "处理中"), color: .holoTextSecondary)
         }
         if !data.requiresConfirmation {
-            return CardBadge(text: "已完成", color: .holoSuccess)
+            return CardBadge(text: String(localized: "已完成"), color: .holoSuccess)
         }
-        return CardBadge(text: data.isFailed ? "待重试" : "待选择", color: data.isFailed ? .holoError : .holoPrimary)
+        return CardBadge(text: data.isFailed ? String(localized: "待重试") : String(localized: "待选择"), color: data.isFailed ? .holoError : .holoPrimary)
     }
 }

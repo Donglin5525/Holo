@@ -50,11 +50,11 @@ enum SpeechRecognitionError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .transcriptionTimedOut:
-            return "识别超时，请稍后重试"
+            return String(localized: "识别超时，请稍后重试")
         case .emptyTranscript:
-            return "没听清楚，可以再说一次"
+            return String(localized: "没听清楚，可以再说一次")
         case .networkFailure:
-            return "识别失败，请检查网络后重试"
+            return String(localized: "识别失败，请检查网络后重试")
         case .serverMessage(let message):
             return message
         case .quotaExhausted(let message):

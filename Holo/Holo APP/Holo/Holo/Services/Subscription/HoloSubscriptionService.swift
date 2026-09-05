@@ -58,7 +58,7 @@ final class HoloSubscriptionService: ObservableObject {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
-                entitlementState.setError("会员服务尚未接通，当前按免费版展示")
+                entitlementState.setError(String(localized: "会员服务尚未接通，当前按免费版展示"))
                 return
             }
 
@@ -70,7 +70,7 @@ final class HoloSubscriptionService: ObservableObject {
                 source: status.source ?? "backend"
             )
         } catch {
-            entitlementState.setError("会员状态刷新失败，当前按最近状态展示")
+            entitlementState.setError(String(localized: "会员状态刷新失败，当前按最近状态展示"))
         }
     }
 
@@ -88,10 +88,10 @@ final class HoloSubscriptionService: ObservableObject {
             }
 
             if products.isEmpty {
-                entitlementState.setError("未读取到会员商品，请确认 StoreKit 配置")
+                entitlementState.setError(String(localized: "未读取到会员商品，请确认 StoreKit 配置"))
             }
         } catch {
-            entitlementState.setError("会员商品加载失败")
+            entitlementState.setError(String(localized: "会员商品加载失败"))
         }
     }
 
@@ -124,20 +124,20 @@ final class HoloSubscriptionService: ObservableObject {
                 } catch {
                     // 扣款已发生：交易保持未 finish，等 Transaction.updates 重发补偿；
                     // 文案必须与「未扣款失败」区分，否则用户以为被骗
-                    entitlementState.setError("购买已成功，会员状态同步中，可能需要几分钟生效")
+                    entitlementState.setError(String(localized: "购买已成功，会员状态同步中，可能需要几分钟生效"))
                 }
 
             case .userCancelled:
                 break
 
             case .pending:
-                entitlementState.setError("购买正在等待确认")
+                entitlementState.setError(String(localized: "购买正在等待确认"))
 
             @unknown default:
                 break
             }
         } catch {
-            entitlementState.setError("购买未完成，请稍后重试")
+            entitlementState.setError(String(localized: "购买未完成，请稍后重试"))
         }
     }
 
@@ -150,7 +150,7 @@ final class HoloSubscriptionService: ObservableObject {
             await syncCurrentEntitlements()
             await refreshStatus()
         } catch {
-            entitlementState.setError("恢复购买失败")
+            entitlementState.setError(String(localized: "恢复购买失败"))
         }
     }
 
@@ -184,7 +184,7 @@ final class HoloSubscriptionService: ObservableObject {
 
     private func updateAcceptance(path: String, body: [String: String]) async {
         guard let token = HoloInternalAccessService.shared.session?.token else {
-            entitlementState.setError("请先用内部验收账号登录，再切换真机权益")
+            entitlementState.setError(String(localized: "请先用内部验收账号登录，再切换真机权益"))
             return
         }
         guard let url = URL(string: "\(baseURL)\(path)") else { return }
@@ -207,7 +207,7 @@ final class HoloSubscriptionService: ObservableObject {
                     HoloSubscriptionErrorResponse.self,
                     from: data
                 ))?.error.message
-                entitlementState.setError(message ?? "真机验收状态切换失败")
+                entitlementState.setError(message ?? String(localized: "真机验收状态切换失败"))
                 return
             }
 
@@ -218,7 +218,7 @@ final class HoloSubscriptionService: ObservableObject {
                 source: status.source ?? "acceptance"
             )
         } catch {
-            entitlementState.setError("真机验收状态切换失败，请检查网络后重试")
+            entitlementState.setError(String(localized: "真机验收状态切换失败，请检查网络后重试"))
         }
     }
 
@@ -250,7 +250,7 @@ final class HoloSubscriptionService: ObservableObject {
                     await verified.transaction.finish()
                     await self.refreshStatus()
                 } catch {
-                    self.entitlementState.setError("会员状态同步失败")
+                    self.entitlementState.setError(String(localized: "会员状态同步失败"))
                 }
             }
         }

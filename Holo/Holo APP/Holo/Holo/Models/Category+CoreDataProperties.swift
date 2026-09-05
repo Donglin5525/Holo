@@ -57,237 +57,274 @@ extension Category {
     }
     
     // MARK: - 层级分类数据结构
-    
-    /// 二级子分类定义
+
+    /// 二级子分类定义（解析后：落库名 + 图标）
     typealias SubCategoryDef = (name: String, icon: String)
-    
-    /// 一级分类定义（包含子分类列表）
+
+    /// 一级分类定义（解析后：落库名 + 颜色 + 子分类列表）
     typealias CategoryGroupDef = (
         name: String,
         color: String,
         children: [SubCategoryDef]
     )
-    
+
+    /// 二级子分类定义（词条形态：名字三语，按固化种子语言解析成落库名）
+    typealias LocalizedSubCategoryDef = (term: SeedTerm, icon: String)
+
+    /// 一级分类定义（词条形态）
+    typealias LocalizedCategoryGroupDef = (
+        term: SeedTerm,
+        color: String,
+        children: [LocalizedSubCategoryDef]
+    )
+
     // MARK: - 支出分类层级（9 个一级 + 125 个二级）
 
-    /// 支出分类体系
+    /// 支出分类体系（词条形态：新用户首启按种子语言种植对应语种的科目名；
+    /// 常用科目名复用 FinanceSeedVocabulary 词条，其余就地内联）
     /// 按 Figma 设计稿的图标分组排列，每组颜色与设计一致
-    static let expenseHierarchy: [CategoryGroupDef] = [
+    static let localizedExpenseHierarchy: [LocalizedCategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 餐饮（蓝色系 #13A4EC）━━━━━━━━━━
-        (name: "餐饮", color: "#13A4EC", children: [
-            (name: "早餐", icon: "finance_breakfast"),
-            (name: "午餐", icon: "finance_lunch"),
-            (name: "晚餐", icon: "finance_dinner"),
-            (name: "夜宵", icon: "finance_latenight"),
-            (name: "零食", icon: "finance_snack"),
-            (name: "咖啡", icon: "finance_coffee"),
-            (name: "外卖", icon: "finance_takeout"),
-            (name: "饮品", icon: "finance_drink"),
-            (name: "水果", icon: "finance_fruit"),
-            (name: "酒水", icon: "finance_alcohol"),
-            (name: "超市", icon: "finance_supermarket"),
-            (name: "火锅", icon: "finance_hotpot"),
-            (name: "烧烤", icon: "finance_bbq"),
-            (name: "甜品", icon: "finance_dessert"),
-            (name: "啤酒", icon: "finance_beer"),
-            (name: "茶饮", icon: "finance_tea"),
+        (term: FinanceSeedVocabulary.dining, color: "#13A4EC", children: [
+            (term: FinanceSeedVocabulary.breakfast, icon: "finance_breakfast"),
+            (term: FinanceSeedVocabulary.lunch, icon: "finance_lunch"),
+            (term: FinanceSeedVocabulary.dinner, icon: "finance_dinner"),
+            (term: FinanceSeedVocabulary.lateNightSnack, icon: "finance_latenight"),
+            (term: SeedTerm(hans: "零食", hant: "零食", english: "Snacks"), icon: "finance_snack"),
+            (term: SeedTerm(hans: "咖啡", hant: "咖啡", english: "Coffee"), icon: "finance_coffee"),
+            (term: SeedTerm(hans: "外卖", hant: "外賣", english: "Takeout"), icon: "finance_takeout"),
+            (term: SeedTerm(hans: "饮品", hant: "飲品", english: "Drinks"), icon: "finance_drink"),
+            (term: SeedTerm(hans: "水果", hant: "水果", english: "Fruit"), icon: "finance_fruit"),
+            (term: SeedTerm(hans: "酒水", hant: "酒水", english: "Alcohol"), icon: "finance_alcohol"),
+            (term: SeedTerm(hans: "超市", hant: "超市", english: "Supermarket"), icon: "finance_supermarket"),
+            (term: SeedTerm(hans: "火锅", hant: "火鍋", english: "Hotpot"), icon: "finance_hotpot"),
+            (term: SeedTerm(hans: "烧烤", hant: "燒烤", english: "BBQ"), icon: "finance_bbq"),
+            (term: SeedTerm(hans: "甜品", hant: "甜品", english: "Dessert"), icon: "finance_dessert"),
+            (term: SeedTerm(hans: "啤酒", hant: "啤酒", english: "Beer"), icon: "finance_beer"),
+            (term: SeedTerm(hans: "茶饮", hant: "茶飲", english: "Tea"), icon: "finance_tea"),
         ]),
         // ━━━━━━━━━━ 2. 交通（绿色系 #10B981）━━━━━━━━━━
-        (name: "交通", color: "#10B981", children: [
-            (name: "地铁", icon: "finance_subway"),
-            (name: "打车", icon: "finance_taxi"),
-            (name: "公交", icon: "finance_bus"),
-            (name: "单车", icon: "finance_bicycle"),
-            (name: "加油", icon: "finance_fuel"),
-            (name: "充电", icon: "finance_ev_charge"),
-            (name: "停车", icon: "finance_parking"),
-            (name: "洗车", icon: "finance_carwash"),
-            (name: "车辆保养", icon: "finance_carmaint"),
-            (name: "火车", icon: "finance_train"),
-            (name: "机票", icon: "finance_flight"),
-            (name: "旅行", icon: "finance_travel"),
-            (name: "过路费", icon: "finance_toll"),
-            (name: "违章罚款", icon: "finance_fine"),
-            (name: "船票", icon: "finance_ship"),
-            (name: "渡轮", icon: "finance_ferry"),
-            (name: "电动车", icon: "finance_scooter"),
-            (name: "租车", icon: "finance_car_rent"),
+        (term: FinanceSeedVocabulary.transportation, color: "#10B981", children: [
+            (term: FinanceSeedVocabulary.subway, icon: "finance_subway"),
+            (term: FinanceSeedVocabulary.taxi, icon: "finance_taxi"),
+            (term: FinanceSeedVocabulary.bus, icon: "finance_bus"),
+            (term: SeedTerm(hans: "单车", hant: "單車", english: "Bike Share"), icon: "finance_bicycle"),
+            (term: SeedTerm(hans: "加油", hant: "加油", english: "Fuel"), icon: "finance_fuel"),
+            (term: SeedTerm(hans: "充电", hant: "充電", english: "EV Charging"), icon: "finance_ev_charge"),
+            (term: SeedTerm(hans: "停车", hant: "停車", english: "Parking"), icon: "finance_parking"),
+            (term: SeedTerm(hans: "洗车", hant: "洗車", english: "Car Wash"), icon: "finance_carwash"),
+            (term: SeedTerm(hans: "车辆保养", hant: "車輛保養", english: "Car Maintenance"), icon: "finance_carmaint"),
+            (term: SeedTerm(hans: "火车", hant: "火車", english: "Train"), icon: "finance_train"),
+            (term: SeedTerm(hans: "机票", hant: "機票", english: "Flights"), icon: "finance_flight"),
+            (term: FinanceSeedVocabulary.travel, icon: "finance_travel"),
+            (term: SeedTerm(hans: "过路费", hant: "過路費", english: "Toll"), icon: "finance_toll"),
+            (term: SeedTerm(hans: "违章罚款", hant: "違章罰款", english: "Traffic Fine"), icon: "finance_fine"),
+            (term: SeedTerm(hans: "船票", hant: "船票", english: "Boat Ticket"), icon: "finance_ship"),
+            (term: SeedTerm(hans: "渡轮", hant: "渡輪", english: "Ferry"), icon: "finance_ferry"),
+            (term: SeedTerm(hans: "电动车", hant: "電動車", english: "E-bike"), icon: "finance_scooter"),
+            (term: SeedTerm(hans: "租车", hant: "租車", english: "Car Rental"), icon: "finance_car_rent"),
         ]),
         // ━━━━━━━━━━ 3. 购物（橙色系 #F97316）━━━━━━━━━━
-        (name: "购物", color: "#F97316", children: [
-            (name: "服饰", icon: "finance_clothes"),
-            (name: "数码", icon: "finance_digital"),
-            (name: "日用", icon: "finance_daily"),
-            (name: "美妆", icon: "finance_cosmetics"),
-            (name: "家具", icon: "finance_furniture"),
-            (name: "书籍", icon: "finance_books"),
-            (name: "运动", icon: "finance_sports"),
-            (name: "礼物", icon: "finance_gift"),
-            (name: "鞋包", icon: "finance_shoes"),
-            (name: "珠宝", icon: "finance_jewelry"),
-            (name: "玩具", icon: "finance_toy"),
-            (name: "宠物用品", icon: "finance_pet_supply"),
-            (name: "植物花卉", icon: "finance_plant"),
-            (name: "买菜", icon: "finance_food_buy"),
+        (term: FinanceSeedVocabulary.shopping, color: "#F97316", children: [
+            (term: FinanceSeedVocabulary.clothing, icon: "finance_clothes"),
+            (term: SeedTerm(hans: "数码", hant: "數碼", english: "Electronics"), icon: "finance_digital"),
+            (term: FinanceSeedVocabulary.dailyNecessities, icon: "finance_daily"),
+            (term: SeedTerm(hans: "美妆", hant: "美妝", english: "Beauty"), icon: "finance_cosmetics"),
+            (term: SeedTerm(hans: "家具", hant: "家具", english: "Furniture"), icon: "finance_furniture"),
+            (term: SeedTerm(hans: "书籍", hant: "書籍", english: "Books"), icon: "finance_books"),
+            (term: SeedTerm(hans: "运动", hant: "運動", english: "Sports"), icon: "finance_sports"),
+            (term: SeedTerm(hans: "礼物", hant: "禮物", english: "Gifts"), icon: "finance_gift"),
+            (term: SeedTerm(hans: "鞋包", hant: "鞋包", english: "Shoes & Bags"), icon: "finance_shoes"),
+            (term: SeedTerm(hans: "珠宝", hant: "珠寶", english: "Jewelry"), icon: "finance_jewelry"),
+            (term: SeedTerm(hans: "玩具", hant: "玩具", english: "Toys"), icon: "finance_toy"),
+            (term: SeedTerm(hans: "宠物用品", hant: "寵物用品", english: "Pet Supplies"), icon: "finance_pet_supply"),
+            (term: SeedTerm(hans: "植物花卉", hant: "植物花卉", english: "Plants & Flowers"), icon: "finance_plant"),
+            (term: SeedTerm(hans: "买菜", hant: "買菜", english: "Groceries"), icon: "finance_food_buy"),
         ]),
         // ━━━━━━━━━━ 4. 娱乐（粉色系 #EC4899）━━━━━━━━━━
-        (name: "娱乐", color: "#EC4899", children: [
-            (name: "电影", icon: "finance_movie"),
-            (name: "游戏", icon: "finance_game"),
-            (name: "视频", icon: "finance_video"),
-            (name: "音乐", icon: "finance_music"),
-            (name: "KTV", icon: "finance_ktv"),
-            (name: "旅游", icon: "finance_tourism"),
-            (name: "住宿", icon: "finance_hotel"),
-            (name: "门票", icon: "finance_ticket"),
-            (name: "健身", icon: "finance_gym"),
-            (name: "体育赛事", icon: "finance_sports_event"),
-            (name: "演唱会", icon: "finance_concert"),
-            (name: "展览", icon: "finance_exhibition"),
-            (name: "SPA美容", icon: "finance_spa"),
-            (name: "密室/剧本", icon: "finance_escape"),
-            (name: "户外运动", icon: "finance_outdoor"),
+        (term: FinanceSeedVocabulary.entertainment, color: "#EC4899", children: [
+            (term: FinanceSeedVocabulary.movies, icon: "finance_movie"),
+            (term: SeedTerm(hans: "游戏", hant: "遊戲", english: "Games"), icon: "finance_game"),
+            (term: SeedTerm(hans: "视频", hant: "視頻", english: "Video"), icon: "finance_video"),
+            (term: SeedTerm(hans: "音乐", hant: "音樂", english: "Music"), icon: "finance_music"),
+            (term: SeedTerm(hans: "KTV", hant: "KTV", english: "KTV"), icon: "finance_ktv"),
+            (term: SeedTerm(hans: "旅游", hant: "旅遊", english: "Vacation"), icon: "finance_tourism"),
+            (term: SeedTerm(hans: "住宿", hant: "住宿", english: "Accommodation"), icon: "finance_hotel"),
+            (term: SeedTerm(hans: "门票", hant: "門票", english: "Tickets"), icon: "finance_ticket"),
+            (term: SeedTerm(hans: "健身", hant: "健身", english: "Fitness"), icon: "finance_gym"),
+            (term: SeedTerm(hans: "体育赛事", hant: "體育賽事", english: "Sports Events"), icon: "finance_sports_event"),
+            (term: SeedTerm(hans: "演唱会", hant: "演唱會", english: "Concerts"), icon: "finance_concert"),
+            (term: SeedTerm(hans: "展览", hant: "展覽", english: "Exhibitions"), icon: "finance_exhibition"),
+            (term: SeedTerm(hans: "SPA美容", hant: "SPA美容", english: "SPA"), icon: "finance_spa"),
+            (term: SeedTerm(hans: "密室/剧本", hant: "密室/劇本", english: "Escape Room"), icon: "finance_escape"),
+            (term: SeedTerm(hans: "户外运动", hant: "戶外運動", english: "Outdoor Sports"), icon: "finance_outdoor"),
         ]),
         // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
-        (name: "居住", color: "#6366F1", children: [
-            (name: "房租", icon: "finance_rent"),
-            (name: "房贷", icon: "finance_mortgage"),
-            (name: "水费", icon: "finance_water"),
-            (name: "电费", icon: "finance_electricity"),
-            (name: "燃气", icon: "finance_gas"),
-            (name: "物业", icon: "finance_property"),
-            (name: "网费", icon: "finance_internet"),
-            (name: "家电", icon: "finance_appliance"),
-            (name: "装修", icon: "finance_renovation"),
-            (name: "家政保洁", icon: "finance_cleaning"),
-            (name: "搬家", icon: "finance_moving"),
-            (name: "话费", icon: "finance_phone_bill"),
-            (name: "安防", icon: "finance_security"),
-            (name: "洗衣", icon: "finance_laundry"),
-            (name: "家具租赁", icon: "finance_furniture_rent"),
+        (term: FinanceSeedVocabulary.housing, color: "#6366F1", children: [
+            (term: SeedTerm(hans: "房租", hant: "房租", english: "Rent"), icon: "finance_rent"),
+            (term: SeedTerm(hans: "房贷", hant: "房貸", english: "Mortgage"), icon: "finance_mortgage"),
+            (term: SeedTerm(hans: "水费", hant: "水費", english: "Water Bill"), icon: "finance_water"),
+            (term: SeedTerm(hans: "电费", hant: "電費", english: "Electricity Bill"), icon: "finance_electricity"),
+            (term: SeedTerm(hans: "燃气", hant: "燃氣", english: "Gas Bill"), icon: "finance_gas"),
+            (term: SeedTerm(hans: "物业", hant: "物業", english: "Property Management"), icon: "finance_property"),
+            (term: SeedTerm(hans: "网费", hant: "網費", english: "Internet Bill"), icon: "finance_internet"),
+            (term: SeedTerm(hans: "家电", hant: "家電", english: "Home Appliances"), icon: "finance_appliance"),
+            (term: SeedTerm(hans: "装修", hant: "裝修", english: "Renovation"), icon: "finance_renovation"),
+            (term: SeedTerm(hans: "家政保洁", hant: "家政保潔", english: "Housekeeping"), icon: "finance_cleaning"),
+            (term: SeedTerm(hans: "搬家", hant: "搬家", english: "Moving"), icon: "finance_moving"),
+            (term: SeedTerm(hans: "话费", hant: "話費", english: "Phone Bill"), icon: "finance_phone_bill"),
+            (term: SeedTerm(hans: "安防", hant: "安防", english: "Security"), icon: "finance_security"),
+            (term: SeedTerm(hans: "洗衣", hant: "洗衣", english: "Laundry"), icon: "finance_laundry"),
+            (term: SeedTerm(hans: "家具租赁", hant: "家具租賃", english: "Furniture Rental"), icon: "finance_furniture_rent"),
         ]),
         // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
-        (name: "医疗", color: "#F43F5E", children: [
-            (name: "就医", icon: "finance_doctor"),
-            (name: "药品", icon: "finance_medicine"),
-            (name: "体检", icon: "finance_checkup"),
-            (name: "健身房", icon: "finance_gym"),
-            (name: "保健品", icon: "finance_supplement"),
-            (name: "牙齿保健", icon: "finance_dental"),
-            (name: "医疗用品", icon: "finance_medical_supply"),
-            (name: "住院", icon: "finance_hospital"),
-            (name: "眼镜", icon: "finance_glasses"),
-            (name: "心理咨询", icon: "finance_psychology"),
-            (name: "康复理疗", icon: "finance_fitness_med"),
-            (name: "疫苗", icon: "finance_vaccine"),
+        (term: FinanceSeedVocabulary.healthcare, color: "#F43F5E", children: [
+            (term: SeedTerm(hans: "就医", hant: "就醫", english: "Doctor Visit"), icon: "finance_doctor"),
+            (term: SeedTerm(hans: "药品", hant: "藥品", english: "Medicine"), icon: "finance_medicine"),
+            (term: SeedTerm(hans: "体检", hant: "體檢", english: "Health Checkup"), icon: "finance_checkup"),
+            (term: SeedTerm(hans: "健身房", hant: "健身房", english: "Gym"), icon: "finance_gym"),
+            (term: SeedTerm(hans: "保健品", hant: "保健品", english: "Supplements"), icon: "finance_supplement"),
+            (term: SeedTerm(hans: "牙齿保健", hant: "牙齒保健", english: "Dental Care"), icon: "finance_dental"),
+            (term: SeedTerm(hans: "医疗用品", hant: "醫療用品", english: "Medical Supplies"), icon: "finance_medical_supply"),
+            (term: SeedTerm(hans: "住院", hant: "住院", english: "Hospitalization"), icon: "finance_hospital"),
+            (term: SeedTerm(hans: "眼镜", hant: "眼鏡", english: "Glasses"), icon: "finance_glasses"),
+            (term: SeedTerm(hans: "心理咨询", hant: "心理諮詢", english: "Counseling"), icon: "finance_psychology"),
+            (term: SeedTerm(hans: "康复理疗", hant: "康復理療", english: "Physiotherapy"), icon: "finance_fitness_med"),
+            (term: SeedTerm(hans: "疫苗", hant: "疫苗", english: "Vaccination"), icon: "finance_vaccine"),
         ]),
         // ━━━━━━━━━━ 7. 学习（青色系 #06B6D4）━━━━━━━━━━
-        (name: "学习", color: "#06B6D4", children: [
-            (name: "课程", icon: "finance_course"),
-            (name: "教材", icon: "finance_textbook"),
-            (name: "考试", icon: "finance_exam"),
-            (name: "文具", icon: "finance_stationery"),
-            (name: "订阅", icon: "finance_subscription"),
-            (name: "AI工具", icon: "finance_ai_tool"),
-            (name: "软件服务", icon: "finance_software"),
-            (name: "云存储", icon: "finance_cloud"),
-            (name: "语言学习", icon: "finance_language"),
-            (name: "乐器学习", icon: "finance_music_learn"),
-            (name: "艺术培训", icon: "finance_art"),
-            (name: "体育培训", icon: "finance_sport_learn"),
-            (name: "证书考证", icon: "finance_certificate"),
+        (term: FinanceSeedVocabulary.learning, color: "#06B6D4", children: [
+            (term: SeedTerm(hans: "课程", hant: "課程", english: "Courses"), icon: "finance_course"),
+            (term: SeedTerm(hans: "教材", hant: "教材", english: "Textbooks"), icon: "finance_textbook"),
+            (term: SeedTerm(hans: "考试", hant: "考試", english: "Exams"), icon: "finance_exam"),
+            (term: SeedTerm(hans: "文具", hant: "文具", english: "Stationery"), icon: "finance_stationery"),
+            (term: SeedTerm(hans: "订阅", hant: "訂閱", english: "Subscriptions"), icon: "finance_subscription"),
+            (term: SeedTerm(hans: "AI工具", hant: "AI工具", english: "AI Tools"), icon: "finance_ai_tool"),
+            (term: SeedTerm(hans: "软件服务", hant: "軟件服務", english: "Software"), icon: "finance_software"),
+            (term: SeedTerm(hans: "云存储", hant: "雲存儲", english: "Cloud Storage"), icon: "finance_cloud"),
+            (term: SeedTerm(hans: "语言学习", hant: "語言學習", english: "Language Learning"), icon: "finance_language"),
+            (term: SeedTerm(hans: "乐器学习", hant: "樂器學習", english: "Music Lessons"), icon: "finance_music_learn"),
+            (term: SeedTerm(hans: "艺术培训", hant: "藝術培訓", english: "Art Training"), icon: "finance_art"),
+            (term: SeedTerm(hans: "体育培训", hant: "體育培訓", english: "Sports Training"), icon: "finance_sport_learn"),
+            (term: SeedTerm(hans: "证书考证", hant: "證書考證", english: "Certifications"), icon: "finance_certificate"),
         ]),
         // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
-        (name: "人情", color: "#F59E0B", children: [
-            (name: "红包礼金", icon: "finance_red_env"),
-            (name: "请客", icon: "finance_treat"),
-            (name: "送礼", icon: "finance_present"),
-            (name: "探望", icon: "finance_visit"),
-            (name: "育儿", icon: "finance_child"),
-            (name: "赡养", icon: "finance_support"),
-            (name: "其他", icon: "ellipsis.circle.fill"),
+        (term: FinanceSeedVocabulary.socialGifts, color: "#F59E0B", children: [
+            (term: SeedTerm(hans: "红包礼金", hant: "紅包禮金", english: "Cash Gifts"), icon: "finance_red_env"),
+            (term: SeedTerm(hans: "请客", hant: "請客", english: "Treats"), icon: "finance_treat"),
+            (term: SeedTerm(hans: "送礼", hant: "送禮", english: "Gift Giving"), icon: "finance_present"),
+            (term: SeedTerm(hans: "探望", hant: "探望", english: "Visits"), icon: "finance_visit"),
+            (term: SeedTerm(hans: "育儿", hant: "育兒", english: "Childcare"), icon: "finance_child"),
+            (term: SeedTerm(hans: "赡养", hant: "贍養", english: "Family Support"), icon: "finance_support"),
+            (term: FinanceSeedVocabulary.other, icon: "ellipsis.circle.fill"),
         ]),
         // ━━━━━━━━━━ 9. 其他（灰色系 #64748B）━━━━━━━━━━
-        (name: "其他", color: "#64748B", children: [
-            (name: "社交", icon: "finance_social"),
-            (name: "宠物", icon: "finance_pet"),
-            (name: "理发", icon: "finance_haircut"),
-            (name: "洗衣", icon: "finance_laundry2"),
-            (name: "话费", icon: "finance_phone"),
-            (name: "烟酒", icon: "finance_tobacco"),
-            (name: "维修", icon: "finance_repair"),
-            (name: "保险", icon: "finance_insurance"),
-            (name: "手续费", icon: "finance_fee"),
-            (name: "税费", icon: "finance_tax"),
-            (name: "罚款", icon: "finance_penalty"),
-            (name: "还款", icon: "finance_repayment"),
-            (name: "转账", icon: "finance_transfer"),
-            (name: "快递", icon: "finance_delivery"),
-            (name: "捐赠", icon: "finance_donation"),
-            (name: "捐赠", icon: "finance_charity"),
-            (name: "其他", icon: "questionmark.folder.fill"),
-            (name: "其他支出", icon: "finance_other_exp"),
-            (name: "快递费", icon: "finance_delivery"),
-            (name: "慈善", icon: "finance_charity"),
+        (term: FinanceSeedVocabulary.other, color: "#64748B", children: [
+            (term: FinanceSeedVocabulary.social, icon: "finance_social"),
+            (term: FinanceSeedVocabulary.pets, icon: "finance_pet"),
+            (term: SeedTerm(hans: "理发", hant: "理髮", english: "Haircut"), icon: "finance_haircut"),
+            (term: SeedTerm(hans: "洗衣", hant: "洗衣", english: "Laundry"), icon: "finance_laundry2"),
+            (term: SeedTerm(hans: "话费", hant: "話費", english: "Phone Bill"), icon: "finance_phone"),
+            (term: SeedTerm(hans: "烟酒", hant: "煙酒", english: "Tobacco & Alcohol"), icon: "finance_tobacco"),
+            (term: SeedTerm(hans: "维修", hant: "維修", english: "Repairs"), icon: "finance_repair"),
+            (term: SeedTerm(hans: "保险", hant: "保險", english: "Insurance"), icon: "finance_insurance"),
+            (term: SeedTerm(hans: "手续费", hant: "手續費", english: "Fees"), icon: "finance_fee"),
+            (term: SeedTerm(hans: "税费", hant: "稅費", english: "Taxes"), icon: "finance_tax"),
+            (term: SeedTerm(hans: "罚款", hant: "罰款", english: "Fines"), icon: "finance_penalty"),
+            (term: SeedTerm(hans: "还款", hant: "還款", english: "Repayment"), icon: "finance_repayment"),
+            (term: FinanceSeedVocabulary.transfer, icon: "finance_transfer"),
+            (term: SeedTerm(hans: "快递", hant: "快遞", english: "Express Delivery"), icon: "finance_delivery"),
+            (term: SeedTerm(hans: "捐赠", hant: "捐贈", english: "Donation"), icon: "finance_donation"),
+            (term: SeedTerm(hans: "捐赠", hant: "捐贈", english: "Donation"), icon: "finance_charity"),
+            (term: FinanceSeedVocabulary.other, icon: "questionmark.folder.fill"),
+            (term: FinanceSeedVocabulary.otherExpense, icon: "finance_other_exp"),
+            (term: SeedTerm(hans: "快递费", hant: "快遞費", english: "Shipping Fees"), icon: "finance_delivery"),
+            (term: SeedTerm(hans: "慈善", hant: "慈善", english: "Charity"), icon: "finance_charity"),
         ]),
     ]
+
+    /// 按固化种子语言解析后的支出层级（种子执行 / 图标回查 / 复活修复共用同一数据源）
+    static var expenseHierarchy: [CategoryGroupDef] {
+        resolveHierarchy(localizedExpenseHierarchy)
+    }
     
     // MARK: - 收入分类层级（4 个一级 + 39 个二级）
 
-    /// 收入分类体系
-    static let incomeHierarchy: [CategoryGroupDef] = [
+    /// 收入分类体系（词条形态，三语）
+    static let localizedIncomeHierarchy: [LocalizedCategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 投资理财（蓝色系 #3B82F6）━━━━━━━━━━
-        (name: "投资理财", color: "#3B82F6", children: [
-            (name: "利息", icon: "income_interest"),
-            (name: "股票", icon: "income_stock"),
-            (name: "基金", icon: "income_fund"),
-            (name: "房租收入", icon: "income_rent_in"),
-            (name: "其他投资", icon: "income_other_invest"),
-            (name: "理财", icon: "income_other_invest"),
-            (name: "投资收益", icon: "income_dividend"),
-            (name: "理财收益", icon: "income_other_invest"),
-            (name: "数字货币", icon: "income_crypto"),
-            (name: "分红", icon: "income_dividend"),
+        (term: FinanceSeedVocabulary.investmentAndFinance, color: "#3B82F6", children: [
+            (term: SeedTerm(hans: "利息", hant: "利息", english: "Interest"), icon: "income_interest"),
+            (term: SeedTerm(hans: "股票", hant: "股票", english: "Stocks"), icon: "income_stock"),
+            (term: SeedTerm(hans: "基金", hant: "基金", english: "Funds"), icon: "income_fund"),
+            (term: SeedTerm(hans: "房租收入", hant: "房租收入", english: "Rental Income"), icon: "income_rent_in"),
+            (term: SeedTerm(hans: "其他投资", hant: "其他投資", english: "Other Investments"), icon: "income_other_invest"),
+            (term: SeedTerm(hans: "理财", hant: "理財", english: "Wealth Management"), icon: "income_other_invest"),
+            (term: SeedTerm(hans: "投资收益", hant: "投資收益", english: "Investment Returns"), icon: "income_dividend"),
+            (term: SeedTerm(hans: "理财收益", hant: "理財收益", english: "Wealth Returns"), icon: "income_other_invest"),
+            (term: SeedTerm(hans: "数字货币", hant: "數字貨幣", english: "Crypto"), icon: "income_crypto"),
+            (term: SeedTerm(hans: "分红", hant: "分紅", english: "Dividends"), icon: "income_dividend"),
         ]),
         // ━━━━━━━━━━ 2. 工资收入（绿色系 #22C55E）━━━━━━━━━━
-        (name: "工资收入", color: "#22C55E", children: [
-            (name: "工资", icon: "income_salary"),
-            (name: "奖金", icon: "income_bonus"),
-            (name: "兼职", icon: "income_parttime"),
-            (name: "项目款", icon: "income_project"),
-            (name: "咨询费", icon: "income_consulting"),
-            (name: "报销", icon: "income_reimburse"),
-            (name: "退款", icon: "income_refund"),
-            (name: "稿费版税", icon: "income_royalty"),
-            (name: "佣金", icon: "income_commission"),
+        (term: FinanceSeedVocabulary.salaryIncome, color: "#22C55E", children: [
+            (term: FinanceSeedVocabulary.salary, icon: "income_salary"),
+            (term: FinanceSeedVocabulary.bonus, icon: "income_bonus"),
+            (term: SeedTerm(hans: "兼职", hant: "兼職", english: "Part-time"), icon: "income_parttime"),
+            (term: SeedTerm(hans: "项目款", hant: "項目款", english: "Project Income"), icon: "income_project"),
+            (term: SeedTerm(hans: "咨询费", hant: "諮詢費", english: "Consulting"), icon: "income_consulting"),
+            (term: FinanceSeedVocabulary.reimbursement, icon: "income_reimburse"),
+            (term: FinanceSeedVocabulary.refund, icon: "income_refund"),
+            (term: SeedTerm(hans: "稿费版税", hant: "稿費版稅", english: "Royalties"), icon: "income_royalty"),
+            (term: SeedTerm(hans: "佣金", hant: "佣金", english: "Commission"), icon: "income_commission"),
         ]),
         // ━━━━━━━━━━ 3. 人情来往（红色系 #EF4444）━━━━━━━━━━
-        (name: "人情来往", color: "#EF4444", children: [
-            (name: "红包", icon: "income_red_packet"),
-            (name: "礼物", icon: "income_gift_in"),
-            (name: "中奖", icon: "income_lottery"),
-            (name: "转入", icon: "income_transfer_in"),
-            (name: "众筹", icon: "income_crowd"),
-            (name: "赞助", icon: "income_sponsor"),
+        (term: FinanceSeedVocabulary.socialIncome, color: "#EF4444", children: [
+            (term: FinanceSeedVocabulary.redEnvelope, icon: "income_red_packet"),
+            (term: SeedTerm(hans: "礼物", hant: "禮物", english: "Gifts"), icon: "income_gift_in"),
+            (term: SeedTerm(hans: "中奖", hant: "中獎", english: "Lottery"), icon: "income_lottery"),
+            (term: SeedTerm(hans: "转入", hant: "轉入", english: "Transfer In"), icon: "income_transfer_in"),
+            (term: SeedTerm(hans: "众筹", hant: "眾籌", english: "Crowdfunding"), icon: "income_crowd"),
+            (term: SeedTerm(hans: "赞助", hant: "贊助", english: "Sponsorship"), icon: "income_sponsor"),
         ]),
         // ━━━━━━━━━━ 4. 其他收入（紫色系 #A855F7）━━━━━━━━━━
-        (name: "其他收入", color: "#A855F7", children: [
-            (name: "借入", icon: "income_borrow"),
-            (name: "还款收入", icon: "income_repay_in"),
-            (name: "退货", icon: "income_return_goods"),
-            (name: "公积金", icon: "income_provident"),
-            (name: "出闲置", icon: "income_secondhand"),
-            (name: "稿费", icon: "income_manuscript"),
-            (name: "补贴", icon: "income_subsidy"),
-            (name: "个税退税", icon: "income_tax_refund"),
-            (name: "保险理赔", icon: "income_insurance_pay"),
-            (name: "押金退还", icon: "income_rent_deposit"),
-            (name: "奖励", icon: "income_award"),
-            (name: "婚礼", icon: "finance_wedding"),
-            (name: "其他收入", icon: "income_other"),
-            (name: "其他", icon: "income_other"),
+        (term: FinanceSeedVocabulary.otherIncome, color: "#A855F7", children: [
+            (term: SeedTerm(hans: "借入", hant: "借入", english: "Borrowed"), icon: "income_borrow"),
+            (term: SeedTerm(hans: "还款收入", hant: "還款收入", english: "Repayment In"), icon: "income_repay_in"),
+            (term: SeedTerm(hans: "退货", hant: "退貨", english: "Returns"), icon: "income_return_goods"),
+            (term: SeedTerm(hans: "公积金", hant: "公積金", english: "Housing Fund"), icon: "income_provident"),
+            (term: SeedTerm(hans: "出闲置", hant: "出閒置", english: "Secondhand Sale"), icon: "income_secondhand"),
+            (term: SeedTerm(hans: "稿费", hant: "稿費", english: "Manuscript Fees"), icon: "income_manuscript"),
+            (term: SeedTerm(hans: "补贴", hant: "補貼", english: "Allowance"), icon: "income_subsidy"),
+            (term: SeedTerm(hans: "个税退税", hant: "個稅退稅", english: "Tax Refund"), icon: "income_tax_refund"),
+            (term: SeedTerm(hans: "保险理赔", hant: "保險理賠", english: "Insurance Claims"), icon: "income_insurance_pay"),
+            (term: SeedTerm(hans: "押金退还", hant: "押金退還", english: "Deposit Refund"), icon: "income_rent_deposit"),
+            (term: SeedTerm(hans: "奖励", hant: "獎勵", english: "Awards"), icon: "income_award"),
+            (term: SeedTerm(hans: "婚礼", hant: "婚禮", english: "Wedding"), icon: "finance_wedding"),
+            (term: FinanceSeedVocabulary.otherIncome, icon: "income_other"),
+            (term: FinanceSeedVocabulary.other, icon: "income_other"),
         ]),
     ]
+
+    /// 按固化种子语言解析后的收入层级
+    static var incomeHierarchy: [CategoryGroupDef] {
+        resolveHierarchy(localizedIncomeHierarchy)
+    }
+
+    /// 把词条形态的层级解析成当前种子语言的落库名层级
+    private static func resolveHierarchy(
+        _ hierarchy: [LocalizedCategoryGroupDef]
+    ) -> [CategoryGroupDef] {
+        let language = SeedLanguage.seedLanguage
+        return hierarchy.map { group in
+            (
+                name: group.term.value(for: language),
+                color: group.color,
+                children: group.children.map { child in
+                    (name: child.term.value(for: language), icon: child.icon)
+                }
+            )
+        }
+    }
     
     // MARK: - 旧图标 → SF Symbol 映射（一次性迁移用）
 
@@ -416,22 +453,32 @@ extension Category {
 
     // MARK: - 父类别图标映射
 
-    /// 一级分类名称 → SF Symbol（用于种子数据和迁移）
-    static let parentIconMapping: [String: String] = [
-        "餐饮": "cat_food",
-        "交通": "cat_transport",
-        "购物": "cat_shopping",
-        "娱乐": "cat_entertain",
-        "居住": "cat_housing",
-        "医疗": "cat_medical",
-        "学习": "cat_learning",
-        "人情": "cat_relation",
-        "其他": "cat_other_exp",
-        "投资理财": "cat_inc_invest",
-        "工资收入": "cat_inc_salary",
-        "人情来往": "cat_inc_relation",
-        "其他收入": "cat_inc_other",
-    ]
+    /// 一级分类名称 → SF Symbol（用于种子数据和迁移）。
+    /// 词条三语取值全部建键：老数据的简体名与新种子的繁体/英文名都能查到。
+    static let parentIconMapping: [String: String] = {
+        let groupIcons: [(SeedTerm, String)] = [
+            (FinanceSeedVocabulary.dining, "cat_food"),
+            (FinanceSeedVocabulary.transportation, "cat_transport"),
+            (FinanceSeedVocabulary.shopping, "cat_shopping"),
+            (FinanceSeedVocabulary.entertainment, "cat_entertain"),
+            (FinanceSeedVocabulary.housing, "cat_housing"),
+            (FinanceSeedVocabulary.healthcare, "cat_medical"),
+            (FinanceSeedVocabulary.learning, "cat_learning"),
+            (FinanceSeedVocabulary.socialGifts, "cat_relation"),
+            (FinanceSeedVocabulary.other, "cat_other_exp"),
+            (FinanceSeedVocabulary.investmentAndFinance, "cat_inc_invest"),
+            (FinanceSeedVocabulary.salaryIncome, "cat_inc_salary"),
+            (FinanceSeedVocabulary.socialIncome, "cat_inc_relation"),
+            (FinanceSeedVocabulary.otherIncome, "cat_inc_other"),
+        ]
+        var mapping: [String: String] = [:]
+        for (term, icon) in groupIcons {
+            for name in term.allValues {
+                mapping[name] = icon
+            }
+        }
+        return mapping
+    }()
 
     /// 查询预设分类的默认图标，用于编辑页“恢复默认图标”。
     static func defaultIconName(name: String, type: TransactionType, parentName: String?) -> String? {
@@ -471,6 +518,11 @@ extension Category {
         request.includesSubentities = false
         guard let all = try? context.fetch(request) else { return }
 
+        // 先固化种子语言再读层级：库里已有分类 = 老用户，其数据是简体种的，
+        // 固化简体（否则补种逻辑按新语言再铺一套跨语言去重失效的分类）；
+        // 空库 = 新用户，按当前 App 语言固化
+        SeedLanguage.resolveSeedLanguage(hasExistingSeedData: !all.isEmpty)
+
         // 若已有二级分类，检查是否缺失分类并补充
         let hasSubCategory = all.contains { $0.parentId != nil }
         if hasSubCategory {
@@ -479,6 +531,8 @@ extension Category {
         }
 
         // 无分类或仅有旧版扁平分类：补种完整层级（不删旧数据，旧交易仍指向旧分类）
+        // 真正种了数据才记录种子时刻（SeedRevivalRepair 的老用户铁证判定基准）
+        SeedRevivalRepair.recordSeedMoment()
         // --- 创建支出分类层级 ---
         seedHierarchy(
             expenseHierarchy,
@@ -504,10 +558,17 @@ extension Category {
 
     // MARK: - 系统分类
 
-    /// 系统内置分类（不可删除/编辑）
-    static let systemCategories: [(name: String, icon: String, color: String, type: String)] = [
-        ("余额调整", "arrow.triangle.2.circlepath", "#94A3B8", "expense")
-    ]
+    /// 系统内置分类（不可删除/编辑），名字按固化种子语言落库
+    static var systemCategories: [(name: String, icon: String, color: String, type: String)] {
+        [
+            (
+                FinanceSeedVocabulary.balanceAdjustment.value(for: .seedLanguage),
+                "arrow.triangle.2.circlepath",
+                "#94A3B8",
+                "expense"
+            )
+        ]
+    }
 
     /// 确保系统分类存在
     private static func seedSystemCategories(in context: NSManagedObjectContext) {

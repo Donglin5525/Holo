@@ -23,10 +23,10 @@ struct ModuleClearSheet: View {
 
         var displayName: String {
             switch self {
-            case .finance: return "财务"
-            case .thought: return "想法"
-            case .task: return "任务"
-            case .habit: return "习惯"
+            case .finance: return String(localized: "财务")
+            case .thought: return String(localized: "想法")
+            case .task: return String(localized: "任务")
+            case .habit: return String(localized: "习惯")
             }
         }
 
@@ -193,8 +193,8 @@ struct ModuleClearSheet: View {
 
     private func scopeSubtitle(_ scope: FinanceClearScope) -> String {
         switch scope {
-        case .transactionsOnly: return "保留账户、分类、预算与固定支出设置"
-        case .all: return "交易、账户、分类、预算、固定支出全部清空"
+        case .transactionsOnly: return String(localized: "保留账户、分类、预算与固定支出设置")
+        case .all: return String(localized: "交易、账户、分类、预算、固定支出全部清空")
         }
     }
 
@@ -255,9 +255,9 @@ struct ModuleClearSheet: View {
 
     private var confirmMessage: String {
         if module == .finance {
-            return "将清空「\(financeScope.displayName)」共 \(affectedCount) 条记录。清空后 30 天内可在 设置 → 数据管理 → 最近删除 恢复。"
+            return String(localized: "将清空「\(financeScope.displayName)」共 \(affectedCount) 条记录。清空后 30 天内可在 设置 → 数据管理 → 最近删除 恢复。")
         }
-        return "将清空 \(affectedCount) 条\(module.displayName)记录。清空后 30 天内可在 设置 → 数据管理 → 最近删除 恢复。"
+        return String(localized: "将清空 \(affectedCount) 条\(module.displayName)记录。清空后 30 天内可在 设置 → 数据管理 → 最近删除 恢复。")
     }
 
     private func loadPreview() async {
@@ -285,11 +285,11 @@ struct ModuleClearSheet: View {
                 financeScope: module == .finance ? financeScope : nil,
                 summary: nil
             ))
-            HoloToastCenter.shared.show("已清空，30 天内可在设置-数据管理恢复", type: .success)
+            HoloToastCenter.shared.show(String(localized: "已清空，30 天内可在设置-数据管理恢复"), type: .success)
             onCompleted?()
             dismiss()
         } catch {
-            errorMessage = "清空失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "清空失败：\(error.localizedDescription)")
         }
     }
 }

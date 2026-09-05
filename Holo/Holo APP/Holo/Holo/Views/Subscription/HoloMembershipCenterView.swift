@@ -15,8 +15,7 @@ struct HoloMembershipCenterView: View {
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年MM月dd日"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter
     }()
 
@@ -74,7 +73,7 @@ struct HoloMembershipCenterView: View {
 
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: HoloSpacing.xs) {
-                            Text(entitlementState.isPlusActive ? "Holo Plus" : "免费版")
+                            Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
                                 .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(HoloPlusTheme.accentText)
 
@@ -91,8 +90,8 @@ struct HoloMembershipCenterView: View {
 
                         Text(
                             entitlementState.isPlusActive
-                                ? "会员权益已生效"
-                                : "升级解锁 2 倍 AI 额度与全部小组件"
+                                ? String(localized: "会员权益已生效")
+                                : String(localized: "升级解锁 2 倍 AI 额度与全部小组件")
                         )
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(HoloPlusTheme.subtleText)
@@ -108,10 +107,10 @@ struct HoloMembershipCenterView: View {
                 }
 
                 HStack(spacing: HoloSpacing.sm) {
-                    membershipMetric("HoloAI", entitlementState.isPlusActive ? "30/天" : "15/天")
-                    membershipMetric("深度洞察", entitlementState.isPlusActive ? "10/天" : "2/天")
-                    membershipMetric("语音识别", entitlementState.isPlusActive ? "50/天" : "20/天")
-                    membershipMetric("任务", entitlementState.isPlusActive ? "50/天" : "20/天")
+                    membershipMetric("HoloAI", entitlementState.isPlusActive ? String(localized: "30/天") : String(localized: "15/天"))
+                    membershipMetric(String(localized: "深度洞察"), entitlementState.isPlusActive ? String(localized: "10/天") : String(localized: "2/天"))
+                    membershipMetric(String(localized: "语音识别"), entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天"))
+                    membershipMetric(String(localized: "任务"), entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天"))
                 }
             }
             .padding(18)
@@ -212,7 +211,7 @@ struct HoloMembershipCenterView: View {
                 isPaywallPresented = true
             }
         } label: {
-            Text(entitlementState.isPlusActive ? "管理会员" : "升级 Holo Plus")
+            Text(entitlementState.isPlusActive ? String(localized: "管理会员") : String(localized: "升级 Holo Plus"))
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -236,12 +235,12 @@ struct HoloMembershipCenterView: View {
     private func displayName(for key: String) -> String {
         switch key {
         case "chat": return "HoloAI"
-        case "deepAnalysis": return "深度洞察"
-        case "naturalLanguageFinance": return "智能记账"
-        case "naturalLanguageTask": return "智能任务"
-        case "asr": return "语音识别"
-        case "memoryInsight": return "记忆洞察"
-        case "lifePlan": return "每周计划"
+        case "deepAnalysis": return String(localized: "深度洞察")
+        case "naturalLanguageFinance": return String(localized: "智能记账")
+        case "naturalLanguageTask": return String(localized: "智能任务")
+        case "asr": return String(localized: "语音识别")
+        case "memoryInsight": return String(localized: "记忆洞察")
+        case "lifePlan": return String(localized: "每周计划")
         default: return key
         }
     }
@@ -268,9 +267,9 @@ struct HoloMembershipCenterView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: HoloSpacing.sm) {
-                acceptanceButton("免费", mode: .free)
+                acceptanceButton(String(localized: "免费"), mode: .free)
                 acceptanceButton("Plus", mode: .plus)
-                acceptanceButton("跟随购买", mode: .followPurchase)
+                acceptanceButton(String(localized: "跟随购买"), mode: .followPurchase)
             }
 
             if entitlementState.source == .acceptance {

@@ -177,19 +177,19 @@ struct TaskChatCard: View {
                 }
             }
         }
-        .accessibilityLabel("任务卡片：\(data.title)")
+        .accessibilityLabel(String(localized: "任务卡片：\(data.title)"))
     }
 
     // MARK: - Formatting
 
     private var footerText: String {
         if let reminderDate = data.reminderDate, !reminderDate.isEmpty {
-            return "提醒：\(reminderDate)"
+            return String(localized: "提醒：\(reminderDate)")
         }
         if let dueDate = data.dueDate, !dueDate.isEmpty {
-            return "日期：\(dueDate)"
+            return String(localized: "日期：\(dueDate)")
         }
-        return data.requiresConfirmation ? "待确认" : "今天"
+        return data.requiresConfirmation ? String(localized: "待确认") : String(localized: "今天")
     }
 
     // MARK: - Modify Mode Helpers
@@ -212,33 +212,33 @@ struct TaskChatCard: View {
 
     private var headerTitle: String {
         if data.requiresConfirmation {
-            if isDeleteMode { return "删除任务待确认" }
-            if data.isFailed { return "处理失败" }
-            return isModifyMode ? "修改待办" : "任务待确认"
+            if isDeleteMode { return String(localized: "删除任务待确认") }
+            if data.isFailed { return String(localized: "处理失败") }
+            return isModifyMode ? String(localized: "修改待办") : String(localized: "任务待确认")
         }
-        if data.isCancelled { return "已取消" }
+        if data.isCancelled { return String(localized: "已取消") }
         return data.title
     }
 
     private var headerBadge: CardBadge? {
         if data.isCancelled {
-            return CardBadge(text: "已取消", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
         }
         if data.isConfirming {
-            return CardBadge(text: "处理中", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "处理中"), color: .holoTextSecondary)
         }
         if data.requiresConfirmation {
-            if isDeleteMode { return CardBadge(text: "待删除", color: .holoError) }
-            return CardBadge(text: isModifyMode ? "待修改" : "待确认", color: .holoPrimary)
+            if isDeleteMode { return CardBadge(text: String(localized: "待删除"), color: .holoError) }
+            return CardBadge(text: isModifyMode ? String(localized: "待修改") : String(localized: "待确认"), color: .holoPrimary)
         }
         return nil
     }
 
     private var confirmButtonText: String {
-        if data.isConfirming { return "正在处理…" }
-        if isDeleteMode { return "确认删除" }
-        if data.isFailed { return "重试" }
-        return isModifyMode ? "确认修改" : "确认创建"
+        if data.isConfirming { return String(localized: "正在处理…") }
+        if isDeleteMode { return String(localized: "确认删除") }
+        if data.isFailed { return String(localized: "重试") }
+        return isModifyMode ? String(localized: "确认修改") : String(localized: "确认创建")
     }
 
     private var confirmButtonColor: Color {

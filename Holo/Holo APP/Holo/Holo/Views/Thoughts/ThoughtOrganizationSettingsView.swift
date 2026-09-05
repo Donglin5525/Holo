@@ -110,7 +110,7 @@ struct ThoughtOrganizationSettingsView: View {
                 Task {
                     let count = await ThoughtSemanticCandidateEngine.backfill()
                     embeddingCount = await ThoughtEmbeddingStore.shared.count()
-                    backfillResult = "回填完成：\(count) 条"
+                    backfillResult = String(localized: "回填完成：\(count) 条")
                     backfillRunning = false
                 }
             }
@@ -150,7 +150,7 @@ struct ThoughtOrganizationSettingsView: View {
                 Task {
                     let summary = await ThoughtClassificationFeedbackStore.shared.acceptanceSummary()
                     let count = await ThoughtClassificationFeedbackStore.shared.allEvents().count
-                    feedbackSummary = "事件 \(count) 条 · 确认 \(summary.confirmed) · 拒绝 \(summary.rejected) · 接受率 \(String(format: "%.0f%%", summary.acceptanceRate * 100))"
+                    feedbackSummary = String(localized: "事件 \(count) 条 · 确认 \(summary.confirmed) · 拒绝 \(summary.rejected) · 接受率 \(String(format: "%.0f%%", summary.acceptanceRate * 100))")
                 }
             }
             if !feedbackSummary.isEmpty {

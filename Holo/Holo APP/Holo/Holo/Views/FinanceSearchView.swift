@@ -91,7 +91,7 @@ struct FinanceSearchView: View {
         .holoEdgeSwipeBack { dismiss() }
         .onAppear {
             if let exactTransactionIDs {
-                searchText = initialSearchText ?? "本次查询结果"
+                searchText = initialSearchText ?? String(localized: "本次查询结果")
                 isSearchFocused = false
                 loadExactResults(transactionIDs: exactTransactionIDs)
             } else if let initialSearchText,

@@ -72,24 +72,24 @@ struct NotificationSettingsView: View {
                         // 通知权限状态（已授权=不显眼的一行小字）
                         permissionSection
 
-                        group("每日 · 每周汇总") {
+                        group(String(localized: "每日 · 每周汇总")) {
                             dailyRow
                             habitRow
                             weeklyRow
                             insightRow
                         }
 
-                        group("财务提醒") {
+                        group(String(localized: "财务提醒")) {
                             billRow
                             budgetRow
                         }
 
-                        group("按条设置的提醒") {
+                        group(String(localized: "按条设置的提醒")) {
                             taskEntryRow
                             anniversaryEntryRow
                         }
 
-                        group("AI 主动提醒") {
+                        group(String(localized: "AI 主动提醒")) {
                             goalEntryRow
                         }
 
@@ -186,7 +186,7 @@ struct NotificationSettingsView: View {
                     .foregroundColor(notificationService.isDenied ? .holoError : .holoPrimary)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(notificationService.isDenied ? "通知权限已被拒绝" : "通知权限未开启")
+                    Text(notificationService.isDenied ? String(localized: "通知权限已被拒绝") : String(localized: "通知权限未开启"))
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
@@ -234,8 +234,8 @@ struct NotificationSettingsView: View {
     private var dailyRow: some View {
         settingRow(
             icon: "sunrise.fill",
-            title: "每日早报",
-            summary: dailyEnabled ? "每天 \(timeText(DailyBriefScheduler.shared.reminderTime))" : "已关闭",
+            title: String(localized: "每日早报"),
+            summary: dailyEnabled ? String(localized: "每天 \(timeText(DailyBriefScheduler.shared.reminderTime))") : String(localized: "已关闭"),
             action: { path.append(.daily) }
         ) {
             toggle(isOn: $dailyEnabled) { newValue in
@@ -247,7 +247,7 @@ struct NotificationSettingsView: View {
     private var habitRow: some View {
         settingRow(
             icon: "checkmark.seal.fill",
-            title: "习惯打卡",
+            title: String(localized: "习惯打卡"),
             summary: habitSummary,
             action: { path.append(.habit) }
         ) {
@@ -259,19 +259,19 @@ struct NotificationSettingsView: View {
 
     /// 习惯行摘要：总开关关=已关闭；兜底开=兜底时间+单独数；兜底关=只剩单独数
     private var habitSummary: String {
-        guard habitEnabled else { return "已关闭" }
+        guard habitEnabled else { return String(localized: "已关闭") }
         let scheduler = HabitReminderScheduler.shared
         let fallback = timeText(scheduler.reminderTime)
         return scheduler.fallbackEnabled
-            ? "每日汇总 \(fallback) · \(soloHabitCount) 个单独"
-            : "\(soloHabitCount) 个单独"
+            ? String(localized: "每日汇总 \(fallback) · \(soloHabitCount) 个单独")
+            : String(localized: "\(soloHabitCount) 个单独")
     }
 
     private var weeklyRow: some View {
         settingRow(
             icon: "flag.checkered",
-            title: "周一晨报",
-            summary: weeklyEnabled ? "周一 \(timeText(WeeklyBriefScheduler.shared.reminderTime))" : "已关闭",
+            title: String(localized: "周一晨报"),
+            summary: weeklyEnabled ? String(localized: "周一 \(timeText(WeeklyBriefScheduler.shared.reminderTime))") : String(localized: "已关闭"),
             action: { path.append(.weekly) }
         ) {
             toggle(isOn: $weeklyEnabled) { newValue in
@@ -284,7 +284,7 @@ struct NotificationSettingsView: View {
         settingRow(
             icon: "sparkles",
             iconColor: .holoAI,
-            title: "AI 回放",
+            title: String(localized: "AI 回放"),
             summary: insightSummary,
             action: { path.append(.insight) }
         ) {
@@ -297,12 +297,12 @@ struct NotificationSettingsView: View {
     private var insightSummary: String {
         var parts: [String] = []
         if insightSettings.weeklyReminderEnabled {
-            parts.append("\(weekdayName(insightSettings.weeklyReminderWeekday)) \(insightSettings.weeklyReminderHour)时")
+            parts.append(String(localized: "\(weekdayName(insightSettings.weeklyReminderWeekday)) \(insightSettings.weeklyReminderHour)时"))
         }
         if insightSettings.monthlyReminderEnabled {
-            parts.append("每月\(insightSettings.monthlyReminderDay)日")
+            parts.append(String(localized: "每月\(insightSettings.monthlyReminderDay)日"))
         }
-        return parts.isEmpty ? "已关闭" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "已关闭") : parts.joined(separator: " · ")
     }
 
     // MARK: - 财务提醒
@@ -313,7 +313,7 @@ struct NotificationSettingsView: View {
         if entitlementState.isPlusActive {
             settingRow(
                 icon: "receipt",
-                title: "周期账单到期提醒",
+                title: String(localized: "周期账单到期提醒"),
                 plusBadge: true,
                 summary: billSummary,
                 action: { path.append(.bill) }
@@ -325,7 +325,7 @@ struct NotificationSettingsView: View {
         } else {
             settingRow(
                 icon: "receipt",
-                title: "周期账单到期提醒",
+                title: String(localized: "周期账单到期提醒"),
                 plusBadge: true,
                 summary: billSummary,
                 action: {
@@ -344,7 +344,7 @@ struct NotificationSettingsView: View {
         let scheduler = BillDueReminderScheduler.shared
         let value = "\(advanceText(scheduler.advance)) \(timeText(scheduler.reminderTime))"
         if entitlementState.isPlusActive {
-            return billEnabled ? value : "已关闭"
+            return billEnabled ? value : String(localized: "已关闭")
         }
         return value
     }
@@ -352,8 +352,8 @@ struct NotificationSettingsView: View {
     private var budgetRow: some View {
         settingRow(
             icon: "chart.bar.fill",
-            title: "预算超支提醒",
-            summary: budgetEnabled ? "超支时提醒一次" : "已关闭",
+            title: String(localized: "预算超支提醒"),
+            summary: budgetEnabled ? String(localized: "超支时提醒一次") : String(localized: "已关闭"),
             action: { path.append(.budget) }
         ) {
             toggle(isOn: $budgetEnabled) { newValue in
@@ -367,10 +367,10 @@ struct NotificationSettingsView: View {
     private var taskEntryRow: some View {
         entryRow(
             icon: "bell.fill",
-            title: "任务提醒",
-            summary: "\(taskReminderCount) 条已设置",
+            title: String(localized: "任务提醒"),
+            summary: String(localized: "\(taskReminderCount) 条已设置"),
             note: .tasks,
-            noteText: "各任务的提醒在对应任务的详情页设置：打开任务模块，点开任务后选择「提醒」。"
+            noteText: String(localized: "各任务的提醒在对应任务的详情页设置：打开任务模块，点开任务后选择「提醒」。")
         )
     }
 
@@ -378,10 +378,10 @@ struct NotificationSettingsView: View {
         entryRow(
             icon: "heart.fill",
             iconColor: .holoError,
-            title: "纪念日提醒",
-            summary: "\(anniversaryReminderCount) 个已设置",
+            title: String(localized: "纪念日提醒"),
+            summary: String(localized: "\(anniversaryReminderCount) 个已设置"),
             note: .anniversary,
-            noteText: "纪念日提醒在纪念日编辑页设置：可开关提醒、配置提前提醒的天数。"
+            noteText: String(localized: "纪念日提醒在纪念日编辑页设置：可开关提醒、配置提前提醒的天数。")
         )
     }
 
@@ -391,10 +391,10 @@ struct NotificationSettingsView: View {
         entryRow(
             icon: "target",
             iconColor: .holoAI,
-            title: "目标风险提醒",
-            summary: "\(goalNudgeCount) 个目标已开启",
+            title: String(localized: "目标风险提醒"),
+            summary: String(localized: "\(goalNudgeCount) 个目标已开启"),
             note: .goal,
-            noteText: "目标快到截止、或停了两周没动静时，HoloAI 会主动提醒你。开关在每个目标的详情页（「允许 HoloAI 主动围绕此目标提醒」），按目标单独控制。"
+            noteText: String(localized: "目标快到截止、或停了两周没动静时，HoloAI 会主动提醒你。开关在每个目标的详情页（「允许 HoloAI 主动围绕此目标提醒」），按目标单独控制。")
         )
     }
 
@@ -595,15 +595,15 @@ struct NotificationSettingsView: View {
     /// 提前量文本（0=当天早上 / 1=提前 1 天 / 3=提前 3 天）
     private func advanceText(_ days: Int) -> String {
         switch days {
-        case 0: return "当天早上"
-        case 1: return "提前 1 天"
-        default: return "提前 3 天"
+        case 0: return String(localized: "当天早上")
+        case 1: return String(localized: "提前 1 天")
+        default: return String(localized: "提前 3 天")
         }
     }
 
     private func weekdayName(_ weekday: Int) -> String {
         let symbols = Calendar.current.weekdaySymbols
-        guard symbols.indices.contains(weekday - 1) else { return "周一" }
+        guard symbols.indices.contains(weekday - 1) else { return String(localized: "周一") }
         return symbols[weekday - 1]
     }
 }
@@ -620,10 +620,10 @@ private struct DailyBriefNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: "开启后，每天早上的通知会直接告诉你今天有几件事、最要紧的是哪件；当天没有待办时保持安静，不会打扰。")
+                DetailNoteCard(text: String(localized: "开启后，每天早上的通知会直接告诉你今天有几件事、最要紧的是哪件；当天没有待办时保持安静，不会打扰。"))
 
                 VStack(spacing: 0) {
-                    DetailToggleRow(icon: "sunrise.fill", title: "每日早报", isOn: $enabled, disabled: !notificationService.isAuthorized)
+                    DetailToggleRow(icon: "sunrise.fill", title: String(localized: "每日早报"), isOn: $enabled, disabled: !notificationService.isAuthorized)
                         .onChange(of: enabled) { _, newValue in
                             DailyBriefScheduler.shared.isEnabled = newValue
                         }
@@ -631,7 +631,7 @@ private struct DailyBriefNotificationDetailView: View {
                     if enabled {
                         Divider().padding(.horizontal, 12)
 
-                        DetailTimeRow(title: "提醒时间", time: $time, disabled: !notificationService.isAuthorized) {
+                        DetailTimeRow(title: String(localized: "提醒时间"), time: $time, disabled: !notificationService.isAuthorized) {
                             saveTime()
                         }
                     }
@@ -640,7 +640,7 @@ private struct DailyBriefNotificationDetailView: View {
                 .cornerRadius(HoloRadius.md)
                 .opacity(notificationService.isAuthorized ? 1 : 0.5)
 
-                PreviewButtonRow(title: "预览通知样式") {
+                PreviewButtonRow(title: String(localized: "预览通知样式")) {
                     sendPreview()
                 }
             }
@@ -668,8 +668,8 @@ private struct DailyBriefNotificationDetailView: View {
     private func sendPreview() {
         let brief = DailyBriefScheduler.briefContent(for: Date(), tasks: TodoRepository.shared.activeTasks)
         sendPreviewNotification(
-            title: brief?.title ?? "早上好，今天 2 件事",
-            body: brief?.body ?? "最要紧：准备周会材料（14:00 截止） · 1 件已过期",
+            title: brief?.title ?? String(localized: "早上好，今天 2 件事"),
+            body: brief?.body ?? String(localized: "最要紧：准备周会材料（14:00 截止） · 1 件已过期"),
             category: TodoNotificationCategory.dailyReminder
         )
     }
@@ -687,10 +687,10 @@ private struct WeeklyBriefNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: "一条通知回顾上周完成了几件事、打卡了几天，点开直达今日看板；上周没有任何记录时保持安静。")
+                DetailNoteCard(text: String(localized: "一条通知回顾上周完成了几件事、打卡了几天，点开直达今日看板；上周没有任何记录时保持安静。"))
 
                 VStack(spacing: 0) {
-                    DetailToggleRow(icon: "flag.checkered", title: "周一晨报", isOn: $enabled, disabled: !notificationService.isAuthorized)
+                    DetailToggleRow(icon: "flag.checkered", title: String(localized: "周一晨报"), isOn: $enabled, disabled: !notificationService.isAuthorized)
                         .onChange(of: enabled) { _, newValue in
                             WeeklyBriefScheduler.shared.isEnabled = newValue
                         }
@@ -698,7 +698,7 @@ private struct WeeklyBriefNotificationDetailView: View {
                     if enabled {
                         Divider().padding(.horizontal, 12)
 
-                        DetailTimeRow(title: "提醒时间", prefix: "周一", time: $time, disabled: !notificationService.isAuthorized) {
+                        DetailTimeRow(title: String(localized: "提醒时间"), prefix: String(localized: "周一"), time: $time, disabled: !notificationService.isAuthorized) {
                             saveTime()
                         }
                     }
@@ -707,10 +707,10 @@ private struct WeeklyBriefNotificationDetailView: View {
                 .cornerRadius(HoloRadius.md)
                 .opacity(notificationService.isAuthorized ? 1 : 0.5)
 
-                PreviewButtonRow(title: "预览通知样式") {
+                PreviewButtonRow(title: String(localized: "预览通知样式")) {
                     sendPreviewNotification(
-                        title: "上周小结 · 新的一周",
-                        body: "完成 12 件事 · 打卡 5 天｜本周重点：完成产品评审方案",
+                        title: String(localized: "上周小结 · 新的一周"),
+                        body: String(localized: "完成 12 件事 · 打卡 5 天｜本周重点：完成产品评审方案"),
                         category: TodoNotificationCategory.weeklyBrief
                     )
                 }
@@ -746,13 +746,13 @@ private struct InsightNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: "AI 会把你的上周 / 上月记录整理成回放，生成后通知你查看。周 / 月可以分别开关。")
+                DetailNoteCard(text: String(localized: "AI 会把你的上周 / 上月记录整理成回放，生成后通知你查看。周 / 月可以分别开关。"))
 
                 VStack(spacing: 0) {
                     DetailToggleRow(
                         icon: "sparkles",
                         iconColor: .holoAI,
-                        title: "每周提醒我生成周回放",
+                        title: String(localized: "每周提醒我生成周回放"),
                         isOn: $insightSettings.weeklyReminderEnabled,
                         disabled: !notificationService.isAuthorized
                     )
@@ -768,7 +768,7 @@ private struct InsightNotificationDetailView: View {
                     DetailToggleRow(
                         icon: "calendar.circle",
                         iconColor: .holoAI,
-                        title: "每月提醒我生成月回放",
+                        title: String(localized: "每月提醒我生成月回放"),
                         isOn: $insightSettings.monthlyReminderEnabled,
                         disabled: !notificationService.isAuthorized
                     )
@@ -851,7 +851,7 @@ private struct InsightNotificationDetailView: View {
 
     private func weekdayName(_ weekday: Int) -> String {
         let symbols = Calendar.current.weekdaySymbols
-        guard symbols.indices.contains(weekday - 1) else { return "周一" }
+        guard symbols.indices.contains(weekday - 1) else { return String(localized: "周一") }
         return symbols[weekday - 1]
     }
 }
@@ -870,7 +870,7 @@ private struct BillDueNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: "房租、订阅等周期账单，到期前提醒一次，点开可快速记一笔。仅 Plus 账户可用（随周期账单功能）。")
+                DetailNoteCard(text: String(localized: "房租、订阅等周期账单，到期前提醒一次，点开可快速记一笔。仅 Plus 账户可用（随周期账单功能）。"))
 
                 if entitlementState.isPlusActive {
                     plusCard
@@ -896,7 +896,7 @@ private struct BillDueNotificationDetailView: View {
     /// Plus：开关 + 提前量三选一 chips + 时间
     private var plusCard: some View {
         VStack(spacing: 0) {
-            DetailToggleRow(icon: "receipt", title: "到期提醒", plusBadge: true, isOn: $enabled, disabled: !notificationService.isAuthorized)
+            DetailToggleRow(icon: "receipt", title: String(localized: "到期提醒"), plusBadge: true, isOn: $enabled, disabled: !notificationService.isAuthorized)
                 .onChange(of: enabled) { _, newValue in
                     BillDueReminderScheduler.shared.isEnabled = newValue
                 }
@@ -908,7 +908,7 @@ private struct BillDueNotificationDetailView: View {
 
                 Divider().padding(.horizontal, 12)
 
-                DetailTimeRow(title: "提醒时间", time: $time, disabled: !notificationService.isAuthorized) {
+                DetailTimeRow(title: String(localized: "提醒时间"), time: $time, disabled: !notificationService.isAuthorized) {
                     saveTime()
                 }
             }
@@ -944,7 +944,7 @@ private struct BillDueNotificationDetailView: View {
 
             Divider().padding(.horizontal, 12)
 
-            DetailTimeRow(title: "提醒时间", time: $time, disabled: true) {}
+            DetailTimeRow(title: String(localized: "提醒时间"), time: $time, disabled: true) {}
 
             Divider().padding(.horizontal, 12)
 
@@ -1003,9 +1003,9 @@ private struct BillDueNotificationDetailView: View {
     /// 提前量文本（0=当天早上 / 1=提前 1 天 / 3=提前 3 天）
     private static func advanceText(_ days: Int) -> String {
         switch days {
-        case 0: return "当天早上"
-        case 1: return "提前 1 天"
-        default: return "提前 3 天"
+        case 0: return String(localized: "当天早上")
+        case 1: return String(localized: "提前 1 天")
+        default: return String(localized: "提前 3 天")
         }
     }
 }
@@ -1021,10 +1021,10 @@ private struct BudgetOverrunNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: "某个预算超支的当天提醒一次，之后不再重复；花销降回预算以内后，再次超支才会再提醒——不会天天念叨。")
+                DetailNoteCard(text: String(localized: "某个预算超支的当天提醒一次，之后不再重复；花销降回预算以内后，再次超支才会再提醒——不会天天念叨。"))
 
                 VStack(spacing: 0) {
-                    DetailToggleRow(icon: "chart.bar.fill", title: "预算超支提醒", isOn: $enabled, disabled: !notificationService.isAuthorized)
+                    DetailToggleRow(icon: "chart.bar.fill", title: String(localized: "预算超支提醒"), isOn: $enabled, disabled: !notificationService.isAuthorized)
                         .onChange(of: enabled) { _, newValue in
                             BudgetOverrunNotificationService.shared.isEnabled = newValue
                         }
@@ -1033,10 +1033,10 @@ private struct BudgetOverrunNotificationDetailView: View {
                 .cornerRadius(HoloRadius.md)
                 .opacity(notificationService.isAuthorized ? 1 : 0.5)
 
-                PreviewButtonRow(title: "预览通知样式") {
+                PreviewButtonRow(title: String(localized: "预览通知样式")) {
                     sendPreviewNotification(
-                        title: "「餐饮」预算超支了",
-                        body: "已花 ¥2,340，超了预算 ¥340",
+                        title: String(localized: "「餐饮」预算超支了"),
+                        body: String(localized: "已花 ¥2,340，超了预算 ¥340"),
                         category: TodoNotificationCategory.budgetOverrun
                     )
                 }

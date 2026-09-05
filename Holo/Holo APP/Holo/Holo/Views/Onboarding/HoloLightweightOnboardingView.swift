@@ -71,7 +71,7 @@ struct HoloLightweightOnboardingView: View {
                             .frame(minHeight: 44)
                             .padding(.horizontal, HoloSpacing.sm)
                     }
-                    .accessibilityLabel("跳过引导")
+                    .accessibilityLabel(String(localized: "跳过引导"))
                 }
             }
         }
@@ -113,7 +113,7 @@ struct HoloLightweightOnboardingView: View {
             topicSetupError = nil
             withAnimation(.easeInOut(duration: 0.25)) { currentPage = 3 }
         } catch {
-            topicSetupError = "主题保存失败，请再试一次"
+            topicSetupError = String(localized: "主题保存失败，请再试一次")
         }
     }
 
@@ -193,6 +193,6 @@ struct OnboardingPageDots: View {
         }
         .animation(.easeInOut(duration: 0.2), value: currentPage)
         .accessibilityElement()
-        .accessibilityLabel("第 \(currentPage + 1) 步，共 \(pageCount) 步")
+        .accessibilityLabel(String(localized: "第 \(currentPage + 1) 步，共 \(pageCount) 步"))
     }
 }

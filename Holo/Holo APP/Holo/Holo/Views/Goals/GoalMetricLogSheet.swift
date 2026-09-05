@@ -32,10 +32,10 @@ struct GoalMetricLogSheet: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     // 数值
                     VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-                        Text(isTargetKind ? "当前值\(unitSuffix)" : "本次数值\(unitSuffix)")
+                        Text(isTargetKind ? String(localized: "当前值\(unitSuffix)") : String(localized: "本次数值\(unitSuffix)"))
                             .font(.holoLabel)
                             .foregroundColor(.holoTextSecondary)
-                        TextField(isTargetKind ? "如 72.5" : "如 5", text: $valueText)
+                        TextField(isTargetKind ? String(localized: "如 72.5") : String(localized: "如 5"), text: $valueText)
                             .keyboardType(.decimalPad)
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
@@ -43,8 +43,8 @@ struct GoalMetricLogSheet: View {
                             .background(Color.holoBackground)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                         Text(isTargetKind
-                             ? "记录当前水平，进度取最新一条计算"
-                             : "记录每次的量，会自动累加到目标进度")
+                             ? String(localized: "记录当前水平，进度取最新一条计算")
+                             : String(localized: "记录每次的量，会自动累加到目标进度"))
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -76,20 +76,19 @@ struct GoalMetricLogSheet: View {
                         )
                         .datePickerStyle(.compact)
                         .labelsHidden()
-                        .environment(\.locale, Locale(identifier: "zh_CN"))
                     }
                 }
                 .padding(HoloSpacing.lg)
             }
             .background(Color.holoBackground)
-            .navigationTitle(isTargetKind ? "记当前水平" : "记一笔")
+            .navigationTitle(isTargetKind ? String(localized: "记当前水平") : String(localized: "记一笔"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? "保存中" : "保存") { save() }
+                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
                         .disabled(!canSave)
                         .fontWeight(.semibold)
                 }
@@ -98,7 +97,7 @@ struct GoalMetricLogSheet: View {
                 Button {
                     save()
                 } label: {
-                    Text(isSaving ? "保存中" : "保存")
+                    Text(isSaving ? String(localized: "保存中") : String(localized: "保存"))
                         .font(.holoBody)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

@@ -45,14 +45,14 @@ struct BudgetChatCard: View {
                 failedInfo
             }
         }
-        .accessibilityLabel("预算卡片：\(data.scopeTitle)，\(data.periodLabel)\(data.amount)元")
+        .accessibilityLabel(String(localized: "预算卡片：\(data.scopeTitle)，\(data.periodLabel)\(data.amount)元"))
     }
 
     // MARK: - Header
 
     private var headerTitle: String {
         if data.requiresConfirmation {
-            return data.isCategoryBudget ? "分类预算待确认" : "总预算待确认"
+            return data.isCategoryBudget ? String(localized: "分类预算待确认") : String(localized: "总预算待确认")
         }
         return data.scopeTitle
     }
@@ -66,10 +66,10 @@ struct BudgetChatCard: View {
 
     private var badge: CardBadge? {
         if data.requiresConfirmation {
-            return CardBadge(text: "待确认", color: .holoPrimary)
+            return CardBadge(text: String(localized: "待确认"), color: .holoPrimary)
         }
         if data.isCancelled {
-            return CardBadge(text: "已取消", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
         }
         return nil
     }
@@ -95,7 +95,7 @@ struct BudgetChatCard: View {
             Button {
                 onConfirm?()
             } label: {
-                Text(data.isConfirming ? "正在设置…" : "确认")
+                Text(data.isConfirming ? String(localized: "正在设置…") : String(localized: "确认"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

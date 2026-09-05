@@ -131,8 +131,7 @@ struct CategoryDetailSheet: View {
 
     private func dateHeader(date: Date, transactions dayTxns: [Transaction]) -> some View {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "zh_CN")
-        df.dateFormat = "M月d日 EEEE"
+        df.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         let dateString = df.string(from: date)
         let expense = dayTxns
             .filter { $0.transactionType == .expense }

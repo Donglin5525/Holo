@@ -355,7 +355,7 @@ private struct DailyReplayChapterHeader: View {
             .contentShape(Rectangle())
             .onTapGesture(perform: onChooseDate)
             .highPriorityGesture(portalGesture)
-            .accessibilityLabel("\(Self.fullDateFormatter.string(from: day))，轻点选择日期，长按快速穿梭")
+            .accessibilityLabel(String(localized: "\(Self.fullDateFormatter.string(from: day))，轻点选择日期，长按快速穿梭"))
             .accessibilityAddTraits(.isButton)
     }
 
@@ -410,8 +410,7 @@ private struct DailyReplayChapterHeader: View {
 
     private static let fullDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月d日 EEEE"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdEEEE")
         return formatter
     }()
 }
@@ -469,9 +468,9 @@ private struct DailyReplayDayContent: View {
         guard events.isEmpty else {
             // 「现在」的语义由列表顶端的「今天的记忆还在继续」承担；章节脚注只管方向引导，
             // 不再单独给今天塞一个「此刻」，避免把连续阅读切断。
-            return "继续向下，回看前一天"
+            return String(localized: "继续向下，回看前一天")
         }
-        return Calendar.current.isDateInToday(day) ? "上滑回看昨天" : "上滑回看前一天"
+        return Calendar.current.isDateInToday(day) ? String(localized: "上滑回看昨天") : String(localized: "上滑回看前一天")
     }
 
     private var emptyDaySwipeGesture: some Gesture {
@@ -566,7 +565,7 @@ private struct DailyReplayDayContent: View {
     }
 
     private var emptyState: some View {
-        Text(moduleFilter.map { "这一天没有\($0.displayName)记录" } ?? "这一天没有留下记录，生活安静地经过。")
+        Text(moduleFilter.map { String(localized: "这一天没有\($0.displayName)记录") } ?? String(localized: "这一天没有留下记录，生活安静地经过。"))
             .font(.system(size: 11, weight: .medium, design: .serif))
             .foregroundColor(.holoTextPlaceholder)
             .frame(maxWidth: .infinity)
@@ -598,7 +597,7 @@ private struct DailyReplayTodayEndView: View {
         }
         .padding(.horizontal, 56)
         .padding(.top, HoloSpacing.lg)
-        .accessibilityLabel("时间轴从今天开始，上滑回看更早")
+        .accessibilityLabel(String(localized: "时间轴从今天开始，上滑回看更早"))
     }
 
     private var dividerLine: some View {
@@ -703,8 +702,8 @@ private struct DailyReplayDatePortal: View {
         .highPriorityGesture(scrubGesture)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("上下拖动穿梭日期，松手或轻点前往")
-        .accessibilityAction(named: "取消并关闭") { onCancel() }
+        .accessibilityHint(String(localized: "上下拖动穿梭日期，松手或轻点前往"))
+        .accessibilityAction(named: String(localized: "取消并关闭")) { onCancel() }
     }
 
     private var scrubGesture: some Gesture {
@@ -730,8 +729,7 @@ private struct DailyReplayDatePortal: View {
 
     private static let formatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月 · EEEE"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMEEEE")
         return formatter
     }()
 }

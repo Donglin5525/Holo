@@ -237,7 +237,7 @@ struct ClearAllDataConfirmSheet: View {
     }
 
     private var isTextConfirmed: Bool {
-        confirmText.trimmingCharacters(in: .whitespacesAndNewlines) == "清空"
+        confirmText.trimmingCharacters(in: .whitespacesAndNewlines) == String(localized: "清空")
     }
 
     var body: some View {
@@ -375,12 +375,12 @@ struct ClearAllDataConfirmSheet: View {
             _ = try await RecycleBinService.shared.performClear(.init(
                 modules: RecycleBinModule.globalClearModules,
                 financeScope: .all,
-                summary: "清空所有数据"
+                summary: String(localized: "清空所有数据")
             ))
-            HoloToastCenter.shared.show("已清空，30 天内可在设置-数据管理恢复", type: .success)
+            HoloToastCenter.shared.show(String(localized: "已清空，30 天内可在设置-数据管理恢复"), type: .success)
             dismiss()
         } catch {
-            errorMessage = "清空失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "清空失败：\(error.localizedDescription)")
         }
     }
 }

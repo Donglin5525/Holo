@@ -164,9 +164,9 @@ struct EditListSheet: View {
 
     private var selectedFolderName: String {
         guard let folderId = selectedFolderId else {
-            return "未选择"
+            return String(localized: "未选择")
         }
-        return folders.first(where: { $0.id == folderId })?.name ?? "未选择"
+        return folders.first(where: { $0.id == folderId })?.name ?? String(localized: "未选择")
     }
 
     private var selectedFolder: TodoFolder? {

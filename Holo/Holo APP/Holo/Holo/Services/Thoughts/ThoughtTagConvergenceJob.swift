@@ -105,7 +105,7 @@ final class ThoughtTagConvergenceJob: ObservableObject {
             input = try collectInput()
         } catch {
             logger.error("收集收敛输入失败：\(error.localizedDescription)")
-            state = .failed("数据读取失败，请重试")
+            state = .failed(String(localized: "数据读取失败，请重试"))
             return
         }
 
@@ -155,12 +155,12 @@ final class ThoughtTagConvergenceJob: ObservableObject {
             }
         } catch let error as APIError {
             if case .rateLimited = error {
-                state = .failed("今日 AI 整理配额已用完，请稍后再试")
+                state = .failed(String(localized: "今日 AI 整理配额已用完，请稍后再试"))
             } else {
-                state = .failed("AI 整理失败，请稍后重试")
+                state = .failed(String(localized: "AI 整理失败，请稍后重试"))
             }
         } catch {
-            state = .failed("AI 整理失败，请稍后重试")
+            state = .failed(String(localized: "AI 整理失败，请稍后重试"))
         }
     }
 
@@ -387,7 +387,7 @@ final class ThoughtTagConvergenceJob: ObservableObject {
                     sourceTerms: [value.displayName],
                     input: input,
                     confidence: 0.66,
-                    reason: "\(value.candidates.count) 条观点都带有「\(value.displayName)」线索，可先收纳成一个主题。"
+                    reason: String(localized: "\(value.candidates.count) 条观点都带有「\(value.displayName)」线索，可先收纳成一个主题。")
                 )
             }
 
@@ -465,7 +465,7 @@ final class ThoughtTagConvergenceJob: ObservableObject {
                 sourceTerms: sourceTerms,
                 input: input,
                 confidence: 0.58,
-                reason: "\(matched.count) 条观点在内容或标签上集中指向「\(family.title)」，可先作为一级主题收纳。"
+                reason: String(localized: "\(matched.count) 条观点在内容或标签上集中指向「\(family.title)」，可先作为一级主题收纳。")
             )
         }
     }

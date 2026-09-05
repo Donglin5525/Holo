@@ -26,27 +26,27 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "无效的 API 地址"
+            return String(localized: "无效的 API 地址")
         case .networkUnavailable:
-            return "网络不可用，请检查网络连接"
+            return String(localized: "网络不可用，请检查网络连接")
         case .httpError(_, let message):
             return message
         case .decodingError(let error):
-            return "数据解析失败：\(error.localizedDescription)"
+            return String(localized: "数据解析失败：\(error.localizedDescription)")
         case .rateLimited(let message):
-            return message ?? "今天的 AI 使用次数已达上限，稍后再试"
+            return message ?? String(localized: "今天的 AI 使用次数已达上限，稍后再试")
         case .timeout:
-            return "请求超时，请稍后重试"
+            return String(localized: "请求超时，请稍后重试")
         case .cancelled:
-            return "请求已取消"
+            return String(localized: "请求已取消")
         case .serverError(let message):
             return message
         case .backendError(_, _, let message, _):
             return message
         case .stepInProgress(let message):
-            return message ?? "相同请求正在后端处理中，稍后重试"
+            return message ?? String(localized: "相同请求正在后端处理中，稍后重试")
         case .stepIdConflict(let message):
-            return message ?? "请求步标识冲突：同一 step 提交了不同内容"
+            return message ?? String(localized: "请求步标识冲突：同一 step 提交了不同内容")
         }
     }
 

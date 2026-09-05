@@ -175,9 +175,9 @@ struct TimelineSection: Identifiable {
     /// 显示用的日期标签
     var displayLabel: String {
         if isToday {
-            return "今天"
+            return String(localized: "今天")
         } else if isYesterday {
-            return "昨天"
+            return String(localized: "昨天")
         } else {
             return formattedWeekday
         }

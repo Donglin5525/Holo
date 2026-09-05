@@ -354,10 +354,13 @@ extension FinanceRepository {
     }
 
     private func ensureBalanceAdjustmentCategory(type: TransactionType) throws -> Category {
+        // 「余额调整」是种子数据：查重/父级挂靠/创建统一走三语词表 + 固化种子语言，
+        // 与 Category.seedDefaultCategories 种下去的名字保持同一语言
+        let adjustmentName = FinanceSeedVocabulary.balanceAdjustment.value(for: .seedLanguage)
         let categoryRequest = Category.fetchRequest()
         categoryRequest.predicate = NSPredicate(
             format: "isSystem == true AND name == %@ AND type == %@ AND parentId != nil",
-            "余额调整",
+            adjustmentName,
             type.rawValue
         )
         categoryRequest.fetchLimit = 1
@@ -365,7 +368,9 @@ extension FinanceRepository {
             return existing
         }
 
-        let parentName = type == .income ? "其他收入" : "其他"
+        let parentName = type == .income
+            ? FinanceSeedVocabulary.otherIncome.value(for: .seedLanguage)
+            : FinanceSeedVocabulary.other.value(for: .seedLanguage)
         let parentRequest = Category.fetchRequest()
         parentRequest.predicate = NSPredicate(
             format: "name == %@ AND type == %@ AND parentId == nil",
@@ -379,7 +384,7 @@ extension FinanceRepository {
 
         let category = Category.create(
             in: context,
-            name: "余额调整",
+            name: adjustmentName,
             icon: "arrow.triangle.2.circlepath",
             color: "#94A3B8",
             type: type.rawValue,

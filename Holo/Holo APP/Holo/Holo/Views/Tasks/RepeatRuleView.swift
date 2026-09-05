@@ -77,7 +77,7 @@ struct RepeatRuleView: View {
                     }
 
                     if untilDate != nil {
-                        DatePicker("结束日期", selection: Binding(
+                        DatePicker(String(localized: "结束日期"), selection: Binding(
                             get: { untilDate ?? Date() },
                             set: { untilDate = $0 }
                         ), displayedComponents: .date)
@@ -174,7 +174,7 @@ struct RepeatRuleView: View {
 
     /// 中文数字转换（用于"第X周"显示）
     private func ordinalNumber(_ n: Int) -> String {
-        let chineseNumbers = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+        let chineseNumbers = ["", String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六"), String(localized: "七"), String(localized: "八"), String(localized: "九"), String(localized: "十")]
         if n >= 1 && n <= 10 {
             return chineseNumbers[n]
         }

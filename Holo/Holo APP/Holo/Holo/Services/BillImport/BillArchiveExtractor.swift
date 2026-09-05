@@ -25,11 +25,11 @@ enum BillArchiveExtractor {
         var errorDescription: String? {
             switch self {
             case .notArchive:
-                return "这不是有效的压缩包文件"
+                return String(localized: "这不是有效的压缩包文件")
             case .noBillFileInside:
-                return "压缩包内没有找到账单文件（csv/txt/xlsx）"
+                return String(localized: "压缩包内没有找到账单文件（csv/txt/xlsx）")
             case .passwordProtected:
-                return "无法在 App 内解压该压缩包。\n微信/支付宝导出的账单是加密压缩包（解压密码在对应 App 里显示），请先在电脑上解压，再把解压出来的 CSV/XLSX 文件导入。"
+                return String(localized: "无法在 App 内解压该压缩包。\n微信/支付宝导出的账单是加密压缩包（解压密码在对应 App 里显示），请先在电脑上解压，再把解压出来的 CSV/XLSX 文件导入。")
             }
         }
     }

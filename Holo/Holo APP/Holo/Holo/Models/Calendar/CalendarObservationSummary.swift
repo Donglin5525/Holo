@@ -48,10 +48,10 @@ struct CalendarObservationSummary: Equatable {
     private static func makeDaySummary(_ events: [CalendarEvent],
                                        moduleFilter: CalendarModule?) -> CalendarObservationSummary {
         guard !events.isEmpty else {
-            let title = moduleFilter.map { "这一天没有\($0.displayName)记录。" } ?? "这一天还没有留下记录。"
+            let title = moduleFilter.map { String(localized: "这一天没有\($0.displayName)记录。") } ?? String(localized: "这一天还没有留下记录。")
             return CalendarObservationSummary(
                 title: title,
-                evidence: "基于 0 条记录",
+                evidence: String(localized: "基于 0 条记录"),
                 tone: .empty,
                 source: .local
             )
@@ -62,14 +62,14 @@ struct CalendarObservationSummary: Equatable {
 
         let evidence: String
         if let first = timed.first, let last = timed.last {
-            evidence = "\(timeFormatter.string(from: first.date))—\(timeFormatter.string(from: last.date)) · \(moduleCount) 个模块"
+            evidence = String(localized: "\(timeFormatter.string(from: first.date))—\(timeFormatter.string(from: last.date)) · \(moduleCount) 个模块")
         } else {
-            evidence = "基于 \(events.count) 条记录 · \(moduleCount) 个模块"
+            evidence = String(localized: "基于 \(events.count) 条记录 · \(moduleCount) 个模块")
         }
 
         let title = moduleFilter.map {
-            "这一天留下了 \(events.count) 条\($0.displayName)记录。"
-        } ?? "这一天留下了 \(events.count) 条可回看的记忆。"
+            String(localized: "这一天留下了 \(events.count) 条\($0.displayName)记录。")
+        } ?? String(localized: "这一天留下了 \(events.count) 条可回看的记忆。")
 
         let tone: Tone = events.count >= 6 ? .notable : (events.count <= 2 ? .quiet : .normal)
         return CalendarObservationSummary(
@@ -84,8 +84,8 @@ struct CalendarObservationSummary: Equatable {
     private static func makeRangeSummary(events: [CalendarEvent], scope: Scope) -> CalendarObservationSummary {
         guard !events.isEmpty else {
             return CalendarObservationSummary(
-                title: scope == .week ? "这周还没有留下太多痕迹。" : "这个月的记录还很安静。",
-                evidence: "基于 0 条记录",
+                title: scope == .week ? String(localized: "这周还没有留下太多痕迹。") : String(localized: "这个月的记录还很安静。"),
+                evidence: String(localized: "基于 0 条记录"),
                 tone: .empty,
                 source: .local
             )
@@ -94,11 +94,11 @@ struct CalendarObservationSummary: Equatable {
         let calendar = Calendar.current
         let modules = Set(events.map(\.module))
         let dayCount = Set(events.map { calendar.startOfDay(for: $0.date) }).count
-        let evidence = "基于 \(events.count) 条记录 · \(modules.count) 个模块 · \(dayCount) 天"
+        let evidence = String(localized: "基于 \(events.count) 条记录 · \(modules.count) 个模块 · \(dayCount) 天")
 
         if let dominantModule = dominantModule(in: events), moduleShare(dominantModule, in: events) >= 0.6 {
             return CalendarObservationSummary(
-                title: "\(scopeText(scope))主要被\(dominantModule.displayName)记录占据。",
+                title: String(localized: "\(scopeText(scope))主要被\(dominantModule.displayName)记录占据。"),
                 evidence: evidence,
                 tone: events.count >= 5 ? .notable : .normal,
                 source: .local
@@ -107,7 +107,7 @@ struct CalendarObservationSummary: Equatable {
 
         if let peak = peakDay(in: events), peak.count >= max(3, events.count / 2) {
             return CalendarObservationSummary(
-                title: "\(dayText(peak.day))的记录最集中。",
+                title: String(localized: "\(dayText(peak.day))的记录最集中。"),
                 evidence: evidence,
                 tone: .notable,
                 source: .local
@@ -120,7 +120,7 @@ struct CalendarObservationSummary: Equatable {
         }.count
         if eveningCount >= 2 && eveningCount * 2 >= events.count {
             return CalendarObservationSummary(
-                title: "\(scopeText(scope))的记录更常出现在夜晚。",
+                title: String(localized: "\(scopeText(scope))的记录更常出现在夜晚。"),
                 evidence: evidence,
                 tone: .notable,
                 source: .local
@@ -128,7 +128,7 @@ struct CalendarObservationSummary: Equatable {
         }
 
         return CalendarObservationSummary(
-            title: "\(scopeText(scope))有 \(dayCount) 天留下了记录。",
+            title: String(localized: "\(scopeText(scope))有 \(dayCount) 天留下了记录。"),
             evidence: evidence,
             tone: events.count <= 2 ? .quiet : .normal,
             source: .local
@@ -137,9 +137,9 @@ struct CalendarObservationSummary: Equatable {
 
     private static func scopeText(_ scope: Scope) -> String {
         switch scope {
-        case .day: return "这一天"
-        case .week: return "这周"
-        case .month: return "这个月"
+        case .day: return String(localized: "这一天")
+        case .week: return String(localized: "这周")
+        case .month: return String(localized: "这个月")
         }
     }
 
@@ -170,10 +170,9 @@ struct CalendarObservationSummary: Equatable {
     }
 
     private static func dayText(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return "今天" }
+        if Calendar.current.isDateInToday(day) { return String(localized: "今天") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter.string(from: day)
     }
 }

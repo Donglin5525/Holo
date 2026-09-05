@@ -21,11 +21,11 @@ enum RepeatType: String, Codable, CaseIterable {
 
     var displayTitle: String {
         switch self {
-        case .daily: return "每天"
-        case .weekly: return "每周"
-        case .monthly: return "每月"
-        case .yearly: return "每年"
-        case .custom: return "自定义"
+        case .daily: return String(localized: "每天")
+        case .weekly: return String(localized: "每周")
+        case .monthly: return String(localized: "每月")
+        case .yearly: return String(localized: "每年")
+        case .custom: return String(localized: "自定义")
         }
     }
 
@@ -50,9 +50,9 @@ enum EndConditionType: String, Codable, CaseIterable {
 
     var displayTitle: String {
         switch self {
-        case .never: return "永不"
-        case .onDate: return "指定日期"
-        case .afterCount: return "重复次数"
+        case .never: return String(localized: "永不")
+        case .onDate: return String(localized: "指定日期")
+        case .afterCount: return String(localized: "重复次数")
         }
     }
 }
@@ -66,8 +66,8 @@ enum MonthlyRepeatMode: String, Codable, CaseIterable {
 
     var displayTitle: String {
         switch self {
-        case .dayOfMonth: return "固定日期"
-        case .nthWeekday: return "第N个周X"
+        case .dayOfMonth: return String(localized: "固定日期")
+        case .nthWeekday: return String(localized: "第N个周X")
         }
     }
 }
@@ -90,18 +90,17 @@ struct TaskReminder: Identifiable, Codable, Hashable {
     var displayTitle: String {
         if let triggerDate = triggerDate {
             let f = DateFormatter()
-            f.locale = Locale(identifier: "zh_CN")
-            f.dateFormat = "M月d日 HH:mm"
+            f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
             return f.string(from: triggerDate)
         }
         switch offsetMinutes {
-        case 0: return "截止时间"
-        case 5: return "5 分钟前"
-        case 15: return "15 分钟前"
-        case 30: return "30 分钟前"
-        case 60: return "1 小时前"
-        case 1440: return "1 天前"
-        default: return "\(abs(offsetMinutes)) 分钟"
+        case 0: return String(localized: "截止时间")
+        case 5: return String(localized: "5 分钟前")
+        case 15: return String(localized: "15 分钟前")
+        case 30: return String(localized: "30 分钟前")
+        case 60: return String(localized: "1 小时前")
+        case 1440: return String(localized: "1 天前")
+        default: return String(localized: "\(abs(offsetMinutes)) 分钟")
         }
     }
 
@@ -172,11 +171,11 @@ extension Date {
         let now = Date()
 
         if calendar.isDateInToday(self) {
-            return "今天"
+            return String(localized: "今天")
         } else if calendar.isDateInTomorrow(self) {
-            return "明天"
+            return String(localized: "明天")
         } else if calendar.isDateInYesterday(self) {
-            return "昨天"
+            return String(localized: "昨天")
         } else if self > now {
             // 未来日期
             let formatter = DateFormatter()

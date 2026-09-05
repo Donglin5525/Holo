@@ -175,11 +175,11 @@ struct TopicManagementView: View {
     private func setEnabled(_ topic: Topic, _ isEnabled: Bool) {
         do {
             try topicRepository.setClassificationEnabled(topic, isEnabled: isEnabled)
-            notice = isEnabled ? "已启用「\(topic.title)」" : "已停用「\(topic.title)」"
+            notice = isEnabled ? String(localized: "已启用「\(topic.title)」") : String(localized: "已停用「\(topic.title)」")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "更新失败，请稍后重试"
+            notice = String(localized: "更新失败，请稍后重试")
         }
     }
 
@@ -188,11 +188,11 @@ struct TopicManagementView: View {
         guard !title.isEmpty else { return }
         do {
             _ = try topicRepository.createClassificationTopic(title: title)
-            notice = "已创建并启用「\(title)」"
+            notice = String(localized: "已创建并启用「\(title)」")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "创建失败，请换一个名称"
+            notice = String(localized: "创建失败，请换一个名称")
         }
     }
 
@@ -201,11 +201,11 @@ struct TopicManagementView: View {
         defer { renameTarget = nil }
         do {
             try topicRepository.renameClassificationTopic(topic, to: renameTitle)
-            notice = "主题和标签路径已同步更新"
+            notice = String(localized: "主题和标签路径已同步更新")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "重命名失败，请换一个名称"
+            notice = String(localized: "重命名失败，请换一个名称")
         }
     }
 
@@ -214,11 +214,11 @@ struct TopicManagementView: View {
         mergeSource = nil
         do {
             try topicRepository.mergeClassificationTopics(into: target, from: source)
-            notice = "已合并到「\(target.title)」"
+            notice = String(localized: "已合并到「\(target.title)」")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "合并失败，请稍后重试"
+            notice = String(localized: "合并失败，请稍后重试")
         }
     }
 
@@ -227,11 +227,11 @@ struct TopicManagementView: View {
         deleteTarget = nil
         do {
             let result = try topicRepository.deleteClassificationTopic(topic)
-            notice = "已删除「\(result.title)」，\(result.removedThoughtCount) 条想法回到未归类"
+            notice = String(localized: "已删除「\(result.title)」，\(result.removedThoughtCount) 条想法回到未归类")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            notice = "删除失败，请稍后重试"
+            notice = String(localized: "删除失败，请稍后重试")
         }
     }
 
@@ -239,14 +239,14 @@ struct TopicManagementView: View {
         do {
             let ids = try thoughtRepository.fetchUnclassifiedThoughts().map(\.id)
             guard !ids.isEmpty else {
-                notice = "当前没有未归类想法"
+                notice = String(localized: "当前没有未归类想法")
                 return
             }
             try thoughtRepository.markBatchPending(thoughtIds: ids)
             ThoughtOrganizationQueue.shared.enqueueBatch(thoughtIds: ids)
-            notice = "已开始重新整理 \(ids.count) 条想法"
+            notice = String(localized: "已开始重新整理 \(ids.count) 条想法")
         } catch {
-            notice = "启动整理失败，请稍后重试"
+            notice = String(localized: "启动整理失败，请稍后重试")
         }
     }
 }

@@ -18,9 +18,9 @@ enum BudgetPeriod: String, CaseIterable, Identifiable {
     /// 显示名称
     var displayName: String {
         switch self {
-        case .week: return "每周"
-        case .month: return "每月"
-        case .year: return "每年"
+        case .week: return String(localized: "每周")
+        case .month: return String(localized: "每月")
+        case .year: return String(localized: "每年")
         }
     }
 

@@ -58,7 +58,7 @@ struct HealthKitDiagnosticsView: View {
                             value: isGenerating
                         )
 
-                    Text(isGenerating ? "生成中" : "生成诊断报告")
+                    Text(isGenerating ? String(localized: "生成中") : String(localized: "生成诊断报告"))
                         .font(.holoBody)
                         .fontWeight(.semibold)
 
@@ -79,7 +79,7 @@ struct HealthKitDiagnosticsView: View {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 16, weight: .semibold))
 
-                    Text(copyStatusText ?? "复制报告")
+                    Text(copyStatusText ?? String(localized: "复制报告"))
                         .font(.holoBody)
                         .fontWeight(.semibold)
 
@@ -110,7 +110,7 @@ struct HealthKitDiagnosticsView: View {
                 Spacer()
             }
 
-            Text(reportText.isEmpty ? "暂无报告" : reportText)
+            Text(reportText.isEmpty ? String(localized: "暂无报告") : reportText)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundColor(reportText.isEmpty ? .holoTextSecondary : .holoTextPrimary)
                 .textSelection(.enabled)
@@ -141,7 +141,7 @@ struct HealthKitDiagnosticsView: View {
     private func copyReport() {
         guard !reportText.isEmpty else { return }
         UIPasteboard.general.string = reportText
-        copyStatusText = "已复制"
+        copyStatusText = String(localized: "已复制")
 
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)

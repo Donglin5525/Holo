@@ -107,10 +107,10 @@ final class HabitReminderScheduler: RollingNotificationScheduler {
                 guard let fireDate = calendar.date(from: soloComps), fireDate > now else { continue }
 
                 let soloContent = UNMutableNotificationContent()
-                soloContent.title = "「\(item.name.holoTruncated())」还没打卡"
+                soloContent.title = String(localized: "「\(item.name.holoTruncated())」还没打卡")
                 soloContent.body = item.streak >= 2
-                    ? "已连续 \(item.streak) 天，今天别断了"
-                    : "今天记得打卡"
+                    ? String(localized: "已连续 \(item.streak) 天，今天别断了")
+                    : String(localized: "今天记得打卡")
                 soloContent.sound = .default
                 soloContent.categoryIdentifier = TodoNotificationCategory.habitReminder
 
@@ -162,19 +162,19 @@ final class HabitReminderScheduler: RollingNotificationScheduler {
         let byStreak = pending.sorted { $0.streak > $1.streak }
 
         let title = pending.count == 1
-            ? "\(byStreak[0].name.holoTruncated())还没打卡"
-            : "\(pending.count) 个习惯还没打卡"
+            ? String(localized: "\(byStreak[0].name.holoTruncated())还没打卡")
+            : String(localized: "\(pending.count) 个习惯还没打卡")
 
         let body: String
         if pending.count == 1 {
             body = byStreak[0].streak >= 2
-                ? "已连续 \(byStreak[0].streak) 天，今天别断了"
-                : "睡前一分钟，完成今天的打卡"
+                ? String(localized: "已连续 \(byStreak[0].streak) 天，今天别断了")
+                : String(localized: "睡前一分钟，完成今天的打卡")
         } else {
             let names = pending.prefix(2).map { $0.name.holoTruncated() }.joined(separator: "、")
-            var text = pending.count > 2 ? "\(names) 等 \(pending.count) 个" : names
+            var text = pending.count > 2 ? String(localized: "\(names) 等 \(pending.count) 个") : names
             if byStreak[0].streak >= 2 {
-                text += " · \(byStreak[0].name.holoTruncated())已连续 \(byStreak[0].streak) 天"
+                text += String(localized: " · \(byStreak[0].name.holoTruncated())已连续 \(byStreak[0].streak) 天")
             }
             body = text
         }

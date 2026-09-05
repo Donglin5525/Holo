@@ -24,7 +24,7 @@ enum MemoryItemType: String, CaseIterable {
         case .transaction: return "记账"
         case .habitRecord: return "习惯"
         case .task: return "待办"
-        case .thought: return "观点"
+        case .thought: return "想法"
         }
     }
 
@@ -137,7 +137,7 @@ extension MemoryItem {
 
     /// 从观点创建 MemoryItem
     static func from(thought: Thought) -> MemoryItem {
-        let title = thought.previewText.isEmpty ? "未命名观点" : thought.previewText
+        let title = thought.previewText.isEmpty ? "未命名想法" : thought.previewText
         let subtitle = thought.moodType?.displayName
 
         return MemoryItem(

@@ -65,7 +65,7 @@ struct BudgetSummaryCard: View {
                 .frame(height: 6)
 
                 Text(summary.isOverBudget
-                     ? "超支 \(NumberFormatter.compactCurrency(summary.totalSpentAmount - summary.totalBudgetAmount))"
+                     ? String(localized: "超支 \(NumberFormatter.compactCurrency(summary.totalSpentAmount - summary.totalBudgetAmount))")
                      : NumberFormatter.compactCurrency(summary.totalBudgetAmount))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(summary.isOverBudget ? .holoError : .holoTextPrimary)

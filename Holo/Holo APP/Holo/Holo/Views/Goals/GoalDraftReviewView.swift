@@ -49,7 +49,7 @@ struct GoalDraftReviewView: View {
                     Button("取消") { showCancelConfirm = true }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? "保存中" : "保存") { save() }
+                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
                         .disabled(isSaving || draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .fontWeight(.semibold)
                 }
@@ -78,7 +78,7 @@ struct GoalDraftReviewView: View {
     private var goalInfoCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // Section header
-            sectionHeader(icon: "target", title: "目标信息")
+            sectionHeader(icon: "target", title: String(localized: "目标信息"))
 
             CardDivider()
 
@@ -145,7 +145,7 @@ struct GoalDraftReviewView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             sectionHeader(
                 icon: "checklist",
-                title: "任务",
+                title: String(localized: "任务"),
                 badge: "\(draft.tasks.filter(\.isSelected).count)/\(draft.tasks.count)"
             )
 
@@ -185,7 +185,7 @@ struct GoalDraftReviewView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             sectionHeader(
                 icon: "flame",
-                title: "习惯",
+                title: String(localized: "习惯"),
                 badge: "\(draft.habits.filter(\.isSelected).count)/\(draft.habits.count)"
             )
 
@@ -244,7 +244,7 @@ struct GoalDraftReviewView: View {
 
     private var aiContextCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(icon: "sparkles", title: "AI 上下文")
+            sectionHeader(icon: "sparkles", title: String(localized: "AI 上下文"))
 
             CardDivider()
 
@@ -299,7 +299,7 @@ struct GoalDraftReviewView: View {
                             .scaleEffect(0.8)
                             .tint(.white)
                     }
-                    Text(isSaving ? "保存中" : "确认保存")
+                    Text(isSaving ? String(localized: "保存中") : String(localized: "确认保存"))
                         .font(.holoBody)
                         .foregroundColor(.white)
                 }

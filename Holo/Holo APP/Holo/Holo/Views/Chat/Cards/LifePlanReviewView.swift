@@ -27,10 +27,10 @@ struct LifePlanReviewView: View {
     @State private var rejectionFreeText = ""
 
     private static let rejectionTags: [(raw: String, label: String)] = [
-        ("no_need", "不需要"),
-        ("no_time", "时间不够"),
-        ("dislike_style", "不喜欢这个方式"),
-        ("distrust", "证据不够有说服力")
+        ("no_need", String(localized: "不需要")),
+        ("no_time", String(localized: "时间不够")),
+        ("dislike_style", String(localized: "不喜欢这个方式")),
+        ("distrust", String(localized: "证据不够有说服力"))
     ]
 
     var body: some View {
@@ -78,7 +78,7 @@ struct LifePlanReviewView: View {
 
     private var prioritiesCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionHeader("优先结果", subtitle: "勾选后创建为目标")
+            sectionHeader(String(localized: "优先结果"), subtitle: String(localized: "勾选后创建为目标"))
             ForEach(snapshot.priorities) { priority in
                 Button {
                     toggleSelection(&selectedPriorityIDs, priority.id)
@@ -109,7 +109,7 @@ struct LifePlanReviewView: View {
 
     private var actionsCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionHeader("行动卡", subtitle: "任务 / 习惯；左滑或点「拒绝」告诉我原因")
+            sectionHeader(String(localized: "行动卡"), subtitle: String(localized: "任务 / 习惯；左滑或点「拒绝」告诉我原因"))
             ForEach(snapshot.actions.filter { $0.status == "proposed" }) { action in
                 actionRow(action)
             }

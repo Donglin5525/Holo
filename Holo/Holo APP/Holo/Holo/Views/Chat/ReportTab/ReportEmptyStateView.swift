@@ -28,15 +28,15 @@ struct ReportEmptyStateView: View {
                 capabilityCard(
                     icon: "sparkles",
                     tint: .holoPrimary,
-                    title: "深度分析",
-                    subtitle: "把你的财务、习惯、任务、想法放在一起看，找出单看一处发现不了的规律。"
+                    title: String(localized: "深度分析"),
+                    subtitle: String(localized: "把你的财务、习惯、任务、想法放在一起看，找出单看一处发现不了的规律。")
                 )
 
                 capabilityCard(
                     icon: "play.rectangle.fill",
                     tint: .indigo,
-                    title: "周期回放",
-                    subtitle: "每周 / 每月一次对账：说好的事做了没、计划偏了多少，数据说了算。"
+                    title: String(localized: "周期回放"),
+                    subtitle: String(localized: "每周 / 每月一次对账：说好的事做了没、计划偏了多少，数据说了算。")
                 )
 
                 // 示例摘录：让「报告长什么样」可感知

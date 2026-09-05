@@ -32,9 +32,9 @@ enum HoloEntitlementSource: Equatable {
     var acceptanceDescription: String {
         switch self {
         case .backend:
-            return "服务端会员状态"
+            return String(localized: "服务端会员状态")
         case .acceptance:
-            return "服务端真机验收状态"
+            return String(localized: "服务端真机验收状态")
         }
     }
 }

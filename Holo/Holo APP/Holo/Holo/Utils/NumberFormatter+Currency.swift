@@ -41,10 +41,10 @@ extension NumberFormatter {
 
         if absAmount >= hundredMillion {
             let value = NSDecimalNumber(decimal: amount / hundredMillion).doubleValue
-            return String(format: "¥%.2f亿", value)
+            return String(format: String(localized: "¥%.2f亿"), value)
         } else if absAmount >= tenThousand {
             let value = NSDecimalNumber(decimal: amount / tenThousand).doubleValue
-            return String(format: "¥%.1f万", value)
+            return String(format: String(localized: "¥%.1f万"), value)
         } else {
             let formatter = NumberFormatter()
             formatter.numberStyle = .currency

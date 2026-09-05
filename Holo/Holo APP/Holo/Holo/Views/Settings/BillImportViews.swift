@@ -56,14 +56,14 @@ struct BillImportSection: View {
     private var aiSection: some View {
         switch viewModel.aiPhase {
         case .needsColumnMapping:
-            aiActionButton(title: "AI 识别列映射") {
+            aiActionButton(title: String(localized: "AI 识别列映射")) {
                 await viewModel.performAIColumnMapping()
             }
         case .columnMapping:
-            aiProgress(text: "正在识别账单格式…")
+            aiProgress(text: String(localized: "正在识别账单格式…"))
         case .readyForCategorization:
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                aiActionButton(title: "AI 匹配科目") {
+                aiActionButton(title: String(localized: "AI 匹配科目")) {
                     await viewModel.performAICategorization()
                 }
                 Text("按您的科目目录匹配交易对方（如「美团」→餐饮），低置信度会标注")
@@ -71,7 +71,7 @@ struct BillImportSection: View {
                     .foregroundColor(.holoTextSecondary)
             }
         case .columnMatching(let done, let total):
-            aiProgress(text: "正在匹配科目 \(done)/\(total)…")
+            aiProgress(text: String(localized: "正在匹配科目 \(done)/\(total)…"))
         case .done:
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 HStack {
@@ -106,7 +106,7 @@ struct BillImportSection: View {
     private var aiSummaryText: String {
         let total = viewModel.categoryMatches.count
         let confident = total - viewModel.lowConfidenceNames.count
-        return "已匹配 \(total) 个交易对方（高置信 \(confident)）"
+        return String(localized: "已匹配 \(total) 个交易对方（高置信 \(confident)）")
     }
 
     /// AI 动作按钮：Plus 门槛在首次 AI 调用前把守（A4），购买后自动续跑
@@ -235,34 +235,34 @@ struct BillExportTutorialSheet: View {
                     tutorialBlock(
                         icon: "message.fill",
                         color: .green,
-                        title: "微信账单",
+                        title: String(localized: "微信账单"),
                         steps: [
-                            "微信 → 我 → 服务 → 钱包 → 账单",
-                            "右上角「常见问题」→ 下载账单",
-                            "选「用于个人对账」，时间范围最多一年",
-                            "输入邮箱，微信会发送加密压缩包（解压密码在微信里显示）",
-                            "在电脑上解压出 CSV 文件后，导入 Holo",
+                            String(localized: "微信 → 我 → 服务 → 钱包 → 账单"),
+                            String(localized: "右上角「常见问题」→ 下载账单"),
+                            String(localized: "选「用于个人对账」，时间范围最多一年"),
+                            String(localized: "输入邮箱，微信会发送加密压缩包（解压密码在微信里显示）"),
+                            String(localized: "在电脑上解压出 CSV 文件后，导入 Holo"),
                         ]
                     )
                     tutorialBlock(
                         icon: "creditcard.fill",
                         color: .blue,
-                        title: "支付宝账单",
+                        title: String(localized: "支付宝账单"),
                         steps: [
-                            "支付宝 → 我的 → 账单",
-                            "右上角「…」→ 开具交易流水证明",
-                            "选「用于个人对账」，接收邮箱",
-                            "邮箱收到加密压缩包（密码见支付宝提示），电脑解压出 CSV 后导入",
+                            String(localized: "支付宝 → 我的 → 账单"),
+                            String(localized: "右上角「…」→ 开具交易流水证明"),
+                            String(localized: "选「用于个人对账」，接收邮箱"),
+                            String(localized: "邮箱收到加密压缩包（密码见支付宝提示），电脑解压出 CSV 后导入"),
                         ]
                     )
                     tutorialBlock(
                         icon: "building.columns.fill",
                         color: .orange,
-                        title: "银行账单",
+                        title: String(localized: "银行账单"),
                         steps: [
-                            "各银行 App 或网银导出交易明细（CSV 或 Excel）",
-                            "推荐导出 xlsx 或 CSV 格式",
-                            "暂不支持 xls 老格式（请另存为 xlsx）与 PDF 账单",
+                            String(localized: "各银行 App 或网银导出交易明细（CSV 或 Excel）"),
+                            String(localized: "推荐导出 xlsx 或 CSV 格式"),
+                            String(localized: "暂不支持 xls 老格式（请另存为 xlsx）与 PDF 账单"),
                         ]
                     )
                     BillPrivacyNoticeContent()
@@ -344,22 +344,22 @@ struct BillPrivacyNoticeContent: View {
             privacyPoint(
                 icon: "paperplane",
                 color: .holoPrimary,
-                text: "使用 AI 识别（银行账单认列、科目匹配）时，只发送：账单表头、脱敏后的几行样本（金额已替换为假数字、卡号打码）、去重后的交易对方名称、您的账户与科目名称清单。"
+                text: String(localized: "使用 AI 识别（银行账单认列、科目匹配）时，只发送：账单表头、脱敏后的几行样本（金额已替换为假数字、卡号打码）、去重后的交易对方名称、您的账户与科目名称清单。")
             )
             privacyPoint(
                 icon: "lock",
                 color: .holoSuccess,
-                text: "不会发送：完整交易流水、每笔的真实金额与时间组合、交易单号、备注全文。"
+                text: String(localized: "不会发送：完整交易流水、每笔的真实金额与时间组合、交易单号、备注全文。")
             )
             privacyPoint(
                 icon: "server.rack",
                 color: .holoTextSecondary,
-                text: "数据经 Holo 自有服务器转发至 AI 服务处理，与聊天等现有 AI 功能同一数据口径，不新增存储，不用于训练。"
+                text: String(localized: "数据经 Holo 自有服务器转发至 AI 服务处理，与聊天等现有 AI 功能同一数据口径，不新增存储，不用于训练。")
             )
             privacyPoint(
                 icon: "wifi.slash",
                 color: .orange,
-                text: "不使用 AI 也能导入：微信/支付宝账单自动识别、手动字段映射均不联网。"
+                text: String(localized: "不使用 AI 也能导入：微信/支付宝账单自动识别、手动字段映射均不联网。")
             )
         }
         .padding(HoloSpacing.md)

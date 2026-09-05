@@ -33,9 +33,9 @@ struct OnboardingAIConsentPage: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                        consentBullet("只在你使用相关 AI 功能，或主动开启自动形成记忆后处理必要数据。")
-                        consentBullet("不授权也可以继续使用本地记账、待办、习惯和想法功能。")
-                        consentBullet("之后可以在 HoloAI 数据授权中随时开启或撤回。")
+                        consentBullet(String(localized: "只在你使用相关 AI 功能，或主动开启自动形成记忆后处理必要数据。"))
+                        consentBullet(String(localized: "不授权也可以继续使用本地记账、待办、习惯和想法功能。"))
+                        consentBullet(String(localized: "之后可以在 HoloAI 数据授权中随时开启或撤回。"))
                     }
                     .padding(HoloSpacing.lg)
                     .background(
@@ -51,7 +51,7 @@ struct OnboardingAIConsentPage: View {
                             .foregroundColor(.holoPrimary)
                             .underline()
                     }
-                    .accessibilityLabel("查看隐私政策")
+                    .accessibilityLabel(String(localized: "查看隐私政策"))
                 }
                 .padding(.horizontal, HoloSpacing.xl)
                 .padding(.bottom, HoloSpacing.xxl)
@@ -59,8 +59,8 @@ struct OnboardingAIConsentPage: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: HoloSpacing.sm) {
-                OnboardingPrimaryButton(title: "同意并开始使用") { onGrant() }
-                OnboardingSecondaryTextButton(title: "暂不授权，先进入 Holo") { onSkipConsent() }
+                OnboardingPrimaryButton(title: String(localized: "同意并开始使用")) { onGrant() }
+                OnboardingSecondaryTextButton(title: String(localized: "暂不授权，先进入 Holo")) { onSkipConsent() }
             }
             .padding(.horizontal, HoloSpacing.xl)
             .padding(.top, HoloSpacing.md)

@@ -141,7 +141,7 @@ enum CategoryComparisonBuilder {
             let info = categories[topID]
             return CategoryComparisonItem(
                 id: topID,
-                name: info?.name ?? "未分类",
+                name: info?.name ?? String(localized: "未分类"),
                 icon: info?.icon ?? "questionmark",
                 color: info?.color ?? "8E8E93",
                 currentAmount: currentTotal,
@@ -215,7 +215,7 @@ enum CategoryComparisonBuilder {
             let key = GroupKey(top: topID, sub: subID)
             return SubCategoryComparison(
                 id: subID,
-                name: categories[subID]?.name ?? "未分类",
+                name: categories[subID]?.name ?? String(localized: "未分类"),
                 currentAmount: currentSums[key] ?? 0,
                 baselineAmount: baselineSums[key] ?? 0
             )

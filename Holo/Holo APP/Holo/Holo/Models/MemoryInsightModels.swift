@@ -92,12 +92,12 @@ enum FeedbackReasonType: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .dataWrong: return "数据不准"
-        case .relationWrong: return "关联不准"
-        case .priorityWrong: return "重点不准"
-        case .suggestionWrong: return "建议不适合"
-        case .toneWrong: return "语气不喜欢"
-        case .tooFrequent: return "少提醒这个"
+        case .dataWrong: return String(localized: "数据不准")
+        case .relationWrong: return String(localized: "关联不准")
+        case .priorityWrong: return String(localized: "重点不准")
+        case .suggestionWrong: return String(localized: "建议不适合")
+        case .toneWrong: return String(localized: "语气不喜欢")
+        case .tooFrequent: return String(localized: "少提醒这个")
         }
     }
 }
@@ -236,17 +236,17 @@ enum MemoryInsightError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .aiNotConfigured:
-            return "AI 服务暂时不可用，请稍后重试"
+            return String(localized: "AI 服务暂时不可用，请稍后重试")
         case .generationInProgress:
-            return "正在生成中，请勿重复操作"
+            return String(localized: "正在生成中，请勿重复操作")
         case .generationTimeout:
-            return "生成超时，请检查网络后重试"
+            return String(localized: "生成超时，请检查网络后重试")
         case .parsingFailed(let detail):
-            return "AI 返回格式异常：\(detail)"
+            return String(localized: "AI 返回格式异常：\(detail)")
         case .contextBuildFailed(let detail):
-            return "数据聚合失败：\(detail)"
+            return String(localized: "数据聚合失败：\(detail)")
         case .aiDataProcessingConsentRequired:
-            return "未开启 AI 数据处理授权，无法生成洞察"
+            return String(localized: "未开启 AI 数据处理授权，无法生成洞察")
         }
     }
 }

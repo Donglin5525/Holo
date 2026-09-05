@@ -44,27 +44,27 @@ struct AnniversaryChatCard: View {
             } else if data.isFailed {
                 failedInfo
             } else {
-                CardFooterView(timeText: "查看纪念日", isDeleted: isDeleted)
+                CardFooterView(timeText: String(localized: "查看纪念日"), isDeleted: isDeleted)
             }
         }
-        .accessibilityLabel("纪念日卡片：\(data.title)，\(data.displayDate ?? "")")
+        .accessibilityLabel(String(localized: "纪念日卡片：\(data.title)，\(data.displayDate ?? "")"))
     }
 
     // MARK: - Header
 
     private var headerTitle: String {
         if data.requiresConfirmation {
-            return "纪念日待确认"
+            return String(localized: "纪念日待确认")
         }
         return data.title
     }
 
     private var badge: CardBadge? {
         if data.requiresConfirmation {
-            return CardBadge(text: "待确认", color: .holoPrimary)
+            return CardBadge(text: String(localized: "待确认"), color: .holoPrimary)
         }
         if data.isCancelled {
-            return CardBadge(text: "已取消", color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
         }
         return nil
     }
@@ -90,7 +90,7 @@ struct AnniversaryChatCard: View {
             Button {
                 onConfirm?()
             } label: {
-                Text(data.isConfirming ? "正在创建…" : "确认")
+                Text(data.isConfirming ? String(localized: "正在创建…") : String(localized: "确认"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

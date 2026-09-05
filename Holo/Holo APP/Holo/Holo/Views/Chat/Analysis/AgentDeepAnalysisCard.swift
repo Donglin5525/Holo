@@ -20,10 +20,10 @@ enum AgentScopeChangePreset: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .last30Days: return "近30天"
-        case .last3Months: return "近3个月"
-        case .last6Months: return "近半年"
-        case .last1Year: return "近1年"
+        case .last30Days: return String(localized: "近30天")
+        case .last3Months: return String(localized: "近3个月")
+        case .last6Months: return String(localized: "近半年")
+        case .last1Year: return String(localized: "近1年")
         }
     }
 
@@ -106,8 +106,8 @@ struct AgentDeepAnalysisCard: View {
             .background(Color.holoPrimary.opacity(0.08))
             .clipShape(Capsule())
         }
-        .accessibilityLabel("已存入报告，打开报告档案")
-        .accessibilityHint("切换到 Holo AI 页的报告 Tab 查看全部报告")
+        .accessibilityLabel(String(localized: "已存入报告，打开报告档案"))
+        .accessibilityHint(String(localized: "切换到 Holo AI 页的报告 Tab 查看全部报告"))
     }
 
     /// 查询范围行：展示「范围 · 起止日期 · 来源」并支持一键换档重查。
@@ -137,7 +137,7 @@ struct AgentDeepAnalysisCard: View {
                     .clipShape(Capsule())
                     .contentShape(Capsule())
                 }
-                .accessibilityLabel("查询范围 \(scopeText)，点按可换时间范围重新分析")
+                .accessibilityLabel(String(localized: "查询范围 \(scopeText)，点按可换时间范围重新分析"))
             } else {
                 Label(scopeText, systemImage: "calendar")
                     .font(.system(size: 11.5, weight: .semibold))
@@ -197,8 +197,8 @@ struct AgentDeepAnalysisCard: View {
                                     .fixedSize(horizontal: false, vertical: true)
 
                                 Text(result.continuationMetadata?.isFollowUp == true
-                                    ? result.continuationMetadata?.shortLabel ?? "继续追问"
-                                    : (hasRecommendations(result) ? "优化建议" : "深度分析"))
+                    ? result.continuationMetadata?.shortLabel ?? String(localized: "继续追问")
+                    : (hasRecommendations(result) ? String(localized: "优化建议") : String(localized: "深度分析")))
                                     .font(.system(size: 10.5, weight: .bold))
                                     .foregroundColor(.holoPrimary.opacity(0.8))
                                     .lineLimit(1)
@@ -224,7 +224,7 @@ struct AgentDeepAnalysisCard: View {
                                     .lineSpacing(4)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            .accessibilityLabel("核心发现")
+                            .accessibilityLabel(String(localized: "核心发现"))
                         }
 
                         HStack {
@@ -275,7 +275,7 @@ struct AgentDeepAnalysisCard: View {
                     }
 
                     HStack(spacing: 6) {
-                        Text(result.continuationMetadata?.isFollowUp == true ? "查看完整追问" : "查看完整分析")
+                        Text(result.continuationMetadata?.isFollowUp == true ? String(localized: "查看完整追问") : String(localized: "查看完整分析"))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.holoPrimary)
                         Image(systemName: "chevron.right")
@@ -334,7 +334,7 @@ struct AgentDeepAnalysisCard: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 4)
-                    .accessibilityLabel("立即继续暂停的深度分析")
+                    .accessibilityLabel(String(localized: "立即继续暂停的深度分析"))
                 }
             }
         }
@@ -363,16 +363,16 @@ struct AgentDeepAnalysisCard: View {
     private func cardEmptySubtitle(for reason: HoloAgentEmptyReason?) -> String {
         switch reason {
         case .unverifiable?:
-            return "有数据，但结论未通过核验"
+            return String(localized: "有数据，但结论未通过核验")
         case .noData?, nil:
-            return "这次没有形成可信结论"
+            return String(localized: "这次没有形成可信结论")
         }
     }
 
     private func primarySummary(_ result: HoloRenderedAgentResult) -> String {
         let count = result.sections.count
         if result.summary.isEmpty {
-            return count > 0 ? "共 \(count) 条观察" : "这次没有形成可信结论"
+            return count > 0 ? String(localized: "共 \(count) 条观察") : String(localized: "这次没有形成可信结论")
         }
         return result.summary
     }

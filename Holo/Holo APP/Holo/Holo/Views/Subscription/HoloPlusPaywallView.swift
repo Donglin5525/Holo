@@ -93,7 +93,7 @@ struct HoloPlusPaywallView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(
                         context == .membershipCenter
-                            ? "解锁全部 AI 能力，把生活记录得更完整"
+                            ? String(localized: "解锁全部 AI 能力，把生活记录得更完整")
                             : context.title
                     )
                     .font(.system(size: 16, weight: .semibold))
@@ -119,17 +119,17 @@ struct HoloPlusPaywallView: View {
 
     private var benefits: some View {
         VStack(alignment: .leading, spacing: 0) {
-            benefitComparisonRow(icon: "message.badge.waveform", name: "HoloAI", free: "15/天", plus: "30/天")
+            benefitComparisonRow(icon: "message.badge.waveform", name: "HoloAI", free: String(localized: "15/天"), plus: String(localized: "30/天"))
             CardDivider()
-            benefitComparisonRow(icon: "brain.head.profile", name: "深度洞察", free: "2/天", plus: "10/天")
+            benefitComparisonRow(icon: "brain.head.profile", name: String(localized: "深度洞察"), free: String(localized: "2/天"), plus: String(localized: "10/天"))
             CardDivider()
-            benefitComparisonRow(icon: "waveform", name: "语音识别", free: "20/天", plus: "50/天")
+            benefitComparisonRow(icon: "waveform", name: String(localized: "语音识别"), free: String(localized: "20/天"), plus: String(localized: "50/天"))
             CardDivider()
-            benefitComparisonRow(icon: "timer", name: "语音时长", free: "60 秒", plus: "5 分钟")
+            benefitComparisonRow(icon: "timer", name: String(localized: "语音时长"), free: String(localized: "60 秒"), plus: String(localized: "5 分钟"))
             CardDivider()
-            benefitComparisonRow(icon: "sparkles.rectangle.stack", name: "智能记账+任务", free: "20/天", plus: "50/天")
+            benefitComparisonRow(icon: "sparkles.rectangle.stack", name: String(localized: "智能记账+任务"), free: String(localized: "20/天"), plus: String(localized: "50/天"))
             CardDivider()
-            benefitComparisonRow(icon: "rectangle.stack.badge.plus", name: "4 类桌面小组件", free: nil, plus: "解锁")
+            benefitComparisonRow(icon: "rectangle.stack.badge.plus", name: String(localized: "4 类桌面小组件"), free: nil, plus: String(localized: "解锁"))
         }
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -262,7 +262,7 @@ struct HoloPlusPaywallView: View {
             }
         } else {
             VStack(spacing: HoloSpacing.sm) {
-                Text(entitlementState.lastErrorMessage ?? "暂时无法读取会员方案")
+                Text(entitlementState.lastErrorMessage ?? String(localized: "暂时无法读取会员方案"))
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
 
@@ -303,17 +303,17 @@ struct HoloPlusPaywallView: View {
         [
             PlanCardData(
                 id: "sample.yearly",
-                name: "年订阅",
+                name: String(localized: "年订阅"),
                 priceText: "¥128.00",
-                periodText: "/年",
-                monthlyEquivalentText: "折合 ¥10.67/月",
-                savingsBadgeText: "立省 11%"
+                periodText: String(localized: "/年"),
+                monthlyEquivalentText: String(localized: "折合 ¥10.67/月"),
+                savingsBadgeText: String(localized: "立省 11%")
             ),
             PlanCardData(
                 id: "sample.monthly",
-                name: "月订阅",
+                name: String(localized: "月订阅"),
                 priceText: "¥12.00",
-                periodText: "/月",
+                periodText: String(localized: "/月"),
                 monthlyEquivalentText: nil,
                 savingsBadgeText: nil
             )
@@ -325,13 +325,13 @@ struct HoloPlusPaywallView: View {
 
         return PlanCardData(
             id: product.id,
-            name: isYearly ? "年订阅" : "月订阅",
+            name: isYearly ? String(localized: "年订阅") : String(localized: "月订阅"),
             priceText: product.displayPrice,
-            periodText: isYearly ? "/年" : "/月",
+            periodText: isYearly ? String(localized: "/年") : String(localized: "/月"),
             monthlyEquivalentText: isYearly
-                ? "折合 \((product.price / 12).formatted(product.priceFormatStyle))/月"
+                ? String(localized: "折合 \((product.price / 12).formatted(product.priceFormatStyle))/月")
                 : nil,
-            savingsBadgeText: isYearly ? savingsPercent.map { "立省 \($0)%" } : nil
+            savingsBadgeText: isYearly ? savingsPercent.map { String(localized: "立省 \($0)%") } : nil
         )
     }
 
@@ -405,8 +405,8 @@ struct HoloPlusPaywallView: View {
             purchaseButton(
                 title: ctaTitle(for: product),
                 subline: isTrialEligible(product)
-                    ? "试用结束后自动按所选方案续订，可随时取消"
-                    : "订阅自动续订，可随时在系统设置中关闭",
+                    ? String(localized: "试用结束后自动按所选方案续订，可随时取消")
+                    : String(localized: "订阅自动续订，可随时在系统设置中关闭"),
                 showsProgress: subscriptionService.isPurchasing
             ) {
                 Task { await subscriptionService.purchase(product) }
@@ -422,8 +422,8 @@ struct HoloPlusPaywallView: View {
             }
         } else if showsSamplePlans {
             purchaseButton(
-                title: "立即开通 · ¥128.00/年",
-                subline: "订阅自动续订，可随时在系统设置中关闭"
+                title: String(localized: "立即开通 · ¥128.00/年"),
+                subline: String(localized: "订阅自动续订，可随时在系统设置中关闭")
             ) {}
         }
     }
@@ -463,9 +463,9 @@ struct HoloPlusPaywallView: View {
 
     private func ctaTitle(for product: Product) -> String {
         if isTrialEligible(product), let offer = product.subscription?.introductoryOffer {
-            return "开始 \(offer.period.value) \(periodUnitLabel(offer.period.unit))免费试用"
+            return String(localized: "开始 \(offer.period.value) \(periodUnitLabel(offer.period.unit))免费试用")
         }
-        return "立即开通 · \(product.displayPrice)\(billingPeriodLabel(for: product))"
+        return String(localized: "立即开通 · \(product.displayPrice)\(billingPeriodLabel(for: product))")
     }
 
     private func isTrialEligible(_ product: Product) -> Bool {
@@ -475,19 +475,19 @@ struct HoloPlusPaywallView: View {
 
     private func periodUnitLabel(_ unit: Product.SubscriptionPeriod.Unit) -> String {
         switch unit {
-        case .day: return "天"
-        case .week: return "周"
-        case .month: return "个月"
-        case .year: return "年"
-        @unknown default: return "天"
+        case .day: return String(localized: "天")
+        case .week: return String(localized: "周")
+        case .month: return String(localized: "个月")
+        case .year: return String(localized: "年")
+        @unknown default: return String(localized: "天")
         }
     }
 
     /// 订阅周期标签（App Store 3.1.2：账单金额旁需清晰标注周期）
     private func billingPeriodLabel(for product: Product) -> String {
         switch product.id {
-        case HoloSubscriptionProduct.plusYearly.rawValue: return "/年"
-        case HoloSubscriptionProduct.plusMonthly.rawValue: return "/月"
+        case HoloSubscriptionProduct.plusYearly.rawValue: return String(localized: "/年")
+        case HoloSubscriptionProduct.plusMonthly.rawValue: return String(localized: "/月")
         default: return ""
         }
     }

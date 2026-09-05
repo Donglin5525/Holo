@@ -16,9 +16,9 @@ struct LifePlanChatCard: View {
 
     private var statusLabel: (text: String, color: Color) {
         switch snapshot.status {
-        case "active": return ("本周进行中", .holoPrimary)
-        case "superseded": return ("已有更新版", .holoTextSecondary)
-        case "completed": return ("已结束", .holoTextSecondary)
+        case "active": return (String(localized: "本周进行中"), .holoPrimary)
+        case "superseded": return (String(localized: "已有更新版"), .holoTextSecondary)
+        case "completed": return (String(localized: "已结束"), .holoTextSecondary)
         default: return (snapshot.status, .holoTextSecondary)
         }
     }
@@ -134,11 +134,11 @@ struct LifePlanChatCard: View {
 
     private func actionDisplay(_ action: LifePlanActionSnapshot) -> (label: String, color: Color) {
         switch action.status {
-        case "proposed": return ("待确认", .holoPrimary)
-        case "accepted": return ("已加入", .holoSuccess)
-        case "completed": return ("已完成", .holoSuccess)
-        case "rejected": return ("已拒绝", .holoTextSecondary)
-        case "expired": return ("已过期", .holoTextSecondary)
+        case "proposed": return (String(localized: "待确认"), .holoPrimary)
+        case "accepted": return (String(localized: "已加入"), .holoSuccess)
+        case "completed": return (String(localized: "已完成"), .holoSuccess)
+        case "rejected": return (String(localized: "已拒绝"), .holoTextSecondary)
+        case "expired": return (String(localized: "已过期"), .holoTextSecondary)
         default: return (action.status, .holoTextSecondary)
         }
     }

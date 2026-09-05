@@ -186,7 +186,7 @@ struct TodayScheduleBar: View {
 
     private var barText: String {
         guard let next = nextItem else { return "" }
-        return timedItems.count == 1 ? next.title : "今日 \(timedItems.count) 场 · \(next.title)"
+        return timedItems.count == 1 ? next.title : String(localized: "今日 \(timedItems.count) 场 · \(next.title)")
     }
 
     private var timeText: String {
@@ -209,7 +209,7 @@ struct TodayScheduleBar: View {
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
 
-                    Text(isOngoing ? "进行中" : timeText)
+                    Text(isOngoing ? String(localized: "进行中") : timeText)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(isOngoing ? .holoSuccess : .holoTextSecondary)
                 }
@@ -369,7 +369,7 @@ struct ScheduleRowCard: View {
     private var timeRangeText: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        if item.isAllDay { return "全天" }
+        if item.isAllDay { return String(localized: "全天") }
         return "\(formatter.string(from: item.startDate)) – \(formatter.string(from: item.endDate))"
     }
 }
@@ -424,7 +424,7 @@ struct ScheduleDetailSheet: View {
                         HStack {
                             Image(systemName: store.isCompleted(item) ? "checkmark.circle.fill" : "circle")
                                 .foregroundColor(store.isCompleted(item) ? .holoSuccess : .holoTextSecondary)
-                            Text(store.isCompleted(item) ? "已标记完成（点按取消）" : "标记完成")
+                            Text(store.isCompleted(item) ? String(localized: "已标记完成（点按取消）") : String(localized: "标记完成"))
                                 .font(.holoBody)
                                 .foregroundColor(.holoTextPrimary)
                             Spacer()
@@ -490,8 +490,8 @@ struct ScheduleDetailSheet: View {
                     repository: TodoRepository.shared,
                     list: nil,
                     defaultDueDate: item.startDate,
-                    prefilledTitle: "跟进：\(item.title)",
-                    prefilledDescription: "来源日程：\(followUpSourceText)",
+                    prefilledTitle: String(localized: "跟进：\(item.title)"),
+                    prefilledDescription: String(localized: "来源日程：\(followUpSourceText)"),
                     prefilledPlannedRange: item.isAllDay ? nil : (start: item.startDate, end: item.endDate)
                 )
             }
@@ -501,10 +501,9 @@ struct ScheduleDetailSheet: View {
 
     private var followUpSourceText: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdHHmm")
         if item.isAllDay {
-            return "\(item.title)（\(item.calendarTitle) · 全天）"
+            return String(localized: "\(item.title)（\(item.calendarTitle) · 全天）")
         }
         return "\(formatter.string(from: item.startDate)) \(item.title)（\(item.calendarTitle)）"
     }
@@ -524,11 +523,10 @@ struct ScheduleDetailSheet: View {
     private var timeText: String {
         let formatter = DateFormatter()
         let dayFormatter = DateFormatter()
-        dayFormatter.locale = Locale(identifier: "zh_CN")
-        dayFormatter.dateFormat = "M月d日 EEE"
+        dayFormatter.setLocalizedDateFormatFromTemplate("MMMdEEE")
         formatter.dateFormat = "HH:mm"
         if item.isAllDay {
-            return "\(dayFormatter.string(from: item.startDate)) · 全天"
+            return String(localized: "\(dayFormatter.string(from: item.startDate)) · 全天")
         }
         return "\(dayFormatter.string(from: item.startDate)) \(formatter.string(from: item.startDate)) – \(formatter.string(from: item.endDate))"
     }

@@ -322,7 +322,7 @@ struct ChatView: View {
                     let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
                     let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
                     DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
-                        title: normalizedKeyword.map { "\($0)数据依据" } ?? "财务数据依据",
+                        title: normalizedKeyword.map { String(localized: "\($0)数据依据") } ?? String(localized: "财务数据依据"),
                         label: drilldown.label,
                         keyword: normalizedKeyword,
                         start: drilldown.start,
@@ -462,8 +462,8 @@ struct ChatView: View {
 
     private var pageTabBar: some View {
         HStack(spacing: 0) {
-            pageTabButton(.chat, title: "对话", showsDot: false)
-            pageTabButton(.report, title: "报告", showsDot: reportViewModel.hasUnreadReport)
+            pageTabButton(.chat, title: String(localized: "对话"), showsDot: false)
+            pageTabButton(.report, title: String(localized: "报告"), showsDot: reportViewModel.hasUnreadReport)
         }
         .frame(width: 190)
         .padding(3)
@@ -581,9 +581,9 @@ struct ChatView: View {
     private var chatContent: some View {
         VStack(spacing: 0) {
             if !viewModel.hasFinishedSetup {
-                statusBanner("正在连接 Holo AI 服务，你现在也可以直接发送消息")
+                statusBanner(String(localized: "正在连接 Holo AI 服务，你现在也可以直接发送消息"))
             } else if viewModel.didTimeoutLoadingConfig {
-                statusBanner("AI 服务连接较慢，已先放开聊天交互")
+                statusBanner(String(localized: "AI 服务连接较慢，已先放开聊天交互"))
             }
 
             // 消息列表 / 空状态卡片：仅在历史消息加载完成后才显示空状态，
@@ -935,7 +935,7 @@ struct ChatView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("加载更早的消息")
+                .accessibilityLabel(String(localized: "加载更早的消息"))
             }
         }
         .frame(maxWidth: .infinity)
@@ -978,8 +978,8 @@ struct ChatView: View {
         .contentShape(Capsule())
         .accessibilityLabel(
             pendingLatestActivityCount > 0
-                ? "回到最新消息，\(pendingLatestActivityCount) 条新消息"
-                : "回到最新消息"
+                ? String(localized: "回到最新消息，\(pendingLatestActivityCount) 条新消息")
+                : String(localized: "回到最新消息")
         )
     }
 

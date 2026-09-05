@@ -40,7 +40,7 @@ struct GoalEditForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionHeader(icon: "target", title: "目标信息")
+            sectionHeader(icon: "target", title: String(localized: "目标信息"))
 
             CardDivider()
 
@@ -119,7 +119,7 @@ struct GoalEditForm: View {
                             Text("图标")
                                 .font(.holoBody)
                                 .foregroundColor(.holoTextPrimary)
-                            Text(draft.iconEmoji == nil ? "默认（按领域）" : "已自定义")
+                            Text(draft.iconEmoji == nil ? String(localized: "默认（按领域）") : String(localized: "已自定义"))
                                 .font(.holoCaption)
                                 .foregroundColor(.holoTextSecondary)
                         }
@@ -238,10 +238,10 @@ struct GoalEditForm: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.sm) {
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-                    Text(draft.goalKind == .target ? "目标值" : "目标总量")
+                    Text(draft.goalKind == .target ? String(localized: "目标值") : String(localized: "目标总量"))
                         .font(.holoLabel)
                         .foregroundColor(.holoTextSecondary)
-                    TextField(draft.goalKind == .target ? "如 70" : "如 300", text: $metricTargetText)
+                    TextField(draft.goalKind == .target ? String(localized: "如 70") : String(localized: "如 300"), text: $metricTargetText)
                         .keyboardType(.decimalPad)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
@@ -367,10 +367,10 @@ struct GoalEditForm: View {
             return nil
         case .cumulative:
             guard habit.isMeasureType else { return nil }
-            return "「\(habit.name)」是测量类习惯（每日取最新值），做累计源会把每天的值加总"
+            return String(localized: "「\(habit.name)」是测量类习惯（每日取最新值），做累计源会把每天的值加总")
         case .target:
             guard habit.isCountType else { return nil }
-            return "「\(habit.name)」是计数类习惯（当日累加），做达标源只取最新一条记录值"
+            return String(localized: "「\(habit.name)」是计数类习惯（当日累加），做达标源只取最新一条记录值")
         }
     }
 
