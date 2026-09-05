@@ -258,7 +258,7 @@ nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
                     name: String(localized: "跑步 5 公里"),
-                    icon: "🏃",
+                    icon: "figure.run",
                     streakText: String(localized: "12天"),
                     isCompletedToday: true,
                     weekPattern: [true, true, false, true, true, true, true]
@@ -266,7 +266,7 @@ nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
                     name: String(localized: "喝够 8 杯水"),
-                    icon: "💧",
+                    icon: "drop.fill",
                     streakText: String(localized: "34天"),
                     isCompletedToday: true,
                     weekPattern: [true, true, true, true, true, true, true]
@@ -274,7 +274,7 @@ nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
                     name: String(localized: "睡前阅读 20 分钟"),
-                    icon: "📚",
+                    icon: "book.fill",
                     streakText: String(localized: "8天"),
                     isCompletedToday: true,
                     weekPattern: [true, false, true, true, false, true, false]
@@ -282,7 +282,7 @@ nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
                     name: String(localized: "冥想 10 分钟"),
-                    icon: "🧘",
+                    icon: "figure.mind.and.body",
                     streakText: String(localized: "5天"),
                     isCompletedToday: false,
                     weekPattern: [true, true, true, false, true, false, false]
@@ -290,7 +290,7 @@ nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
                 HoloWidgetHabitItem(
                     id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!,
                     name: String(localized: "7 点前起床"),
-                    icon: "🌱",
+                    icon: "leaf.fill",
                     streakText: String(localized: "21天"),
                     isCompletedToday: false,
                     weekPattern: [true, true, true, true, true, false, false]
@@ -395,7 +395,7 @@ nonisolated struct HoloWidgetGoalSnapshot: Codable, Equatable {
             goal: HoloWidgetGoalItem(
                 goalId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
                 title: String(localized: "MacBook 基金"),
-                icon: "💻",
+                icon: "desktopcomputer",
                 progress: 0.68,
                 percentText: "68%",
                 currentText: "¥10,200",
@@ -447,7 +447,7 @@ nonisolated struct HoloWidgetAnniversarySnapshot: Codable, Equatable {
                 HoloWidgetAnniversaryItem(
                     id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
                     title: String(localized: "和小林的纪念日"),
-                    icon: "❤️",
+                    icon: "heart.fill",
                     monthText: String(localized: "10月"),
                     dayText: "24",
                     dateText: String(localized: "10.24 · 周六"),
@@ -459,7 +459,7 @@ nonisolated struct HoloWidgetAnniversarySnapshot: Codable, Equatable {
                 HoloWidgetAnniversaryItem(
                     id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
                     title: String(localized: "发工资"),
-                    icon: "⏳",
+                    icon: "hourglass",
                     monthText: String(localized: "9月"),
                     dayText: "10",
                     dateText: String(localized: "9.10 · 周四"),
@@ -469,7 +469,7 @@ nonisolated struct HoloWidgetAnniversarySnapshot: Codable, Equatable {
                 HoloWidgetAnniversaryItem(
                     id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
                     title: String(localized: "领证纪念日"),
-                    icon: "💍",
+                    icon: "sparkles",
                     monthText: String(localized: "12月"),
                     dayText: "12",
                     dateText: String(localized: "12.12 · 周六"),

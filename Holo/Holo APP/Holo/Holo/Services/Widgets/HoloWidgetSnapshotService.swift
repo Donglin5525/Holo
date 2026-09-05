@@ -312,8 +312,12 @@ final class HoloWidgetSnapshotService {
         let repository = TodoRepository.shared
         repository.setup()
 
-        // 与任务页「今日」筛选同口径：今天到期 + 逾期未完成
-        var pending = repository.getTodayTasks() + repository.getOverdueTasks()
+        // 与任务页「今日」筛选同口径：今天到期 + 逾期未完成。
+        // 两个列表存在交集（今天到期且已逾期），按 id 去重，避免组件出现重复行。
+        var seen = Set<UUID>()
+        var pending = (repository.getTodayTasks() + repository.getOverdueTasks()).filter {
+            seen.insert($0.id).inserted
+        }
         pending.sort { lhs, rhs in
             if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
             let lhsDue = lhs.dueDate ?? .distantFuture

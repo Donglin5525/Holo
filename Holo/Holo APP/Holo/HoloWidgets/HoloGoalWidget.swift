@@ -110,17 +110,12 @@ private struct HoloGoalWidgetView: View {
 
             Spacer(minLength: 0)
 
+            // 小号空间装不下预测文案（硬塞必然截断），只在中号展示；
+            // 圆环必须小于占位框，否则会向上溢出叠印金额行
             HStack(alignment: .bottom) {
-                if let forecast = goal.forecastText {
-                    Text(forecast)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(textSecondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                gauge(goal, side: 62, lineWidth: 7)
-                    .frame(width: 70, height: 46, alignment: .bottomTrailing)
+                Spacer(minLength: 0)
+                gauge(goal, side: 46, lineWidth: 6)
+                    .frame(width: 54, height: 48, alignment: .bottomTrailing)
             }
         }
         .padding(15)
@@ -158,13 +153,13 @@ private struct HoloGoalWidgetView: View {
                 if goal.progress != nil {
                     VStack(alignment: .leading, spacing: 7) {
                         if let current = goal.currentText {
-                            kvRow("已推进", current, tint: textPrimary)
+                            kvRow(String(localized: "已推进"), current, tint: textPrimary)
                         }
                         if let target = goal.targetText {
-                            kvRow("目标", target, tint: textPrimary)
+                            kvRow(String(localized: "目标"), target, tint: textPrimary)
                         }
                         if let remaining = goal.remainingText {
-                            kvRow("还差", remaining, tint: primaryTint)
+                            kvRow(String(localized: "还差"), remaining, tint: primaryTint)
                         }
                     }
                     .padding(.top, 9)
@@ -213,6 +208,8 @@ private struct HoloGoalWidgetView: View {
             Text(title)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer(minLength: 6)
             Text(value)
                 .font(.system(size: 12.5, weight: .heavy))

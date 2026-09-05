@@ -209,6 +209,7 @@ private struct HoloHabitWidgetView: View {
                 .font(.system(size: 12.5, weight: .bold))
                 .foregroundStyle(textPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             if showsWeekPattern {
                 Spacer(minLength: 6)
@@ -278,8 +279,8 @@ private struct HoloHabitWidgetView: View {
 
     private var remainingText: String {
         let remaining = value.remainingCount
-        if remaining == 0 { return "今日已齐 ✓" }
-        return "还差 \(remaining) 个"
+        if remaining == 0 { return String(localized: "今日已齐 ✓") }
+        return String(localized: "还差 \(remaining) 个")
     }
 
     private var primaryTint: Color { HoloWidgetBrand.primary(for: colorScheme) }

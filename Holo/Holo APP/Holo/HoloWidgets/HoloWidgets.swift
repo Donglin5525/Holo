@@ -301,15 +301,15 @@ private struct HoloFinanceProvider: TimelineProvider {
             daysInMonth: 30,
             weekExpense: (0..<7).map { offset in
                 HoloWidgetDailyExpense(
-                    weekdayText: ["一", "二", "三", "四", "五", "六", "今"][offset],
+                    weekdayText: [String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六"), String(localized: "今")][offset],
                     amount: [36, 58, 24, 84, 46, 62, 51][offset],
                     isToday: offset == 6
                 )
             },
             topCategories: [
-                HoloWidgetCategorySpend(name: "餐饮", amount: 210, colorHex: "#F97316"),
-                HoloWidgetCategorySpend(name: "购物", amount: 168, colorHex: "#6366F1"),
-                HoloWidgetCategorySpend(name: "交通", amount: 86, colorHex: "#10B981")
+                HoloWidgetCategorySpend(name: String(localized: "餐饮"), amount: 210, colorHex: "#F97316"),
+                HoloWidgetCategorySpend(name: String(localized: "购物"), amount: 168, colorHex: "#6366F1"),
+                HoloWidgetCategorySpend(name: String(localized: "交通"), amount: 86, colorHex: "#10B981")
             ],
             updatedAt: Date()
         )
@@ -504,13 +504,13 @@ private struct HoloFinanceView: View {
                 .frame(width: 108, height: 108)
 
                 VStack(alignment: .leading, spacing: 9) {
-                    financeKVRow("支出", entry.value.monthExpense.currencyText, tint: expenseTint)
-                    financeKVRow("收入", "+\(entry.value.monthIncome.currencyText)", tint: incomeTint)
+                    financeKVRow(String(localized: "支出"), entry.value.monthExpense.currencyText, tint: expenseTint)
+                    financeKVRow(String(localized: "收入"), "+\(entry.value.monthIncome.currencyText)", tint: incomeTint)
                     if let remaining = remainingBudgetText {
-                        financeKVRow("预算剩余", remaining, tint: textPrimary)
+                        financeKVRow(String(localized: "预算剩余"), remaining, tint: textPrimary)
                     }
                     financeKVRow(
-                        "时间过了",
+                        String(localized: "时间过了"),
                         "\(Int((entry.value.timeProgress * 100).rounded()))%",
                         tint: textSecondary
                     )
@@ -585,23 +585,22 @@ private struct HoloFinanceView: View {
 
     private var monthLabel: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M 月"
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
         return formatter.string(from: entry.date)
     }
 
     private var remainingBudgetText: String? {
         guard let budget = entry.value.monthBudget, budget > 0 else { return nil }
         let remaining = max(0, budget - entry.value.monthExpense)
-        return "预算 \(budget.currencyText) · 还剩 \(remaining.currencyText)"
+        return String(localized: "预算 \(budget.currencyText) · 还剩 \(remaining.currencyText)")
     }
 
     private var statusText: String {
         switch entry.value.budgetStatus {
-        case .noBudget: return "未设预算"
-        case .onTrack: return "节奏正常 · 已用 \(Int(((entry.value.budgetProgress ?? 0) * 100).rounded()))%"
-        case .aheadOfTime: return "花得略快 · 已用 \(Int(((entry.value.budgetProgress ?? 0) * 100).rounded()))%"
-        case .overBudget: return "已超预算"
+        case .noBudget: return String(localized: "未设预算")
+        case .onTrack: return String(localized: "节奏正常 · 已用 \(Int(((entry.value.budgetProgress ?? 0) * 100).rounded()))%")
+        case .aheadOfTime: return String(localized: "花得略快 · 已用 \(Int(((entry.value.budgetProgress ?? 0) * 100).rounded()))%")
+        case .overBudget: return String(localized: "已超预算")
         }
     }
 
@@ -667,9 +666,9 @@ private struct HoloThoughtMemoryProvider: TimelineProvider {
         HoloWidgetThoughtMemorySnapshot(
             thoughtId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             createdAt: Date(),
-            tags: ["产品灵感", "自我观察"],
-            excerpt: "桌面上不默认展示原文，回到 App 里再看。",
-            sourceHint: "来自一次夜间记录",
+            tags: [String(localized: "产品灵感"), String(localized: "自我观察")],
+            excerpt: String(localized: "桌面上不默认展示原文，回到 App 里再看。"),
+            sourceHint: String(localized: "来自一次夜间记录"),
             showsOriginalExcerpt: false
         )
     }
