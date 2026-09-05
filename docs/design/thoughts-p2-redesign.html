@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 想法模块 P2 改版设计方案</title>
+<style>
+  :root{
+    --primary:#F46D38; --primary-light:#FED7AA; --primary-dark:#EA580C;
+    --ai:#7C5CFC; --ai-light:#EEE9FE;
+    --success:#22C55E; --error:#EF4444;
+    --bg:#FAF6F0; --card:#FFFFFF; --nested:#F7F3EC;
+    --text:#2A2620; --text2:#8A8378; --text3:#B8B0A4;
+    --border:#EDE6DA; --divider:#F0EAE0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{background:#F2EDE4;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","SF Pro SC","Helvetica Neue",sans-serif;color:var(--text);padding:48px 40px 120px;}
+  .page-head{max-width:1560px;margin:0 auto 44px;}
+  .page-head h1{font-size:30px;font-weight:800;letter-spacing:.5px;}
+  .page-head h1 em{font-style:normal;color:var(--primary);}
+  .page-head p{margin-top:10px;font-size:14px;color:var(--text2);line-height:1.8;max-width:860px;}
+  .page-head .meta{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;}
+  .tag{font-size:12px;padding:4px 12px;border-radius:99px;background:#fff;border:1px solid var(--border);color:var(--text2);}
+  .tag.hot{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600;}
+  .toc{max-width:1560px;margin:0 auto 36px;display:flex;gap:8px;flex-wrap:wrap;}
+  .toc a{font-size:13px;color:var(--text2);text-decoration:none;background:#fff;border:1px solid var(--border);padding:7px 14px;border-radius:10px;transition:.15s;}
+  .toc a:hover{color:var(--primary);border-color:var(--primary);}
+  section{max-width:1560px;margin:0 auto 72px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px;}
+  .sec-head .no{font-size:13px;font-weight:800;color:var(--primary);letter-spacing:1px;}
+  .sec-head h2{font-size:21px;font-weight:800;}
+  .sec-head .phase{font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;}
+  .phase.p1{background:var(--primary-light);color:var(--primary-dark);}
+  .phase.p2{background:var(--ai-light);color:#5B3FD1;}
+  .sec-desc{font-size:13.5px;color:var(--text2);line-height:1.9;margin-bottom:24px;max-width:920px;}
+  .sec-desc b{color:var(--text);}
+  .boards{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;}
+  .col{display:flex;flex-direction:column;gap:14px;}
+  /* iPhone 画板 */
+  .phone{width:392px;background:var(--bg);border-radius:44px;padding:10px;box-shadow:0 24px 60px rgba(70,50,20,.14),0 4px 14px rgba(70,50,20,.08);border:1px solid #E5DDCF;}
+  .phone .notch{width:130px;height:30px;background:#1C1917;border-radius:0 0 18px 18px;margin:0 auto;}
+  .screen{border-radius:36px;overflow:hidden;height:770px;background:var(--bg);position:relative;display:flex;flex-direction:column;}
+  .statusbar{display:flex;justify-content:space-between;padding:8px 26px 4px;font-size:12.5px;font-weight:600;color:var(--text);}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:8px 18px 10px;}
+  .nav .back{font-size:26px;color:var(--text);line-height:1;}
+  .nav .title{font-size:16.5px;font-weight:700;}
+  .nav .edit{font-size:14px;color:var(--primary);font-weight:600;}
+  .content{flex:1;overflow:hidden;padding:4px 16px 20px;display:flex;flex-direction:column;gap:12px;}
+  /* 说明卡 */
+  .note{width:392px;background:#fff;border-radius:18px;padding:20px 22px;border:1px solid var(--border);box-shadow:0 6px 20px rgba(70,50,20,.05);}
+  .note h4{font-size:14px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .note h4 .dot{width:8px;height:8px;border-radius:99px;background:var(--primary);}
+  .note.v h4 .dot{background:var(--error);}
+  .note.g h4 .dot{background:var(--success);}
+  .note ul{list-style:none;}
+  .note li{font-size:12.5px;color:var(--text2);line-height:1.85;padding-left:14px;position:relative;}
+  .note li::before{content:"";position:absolute;left:0;top:11px;width:5px;height:5px;border-radius:99px;background:var(--text3);}
+  .note li b{color:var(--text);font-weight:700;}
+  .note .decision{margin-top:12px;padding:10px 12px;background:#FFF7EF;border-radius:10px;font-size:12px;line-height:1.8;color:#9A5B2E;border:1px dashed var(--primary-light);}
+  .note .decision b{color:var(--primary-dark);}
+  /* 通用卡片区块 */
+  .card{background:var(--card);border-radius:24px;padding:16px 18px;box-shadow:0 3px 10px rgba(70,50,20,.05);border:1px solid rgba(237,230,218,.7);}
+  .card .label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:5px;}
+  /* 正文 */
+  .body-text{font-size:15px;line-height:1.85;color:var(--text);}
+  .body-text .ht{color:var(--primary);font-weight:600;background:rgba(244,109,56,.09);border-radius:5px;padding:0 3px;}
+  .date{font-size:12px;color:var(--text2);}
+  /* 主题行 */
+  .topic-row{display:flex;align-items:center;gap:10px;}
+  .topic-ico{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:17px;background:#FFF3E8;}
+  .topic-name{font-size:16px;font-weight:700;}
+  .topic-conf{font-size:10.5px;font-weight:700;color:var(--ai);background:var(--ai-light);border-radius:99px;padding:2px 7px;}
+  .topic-swap{margin-left:auto;font-size:13px;color:var(--primary);font-weight:600;}
+  /* 标签 chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip-mine{font-size:13px;font-weight:600;padding:5px 12px;border-radius:10px;}
+  .chip-ai{font-size:13px;font-weight:600;padding:5px 11px;border-radius:10px;background:rgba(138,131,120,.09);color:var(--text2);display:inline-flex;align-items:center;gap:5px;}
+  .chip-ai .ai{font-size:9px;font-weight:800;color:var(--text3);letter-spacing:.4px;background:rgba(138,131,120,.14);border-radius:4px;padding:1px 4px;}
+  .chip-ai .ok{color:var(--success);font-weight:800;font-size:13px;cursor:pointer;}
+  .chip-ai .no{color:rgba(239,68,68,.75);font-weight:800;font-size:13px;cursor:pointer;}
+  .ai-reason{display:flex;gap:6px;margin-top:10px;font-size:12px;color:var(--text2);line-height:1.7;}
+  .ai-reason .sp{color:var(--ai);font-size:11px;}
+  .xdivider{height:1px;background:var(--divider);margin:12px 0;}
+  /* 状态徽章 */
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:99px;padding:3px 9px;}
+  .b-doing{color:var(--primary);background:rgba(244,109,56,.10);}
+  .b-wait{color:var(--ai);background:var(--ai-light);}
+  .b-fail{color:var(--error);background:rgba(239,68,68,.10);}
+  .b-old{color:var(--text2);background:rgba(138,131,120,.10);}
+  /* 想法卡片 */
+  .tcard{background:var(--card);border-radius:24px;padding:16px 18px 14px;box-shadow:0 3px 10px rgba(70,50,20,.05);}
+  .tcard .hd{display:flex;align-items:center;margin-bottom:8px;}
+  .tcard .hd .date{margin-right:auto;}
+  .tcard .ft{display:flex;align-items:center;margin-top:10px;}
+  .tcard .ft .chips{margin-right:auto;}
+  /* 编辑器 */
+  .editor-wrap{flex:1;display:flex;flex-direction:column;}
+  .editor-body{flex:1;background:var(--card);border-radius:24px;padding:18px;font-size:15px;line-height:1.9;color:var(--text);}
+  .caret{display:inline-block;width:2px;height:18px;background:var(--primary);vertical-align:-3px;margin-left:1px;animation:blink 1s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .toolbar{display:flex;align-items:center;gap:6px;padding:10px 8px 4px;}
+  .tb-btn{width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);background:var(--card);border:1px solid var(--border);cursor:pointer;transition:.15s;user-select:none;}
+  .tb-btn:hover{color:var(--primary);border-color:var(--primary-light);}
+  .tb-btn.active{color:var(--primary);border-color:var(--primary);background:#FFF3E8;}
+  .tb-space{flex:1;}
+  .tag-panel{background:var(--card);border-radius:20px;padding:14px 16px;border:1px solid var(--border);box-shadow:0 10px 28px rgba(70,50,20,.10);margin-top:8px;}
+  .tag-panel .p-label{font-size:11.5px;color:var(--text2);font-weight:600;margin-bottom:9px;}
+  .tag-panel .new-row{display:flex;gap:8px;margin-top:11px;}
+  .tag-panel input{flex:1;font-size:13.5px;padding:8px 12px;border-radius:11px;border:1px solid var(--border);outline:none;background:var(--nested);color:var(--text);font-family:inherit;}
+  .tag-panel input:focus{border-color:var(--primary);}
+  .tag-panel .go{font-size:13px;font-weight:700;color:#fff;background:var(--primary);border:none;border-radius:11px;padding:0 16px;cursor:pointer;}
+  .hint{font-size:11.5px;color:var(--text3);margin-top:9px;line-height:1.7;}
+  /* 教育浮条 */
+  .edu{display:flex;align-items:center;gap:9px;background:linear-gradient(135deg,rgba(124,92,252,.08),rgba(244,109,56,.08));border:1px solid rgba(124,92,252,.22);border-radius:14px;padding:10px 13px;}
+  .edu .ic{font-size:15px;}
+  .edu .tx{flex:1;font-size:12px;color:var(--text2);line-height:1.65;}
+  .edu .tx b{color:var(--text);}
+  .edu .btn{font-size:12px;font-weight:700;color:var(--primary);background:#fff;border-radius:99px;padding:5px 12px;border:1px solid var(--primary-light);cursor:pointer;user-select:none;}
+  /* 知识树 */
+  .kt-hero{background:var(--card);border-radius:24px;padding:22px 18px;text-align:center;}
+  .kt-hero .big{font-size:17px;font-weight:800;line-height:1.6;}
+  .kt-hero .sub{font-size:12.5px;color:var(--text2);margin-top:8px;line-height:1.8;}
+  .kt-hero .seed{font-size:34px;margin-bottom:10px;}
+  .cluster{background:var(--card);border-radius:20px;padding:14px 16px;border:1px solid var(--border);}
+  .cluster .c-hd{display:flex;align-items:center;gap:8px;}
+  .cluster .c-name{font-size:14.5px;font-weight:700;}
+  .cluster .c-n{font-size:11px;color:var(--text2);background:var(--nested);border-radius:99px;padding:2px 9px;}
+  .cluster .c-make{margin-left:auto;font-size:12.5px;font-weight:700;color:#fff;background:var(--primary);border-radius:99px;padding:5px 13px;cursor:pointer;}
+  .cluster .c-quote{font-size:12px;color:var(--text2);margin-top:9px;line-height:1.7;padding-left:10px;border-left:2.5px solid var(--primary-light);}
+  /* 对照表 */
+  table.map{width:392px;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 20px rgba(70,50,20,.05);font-size:12.5px;}
+  table.map th{background:var(--nested);padding:10px 14px;text-align:left;font-size:11.5px;color:var(--text2);letter-spacing:.5px;}
+  table.map td{padding:10px 14px;border-top:1px solid var(--divider);color:var(--text2);}
+  table.map td.new{color:var(--text);font-weight:700;}
+  table.map td .arr{color:var(--primary);font-weight:800;margin-right:4px;}
+  .strike{text-decoration:line-through;text-decoration-color:rgba(239,68,68,.6);color:var(--text3);}
+  /* 徽章对照 */
+  .badge-demo{display:flex;flex-wrap:wrap;gap:9px;padding:4px 0;}
+  .legend{font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.5px;margin:10px 0 6px;}
+  /* 分段控件 */
+  .seg{display:flex;background:rgba(138,131,120,.10);border-radius:13px;padding:3px;margin:0 16px 10px;}
+  .seg div{flex:1;text-align:center;font-size:13.5px;font-weight:600;padding:7px 0;border-radius:10px;color:var(--text2);}
+  .seg div.on{background:#fff;color:var(--text);box-shadow:0 2px 6px rgba(70,50,20,.08);}
+  /* 交互演示控制 */
+  .demo-ctl{position:absolute;top:14px;right:16px;font-size:11px;color:var(--primary);background:#fff;border:1px solid var(--primary-light);border-radius:99px;padding:5px 11px;cursor:pointer;user-select:none;z-index:9;font-weight:700;}
+  .screen .scroll{flex:1;overflow:hidden;}
+  /* 筛选条 */
+  .filterbar{display:flex;gap:8px;padding:2px 16px 8px;overflow:hidden;}
+  .fchip{font-size:12.5px;font-weight:600;padding:6px 14px;border-radius:99px;background:var(--card);border:1px solid var(--border);color:var(--text2);white-space:nowrap;}
+  .fchip.on{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .fchip.ai{display:inline-flex;align-items:center;gap:5px;}
+  .fchip .ai{font-size:8.5px;font-weight:800;color:var(--ai);background:var(--ai-light);border-radius:4px;padding:1px 4px;}
+  .fchip .n{font-size:10.5px;background:rgba(255,255,255,.28);border-radius:99px;padding:1px 6px;}
+  /* before 区（旧设计还原） */
+  .old-zone{background:repeating-linear-gradient(-45deg,#FFF9F3,#FFF9F3 8px,#FFF4E8 8px,#FFF4E8 16px);border-radius:22px;padding:12px;display:flex;flex-direction:column;gap:10px;position:relative;}
+  .old-zone .stamp{position:absolute;top:-9px;right:12px;font-size:10px;font-weight:800;color:#fff;background:var(--text3);border-radius:99px;padding:3px 10px;letter-spacing:1px;z-index:2;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>想法模块 <em>P2</em> 改版设计方案</h1>
+  <p>目标：把「工程师的治理流水线」翻译成「人话」。一次 AI 调用的产出放一个区；正常态安静；确认即毕业；主题从想法里长出来。以下画板均为 1:1 视觉还原方案，未写一行 App 代码。</p>
+  <div class="meta">
+    <span class="tag hot">已拍板：一二期一起开工</span>
+    <span class="tag hot">已拍板：确认不留残影</span>
+    <span class="tag hot">已拍板：统一叫「想法」</span>
+    <span class="tag">2026-09-02 · 基于标签体检九连修之上</span>
+  </div>
+</div>
+
+<div class="toc">
+  <a href="#s1">① 详情页三区合一</a>
+  <a href="#s2">② AI 归纳区·四状态</a>
+  <a href="#s3">③ 状态徽章收敛</a>
+  <a href="#s4">④ 编辑器 # 快捷入口</a>
+  <a href="#s5">⑤ 术语统一</a>
+  <a href="#s6">⑥ 冷启动·主题自己长</a>
+  <a href="#s7">⑦ 想法群落与主动建议</a>
+  <a href="#s8">⑧ 首次教育</a>
+</div>
+
+<!-- ============ 1. 三区合一 before/after ============ -->
+<section id="s1">
+  <div class="sec-head"><span class="no">①</span><h2>详情页：三区合一为「AI 归纳」</h2><span class="phase p1">一期</span></div>
+  <p class="sec-desc">现状一次 AI 调用的产出被拆成三个区（所属主题 / 标签 / AI 归类），用户要自己拼图理解「主题和标签什么关系」。新方案合成一个区：<b>主题一行、标签一行（你的彩色 + AI 建议灰色内联操作）、理由一句</b>。已拍板：确认后的标签不留残影，立即毕业为彩色。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法详情</span><span class="edit">编辑</span></div>
+        <div class="content">
+          <div style="text-align:right" class="date">今天 09:32</div>
+          <div class="card">
+            <p class="body-text" style="font-size:14px;line-height:1.8">早起后的第一小时思路特别清楚，把最难的事放在这段做。考虑把晨间日记也挪到这里，晚上只做复盘 <span class="ht">#晨间灵感</span> <span class="ht">#复盘</span></p>
+          </div>
+          <div class="old-zone">
+            <span class="stamp">现状 · 三块拼图</span>
+            <div class="card" style="box-shadow:none">
+              <div class="label">所属主题</div>
+              <div class="topic-row">
+                <div class="topic-ico">💡</div><div class="topic-name">灵感创意</div>
+                <span class="topic-conf">AI 82%</span><span class="topic-swap">更换</span>
+              </div>
+            </div>
+            <div class="card" style="box-shadow:none">
+              <div class="label">标签</div>
+              <div class="chips">
+                <span class="chip-mine" style="color:var(--primary);background:rgba(244,109,56,.09)">#晨间灵感</span>
+                <span class="chip-mine" style="color:#0E9F6E;background:rgba(34,197,94,.10)">#复盘</span>
+              </div>
+            </div>
+            <div class="card" style="box-shadow:none">
+              <div class="label">AI 归类 ✨</div>
+              <div class="chips">
+                <span class="chip-ai">#碎片记录<span class="ai">AI</span><span class="ok">✓</span><span class="no">✗</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="note v"><h4><span class="dot"></span>问题</h4><ul>
+        <li>三个区块回答同一个问题：「AI 怎么处理了我这条想法」</li>
+        <li>「所属主题」「AI 归类」语义重叠，用户分不清边界</li>
+        <li>「标签」区永远不含 AI 标签，和「AI 归类」老死不相往来</li>
+      </ul></div>
+    </div>
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法详情</span><span class="edit">编辑</span></div>
+        <div class="content">
+          <div style="text-align:right" class="date">今天 09:32</div>
+          <div class="card">
+            <p class="body-text" style="font-size:14px;line-height:1.8">早起后的第一小时思路特别清楚，把最难的事放在这段做。考虑把晨间日记也挪到这里，晚上只做复盘 <span class="ht">#晨间灵感</span> <span class="ht">#复盘</span></p>
+          </div>
+          <div class="card" style="border:1px solid rgba(124,92,252,.25);background:linear-gradient(180deg,#FFFDFA,#fff);">
+            <div class="label" style="color:var(--ai);font-weight:700">✨ AI 归纳</div>
+            <div class="topic-row">
+              <div class="topic-ico">💡</div>
+              <div class="topic-name">灵感创意</div>
+              <span class="topic-swap">更换 ›</span>
+            </div>
+            <div class="xdivider"></div>
+            <div class="chips">
+              <span class="chip-mine" style="color:var(--primary);background:rgba(244,109,56,.09)">#晨间灵感</span>
+              <span class="chip-mine" style="color:#0E9F6E;background:rgba(34,197,94,.10)">#复盘</span>
+              <span class="chip-ai">#碎片记录<span class="ai">AI</span><span class="ok" onclick="graduate(this)">✓</span><span class="no">✗</span></span>
+            </div>
+            <div class="ai-reason"><span class="sp">✦</span><span>想法围绕早起后的思路整理展开，与「晨间灵感」高度相关；「碎片记录」来自内容中的补充线索。</span></div>
+          </div>
+          <div class="card" style="background:transparent;border:1.5px dashed var(--border);box-shadow:none;padding:12px 16px;">
+            <p style="font-size:12px;color:var(--text3);text-align:center;line-height:1.7;">✓ 点击试试：确认「碎片记录」后立即毕业为彩色<br>（不留残影 · 已拍板）</p>
+          </div>
+        </div>
+      </div></div>
+      <div class="note g"><h4><span class="dot"></span>新方案</h4><ul>
+        <li><b>一区三行</b>：主题 / 标签 / 理由，一眼读完 AI 做了什么</li>
+        <li>彩色 = 你的（自己打的 + 确认过的），灰色 + AI 角标 = 等你处理的，<b>来源透明、交互内联</b></li>
+        <li>理由<b>永远显示</b>（含未归类时「为什么不归类」）</li>
+        <li>「标签」独立区删除；正文里点击 #token 跳筛选的既有行为保留</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. AI归纳区四状态 ============ -->
+<section id="s2">
+  <div class="sec-head"><span class="no">②</span><h2>「AI 归纳」区 · 四种状态</h2><span class="phase p1">一期</span></div>
+  <p class="sec-desc">区块的状态机从用户视角定义，只有四种。其中「安静态」是设计重点——<b>全部处理完就退为一张普通的卡片</b>，不再有任何 AI 元素闪烁，这是「图书管理员式」的安静。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:648px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法详情</span><span class="edit">编辑</span></div>
+        <div class="content" style="gap:14px">
+          <div class="card">
+            <div class="label" style="color:var(--ai);font-weight:700">✨ AI 归纳 · 待你确认</div>
+            <div class="topic-row"><div class="topic-ico">🧭</div><div class="topic-name">个人成长</div><span class="topic-swap">更换 ›</span></div>
+            <div class="xdivider"></div>
+            <div class="chips">
+              <span class="chip-mine" style="color:#0E9F6E;background:rgba(34,197,94,.10)">#阅读</span>
+              <span class="chip-ai">#注意力管理<span class="ai">AI</span><span class="ok" onclick="graduate(this)">✓</span><span class="no">✗</span></span>
+              <span class="chip-ai">#深度工作<span class="ai">AI</span><span class="ok" onclick="graduate(this)">✓</span><span class="no">✗</span></span>
+            </div>
+            <div class="ai-reason"><span class="sp">✦</span><span>内容是关于深度工作与注意力管理的阅读笔记，与已有标签「阅读」相邻。</span></div>
+          </div>
+          <div class="card">
+            <div class="label" style="font-weight:700">✨ AI 归纳</div>
+            <div class="topic-row"><div class="topic-ico">💡</div><div class="topic-name">灵感创意</div><span class="topic-swap">更换 ›</span></div>
+            <div class="xdivider"></div>
+            <div class="chips">
+              <span class="chip-mine" style="color:var(--primary);background:rgba(244,109,56,.09)">#晨间灵感</span>
+              <span class="chip-mine" style="color:#0E9F6E;background:rgba(34,197,94,.10)">#复盘</span>
+              <span class="chip-mine" style="color:#7C5CFC;background:var(--ai-light)">#碎片记录</span>
+            </div>
+            <div class="ai-reason" style="opacity:.75"><span class="sp">✦</span><span>想法围绕早起后的思路整理展开。（已全部确认）</span></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="note"><h4><span class="dot"></span>上：待确认态 / 下：安静态</h4><ul>
+        <li>有待处理建议时，区块标题带轻提示，✓✗ 内联</li>
+        <li>全部确认后：<b>AI 角标消失、按钮消失</b>，标签全部彩色——AI 归纳区退化成一张「归档卡」</li>
+        <li>上例注意：确认过的「碎片记录」不再显示 AI 角标（确认即毕业）</li>
+      </ul></div>
+    </div>
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:648px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法详情</span><span class="edit">编辑</span></div>
+        <div class="content" style="gap:14px">
+          <div class="card">
+            <div class="label" style="font-weight:700">✨ AI 归纳</div>
+            <div class="topic-row">
+              <div class="topic-ico" style="background:var(--nested)">◌</div>
+              <div class="topic-name" style="color:var(--text2)">未归类</div>
+              <span class="topic-swap">选择主题 ›</span>
+            </div>
+            <div class="xdivider"></div>
+            <div class="chips">
+              <span class="chip-ai">#随想<span class="ai">AI</span><span class="ok" onclick="graduate(this)">✓</span><span class="no">✗</span></span>
+            </div>
+            <div class="ai-reason"><span class="sp">✦</span><span>内容是碎片随想，暂无稳定方向；可保持未归类，攒够同类想法后 Holo 会建议新主题。</span></div>
+          </div>
+          <div class="card" style="border:1px solid rgba(239,68,68,.28)">
+            <div class="label" style="color:var(--error);font-weight:700">⚠ 整理失败</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:13px;color:var(--text2);line-height:1.7">网络不稳定，这条想法还没整理好。</span>
+              <span style="margin-left:auto;font-size:13px;font-weight:700;color:var(--primary);cursor:pointer">重新整理 ›</span>
+            </div>
+          </div>
+          <div class="card" style="background:transparent;border:1.5px dashed var(--border);box-shadow:none;padding:12px 16px;">
+            <p style="font-size:12px;color:var(--text3);text-align:center;line-height:1.7;">AI 自动分类关闭时：区块只剩主题行 + 标签行<br>无任何 AI 元素，纯手动归档</p>
+          </div>
+        </div>
+      </div></div>
+      <div class="note"><h4><span class="dot"></span>上：未归类态 / 中：失败态 / 下：关闭态</h4><ul>
+        <li>未归类是<b>积极语义</b>：理由末尾预告「攒够同类会建议新主题」，为二期的想法群落埋点</li>
+        <li>失败态给<b>人话原因 + 一个动作</b>，不暴露重试次数等内部概念</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. 徽章收敛 ============ -->
+<section id="s3">
+  <div class="sec-head"><span class="no">③</span><h2>卡片状态徽章：8 种 → 3 种</h2><span class="phase p1">一期</span></div>
+  <p class="sec-desc">现状把内部状态机直译成 8 种徽章（待整理/整理中/等待网络/已整理/已入主题/未归类/等待确认/整理失败），用户需要理解组合语义。新原则：<b>正常态不说话，只有需要用户知道的事才亮徽章</b>——正在弄 / 需要你拍板 / 出问题了。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:620px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="seg"><div class="on">想法</div><div>主题</div></div>
+        <div class="content" style="gap:11px">
+          <div class="tcard">
+            <div class="hd"><span class="date">今天 09:32</span></div>
+            <p class="body-text" style="font-size:13.5px;line-height:1.75">早起后的第一小时思路特别清楚，把最难的事放在这段做，晚上只做复盘 <span class="ht">#晨间灵感</span></p>
+            <div class="ft"><div class="chips"><span class="chip-mine" style="color:var(--primary);background:rgba(244,109,56,.09)">#晨间灵感</span></div></div>
+            <div style="position:absolute"></div>
+          </div>
+          <div class="tcard" style="position:relative">
+            <div class="hd"><span class="date">今天 09:18</span><span class="badge b-doing">✨ 整理中</span></div>
+            <p class="body-text" style="font-size:13.5px;line-height:1.75">试着把 Cal Newport 的深度工作法用在下午的写作块，关掉所有通知试试两周…</p>
+          </div>
+          <div class="tcard">
+            <div class="hd"><span class="date">今天 08:55</span><span class="badge b-wait">? 待确认</span></div>
+            <p class="body-text" style="font-size:13.5px;line-height:1.75">睡眠数据连续一周偏晚，可能和下午的咖啡有关系，想做个小实验…</p>
+            <div class="ft"><div class="chips"><span class="chip-ai">#睡眠实验<span class="ai">AI</span></span></div></div>
+          </div>
+          <div class="tcard">
+            <div class="hd"><span class="date">昨天 22:10</span><span class="badge b-fail">! 整理失败</span></div>
+            <p class="body-text" style="font-size:13.5px;line-height:1.75">关于换键盘的想法：茶轴太吵，静电容太贵，也许先试试同事那把…</p>
+          </div>
+        </div>
+      </div></div>
+      <div class="note g"><h4><span class="dot"></span>新徽章语义</h4><ul>
+        <li><b>整理中</b>：含等待网络（断网时图标换成 📡），不区分内部 pending/processing</li>
+        <li><b>待确认</b>：AI 有新建议或主题低置信，点卡片进详情即达确认位</li>
+        <li><b>整理失败</b>：点徽章直接重试，不用进详情</li>
+        <li><b>正常态零徽章</b>：已归类/已整理/已入主题/未归类都不亮——安静是默认，异动才说话</li>
+      </ul></div>
+    </div>
+    <div class="col">
+      <div class="phone" style="height:auto"><div style="padding:26px 24px 30px">
+        <div class="legend">现状 · 8 种（将废弃）</div>
+        <div class="badge-demo">
+          <span class="badge b-old">◌ 待整理</span><span class="badge b-old">✨ 整理中</span><span class="badge b-old">📡 等待网络</span><span class="badge b-old">✓ 已整理</span><span class="badge b-old">📁 已入主题</span><span class="badge b-old">◌ 未归类</span><span class="badge b-old">? 等待确认</span><span class="badge b-old">! 整理失败</span>
+        </div>
+        <div class="legend" style="margin-top:22px">新 · 3 种</div>
+        <div class="badge-demo">
+          <span class="badge b-doing">✨ 整理中</span><span class="badge b-wait">? 待确认</span><span class="badge b-fail">! 整理失败</span>
+        </div>
+        <div class="legend" style="margin-top:22px">映射关系</div>
+        <table class="map" style="width:100%">
+          <tr><th>旧徽章</th><th>去向</th></tr>
+          <tr><td><span class="strike">待整理 / 整理中 / 等待网络</span></td><td class="new">✨ 整理中</td></tr>
+          <tr><td><span class="strike">等待确认</span></td><td class="new">? 待确认</td></tr>
+          <tr><td><span class="strike">整理失败</span></td><td class="new">! 整理失败（可点重试）</td></tr>
+          <tr><td><span class="strike">已整理 / 已入主题 / 未归类 / 待整理</span></td><td class="new">无徽章（安静）</td></tr>
+        </table>
+        <p style="font-size:11.5px;color:var(--text3);margin-top:14px;line-height:1.8">筛选面板中的「待确认 / 未归类 / 整理失败」筛选项保留——那是主动查询，不是被动广播，两者语义不同。</p>
+      </div></div>
+      <div class="note"><h4><span class="dot"></span>原则</h4><ul>
+        <li>「已入主题」「已整理」对用户没有信息量——<b>正常就是应该安静</b></li>
+        <li>「未归类」从徽章降级为筛选项与知识树里的「想法群落」入口（见 ⑥⑦）</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. 编辑器 # 入口 ============ -->
+<section id="s4">
+  <div class="sec-head"><span class="no">④</span><h2>编辑器：# 快捷标签入口</h2><span class="phase p1">一期</span></div>
+  <p class="sec-desc">现状打标签唯一方式是键盘敲 #，旧想法补标签要翻正文找位置。新入口原则：<b>正文仍是标签的唯一事实源</b>——# 按钮只是把「最近用的标签」送到光标处，不新增数据通道（老标签栏被删的教训不重演）。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:640px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">记录想法</span><span class="edit" style="color:var(--text2);font-weight:400">存草稿</span></div>
+        <div class="content editor-wrap" style="padding:0 16px 16px">
+          <div class="editor-body">试着把深度工作法用在下午的写作块，关掉所有通知，先试两周看看专注度有没有变化<span class="caret"></span></div>
+          <div class="toolbar">
+            <div class="tb-btn" title="粗体">B</div>
+            <div class="tb-btn" title="列表">☰</div>
+            <div class="tb-btn" title="引用任务">@</div>
+            <div class="tb-btn active" title="标签">＃</div>
+            <div class="tb-space"></div>
+            <div class="tb-btn" title="图片">🖼</div>
+          </div>
+          <div class="tag-panel">
+            <div class="p-label">插入标签</div>
+            <div class="chips">
+              <span class="chip-mine" style="color:var(--primary);background:rgba(244,109,56,.09);cursor:pointer" onclick="insertTag(this)">#阅读</span>
+              <span class="chip-mine" style="color:#0E9F6E;background:rgba(34,197,94,.10);cursor:pointer" onclick="insertTag(this)">#复盘</span>
+              <span class="chip-mine" style="color:#7C5CFC;background:var(--ai-light);cursor:pointer" onclick="insertTag(this)">#晨间灵感</span>
+              <span class="chip-mine" style="color:#0E9F6E;background:rgba(34,197,94,.10);cursor:pointer" onclick="insertTag(this)">#睡眠</span>
+              <span class="chip-mine" style="color:var(--primary);background:rgba(244,109,56,.09);cursor:pointer" onclick="insertTag(this)">#写作</span>
+            </div>
+            <div class="new-row">
+              <input id="newtag" placeholder="新建标签，回车插入">
+              <button class="go" onclick="insertNew()">插入</button>
+            </div>
+            <div class="hint">标签写入正文（#标签 形态），和你手敲完全一样——编辑、同步、导出都走同一条路。</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="note g"><h4><span class="dot"></span>交互（画板内可试）</h4><ul>
+        <li>点工具条 <b>＃</b> → 弹出面板：最近标签 chips + 新建输入</li>
+        <li>点 chip / 回车 → 光标处插入 <b>#标签</b> 文本，面板自动收起</li>
+        <li>最近标签 = 你的认可标签按 usageCount 排序，最多 8 个</li>
+      </ul></div>
+    </div>
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:640px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">记录想法</span><span class="edit" style="color:var(--text2);font-weight:400">存草稿</span></div>
+        <div class="content" style="padding:0 16px 16px">
+          <div class="card" style="margin-top:4px">
+            <p class="body-text" style="font-size:14px;line-height:1.8">试着把深度工作法用在下午的写作块，关掉所有通知，先试两周看看专注度有没有变化 <span class="ht">#阅读</span> <span class="ht">#写作</span><span class="caret"></span></p>
+          </div>
+          <div class="card" style="background:transparent;border:1.5px dashed var(--border);box-shadow:none;padding:14px 16px;margin-top:2px">
+            <p style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8">插入完成：正文里的 #token 实时高亮<br>保存后成为这条想法的标签，无需二次确认</p>
+          </div>
+          <div style="flex:1"></div>
+          <div class="note" style="width:100%"><h4><span class="dot"></span>为什么不做成独立的「标签选择栏」</h4><ul>
+            <li>旧标签栏（已删）的病根：<b>另开数据通道</b>（manual source），与正文 # 分叉、与 AI 复用词表貌合神离</li>
+            <li>本方案只做「输入加速器」：数据仍全部走正文 inline 通道，<b>零新增模型、零迁移</b></li>
+            <li>将来 AI 复用标签时与手动标签自然同身份（本次九连修已统一口径）</li>
+          </ul></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. 术语统一 ============ -->
+<section id="s5">
+  <div class="sec-head"><span class="no">⑤</span><h2>术语统一：一个事物一个名字</h2><span class="phase p1">一期</span></div>
+  <p class="sec-desc">术语分裂是「看不懂」的隐性放大器——同一事物每换一个名字，用户就要重新建立一次信任。锚点已拍板：<b>统一叫「想法」</b>。下面是全量对照表（含我建议一并统一的「知识树→主题」「发现新主题」链路），有异议的行单独划出。</p>
+  <div class="boards">
+    <div class="col">
+      <table class="map">
+        <tr><th style="width:34%">位置</th><th>现在</th><th>统一为</th></tr>
+        <tr><td>首页轨道入口</td><td><span class="strike">观点</span></td><td class="new"><span class="arr">→</span>想法</td></tr>
+        <tr><td>模块内分段</td><td>想法｜知识树</td><td class="new"><span class="arr">→</span>想法｜主题</td></tr>
+        <tr><td>主题发现入口</td><td>发现新主题</td><td class="new"><span class="arr">→</span>保留</td></tr>
+        <tr><td>该入口的页面标题</td><td><span class="strike">AI 主题归并</span></td><td class="new"><span class="arr">→</span>发现新主题</td></tr>
+        <tr><td>主题管理页标题</td><td><span class="strike">管理分类主题</span></td><td class="new"><span class="arr">→</span>主题管理</td></tr>
+        <tr><td>列表整理 chip</td><td>整理笔记 <span style="font-size:9px;color:var(--ai)">AI</span></td><td class="new"><span class="arr">→</span>整理想法</td></tr>
+        <tr><td>设置页开关</td><td>AI 自动分类</td><td class="new"><span class="arr">→</span>保留</td></tr>
+        <tr><td>知识树空态指引</td><td><span class="strike">右上角「管理」</span></td><td class="new"><span class="arr">→</span>与实际入口对齐</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <div class="note"><h4><span class="dot"></span>为什么「知识树」也建议改名</h4><ul>
+        <li>「知识树」是结构隐喻，<b>用户脑中要的名词是「我的想法分成哪几类」</b>= 主题</li>
+        <li>分段控件「想法｜主题」对仗直白；保留树状视觉，只换名字</li>
+        <li>「发现新主题」入口名保留（动作导向自然），页面标题跟随入口——用户点 A 到达 A，不到 B</li>
+      </ul>
+      <div class="decision"><b>需确认：</b>「知识树 → 主题」这行是否同意？若你想保留「知识树」的品牌感，其余术语仍可先行统一。</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. 冷启动 ============ -->
+<section id="s6">
+  <div class="sec-head"><span class="no">⑥</span><h2>冷启动：主题从想法里长出来</h2><span class="phase p2">二期</span></div>
+  <p class="sec-desc">现状新用户被预灌 4 个图书馆式大类（工作与事业/个人成长/灵感创意/生活与健康），他的第一批想法被塞进 чужой 抽屉。新哲学：<b>分类体系被你的想法塑造</b>——冷启动不预灌，未归类想法以「想法群落」成簇呈现，攒够即建议成主题。这是 Holo「伴随式智能」该有的样子。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:660px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="seg"><div>想法</div><div class="on">主题</div></div>
+        <div class="content" style="gap:13px">
+          <div class="kt-hero">
+            <div class="seed">🌱</div>
+            <div class="big">主题会从你的想法里长出来</div>
+            <div class="sub">先自由记录，Holo 会留意反复出现的方向，<br>攒够同类想法后建议你建主题。你的分类体系，由你的想法塑造。</div>
+          </div>
+          <div class="cluster" style="border:1px solid rgba(124,92,252,.30);background:linear-gradient(180deg,#FFFDFF,#fff)">
+            <div class="c-hd"><span style="font-size:15px">📚</span><span class="c-name">3 条关于「阅读方法」的想法</span></div>
+            <div class="c-quote">「试着把深度工作法用在写作块…」「Cal Newport 的注意力管理…」「速读是不是伪科学…」</div>
+          </div>
+          <div class="cluster">
+            <div class="c-hd"><span style="font-size:15px">🌙</span><span class="c-name">2 条关于「睡眠」的想法</span></div>
+            <div class="c-quote">「连续一周睡得晚…」「下午的咖啡…」</div>
+          </div>
+          <div class="cluster" style="border-style:dashed;background:transparent">
+            <div class="c-hd"><span style="font-size:15px">◌</span><span class="c-name" style="color:var(--text2);font-weight:600">还有 4 条想法在各自发芽</span></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="note g"><h4><span class="dot"></span>冷启动知识树（新用户首见）</h4><ul>
+        <li><b>不预灌大类</b>：空态是「🌱 主题会从想法里长出来」，而不是四个陌生抽屉</li>
+        <li>「未归类」重命名为<b>想法群落</b>：按语义自动成簇预览（引用原话，不发明词）</li>
+        <li>2~3 条即成簇；簇与「发现新主题」共用归并引擎，<b>复用现有 Convergence 链路</b></li>
+      </ul></div>
+    </div>
+    <div class="col">
+      <div class="note v"><h4><span class="dot"></span>与现状的对比</h4><ul>
+        <li>现状：AI 从「启用的主题池」选（已支持自建主题——开放其实半实现）</li>
+        <li>但<b>冷启动心智被预设大类占据</b>：用户第一眼看到的是系统的分类学，不是自己的</li>
+        <li>「未分类」是消极词，堆积产生挫败感；「想法群落」是等待成形的积极语义</li>
+      </ul>
+      <div class="decision"><b>存量用户怎么办：</b>已用预设主题的老用户不动（他们的体系已建立）；新方案只作用于<b>新用户冷启动</b>。若要给老用户也换心智，需要单独评估迁移——默认不做。</div></div>
+      <div class="note"><h4><span class="dot"></span>实现要点（二期排期参考）</h4><ul>
+        <li>预设主题不再默认写入：PresetTopics 种子逻辑改为空 + 等待 Convergence</li>
+        <li>想法群落 = 未归类想法的<b>本地语义聚类</b>（可先用标签共现，语义向量做增强，P2 实验已有底子）</li>
+        <li><b>需后端发版</b>：归并 prompt 增加冷启动场景指令（少量想法也能给方向建议）</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. 主动建议 ============ -->
+<section id="s7">
+  <div class="sec-head"><span class="no">⑦</span><h2>从「边角料处理」到「结构顾问」</h2><span class="phase p2">二期</span></div>
+  <p class="sec-desc">Convergence 链路完整度其实很高（理由文案、确认/暂不/拒绝都有），问题是定位——只消化「未归类」的边角料。升级为常态化结构顾问：<b>定期主动建议</b>，且建议卡呈现「证据」——让用户看到主题是被哪几条想法支撑的。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:640px">
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="seg"><div>想法</div><div class="on">主题</div></div>
+        <div class="content" style="gap:13px">
+          <div class="card" style="border:1px solid rgba(124,92,252,.30);background:linear-gradient(180deg,#FFFDFF,#fff)">
+            <div class="label" style="color:var(--ai);font-weight:700">✨ 发现新主题</div>
+            <div class="topic-row">
+              <div class="topic-ico" style="background:var(--ai-light)">📚</div>
+              <div>
+                <div class="topic-name" style="font-size:15px">阅读方法</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:2px">来自 3 条想法 · 与「个人成长」相邻</div>
+              </div>
+            </div>
+            <div class="c-quote" style="margin-top:10px">这 3 条想法都围绕「如何更好地阅读与专注」：深度工作法、注意力管理、速读存疑——够立一个独立主题了。</div>
+            <div style="display:flex;gap:9px;margin-top:13px">
+              <span style="flex:1;text-align:center;font-size:13px;font-weight:700;color:#fff;background:var(--primary);border-radius:12px;padding:9px 0;cursor:pointer">立为主题</span>
+              <span style="flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--text2);background:var(--nested);border-radius:12px;padding:9px 0;cursor:pointer">先等等</span>
+            </div>
+          </div>
+          <div class="cluster">
+            <div class="c-hd"><span style="font-size:15px">📚</span><span class="c-name">阅读方法</span><span class="c-n">3 条</span><span class="c-make">立为主题</span></div>
+            <div class="c-quote">「深度工作法用在写作块…」「Cal Newport 注意力管理…」「速读是不是伪科学…」</div>
+          </div>
+          <div class="note" style="width:100%"><h4><span class="dot"></span>两个入口，一个引擎</h4><ul>
+            <li>主动推送：每 ~20 条新想法 / 群落够 3 条时，知识树顶部出现建议卡</li>
+            <li>被动触发：用户点群落上的「立为主题」直达确认</li>
+            <li>拒绝记忆沿用现有 ConvergenceRejection（幂等键），不重复骚扰</li>
+          </ul></div>
+        </div>
+      </div></div>
+    </div>
+    <div class="col">
+      <div class="note"><h4><span class="dot"></span>建议卡的信任设计</h4><ul>
+        <li><b>引用原话</b>作为证据，AI 不发明概括词——用户认出自己的字，才信这个主题</li>
+        <li>主题名可改（点击名字编辑），AI 给的是建议不是决定</li>
+        <li>「先等等」不是拒绝：群落保留，下轮再问；「拒绝」（长按）才写抑制记忆</li>
+      </ul>
+      <div class="decision"><b>需确认：</b>主动推送的触发密度——每 20 条 / 每周一次 / 仅手动？我倾向「群落≥3 条且距上次建议 ≥7 天」，安静优先。</div></div>
+      <div class="note v"><h4><span class="dot"></span>边界：不过度自动化</h4><ul>
+        <li>主题永远<b>用户确认才建</b>（现有设计，保留）</li>
+        <li>建议卡最多同时存在 1 张，处理完才来下一张</li>
+        <li>AI 自动分类关闭的用户不推送（尊重总开关）</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. 首次教育 ============ -->
+<section id="s8">
+  <div class="sec-head"><span class="no">⑧</span><h2>首次教育：在需要的那一刻出现</h2><span class="phase p2">二期</span></div>
+  <p class="sec-desc">教育不在首次打开模块时（那时没有上下文，说了也记不住），而在<b>第一条 AI 建议真实出现时</b>——用户刚好看见「? 待确认」徽章，一句话解释它是什么、可以不理它。</p>
+  <div class="boards">
+    <div class="col">
+      <div class="phone"><div class="notch"></div><div class="screen" style="height:600px;position:relative">
+        <span class="demo-ctl" onclick="replayEdu()">↻ 重播浮条</span>
+        <div class="statusbar"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="seg"><div class="on">想法</div><div>主题</div></div>
+        <div class="filterbar">
+          <span class="fchip on">全部</span>
+          <span class="fchip ai">✨ 整理想法 <span class="ai">AI</span><span class="n">3</span></span>
+          <span class="fchip">复盘</span><span class="fchip">生活</span>
+        </div>
+        <div class="content" style="gap:11px">
+          <div id="edu-slot"></div>
+          <div class="tcard">
+            <div class="hd"><span class="date">今天 09:18</span><span class="badge b-wait">? 待确认</span></div>
+            <p class="body-text" style="font-size:13.5px;line-height:1.75">试着把深度工作法用在下午的写作块，关掉所有通知试试两周…</p>
+            <div class="ft"><div class="chips"><span class="chip-ai">#注意力管理<span class="ai">AI</span></span></div></div>
+          </div>
+          <div class="tcard">
+            <div class="hd"><span class="date">今天 08:55</span></div>
+            <p class="body-text" style="font-size:13.5px;line-height:1.75">睡眠数据连续一周偏晚，可能和下午的咖啡有关，想做个小实验…</p>
+            <div class="ft"><div class="chips"><span class="chip-ai">#睡眠实验<span class="ai">AI</span></span></div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="note g"><h4><span class="dot"></span>浮条内容</h4><ul>
+        <li>「<b>Holo 会自动为想法打标签、归主题</b>。不合适的建议点 ✗ 即可，不管它也没关系。」</li>
+        <li>触发：第一条 AI 建议出现时；「知道了」后永久消失（本地标记）</li>
+        <li>关键信息排序：<b>是什么 → 可以拒绝 → 可以不管</b>——最后一句是卸下心理负担的关键</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<script>
+// 演示：确认 AI 标签 → 毕业为彩色（不留残影，已拍板）
+function graduate(btn){
+  const chip = btn.parentElement;
+  chip.querySelectorAll('.ok,.no,.ai').forEach(e=>e.remove());
+  chip.className = 'chip-mine';
+  chip.style.color = '#7C5CFC';
+  chip.style.background = 'var(--ai-light)';
+  chip.style.cursor = 'default';
+  const sec = chip.closest('.card');
+  if(sec){
+    const t = sec.querySelector('.label');
+    if(t && t.textContent.includes('待你确认')){
+      const pending = sec.querySelectorAll('.chip-ai').length;
+      if(pending === 0){ t.textContent = '✨ AI 归纳'; }
+    }
+  }
+}
+// 演示：插入标签到正文
+function insertTag(chipEl){
+  const editor = document.querySelector('#s4 .editor-body');
+  editor.innerHTML = editor.textContent.replace(/\s*$/,'') + ' <span class="ht">' + chipEl.textContent + '</span><span class="caret"></span>';
+  closePanel();
+}
+function insertNew(){
+  const v = document.getElementById('newtag').value.trim();
+  if(!v) return;
+  const editor = document.querySelector('#s4 .editor-body');
+  editor.innerHTML = editor.textContent.replace(/\s*$/,'') + ' <span class="ht">#' + v.replace(/^#/,'') + '</span><span class="caret"></span>';
+  document.getElementById('newtag').value = '';
+  closePanel();
+}
+function closePanel(){
+  const p = document.querySelector('#s4 .tag-panel');
+  if(p){ p.style.transition = 'opacity .25s, transform .25s'; p.style.opacity = '0'; p.style.transform = 'translateY(6px)';
+    setTimeout(()=>{ p.style.display = 'none'; }, 260); }
+}
+// 演示：教育浮条
+function showEdu(){
+  const slot = document.getElementById('edu-slot');
+  slot.innerHTML = '<div class="edu"><span class="ic">✨</span><span class="tx"><b>Holo 会自动为想法打标签、归主题。</b>不合适的建议点 ✗ 即可，不管它也没关系。</span><span class="btn" onclick="this.parentElement.remove()">知道了</span></div>';
+}
+function replayEdu(){ showEdu(); }
+showEdu();
+</script>
+</body>
+</html>
