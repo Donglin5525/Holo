@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置页 · 日历来源选择重设计方案</title>
+<style>
+  :root {
+    --bg: #F4EFE6;
+    --card: #FFFDF8;
+    --primary: #E87A3E;
+    --primary-soft: #FBEFE5;
+    --text: #3E3128;
+    --text2: #A2937F;
+    --line: #EFE7DA;
+    --green: #46B26B;
+    --red: #D9483B;
+    --blue: #3E7DE0;
+    --radius: 18px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #EAE3D6;
+    color: var(--text);
+    padding: 48px 24px 80px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* ===== 文档头 ===== */
+  .doc-head { margin-bottom: 40px; }
+  .doc-head h1 { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+  .doc-head .meta { margin-top: 10px; font-size: 13px; color: #87796A; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .doc-head .tag { background: var(--primary); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+  .doc-head .tag.gray { background: #B6A88F; }
+  .doc-lead { margin-top: 14px; font-size: 14px; line-height: 1.9; color: #6B5D4E; max-width: 860px; }
+
+  h2.sec { font-size: 19px; font-weight: 700; margin: 56px 0 6px; display: flex; align-items: center; gap: 10px; }
+  h2.sec .no { background: var(--text); color: #F4EFE6; font-size: 12px; width: 22px; height: 22px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
+  .sec-sub { font-size: 13.5px; color: #87796A; margin-bottom: 22px; line-height: 1.8; }
+
+  /* ===== 现状问题 ===== */
+  .problem-grid { display: grid; grid-template-columns: 1fr 375px; gap: 36px; align-items: start; }
+  .problem-list { display: flex; flex-direction: column; gap: 14px; }
+  .problem-item { background: var(--card); border-radius: var(--radius); padding: 18px 20px; display: flex; gap: 14px; box-shadow: 0 1px 3px rgba(60,45,30,.06); }
+  .problem-item .pno { flex: none; width: 26px; height: 26px; border-radius: 9px; background: #F6E3D3; color: var(--primary); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .problem-item b { font-size: 14.5px; display: block; margin-bottom: 4px; }
+  .problem-item p { font-size: 13px; line-height: 1.75; color: #7A6C5C; }
+
+  /* ===== 手机框 ===== */
+  .phone { width: 375px; background: #1B1611; border-radius: 46px; padding: 10px; box-shadow: 0 24px 60px rgba(40,28,15,.35), 0 2px 8px rgba(40,28,15,.2); flex: none; }
+  .screen { border-radius: 37px; overflow: hidden; background: var(--bg); position: relative; height: 812px; display: flex; flex-direction: column; }
+  .statusbar { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; font-size: 14px; font-weight: 600; }
+  .statusbar .right { display: flex; gap: 5px; align-items: center; font-size: 12px; }
+  .s-title { text-align: center; font-size: 16px; font-weight: 700; padding: 6px 0 12px; }
+  .s-body { flex: 1; overflow: hidden; padding: 0 16px 20px; position: relative; }
+
+  .close-fab { position: absolute; left: 18px; top: 52px; width: 44px; height: 44px; border-radius: 50%; background: rgba(250,247,240,.92); display: flex; align-items: center; justify-content: center; font-size: 17px; color: #6B5D4E; box-shadow: 0 2px 8px rgba(60,45,30,.12); z-index: 5; }
+
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(60,45,30,.05); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+  .row + .row, .divider { border-top: 1px solid var(--line); }
+  .divider { border: 0; border-top: 1px solid var(--line); margin-left: 16px; }
+  .icon-chip { flex: none; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .row .rtitle { font-size: 15px; font-weight: 500; }
+  .row .rsub { font-size: 11.5px; color: var(--text2); margin-top: 2px; line-height: 1.5; }
+  .row .grow { flex: 1; min-width: 0; }
+
+  .toggle { flex: none; width: 46px; height: 28px; border-radius: 16px; background: var(--primary); position: relative; }
+  .toggle::after { content: ""; position: absolute; right: 2.5px; top: 2.5px; width: 23px; height: 23px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .toggle.off { background: #DDD3C4; }
+  .toggle.off::after { right: auto; left: 2.5px; }
+
+  .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+
+  /* 勾选样式：旧 vs 新 */
+  .check-old { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1.6px solid #D8CDBC; display: flex; align-items: center; justify-content: center; }
+  .check-old.on { border: 0; background: var(--primary); color: #fff; font-size: 11px; }
+  .check-new { flex: none; color: var(--primary); font-size: 16px; font-weight: 700; }
+  .check-new.empty { color: #D8CDBC; }
+
+  .note-line { display: flex; gap: 8px; padding: 13px 16px; font-size: 11px; line-height: 1.65; color: var(--text2); }
+  .note-line .spark { color: var(--primary); }
+
+  /* 现状标注 */
+  .anno { position: absolute; z-index: 6; width: 22px; height: 22px; border-radius: 50%; background: var(--red); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(217,72,59,.4); }
+  .anno::after { content: ""; position: absolute; }
+
+  /* ===== 组（方案B选择页 / 方案A内联共用）===== */
+  .group-head { display: flex; align-items: center; gap: 8px; padding: 15px 16px 7px; font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: .3px; }
+  .group-head .cnt { font-weight: 400; color: #BCAF9D; }
+  .group-head .act { margin-left: auto; font-size: 12px; color: var(--primary); font-weight: 500; }
+  .cal-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; background: var(--card); }
+  .cal-row .cname { font-size: 15px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { flex: none; font-size: 10px; color: var(--text2); background: #F1EADC; padding: 2px 7px; border-radius: 6px; }
+
+  .fade-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(transparent, var(--bg)); z-index: 4; pointer-events: none; }
+
+  /* ===== 汇总行（方案B设置页）===== */
+  .summary-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+  .summary-row .rtitle { white-space: nowrap; }
+  .summary-row .rsub { white-space: nowrap; }
+  .sum-count { flex: none; font-size: 13px; color: var(--text2); }
+  .chev { flex: none; color: #C4B8A6; font-size: 14px; }
+
+  /* ===== 顶部说明卡（选择页）===== */
+  .explain { display: flex; gap: 10px; background: var(--primary-soft); border-radius: 14px; padding: 12px 14px; margin-bottom: 4px; }
+  .explain .txt { font-size: 12px; line-height: 1.7; color: #9A5F35; }
+
+  /* ===== 布局行 ===== */
+  .duo { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
+  .phone-col { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .phone-col .cap { font-size: 13.5px; font-weight: 600; color: #6B5D4E; }
+  .phone-col .cap .rec { color: var(--primary); }
+
+  /* ===== 对比表 ===== */
+  table.cmp { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 3px rgba(60,45,30,.06); font-size: 13.5px; }
+  table.cmp th, table.cmp td { padding: 13px 18px; text-align: left; line-height: 1.6; }
+  table.cmp th { background: #F5EFE3; font-size: 12.5px; color: #87796A; font-weight: 600; }
+  table.cmp td:first-child { color: #87796A; width: 130px; font-size: 12.5px; }
+  table.cmp tr + tr td, table.cmp tr + tr th { border-top: 1px solid var(--line); }
+  table.cmp .good { color: var(--green); font-weight: 600; }
+  table.cmp .bad { color: #B4543F; }
+
+  /* ===== 决策点 ===== */
+  .decide { display: flex; flex-direction: column; gap: 12px; }
+  .decide-item { background: var(--card); border-radius: var(--radius); padding: 17px 20px; box-shadow: 0 1px 3px rgba(60,45,30,.06); display: flex; gap: 14px; }
+  .decide-item .dno { flex: none; width: 26px; height: 26px; border-radius: 9px; background: #EADFC9; color: #8A6B33; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .decide-item b { font-size: 14.5px; }
+  .decide-item p { font-size: 13px; line-height: 1.75; color: #7A6C5C; margin-top: 4px; }
+  .decide-item .rec { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--primary); background: var(--primary-soft); padding: 4px 10px; border-radius: 8px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="doc-head">
+    <h1>设置页 ·「日历来源选择」重设计</h1>
+    <div class="meta">
+      <span class="tag">方案稿 · 待拍板</span>
+      <span>2026-09-03</span>
+      <span>范围：仅 iOS，不涉及后端发版</span>
+    </div>
+    <p class="doc-lead">现状：设置页把手机上全部系统日历（13 个）按名称字母序平铺展示。本稿先讲清问题出在哪，再给两个改法：方案 B（推荐）把选择收进独立页面并按账户分组；方案 A 留在设置页内做分组收纳。</p>
+  </div>
+
+  <!-- ================= 现状问题 ================= -->
+  <h2 class="sec"><span class="no">1</span>现状为什么显得乱</h2>
+  <p class="sec-sub">乱不是错觉，是四个原因叠加的结果。核心是：这份列表其实是个「高级配置项」，但被摆成了「主体内容」。</p>
+  <div class="problem-grid">
+    <div class="problem-list">
+      <div class="problem-item">
+        <div class="pno">1</div>
+        <div><b>没有分组，13 个日历一锅端</b>
+        <p>个人日历、Holo 专属日历、各类订阅日历（节假日 / 携程 / 大麦 / 抖音订单……）混在同一层里。用户想找「我自己的日历」要从头扫到尾。</p></div>
+      </div>
+      <div class="problem-item">
+        <div class="pno">2</div>
+        <div><b>按名称字母序排列，顺序看起来随机</b>
+        <p>代码里是按标题排序（Calendar、Holo 排在最前只是英文字母占先），不是按重要性，所以视觉上「东一个西一个」。</p></div>
+      </div>
+      <div class="problem-item">
+        <div class="pno">3</div>
+        <div><b>勾选样式太重，视觉噪音大</b>
+        <p>每行右侧一个大圆圈（选中实心、未选空心），13 行就是 13 个圆圈，页面被这些圆点切成碎片；且「单选圆点」的样式容易让人误以为只能选一个。</p></div>
+      </div>
+      <div class="problem-item">
+        <div class="pno">4</div>
+        <div><b>列表太长，把设置页撑爆了</b>
+        <p>这个区块一展开就是一整屏多，设置页其他内容全被顶到看不见。而它其实是个「设置一次就不再动」的低频配置。</p></div>
+      </div>
+    </div>
+
+    <!-- 现状手机 -->
+    <div class="phone-col">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>11:27</span><span class="right">4G ▮ 94</span></div>
+          <div class="s-title">设置</div>
+          <div class="s-body">
+            <div class="close-fab">✕</div>
+            <div style="height:46px"></div>
+            <div class="row"><span style="font-size:17px">📅</span><span class="rtitle" style="font-weight:600">日历</span><span class="grow"></span><div class="toggle"></div></div>
+            <div class="card" style="margin-top:8px">
+              <div class="row"><div class="icon-chip" style="background:#E4F3E8;color:var(--green)">🛡</div><div class="grow"><div class="rtitle">日历权限</div><div class="rsub">已授权，可读取日程</div></div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="icon-chip" style="background:var(--primary-soft);color:var(--primary)">🔄</div><div class="grow"><div class="rtitle">任务同步到日历</div><div class="rsub">带时间段的任务自动写入专属「Holo」日历，手表和系统日历可见；改动双向同步</div></div><div class="toggle"></div></div>
+              <div class="divider"></div>
+              <div class="cal-row"><span class="dot" style="background:#34C759"></span><span class="cname">Calendar</span><div class="check-old on">✓</div></div>
+              <div class="cal-row"><span class="dot" style="background:#FF9500"></span><span class="cname">Holo</span><div class="check-old"></div></div>
+              <div class="cal-row"><span class="dot" style="background:#3E7DE0"></span><span class="cname">个人</span><div class="check-old on">✓</div></div>
+              <div class="cal-row"><span class="dot" style="background:#34C759"></span><span class="cname" style="display:flex;flex-direction:column"><span>中国大陆节假日</span><span style="font-size:10px;color:var(--text2)">订阅日历</span></span><div class="check-old"></div></div>
+              <div class="cal-row"><span class="dot" style="background:#3E7DE0"></span><span class="cname">从Outlook订阅的日历</span><div class="check-old"></div></div>
+              <div class="cal-row"><span class="dot" style="background:#FF9500"></span><span class="cname">唐予轩的日历</span><div class="check-old"></div></div>
+              <div class="cal-row"><span class="dot" style="background:#AF52DE"></span><span class="cname">大麦</span><div class="check-old"></div></div>
+              <div class="cal-row"><span class="dot" style="background:#AF52DE"></span><span class="cname">工作</span><div class="check-old"></div></div>
+              <div style="position:absolute;left:10px;top:305px" class="anno">2</div>
+              <div style="position:absolute;right:12px;top:305px" class="anno">3</div>
+              <div style="position:absolute;right:12px;top:508px" class="anno">1</div>
+            </div>
+            <div style="position:absolute;left:18px;top:96px" class="anno">4</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">现状还原（红点对应左侧问题编号）</div>
+    </div>
+  </div>
+
+  <!-- ================= 方案 B ================= -->
+  <h2 class="sec"><span class="no">2</span>方案 B（推荐）：设置页收成一行 + 独立选择页</h2>
+  <p class="sec-sub">思路：把这份列表当成一个「子页面」而不是设置页的一部分。设置页只留一行汇总（显示已选几个），点进去才是分组后的完整选择页——就像系统「隐私-照片」里选照片的做法。列表内部同时做四件事：按账户分组、Holo 置顶、订阅垫底、勾选改轻。</p>
+  <div class="duo">
+
+    <!-- B1 设置页 -->
+    <div class="phone-col">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>11:27</span><span class="right">4G ▮ 94</span></div>
+          <div class="s-title">设置</div>
+          <div class="s-body">
+            <div class="close-fab">✕</div>
+            <div style="height:46px"></div>
+            <div class="row"><span style="font-size:17px">📅</span><span class="rtitle" style="font-weight:600">日历</span><span class="grow"></span><div class="toggle"></div></div>
+            <div class="card" style="margin-top:8px">
+              <div class="row"><div class="icon-chip" style="background:#E4F3E8;color:var(--green)">🛡</div><div class="grow"><div class="rtitle">日历权限</div><div class="rsub">已授权，可读取日程</div></div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="icon-chip" style="background:var(--primary-soft);color:var(--primary)">🔄</div><div class="grow"><div class="rtitle">任务同步到日历</div><div class="rsub">带时间段的任务自动写入专属「Holo」日历，手表和系统日历可见；改动双向同步</div></div><div class="toggle"></div></div>
+              <div class="divider"></div>
+              <div class="summary-row">
+                <div class="icon-chip" style="background:#EAF0FA;color:var(--blue)">👁</div>
+                <div class="grow"><div class="rtitle">显示的日历</div><div class="rsub">勾选后才在 Holo 展示、供 AI 读取</div></div>
+                <span class="sum-count">已选 2/13</span><span class="chev">›</span>
+              </div>
+            </div>
+            <div style="margin:16px 6px 0; padding:14px 16px; border-radius:14px; background:#F0E9DC; font-size:12px; line-height:1.7; color:#87796A">
+              设置页从「一屏多的日历列表」收成一行，其余设置项回到首屏可见。
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">B-1 · 设置页：列表收成一行汇总 <span class="rec">（点这行进入选择页）</span></div>
+    </div>
+
+    <!-- B2 选择页 -->
+    <div class="phone-col">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>11:27</span><span class="right">4G ▮ 94</span></div>
+          <div style="flex:none;display:flex;align-items:center;padding:6px 14px 10px;font-size:16px;font-weight:700">
+            <span style="color:var(--primary);font-size:18px;margin-right:8px">‹</span>显示的日历
+            <span style="margin-left:auto;font-size:12px;font-weight:500;color:var(--text2)">已选 2/13</span>
+          </div>
+          <div class="s-body" style="overflow:hidden">
+            <div class="explain">
+              <span class="spark" style="color:var(--primary)">✦</span>
+              <span class="txt">勾选的日历才会显示在 Holo 日历页；对话与周规划时，AI 也只读取这些日历来安排时间。</span>
+            </div>
+
+            <div class="group-head"><span>Holo 专属</span><span class="cnt">· 1</span></div>
+            <div class="cal-row" style="border-radius:14px 14px 0 0"><span class="dot" style="background:#FF9500"></span><span class="cname">Holo</span><span class="badge">任务同步写入</span><div class="check-new empty">✓</div></div>
+
+            <div class="group-head"><span>iCloud</span><span class="cnt">· 5</span><span class="act">全选</span></div>
+            <div class="cal-row"><span class="dot" style="background:#34C759"></span><span class="cname">Calendar</span><div class="check-new">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#3E7DE0"></span><span class="cname">个人</span><div class="check-new">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#FF9500"></span><span class="cname">唐予轩的日历</span><div class="check-new empty">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#AF52DE"></span><span class="cname">工作</span><div class="check-new empty">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line);border-radius:0 0 14px 14px"><span class="dot" style="background:#8E8E93"></span><span class="cname">生日</span><div class="check-new empty">✓</div></div>
+
+            <div class="group-head"><span>订阅</span><span class="cnt">· 7 · 默认不勾选</span><span class="act">全不选</span></div>
+            <div class="cal-row" style="border-radius:14px 14px 0 0"><span class="dot" style="background:#34C759"></span><span class="cname">中国大陆节假日</span><div class="check-new empty">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#3E7DE0"></span><span class="cname">从Outlook订阅的日历</span><div class="check-new empty">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#AF52DE"></span><span class="cname">大麦</span><div class="check-new empty">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#FF9500"></span><span class="cname">抖音商城订单报销预约日历</span><div class="check-new empty">✓</div></div>
+            <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#FF9500"></span><span class="cname">携程</span><div class="check-new empty">✓</div></div>
+            <div class="fade-bottom"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">B-2 · 选择页：按账户分组，勾选改轻量对勾</div>
+    </div>
+  </div>
+
+  <div style="margin-top:22px;display:flex;flex-direction:column;gap:10px">
+    <div class="problem-item"><div class="pno">✦</div><div><b>分组依据说明</b><p>系统日历本身就带「所属账户」信息（iCloud / Outlook / 订阅等），分组不是新造概念，只是把这个本来就有的归属关系显示出来。订阅类（节假日、携程、大麦、抖音订单等）天然属于「订阅」这一组，垫底收纳。</p></div></div>
+    <div class="problem-item"><div class="pno">✦</div><div><b>勾选样式</b><p>沿用 Apple 自带日历 App 的语言：选中 = 橙色小对勾，未选 = 不显示，去掉大圆圈。多选的语义反而更清楚（和系统日历 App 的勾选体验一致）。</p></div></div>
+    <div class="problem-item"><div class="pno">✦</div><div><b>排序规则</b><p>固定语义序：Holo 专属 → 各账户日历 → 订阅垫底；组内仍按名称排。不再用字母序把英文日历顶到最上面。</p></div></div>
+  </div>
+
+  <!-- ================= 方案 A ================= -->
+  <h2 class="sec"><span class="no">3</span>方案 A（备选）：留在设置页，只做分组收纳</h2>
+  <p class="sec-sub">如果不希望多点一层进入子页，可以在原地把这 13 行做分组 + 把订阅类折叠。改动更小，但设置页依然会被这个列表占据大半屏。</p>
+  <div class="duo">
+    <div class="phone-col">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>11:27</span><span class="right">4G ▮ 94</span></div>
+          <div class="s-title">设置</div>
+          <div class="s-body">
+            <div class="close-fab">✕</div>
+            <div style="height:40px"></div>
+            <div class="row"><span style="font-size:17px">📅</span><span class="rtitle" style="font-weight:600">日历</span><span class="grow"></span><div class="toggle"></div></div>
+            <div class="card" style="margin-top:6px">
+              <div class="row" style="padding:10px 16px"><div class="icon-chip" style="background:#E4F3E8;color:var(--green);width:32px;height:32px;font-size:14px">🛡</div><div class="grow"><div class="rtitle" style="font-size:14px">日历权限</div><div class="rsub">已授权，可读取日程</div></div></div>
+              <div class="divider"></div>
+              <div class="note-line"><span class="spark">✦</span><span>勾选的日历可在 Holo 中查看；对话与周规划时 AI 也只读取这些日历。</span></div>
+              <div class="group-head"><span>Holo 专属</span><span class="cnt">· 1</span></div>
+              <div class="cal-row"><span class="dot" style="background:#FF9500"></span><span class="cname">Holo</span><span class="badge">任务同步写入</span><div class="check-new empty">✓</div></div>
+              <div class="group-head"><span>iCloud</span><span class="cnt">· 5</span><span class="act">全选</span></div>
+              <div class="cal-row"><span class="dot" style="background:#34C759"></span><span class="cname">Calendar</span><div class="check-new">✓</div></div>
+              <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#3E7DE0"></span><span class="cname">个人</span><div class="check-new">✓</div></div>
+              <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#FF9500"></span><span class="cname">唐予轩的日历</span><div class="check-new empty">✓</div></div>
+              <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#AF52DE"></span><span class="cname">工作</span><div class="check-new empty">✓</div></div>
+              <div class="cal-row" style="border-top:1px solid var(--line)"><span class="dot" style="background:#8E8E93"></span><span class="cname">生日</span><div class="check-new empty">✓</div></div>
+              <div class="divider"></div>
+              <div class="summary-row" style="justify-content:space-between">
+                <div class="grow"><div class="rtitle" style="font-size:14px">订阅日历</div><div class="rsub">7 个 · 默认不勾选（节假日 / 携程 / 大麦…）</div></div>
+                <span class="chev">⌄</span>
+              </div>
+            </div>
+            <div class="fade-bottom"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">方案 A · 内联分组 + 订阅折叠（点击展开）</div>
+    </div>
+
+    <!-- 对比表 -->
+    <div style="flex:1;min-width:420px">
+      <table class="cmp">
+        <tr><th style="width:130px"></th><th>方案 B：独立选择页（推荐）</th><th>方案 A：内联分组</th></tr>
+        <tr><td>设置页长度</td><td class="good">收成一行，其他设置回到首屏</td><td class="bad">仍占大半屏</td></tr>
+        <tr><td>找某个日历</td><td class="good">分组 + 组内全选，层级清楚</td><td>同样有分组，但页面长需滚动</td></tr>
+        <tr><td>调整频率适配</td><td class="good">低频配置多一层，可接受</td><td class="good">少点一层</td></tr>
+        <tr><td>开发量</td><td>多一个子页面（中等）</td><td>略小</td></tr>
+        <tr><td>与 iOS 惯例</td><td class="good">同「照片-选中的照片」模式</td><td>同 Apple 日历 App 列表</td></tr>
+      </table>
+      <div style="margin-top:14px;padding:14px 18px;border-radius:14px;background:#F0E9DC;font-size:13px;line-height:1.8;color:#6B5D4E">
+        <b style="color:#3E3128">推荐方案 B。</b>理由：这个列表是「设置一次基本不再动」的低频项，不值得常驻设置页；而分组、组内全选这些能力，在独立页里才有空间舒展。多点的这一层，一年也点不了几次。
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 决策点 ================= -->
+  <h2 class="sec"><span class="no">4</span>需要拍板的三件事</h2>
+  <p class="sec-sub">确定后即可进入实现；纯 iOS 改动，不需要后端发版。</p>
+  <div class="decide">
+    <div class="decide-item">
+      <div class="dno">1</div>
+      <div><b>选方案 B（独立选择页）还是方案 A（内联分组）？</b>
+      <p>两稿都在上方，可以对比真实观感。</p>
+      <span class="rec">推荐 B</span></div>
+    </div>
+    <div class="decide-item">
+      <div class="dno">2</div>
+      <div><b>「Holo」专属日历要不要置顶 + 默认勾选 + 不允许取消？</b>
+      <p>背景：任务同步功能把任务写进这个日历。如果用户把它取消勾选，会出现「任务明明同步了，Holo 日历页却看不到自己的任务」的困惑。当前截图里它就处于未勾选状态。若锁定，建议在行内用「任务同步写入」徽章说明原因。</p>
+      <span class="rec">建议：置顶 + 默认勾选；是否锁定可再议</span></div>
+    </div>
+    <div class="decide-item">
+      <div class="dno">3</div>
+      <div><b>订阅组要不要提供「一键全不选」？</b>
+      <p>设计稿里组头右侧放了「全不选」快捷操作，方便一键清掉携程 / 大麦 / 抖音订单这类噪音日历。也可以不做，保持逐个勾选。</p>
+      <span class="rec">建议：做，成本很低</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 想法分享卡 · 设计稿</title>
+<style>
+  :root {
+    --holo: #F46D38;
+    --holo-deep: #EA580C;
+    --ink: #3D3229;
+    --ink-soft: #8A7A6A;
+    --paper: #FDF9F2;
+    --stage: #EFEAE2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", -apple-system, sans-serif;
+    background: #E9E4DB;
+    color: var(--ink);
+    padding: 48px 24px 80px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: 0.5px; }
+  .sub { color: #7A6E5F; font-size: 14px; margin-top: 8px; line-height: 1.7; max-width: 720px; }
+  .section { margin-top: 56px; }
+  .section > h2 {
+    font-size: 15px; font-weight: 800; color: var(--holo-deep);
+    letter-spacing: 2px; margin-bottom: 6px;
+  }
+  .section > p.desc { font-size: 13px; color: #857767; margin-bottom: 22px; line-height: 1.7; }
+  .row { display: flex; gap: 36px; flex-wrap: wrap; align-items: flex-start; }
+  .cell { display: flex; flex-direction: column; gap: 12px; }
+  .cell .label { font-size: 12px; color: #8A7A6A; font-weight: 600; letter-spacing: 1px; }
+
+  /* ============ 卡片通用 ============ */
+  .card-stage {
+    width: 340px;
+    border-radius: 8px;
+    box-shadow: 0 18px 40px rgba(61,50,41,0.18), 0 2px 8px rgba(61,50,41,0.10);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ============ 方案A：暖纸手账 ============ */
+  .card-warm {
+    background:
+      radial-gradient(ellipse at 12% 4%, rgba(244,109,56,0.05), transparent 42%),
+      radial-gradient(ellipse at 92% 96%, rgba(244,109,56,0.06), transparent 40%),
+      linear-gradient(168deg, #FDF9F0 0%, #FAF3E6 100%);
+    padding: 30px 28px 22px;
+    display: flex; flex-direction: column;
+  }
+  .warm-head { display: flex; align-items: center; justify-content: space-between; }
+  .warm-mood { font-size: 21px; }
+  .warm-date {
+    font-size: 10.5px; color: #A08D77; letter-spacing: 1.5px; font-weight: 600;
+  }
+  .warm-rule {
+    height: 1px; margin: 16px 0 18px;
+    background: linear-gradient(90deg, rgba(244,109,56,0.55), rgba(200,170,130,0.18) 60%, transparent);
+  }
+  .warm-body {
+    font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+    font-size: 15.5px; line-height: 2.0; color: var(--ink);
+    letter-spacing: 0.4px;
+  }
+  .warm-body .tag { color: var(--holo); }
+  .warm-photos { display: flex; gap: 12px; margin-top: 18px; }
+  .warm-photos.single { margin-top: 16px; }
+  .polaroid {
+    background: #fff; padding: 5px 5px 14px; border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(90,70,50,0.16);
+  }
+  .polaroid .ph { border-radius: 2px; }
+  .polaroid.r-2 { transform: rotate(-2.2deg); }
+  .polaroid.r-1 { transform: rotate(1.6deg); }
+  .ph-river {
+    width: 100%; height: 100%;
+    background:
+      radial-gradient(circle at 74% 30%, rgba(255,214,150,0.95) 0%, rgba(255,214,150,0) 24%),
+      linear-gradient(180deg, #F6C28B 0%, #E8A06B 38%, #C97E52 52%, #8F5E45 53%, #6E4B3A 100%);
+  }
+  .ph-coffee {
+    width: 100%; height: 100%;
+    background:
+      radial-gradient(circle at 30% 28%, #F7EBD8 0%, #E8D3B4 34%, transparent 36%),
+      linear-gradient(155deg, #7A5638 0%, #4E3623 60%, #38271A 100%);
+  }
+  .ph-walk {
+    width: 100%; height: 100%;
+    background:
+      radial-gradient(circle at 22% 24%, rgba(255,224,178,0.9) 0%, transparent 30%),
+      linear-gradient(180deg, #D9A87E 0%, #B97F58 46%, #6E5A48 47%, #55462F 100%);
+  }
+  .warm-tags { display: flex; gap: 7px; margin-top: 20px; flex-wrap: wrap; }
+  .warm-tag {
+    font-size: 10.5px; color: var(--holo-deep); font-weight: 600;
+    background: rgba(244,109,56,0.09); border: 0.8px solid rgba(244,109,56,0.28);
+    padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;
+  }
+  .warm-foot {
+    margin-top: 22px; padding-top: 14px;
+    border-top: 1px dashed rgba(176,148,112,0.45);
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+  }
+  .warm-foot.no-brand { border-top: none; margin-top: 4px; padding-top: 0; height: 10px; }
+  .foot-slogan { font-size: 10px; color: #A8927A; letter-spacing: 2.5px; font-weight: 600; }
+
+  /* 金线侧脸 logo（SVG 简化示意） */
+  .face-logo { display: block; }
+
+  /* ============ 方案B：暮色渐变 ============ */
+  .card-dusk {
+    background:
+      radial-gradient(ellipse at 82% 8%, rgba(255,255,255,0.13), transparent 45%),
+      linear-gradient(160deg, #F07A3E 0%, #C95B34 34%, #6E3A34 68%, #35222E 100%);
+    padding: 30px 28px 22px;
+    display: flex; flex-direction: column; min-height: 428px;
+  }
+  .dusk-date { font-size: 10.5px; color: rgba(255,255,255,0.66); letter-spacing: 1.5px; font-weight: 600; }
+  .dusk-mood { font-size: 24px; margin-top: 14px; }
+  .dusk-body {
+    font-family: "Noto Serif SC", "Songti SC", serif;
+    font-size: 15.5px; line-height: 2.0; color: rgba(255,255,255,0.95);
+    letter-spacing: 0.4px; margin-top: 12px;
+  }
+  .dusk-body .tag { color: #FFD9A8; }
+  .dusk-photos { display: flex; gap: 10px; margin-top: 18px; }
+  .dusk-photos .polaroid { box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+  .dusk-tags { display: flex; gap: 7px; margin-top: 20px; flex-wrap: wrap; }
+  .dusk-tag {
+    font-size: 10.5px; color: #FFE3C2; font-weight: 600;
+    background: rgba(255,255,255,0.12); border: 0.8px solid rgba(255,255,255,0.24);
+    padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;
+  }
+  .dusk-foot {
+    margin-top: auto; padding-top: 16px;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+  }
+  .dusk-foot .foot-slogan { color: rgba(255,255,255,0.62); }
+
+  /* ============ 分享面板示意 ============ */
+  .phone {
+    width: 340px; border-radius: 40px; border: 10px solid #1A1A1E;
+    background: linear-gradient(170deg, #17121A 0%, #241A20 100%);
+    overflow: hidden; box-shadow: 0 24px 60px rgba(30,20,15,0.4);
+  }
+  .phone-inner { padding: 14px 18px 22px; display: flex; flex-direction: column; align-items: center; min-height: 600px; }
+  .grabber { width: 36px; height: 4.5px; border-radius: 3px; background: rgba(255,255,255,0.25); margin-bottom: 14px; }
+  .sheet-title { color: #fff; font-size: 15px; font-weight: 800; letter-spacing: 1px; }
+  .phone .card-stage { margin-top: 16px; width: 262px; box-shadow: 0 20px 44px rgba(0,0,0,0.55); }
+  .chips { display: flex; gap: 8px; margin-top: 18px; }
+  .chip {
+    font-size: 11px; padding: 6px 14px; border-radius: 18px; font-weight: 600;
+    color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12); letter-spacing: 1px;
+  }
+  .chip.on { color: #fff; background: rgba(244,109,56,0.85); border-color: transparent; }
+  .brand-row {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; margin-top: 18px; padding: 12px 16px;
+    background: rgba(255,255,255,0.06); border-radius: 14px;
+  }
+  .brand-row .bl { font-size: 12px; color: rgba(255,255,255,0.85); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .switch { width: 44px; height: 26px; border-radius: 13px; background: var(--holo); position: relative; }
+  .switch::after {
+    content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; top: 2px; right: 2px;
+  }
+  .actions { display: flex; gap: 10px; width: 100%; margin-top: 20px; }
+  .btn {
+    flex: 1; padding: 13px 0; border-radius: 14px; text-align: center;
+    font-size: 13px; font-weight: 800; letter-spacing: 1px;
+  }
+  .btn.primary { background: var(--holo); color: #fff; }
+  .btn.ghost { background: rgba(255,255,255,0.10); color: #fff; }
+
+  /* ============ 规格表 ============ */
+  .spec {
+    background: #FFFDF9; border: 1px solid #E5DCCB; border-radius: 14px;
+    padding: 26px 30px; max-width: 860px; line-height: 2.0; font-size: 13.5px; color: #5A4C3C;
+  }
+  .spec b { color: var(--holo-deep); }
+  .spec ol { padding-left: 20px; }
+  .spec li { margin-bottom: 6px; }
+  .decide {
+    background: linear-gradient(170deg, #FFF4EC, #FFEBDD); border: 1px solid #F5C9A8;
+    border-radius: 14px; padding: 26px 30px; max-width: 860px; margin-top: 22px;
+    line-height: 2.0; font-size: 13.5px; color: #6B4A30;
+  }
+  .decide h3 { font-size: 14px; color: var(--holo-deep); margin-bottom: 10px; letter-spacing: 1px; }
+  .decide ol { padding-left: 20px; }
+  .decide li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Holo 想法分享卡 · 设计稿</h1>
+  <p class="sub">
+    把一条想法（正文、图片、标签、心情、时间）完整排成一张可以保存/分享的精美长图。
+    宽度固定、高度随内容生长，正文与图片<b>完整呈现、不做任何截断</b>；微信/朋友圈对长图原生支持
+    （信息流折叠、点开看全文由平台处理）。底部带 Holo 品牌尾注，用户可在分享面板一键取消。
+    以下两张风格方向各做了实物级排版示意，拍板后按选中的方向实现。
+  </p>
+
+  <!-- ================= 方案 A ================= -->
+  <div class="section">
+    <h2>方案 A · 暖纸手账（主推荐）</h2>
+    <p class="desc">
+      暖米纸底 + 衬线正文 + 拍立得照片，像从手账里裁下来的一页——与「想法」的私人日记气质最贴，
+      在朋友圈/小红书的信息流里辨识度高。浅色卡片在深色模式信息流里也更跳。
+    </p>
+    <div class="row">
+
+      <!-- A1 纯文字短想法 -->
+      <div class="cell">
+        <div class="card-stage">
+          <div class="card-warm">
+            <div class="warm-head">
+              <span class="warm-mood">😌</span>
+              <span class="warm-date">2026年8月31日 · 周日 21:47</span>
+            </div>
+            <div class="warm-rule"></div>
+            <div class="warm-body">
+              下班路上忽然想通了一件事：焦虑大多来自把还没发生的事提前演了太多遍。把注意力拉回今天，事情就小了一半。
+            </div>
+            <div class="warm-tags">
+              <span class="warm-tag"># 情绪</span>
+              <span class="warm-tag"># 自我觉察</span>
+            </div>
+            <div class="warm-foot">
+              <svg class="face-logo" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#F4B14A"/><stop offset="1" stop-color="#EA580C"/>
+                </linearGradient></defs>
+                <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="url(#g1)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 9.5 C12.3 8.8 13.8 8.8 14.6 9.5" stroke="url(#g1)" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span class="foot-slogan">HOLO · 记下此刻</span>
+            </div>
+          </div>
+        </div>
+        <span class="label">A1 · 短想法（纯文字）</span>
+      </div>
+
+      <!-- A2 带图片 -->
+      <div class="cell">
+        <div class="card-stage">
+          <div class="card-warm">
+            <div class="warm-head">
+              <span class="warm-mood">😌</span>
+              <span class="warm-date">2026年8月31日 · 周日 07:12</span>
+            </div>
+            <div class="warm-rule"></div>
+            <div class="warm-body">
+              清晨沿着河堤慢跑，露水还挂在草叶上。跑到第三公里忽然想明白：所谓状态好，是把重要的事安排在精力最好的时段。 <span class="tag">#节奏</span>
+            </div>
+            <div class="warm-photos single">
+              <div class="polaroid" style="width:100%"><div class="ph ph-river" style="height:150px"></div></div>
+            </div>
+            <div class="warm-tags">
+              <span class="warm-tag"># 晨间</span>
+              <span class="warm-tag"># 周计划</span>
+              <span class="warm-tag"># 节奏</span>
+            </div>
+            <div class="warm-foot">
+              <svg class="face-logo" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="url(#g1)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 9.5 C12.3 8.8 13.8 8.8 14.6 9.5" stroke="url(#g1)" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span class="foot-slogan">HOLO · 记下此刻</span>
+            </div>
+          </div>
+        </div>
+        <span class="label">A2 · 带单图（拍立得框）</span>
+      </div>
+
+      <!-- A3 长文完整长图 -->
+      <div class="cell">
+        <div class="card-stage">
+          <div class="card-warm">
+            <div class="warm-head">
+              <span class="warm-mood">🤔</span>
+              <span class="warm-date">2026年8月30日 · 周六 18:20</span>
+            </div>
+            <div class="warm-rule"></div>
+            <div class="warm-body">
+              周末的城市行走，在江边看到了很美的落日，风把云吹开了一道缝，光斜斜地铺在水面上，整条江像被点着了一样。沿江步道走了大概五公里，在长椅上坐了很久，把最近想不通的几件事想了一遍：工作节奏、家里的安排，还有一直拖着没动手的那个计划。
+              <br><br>
+              想明白了一件事——很多答案不在脑子里，在路上。身体动起来的时候，脑子才肯松开那些拧着的结。风从江面上过来的时候，忽然觉得那些纠结的事都没有那么大，是我把它们想得太大了。
+              <br><br>
+              回程的地铁上人不多，戴上耳机把这周的歌单听了一遍。忽然意识到，生活不是要解决完所有问题才可以继续，它本来就是边走边把问题磨小的过程。
+              <br><br>
+              今晚早点睡。明天把最难的事，放到早晨最好的精力里。 <span class="tag">#节奏</span>
+            </div>
+            <div class="warm-photos">
+              <div class="polaroid r-2" style="width:47%"><div class="ph ph-walk" style="height:104px"></div></div>
+              <div class="polaroid r-1" style="width:47%"><div class="ph ph-river" style="height:104px"></div></div>
+            </div>
+            <div class="warm-tags">
+              <span class="warm-tag"># 城市行走</span>
+              <span class="warm-tag"># 落日</span>
+              <span class="warm-tag"># 节奏</span>
+            </div>
+            <div class="warm-foot">
+              <svg class="face-logo" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="url(#g1)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 9.5 C12.3 8.8 13.8 8.8 14.6 9.5" stroke="url(#g1)" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span class="foot-slogan">HOLO · 记下此刻</span>
+            </div>
+          </div>
+        </div>
+        <span class="label">A3 · 长文完整长图（宽度固定、高度随内容生长，示意约 400 字，实际支持数千字；图片全部随文流入）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 方案 B ================= -->
+  <div class="section">
+    <h2>方案 B · 暮色渐变（备选）</h2>
+    <p class="desc">
+      与纪念日分享卡同一血脉的深色高级感：橙→暮紫渐变、白字衬线、照片白框。
+      品牌感更强、更「海报」，但作为私人想法的载体略隆重；深底在浅色信息流里更抢眼。
+    </p>
+    <div class="row">
+      <div class="cell">
+        <div class="card-stage">
+          <div class="card-dusk">
+            <div class="dusk-date">2026年8月31日 · 周日 21:47</div>
+            <div class="dusk-mood">😌</div>
+            <div class="dusk-body">
+              下班路上忽然想通了一件事：焦虑大多来自把还没发生的事提前演了太多遍。把注意力拉回今天，事情就小了一半。
+            </div>
+            <div class="dusk-tags">
+              <span class="dusk-tag"># 情绪</span>
+              <span class="dusk-tag"># 自我觉察</span>
+            </div>
+            <div class="dusk-foot">
+              <svg class="face-logo" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#FFD9A8"/><stop offset="1" stop-color="#F4B14A"/>
+                </linearGradient></defs>
+                <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="url(#g2)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 9.5 C12.3 8.8 13.8 8.8 14.6 9.5" stroke="url(#g2)" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span class="foot-slogan">HOLO · 记下此刻</span>
+            </div>
+          </div>
+        </div>
+        <span class="label">B1 · 纯文字</span>
+      </div>
+      <div class="cell">
+        <div class="card-stage">
+          <div class="card-dusk">
+            <div class="dusk-date">2026年8月30日 · 周六 18:20</div>
+            <div class="dusk-mood">🤔</div>
+            <div class="dusk-body">
+              周末的城市行走，在江边看到了很美的落日。很多答案不在脑子里，在路上。
+            </div>
+            <div class="dusk-photos">
+              <div class="polaroid" style="width:47%"><div class="ph ph-walk" style="height:100px"></div></div>
+              <div class="polaroid" style="width:47%"><div class="ph ph-river" style="height:100px"></div></div>
+            </div>
+            <div class="dusk-tags">
+              <span class="dusk-tag"># 城市行走</span>
+            </div>
+            <div class="dusk-foot">
+              <svg class="face-logo" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="url(#g2)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 9.5 C12.3 8.8 13.8 8.8 14.6 9.5" stroke="url(#g2)" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span class="foot-slogan">HOLO · 记下此刻</span>
+            </div>
+          </div>
+        </div>
+        <span class="label">B2 · 带双图（长图口径与方案 A 一致：全文完整呈现）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 分享面板 ================= -->
+  <div class="section">
+    <h2>分享面板 · 交互示意</h2>
+    <p class="desc">
+      卡片「…」菜单与详情页菜单新增「生成分享卡」入口，弹出半屏面板（与纪念日分享同舞台语言）：
+      实时预览 → 风格切换 → 品牌尾注开关（默认开）→ 保存到相册 / 唤起系统分享。
+    </p>
+    <div class="row">
+      <div class="cell">
+        <div class="phone">
+          <div class="phone-inner">
+            <div class="grabber"></div>
+            <div class="sheet-title">分享这个想法</div>
+            <div class="card-stage">
+              <div class="card-warm" style="padding:22px 20px 16px">
+                <div class="warm-head">
+                  <span class="warm-mood" style="font-size:17px">😌</span>
+                  <span class="warm-date" style="font-size:9px">2026年8月31日 · 周日 21:47</span>
+                </div>
+                <div class="warm-rule" style="margin:12px 0 14px"></div>
+                <div class="warm-body" style="font-size:12px;line-height:1.9">
+                  下班路上忽然想通了一件事：焦虑大多来自把还没发生的事提前演了太多遍。把注意力拉回今天，事情就小了一半。沿江走了五公里，在长椅上坐了很久，把最近想不通的几件事想了一遍——很多答案不在脑子里，在路上。
+                </div>
+                <div class="warm-tags" style="margin-top:14px">
+                  <span class="warm-tag" style="font-size:9px;padding:2px 8px"># 情绪</span>
+                  <span class="warm-tag" style="font-size:9px;padding:2px 8px"># 自我觉察</span>
+                </div>
+                <div class="warm-foot" style="margin-top:16px;padding-top:10px">
+                  <svg class="face-logo" width="12" height="12" viewBox="0 0 24 24" fill="none">
+                    <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="url(#g1)" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                  <span class="foot-slogan" style="font-size:8px">HOLO · 记下此刻</span>
+                </div>
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip on">暖纸手账</span>
+              <span class="chip">暮色渐变</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:12px;letter-spacing:1px">长图在预览区按高度缩放适配，导出为原始高清尺寸</div>
+            <div class="brand-row">
+              <span class="bl">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M15.5 3.5 C10 3 5.5 7 5.5 12 C5.5 14 6.2 15.6 7.2 16.8 L6.2 20.5 L10 19.2 C13.8 20.6 17.6 18.6 18.6 15" stroke="#F4B14A" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                显示 Holo 品牌尾注
+              </span>
+              <span class="switch"></span>
+            </div>
+            <div class="actions">
+              <span class="btn primary">分享图片</span>
+              <span class="btn ghost">保存到相册</span>
+            </div>
+          </div>
+        </div>
+        <span class="label">分享面板（半屏 sheet · 深色舞台）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 规格与拍板 ================= -->
+  <div class="section">
+    <h2>实现规格（拍板后按此实施）</h2>
+    <div class="spec">
+      <ol>
+        <li><b>入口</b>：想法卡片「…」菜单 + 详情页右上菜单，新增「生成分享卡」。</li>
+        <li><b>导出</b>：SwiftUI <b>ImageRenderer</b>（3x 高清），复用纪念日分享卡的渲染管线；生成 UIImage 后走系统分享 + 存相册（首次存图请求相册权限）。</li>
+        <li><b>长图文稿（东林已拍板）</b>：卡片宽度固定、<b>高度随内容生长</b>，正文与图片完整呈现、不做任何截断；导出即「长图」，微信/朋友圈信息流自动折叠、点开看全文由平台原生处理。极端超长（数千字+多图）如遇单图渲染或平台压缩上限，再议分页兜底（先不做）。</li>
+        <li><b>内容排版</b>：正文完整渲染（Markdown、行内 # 标签着色）+ 日期 + 心情 emoji + 标签胶囊（≤3 个，超出 +N）；图片全部随文流入排版（1 图大图 / 2-3 图并排 / 4 图以上流式网格），不设上限——与「分享全部内容」口径一致。</li>
+        <li><b>品牌</b>：金线侧脸 logo + 「HOLO · 记下此刻」尾注，默认显示，面板内开关一键取消（记忆用户偏好）。</li>
+        <li><b>预览</b>：分享面板内长图按高度缩放适配预览区，下方操作按钮固定。</li>
+      </ol>
+    </div>
+    <div class="decide">
+      <h3>待拍板点（长文与图片口径已按东林指示定为「全部内容不截断」）</h3>
+      <ol>
+        <li><b>风格</b>：方案 A 暖纸手账（推荐）／方案 B 暮色渐变／两个都做（面板内切换，工作量 +2-3 天）？</li>
+        <li><b>品牌尾注文案</b>：「HOLO · 记下此刻」为示意，可换（备选：「HOLO · 我的想法手账」「HOLO · 记录每一个想法」）。</li>
+      </ol>
+    </div>
+  </div>
+</div>
+</body>
+</html>

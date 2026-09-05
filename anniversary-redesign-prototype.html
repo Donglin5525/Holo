@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 纪念日模块重设计 · 仪式感方案 v1</title>
+<style>
+/* ============================================================
+   Holo 纪念日模块重设计 · 「点亮一个日子」
+   设计语言：延续 Holo 日光暖沙（页面壳）× 暮色发光（详情页）
+   ============================================================ */
+:root{
+  --page-bg:#F3EEE4;
+  --page-ink:#3A362F;
+  --page-ink2:#8A8175;
+  --panel:#FFFFFFCC;
+  --panel-border:rgba(146,112,64,.12);
+  --orange:#F46D38;
+  --orange-soft:rgba(244,109,56,.10);
+  --hairline:rgba(146,112,64,.14);
+  /* 纪念日主题色 */
+  --c-birthday:#F46D38;
+  --c-anniv:#EC4899;
+  --c-count:#60A5FA;
+  --c-mile:#C084FC;
+  --c-green:#22C55E;
+  --c-rose:#F43F5E;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+  background:
+    radial-gradient(1200px 600px at 85% -5%, rgba(254,199,141,.5), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(244,109,56,.07), transparent 55%),
+    var(--page-bg);
+  color:var(--page-ink);
+  padding:0 0 140px;
+}
+.page{max-width:1180px;margin:0 auto;padding:0 32px;}
+
+/* ---------- 页头 ---------- */
+.page-head{padding:64px 0 10px;}
+.page-kicker{font-size:12px;letter-spacing:.22em;color:var(--orange);font-weight:700;text-transform:uppercase;margin-bottom:14px;}
+h1{font-size:36px;font-weight:800;letter-spacing:-.01em;line-height:1.3;}
+.page-sub{margin-top:16px;font-size:14.5px;line-height:1.95;color:var(--page-ink2);max-width:780px;}
+.nav-chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px;}
+.nav-chips a{
+  font-size:13px;font-weight:600;color:var(--page-ink);text-decoration:none;
+  padding:8px 16px;border-radius:999px;background:var(--panel);
+  border:1px solid var(--panel-border);transition:.2s;
+}
+.nav-chips a:hover{border-color:var(--orange);color:var(--orange);}
+
+/* ---------- 章节骨架 ---------- */
+.sec{margin-top:88px;}
+.sec-kicker{font-size:11.5px;letter-spacing:.2em;font-weight:700;color:var(--orange);text-transform:uppercase;margin-bottom:10px;}
+.sec-title{font-size:26px;font-weight:800;letter-spacing:-.01em;}
+.sec-desc{margin-top:12px;font-size:14px;line-height:1.9;color:var(--page-ink2);max-width:760px;}
+.sec-title .em{color:var(--orange);}
+
+/* 设计主张三柱 */
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px;}
+.pillar{
+  background:var(--panel);border:1px solid var(--panel-border);border-radius:22px;
+  padding:26px 24px;position:relative;overflow:hidden;
+}
+.pillar .p-emoji{font-size:30px;}
+.pillar h3{font-size:16.5px;font-weight:800;margin-top:12px;}
+.pillar p{font-size:13px;line-height:1.85;color:var(--page-ink2);margin-top:8px;}
+.pillar .p-line{position:absolute;top:0;left:24px;right:24px;height:3px;border-radius:0 0 4px 4px;}
+
+/* ---------- 手机框 ---------- */
+.stage{display:flex;gap:44px;margin-top:38px;align-items:flex-start;flex-wrap:wrap;}
+.phone{
+  width:330px;background:#141416;border-radius:56px;padding:11px;
+  box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 6px rgba(0,0,0,.35),0 30px 60px rgba(60,40,15,.28);
+  flex:0 0 auto;position:relative;
+}
+.screen{
+  border-radius:46px;overflow:hidden;position:relative;height:740px;background:#FBF8F2;
+}
+.island{
+  position:absolute;top:11px;left:50%;transform:translateX(-50%);
+  width:94px;height:27px;border-radius:15px;background:#000;z-index:60;
+}
+.statusbar{
+  position:absolute;top:0;left:0;right:0;height:48px;z-index:55;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 26px 0;font-size:13.5px;font-weight:700;color:inherit;
+}
+.statusbar .sicons{display:flex;gap:5px;align-items:center;font-size:11.5px;}
+.sb-light{color:#2B2925;}
+.sb-dark{color:rgba(255,255,255,.95);}
+.phone-caption{
+  text-align:center;font-size:12.5px;color:var(--page-ink2);margin-top:14px;font-weight:600;
+}
+
+/* 标注体系 */
+.annot{flex:1;min-width:300px;max-width:520px;}
+.annot-item{display:flex;gap:14px;padding:16px 0;border-bottom:1px dashed var(--hairline);}
+.annot-item:last-child{border-bottom:none;}
+.annot-num{
+  flex:0 0 26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;color:#fff;background:var(--orange);margin-top:2px;
+}
+.annot-item h4{font-size:14.5px;font-weight:800;}
+.annot-item h4 .tag{
+  font-size:10.5px;font-weight:700;color:#fff;border-radius:6px;padding:2px 7px;margin-left:8px;vertical-align:2px;
+}
+.annot-item p{font-size:12.8px;line-height:1.8;color:var(--page-ink2);margin-top:5px;}
+.tag-new{background:var(--c-anniv);}
+.tag-keep{background:#A8A29E;}
+.tag-ai{background:#7C5CFC;}
+
+/* 屏内序号徽标 */
+.callout{
+  position:absolute;z-index:70;width:24px;height:24px;border-radius:50%;
+  background:var(--orange);color:#fff;font-size:12.5px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(244,109,56,.55),0 0 0 3px rgba(244,109,56,.18);
+}
+
+/* ============================================================
+   A. 创建向导（交互演示）
+   ============================================================ */
+.wizard-body{padding:64px 20px 0;display:flex;flex-direction:column;height:100%;}
+/* 迷你实时预览卡 */
+.wz-preview{
+  border-radius:18px;padding:13px 15px;color:#fff;
+  display:flex;align-items:center;gap:11px;
+  background:linear-gradient(135deg,#F472B6,#EC4899 55%,#BE185D);
+  box-shadow:0 8px 20px rgba(236,72,153,.35);
+  transition:.35s;
+}
+.wz-preview .pv-emoji{
+  width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.22);
+  display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto;
+}
+.wz-preview .pv-name{font-size:14px;font-weight:800;line-height:1.3;}
+.wz-preview .pv-sub{font-size:11px;opacity:.85;margin-top:3px;font-weight:600;}
+.wz-preview .pv-days{margin-left:auto;text-align:right;flex:0 0 auto;}
+.wz-preview .pv-days b{font-size:24px;font-weight:800;letter-spacing:-.02em;}
+.wz-preview .pv-days span{display:block;font-size:10px;opacity:.85;font-weight:600;margin-top:-2px;}
+
+/* 步骤指示 */
+.wz-steps{display:flex;align-items:center;gap:8px;margin:18px 2px 4px;}
+.wz-dot{flex:1;height:4px;border-radius:3px;background:rgba(146,112,64,.16);transition:.3s;position:relative;}
+.wz-dot.on{background:var(--c-anniv);}
+.wz-title{font-size:21px;font-weight:800;margin:16px 2px 2px;letter-spacing:-.01em;}
+.wz-hint{font-size:12px;color:var(--page-ink2);margin:6px 2px 0;font-weight:500;}
+
+/* 步骤 1：类型场景 */
+.scene-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:18px;}
+.scene{
+  border-radius:18px;padding:15px 14px 13px;cursor:pointer;
+  background:#FFFFFFB8;border:1.5px solid rgba(146,112,64,.10);
+  transition:.2s;position:relative;
+}
+.scene .s-emoji{font-size:27px;}
+.scene .s-name{font-size:14.5px;font-weight:800;margin-top:7px;}
+.scene .s-desc{font-size:11px;color:var(--page-ink2);margin-top:3px;line-height:1.5;}
+.scene.on{border-color:var(--sc,#EC4899);background:var(--scbg,rgba(236,72,153,.07));transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,.06);}
+.scene .s-check{
+  position:absolute;top:11px;right:11px;width:19px;height:19px;border-radius:50%;
+  background:var(--sc,#EC4899);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;
+}
+.scene.on .s-check{display:flex;}
+.field{
+  margin-top:14px;background:#FFFFFFB8;border:1.5px solid rgba(146,112,64,.10);
+  border-radius:16px;padding:12px 15px;transition:.2s;
+}
+.field.filled{border-color:rgba(236,72,153,.35);}
+.field label{font-size:11px;font-weight:700;color:var(--page-ink2);display:block;}
+.field input{
+  border:none;outline:none;background:transparent;width:100%;margin-top:5px;
+  font-size:15.5px;font-weight:700;font-family:inherit;color:var(--page-ink);
+}
+.field input::placeholder{color:#C9C1B2;font-weight:600;}
+
+/* 步骤 2：日期 */
+.date-label{
+  margin-top:20px;text-align:center;padding:16px 12px 14px;border-radius:20px;
+  background:#FFFFFFB8;border:1.5px solid rgba(146,112,153,.1);
+}
+.date-label .dl-main{font-size:22px;font-weight:800;letter-spacing:.02em;}
+.date-label .dl-sub{font-size:12px;color:var(--page-ink2);margin-top:5px;font-weight:600;}
+.date-label .dl-sub b{color:var(--c-anniv);}
+.seg{
+  display:flex;background:rgba(146,112,64,.10);border-radius:999px;padding:3px;
+  width:170px;margin:14px auto 0;
+}
+.seg div{
+  flex:1;text-align:center;font-size:12px;font-weight:700;padding:6px 0;border-radius:999px;
+  color:var(--page-ink2);transition:.2s;cursor:pointer;
+}
+.seg div.on{background:#fff;color:var(--page-ink);box-shadow:0 2px 6px rgba(0,0,0,.08);}
+.cal{margin-top:14px;background:#FFFFFFB8;border:1px solid rgba(146,112,64,.08);border-radius:18px;padding:12px 12px 10px;}
+.cal-head{display:flex;justify-content:space-between;align-items:center;padding:0 4px 8px;font-size:13px;font-weight:800;}
+.cal-head span:last-child{color:#B3AA9C;font-weight:600;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cal-grid .wd{font-size:10.5px;color:#B3AA9C;text-align:center;padding-bottom:6px;font-weight:700;}
+.cal-grid .d{
+  aspect-ratio:1/1.06;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:13.5px;font-weight:600;color:#5A554B;border-radius:12px;cursor:pointer;position:relative;
+}
+.cal-grid .d.dim{color:#D8D1C2;}
+.cal-grid .d.today::after{
+  content:'';position:absolute;bottom:5px;width:4px;height:4px;border-radius:50%;background:var(--orange);
+}
+.cal-grid .d.sel{background:var(--c-anniv);color:#fff;font-weight:800;box-shadow:0 4px 12px rgba(236,72,153,.4);}
+.lunar-note{
+  margin-top:12px;font-size:11.5px;color:var(--page-ink2);text-align:center;line-height:1.7;
+  background:rgba(252,211,77,.14);border-radius:12px;padding:9px 12px;
+}
+.lunar-note b{color:#B45309;}
+
+/* 步骤 3：提醒与备注 */
+.remind-block{margin-top:18px;background:#FFFFFFB8;border:1px solid rgba(146,112,64,.08);border-radius:18px;padding:4px 16px;}
+.tg-row{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid rgba(146,112,64,.08);}
+.tg-row:last-child{border-bottom:none;}
+.tg-row .tg-emoji{font-size:17px;width:24px;text-align:center;}
+.tg-row .tg-label{font-size:14px;font-weight:700;flex:1;}
+.tg-row .tg-sub{font-size:11px;color:var(--page-ink2);font-weight:500;margin-top:2px;}
+.switch{width:44px;height:26px;border-radius:999px;background:var(--c-anniv);position:relative;transition:.25s;flex:0 0 auto;}
+.switch::after{
+  content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff;
+  box-shadow:0 2px 5px rgba(0,0,0,.2);transition:.25s;
+}
+.switch.off{background:rgba(146,112,64,.18);}
+.switch.off::after{right:auto;left:3px;}
+.chips{display:flex;gap:8px;flex-wrap:wrap;padding:4px 0 14px 35px;}
+.rchip{
+  font-size:12px;font-weight:700;padding:7px 13px;border-radius:999px;
+  background:rgba(146,112,64,.08);color:var(--page-ink2);cursor:pointer;transition:.2s;border:1px solid transparent;
+}
+.rchip.on{background:rgba(236,72,153,.1);color:#DB2777;border-color:rgba(236,72,153,.35);}
+.note-field{
+  margin-top:14px;background:#FFFFFFB8;border:1.5px solid rgba(146,112,64,.10);border-radius:16px;padding:12px 15px;
+}
+.note-field label{font-size:11px;font-weight:700;color:var(--page-ink2);}
+.note-field div{font-size:13.5px;margin-top:6px;color:#5A554B;line-height:1.6;font-weight:500;}
+
+/* 底部操作条 */
+.wz-footer{
+  margin-top:auto;padding:14px 2px 26px;display:flex;gap:11px;align-items:center;
+}
+.btn-back{
+  width:46px;height:46px;border-radius:15px;background:rgba(146,112,64,.08);border:none;
+  font-size:17px;color:#8A8175;cursor:pointer;flex:0 0 auto;
+}
+.btn-main{
+  flex:1;height:46px;border-radius:15px;border:none;cursor:pointer;
+  font-size:15px;font-weight:800;color:#fff;font-family:inherit;
+  background:linear-gradient(135deg,#F472B6,#DB2777);
+  box-shadow:0 8px 18px rgba(219,39,119,.32);transition:.15s;
+}
+.btn-main:active{transform:scale(.97);}
+
+/* 点亮庆祝屏 */
+.celebrate{
+  position:absolute;inset:0;z-index:80;display:none;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding:110px 30px 30px;text-align:center;color:#fff;
+  background:
+    radial-gradient(500px 380px at 50% 18%, rgba(244,114,182,.5), transparent 70%),
+    radial-gradient(600px 500px at 80% 90%, rgba(190,24,93,.35), transparent 65%),
+    linear-gradient(180deg,#1C1017 0%,#2A1220 55%,#3B1530 100%);
+  overflow:hidden;
+}
+.celebrate.show{display:flex;}
+.cfx{position:absolute;top:-30px;z-index:1;border-radius:2px;}
+@keyframes cfall{
+  0%{transform:translateY(-30px) rotate(0deg);opacity:1;}
+  100%{transform:translateY(730px) rotate(680deg);opacity:.85;}
+}
+.cele-card{
+  width:100%;border-radius:22px;padding:22px 18px 18px;color:#fff;position:relative;z-index:5;
+  background:linear-gradient(135deg,#F472B6,#EC4899 55%,#BE185D);
+  box-shadow:0 18px 44px rgba(236,72,153,.5);
+  transform:scale(.6);opacity:0;transition:.55s cubic-bezier(.2,1.4,.4,1);
+}
+.celebrate.show .cele-card{transform:scale(1);opacity:1;}
+.cele-card .cc-emoji{font-size:40px;}
+.cele-card .cc-name{font-size:19px;font-weight:800;margin-top:10px;}
+.cele-card .cc-days{font-size:13px;opacity:.88;margin-top:4px;font-weight:600;}
+.cele-card .cc-days b{font-size:15px;}
+.stamp{
+  margin:-14px auto 0;width:96px;height:96px;border-radius:50%;z-index:6;position:relative;
+  border:3px solid rgba(255,255,255,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#fff;background:rgba(190,24,93,.55);backdrop-filter:blur(4px);
+  transform:rotate(-14deg) scale(2.2);opacity:0;
+}
+.celebrate.show .stamp{animation:stampIn .5s .55s cubic-bezier(.2,1.2,.3,1) forwards;}
+@keyframes stampIn{to{transform:rotate(-12deg) scale(1);opacity:1;}}
+.stamp b{font-size:15px;font-weight:800;letter-spacing:.1em;}
+.stamp span{font-size:9.5px;opacity:.85;margin-top:2px;font-weight:600;letter-spacing:.06em;}
+.cele-copy{margin-top:26px;font-size:14px;line-height:1.9;color:rgba(255,255,255,.82);font-weight:500;z-index:5;}
+.cele-copy b{color:#fff;}
+.cele-actions{margin-top:auto;display:flex;gap:11px;width:100%;z-index:5;padding-bottom:8px;}
+.cele-actions .ghost{
+  flex:1;height:44px;border-radius:14px;border:1px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.08);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+.cele-actions .solid{
+  flex:1.4;height:44px;border-radius:14px;border:none;
+  background:#fff;color:#BE185D;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;
+}
+
+/* ============================================================
+   B. 列表页
+   ============================================================ */
+.list-body{padding:64px 18px 0;height:100%;display:flex;flex-direction:column;}
+.list-head{display:flex;align-items:center;justify-content:space-between;padding:0 6px 14px;}
+.list-head .lh-title{font-size:24px;font-weight:800;letter-spacing:-.01em;}
+.list-head .lh-actions{display:flex;gap:9px;}
+.circle-btn{
+  width:38px;height:38px;border-radius:13px;background:#FFFFFFCC;border:1px solid rgba(146,112,64,.12);
+  display:flex;align-items:center;justify-content:center;font-size:16px;color:#8A8175;cursor:pointer;
+}
+.list-scroll{flex:1;overflow:hidden;}
+
+/* Hero 主卡 */
+.hero-card{
+  border-radius:24px;padding:18px 18px 16px;color:#fff;position:relative;overflow:hidden;
+  background:linear-gradient(140deg,#F472B6 0%,#EC4899 48%,#9D174D 130%);
+  box-shadow:0 14px 30px rgba(236,72,153,.35);
+}
+.hero-card::before{
+  content:'';position:absolute;width:230px;height:230px;border-radius:50%;
+  right:-80px;top:-110px;background:radial-gradient(circle,rgba(255,255,255,.25),transparent 70%);
+}
+.hero-card::after{
+  content:'';position:absolute;width:150px;height:150px;border-radius:50%;
+  left:-60px;bottom:-80px;background:radial-gradient(circle,rgba(255,255,255,.12),transparent 70%);
+}
+.hero-top{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.14em;opacity:.92;}
+.hero-top .ht-dot{width:6px;height:6px;border-radius:50%;background:#FDE68A;box-shadow:0 0 8px #FDE68A;}
+.hero-name-row{display:flex;align-items:center;gap:12px;margin-top:12px;}
+.hero-icon{
+  width:46px;height:46px;border-radius:15px;background:rgba(255,255,255,.22);
+  display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto;
+}
+.hero-name{font-size:20px;font-weight:800;}
+.hero-sub{font-size:12px;opacity:.85;margin-top:3px;font-weight:600;}
+.hero-days-row{display:flex;align-items:baseline;gap:7px;margin-top:14px;}
+.hero-days-row b{
+  font-size:56px;font-weight:800;letter-spacing:-.03em;line-height:1;
+  font-variant-numeric:tabular-nums;text-shadow:0 4px 24px rgba(0,0,0,.18);
+}
+.hero-days-row span{font-size:15px;font-weight:700;opacity:.92;}
+.hero-meta{display:flex;justify-content:space-between;align-items:center;margin-top:14px;}
+.hero-date{font-size:12px;font-weight:700;opacity:.88;}
+.hero-week{font-size:11px;font-weight:600;opacity:.75;background:rgba(255,255,255,.16);padding:4px 10px;border-radius:999px;}
+.hero-track{height:5px;border-radius:4px;background:rgba(255,255,255,.22);margin-top:13px;overflow:hidden;}
+.hero-track i{display:block;height:100%;width:86%;border-radius:4px;background:linear-gradient(90deg,#FDE68A,#FCA5E1);}
+
+/* 当天庆祝 Hero */
+.hero-card.today{background:linear-gradient(140deg,#FB923C 0%,#F46D38 45%,#9A3412 130%);box-shadow:0 14px 30px rgba(244,109,56,.4);}
+.hero-card.today .hero-days-row b{font-size:40px;}
+.static-cfx{position:absolute;width:9px;height:14px;border-radius:2px;z-index:2;opacity:.9;}
+.hero-badge{
+  position:absolute;top:14px;right:14px;background:#fff;color:#C2410C;font-size:10.5px;font-weight:800;
+  padding:5px 11px;border-radius:999px;z-index:3;box-shadow:0 4px 10px rgba(0,0,0,.15);
+}
+
+/* 分组列表 */
+.group-label{
+  display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.1em;
+  color:#A8A29E;margin:18px 4px 9px;
+}
+.group-label i{flex:1;height:1px;background:var(--hairline);}
+.row-card{
+  display:flex;align-items:center;gap:12px;background:#FFFFFFCC;border:1px solid rgba(146,112,64,.09);
+  border-radius:18px;padding:11px 14px;margin-bottom:9px;
+  box-shadow:0 2px 8px rgba(90,70,30,.04);
+}
+.row-icon{
+  width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex:0 0 auto;
+}
+.row-mid{flex:1;min-width:0;}
+.row-name{font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:6px;}
+.row-name .pin{font-size:10px;}
+.row-sub{font-size:11px;color:var(--page-ink2);margin-top:3px;font-weight:600;}
+.row-days{text-align:right;flex:0 0 auto;}
+.row-days b{font-size:21px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+.row-days span{display:block;font-size:10px;font-weight:700;margin-top:-1px;}
+.near-pulse{animation:npulse 1.6s ease-in-out infinite;}
+@keyframes npulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+.more-row{
+  text-align:center;font-size:12.5px;font-weight:700;color:#B3AA9C;padding:10px 0 4px;
+}
+
+/* ============================================================
+   C. 详情页（暮色发光）
+   ============================================================ */
+.detail-body{
+  height:100%;color:#fff;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,#12101A 0%,#171122 100%);
+  padding:60px 22px 0;display:flex;flex-direction:column;
+}
+.detail-glow{
+  position:absolute;width:420px;height:420px;border-radius:50%;
+  top:-130px;left:50%;transform:translateX(-50%);
+  background:radial-gradient(circle,rgba(244,114,182,.34),transparent 68%);
+  animation:glowDrift 4.5s ease-in-out infinite alternate;
+}
+@keyframes glowDrift{
+  from{transform:translateX(-58%) scale(1);opacity:.85;}
+  to{transform:translateX(-42%) scale(1.12);opacity:1;}
+}
+.detail-arc{
+  position:absolute;border-radius:50%;border:1.5px solid rgba(255,255,255,.07);border-top-color:rgba(244,114,182,.22);
+}
+.arc1{width:300px;height:300px;top:110px;left:-130px;animation:spin 70s linear infinite;}
+.arc2{width:210px;height:210px;top:200px;right:-110px;animation:spin 55s linear infinite reverse;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.detail-content{position:relative;z-index:5;display:flex;flex-direction:column;height:100%;}
+.dt-back{
+  width:38px;height:38px;border-radius:13px;background:rgba(255,255,255,.1);
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 auto;
+}
+.dt-head{display:flex;align-items:center;justify-content:space-between;}
+.dt-share{
+  width:38px;height:38px;border-radius:13px;background:rgba(255,255,255,.1);
+  display:flex;align-items:center;justify-content:center;font-size:15px;
+}
+.dt-hero{text-align:center;margin-top:12px;}
+.dt-emoji{
+  width:52px;height:52px;border-radius:17px;margin:0 auto;background:rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);
+}
+.dt-title{font-size:20px;font-weight:800;margin-top:11px;}
+.dt-semi{font-size:12.5px;font-weight:700;margin-top:4px;letter-spacing:.04em;}
+/* 翻牌数字 */
+.flip-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;}
+.flipd{
+  width:58px;height:80px;border-radius:14px;position:relative;
+  background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.06));
+  border:1px solid rgba(255,255,255,.14);
+  display:flex;align-items:center;justify-content:center;
+  font-size:48px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  box-shadow:0 14px 34px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.flipd::after{content:'';position:absolute;top:50%;left:7px;right:7px;height:1px;background:rgba(0,0,0,.3);}
+.flipd::before{content:'';position:absolute;top:0;left:7px;right:7px;height:50%;border-radius:14px 14px 0 0;background:linear-gradient(180deg,rgba(255,255,255,.10),transparent);pointer-events:none;}
+.flip-unit{font-size:16px;font-weight:800;opacity:.9;}
+.dt-date{font-size:12.5px;color:rgba(255,255,255,.45);margin-top:10px;font-weight:600;}
+.dt-note{
+  margin:10px auto 0;font-size:12px;color:rgba(255,255,255,.62);line-height:1.7;
+  background:rgba(255,255,255,.07);border-radius:13px;padding:8px 15px;max-width:250px;font-weight:500;
+}
+
+/* 年度进度环 + 里程碑 */
+.dt-meter{
+  margin-top:14px;display:flex;align-items:center;gap:16px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);
+  border-radius:20px;padding:12px 16px;
+}
+.ring{position:relative;width:74px;height:74px;flex:0 0 auto;}
+.ring svg{transform:rotate(-90deg);}
+.ring .rc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.ring .rc b{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;}
+.ring .rc span{font-size:8.5px;opacity:.6;font-weight:700;letter-spacing:.06em;}
+.meter-mid{flex:1;min-width:0;}
+.meter-title{font-size:12px;font-weight:800;}
+.meter-sub{font-size:10.5px;opacity:.62;margin-top:3px;font-weight:600;line-height:1.5;}
+
+/* 里程碑轨道 */
+.mst{margin-top:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:20px;padding:13px 18px 11px;}
+.mst-title{font-size:12px;font-weight:800;display:flex;justify-content:space-between;}
+.mst-title span{font-size:10.5px;opacity:.62;font-weight:700;}
+.mst-track{position:relative;height:44px;margin-top:10px;}
+.mst-line{position:absolute;top:9px;left:8px;right:8px;height:2.5px;border-radius:2px;background:rgba(255,255,255,.14);}
+.mst-line i{display:block;height:100%;width:58%;border-radius:2px;background:linear-gradient(90deg,#F9A8D4,#EC4899);}
+.mst-node{position:absolute;top:0;transform:translateX(-50%);text-align:center;}
+.mst-dot{
+  width:20px;height:20px;border-radius:50%;margin:0 auto;
+  background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.35);
+  display:flex;align-items:center;justify-content:center;font-size:9px;
+}
+.mst-node.done .mst-dot{background:#EC4899;border-color:#F9A8D4;color:#fff;}
+.mst-node.now .mst-dot{
+  background:#fff;border-color:#FDE68A;color:#BE185D;font-weight:800;
+  box-shadow:0 0 0 4px rgba(253,230,138,.22);animation:mstPulse 1.8s ease-in-out infinite;
+}
+@keyframes mstPulse{0%,100%{box-shadow:0 0 0 3px rgba(253,230,138,.18);}50%{box-shadow:0 0 0 7px rgba(253,230,138,.05);}}
+.mst-lab{font-size:9.5px;font-weight:800;margin-top:6px;opacity:.75;font-variant-numeric:tabular-nums;}
+.mst-node.now .mst-lab{opacity:1;color:#FDE68A;}
+.dt-footer{margin-top:auto;padding:12px 0 22px;display:flex;gap:11px;align-items:center;}
+.dt-task-pill{
+  font-size:11px;font-weight:700;color:rgba(255,255,255,.72);
+  background:rgba(255,255,255,.08);border-radius:999px;padding:9px 14px;
+}
+.dt-edit-btn{
+  margin-left:auto;height:40px;padding:0 18px;border-radius:13px;border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;
+}
+
+/* 当天庆祝详情 */
+.cele-detail{ text-align:center;position:relative;z-index:5;display:flex;flex-direction:column;height:100%;}
+.cd-badge{
+  margin:24px auto 0;font-size:13px;font-weight:800;letter-spacing:.08em;color:#FDBA74;
+  background:rgba(251,146,60,.14);border:1px solid rgba(251,146,60,.35);
+  padding:8px 18px;border-radius:999px;
+}
+.cd-big{font-size:34px;font-weight:800;margin-top:16px;letter-spacing:-.01em;}
+.cd-zero-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;}
+.cd-zero{
+  width:118px;height:118px;border-radius:30px;position:relative;
+  background:linear-gradient(180deg,rgba(253,186,116,.28),rgba(244,109,56,.16));
+  border:1.5px solid rgba(253,186,116,.4);
+  display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:800;
+  box-shadow:0 20px 50px rgba(244,109,56,.35), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.cd-zero::after{content:'';position:absolute;top:50%;left:10px;right:10px;height:1px;background:rgba(0,0,0,.22);}
+.cd-wish{
+  margin:20px auto 0;font-size:15px;font-weight:700;line-height:1.8;color:rgba(255,255,255,.88);
+  max-width:250px;
+}
+.cd-share{
+  margin-top:auto;margin-bottom:26px;width:100%;height:48px;border-radius:16px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#FB923C,#EA580C);color:#fff;font-size:15px;font-weight:800;
+  box-shadow:0 12px 28px rgba(234,88,12,.4);font-family:inherit;
+}
+
+/* ============================================================
+   D. 小组件
+   ============================================================ */
+.wallpaper{
+  border-radius:52px;background:
+    radial-gradient(600px 500px at 20% 0%, #FBD9B8, transparent 60%),
+    radial-gradient(700px 600px at 90% 100%, #F8C8A8, transparent 60%),
+    linear-gradient(160deg,#F7E9D2,#EBD3AC);
+  padding:64px 26px 34px;position:relative;overflow:hidden;width:390px;flex:0 0 auto;
+  box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 2px 6px rgba(0,0,0,.25),0 30px 60px rgba(60,40,15,.25);
+}
+.wp-time{text-align:center;color:#4A3A26;}
+.wp-time .wt-date{font-size:13.5px;font-weight:700;opacity:.8;}
+.wp-time .wt-clock{font-size:64px;font-weight:800;letter-spacing:-.02em;line-height:1.12;font-variant-numeric:tabular-nums;}
+.wp-widgets{margin-top:30px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center;}
+.wgt{border-radius:23px;overflow:hidden;box-shadow:0 10px 26px rgba(80,50,20,.22);position:relative;}
+.w-s{width:160px;height:160px;}
+.w-m{width:334px;height:160px;}
+.w-l{width:334px;height:334px;}
+/* 小组件·单事件 */
+.w-s-anniv{
+  width:100%;height:100%;color:#fff;padding:14px 16px;display:flex;flex-direction:column;
+  background:linear-gradient(150deg,#F472B6 0%,#EC4899 55%,#9D174D 145%);
+}
+.w-s-anniv .ws-top{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;}
+.w-s-anniv .ws-emoji{
+  width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.22);
+  display:flex;align-items:center;justify-content:center;font-size:12px;
+}
+.w-s-anniv .ws-num{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;}
+.w-s-anniv .ws-num b{font-size:52px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;text-shadow:0 4px 18px rgba(0,0,0,.22);}
+.w-s-anniv .ws-num span{font-size:13px;font-weight:800;opacity:.9;margin-top:14px;}
+.w-s-anniv .ws-bot{font-size:10.5px;font-weight:700;opacity:.88;display:flex;justify-content:space-between;}
+/* 小组件·当天模式 */
+.w-s-today{
+  width:100%;height:100%;color:#fff;padding:14px 16px;display:flex;flex-direction:column;
+  background:linear-gradient(150deg,#FB923C 0%,#F46D38 50%,#9A3412 150%);position:relative;overflow:hidden;
+}
+.w-s-today .wst-top{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;}
+.w-s-today .wst-num{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.w-s-today .wst-num b{font-size:18.5px;font-weight:800;letter-spacing:.01em;white-space:nowrap;}
+.w-s-today .wst-num span{font-size:10.5px;font-weight:700;opacity:.85;margin-top:3px;}
+.w-s-today .wst-bot{font-size:10.5px;font-weight:700;opacity:.88;display:flex;justify-content:space-between;}
+.w-s-today::after{
+  content:'🎉 ✦ 🎉';position:absolute;font-size:10px;top:9px;right:12px;letter-spacing:5px;opacity:.8;
+}
+/* 中组件 */
+.w-m-wrap{width:100%;height:100%;background:linear-gradient(150deg,#FDF3EE,#FAE7DC);padding:15px 16px;display:flex;gap:13px;}
+.wm-main{flex:1.35;display:flex;flex-direction:column;color:#9D174D;}
+.wm-main .wmm-top{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;color:#B45309;}
+.wm-main .wmm-emoji{
+  width:25px;height:25px;border-radius:9px;background:linear-gradient(135deg,#F472B6,#EC4899);
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+}
+.wm-main .wmm-name{font-size:13px;font-weight:800;margin-top:8px;color:#3A2A20;}
+.wm-main .wmm-num{flex:1;display:flex;align-items:center;gap:5px;}
+.wm-main .wmm-num b{font-size:46px;font-weight:800;color:#DB2777;letter-spacing:-.03em;font-variant-numeric:tabular-nums;}
+.wm-main .wmm-num span{font-size:12px;font-weight:800;color:#DB2777;margin-top:12px;}
+.wm-main .wmm-date{font-size:10px;font-weight:700;color:#B3AA9C;}
+.wm-divider{width:1px;background:rgba(146,112,64,.14);}
+.wm-side{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:2px 0;}
+.wm-next{display:flex;align-items:center;gap:9px;}
+.wm-next .wn-emoji{
+  width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 auto;
+}
+.wm-next .wn-name{font-size:11.5px;font-weight:800;color:#3A2A20;line-height:1.25;}
+.wm-next .wn-sub{font-size:9.5px;color:#B3AA9C;font-weight:700;margin-top:2px;}
+.wm-next .wn-days{margin-left:auto;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;}
+/* 大组件 */
+.w-l-wrap{width:100%;height:100%;background:linear-gradient(160deg,#FDF4EC,#F6E4D4);padding:17px 17px 13px;display:flex;flex-direction:column;}
+.wl-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.wl-head .wlh-title{font-size:13.5px;font-weight:800;color:#3A2A20;display:flex;align-items:center;gap:7px;}
+.wl-head .wlh-title .mini-emoji{
+  width:22px;height:22px;border-radius:8px;background:linear-gradient(135deg,#F472B6,#EC4899);
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+}
+.wl-head .wlh-edit{font-size:9.5px;font-weight:700;color:#B3AA9C;border:1px solid rgba(146,112,64,.2);border-radius:999px;padding:3px 9px;}
+.wl-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;}
+.wl-row.first{background:linear-gradient(135deg,rgba(244,114,182,.16),rgba(236,72,153,.08));border:1px solid rgba(236,72,153,.22);}
+.wl-date{
+  width:42px;height:46px;border-radius:12px;background:#fff;border:1px solid rgba(146,112,64,.1);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 auto;
+  box-shadow:0 2px 6px rgba(90,60,20,.06);
+}
+.wl-row.first .wl-date{background:linear-gradient(160deg,#F472B6,#DB2777);border:none;}
+.wl-date b{font-size:16px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+.wl-date span{font-size:9px;font-weight:800;opacity:.65;margin-top:3px;}
+.wl-row.first .wl-date b,.wl-row.first .wl-date span{color:#fff;opacity:1;}
+.wl-mid{flex:1;min-width:0;}
+.wl-name{font-size:13px;font-weight:800;color:#3A2A20;display:flex;gap:6px;align-items:center;}
+.wl-sub{font-size:10px;font-weight:700;color:#B3AA9C;margin-top:2px;}
+.wl-days{font-size:19px;font-weight:800;color:#3A2A20;font-variant-numeric:tabular-nums;}
+.wl-days span{font-size:9.5px;font-weight:800;color:#B3AA9C;margin-left:2px;}
+.wl-row.first .wl-days{color:#DB2777;}
+.wl-track{width:3px;height:34px;border-radius:2px;background:linear-gradient(180deg,#F9A8D4,#EC4899);flex:0 0 auto;margin-right:2px;}
+/* 锁屏 */
+.lockscreen{
+  border-radius:52px;background:
+    radial-gradient(500px 400px at 50% -10%, rgba(255,255,255,.16), transparent 60%),
+    linear-gradient(180deg,#1E1128 0%,#2B1230 55%,#3A0F22 100%);
+  width:330px;height:700px;padding:78px 24px 24px;position:relative;overflow:hidden;flex:0 0 auto;
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset,0 2px 6px rgba(0,0,0,.35),0 30px 60px rgba(30,10,40,.35);
+}
+.ls-time{text-align:center;color:#fff;}
+.ls-time .lst-date{font-size:14px;font-weight:700;opacity:.85;}
+.ls-time .lst-clock{font-size:74px;font-weight:800;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums;}
+.ls-widgets{display:flex;gap:13px;justify-content:center;margin-top:24px;align-items:flex-start;}
+.ls-circ{
+  width:92px;height:92px;border-radius:50%;background:rgba(255,255,255,.1);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;position:relative;
+}
+.ls-circ svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.ls-circ b{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;}
+.ls-circ span{font-size:8.5px;font-weight:800;opacity:.72;letter-spacing:.05em;}
+.ls-rect{
+  width:150px;height:84px;border-radius:20px;background:rgba(255,255,255,.1);
+  padding:12px 15px;color:#fff;display:flex;flex-direction:column;justify-content:center;
+}
+.ls-rect .lsr-top{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;}
+.ls-rect .lsr-sub{font-size:9.5px;font-weight:700;opacity:.75;margin-top:5px;}
+.ls-bottom{
+  position:absolute;bottom:88px;left:0;right:0;display:flex;justify-content:center;
+  font-size:12px;color:rgba(255,255,255,.5);font-weight:600;
+}
+.ls-flash{position:absolute;bottom:26px;left:24px;right:24px;height:5px;border-radius:3px;background:rgba(255,255,255,.5);}
+.ls-cam{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.25);}
+
+/* 组件对比行 */
+.wgt-compare{display:flex;gap:26px;align-items:flex-start;margin-top:34px;flex-wrap:wrap;}
+.wgt-case .wc-label{font-size:12px;font-weight:800;color:var(--page-ink2);margin-bottom:10px;text-align:center;}
+.wgt-case .wc-label b{color:var(--page-ink);}
+
+/* ---------- 分期规划 ---------- */
+.phases{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px;}
+.phase{background:var(--panel);border:1px solid var(--panel-border);border-radius:22px;padding:24px 22px;}
+.phase h3{font-size:16px;font-weight:800;display:flex;align-items:center;gap:9px;}
+.phase .ph-chip{font-size:10px;font-weight:800;color:#fff;border-radius:7px;padding:3px 9px;letter-spacing:.05em;}
+.phase ul{margin-top:14px;list-style:none;}
+.phase li{font-size:12.8px;line-height:1.7;color:var(--page-ink2);padding:6px 0 6px 20px;position:relative;}
+.phase li::before{content:'';position:absolute;left:2px;top:13px;width:6px;height:6px;border-radius:2px;background:var(--orange);opacity:.55;}
+.phase li b{color:var(--page-ink);font-weight:700;}
+.phase .ph-cost{
+  margin-top:14px;font-size:11.5px;line-height:1.7;color:var(--page-ink2);
+  background:rgba(146,112,64,.06);border-radius:12px;padding:10px 13px;
+}
+.phase .ph-cost b{color:#B45309;}
+
+/* ---------- 拍板清单 ---------- */
+.decisions{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:34px;}
+.decision{background:var(--panel);border:1px solid var(--panel-border);border-radius:20px;padding:20px 22px;}
+.decision h4{font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:9px;}
+.decision .d-num{
+  width:22px;height:22px;border-radius:7px;background:var(--orange);color:#fff;
+  font-size:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+}
+.decision p{font-size:12.6px;line-height:1.8;color:var(--page-ink2);margin-top:9px;}
+.decision .d-rec{
+  margin-top:11px;font-size:11.5px;font-weight:700;color:#B45309;
+  background:rgba(252,211,77,.16);border-radius:10px;padding:8px 12px;line-height:1.65;
+}
+.decision .d-rec b{color:#92400E;}
+
+.foot-note{margin-top:70px;text-align:center;font-size:12px;color:#B3AA9C;line-height:2;}
+
+@media (max-width:1080px){
+  .pillars{grid-template-columns:1fr;}
+  .phases{grid-template-columns:1fr;}
+  .decisions{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ==================== 页头 ==================== -->
+  <header class="page-head">
+    <div class="page-kicker">HOLO · ANNIVERSARY REDESIGN · V1</div>
+    <h1>让每个重要的日子<br>都值得被郑重对待</h1>
+    <p class="page-sub">
+      现在的纪念日模块是「一个功能」：填一张表、看一个数字。这次重设计把它变成「一场仪式」——
+      <b>创建即点亮，倒数有质感，当天有惊喜，桌面有存在感</b>。
+      方案覆盖创建流程、列表页、详情页、小组件四个面，分期落地，存量数据平滑升级。
+    </p>
+    <nav class="nav-chips">
+      <a href="#sec-create">① 创建流程</a>
+      <a href="#sec-list">② 列表页</a>
+      <a href="#sec-detail">③ 详情页</a>
+      <a href="#sec-widget">④ 小组件</a>
+      <a href="#sec-phase">⑤ 分期与拍板</a>
+    </nav>
+  </header>
+
+  <!-- ==================== 设计主张 ==================== -->
+  <section class="sec">
+    <div class="sec-kicker">DESIGN PRINCIPLES</div>
+    <div class="sec-title">仪式感从哪来？三个来源</div>
+    <p class="sec-desc">
+      对标了倒数日·Days Matter（挂历翻牌隐喻、倒数本封面）、Countdown With Me（按事件名触发的主题彩蛋）、
+      以及 Mobbin 上 500+ 庆祝场景的设计范式。仪式感不是加装饰，而是让「时间」本身被看见。
+    </p>
+    <div class="pillars">
+      <div class="pillar">
+        <div class="p-line" style="background:linear-gradient(90deg,#F472B6,#EC4899);"></div>
+        <div class="p-emoji">🖋️</div>
+        <h3>郑重的动作</h3>
+        <p>创建一个纪念日，本质是「把普通的一天收藏进人生」。所以创建不是填表，是三步点亮：选场景 → 定日子 → 说心愿，全程有一张实时预览卡陪伴，保存那一刻盖章庆祝。</p>
+      </div>
+      <div class="pillar">
+        <div class="p-line" style="background:linear-gradient(90deg,#FB923C,#EA580C);"></div>
+        <div class="p-emoji">⏳</div>
+        <h3>时间的质感</h3>
+        <p>数字不该是干巴巴的文本。翻牌卡片让每一天「翻过去」，年度进度环让等待「被看见」，里程碑轨道（100天/520天/周年）让长途倒数处处有驿站。</p>
+      </div>
+      <div class="pillar">
+        <div class="p-line" style="background:linear-gradient(90deg,#FDE68A,#F59E0B);"></div>
+        <div class="p-emoji">🎉</div>
+        <h3>当天的惊喜</h3>
+        <p>等待的终点必须配得上等待。到了当天：详情页变庆祝态、列表主卡变脸、桌面小组件自动换上庆祝皮肤。用户在早上解锁手机的那一刻，惊喜就到了。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== A. 创建流程 ==================== -->
+  <section class="sec" id="sec-create">
+    <div class="sec-kicker">① CREATE FLOW · 可交互演示</div>
+    <div class="sec-title">创建：从「填表格」到「<span class="em">点亮一个日子</span>」</div>
+    <p class="sec-desc">
+      右侧手机可以真实点击：选场景 → 选日期 → 定提醒 → 点「点亮这个日子」，看完整个庆祝时刻。
+      单步表单拆成三问，每屏只回答一个问题；顶部迷你预览卡全程实时跟随，所见即所得。
+    </p>
+
+    <div class="stage">
+      <!-- 交互手机 -->
+      <div>
+        <div class="phone">
+          <div class="screen" id="wizScreen">
+            <div class="island"></div>
+            <div class="statusbar sb-light"><span>9:41</span><span class="sicons">●●● ᯤ 🔋</span></div>
+
+            <div class="wizard-body">
+              <!-- 实时预览卡 -->
+              <div class="wz-preview" id="pvCard">
+                <div class="pv-emoji" id="pvEmoji">❤️</div>
+                <div style="min-width:0;">
+                  <div class="pv-name" id="pvName">和小林的纪念日</div>
+                  <div class="pv-sub" id="pvSub">2026年10月24日 · 周六</div>
+                </div>
+                <div class="pv-days"><b id="pvDays">51</b><span id="pvUnit">天后</span></div>
+              </div>
+
+              <div class="wz-steps">
+                <div class="wz-dot on" id="dot0"></div>
+                <div class="wz-dot" id="dot1"></div>
+                <div class="wz-dot" id="dot2"></div>
+              </div>
+
+              <!-- 步骤 1 -->
+              <div class="wz-step" id="step0">
+                <div class="wz-title">这是个什么日子？</div>
+                <div class="wz-hint">场景会预设好配色、图标和重复方式</div>
+                <div class="scene-grid">
+                  <div class="scene" data-emoji="🎂" data-name="妈妈的生日" data-color="birthday" style="--sc:#F46D38;--scbg:rgba(244,109,56,.08);">
+                    <div class="s-check">✓</div>
+                    <div class="s-emoji">🎂</div>
+                    <div class="s-name">生日</div>
+                    <div class="s-desc">会替你记着TA的岁数</div>
+                  </div>
+                  <div class="scene on" data-emoji="❤️" data-name="和小林的纪念日" data-color="anniv" style="--sc:#EC4899;--scbg:rgba(236,72,153,.08);">
+                    <div class="s-check">✓</div>
+                    <div class="s-emoji">❤️</div>
+                    <div class="s-name">纪念日</div>
+                    <div class="s-desc">每年的这一天都算数</div>
+                  </div>
+                  <div class="scene" data-emoji="⏳" data-name="项目上线" data-color="count" style="--sc:#60A5FA;--scbg:rgba(96,165,250,.08);">
+                    <div class="s-check">✓</div>
+                    <div class="s-emoji">⏳</div>
+                    <div class="s-name">倒数日</div>
+                    <div class="s-desc">等着它到来的那天</div>
+                  </div>
+                  <div class="scene" data-emoji="🚩" data-name="第一次半马" data-color="mile" style="--sc:#C084FC;--scbg:rgba(192,132,252,.08);">
+                    <div class="s-check">✓</div>
+                    <div class="s-emoji">🚩</div>
+                    <div class="s-name">里程碑</div>
+                    <div class="s-desc">见证达成的时刻</div>
+                  </div>
+                </div>
+                <div class="field filled">
+                  <label>名称</label>
+                  <input id="nameInput" value="和小林的纪念日" placeholder="给这个日子起个名字">
+                </div>
+                <div class="wz-footer">
+                  <button class="btn-back" style="opacity:.35;cursor:default;">‹</button>
+                  <button class="btn-main" onclick="wizNext()">下一步</button>
+                </div>
+              </div>
+
+              <!-- 步骤 2 -->
+              <div class="wz-step" id="step1" style="display:none;">
+                <div class="wz-title">哪一天？</div>
+                <div class="wz-hint">选中的日子会实时出现在上方预览卡</div>
+                <div class="date-label">
+                  <div class="dl-main" id="dateMain">2026年10月24日</div>
+                  <div class="dl-sub" id="dateSub">周六 · <b>距今天还有 51 天</b></div>
+                </div>
+                <div class="seg" id="calSeg">
+                  <div class="on">公历</div>
+                  <div>农历</div>
+                </div>
+                <div class="cal">
+                  <div class="cal-head"><span>2026年10月</span><span>›</span></div>
+                  <div class="cal-grid" id="calGrid">
+                    <div class="wd">日</div><div class="wd">一</div><div class="wd">二</div><div class="wd">三</div><div class="wd">四</div><div class="wd">五</div><div class="wd">六</div>
+                  </div>
+                </div>
+                <div class="lunar-note" id="lunarNote" style="display:none;">
+                  已切换为 <b>农历重复</b>：每年农历八月廿一提醒 · 适合生日与传统节日
+                </div>
+                <div class="wz-footer">
+                  <button class="btn-back" onclick="wizBack()">‹</button>
+                  <button class="btn-main" onclick="wizNext()">下一步</button>
+                </div>
+              </div>
+
+              <!-- 步骤 3 -->
+              <div class="wz-step" id="step2" style="display:none;">
+                <div class="wz-title">想怎么记住它？</div>
+                <div class="wz-hint">最后一步，Holo 会按你的方式守着这一天</div>
+                <div class="remind-block">
+                  <div class="tg-row">
+                    <div class="tg-emoji">🔁</div>
+                    <div style="flex:1;"><div class="tg-label">每年重复</div><div class="tg-sub">周年会自动累加：第 1 年、第 2 年…</div></div>
+                    <div class="switch"></div>
+                  </div>
+                  <div class="tg-row" style="border-bottom:none;">
+                    <div class="tg-emoji">🔔</div>
+                    <div style="flex:1;"><div class="tg-label">提醒我</div><div class="tg-sub">到点通知，可同步生成待办</div></div>
+                  </div>
+                  <div class="chips">
+                    <div class="rchip">当天</div>
+                    <div class="rchip">提前1天</div>
+                    <div class="rchip on">提前3天</div>
+                    <div class="rchip">提前7天</div>
+                  </div>
+                </div>
+                <div class="note-field">
+                  <label>一句备注 · 未来翻到这页时会心一笑的那种</label>
+                  <div>那天我们在鼓浪屿，风把帽子吹进了海里 🌊</div>
+                </div>
+                <div class="wz-footer">
+                  <button class="btn-back" onclick="wizBack()">‹</button>
+                  <button class="btn-main" onclick="celebrate()">✨ 点亮这个日子</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 庆祝屏 -->
+            <div class="celebrate" id="celeScreen">
+              <div class="cele-card">
+                <div class="cc-emoji" id="ccEmoji">❤️</div>
+                <div class="cc-name" id="ccName">和小林的纪念日</div>
+                <div class="cc-days">2026年10月24日 · 还有 <b>51</b> 天</div>
+              </div>
+              <div class="stamp"><b>已点亮</b><span>LIT UP</span></div>
+              <div class="cele-copy">
+                这一天已被收进你的纪念日<br>
+                从今天起，<b>Holo 会替你守着它</b>
+              </div>
+              <div class="cele-actions">
+                <button class="ghost" onclick="wizReset()">再建一个</button>
+                <button class="solid" onclick="wizReset()">去看看</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+        <div class="phone-caption">📱 可点击演示 · 完整走一遍创建流程</div>
+      </div>
+
+      <!-- 标注 -->
+      <div class="annot">
+        <div class="annot-item">
+          <div class="annot-num">1</div>
+          <div><h4>三问式向导，替代一张长表</h4><p>「这是个什么日子？→ 哪一天？→ 想怎么记住它？」。每屏只回答一个问题，认知负担趋近于零。表单里原有的类型/颜色/图标合并为「场景预设」，选完场景这些全自动带上，想改仍然可以点开细调。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">2</div>
+          <div><h4>迷你预览卡 · 所见即所得 <span class="tag tag-new">新增</span></h4><p>预览卡就是未来列表主卡和详情页的缩样，跟着每一步选择实时变色、变图标、变天数。用户在保存前就已经「看到」了自己正在创造的东西——这是填表给不了的心动感。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">3</div>
+          <div><h4>农历支持 <span class="tag tag-new">新增能力</span></h4><p>公历/农历一键切换，农历生日按农历年年提醒（如「八月廿一」）。这是中国用户生日场景的刚需，目前 App 完全没有农历能力。纯客户端实现（系统日历即可转换），不需要后端。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">4</div>
+          <div><h4>智能日期反馈</h4><p>选中日期后立刻显示「距今天还有 51 天」；选过去的日期则提示「将从那天开始累计」。帮助用户在选的那一刻就建立时间感。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">5</div>
+          <div><h4>「点亮」庆祝时刻 <span class="tag tag-new">核心仪式</span></h4><p>保存按钮不叫「保存」，叫「✨ 点亮这个日子」。点击后：卡片定妆、盖一枚「已点亮」印章、彩带落下、震动反馈、文案「从今天起，Holo 会替你守着它」。参考 Countdown With Me 的做法，后续还可以按事件名触发主题彩蛋（生日掉蛋糕、圣诞飘雪）。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">6</div>
+          <div><h4>备注文案的引导 <span class="tag tag-keep">保留习惯</span></h4><p>现有全部交互习惯保留：右滑编辑/删除、左滑置顶、AI 聊天卡片创建、提醒与待办联动、深链入口。三步向导只重排「问题顺序」，不推翻任何已有能力；数据模型新增字段全部可选，存量纪念日无迁移风险。</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== B. 列表页 ==================== -->
+  <section class="sec" id="sec-list">
+    <div class="sec-kicker">② LIST · 列表页</div>
+    <div class="sec-title">列表：从「清单」到「<span class="em">下一个重要的日子</span>」</div>
+    <p class="sec-desc">
+      清单是管理视角，情感需要一个焦点。最近的纪念日升级为整幅 Hero 主卡，其余按「即将到来 / 每年循环 / 时光已过」分组。
+      左边是日常态，右边是「就是今天」的变脸时刻。
+    </p>
+
+    <div class="stage">
+      <!-- 手机1：日常态 -->
+      <div>
+        <div class="phone">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar sb-light"><span>9:41</span><span class="sicons">●●● ᯤ 🔋</span></div>
+            <div class="list-body">
+              <div class="list-head">
+                <div class="lh-title">纪念日</div>
+                <div class="lh-actions"><div class="circle-btn">☰</div><div class="circle-btn" style="color:#F46D38;">＋</div></div>
+              </div>
+              <div class="list-scroll">
+                <!-- Hero 主卡 -->
+                <div class="hero-card" style="position:relative;">
+                  <div class="callout" style="top:-8px;left:-6px;">1</div>
+                  <div class="hero-top"><span class="ht-dot"></span>下一个重要的日子</div>
+                  <div class="hero-name-row">
+                    <div class="hero-icon">❤️</div>
+                    <div>
+                      <div class="hero-name">和小林的纪念日</div>
+                      <div class="hero-sub">第 3 个周年 · 每年循环</div>
+                    </div>
+                  </div>
+                  <div class="hero-days-row"><b>51</b><span>天后</span></div>
+                  <div class="hero-meta">
+                    <div class="hero-date">2026年10月24日 · 周六</div>
+                    <div class="hero-week" style="position:relative;">周年进度 86%<div class="callout" style="top:-30px;right:-24px;">2</div></div>
+                  </div>
+                  <div class="hero-track"><i></i></div>
+                </div>
+
+                <!-- 分组：即将到来 -->
+                <div class="group-label">即将到来<i></i></div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(96,165,250,.14);">⏳</div>
+                  <div class="row-mid">
+                    <div class="row-name">发工资</div>
+                    <div class="row-sub">9月10日 · 提醒已开</div>
+                  </div>
+                  <div class="row-days"><b class="near-pulse" style="color:#3B82F6;">7</b><span style="color:#3B82F6;">天后</span></div>
+                </div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(34,197,94,.14);">🧳</div>
+                  <div class="row-mid">
+                    <div class="row-name">日本旅行出发</div>
+                    <div class="row-sub">10月21日 · 周三</div>
+                  </div>
+                  <div class="row-days"><b>48</b><span style="color:#B3AA9C;">天后</span></div>
+                </div>
+
+                <!-- 分组：每年循环 -->
+                <div class="group-label">每年循环<i></i></div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(244,109,56,.13);">🎂</div>
+                  <div class="row-mid">
+                    <div class="row-name">爸爸的生日 <span class="pin">📌</span></div>
+                    <div class="row-sub">11月4日 · 第 58 个生日</div>
+                  </div>
+                  <div class="row-days"><b style="color:#F46D38;">62</b><span style="color:#B3AA9C;">天后</span></div>
+                </div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(236,72,153,.12);">💍</div>
+                  <div class="row-mid">
+                    <div class="row-name">领证纪念日</div>
+                    <div class="row-sub">12月12日 · 第 5 个周年</div>
+                  </div>
+                  <div class="row-days"><b style="color:#EC4899;">100</b><span style="color:#B3AA9C;">天后</span></div>
+                </div>
+
+                <!-- 分组：时光已过 -->
+                <div class="group-label">时光已过<i></i></div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(251,191,36,.16);">🐱</div>
+                  <div class="row-mid">
+                    <div class="row-name">糯米到家了</div>
+                    <div class="row-sub">2025年4月1日 · 今天第 520 天</div>
+                  </div>
+                  <div class="row-days"><b style="color:#D97706;">520</b><span style="color:#D97706;">天 ✦</span></div>
+                </div>
+                <div class="more-row">还有 3 个日子 · 点击展开</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-caption">日常态 · Hero 主卡 + 三组分组</div>
+      </div>
+
+      <!-- 手机2：当天态 -->
+      <div>
+        <div class="phone">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar sb-light"><span>9:41</span><span class="sicons">●●● ᯤ 🔋</span></div>
+            <div class="list-body">
+              <div class="list-head">
+                <div class="lh-title">纪念日</div>
+                <div class="lh-actions"><div class="circle-btn">☰</div><div class="circle-btn" style="color:#F46D38;">＋</div></div>
+              </div>
+              <div class="list-scroll">
+                <!-- 当天庆祝主卡 -->
+                <div class="hero-card today">
+                  <div class="hero-badge">🎉 就是今天</div>
+                  <!-- 静态彩带 -->
+                  <div class="static-cfx" style="left:18px;top:20px;background:#FDE68A;transform:rotate(24deg);"></div>
+                  <div class="static-cfx" style="left:40px;top:52px;background:#FCA5A5;transform:rotate(-40deg);width:7px;height:11px;"></div>
+                  <div class="static-cfx" style="left:66px;top:24px;background:#A7F3D0;transform:rotate(60deg);width:8px;height:12px;"></div>
+                  <div class="static-cfx" style="right:34px;top:70px;background:#FDE68A;transform:rotate(-70deg);"></div>
+                  <div class="static-cfx" style="right:78px;top:38px;background:#BAE6FD;transform:rotate(35deg);width:7px;height:11px;"></div>
+                  <div class="static-cfx" style="right:20px;top:110px;background:#FDE68A;transform:rotate(45deg);width:6px;height:10px;"></div>
+                  <div class="hero-top" style="justify-content:center;">🎂 今天到了</div>
+                  <div class="hero-name-row" style="margin-top:14px;">
+                    <div class="hero-icon" style="font-size:26px;">🎂</div>
+                    <div>
+                      <div class="hero-name">妈妈的生日</div>
+                      <div class="hero-sub">第 59 个生日 · 祝她健康长乐</div>
+                    </div>
+                  </div>
+                  <div class="hero-days-row" style="margin-top:16px;"><b>就是今天 🎉</b></div>
+                  <div class="hero-meta">
+                    <div class="hero-date">2026年9月3日 · 周四</div>
+                    <div class="hero-week" style="background:#fff;color:#C2410C;font-weight:800;">送上祝福 ›</div>
+                  </div>
+                </div>
+                <div style="text-align:center;font-size:11px;color:#B3AA9C;margin-top:10px;font-weight:600;">↓ 到期当天，主卡自动变脸 · 点击直达庆祝详情 ↓</div>
+
+                <div class="group-label" style="margin-top:14px;">即将到来<i></i></div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(96,165,250,.14);">⏳</div>
+                  <div class="row-mid">
+                    <div class="row-name">发工资</div>
+                    <div class="row-sub">9月10日 · 提醒已开</div>
+                  </div>
+                  <div class="row-days"><b class="near-pulse" style="color:#3B82F6;">7</b><span style="color:#3B82F6;">天后</span></div>
+                </div>
+                <div class="row-card">
+                  <div class="row-icon" style="background:rgba(34,197,94,.14);">🧳</div>
+                  <div class="row-mid">
+                    <div class="row-name">日本旅行出发</div>
+                    <div class="row-sub">10月21日 · 周三</div>
+                  </div>
+                  <div class="row-days"><b>48</b><span style="color:#B3AA9C;">天后</span></div>
+                </div>
+                <div class="more-row">折叠其余 6 个日子</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-caption">当天态 · 主卡变脸，全页焦点让位</div>
+      </div>
+
+      <!-- 标注 -->
+      <div class="annot">
+        <div class="annot-item">
+          <div class="annot-num">1</div>
+          <div><h4>Hero 主卡 · 情感的焦点</h4><p>最近的一个纪念日升级为整幅主题色大卡：超大数字、周年语义、日期、以及一条「周年进度条」（这一年的周期已走过 86%）。它回答的是用户进这个页面最想问的那句话：「离最近的好事还有多远？」</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">2</div>
+          <div><h4>临近脉冲 <span class="tag tag-keep">强化已有</span></h4><p>7 天内的倒数数字保留现有的呼吸脉冲动画（现在已有），但升级为数字+单位整体脉冲，临近感更强。发工资这种「小确幸倒数」会天天被看一眼。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">3</div>
+          <div><h4>三组分组 · 时间的三种心态</h4><p>「即将到来」是期待，「每年循环」是传统，「时光已过」是回忆——累计类（如宠物到家 520 天）排在最后但不缺席，行内直接露出「今天第 520 天」。分组取代现在的平铺长列表，信息密度更低、情感浓度更高。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">4</div>
+          <div><h4>当天变脸 <span class="tag tag-new">惊喜时刻</span></h4><p>到了当天：Hero 主卡整卡换成庆祝皮肤（暖橙渐变+彩带+「🎉 就是今天」徽标），其余列表自动折叠让位——这一天整个页面只为一件事存在。点击主卡直达庆祝态详情页（右图 C）。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">5</div>
+          <div><h4>空态也讲一个故事</h4><p>没有纪念日时的空态不再是「记录第一个重要的日子」一句干话，而是一张半透明的示例卡：「离春节还有 XX 天 · 你的第一个日子会出现在这里」，让用户先看见价值再动手。</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== C. 详情页 ==================== -->
+  <section class="sec" id="sec-detail">
+    <div class="sec-kicker">③ DETAIL · 详情页三态</div>
+    <div class="sec-title">详情：让「等待」本身<span class="em">好看</span></div>
+    <p class="sec-desc">
+      保留现有「暮色发光」沉浸底的基因（光晕呼吸 + 旋转弧线都在），在此基础上补齐三种状态：倒数、累计、当天庆祝。
+      数字从纯文本升级为翻牌卡片，新增年度进度环与里程碑轨道。
+    </p>
+
+    <div class="stage" style="gap:30px;">
+      <!-- A 倒数 -->
+      <div>
+        <div class="phone">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar sb-dark"><span>9:41</span><span class="sicons">●●● ᯤ 🔋</span></div>
+            <div class="detail-body" style="background:linear-gradient(180deg,#17101D 0%,#1C1226 100%);">
+              <div class="detail-glow" style="background:radial-gradient(circle,rgba(244,114,182,.4),transparent 68%);"></div>
+              <div class="detail-arc arc1" style="border-top-color:rgba(244,114,182,.28);"></div>
+              <div class="detail-arc arc2" style="border-top-color:rgba(244,114,182,.2);"></div>
+              <div class="detail-content">
+                <div class="dt-head"><div class="dt-back">‹</div><div class="dt-share">︰</div></div>
+                <div class="dt-hero">
+                  <div class="dt-emoji">❤️</div>
+                  <div class="dt-title">和小林的纪念日</div>
+                  <div class="dt-semi" style="color:#F9A8D4;">第 3 个周年 · 每年 10 月 24 日</div>
+                </div>
+                <div class="flip-row" style="position:relative;">
+                  <div class="callout" style="top:-14px;left:96px;">1</div>
+                  <div class="flipd">5</div><div class="flipd">1</div>
+                  <div class="flip-unit">天后</div>
+                </div>
+                <div class="dt-date">2026年10月24日 · 周六</div>
+                <div class="dt-note">那天我们在鼓浪屿，风把帽子吹进了海里 🌊</div>
+                <div class="dt-meter" style="position:relative;">
+                  <div class="callout" style="top:-14px;left:-12px;">2</div>
+                  <div class="ring">
+                    <svg width="74" height="74">
+                      <circle cx="37" cy="37" r="31" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="6"/>
+                      <circle cx="37" cy="37" r="31" fill="none" stroke="url(#g1)" stroke-width="6" stroke-linecap="round" stroke-dasharray="194.8" stroke-dashoffset="27.3"/>
+                      <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FDE68A"/><stop offset="1" stop-color="#F472B6"/></linearGradient></defs>
+                    </svg>
+                    <div class="rc"><b>86%</b><span>本周期</span></div>
+                  </div>
+                  <div class="meter-mid">
+                    <div class="meter-title">这一年的等待已走过大半</div>
+                    <div class="meter-sub">自上个周年 2025年10月24日 起 · 10月24日翻入新的一轮</div>
+                  </div>
+                </div>
+                <div class="mst" style="position:relative;">
+                  <div class="callout" style="top:-14px;right:-10px;">3</div>
+                  <div class="mst-title">在一起的日子<span>已同行 1045 天</span></div>
+                  <div class="mst-track">
+                    <div class="mst-line"><i></i></div>
+                    <div class="mst-node done" style="left:8%;"><div class="mst-dot">✓</div><div class="mst-lab">100天</div></div>
+                    <div class="mst-node done" style="left:30%;"><div class="mst-dot">✓</div><div class="mst-lab">365天</div></div>
+                    <div class="mst-node done" style="left:47%;"><div class="mst-dot">✓</div><div class="mst-lab">520天</div></div>
+                    <div class="mst-node done" style="left:66%;"><div class="mst-dot">✓</div><div class="mst-lab">1000天</div></div>
+                    <div class="mst-node now" style="left:93%;"><div class="mst-dot">★</div><div class="mst-lab">3周年·50天</div></div>
+                  </div>
+                </div>
+                <div class="dt-footer">
+                  <div class="dt-task-pill">✓ 已生成 1 条提醒待办</div>
+                  <button class="dt-edit-btn">分享这一天</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-caption">A · 倒数态（翻牌数字 + 年度环 + 里程碑）</div>
+      </div>
+
+      <!-- B 累计 -->
+      <div>
+        <div class="phone">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar sb-dark"><span>9:41</span><span class="sicons">●●● ᯤ 🔋</span></div>
+            <div class="detail-body" style="background:linear-gradient(180deg,#101722 0%,#121C2B 100%);">
+              <div class="detail-glow" style="background:radial-gradient(circle,rgba(96,165,250,.35),transparent 68%);"></div>
+              <div class="detail-arc arc1" style="border-top-color:rgba(96,165,250,.28);"></div>
+              <div class="detail-arc arc2" style="border-top-color:rgba(96,165,250,.2);"></div>
+              <div class="detail-content">
+                <div class="dt-head"><div class="dt-back">‹</div><div class="dt-share">︰</div></div>
+                <div class="dt-hero">
+                  <div class="dt-emoji">🐱</div>
+                  <div class="dt-title">糯米到家了</div>
+                  <div class="dt-semi" style="color:#93C5FD;">从 2025年4月1日 开始累计</div>
+                </div>
+                <div class="flip-row">
+                  <div class="flipd">5</div><div class="flipd">2</div><div class="flipd">0</div>
+                  <div class="flip-unit">天</div>
+                </div>
+                <div class="dt-date">它已经陪了我们 1 年 5 个月</div>
+                <div style="margin:14px auto 0;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:#FDE68A;background:rgba(253,230,138,.12);border:1px solid rgba(253,230,138,.3);border-radius:999px;padding:8px 16px;">
+                  ✦ 今天恰好是第 520 天
+                </div>
+                <div class="mst" style="margin-top:18px;">
+                  <div class="mst-title">里程碑轨道<span>下一个还有 480 天</span></div>
+                  <div class="mst-track">
+                    <div class="mst-line"><i style="width:52%;background:linear-gradient(90deg,#93C5FD,#3B82F6);"></i></div>
+                    <div class="mst-node done" style="left:10%;"><div class="mst-dot" style="background:#3B82F6;border-color:#93C5FD;">✓</div><div class="mst-lab">100天</div></div>
+                    <div class="mst-node done" style="left:36%;"><div class="mst-dot" style="background:#3B82F6;border-color:#93C5FD;">✓</div><div class="mst-lab">365天</div></div>
+                    <div class="mst-node now" style="left:52%;"><div class="mst-dot" style="color:#1D4ED8;">★</div><div class="mst-lab">520天·今天</div></div>
+                    <div class="mst-node" style="left:88%;"><div class="mst-dot"></div><div class="mst-lab">1000天</div></div>
+                  </div>
+                </div>
+                <div class="dt-note">从宠物医院接回来那天，它只有巴掌大 🐾</div>
+                <div class="dt-footer">
+                  <div class="dt-task-pill">累计类型 · 无需提醒</div>
+                  <button class="dt-edit-btn">分享这一天</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-caption">B · 累计态（里程碑恰好是今天）</div>
+      </div>
+
+      <!-- C 当天 -->
+      <div>
+        <div class="phone">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar sb-dark"><span>9:41</span><span class="sicons">●●● ᯤ 🔋</span></div>
+            <div class="detail-body" style="background:linear-gradient(180deg,#201009 0%,#2A120A 55%,#38160B 100%);">
+              <div class="detail-glow" style="background:radial-gradient(circle,rgba(251,146,60,.45),transparent 68%);animation-duration:3.2s;"></div>
+              <div class="detail-arc arc1" style="border-top-color:rgba(251,146,60,.3);"></div>
+              <div class="detail-arc arc2" style="border-top-color:rgba(251,146,60,.22);"></div>
+              <!-- 静态彩带 -->
+              <div class="static-cfx" style="left:30px;top:150px;background:#FDE68A;transform:rotate(30deg);z-index:6;"></div>
+              <div class="static-cfx" style="left:70px;top:100px;background:#FCA5A5;transform:rotate(-45deg);width:7px;height:11px;z-index:6;"></div>
+              <div class="static-cfx" style="right:36px;top:130px;background:#A7F3D0;transform:rotate(55deg);width:8px;height:12px;z-index:6;"></div>
+              <div class="static-cfx" style="right:80px;top:190px;background:#FDE68A;transform:rotate(-25deg);width:6px;height:10px;z-index:6;"></div>
+              <div class="static-cfx" style="left:50px;top:260px;background:#BAE6FD;transform:rotate(70deg);width:7px;height:11px;z-index:6;"></div>
+              <div class="static-cfx" style="right:52px;top:340px;background:#FCA5A5;transform:rotate(15deg);z-index:6;"></div>
+              <div class="detail-content">
+                <div class="dt-head"><div class="dt-back">‹</div><div class="dt-share">︰</div></div>
+                <div class="cele-detail">
+                  <div class="cd-badge">🎂 2026年9月3日 · 周四</div>
+                  <div class="cd-big">妈妈的生日<br>就是今天</div>
+                  <div class="cd-zero-row"><div class="cd-zero">59</div></div>
+                  <div class="dt-semi" style="color:#FDBA74;margin-top:12px;">第 59 个生日 · 1958年9月3日</div>
+                  <div class="cd-wish">「愿你被岁月温柔以待，<br>健康长乐，笑口常开。」</div>
+                  <div class="cd-share" style="position:relative;">🎉 把祝福说出口<div class="callout" style="top:-32px;right:-14px;">4</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-caption">C · 当天庆祝态（打开即彩带）</div>
+      </div>
+
+      <!-- 标注 -->
+      <div class="annot">
+        <div class="annot-item">
+          <div class="annot-num">1</div>
+          <div><h4>翻牌数字 <span class="tag tag-new">核心改造</span></h4><p>天数从纯文本变成翻牌卡片（倒数日·Days Matter 的招牌隐喻）：每位数字一张牌，中线压痕、顶部高光。临近 3 天内数字每日翻转一次；当天则翻成 0 并放大。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">2</div>
+          <div><h4>年度进度环</h4><p>每年循环的纪念日，用一枚渐变进度环展示「这一轮周期走到了哪」——86% 意味着快到了。等待不再是一根数不清的直线，而是一圈看得见头尾的环。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">3</div>
+          <div><h4>里程碑轨道 <span class="tag tag-new">新增概念</span></h4><p>100 天 / 365 天 / 520 天 / 1000 天 / 周年，已达成打勾，下一个高亮脉冲并显示倒计。长途倒数从此处处有驿站，每过一个里程碑都是一次小庆祝（可配推送）。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">4</div>
+          <div><h4>当天庆祝态 + 祝福出口</h4><p>当天打开详情页：满屏彩带、「就是今天」大字、岁数/周年徽章、一句祝福语。底部主按钮是「把祝福说出口」——一键生成精美分享卡（含天数与备注），发微信就是现成的祝福消息。仪式感需要一个出口。</p></div>
+        </div>
+        <div class="annot-item">
+          <div class="annot-num">5</div>
+          <div><h4>祝福语由 HoloAI 生成 <span class="tag tag-ai">差异化</span></h4><p>这是 Holo 与倒数日工具的本质区别：我们有一个懂用户生活的 AI。祝福语、分享卡文案、当天的推送文案，都可以基于记忆档案生成——「今天妈妈 59 岁了，去年你们一起去了趟西湖」。工具给数字，Holo 给人话。</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== D. 小组件 ==================== -->
+  <section class="sec" id="sec-widget">
+    <div class="sec-kicker">④ WIDGETS · 小组件</div>
+    <div class="sec-title">桌面与锁屏：<span class="em">出镜率最高</span>的纪念日形态</div>
+    <p class="sec-desc">
+      小组件是纪念日最高频的触点——用户一天解锁手机几十次，等于免费看几十眼倒数。
+      在现有 S/M/L 三尺寸基础上重设计视觉，并补上锁屏配件与「当天变脸」两个缺口。
+    </p>
+
+    <div class="stage" style="gap:40px;">
+      <!-- 桌面墙纸 -->
+      <div>
+        <div class="wallpaper">
+          <div class="wp-time">
+            <div class="wt-date">9月3日 周四</div>
+            <div class="wt-clock">9:41</div>
+          </div>
+          <div class="wp-widgets">
+            <div class="wgt w-s"><div class="w-s-anniv" style="position:relative;">
+              <div class="callout" style="top:-10px;left:-10px;">1</div>
+              <div class="ws-top"><div class="ws-emoji">❤️</div>纪念日</div>
+              <div class="ws-num"><b>51</b><span>天</span></div>
+              <div class="ws-bot"><span>和小林的纪念日</span><span>10.24</span></div>
+            </div></div>
+            <div class="wgt w-m"><div class="w-m-wrap" style="position:relative;">
+              <div class="callout" style="top:-10px;left:-10px;">2</div>
+              <div class="wm-main">
+                <div class="wmm-top"><div class="wmm-emoji">❤️</div>下一个</div>
+                <div class="wmm-name">和小林的纪念日 · 第3个周年</div>
+                <div class="wmm-num"><b>51</b><span>天后</span></div>
+                <div class="wmm-date">10月24日 周六 · 本周期 86%</div>
+              </div>
+              <div class="wm-divider"></div>
+              <div class="wm-side">
+                <div class="wm-next">
+                  <div class="wn-emoji" style="background:rgba(96,165,250,.16);">⏳</div>
+                  <div><div class="wn-name">发工资</div><div class="wn-sub">9月10日</div></div>
+                  <div class="wn-days" style="color:#3B82F6;">7</div>
+                </div>
+                <div class="wm-next">
+                  <div class="wn-emoji" style="background:rgba(236,72,153,.13);">💍</div>
+                  <div><div class="wn-name">领证纪念日</div><div class="wn-sub">12月12日</div></div>
+                  <div class="wn-days" style="color:#DB2777;">100</div>
+                </div>
+              </div>
+            </div></div>
+            <div class="wgt w-l"><div class="w-l-wrap" style="position:relative;">
+              <div class="callout" style="top:-10px;left:-10px;">3</div>
+              <div class="wl-head">
+                <div class="wlh-title"><div class="mini-emoji">🗓️</div>纪念日</div>
+                <div class="wlh-edit">编辑</div>
+              </div>
+              <div class="wl-row first">
+                <div class="wl-date"><b>10.24</b><span>周六</span></div>
+                <div class="wl-mid"><div class="wl-name">❤️ 和小林的纪念日</div><div class="wl-sub">第 3 个周年 · 周期 86%</div></div>
+                <div class="wl-days">51<span>天</span></div>
+              </div>
+              <div class="wl-row" style="padding:10px 6px;">
+                <div class="wl-track" style="opacity:.25;"></div>
+                <div class="wl-date"><b style="color:#8A8175;">09.10</b><span>周四</span></div>
+                <div class="wl-mid"><div class="wl-name">⏳ 发工资</div><div class="wl-sub">提醒已开</div></div>
+                <div class="wl-days" style="color:#3B82F6;">7<span style="color:#B3AA9C;">天</span></div>
+              </div>
+              <div class="wl-row" style="padding:10px 6px;">
+                <div class="wl-track" style="opacity:.15;"></div>
+                <div class="wl-date"><b style="color:#8A8175;">11.04</b><span>周三</span></div>
+                <div class="wl-mid"><div class="wl-name">🎂 爸爸的生日 📌</div><div class="wl-sub">第 58 个生日</div></div>
+                <div class="wl-days" style="color:#F46D38;">62<span style="color:#B3AA9C;">天</span></div>
+              </div>
+              <div class="wl-row" style="padding:10px 6px;">
+                <div class="wl-track" style="opacity:.08;"></div>
+                <div class="wl-date"><b style="color:#8A8175;">12.12</b><span>周六</span></div>
+                <div class="wl-mid"><div class="wl-name">💍 领证纪念日</div><div class="wl-sub">第 5 个周年</div></div>
+                <div class="wl-days" style="color:#DB2777;">100<span style="color:#B3AA9C;">天</span></div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+        <div class="phone-caption">主屏幕 · 小 / 中 / 大三尺寸重设计</div>
+      </div>
+
+      <!-- 锁屏 -->
+      <div>
+        <div class="lockscreen">
+          <div class="ls-time">
+            <div class="lst-date">9月3日 周四</div>
+            <div class="lst-clock">21:47</div>
+          </div>
+          <div class="ls-widgets">
+            <div class="ls-circ" style="position:relative;">
+              <div class="callout" style="top:-12px;left:-12px;">4</div>
+              <svg width="92" height="92">
+                <circle cx="46" cy="46" r="42" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="5"/>
+                <circle cx="46" cy="46" r="42" fill="none" stroke="#F9A8D4" stroke-width="5" stroke-linecap="round" stroke-dasharray="263.9" stroke-dashoffset="36.9"/>
+              </svg>
+              <b>51</b><span>天后</span>
+            </div>
+            <div class="ls-rect" style="position:relative;">
+              <div class="callout" style="top:-12px;right:-12px;">4</div>
+              <div class="lsr-top">❤️ 和小林的纪念日</div>
+              <div class="lsr-sub">还有 51 天 · 10月24日 周六</div>
+            </div>
+          </div>
+          <div class="ls-widgets" style="margin-top:6px;">
+            <div class="ls-circ" style="width:84px;height:84px;">
+              <svg width="84" height="84">
+                <circle cx="42" cy="42" r="38" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="5"/>
+                <circle cx="42" cy="42" r="38" fill="none" stroke="#93C5FD" stroke-width="5" stroke-linecap="round" stroke-dasharray="238.8" stroke-dashoffset="236.4"/>
+              </svg>
+              <b style="font-size:18px;">7</b><span>发工资</span>
+            </div>
+            <div class="ls-rect" style="width:158px;height:60px;border-radius:16px;">
+              <div class="lsr-top" style="font-size:10px;">🐱 糯米到家了</div>
+              <div class="lsr-sub" style="margin-top:3px;">已陪伴 520 天 ✦</div>
+            </div>
+          </div>
+          <div class="ls-bottom">今天也是第 520 天 · 记得抱抱糯米</div>
+          <div class="ls-flash"></div>
+          <div class="ls-cam"></div>
+        </div>
+        <div class="phone-caption">锁屏 · 圆形/矩形配件（全新形态）</div>
+      </div>
+
+      <!-- 当天变脸 + 标注 -->
+      <div>
+        <div class="wgt-compare">
+          <div class="wgt-case">
+            <div class="wc-label"><b>平时</b></div>
+            <div class="wgt w-s"><div class="w-s-anniv">
+              <div class="ws-top"><div class="ws-emoji">🎂</div>生日</div>
+              <div class="ws-num"><b>62</b><span>天</span></div>
+              <div class="ws-bot"><span>爸爸的生日</span><span>11.04</span></div>
+            </div></div>
+          </div>
+          <div class="wgt-case">
+            <div class="wc-label"><b>当天</b> · 自动变脸 🎉</div>
+            <div class="wgt w-s"><div class="w-s-today" style="position:relative;">
+              <div class="static-cfx" style="left:14px;top:44px;background:#FDE68A;transform:rotate(30deg);z-index:3;"></div>
+              <div class="static-cfx" style="right:22px;top:64px;background:#A7F3D0;transform:rotate(-50deg);width:7px;height:11px;z-index:3;"></div>
+              <div class="static-cfx" style="left:34px;top:96px;background:#FCA5A5;transform:rotate(70deg);width:6px;height:10px;z-index:3;"></div>
+              <div class="wst-top">🎂 生日</div>
+              <div class="wst-num"><b>🎉 就是今天</b><span>爸爸的生日 · 送上祝福 ›</span></div>
+              <div class="wst-bot"><span>11月4日</span><span>第 58 个</span></div>
+            </div></div>
+          </div>
+        </div>
+
+        <div class="annot" style="max-width:420px;margin-top:22px;">
+          <div class="annot-item">
+            <div class="annot-num">1</div>
+            <div><h4>小组件 · 单事件大数字</h4><p>主题色渐变整卡，icon + 超大天数 + 名称日期。每种纪念日用自己的主题色，桌面上一眼可辨。展示的是排序最靠前的那一条。</p></div>
+          </div>
+          <div class="annot-item">
+            <div class="annot-num">2</div>
+            <div><h4>中组件 · 主事件 + 预告</h4><p>左侧主事件带周年语义与周期进度，右侧两行「接下来」。比现有版本信息更完整，但层级更清楚。</p></div>
+          </div>
+          <div class="annot-item">
+            <div class="annot-num">3</div>
+            <div><h4>大组件 · 时光轴</h4><p>日期块 + 主题色轨道的时光轴列表，第一行高亮。置顶的「爸爸的生日」带 📌 标。沿用现有快照数据管道，纯视觉重做。</p></div>
+          </div>
+          <div class="annot-item">
+            <div class="annot-num">4</div>
+            <div><h4>锁屏配件 <span class="tag tag-new">全新形态</span></h4><p>圆形配件 = 天数 + 周期进度环，一眼扫过；矩形配件 = 名称 + 天数 + 日期。锁屏是 iOS 出镜率最高的界面，这是纪念日成为「日常陪伴感」的关键一步。</p></div>
+          </div>
+          <div class="annot-item">
+            <div class="annot-num">5</div>
+            <div><h4>当天变脸 <span class="tag tag-new">惊喜时刻</span></h4><p>到期当天，桌面与锁屏组件自动换上庆祝皮肤。用户早上随手解锁，惊喜已经在桌面上等他——不需要打开 App，仪式感自己送上门。</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== E. 分期规划 ==================== -->
+  <section class="sec" id="sec-phase">
+    <div class="sec-kicker">⑤ ROADMAP</div>
+    <div class="sec-title">分期落地：<span class="em">一次把仪式感做完整</span></div>
+    <p class="sec-desc">P0 是一次完整的体验升级，可独立发版；P1 补出镜率；P2 是情感深化。全部为 iOS 客户端改动，无需后端发版。</p>
+
+    <div class="phases">
+      <div class="phase">
+        <h3><span class="ph-chip" style="background:var(--orange);">P0</span>仪式感核心</h3>
+        <ul>
+          <li><b>创建三步向导</b>：场景预设 + 迷你预览卡 + 点亮庆祝（印章/彩带/震动）</li>
+          <li><b>详情页翻牌数字</b>：三态（倒数/累计/当天庆祝）</li>
+          <li><b>年度进度环 + 里程碑轨道</b>（100/365/520/1000/周年）</li>
+          <li><b>列表页 Hero 主卡</b> + 三组分组 + 当天变脸</li>
+          <li><b>分享卡片</b>：详情页一键生成精美分享图</li>
+        </ul>
+        <div class="ph-cost"><b>成本注记：</b>纯客户端。改 4 个现有 View + 新增庆祝组件；数据模型新增字段全部可选，存量数据零迁移风险。</div>
+      </div>
+      <div class="phase">
+        <h3><span class="ph-chip" style="background:#3B82F6;">P1</span>出镜率</h3>
+        <ul>
+          <li><b>小组件三尺寸重设计</b>（沿用现有快照管道）</li>
+          <li><b>锁屏圆形/矩形配件</b>（WidgetKit accessory 家族）</li>
+          <li><b>小组件当天变脸</b>：快照里带「当天」标记即可</li>
+          <li><b>农历日期</b>：公历/农历切换，农历年重复提醒</li>
+          <li><b>里程碑推送</b>：过 100/365/520 天时轻提醒一次</li>
+        </ul>
+        <div class="ph-cost"><b>成本注记：</b>纯客户端。农历用系统日历转换即可，无需自研算法；小组件当天变脸需要调整快照刷新时机（当天 0 点触发一次 reload）。</div>
+      </div>
+      <div class="phase">
+        <h3><span class="ph-chip" style="background:#C084FC;">P2</span>情感深化</h3>
+        <ul>
+          <li><b>照片封面</b>：纪念日可设照片背景（详情页 + Hero 卡 + 小组件）</li>
+          <li><b>主题彩蛋</b>：按事件名触发（生日掉蛋糕、圣诞飘雪）</li>
+          <li><b>AI 祝福语</b>：基于记忆档案生成当天推送与分享卡文案</li>
+          <li><b>单事件钉桌面</b>：可配置小组件，把某一条纪念日固定在桌面</li>
+        </ul>
+        <div class="ph-cost"><b>成本注记：</b>照片封面成本最高（本地存储 + iCloud 资产同步），建议确认价值后再排期；AI 祝福语需后端配合，涉及发版。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== F. 拍板清单 ==================== -->
+  <section class="sec">
+    <div class="sec-kicker">DECISIONS</div>
+    <div class="sec-title">需要你拍板的 5 个点</div>
+    <div class="decisions">
+      <div class="decision">
+        <h4><span class="d-num">1</span>三步向导 vs 单页增强</h4>
+        <p>原型按三步向导设计（更有仪式感），但比现在多两次点击。可以给「效率党」保留快捷路径：列表 + 号长按直接弹出单页速建。</p>
+        <div class="d-rec">推荐：<b>三步向导为准</b>，创建纪念日是低频动作，多两次点击换一次仪式感，值得。</div>
+      </div>
+      <div class="decision">
+        <h4><span class="d-num">2</span>照片封面进不进一期</h4>
+        <p>照片是最强的情感载体，但涉及图片存储 + iCloud 同步，是整个方案里最重的一项。</p>
+        <div class="d-rec">推荐：<b>P0 先用主题色渐变</b>（本原型方案），照片封面放 P2 观察需求热度。</div>
+      </div>
+      <div class="decision">
+        <h4><span class="d-num">3</span>农历是否进 P1</h4>
+        <p>农历生日/传统节日是中国用户刚需，纯客户端可实现，但农历重复的「每年日期换算」有一些边界情况要测（闰月）。</p>
+        <div class="d-rec">推荐：<b>进 P1</b>。这是与倒数日类产品拉齐的基本能力。</div>
+      </div>
+      <div class="decision">
+        <h4><span class="d-num">4</span>里程碑推送的分寸</h4>
+        <p>过 100 天/520 天时推一次「小庆祝」很有惊喜感，但推多了是打扰。</p>
+        <div class="d-rec">推荐：<b>只推 100/365/520/1000/周年</b>五档，且默认只推当天 9:00 一条，可整体关闭。</div>
+      </div>
+      <div class="decision">
+        <h4><span class="d-num">5</span>AI 祝福语何时做</h4>
+        <p>「HoloAI 写祝福」是本方案里最能与倒数日工具拉开差距的一点，但需要后端 prompt 配合发版。</p>
+        <div class="d-rec">推荐：<b>P2 做进「分享卡片」</b>，与照片封面同期；P0 先用固定文案模板占位。</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot-note">
+    Holo · 纪念日模块重设计 v1 · 2026-09-03<br>
+    本稿为交互原型，未动任何工程代码 · 拍板后按分期实施
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   交互脚本：向导状态机 + 日历渲染 + 彩带
+   ============================================================ */
+const scenes = {
+  birthday:{emoji:'🎂',name:'妈妈的生日',color:'#F46D38',grad:'linear-gradient(135deg,#FB923C,#F46D38 55%,#9A3412)',shadow:'rgba(244,109,56,.35)'},
+  anniv:{emoji:'❤️',name:'和小林的纪念日',color:'#EC4899',grad:'linear-gradient(135deg,#F472B6,#EC4899 55%,#BE185D)',shadow:'rgba(236,72,153,.35)'},
+  count:{emoji:'⏳',name:'项目上线',color:'#60A5FA',grad:'linear-gradient(135deg,#93C5FD,#3B82F6 55%,#1D4ED8)',shadow:'rgba(59,130,246,.35)'},
+  mile:{emoji:'🚩',name:'第一次半马',color:'#C084FC',grad:'linear-gradient(135deg,#D8B4FE,#A855F7 55%,#6B21A8)',shadow:'rgba(168,85,247,.35)'}
+};
+let wizStep = 0;
+let curScene = 'birthday';
+
+function bindScenes(){
+  document.querySelectorAll('.scene').forEach(el=>{
+    el.addEventListener('click',()=>{
+      document.querySelectorAll('.scene').forEach(s=>s.classList.remove('on'));
+      el.classList.add('on');
+      curScene = el.dataset.color;
+      applyScene();
+    });
+  });
+}
+function applyScene(){
+  const sc = scenes[curScene];
+  const pv = document.getElementById('pvCard');
+  pv.style.background = sc.grad;
+  pv.style.boxShadow = '0 8px 20px ' + sc.shadow;
+  document.getElementById('pvEmoji').textContent = sc.emoji;
+  const ni = document.getElementById('nameInput');
+  ni.value = sc.name;
+  document.getElementById('pvName').textContent = sc.name;
+  document.getElementById('ccEmoji').textContent = sc.emoji;
+  document.getElementById('ccName').textContent = sc.name;
+}
+document.addEventListener('input',e=>{
+  if(e.target.id==='nameInput'){
+    document.getElementById('pvName').textContent = e.target.value || '给这个日子起个名字';
+    document.getElementById('ccName').textContent = e.target.value || sc2name();
+  }
+});
+function sc2name(){ return scenes[curScene].name; }
+
+function renderCal(){
+  const grid = document.getElementById('calGrid');
+  // 已由 HTML 渲染表头，这里补日期：2026年10月，10/1=周四，9/27(周日)起补位
+  const lead = [27,28,29,30];
+  let html = '';
+  lead.forEach(d=> html += `<div class="d dim">${d}</div>`);
+  for(let d=1; d<=31; d++){
+    const cls = (d===3?'today ':'') + (d===24?'sel':'');
+    html += `<div class="d ${cls}">${d}</div>`;
+  }
+  grid.innerHTML += html;
+  grid.querySelectorAll('.d:not(.dim):not(.wd)').forEach(el=>{
+    el.addEventListener('click',()=>{
+      grid.querySelectorAll('.d').forEach(x=>x.classList.remove('sel'));
+      el.classList.add('sel');
+      document.getElementById('dateMain').textContent = '2026年10月' + el.textContent.trim() + '日';
+    });
+  });
+}
+
+function wizGo(n){
+  wizStep = n;
+  for(let i=0;i<3;i++){
+    document.getElementById('step'+i).style.display = (i===n)?'block':'none';
+    document.getElementById('dot'+i).classList.toggle('on', i<=n);
+  }
+}
+function wizNext(){ if(wizStep<2) wizGo(wizStep+1); }
+function wizBack(){ if(wizStep>0) wizGo(wizStep-1); }
+function wizReset(){
+  document.getElementById('celeScreen').classList.remove('show');
+  wizGo(0);
+}
+
+/* 农历切换（演示用） */
+document.querySelectorAll('#calSeg div').forEach(seg=>{
+  seg.addEventListener('click',()=>{
+    document.querySelectorAll('#calSeg div').forEach(s=>s.classList.remove('on'));
+    seg.classList.add('on');
+    const lunar = seg.textContent.trim()==='农历';
+    document.getElementById('lunarNote').style.display = lunar?'block':'none';
+  });
+});
+/* 提醒 chips 单选（演示用） */
+document.querySelectorAll('.rchip').forEach(ch=>{
+  ch.addEventListener('click',()=>{
+    document.querySelectorAll('.rchip').forEach(c=>c.classList.remove('on'));
+    ch.classList.add('on');
+  });
+});
+/* 每年重复开关（演示用） */
+document.querySelector('.switch').addEventListener('click',function(){
+  this.classList.toggle('off');
+});
+
+/* 彩带 */
+const FX_COLORS = ['#FDE68A','#F9A8D4','#FCA5A5','#A7F3D0','#BAE6FD','#FDBA74','#FFFFFF'];
+function burstConfetti(container){
+  for(let i=0;i<70;i++){
+    const p = document.createElement('div');
+    p.className = 'cfx';
+    const size = 5 + Math.random()*7;
+    p.style.width = size+'px';
+    p.style.height = (size*1.5)+'px';
+    p.style.left = Math.random()*100+'%';
+    p.style.background = FX_COLORS[Math.floor(Math.random()*FX_COLORS.length)];
+    p.style.borderRadius = Math.random()>.6?'50%':'2px';
+    p.style.animation = `cfall ${2.4+Math.random()*2.4}s ${Math.random()*1.2}s cubic-bezier(.3,.4,.6,1) infinite`;
+    container.appendChild(p);
+  }
+}
+function celebrate(){
+  wizGo(2);
+  document.getElementById('step2').style.display='none';
+  const cele = document.getElementById('celeScreen');
+  cele.querySelectorAll('.cfx').forEach(e=>e.remove());
+  cele.classList.add('show');
+  burstConfetti(cele);
+}
+
+bindScenes();
+renderCal();
+</script>
+</body>
+</html>

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>账户详情页改版 · 设计稿</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #E9E6DF;
+    color: #2A2A28;
+    padding: 40px 24px 80px;
+  }
+  .num { font-family: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; }
+
+  header { max-width: 960px; margin: 0 auto 32px; }
+  header h1 { font-size: 24px; font-weight: 700; }
+  header p { margin-top: 8px; font-size: 14px; color: #6B6862; line-height: 1.7; }
+  header p b { color: #2A2A28; }
+
+  /* ============ 手机区 ============ */
+  .phones { display: flex; gap: 36px; justify-content: center; flex-wrap: wrap; }
+  .phone-wrap { width: 390px; }
+  .phone-tag {
+    text-align: center; margin-bottom: 12px; font-size: 14px; font-weight: 600;
+  }
+  .phone-tag .badge {
+    display: inline-block; padding: 5px 14px; border-radius: 999px;
+    background: #2A2A28; color: #fff; font-size: 13px;
+  }
+  .phone-tag.recommended .badge { background: #E8702A; }
+  .phone-tag small { display: block; margin-top: 6px; color: #8A877F; font-weight: 400; font-size: 12px; }
+
+  .phone {
+    width: 390px; height: 844px;
+    background: #F6F4EF;
+    border-radius: 44px;
+    border: 10px solid #17170F;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 60px rgba(0,0,0,.18);
+  }
+
+  /* 状态栏 */
+  .statusbar {
+    height: 54px; flex: none;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 0 30px 6px;
+    font-size: 15px; font-weight: 600;
+  }
+  .statusbar .right { display: flex; align-items: center; gap: 6px; }
+  .battery {
+    width: 25px; height: 12px; border: 1.5px solid #2A2A28; border-radius: 4px;
+    display: flex; align-items: center; padding: 1.5px;
+  }
+  .battery i { display: block; height: 100%; width: 49%; background: #2A2A28; border-radius: 1.5px; }
+
+  /* 导航栏 */
+  .navbar {
+    height: 52px; flex: none;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px;
+  }
+  .nav-circle {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #EDEAE3;
+    display: flex; align-items: center; justify-content: center;
+    color: #2A2A28;
+  }
+  .nav-title { font-size: 17px; font-weight: 700; }
+
+  /* 内容滚动区 */
+  .content { flex: 1; overflow-y: auto; padding: 8px 20px 20px; }
+  .content::-webkit-scrollbar { display: none; }
+  .stack > * + * { margin-top: 16px; }
+
+  .card {
+    background: #FFFFFF;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(60,50,30,.05);
+  }
+
+  /* ============ ① 余额卡（压扁版） ============ */
+  .balance-card { padding: 18px 18px 6px; }
+  .identity-row { display: flex; align-items: center; gap: 10px; }
+  .acct-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #EDEAE3; color: #4A4A46;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700;
+  }
+  .acct-name { font-size: 17px; font-weight: 700; }
+  .pill {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    background: #F1EEE7; color: #8A877F;
+  }
+  .pill.accent { background: #FBE9DA; color: #E8702A; font-weight: 600; }
+
+  .balance-amount {
+    text-align: center;
+    font-size: 36px; font-weight: 800; letter-spacing: .3px;
+    padding: 14px 0 18px;
+  }
+  .balance-amount.neg { color: #E05545; }
+
+  /* ② 对账状态条 */
+  .recon-row {
+    border-top: 1px solid #F0EDE6;
+    margin: 0 -18px; padding: 12px 18px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 13px; color: #8A877F;
+  }
+  .recon-row .cta { color: #E8702A; font-weight: 600; }
+  .recon-row .chev { color: #C9C5BC; font-size: 12px; }
+  .recon-row.ok { color: #58A65C; }
+  .recon-row.broken { color: #E05545; }
+
+  /* ============ ③ 本月收支卡 ============ */
+  .stat-card { padding: 16px 18px; }
+  .card-label { font-size: 12px; color: #8A877F; margin-bottom: 14px; }
+  .stat-cols { display: flex; align-items: stretch; }
+  .stat-col { flex: 1; text-align: center; }
+  .stat-col .k { font-size: 12px; color: #8A877F; margin-bottom: 4px; }
+  .stat-col .v { font-size: 17px; font-weight: 600; }
+  .stat-col .v.in { color: #58A65C; }
+  .stat-col .v.out { color: #E05545; }
+  .vsep { width: 1px; background: #F0EDE6; margin: 2px 0; }
+
+  /* ============ 月度预算卡 ============ */
+  .budget-card { padding: 16px 18px; }
+  .progress-track {
+    height: 12px; border-radius: 6px; background: #EDEAE3; overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .progress-fill { height: 100%; width: 43%; border-radius: 6px; background: #58A65C; }
+  .budget-line {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-size: 15px; font-weight: 600;
+  }
+  .budget-line .pct { color: #58A65C; font-size: 14px; font-weight: 700; }
+  .budget-sub { margin-top: 8px; font-size: 13px; color: #8A877F; text-align: center; }
+
+  /* ============ 分类预算卡 ============ */
+  .cat-card { padding: 16px 18px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .card-head .add { color: #E8702A; font-size: 13px; font-weight: 600; }
+  .cat-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+  .cat-ico {
+    width: 32px; height: 32px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .cat-mid { flex: 1; }
+  .cat-mid .n { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  .mini-track { height: 4px; border-radius: 2px; background: #EDEAE3; }
+  .mini-fill { height: 100%; border-radius: 2px; }
+  .cat-right { text-align: right; }
+  .cat-right .p { font-size: 12px; font-weight: 700; }
+  .cat-right .r { font-size: 10px; color: #8A877F; margin-top: 2px; }
+
+  /* ============ 交易记录 ============ */
+  .tx-section { margin-top: 20px; }
+  .tx-date { font-size: 12px; color: #8A877F; margin: 14px 2px 8px; }
+  .tx-row {
+    background: #fff; border-radius: 14px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(60,50,30,.04);
+  }
+  .tx-ico {
+    width: 36px; height: 36px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .tx-mid { flex: 1; }
+  .tx-mid .n { font-size: 14px; font-weight: 600; }
+  .tx-mid .t { font-size: 11px; color: #B0ADA5; margin-top: 2px; }
+  .tx-amt { font-size: 15px; font-weight: 700; }
+  .tx-amt.in { color: #58A65C; }
+
+  /* Tab bar */
+  .tabbar {
+    flex: none; height: 84px;
+    background: #FBFAF7;
+    border-top: 1px solid #ECE9E2;
+    display: flex; padding: 10px 10px 26px;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; color: #8A877F; position: relative; }
+  .tab .dot { position: absolute; top: -7px; width: 4px; height: 4px; border-radius: 50%; background: #E8702A; }
+  .tab span { font-size: 10.5px; }
+  .tab.active { color: #E8702A; font-weight: 600; }
+  .tab svg { width: 22px; height: 22px; }
+
+  /* 手机下方注释 */
+  .notes { margin-top: 16px; padding: 0 6px; list-style: none; }
+  .notes li { font-size: 12.5px; color: #6B6862; line-height: 1.7; padding-left: 22px; position: relative; margin-bottom: 6px; }
+  .notes li b { color: #2A2A28; }
+  .notes li::before {
+    content: attr(data-n);
+    position: absolute; left: 0; top: 1px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #E8702A; color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ============ 状态条形态区 ============ */
+  .section { max-width: 960px; margin: 56px auto 0; }
+  .section h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .section .sub { font-size: 13px; color: #8A877F; margin-bottom: 20px; }
+  .state-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .state-demo { background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 2px 10px rgba(60,50,30,.05); }
+  .state-demo .when { font-size: 12px; color: #8A877F; margin-bottom: 12px; }
+  .state-demo .when b { color: #2A2A28; }
+  .recon-sample {
+    background: #F6F4EF; border-radius: 12px;
+    padding: 12px 14px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 13px;
+  }
+  .recon-sample.gray { color: #8A877F; }
+  .recon-sample.gray .cta { color: #E8702A; font-weight: 600; }
+  .recon-sample.ok { color: #58A65C; }
+  .recon-sample.broken { color: #E05545; }
+  .state-demo p { margin-top: 10px; font-size: 12px; color: #6B6862; line-height: 1.6; }
+
+  /* ============ 新旧对比 ============ */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .compare .col { border-radius: 16px; padding: 20px; font-size: 13.5px; line-height: 2.1; }
+  .compare .old { background: #EFECE5; color: #8A877F; }
+  .compare .new { background: #fff; box-shadow: 0 2px 10px rgba(60,50,30,.05); }
+  .compare h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .compare .old h3 { color: #6B6862; }
+  .compare .new h3 { color: #E8702A; }
+  .compare .hl { background: #FBE9DA; color: #C75A1A; border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+  .compare .dim { text-decoration: line-through; opacity: .55; }
+  .compare .note { font-size: 12px; color: #8A877F; line-height: 1.6; margin-top: 10px; }
+
+  @media (max-width: 900px) { .phones { gap: 24px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>账户详情页 · 改版设计稿</h1>
+  <p>改三件事：<b>① 头像大卡压扁</b>（去掉重复的「现金」大标题，五层竖排改三行）；<b>② 对账提示改成卡底状态条</b>（说教句改成邀请句，可点）；<b>③ 「本月收支」提前</b>到预算之前（原来是「本期统计」，被压在第三屏）。预算、交易记录样式不动，只调顺序。</p>
+</header>
+
+<!-- ================= 两台手机 ================= -->
+<div class="phones">
+
+  <!-- ========== 方案 A ========== -->
+  <div class="phone-wrap">
+    <div class="phone-tag recommended">
+      <span class="badge">方案 A（推荐）</span>
+      <small>对账文案：中性事实 + 动作指引</small>
+    </div>
+    <div class="phone">
+      <div class="statusbar">
+        <span>20:55 ➤</span>
+        <span class="right">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#2A2A28"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+          <svg width="17" height="12" viewBox="0 0 17 12" fill="#2A2A28"><path d="M8.5 12 L11.2 8.6 C10.5 8 9.5 7.6 8.5 7.6 C7.5 7.6 6.5 8 5.8 8.6 Z"/><path d="M8.5 4.6 C10.4 4.6 12.1 5.3 13.4 6.5 L15.2 4.3 C13.4 2.7 11 1.7 8.5 1.7 C6 1.7 3.6 2.7 1.8 4.3 L3.6 6.5 C4.9 5.3 6.6 4.6 8.5 4.6 Z" opacity=".95"/></svg>
+          <span class="battery"><i></i></span>
+        </span>
+      </div>
+      <div class="navbar">
+        <div class="nav-circle"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2A2A28" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 L5 8 L10 13"/></svg></div>
+        <div class="nav-title">现金</div>
+        <div class="nav-circle"><svg width="16" height="16" viewBox="0 0 16 16" fill="#2A2A28"><circle cx="3" cy="8" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="13" cy="8" r="1.6"/></svg></div>
+      </div>
+
+      <div class="content">
+        <div class="stack">
+
+          <!-- ① 余额卡 -->
+          <div class="card balance-card">
+            <div class="identity-row">
+              <div class="acct-icon">$</div>
+              <div class="acct-name">现金</div>
+              <span class="pill">现金账户</span>
+              <span class="pill accent">默认账户</span>
+            </div>
+            <div class="balance-amount num">¥64,941.82</div>
+            <!-- ② 对账状态条 -->
+            <div class="recon-row">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8A877F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 L10 3.5 L12.8 3.2 L13.1 6 L15 8 L13.1 10 L12.8 12.8 L10 12.5 L8 14.5 L6 12.5 L3.2 12.8 L2.9 10 L1 8 L2.9 6 L3.2 3.2 L6 3.5 Z"/><path d="M5.6 8 L7.3 9.7 L10.4 6.4"/></svg>
+              <span>尚未对账 · <span class="cta">点此核对余额</span></span>
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <!-- ③ 本月收支（提前） -->
+          <div class="card stat-card">
+            <div class="card-label">本月收支</div>
+            <div class="stat-cols">
+              <div class="stat-col">
+                <div class="k">收入</div>
+                <div class="v in num">¥3,200.00</div>
+              </div>
+              <div class="vsep"></div>
+              <div class="stat-col">
+                <div class="k">支出</div>
+                <div class="v out num">¥8,750.33</div>
+              </div>
+              <div class="vsep"></div>
+              <div class="stat-col">
+                <div class="k">净变动</div>
+                <div class="v out num">-¥5,550.33</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 月度预算 -->
+          <div class="card budget-card">
+            <div class="card-label">月度预算</div>
+            <div class="progress-track"><div class="progress-fill"></div></div>
+            <div class="budget-line num">
+              <span>¥8,750.33 / ¥20,000.00</span>
+              <span class="pct num">43%</span>
+            </div>
+            <div class="budget-sub">剩余 ¥11,249.67 · 25 天</div>
+          </div>
+
+          <!-- 分类预算 -->
+          <div class="card cat-card">
+            <div class="card-head">
+              <div class="card-label" style="margin:0">分类预算</div>
+              <span class="add">＋ 添加</span>
+            </div>
+            <div class="cat-row">
+              <div class="cat-ico" style="background:#FBE9DA">🍜</div>
+              <div class="cat-mid">
+                <div class="n">餐饮</div>
+                <div class="mini-track"><div class="mini-fill" style="width:62%;background:#E8702A"></div></div>
+              </div>
+              <div class="cat-right">
+                <div class="p num" style="color:#E8702A">62%</div>
+                <div class="r num">剩余 ¥1,890.20</div>
+              </div>
+            </div>
+            <div class="cat-row">
+              <div class="cat-ico" style="background:#E3EEF7">🚇</div>
+              <div class="cat-mid">
+                <div class="n">交通</div>
+                <div class="mini-track"><div class="mini-fill" style="width:35%;background:#58A65C"></div></div>
+              </div>
+              <div class="cat-right">
+                <div class="p num" style="color:#58A65C">35%</div>
+                <div class="r num">剩余 ¥650.00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 交易记录 -->
+          <div class="tx-section">
+            <div class="card-label">交易记录</div>
+            <div class="tx-date">9月5日 星期六</div>
+            <div class="tx-row">
+              <div class="tx-ico" style="background:#FBE9DA">🧋</div>
+              <div class="tx-mid"><div class="n">奶茶</div><div class="t">14:20</div></div>
+              <div class="tx-amt num">-¥21.00</div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-ico" style="background:#EFE7DA">🍔</div>
+              <div class="tx-mid"><div class="n">午餐</div><div class="t">12:05</div></div>
+              <div class="tx-amt num">-¥32.50</div>
+            </div>
+            <div class="tx-date">9月4日 星期五</div>
+            <div class="tx-row">
+              <div class="tx-ico" style="background:#E7F0E4">💰</div>
+              <div class="tx-mid"><div class="n">收款</div><div class="t">18:40</div></div>
+              <div class="tx-amt in num">+¥1,200.00</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><div class="dot"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 9.5 H21.5"/><path d="M6 15 H10"/></svg>
+          <span>账户</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5 H15 M9 12 H15 M9 15.5 H12.5"/></svg>
+          <span>账本</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 A9 9 0 1 1 3 12 L12 12 Z"/><path d="M15 3.5 A9 9 0 0 1 20.5 9 L15 9 Z"/></svg>
+          <span>统计</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 C4 6.5 6 5 8.5 5 H17 M17 5 L14.5 2.8 M17 5 L14.5 7.2"/><path d="M20 15 C20 17.5 18 19 15.5 19 H7 M7 19 L9.5 21.2 M7 19 L9.5 16.8"/></svg>
+          <span>固定支出</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8 V5.2 M12 18.8 V21.2 M2.8 12 H5.2 M18.8 12 H21.2 M5.5 5.5 L7.2 7.2 M16.8 16.8 L18.5 18.5 M18.5 5.5 L16.8 7.2 M7.2 16.8 L5.5 18.5"/></svg>
+          <span>设置</span>
+        </div>
+      </div>
+    </div>
+
+    <ul class="notes">
+      <li data-n="1"><b>头像大卡压扁</b>：去掉卡内大标题「现金」（和导航栏重复），图标 64→36pt 和名字同排，类型标签改成淡灰小字「现金账户」。整卡高度约砍半。</li>
+      <li data-n="2"><b>对账提示改状态条</b>：挪到卡片底部、分隔线下，从「说教」改成「邀请」，橙色动作词示意可点，整行仍可点击进对账。</li>
+      <li data-n="3"><b>本月收支提前</b>：原「本期统计」改名并从第三屏提到预算前面。</li>
+      <li data-n="4">月度预算、分类预算、交易记录样式不动，仅顺序调整。</li>
+    </ul>
+  </div>
+
+  <!-- ========== 方案 B ========== -->
+  <div class="phone-wrap">
+    <div class="phone-tag">
+      <span class="badge">方案 B</span>
+      <small>对账文案：口语化提问</small>
+    </div>
+    <div class="phone">
+      <div class="statusbar">
+        <span>20:55 ➤</span>
+        <span class="right">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#2A2A28"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+          <svg width="17" height="12" viewBox="0 0 17 12" fill="#2A2A28"><path d="M8.5 12 L11.2 8.6 C10.5 8 9.5 7.6 8.5 7.6 C7.5 7.6 6.5 8 5.8 8.6 Z"/><path d="M8.5 4.6 C10.4 4.6 12.1 5.3 13.4 6.5 L15.2 4.3 C13.4 2.7 11 1.7 8.5 1.7 C6 1.7 3.6 2.7 1.8 4.3 L3.6 6.5 C4.9 5.3 6.6 4.6 8.5 4.6 Z" opacity=".95"/></svg>
+          <span class="battery"><i></i></span>
+        </span>
+      </div>
+      <div class="navbar">
+        <div class="nav-circle"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2A2A28" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 L5 8 L10 13"/></svg></div>
+        <div class="nav-title">现金</div>
+        <div class="nav-circle"><svg width="16" height="16" viewBox="0 0 16 16" fill="#2A2A28"><circle cx="3" cy="8" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="13" cy="8" r="1.6"/></svg></div>
+      </div>
+
+      <div class="content">
+        <div class="stack">
+
+          <!-- 余额卡 -->
+          <div class="card balance-card">
+            <div class="identity-row">
+              <div class="acct-icon">$</div>
+              <div class="acct-name">现金</div>
+              <span class="pill">现金账户</span>
+              <span class="pill accent">默认账户</span>
+            </div>
+            <div class="balance-amount num">¥64,941.82</div>
+            <!-- 对账状态条：方案 B 文案 -->
+            <div class="recon-row">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8A877F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 L10 3.5 L12.8 3.2 L13.1 6 L15 8 L13.1 10 L12.8 12.8 L10 12.5 L8 14.5 L6 12.5 L3.2 12.8 L2.9 10 L1 8 L2.9 6 L3.2 3.2 L6 3.5 Z"/><path d="M5.6 8 L7.3 9.7 L10.4 6.4"/></svg>
+              <span>余额和银行一致吗？<span class="cta">核对一下</span></span>
+              <span class="chev">→</span>
+            </div>
+          </div>
+
+          <!-- 本月收支 -->
+          <div class="card stat-card">
+            <div class="card-label">本月收支</div>
+            <div class="stat-cols">
+              <div class="stat-col">
+                <div class="k">收入</div>
+                <div class="v in num">¥3,200.00</div>
+              </div>
+              <div class="vsep"></div>
+              <div class="stat-col">
+                <div class="k">支出</div>
+                <div class="v out num">¥8,750.33</div>
+              </div>
+              <div class="vsep"></div>
+              <div class="stat-col">
+                <div class="k">净变动</div>
+                <div class="v out num">-¥5,550.33</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 月度预算 -->
+          <div class="card budget-card">
+            <div class="card-label">月度预算</div>
+            <div class="progress-track"><div class="progress-fill"></div></div>
+            <div class="budget-line num">
+              <span>¥8,750.33 / ¥20,000.00</span>
+              <span class="pct num">43%</span>
+            </div>
+            <div class="budget-sub">剩余 ¥11,249.67 · 25 天</div>
+          </div>
+
+          <!-- 分类预算 -->
+          <div class="card cat-card">
+            <div class="card-head">
+              <div class="card-label" style="margin:0">分类预算</div>
+              <span class="add">＋ 添加</span>
+            </div>
+            <div class="cat-row">
+              <div class="cat-ico" style="background:#FBE9DA">🍜</div>
+              <div class="cat-mid">
+                <div class="n">餐饮</div>
+                <div class="mini-track"><div class="mini-fill" style="width:62%;background:#E8702A"></div></div>
+              </div>
+              <div class="cat-right">
+                <div class="p num" style="color:#E8702A">62%</div>
+                <div class="r num">剩余 ¥1,890.20</div>
+              </div>
+            </div>
+            <div class="cat-row">
+              <div class="cat-ico" style="background:#E3EEF7">🚇</div>
+              <div class="cat-mid">
+                <div class="n">交通</div>
+                <div class="mini-track"><div class="mini-fill" style="width:35%;background:#58A65C"></div></div>
+              </div>
+              <div class="cat-right">
+                <div class="p num" style="color:#58A65C">35%</div>
+                <div class="r num">剩余 ¥650.00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 交易记录 -->
+          <div class="tx-section">
+            <div class="card-label">交易记录</div>
+            <div class="tx-date">9月5日 星期六</div>
+            <div class="tx-row">
+              <div class="tx-ico" style="background:#FBE9DA">🧋</div>
+              <div class="tx-mid"><div class="n">奶茶</div><div class="t">14:20</div></div>
+              <div class="tx-amt num">-¥21.00</div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-ico" style="background:#EFE7DA">🍔</div>
+              <div class="tx-mid"><div class="n">午餐</div><div class="t">12:05</div></div>
+              <div class="tx-amt num">-¥32.50</div>
+            </div>
+            <div class="tx-date">9月4日 星期五</div>
+            <div class="tx-row">
+              <div class="tx-ico" style="background:#E7F0E4">💰</div>
+              <div class="tx-mid"><div class="n">收款</div><div class="t">18:40</div></div>
+              <div class="tx-amt in num">+¥1,200.00</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><div class="dot"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 9.5 H21.5"/><path d="M6 15 H10"/></svg>
+          <span>账户</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5 H15 M9 12 H15 M9 15.5 H12.5"/></svg>
+          <span>账本</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 A9 9 0 1 1 3 12 L12 12 Z"/><path d="M15 3.5 A9 9 0 0 1 20.5 9 L15 9 Z"/></svg>
+          <span>统计</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 C4 6.5 6 5 8.5 5 H17 M17 5 L14.5 2.8 M17 5 L14.5 7.2"/><path d="M20 15 C20 17.5 18 19 15.5 19 H7 M7 19 L9.5 21.2 M7 19 L9.5 16.8"/></svg>
+          <span>固定支出</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8 V5.2 M12 18.8 V21.2 M2.8 12 H5.2 M18.8 12 H21.2 M5.5 5.5 L7.2 7.2 M16.8 16.8 L18.5 18.5 M18.5 5.5 L16.8 7.2 M7.2 16.8 L5.5 18.5"/></svg>
+          <span>设置</span>
+        </div>
+      </div>
+    </div>
+
+    <ul class="notes">
+      <li data-n="1">与方案 A 完全一致，仅对账状态条文案不同：「余额和银行一致吗？核对一下」——更像聊天，但少了「对账」这个词的功能感。</li>
+      <li data-n="2">两案共同点：提示不再是常驻「建议」，已对平后变成绿色正反馈（见下方形态区）。</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ================= 对账状态条 · 全部形态 ================= -->
+<div class="section">
+  <h2>对账状态条 · 四种形态</h2>
+  <p class="sub">原来只有「从未对账」一种文案，改成按状态分级：日常不打扰，真出问题才警示。</p>
+  <div class="state-grid">
+    <div class="state-demo">
+      <div class="when"><b>从未对账</b>（方案 A 文案）</div>
+      <div class="recon-sample gray">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8A877F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 L10 3.5 L12.8 3.2 L13.1 6 L15 8 L13.1 10 L12.8 12.8 L10 12.5 L8 14.5 L6 12.5 L3.2 12.8 L2.9 10 L1 8 L2.9 6 L3.2 3.2 L6 3.5 Z"/><path d="M5.6 8 L7.3 9.7 L10.4 6.4"/></svg>
+        <span>尚未对账 · <span class="cta">点此核对余额</span> ›</span>
+      </div>
+      <p>灰色、一句话，不再解释原因不说教。整行可点，进对账弹层。</p>
+    </div>
+    <div class="state-demo">
+      <div class="when"><b>从未对账</b>（方案 B 文案）</div>
+      <div class="recon-sample gray">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8A877F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 L10 3.5 L12.8 3.2 L13.1 6 L15 8 L13.1 10 L12.8 12.8 L10 12.5 L8 14.5 L6 12.5 L3.2 12.8 L2.9 10 L1 8 L2.9 6 L3.2 3.2 L6 3.5 Z"/><path d="M5.6 8 L7.3 9.7 L10.4 6.4"/></svg>
+        <span>余额和银行一致吗？<span class="cta">核对一下</span> →</span>
+      </div>
+      <p>口语化，亲和但少了功能术语，用户可能不知道「核对」背后是什么。</p>
+    </div>
+    <div class="state-demo">
+      <div class="when"><b>已对平</b>（保留现有逻辑，仅换位置）</div>
+      <div class="recon-sample ok">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="#58A65C"><path d="M8 1.5 L10 3.5 L12.8 3.2 L13.1 6 L15 8 L13.1 10 L12.8 12.8 L10 12.5 L8 14.5 L6 12.5 L3.2 12.8 L2.9 10 L1 8 L2.9 6 L3.2 3.2 L6 3.5 Z"/><path d="M5.6 8 L7.3 9.7 L10.4 6.4" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+        <span>已对平 · 3 天前 · 此后 5 笔</span>
+      </div>
+      <p>绿色正反馈，告诉用户「账是准的」，给安心感。样式沿用现有。</p>
+    </div>
+    <div class="state-demo">
+      <div class="when"><b>账目基准变动</b>（真异常，保留警示）</div>
+      <div class="recon-sample broken">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="#E05545"><path d="M8 1.5 C8.6 1.5 15 13 14.4 13.5 C13.8 14 2.2 14 1.6 13.5 C1 13 7.4 1.5 8 1.5 Z"/><path d="M8 6 V9.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".9" fill="#fff"/></svg>
+        <span>账目有变动，建议重新对账</span>
+      </div>
+      <p>锚点前的账被改/删过才会出现，是真实异常，红色警示保留且唯一显眼的警告。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 新旧结构对比 ================= -->
+<div class="section">
+  <h2>页面结构 · 新旧对比</h2>
+  <p class="sub">原则：先回答「这卡有多少钱、这个月用得怎么样」，再看「管得怎么样」。</p>
+  <div class="compare">
+    <div class="col old">
+      <h3>现在的顺序</h3>
+      <div><span class="dim">① 头像大卡（图标64 + 现金 + 余额 + 说教提示 + 标签，占半屏）</span></div>
+      <div>② 月度预算</div>
+      <div>③ 分类预算</div>
+      <div><span class="dim">④ 本期统计（被压到第三屏）</span></div>
+      <div>⑤ 交易记录</div>
+      <p class="note">问题：「现金」在页内出现 3 次；管理工具（预算，Plus 权益）排在核心回顾信息前面。</p>
+    </div>
+    <div class="col new">
+      <h3>改版后的顺序</h3>
+      <div><span class="hl">① 余额卡：身份行 + 大字余额 + 对账状态条</span></div>
+      <div><span class="hl">② 本月收支（原「本期统计」，提前）</span></div>
+      <div>③ 月度预算</div>
+      <div>④ 分类预算</div>
+      <div>⑤ 交易记录</div>
+      <p class="note">信用卡账户：账单信息卡（账单日/还款日/可用额度）紧跟余额卡，是信用卡用户最关心的，位置优先级同样高于预算。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
