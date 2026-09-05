@@ -73,6 +73,19 @@ final class HoloEntitlementState: ObservableObject {
         isRefreshing = value
     }
 
+    #if DEBUG
+    /// App Store 截图摆拍专用：本地直接按 Plus 展示，不落盘（截图模式不与服务端同步权益）。
+    func applyScreenshotPlusOverride() {
+        tier = .plus
+        isPlusActive = true
+        productId = nil
+        expiresAt = nil
+        quotas = HoloEntitlementState.acceptanceQuotas(for: .plus)
+        source = .backend
+        lastErrorMessage = nil
+    }
+    #endif
+
     func setError(_ message: String?) {
         lastErrorMessage = message
     }

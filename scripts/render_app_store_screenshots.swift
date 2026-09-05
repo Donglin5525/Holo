@@ -95,10 +95,10 @@ private let frames: [MarketingFrame] = {
                 subtitle: "余额、收支与分类变化，用一张图看懂"
             ),
             MarketingFrame(
-                input: "05-memory-calendar.png",
+                input: "05-memory-gallery-kunming.png",
                 output: "05-life-replay.png",
-                title: ["每一天，都能回到", "发生的现场"],
-                subtitle: "消费、任务、习惯和想法，按时间重新串联"
+                title: ["把小确幸，", "留在一条记忆里"],
+                subtitle: "咖啡、好看的云和好天气，三张照片一起记住"
             ),
             MarketingFrame(
                 input: "06-memory-insight.png",

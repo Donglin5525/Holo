@@ -200,4 +200,143 @@ final class HoloXhsShotUITests: XCTestCase {
             try saveShot("milestone-report-detail")
         }
     }
+
+    // MARK: - 忙碌一周剧本（第四篇笔记）
+
+    private func launchBusyWeek(route: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "busy-week"
+        app.launch()
+        return app
+    }
+
+    private func drag(_ app: XCUIApplication, fromDy: CGFloat, toDy: CGFloat) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: fromDy))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: toDy))
+        start.press(forDuration: 0.08, thenDragTo: end)
+    }
+
+    /// 01 一句话录入 / 02 三件事结果卡 / 05 深度分析：同一次启动的对话页取景。
+    /// 对话锚定在最新消息：底部锚点是三张结果卡的完整特写（02）；
+    /// 小幅回看让用户原话入画（01，大幅拖拽会触发消息级分页锚定，要用小步）；
+    /// 继续回看是周五晚的深度分析（05）。
+    func testShotBusyWeek01Chat() throws {
+        let app = launchBusyWeek(route: "ai-actions")
+        sleep(15)
+        try saveShot("busy4-02-created-records")
+
+        // 小步回看：完整原话 + 结果卡上沿（多拍两个候选防滚动落点漂移）
+        drag(app, fromDy: 0.55, toDy: 0.66)
+        sleep(2)
+        try saveShot("busy4-01-one-sentence-a")
+        drag(app, fromDy: 0.55, toDy: 0.64)
+        sleep(2)
+        try saveShot("busy4-01-one-sentence-b")
+
+        // 大幅回看：深度分析的问题与综合分析卡
+        drag(app, fromDy: 0.35, toDy: 0.68)
+        sleep(2)
+        try saveShot("busy4-05-chat-question")
+
+        // 点进「点击查看详细分析」，拍正式的分析结果详情页
+        let button = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '查看详细分析'")
+        ).firstMatch
+        let text = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS '查看详细分析'")
+        ).firstMatch
+        if button.waitForExistence(timeout: 5) {
+            button.tap()
+        } else {
+            XCTAssertTrue(text.waitForExistence(timeout: 8), "查看详细分析入口未出现")
+            text.tap()
+        }
+        sleep(3)
+        try saveShot("busy4-05-deep-analysis")
+
+        // 详情页内向上滚一屏，让最后一条事实完整入画
+        drag(app, fromDy: 0.72, toDy: 0.30)
+        sleep(2)
+        try saveShot("busy4-05-deep-analysis-scrolled")
+    }
+
+    /// 03 今日看板：当日支出、一两件待办、今晚散步状态。
+    /// 「接入系统日历」引导条是真实产品元素，保留入画；
+    /// 不要尝试坐标点按关闭——布局未稳定时会误触习惯打卡行。
+    func testShotBusyWeek03Today() throws {
+        let app = launchBusyWeek(route: "daily-kanban")
+        let title = app.staticTexts["今日看板"]
+        XCTAssertTrue(title.waitForExistence(timeout: 45), "今日看板未出现")
+        sleep(6)
+        try saveShot("busy4-03-today-kanban")
+    }
+
+    /// 04 记忆长廊日回放：打开即落在今天，串起午饭、访谈待办、想法与散步。
+    func testShotBusyWeek04MemoryDay() throws {
+        let app = launchBusyWeek(route: "memory-calendar")
+        sleep(12)
+        try saveShot("busy4-04-memory-day")
+    }
+
+    /// 06 待确认观察：memory-insight 深链直落洞察 Tab，进「想和你确认的」逐条确认队列。
+    /// 注意两个 Tab 都常驻视图树，必须用 isHittable 确认在可见 Tab 上再点。
+    func testShotBusyWeek06Confirm() throws {
+        let app = launchBusyWeek(route: "memory-insight")
+        sleep(12)
+        let group = app.staticTexts["想和你确认的"]
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "想和你确认的分组未出现")
+        XCTAssertTrue(group.isHittable, "洞察 Tab 未落地，分组不可见")
+        group.tap()
+        sleep(3)
+        try saveShot("busy4-06-confirm-queue")
+    }
+
+    /// 07 备选：周回放卡片（折叠封面 + 展开洞察）。
+    func testShotBusyWeek07WeeklyReplay() throws {
+        let app = launchBusyWeek(route: "period-replay-weekly")
+        sleep(16)
+        try saveShot("busy4-07-replay-collapsed")
+
+        let expand = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '展开' AND label CONTAINS '洞察'")
+        ).firstMatch
+        if expand.waitForExistence(timeout: 15) {
+            expand.tap()
+            sleep(4)
+            try saveShot("busy4-07-replay-expanded")
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.18))
+            start.press(forDuration: 0.08, thenDragTo: end)
+            sleep(2)
+            try saveShot("busy4-07-replay-expanded-2")
+        }
+    }
+
+    /// 探针，长按主屏空白进入编辑模式，截图并打印元素树（用于小组件自动化）
+    func testProbeSpringboardJiggle() throws {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        sleep(3)
+
+        let blank = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+        blank.press(forDuration: 1.6)
+        sleep(3)
+
+        try FileManager.default.createDirectory(
+            atPath: "/tmp/holo_xhs_shots", withIntermediateDirectories: true
+        )
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try png.write(to: URL(filePath: "/tmp/holo_xhs_shots/jiggle.png"))
+        print("[XHS] saved /tmp/holo_xhs_shots/jiggle.png")
+
+        print("[SB] === buttons ===")
+        for e in springboard.buttons.allElementsBoundByIndex.prefix(25) {
+            print("[SB-BTN] id=\(e.identifier) label=\(e.label)")
+        }
+        print("[SB] === otherElements top ===")
+        for e in springboard.otherElements.allElementsBoundByIndex.prefix(15) {
+            print("[SB-OTH] id=\(e.identifier) label=\(e.label)")
+        }
+    }
 }

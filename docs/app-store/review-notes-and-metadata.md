@@ -279,3 +279,112 @@ Suggested verification on an iOS 26 device:
 2. Ask a data-analysis question that routes to deep analysis.
 3. After the progress state appears, return to the Home Screen or lock the device.
 4. Observe the system-managed Holo progress, then return to Holo to view the completed result or saved checkpoint state.
+
+---
+
+## 多语言元数据（二期英文 + 一期繁体，2026-09-05 起草，待东林定稿）
+
+### English (en-US)
+
+**App 名称（≤30 字符，实测 29）：**
+
+Holo - Budget, Tasks & Habits
+
+**副标题（≤30 字符，实测 29）：**
+
+Calendar, notes, health & AI
+
+**宣传文本（170 字符内）：**
+
+Budget, to-dos, habits, notes and health in one place. Holo uses your calendar and AI to help you see what happened each day — and how life shifts over time.
+
+**简短描述：**
+
+Holo is a life journal and personal manager. Track expenses, to-dos, habits, notes, calendar reviews and health stats together — with AI that helps you connect the dots and see long-term change.
+
+**完整描述：**
+
+A lot happens every day: what you spent, what you finished, whether your habits held up, how you slept, and the ideas that crossed your mind. Holo puts those scattered records into one clear life dashboard.
+
+Use Holo to track expenses, manage to-dos, build habits, and capture notes and ideas. With Apple Health permission, view steps, sleep, stand hours and workouts. Holo's calendar and Memory Gallery help you review each day instead of losing records across different apps.
+
+If you enable AI data processing, HoloAI can organize your records, categorize entries, summarize recent status, and surface clues worth revisiting. AI-generated content is for reference only and is not medical, financial, legal or investment advice.
+
+What you can do with Holo:
+
+- Expense tracking: log spending, income, categories and accounts.
+- To-dos & lists: organize tasks, plans and errands.
+- Habit tracking: record completions and see your streaks.
+- Notes & ideas: save thoughts, tags and references.
+- Calendar reviews: look back with weekly and monthly views.
+- Memory Gallery: long-term change, organized into easy reads.
+- Health stats: read-only steps, sleep, stand and workout data from Apple Health.
+- AI organization: with your permission, assist categorizing, summarizing and connecting records.
+- iCloud sync: your records sync across devices via your own iCloud private database.
+- Data controls: privacy policy, terms, and account/data deletion in-app.
+
+Privacy & data:
+
+- Holo uses no third-party ad tracking.
+- Holo does not proactively store the raw text, voice audio or full context you send to AI as user profiles.
+- For security, rate limiting and troubleshooting, the Holo backend keeps minimized technical logs or summaries, purged on schedule.
+- Raw health data from Apple HealthKit is never written to or synced with Holo's iCloud database; when AI features need health context, a minimal health summary is sent to the Holo backend and third-party AI services only after you consent to AI data processing.
+
+**关键词（100 字符内，实测 98）：**
+
+budget,expense,tracker,todo,task,habit,checklist,journal,notes,diary,calendar,health,sleep,steps,goal,reminder,life,daily,weekly,review
+
+### 繁體中文 (zh-Hant)
+
+**App 名稱：**
+
+Holo - 記帳待辦習慣助手
+
+**副標題：**
+
+行事曆回顧、筆記健康與AI整理
+
+**宣傳文本：**
+
+記帳、待辦、習慣、筆記和健康狀態放在一個地方。Holo 用行事曆和 AI 整理幫你看清每天發生了什麼，也看見長期變化。
+
+**簡短描述：**
+
+Holo 是一款生活記錄和個人管理工具，把記帳、待辦、習慣、筆記、行事曆回顧和健康狀態放在一起，並用 AI 幫你整理線索、回看變化。
+
+**完整描述：**
+
+每天都有很多事發生：花了多少錢、完成了什麼、習慣有沒有堅持、身體狀態怎麼樣、腦中冒出了哪些想法。Holo 幫你把這些零散記錄放在一個清晰的生活工作台裡。
+
+你可以用 Holo 記帳、管理待辦、追蹤習慣、記錄筆記和靈感，也可以透過 Apple Health 授權查看步數、睡眠、站立和運動時長。Holo 會用行事曆和記憶長廊幫你回顧每天的變化，而不是讓記錄散落在不同 App 裡。
+
+如果你開啟 AI 資料處理授權，HoloAI 可以幫你整理記錄、識別分類、總結近期狀態，並把一些值得回看的線索沉澱下來。AI 生成內容僅供參考，不構成醫療、財務、法律或投資建議。
+
+你可以用 Holo 做什麼：
+
+- 記帳與收支記錄：記錄日常消費、收入、分類和帳戶。
+- 待辦與清單管理：整理任務、計畫和事項。
+- 習慣追蹤：記錄習慣完成情況，觀察堅持節奏。
+- 筆記與靈感記錄：保存想法、觀點、標籤和引用。
+- 行事曆回顧：用週曆和月曆回看每天發生了什麼。
+- 記憶長廊：把長期變化整理成更容易理解的回顧。
+- 健康狀態：唯讀顯示 Apple Health 授權後的步數、睡眠、站立和運動資料。
+- AI 整理：在你授權後，輔助分類、總結和發現記錄之間的聯繫。
+- iCloud 同步：透過使用者自己的 iCloud 私人資料庫在裝置間同步 Holo 本地記錄。
+- 資料管理：應用內提供隱私政策、使用者協議和帳號/資料刪除入口。
+
+隱私與資料：
+
+- Holo 不使用第三方廣告追蹤。
+- Holo 不會主動保存你傳送給 AI 的原始請求正文、語音音訊或完整上下文作為使用者資料。
+- 為保障服務安全、限流和故障排查，Holo 後端會保存最小化技術日誌或摘要資訊，並按後台設定定期清理。
+- Holo 不會將從 Apple HealthKit 讀取的原始健康資料寫入或同步到 Holo 的 iCloud 資料庫；使用需要健康上下文的 AI 功能時，必要的健康摘要會在使用者同意 AI 資料處理後傳送至 Holo 後端和第三方 AI 服務。
+
+**關鍵詞：**
+
+帳本,收支,帳單,消費,預算,收入,支出,帳戶,分類,清單,事項,計畫,目標,自律,打卡,提醒,備忘錄,靈感,想法,生活記錄,效率,時間管理,個人管理,每日記錄,週計畫,月總結,心情,睡眠,運動
+
+**多语言上架备注：**
+1. 英文/繁体截图待批量生成（en + zh-Hant 两套，沿用 zh-Hans 的 seeder 流程）
+2. 英文版隐私政策/支持页需要英文页面（合规），待东林确认域名与托管方式
+3. 「复盘」台湾译为「回顧/複盤」，此处取「回顧」更口语；「日历→行事曆」「数据→資料」「设置→設定」按台湾惯例
