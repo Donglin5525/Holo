@@ -49,7 +49,7 @@ struct AccountDetailView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.xl) {
+            VStack(spacing: HoloSpacing.md) {
                 // 账户信息头部
                 accountHeader
 
