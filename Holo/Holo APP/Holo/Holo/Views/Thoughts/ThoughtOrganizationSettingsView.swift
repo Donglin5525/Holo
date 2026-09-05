@@ -22,10 +22,10 @@ struct ThoughtOrganizationSettingsView: View {
                 Section {
                     Toggle(isOn: $isThoughtAutoOrganizationEnabled) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("AI 自动分类")
+                            Text("AI 自动整理")
                                 .font(.holoBody)
                                 .foregroundColor(.holoTextPrimary)
-                            Text("保存想法后自动从已启用主题中单选分类；无法判断则进入未归类")
+                            Text("保存想法后自动提取最多 2 个有原文依据的标签，直接可筛选；同一方向攒够 3 条自动形成合集")
                                 .font(.holoCaption)
                                 .foregroundColor(.holoTextSecondary)
                         }
@@ -34,7 +34,7 @@ struct ThoughtOrganizationSettingsView: View {
                 } header: {
                     Text("自动整理")
                 } footer: {
-                    Text("关闭后新想法不再自动请求 AI，但历史标签不受影响；你仍可对单条想法点「重新整理」，或在想法列表手动批量整理。")
+                    Text("开启后，Holo 会把这条想法及匹配标签所需的信息发送给 AI 服务生成标签；想法和标签仍由你的设备保存，Holo 不为这项功能建立云端资料库。关闭后新想法不再自动请求 AI，历史标签不受影响；你仍可对单条想法点「重新整理」。")
                 }
 
                 Section {

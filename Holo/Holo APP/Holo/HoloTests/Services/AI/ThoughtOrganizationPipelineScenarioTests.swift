@@ -104,7 +104,7 @@ struct ThoughtOrganizationPipelineScenarioTests {
                 activeTopics: activeTopics,
                 recognizedTagKeys: recognized
             )
-            expectEqual(r.detailPresentation, .pendingConfirmation, "S2 含新标签应待确认")
+            expectEqual(r.detailPresentation, .weakHint, "S2（V2 2026-09-05）含新标签也是弱提示，无确认工作流")
             expectTrue(r.tagPaths.contains("工作与事业/埋点口径"), "S2 新标签按主题前缀入路径")
         }
 

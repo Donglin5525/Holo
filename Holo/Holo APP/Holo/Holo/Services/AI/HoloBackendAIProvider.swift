@@ -279,6 +279,24 @@ final class HoloBackendAIProvider: AIProvider {
         return content
     }
 
+    /// 想法自动整理 V2 专用无状态端点（POST /v1/thoughts/organize）。
+    /// 与通用 chat 端点隔离：服务器对 A/R/B purpose 强制 metadata_only 日志，
+    /// 不走旧通道——不得以 chat(purpose:) 绕过新隐私链路。
+    func organizeThoughtIndex(_ body: ThoughtOrganizeRequestDTO) async throws -> ThoughtOrganizeResponseDTO {
+        try ensureDataProcessingConsent()
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/thoughts/organize",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: body
+        )
+        return try await apiClient.send(request)
+    }
+
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
         chatStreaming(
             messages: messages,

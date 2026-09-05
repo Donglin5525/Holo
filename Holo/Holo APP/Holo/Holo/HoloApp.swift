@@ -221,10 +221,13 @@ struct HoloApp: App {
                 let repository = ThoughtRepository()
                 repository.backfillTagAssignmentsIfNeeded()
                 repository.normalizeExistingTags()
+                // V2（2026-09-05 方案 §8.2）：旧 ai 关系标 legacy、词条身份回填（幂等，一次性）
+                repository.migrateLegacyThoughtIndexIfNeeded()
 
                 // 断网挂起 / 网络恢复续做（飞行模式写笔记等场景）
                 ThoughtOrganizationQueue.shared.startObservingNetwork()
                 ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+                // V2：仅恢复上次会话的持久任务展示，不再自动发起新一轮归并生成
                 Task {
                     await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
                 }

@@ -88,6 +88,9 @@ extension ThoughtRepository {
             let request = ThoughtTag.fetchRequest()
 
             if trimmed.isEmpty {
+                // V2（方案 §8.3）：默认复用候选只给用户标签与有效 V2 概念，
+                // legacy 垃圾词与 provisional 临时词条不进默认推荐（搜索时不过滤，尊重明确意图）
+                request.predicate = NSPredicate(format: "NOT (indexKind IN %@)", ["legacy", "provisional"])
                 request.sortDescriptors = [
                     NSSortDescriptor(key: "lastUsedAt", ascending: false),
                     NSSortDescriptor(key: "usageCount", ascending: false)

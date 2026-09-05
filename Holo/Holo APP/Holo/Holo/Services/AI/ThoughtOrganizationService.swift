@@ -31,12 +31,15 @@ final class ThoughtOrganizationService {
 
     // MARK: - Organize Thought
 
-    /// 对单条想法执行 AI 整理
+    /// 对单条想法执行 V2 自动整理（2026-09-05 方案 §5/§6/§7）。
+    ///
+    /// 流程：本地跳过判定 → 目录构造 → 脱敏 → 版本标记 → 调用无状态端点
+    /// → 响应逐字复核 → 事务落库（版本一致性校验）。不做主题分类（Topic 体系保留为手动功能）。
     ///
     /// 错误契约（决定 Queue 如何处理）：
-    /// - **不抛出**（return）：`notFound`/`parseFailed` 等「这条想法本身的问题」，已标记 failed，Queue 当作处理完毕跳过，不重试（避免浪费配额）
-    /// - **抛出 `APIError.rateLimited`**：配额耗尽，Queue 应把当前条回退 pending + 当日整体暂停
-    /// - **抛出其他错误**：网络/超时等可重试错误，Queue 按 5s/30s/120s 重试
+    /// - **不抛出**（return）：终态完成（no_evidence / deferred 终态 / 想法不存在 / 协议错位标 failed）
+    /// - **抛出 `APIError.rateLimited`**：日预算耗尽或 V2 端点未开放，Queue 当日暂停
+    /// - **抛出其他错误**：网络/超时等可重试错误，Queue 按重试规则处理
     /// - Parameter thoughtId: 想法 UUID
     func organizeThought(thoughtId: UUID) async throws {
         let repository = ThoughtRepository()
@@ -49,151 +52,181 @@ final class ThoughtOrganizationService {
             throw error
         }
 
-        // 2. 读取想法内容（只传 ID，不跨线程持有 NSManagedObject）
-        let thoughtContent: String
-        let existingTagExamples: [String]
-        let recentAITagLeaves: [String]
-        let rejectedTags: [String]
-        let activeTopicTitles: [String]
-        let ownRecognizedTagNames: [String]
-
+        // 2. 读取想法（只传 ID，不跨线程持有 NSManagedObject）
+        let content: String
         do {
             guard let thought = try repository.fetchByIdInternal(thoughtId) else {
                 logger.error("想法不存在：\(thoughtId)")
                 try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
                 return  // 想法已删除，标 failed 跳过，不重试
             }
-            thoughtContent = thought.content
-            existingTagExamples = repository.fetchUserRecognizedTagNames()
-            recentAITagLeaves = (try? repository.fetchRecentAITagLeafNames()) ?? []
-            rejectedTags = loadRejectedTagNames()
-            activeTopicTitles = try TopicRepository().fetchClassificationTopics().map(\.title)
-            ownRecognizedTagNames = thought.recognizedTagNames
+            content = thought.content
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")
             throw error
         }
 
-        // 3. 构建 prompt 并调用 AI
-        let rawResponse: String
-        do {
-            // P2：语义候选召回（V3 教训：向量只进候选池，最终判断仍是 LLM + 白名单校验）
-            // shadow 档计算并记录但不注入；off 档不计算
-            let semanticCandidates: ThoughtSemanticCandidateEngine.SemanticCandidates? = await ThoughtSemanticCandidateEngine.candidates(
-                for: thoughtId,
-                content: thoughtContent
-            )
-            let injectSemanticTags = ThoughtSemanticCandidateMode.current == .inject
-                && !(semanticCandidates?.neighborTags.isEmpty ?? true)
-            if let semanticCandidates, !semanticCandidates.neighborTags.isEmpty {
-                logger.info("语义候选（\(ThoughtSemanticCandidateMode.current.rawValue)）：\(semanticCandidates.neighborTags.joined(separator: ","))")
-            }
-
-            let messages: [ChatMessageDTO] = [.user(buildOrganizationPayload(
-                thoughtContent: thoughtContent,
-                activeTopics: activeTopicTitles,
-                existingTags: existingTagExamples,
-                recentAITags: recentAITagLeaves,
-                rejectedTags: rejectedTags,
-                semanticNeighborTags: injectSemanticTags ? semanticCandidates?.neighborTags ?? [] : nil
-            ))]
-
-            // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
-            rawResponse = try await callWithJSONMode(messages: messages)
-        } catch {
-            logger.error("AI 整理调用失败：\(error.localizedDescription)")
-            throw error
-        }
-
-        // 4. 空响应判定为可重试错误（线上实测：推理模型思考吃满额度时 content 为空，
-        //    约占 27% 调用；此前按 parseFailed 标 failed 不重试，是整理失败率高的主因）
-        guard !rawResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            logger.error("AI 返回空内容（推理思考吃满额度），想法：\(thoughtId)，转入重试")
-            throw APIError.serverError("AI 整理返回空内容")
-        }
-
-        // 5. 解析 JSON
-        guard let result = parseOrganizationResponse(rawResponse) else {
-            logger.error("JSON 解析失败，原始响应：\(rawResponse.prefix(200))")
-            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
-            return  // 解析失败标 failed，不重试（避免浪费配额）
-        }
-
-        // 6. 端侧强校验：主题只能来自约束池，未知前缀统一降级为虚拟“未分类”。
-        let validated = ThoughtThemeConstraint.validate(
-            selectedTopic: result.selectedTopic,
-            suggestedTags: result.suggestedTags,
-            activeTopics: activeTopicTitles
-        )
-        // 6.5 冗余副本过滤：AI 按「复用优先」硬约束会原样输出本想法已有的认可标签
-        //     （自己打的或确认过 AI 建议的），端侧拼上主题前缀后成为「未分类/books」这样的
-        //     AI 副本——同一身份、零新信息，还会挤进「AI 建议」等人确认。直接丢弃。
-        let effectiveTagPaths = validated.tagPaths.filter { path in
-            !ownRecognizedTagNames.contains { ThoughtTagNormalizer.sharesIdentity($0, path) }
-        }
-        guard effectiveTagPaths.isEmpty else {
-            // D-08′：调用成功但有效标签为空 = 正常空分类，不是失败。
-            // 清旧未确认 AI 标签；主题独立判定（有效则照写，无效保持未分类）；写 organized。
-            logger.info("AI 未形成有效标签（正常空分类或全部为用户已有标签），想法：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)")
-            do {
-                try repository.replaceUnconfirmedAITagAssignments(
-                    thoughtId: thoughtId,
-                    tagNames: [],
-                    confidence: result.confidence
-                )
-                try TopicRepository().applyClassification(
-                    thoughtId: thoughtId,
-                    topicTitle: validated.topicTitle,
-                    tagPaths: [],
-                    confidence: result.confidence,
-                    reason: result.reason
-                )
-                try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
-            } catch {
-                logger.error("空分类结果写入失败：\(error.localizedDescription)")
-                throw error
-            }
-            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-            // 空分类想法同样进入语义召回池
-            Task.detached(priority: .utility) {
-                await ThoughtSemanticCandidateEngine.ensureEmbedded(thoughtId: thoughtId)
-            }
+        // 3. 本地跳过：正文超限（不截断后假装完整理解）与无可分析内容（方案 §5.4）
+        if ThoughtIndexV2Policy.isTooLarge(content) || ThoughtIndexV2Policy.shouldSkipLocally(content) {
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "skipped")
             return
         }
 
+        // 4. 版本判定：同正文版本已完成且引擎未升级 → 不重跑（方案 §7.5）
+        let textHash = ThoughtTagIndexProjection.textHash(content)
         do {
-            try repository.replaceUnconfirmedAITagAssignments(
-                thoughtId: thoughtId,
-                tagNames: effectiveTagPaths,
-                confidence: result.confidence
-            )
-            try TopicRepository().applyClassification(
-                thoughtId: thoughtId,
-                topicTitle: validated.topicTitle,
-                tagPaths: effectiveTagPaths,
-                confidence: result.confidence,
-                reason: result.reason
-            )
+            guard let thought = try repository.fetchByIdInternal(thoughtId) else { return }
+            if thought.indexCompletedHash == textHash,
+               thought.indexEngineVersion == ThoughtIndexV2Policy.engineVersion {
+                try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
+                return
+            }
         } catch {
-            logger.error("写入主题分类结果失败：\(error.localizedDescription)")
             throw error
         }
 
-        // 7. 更新状态为 organized
+        // 5. 构造目录与请求（脱敏只作用于上传文本；hash 一律基于原文）
+        let catalog: ThoughtIndexCatalogBuilder.Result
         do {
-            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
+            let snapshots = try repository.fetchTagIndexSnapshots()
+            catalog = ThoughtIndexCatalogBuilder.build(
+                snapshots: snapshots,
+                legacyRejectedNames: loadRejectedTagNames()
+            )
         } catch {
-            logger.error("更新 organized 状态失败：\(error.localizedDescription)")
+            logger.error("构造整理目录失败：\(error.localizedDescription)")
+            throw error
         }
-        logger.info("想法整理完成：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)，标签：\(effectiveTagPaths.joined(separator: ", "))")
+        let redactedText = ThoughtIndexV2Policy.redactedText(forUpload: content)
+        let operationId = UUID()
 
-        // 7. 发送数据变更通知，让 UI 刷新
+        do {
+            try repository.markIndexRequested(
+                thoughtId: thoughtId, textHash: textHash, operationId: operationId
+            )
+        } catch {
+            throw error
+        }
+
+        // 6. 调用无状态整理端点
+        let response: ThoughtOrganizeResponseDTO
+        do {
+            response = try await aiProvider.organizeThoughtIndex(ThoughtOrganizeRequestDTO(
+                schemaVersion: ThoughtIndexV2Policy.schemaVersion,
+                operationId: operationId.uuidString,
+                textRevision: ThoughtIndexV2Policy.textRevision(forRedactedText: redactedText),
+                catalogRevision: catalog.revision,
+                text: redactedText,
+                catalog: catalog.entries,
+                blockedRefs: catalog.blockedRefs,
+                blockedNames: catalog.blockedNames
+            ))
+        } catch let error as APIError {
+            // 服务端语义错误的定向映射（网络类错误原样透传给 Queue 重试）
+            switch error {
+            case .backendError(_, let code, _, _) where code == "PRIVACY_ROUTE_UNVERIFIED" || code == "THOUGHT_ORGANIZE_DISABLED":
+                // V2 隐私路由未核实/端点未开放：复用配额暂停通道当日挂起（App 重启再探），
+                // 不降级到旧的含内容日志整理通道（方案 §11.1）
+                logger.warning("V2 整理端点未开放（\(code ?? "")），当日挂起")
+                throw APIError.rateLimited(code)
+            default:
+                throw error
+            }
+        }
+
+        // 7. 响应协议校验
+        guard response.schemaVersion == ThoughtIndexV2Policy.schemaVersion,
+              response.operationId == operationId.uuidString else {
+            logger.error("整理响应协议错位，想法：\(thoughtId)")
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+            return
+        }
+
+        // 8. deferred 分支（方案 §6.1：固定 reasonCode 的合法完成态）
+        if response.outcome == "deferred" {
+            switch response.reasonCode {
+            case "moderation_blocked", "catalog_budget_exceeded":
+                // 终态：写完成标记防重跑；保留无标签状态
+                try? repository.completeIndexWithoutTags(thoughtId: thoughtId, textHash: textHash)
+                logger.info("整理按终态暂缓（\(response.reasonCode ?? "")）：\(thoughtId)")
+                return
+            case "budget_exceeded":
+                // 主体级日预算耗尽：当日暂停（Queue 沿 rateLimited 通道）
+                throw APIError.rateLimited("budget_exceeded")
+            default:
+                // 未知暂缓原因：作为可重试错误交给队列统一规则
+                throw APIError.serverError("整理暂缓：\(response.reasonCode ?? "unknown")")
+            }
+        }
+
+        // 9. quote 逐字复核（UTF-16 范围核验；失败的 assignment 丢弃，不整体失败）
+        let outcomes = Self.validatedOutcomes(from: response, redactedText: redactedText, catalog: catalog)
+
+        // 10. 原子落库（事务内校验想法仍存在、正文版本一致、授权有效）
+        let applied: Bool
+        do {
+            applied = try repository.applyThoughtIndexV2Result(
+                thoughtId: thoughtId,
+                textHash: textHash,
+                outcome: ThoughtIndexTaskOutcome(
+                    assignments: outcomes,
+                    catalogCoverage: response.catalogCoverage ?? "full"
+                ),
+                engineVersion: ThoughtIndexV2Policy.engineVersion
+            )
+        } catch {
+            logger.error("整理结果落库失败：\(error.localizedDescription)")
+            throw error
+        }
+        guard applied else {
+            // 正文在请求期间被编辑：丢弃结果，按最新正文回 pending 重排（方案 §7.5）
+            logger.info("正文版本已变，丢弃迟到结果并回 pending：\(thoughtId)")
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "pending")
+            return
+        }
+
+        logger.info("想法整理完成：\(thoughtId)，标签 \(outcomes.count) 个（coverage: \(response.catalogCoverage ?? "full")）")
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+    }
 
-        // 8. P2：分类成功后异步生成/更新该想法的语义向量（静默失败，不阻塞分类链路）
-        Task.detached(priority: .utility) {
-            await ThoughtSemanticCandidateEngine.ensureEmbedded(thoughtId: thoughtId)
+    /// 响应 → 落库结果：existingRef 经映射还原本地词条；newConcept 做名称约束；
+    /// quote 按上传文本逐字复核（UTF-16 范围优先，缺失范围时全文包含校验）
+    private static func validatedOutcomes(
+        from response: ThoughtOrganizeResponseDTO,
+        redactedText: String,
+        catalog: ThoughtIndexCatalogBuilder.Result
+    ) -> [ThoughtIndexAssignmentOutcome] {
+        var outcomes: [ThoughtIndexAssignmentOutcome] = []
+        for assignment in response.assignments ?? [] {
+            guard let quote = assignment.quote, !quote.isEmpty, quote.utf16.count <= 80 else { continue }
+
+            if let range = assignment.rangeUTF16, range.count == 2 {
+                let location = range[0]
+                let length = range[1]
+                guard location >= 0, length >= 0,
+                      location + length <= redactedText.utf16.count else { continue }
+                let start = redactedText.index(redactedText.startIndex, offsetBy: location)
+                let end = redactedText.index(start, offsetBy: length)
+                guard redactedText[start..<end] == Substring(quote) else { continue }
+            } else if !redactedText.contains(quote) {
+                continue
+            }
+
+            if let ref = assignment.existingRef, let tagId = catalog.refToTagId[ref] {
+                outcomes.append(ThoughtIndexAssignmentOutcome(
+                    concept: .existing(tagId: tagId),
+                    evidenceQuote: quote
+                ))
+            } else if let concept = assignment.newConcept {
+                let name = concept.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty, name.count <= 32, !name.contains("/") else { continue }
+                outcomes.append(ThoughtIndexAssignmentOutcome(
+                    concept: .newConcept(name: name, definition: concept.definition ?? ""),
+                    evidenceQuote: quote
+                ))
+            }
         }
+        return outcomes
     }
 
     // MARK: - Reject / Confirm
@@ -209,13 +242,18 @@ final class ThoughtOrganizationService {
         }
     }
 
-    /// 拒绝 AI 标签并写全局抑制偏好（原语义保留：仅「以后不要推荐」调用，90 天 / 最多 50 条）
+    /// 拒绝 AI 标签并全局禁止自动使用该概念（V2 方案 §1.2：不设 90 天自动过期）
+    /// 落在词条 autoSuggestionBlocked 上（手动添加不受影响）；词条不存在时回落 V1 偏好名单
     /// - Parameter assignmentId: 分配 ID
     func rejectAndRecord(assignmentId: UUID, tagName: String) {
         let repository = ThoughtRepository()
         do {
             try repository.rejectTagAssignment(assignmentId: assignmentId)
-            addRejectedTag(name: tagName)
+            if let tagId = repository.fetchTagIdByName(tagName) {
+                try repository.setAutoSuggestionBlocked(tagId: tagId, blocked: true)
+            } else {
+                addRejectedTag(name: tagName)
+            }
         } catch {
             logger.error("拒绝 AI 标签失败：\(error.localizedDescription)")
         }
@@ -278,121 +316,10 @@ final class ThoughtOrganizationService {
         return rootOutcome
     }
 
-    // MARK: - AI 调用（JSON mode）
-
-    /// 通过 JSON mode 调用 thought_organization purpose
-    /// 复用 HoloBackendAIProvider 的 buildRequest（支持 responseFormat）
-    private func callWithJSONMode(messages: [ChatMessageDTO]) async throws -> String {
-        // 后端按 purpose 注入 v3 system prompt；结构化主题/标签上下文已经放在 user JSON 中。
-        return try await aiProvider.chat(messages: messages, purpose: .thoughtOrganization)
-    }
-
-    // MARK: - JSON 解析
-
-    /// AI 整理响应结构
-    struct OrganizationResponse {
-        let selectedTopic: String?
-        let suggestedTags: [String]
-        let confidence: Double
-        /// 一句话分类依据（后端 v4 prompt 100% 返回，线上 35/35 样本验证）
-        let reason: String?
-    }
-
-    /// 解析 AI 返回的 JSON
-    private func parseOrganizationResponse(_ text: String) -> OrganizationResponse? {
-        let jsonString = extractJSON(from: text)
-
-        guard let data = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        // 提取 suggestedTags：允许空数组（D-08′ 正常空分类），但字段必须存在且类型合法
-        guard let tags = json["suggestedTags"] as? [String] else {
-            return nil
-        }
-
-        // 过滤空字符串和过长标签；过滤后为空同样视为有效空分类（非解析失败）
-        let filteredTags = tags
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && $0.count <= 60 }
-
-        let confidence = (json["confidence"] as? Double) ?? 0.5
-
-        let selectedTopic = (json["selectedTopic"] as? String)
-            ?? (json["topic"] as? String)
-            ?? (json["topicTitle"] as? String)
-
-        let reasonTrimmed = (json["reason"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let reason = reasonTrimmed.isEmpty ? nil : String(reasonTrimmed.prefix(120))
-
-        return OrganizationResponse(
-            selectedTopic: selectedTopic,
-            suggestedTags: filteredTags,
-            confidence: confidence,
-            reason: reason
-        )
-    }
-
-    /// 把用户数据编码成 JSON，避免正文中的自然语言被误当成 Prompt 指令。
-    /// recentAITags：近 90 天 AI 标签叶段池，后端 v4 复用硬约束的原料（不传则历史 AI 标签不参与复用，标签易发散）
-    /// semanticNeighborTags：P2 语义近邻标签（可选，后端 v5 prompt 才读取；不传不影响旧版后端）
-    private func buildOrganizationPayload(
-        thoughtContent: String,
-        activeTopics: [String],
-        existingTags: [String],
-        recentAITags: [String],
-        rejectedTags: [String],
-        semanticNeighborTags: [String]? = nil
-    ) -> String {
-        var payload: [String: Any] = [
-            "activeTopics": activeTopics,
-            "existingTags": existingTags,
-            "recentAITags": recentAITags,
-            "rejectedTags": rejectedTags,
-            "thoughtContent": thoughtContent
-        ]
-        if let semanticNeighborTags, !semanticNeighborTags.isEmpty {
-            payload["semanticNeighborTags"] = semanticNeighborTags
-        }
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-              let json = String(data: data, encoding: .utf8) else {
-            return "{\"activeTopics\":[],\"thoughtContent\":\"\"}"
-        }
-        return json
-    }
-
-    /// 从 AI 输出中提取 JSON 字符串（处理 markdown code fence 和前后缀）
-    private func extractJSON(from text: String) -> String {
-        // 处理 ```json ... ``` 包裹
-        if let range = text.range(of: "```json") {
-            let afterMarker = text[range.upperBound...]
-            if let endRange = afterMarker.range(of: "```") {
-                return String(afterMarker[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        // 处理 ``` ... ``` 包裹（无 json 标记）
-        if let range = text.range(of: "```") {
-            let afterMarker = text[range.upperBound...]
-            if let endRange = afterMarker.range(of: "```") {
-                let content = String(afterMarker[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if content.hasPrefix("{") { return content }
-            }
-        }
-
-        // 提取第一个 { 到最后一个 }
-        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}") {
-            return String(text[start...end])
-        }
-
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     // MARK: - Rejected Tags 偏好管理
 
     /// 从 UserDefaults 加载拒绝标签名列表
+    /// V2 语义：作为目录构造的 blockedNames/blockedRefs 输入（用户明确拒绝过的概念不复加）
     func loadRejectedTagNames() -> [String] {
         guard let data = UserDefaults.standard.data(forKey: Self.rejectedTagsKey),
               let tags = try? JSONDecoder().decode([RejectedTagEntry].self, from: data) else {

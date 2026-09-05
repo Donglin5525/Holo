@@ -36,9 +36,11 @@ final class ThoughtOrganizationQueue: ObservableObject {
     /// 当前处理的 item
     private var currentItem: QueueItem?
 
-    /// 最大重试次数（测试可缩短）
+    /// 最大重试次数（测试可缩短）。
+    /// V2 方案 §6.3：自动网络重试每个正文版本最多额外 1 次（APIClient 层另有瞬时错误重试），
+    /// 30 秒起退避；更持久的失败交给前后台恢复沿与启动 rebuild。
     private let maxRetryCount: Int
-    /// 重试间隔（秒）：指数退避 5s → 30s → 120s（测试可缩短）
+    /// 重试间隔（秒）：V2 方案 §6.3 改为 30s 单档（此前 5/30/120×3 是 V1 口径）
     private let retryIntervals: [TimeInterval]
     /// 条目间隔（秒）：4s = 15/分钟，留 25% 余量避开后端 20/分钟限额
     private let itemInterval: TimeInterval
@@ -67,8 +69,8 @@ final class ThoughtOrganizationQueue: ObservableObject {
     init(
         service: ThoughtOrganizationService,
         repository: ThoughtRepository = ThoughtRepository(),
-        retryIntervals: [TimeInterval] = [5, 30, 120],
-        maxRetryCount: Int = 3,
+        retryIntervals: [TimeInterval] = [30],
+        maxRetryCount: Int = 1,
         itemInterval: TimeInterval = 4,
         organize: (@MainActor (UUID) async throws -> Void)? = nil
     ) {
@@ -272,10 +274,9 @@ final class ThoughtOrganizationQueue: ObservableObject {
             if !self.pendingItems.isEmpty && !self.dailyLimitHit {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 self.processNext()
-            } else if self.pendingItems.isEmpty && !self.dailyLimitHit {
-                // 只生成未归类洞察，主题仍必须由用户确认。
-                await ThoughtTagConvergenceJob.shared.generateUnclassifiedInsightIfNeeded()
             }
+            // V2（2026-09-05 方案 §8.3）：队列清空不再自动触发旧共现归并建议——
+            // 旧 ThoughtTagConvergenceJob 自动入口退出主链路，浏览入口由自动合集承担。
         }
     }
 

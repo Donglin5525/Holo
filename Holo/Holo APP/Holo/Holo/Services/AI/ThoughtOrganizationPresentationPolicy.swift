@@ -38,22 +38,24 @@ nonisolated enum ThoughtOrganizationPresentationPolicy {
         return !recognizedTagKeys.contains(leafKey)
     }
 
-    /// 详情页 AI 归类区三态（D-06′/D-07′/D-08′）
+    /// 详情页 AI 归类区三态（V2 语义，2026-09-05 方案 §1.2）
     /// - Parameters:
-    ///   - hasAITagAssignments: 是否存在未确认（source == ai）的标签分配
-    ///   - aiTagNames: 这些 ai 分配的标签名（路径或叶子词均可）
+    ///   - hasAITagAssignments: 是否存在有效自动标签分配
+    ///   - aiTagNames: 这些分配的标签名（路径或叶子词均可）
     ///   - recognizedTagKeys: 用户认可标签集合（manual/inline/confirmedAI 的归一化 key）
+    /// V2：自动标签校验通过即可显示、筛选和复用，没有逐条 ✓/✗ 工作流——
+    /// pendingConfirmation 分级停用，非空一律弱提示（来源标识「自动」）。
     static func aiTagPresentation(
         hasAITagAssignments: Bool,
         aiTagNames: [String],
         recognizedTagKeys: Set<String>
     ) -> AIClassPresentation {
         guard hasAITagAssignments, !aiTagNames.isEmpty else { return .silent }
-        let hasNewTag = aiTagNames.contains { isNewTag($0, recognizedTagKeys: recognizedTagKeys) }
-        return hasNewTag ? .pendingConfirmation : .weakHint
+        return .weakHint
     }
 
-    /// 卡片是否显示「等待确认」：organized 且（含新标签待确认 或 低置信主题待确认）
+    /// 卡片是否显示「等待确认」：V2 标签无确认负担；
+    /// 仅 V1 历史低置信主题归属（存量待确认池）仍提示。
     static func cardShowsPendingConfirmation(
         organizedStatus: String,
         hasPendingTagConfirmation: Bool,
@@ -61,6 +63,6 @@ nonisolated enum ThoughtOrganizationPresentationPolicy {
     ) -> Bool {
         guard organizedStatus == "organized" else { return false }
         let lowConfidenceTopic = topicConfidence > 0 && topicConfidence < topicConfirmationThreshold
-        return hasPendingTagConfirmation || lowConfidenceTopic
+        return lowConfidenceTopic
     }
 }

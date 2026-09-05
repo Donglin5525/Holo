@@ -22,6 +22,16 @@ class ThoughtTag: NSManagedObject {
     @NSManaged var usageCount: Int16
     @NSManaged var lastUsedAt: Date?              // 最近使用时间（# 候选「最近使用」排序）
 
+    // 想法自动整理 V2（2026-09-05 方案 §7.2）概念语义层
+    @NSManaged var semanticName: String?          // V2 平面展示名；旧 name 路径保持原值
+    @NSManaged var semanticDefinition: String?    // 概念边界说明（非私人摘要）
+    @NSManaged var aliasesJSON: String?           // 已验证等价表达（JSON 数组，仅 equivalent）
+    @NSManaged var indexKind: String?             // user/auto/provisional/legacy
+    @NSManaged var nameLockedByUser: Bool         // 用户命名/确认后 AI 不改名
+    @NSManaged var mergedIntoTagID: UUID?         // 确定性重定向目标（读取时解析并防环）
+    @NSManaged var autoSuggestionBlocked: Bool    // 用户全局拒绝自动使用（不自动过期）
+    @NSManaged var autoCollectionHidden: Bool     // 仅隐藏合集入口，不影响打标/筛选
+
     // MARK: - Relationships
 
     @NSManaged var thoughts: NSSet?

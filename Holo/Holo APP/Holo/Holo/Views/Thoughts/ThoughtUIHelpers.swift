@@ -192,20 +192,10 @@ extension Thought {
         return topics.first { $0.isClassificationTopic }
     }
 
-    /// AI 自动整理的可展示标签名（source == ai 或 confirmedAI，排除 rejectedAI）
-    /// 用于卡片在没有手动标签时的灰色标签展示
+    /// AI 自动整理的可展示标签名（V2 有效口径：confirmedAI + 通过校验且正文版本一致的自动索引）
+    /// V1 旧 ai 关系迁移后为 legacy 状态，不再进入任何展示/筛选（2026-09-05 方案 §7.3）
     var visibleAITagNames: [String] {
-        guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {
-            return []
-        }
-
-        return assignments
-            .filter { assignment in
-                let source = assignment.source
-                return (source == "ai" || source == "confirmedAI") && assignment.rejectedAt == nil
-            }
-            .sorted { $0.assignedAt > $1.assignedAt }
-            .compactMap { $0.tag?.name }
+        visibleAIAssignments.compactMap { $0.tag?.name }
     }
 
     /// 群落聚类信号：该想法全部可见标签（自己打的 + AI 的，路径或叶子词均可）
@@ -218,18 +208,30 @@ extension Thought {
         }
     }
 
-    /// AI 标签分配（可展示的，source == ai 或 confirmedAI）
+    /// AI 标签分配（V2 有效口径，方案 §7.3）：
+    /// - confirmedAI：用户确认过的，始终有效；
+    /// - ai：必须 indexVersion==2、indexState==active 且 basisTextHash==当前正文——
+    ///   正文编辑后旧自动标签即时失效，legacy 旧关系不再展示。
     var visibleAIAssignments: [ThoughtTagAssignment] {
         guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {
             return []
         }
-
+        let currentHash = ThoughtTagIndexProjection.cachedTextHash(content)
         return assignments
             .filter { assignment in
-                let source = assignment.source
-                return (source == "ai" || source == "confirmedAI") && assignment.rejectedAt == nil
+                guard assignment.rejectedAt == nil else { return false }
+                switch assignment.sourceEnum {
+                case .confirmedAI:
+                    return true
+                case .ai:
+                    return assignment.indexVersion == ThoughtTagIndexProjection.currentIndexVersion
+                        && assignment.indexState == ThoughtIndexState.active.rawValue
+                        && assignment.basisTextHash == currentHash
+                default:
+                    return false
+                }
             }
-            .sorted { $0.confidence > $1.confidence }
+            .sorted { $0.assignedAt > $1.assignedAt }
     }
 
     /// 引用数量

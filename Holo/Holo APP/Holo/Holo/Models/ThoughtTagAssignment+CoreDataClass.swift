@@ -23,6 +23,12 @@ class ThoughtTagAssignment: NSManagedObject {
     @NSManaged var assignedAt: Date
     @NSManaged var rejectedAt: Date?
 
+    // 想法自动整理 V2（2026-09-05 方案 §7.2）证据与状态层
+    @NSManaged var indexVersion: Int16            // 2 = 两阶段+校验通过的自动索引
+    @NSManaged var evidenceQuote: String?         // 原文证据（逐字片段，仅本地保存）
+    @NSManaged var basisTextHash: String?         // 产生时的正文版本 hash；与当前不符即失效
+    @NSManaged var indexState: String?            // active/superseded/legacy
+
     // MARK: - Relationships
 
     @NSManaged var thought: Thought?

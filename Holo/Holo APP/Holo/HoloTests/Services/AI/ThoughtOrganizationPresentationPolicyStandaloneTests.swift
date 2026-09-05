@@ -36,15 +36,16 @@ struct ThoughtOrganizationPresentationPolicyStandaloneTests {
             "全复用认可标签应显示弱提示"
         )
 
-        // MARK: D-07′ 含新标签 → pendingConfirmation
+        // MARK: V2（2026-09-05 方案 §1.2）：自动标签校验通过即生效，无逐条确认工作流——
+        // 含新标签与全复用统一弱提示，pendingConfirmation 分级停用
         expectEqual(
             ThoughtOrganizationPresentationPolicy.aiTagPresentation(
                 hasAITagAssignments: true,
                 aiTagNames: ["工作与事业/复盘", "埋点口径"],
                 recognizedTagKeys: recognizedKeys
             ),
-            .pendingConfirmation,
-            "含新标签应显示待确认"
+            .weakHint,
+            "V2 含新标签也为弱提示（无确认工作流）"
         )
         expectEqual(
             ThoughtOrganizationPresentationPolicy.aiTagPresentation(
@@ -52,8 +53,8 @@ struct ThoughtOrganizationPresentationPolicyStandaloneTests {
                 aiTagNames: ["新词"],
                 recognizedTagKeys: recognizedKeys
             ),
-            .pendingConfirmation,
-            "单新标签也应待确认"
+            .weakHint,
+            "V2 单新标签也为弱提示"
         )
 
         // 大小写/空格变体不算新标签（归一化 key 命中）
@@ -95,11 +96,11 @@ struct ThoughtOrganizationPresentationPolicyStandaloneTests {
             ),
             "低置信主题应显示等待确认"
         )
-        expectTrue(
+        expectFalse(
             ThoughtOrganizationPresentationPolicy.cardShowsPendingConfirmation(
                 organizedStatus: "organized", hasPendingTagConfirmation: true, topicConfidence: 0.9
             ),
-            "新标签应显示等待确认"
+            "V2 标签无确认负担，hasPendingTagConfirmation 不再触发角标"
         )
         expectFalse(
             ThoughtOrganizationPresentationPolicy.cardShowsPendingConfirmation(

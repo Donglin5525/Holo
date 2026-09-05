@@ -133,6 +133,50 @@ extension CoreDataStack {
         thoughtTopicReason.isOptional = true
         thoughtAttributes.append(thoughtTopicReason)
 
+        // MARK: 想法自动整理 V2（2026-09-05 方案 §7.2）索引元数据
+        // 发起整理时正文的版本标记（可见纯文本 hash）；响应校验与重跑判定的事实源
+        let thoughtIndexRequestedHash = NSAttributeDescription()
+        thoughtIndexRequestedHash.name = "indexRequestedHash"
+        thoughtIndexRequestedHash.attributeType = .stringAttributeType
+        thoughtIndexRequestedHash.isOptional = true
+        thoughtAttributes.append(thoughtIndexRequestedHash)
+
+        // 完成标记：本次正文版本的整理已终结（含合法 0 标签），防止每次开 App 重跑
+        let thoughtIndexCompletedHash = NSAttributeDescription()
+        thoughtIndexCompletedHash.name = "indexCompletedHash"
+        thoughtIndexCompletedHash.attributeType = .stringAttributeType
+        thoughtIndexCompletedHash.isOptional = true
+        thoughtAttributes.append(thoughtIndexCompletedHash)
+
+        // 本次逻辑任务的随机操作 ID（服务端幂等/费用台账对账用）
+        let thoughtIndexOperationID = NSAttributeDescription()
+        thoughtIndexOperationID.name = "indexOperationID"
+        thoughtIndexOperationID.attributeType = .UUIDAttributeType
+        thoughtIndexOperationID.isOptional = true
+        thoughtAttributes.append(thoughtIndexOperationID)
+
+        // 网络类失败重试计数（每个正文版本最多额外 1 次）
+        let thoughtIndexAttemptCount = NSAttributeDescription()
+        thoughtIndexAttemptCount.name = "indexAttemptCount"
+        thoughtIndexAttemptCount.attributeType = .integer16AttributeType
+        thoughtIndexAttemptCount.isOptional = false
+        thoughtIndexAttemptCount.defaultValue = 0
+        thoughtAttributes.append(thoughtIndexAttemptCount)
+
+        // 下次允许整理的时间（预算窗口/退避，持久化供重启恢复）
+        let thoughtIndexNextAttemptAt = NSAttributeDescription()
+        thoughtIndexNextAttemptAt.name = "indexNextAttemptAt"
+        thoughtIndexNextAttemptAt.attributeType = .dateAttributeType
+        thoughtIndexNextAttemptAt.isOptional = true
+        thoughtAttributes.append(thoughtIndexNextAttemptAt)
+
+        // 产生结果的引擎版本（thought_index_v2.1）；升级后按版本决定旧结果是否可续用
+        let thoughtIndexEngineVersion = NSAttributeDescription()
+        thoughtIndexEngineVersion.name = "indexEngineVersion"
+        thoughtIndexEngineVersion.attributeType = .stringAttributeType
+        thoughtIndexEngineVersion.isOptional = true
+        thoughtAttributes.append(thoughtIndexEngineVersion)
+
         // MARK: - ThoughtTag Entity
         // 观点模块 - 标签实体
         let thoughtTagEntity = NSEntityDescription()
@@ -174,6 +218,66 @@ extension CoreDataStack {
         thoughtTagLastUsedAt.attributeType = .dateAttributeType
         thoughtTagLastUsedAt.isOptional = true
         thoughtTagAttributes.append(thoughtTagLastUsedAt)
+
+        // MARK: 想法自动整理 V2（2026-09-05 方案 §7.2）概念语义层
+        // V2 平面展示名；旧 name（可能含"工作/Holo"式路径）保持原值不动
+        let thoughtTagSemanticName = NSAttributeDescription()
+        thoughtTagSemanticName.name = "semanticName"
+        thoughtTagSemanticName.attributeType = .stringAttributeType
+        thoughtTagSemanticName.isOptional = true
+        thoughtTagAttributes.append(thoughtTagSemanticName)
+
+        // 简短概念边界说明（描述什么算/什么不算，不存某条想法的私人摘要）
+        let thoughtTagSemanticDefinition = NSAttributeDescription()
+        thoughtTagSemanticDefinition.name = "semanticDefinition"
+        thoughtTagSemanticDefinition.attributeType = .stringAttributeType
+        thoughtTagSemanticDefinition.isOptional = true
+        thoughtTagAttributes.append(thoughtTagSemanticDefinition)
+
+        // 已验证等价表达（JSON 数组，仅 equivalent 别名；不含上位/相关词）
+        let thoughtTagAliasesJSON = NSAttributeDescription()
+        thoughtTagAliasesJSON.name = "aliasesJSON"
+        thoughtTagAliasesJSON.attributeType = .stringAttributeType
+        thoughtTagAliasesJSON.isOptional = true
+        thoughtTagAttributes.append(thoughtTagAliasesJSON)
+
+        // 词条身份来源：user/auto/provisional/legacy；旧数据按迁移规则回填
+        let thoughtTagIndexKind = NSAttributeDescription()
+        thoughtTagIndexKind.name = "indexKind"
+        thoughtTagIndexKind.attributeType = .stringAttributeType
+        thoughtTagIndexKind.isOptional = true
+        thoughtTagAttributes.append(thoughtTagIndexKind)
+
+        // 用户命名或明确确认后 AI 不改名
+        let thoughtTagNameLocked = NSAttributeDescription()
+        thoughtTagNameLocked.name = "nameLockedByUser"
+        thoughtTagNameLocked.attributeType = .booleanAttributeType
+        thoughtTagNameLocked.isOptional = false
+        thoughtTagNameLocked.defaultValue = false
+        thoughtTagAttributes.append(thoughtTagNameLocked)
+
+        // 重复自动身份的确定性重定向目标（仅无用户冲突时；读取时解析并防环）
+        let thoughtTagMergedInto = NSAttributeDescription()
+        thoughtTagMergedInto.name = "mergedIntoTagID"
+        thoughtTagMergedInto.attributeType = .UUIDAttributeType
+        thoughtTagMergedInto.isOptional = true
+        thoughtTagAttributes.append(thoughtTagMergedInto)
+
+        // 用户全局拒绝 AI 自动使用该概念；不自动过期，手动添加不受影响
+        let thoughtTagAutoBlocked = NSAttributeDescription()
+        thoughtTagAutoBlocked.name = "autoSuggestionBlocked"
+        thoughtTagAutoBlocked.attributeType = .booleanAttributeType
+        thoughtTagAutoBlocked.isOptional = false
+        thoughtTagAutoBlocked.defaultValue = false
+        thoughtTagAttributes.append(thoughtTagAutoBlocked)
+
+        // 仅隐藏自动合集浏览入口；不影响打标与标签筛选
+        let thoughtTagAutoCollectionHidden = NSAttributeDescription()
+        thoughtTagAutoCollectionHidden.name = "autoCollectionHidden"
+        thoughtTagAutoCollectionHidden.attributeType = .booleanAttributeType
+        thoughtTagAutoCollectionHidden.isOptional = false
+        thoughtTagAutoCollectionHidden.defaultValue = false
+        thoughtTagAttributes.append(thoughtTagAutoCollectionHidden)
 
         // MARK: - ThoughtReference Entity
         // 观点模块 - 引用关系实体
@@ -252,6 +356,36 @@ extension CoreDataStack {
         assignmentRejectedAt.attributeType = .dateAttributeType
         assignmentRejectedAt.isOptional = true
         assignmentAttributes.append(assignmentRejectedAt)
+
+        // MARK: 想法自动整理 V2（2026-09-05 方案 §7.2）证据与状态层
+        // 2 = 本算法（两阶段+服务端校验）产出并通过客户端复核的自动索引
+        let assignmentIndexVersion = NSAttributeDescription()
+        assignmentIndexVersion.name = "indexVersion"
+        assignmentIndexVersion.attributeType = .integer16AttributeType
+        assignmentIndexVersion.isOptional = false
+        assignmentIndexVersion.defaultValue = 0
+        assignmentAttributes.append(assignmentIndexVersion)
+
+        // 当前关系的原文证据（逐字片段，仅本地/原有同步保存，不写服务器日志）
+        let assignmentEvidenceQuote = NSAttributeDescription()
+        assignmentEvidenceQuote.name = "evidenceQuote"
+        assignmentEvidenceQuote.attributeType = .stringAttributeType
+        assignmentEvidenceQuote.isOptional = true
+        assignmentAttributes.append(assignmentEvidenceQuote)
+
+        // 产生该关系时的正文版本 hash；与当前正文不符即失效（防旧结果贴新正文）
+        let assignmentBasisTextHash = NSAttributeDescription()
+        assignmentBasisTextHash.name = "basisTextHash"
+        assignmentBasisTextHash.attributeType = .stringAttributeType
+        assignmentBasisTextHash.isOptional = true
+        assignmentAttributes.append(assignmentBasisTextHash)
+
+        // active/superseded/legacy；拒绝事实继续用 source=rejectedAI 表达
+        let assignmentIndexState = NSAttributeDescription()
+        assignmentIndexState.name = "indexState"
+        assignmentIndexState.attributeType = .stringAttributeType
+        assignmentIndexState.isOptional = true
+        assignmentAttributes.append(assignmentIndexState)
 
         // MARK: - Topic Entity
         // AI 自动整理 - 主题实体

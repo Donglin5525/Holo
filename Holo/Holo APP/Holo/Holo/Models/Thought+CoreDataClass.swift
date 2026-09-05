@@ -37,6 +37,14 @@ class Thought: NSManagedObject {
     @NSManaged var topicConfidence: Double         // 主题归属置信度：AI 写入，手动移入/确认置 1；<0.75 待确认
     @NSManaged var topicAssignmentReason: String?  // 主题归属理由（后端 v4 prompt 随结果返回的一句话依据）
 
+    // 想法自动整理 V2（2026-09-05 方案 §7.2）索引元数据
+    @NSManaged var indexRequestedHash: String?     // 发起整理时的正文版本标记
+    @NSManaged var indexCompletedHash: String?     // 完成标记（含合法 0 标签），防开 App 重跑
+    @NSManaged var indexOperationID: UUID?         // 本次逻辑任务操作 ID（服务端幂等对账）
+    @NSManaged var indexAttemptCount: Int16        // 网络类失败重试计数（每正文版本最多额外 1 次）
+    @NSManaged var indexNextAttemptAt: Date?       // 下次允许整理时间（预算窗口/退避，重启恢复用）
+    @NSManaged var indexEngineVersion: String?     // 产生结果的引擎版本（thought_index_v2.1）
+
     // MARK: - Relationships
 
     @NSManaged var tags: NSSet?
