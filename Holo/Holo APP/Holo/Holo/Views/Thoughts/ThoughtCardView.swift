@@ -95,8 +95,8 @@ struct ThoughtCardView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            // 如实口径：单条删除是软删但不进「最近删除」列表（模块清空批次才进），用户无法自助恢复
-            Text(String(localized: "删除后将无法恢复，30 天后从设备彻底清除。"))
+            // 单条删除已建批次进回收站（2026-09-06 拍板），30 天内可在最近删除自助恢复
+            Text(String(localized: "删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。"))
         }
         // 分享面板同样挂卡片根：与「…」菜单锚点解耦后，菜单收起完成再请求才可靠弹出
         .sheet(isPresented: $showShareCard) {

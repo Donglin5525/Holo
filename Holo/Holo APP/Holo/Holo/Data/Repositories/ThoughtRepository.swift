@@ -371,6 +371,8 @@ class ThoughtRepository {
     // MARK: - Delete Operations
 
     /// 删除想法（软删除）
+    /// 单条删除同样建批次进回收站（东林 2026-09-06 拍板：保留 30 天、可自助恢复），
+    /// 与模块清空共用同一套展示/恢复/过期清理链路。
     /// - Parameter id: 想法 ID
     func delete(_ id: UUID) throws {
         guard let thought = try fetchById(id) else {
@@ -378,11 +380,23 @@ class ThoughtRepository {
         }
 
         // 软删除：标记 isSoftDeleted（遗留字段）+ 统一 deletedAt，不断开引用关系
+        let batch = RecycleBinService.makeSingleItemBatch(
+            module: .thought,
+            summary: String(localized: "删除想法 · \(shortTitle(for: thought.firstLine))"),
+            context: context
+        )
         thought.isSoftDeleted = true
-        thought.markDeleted(batchId: nil)
+        thought.markDeleted(batchId: batch.id)
         thought.updatedAt = Date()
 
         try context.save()
+    }
+
+    /// 回收站批次摘要用的短标题（超长截断，空内容给占位）
+    private func shortTitle(for firstLine: String?) -> String {
+        let source = firstLine?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !source.isEmpty else { return String(localized: "图片想法") }
+        return source.count > 16 ? String(source.prefix(16)) + "…" : source
     }
 
     /// 硬删除想法（用于彻底删除）

@@ -235,6 +235,26 @@ final class RecycleBinService: ObservableObject {
         return batchId
     }
 
+    // MARK: - 单条删除批次
+
+    /// 单条删除（想法/任务等）创建独立批次，使删除物在回收站可见、可自助恢复。
+    /// 与模块清空共用同一套展示/恢复/30 天清理链路；scope="single" 区分于 module/global。
+    /// nonisolated：调用方（各 Repository 的删除入口）不在 MainActor 上，批次创建只依赖传入 context。
+    nonisolated static func makeSingleItemBatch(
+        module: RecycleBinModule,
+        summary: String,
+        context: NSManagedObjectContext,
+        now: Date = Date()
+    ) -> RecycleBinBatch {
+        let batch = RecycleBinBatch(context: context)
+        batch.id = UUID()
+        batch.createdAt = now
+        batch.scope = "single"
+        batch.modules = module.rawValue
+        batch.summary = summary
+        return batch
+    }
+
     // MARK: - 批次列表
 
     func reloadBatches() async {

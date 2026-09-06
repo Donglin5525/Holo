@@ -592,9 +592,17 @@ class TodoRepository: ObservableObject {
     }
 
     /// 软删除任务（进入回收站）
+    /// 单条删除建批次（东林 2026-09-06 拍板：保留 30 天、可自助恢复），与模块清空共用回收站链路。
     func deleteTask(_ task: TodoTask) throws {
+        let title = (task.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let shortTitle = title.count > 16 ? String(title.prefix(16)) + "…" : title
+        let batch = RecycleBinService.makeSingleItemBatch(
+            module: .task,
+            summary: String(localized: "删除任务 · \(shortTitle.isEmpty ? String(localized: "无标题") : shortTitle)"),
+            context: context
+        )
         task.deletedFlag = true
-        task.deletedAt = Date()
+        task.markDeleted(batchId: batch.id)
         task.updatedAt = Date()
 
         try context.save()
@@ -608,7 +616,7 @@ class TodoRepository: ObservableObject {
     /// 恢复任务（从回收站）
     func restoreTask(_ task: TodoTask) throws {
         task.deletedFlag = false
-        task.deletedAt = nil
+        task.clearDeletedMark()
         task.updatedAt = Date()
 
         try context.save()

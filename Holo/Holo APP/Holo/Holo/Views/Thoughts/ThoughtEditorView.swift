@@ -99,6 +99,8 @@ struct ThoughtEditorView: View {
     @State private var autoSaveTask: Task<Void, Never>? = nil
     /// AI 分类是否已触发（每个草稿只触发一次，避免自动保存重复消耗配额）
     @State private var didEnqueueAIClassification: Bool = false
+    /// 短想法「暂不整理」提示是否已发过（每个编辑器会话只提示一次，避免反复打扰）
+    @State private var didAnnounceShortSkip: Bool = false
 
     // MARK: - Attachment State
     /// 新建模式暂存图：保留原始数据（落库走与编辑模式一致的 2048 压缩管线），
@@ -465,6 +467,20 @@ struct ThoughtEditorView: View {
         if notifyDataChange {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             onSave?()
+
+            // 短想法告知（2026-09-06 东林拍板：不参与整理但要让用户知道）。
+            // 与 ThoughtAIClassificationPolicy 同口径（<10 字 → skipped）；纯图想法心智上
+            // 本就不期待文字整理，不提示；每个编辑器会话只提示一次。
+            if !didAnnounceShortSkip,
+               ThoughtAIClassificationPolicy.isEnabled(),
+               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               content.count < 10 {
+                didAnnounceShortSkip = true
+                HoloToastCenter.shared.show(
+                    String(localized: "内容较短，暂不自动整理；补充内容后会自动整理"),
+                    type: .info
+                )
+            }
         }
 
         if shouldDismiss {
