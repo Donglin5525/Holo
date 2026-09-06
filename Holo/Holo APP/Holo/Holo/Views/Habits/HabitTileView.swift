@@ -69,7 +69,8 @@ struct HabitTileView: View {
     var body: some View {
         tileContent
             .padding(14)
-            .frame(minHeight: 118, alignment: .top)
+            // 撑满磁贴列宽：宽屏下列宽≥240pt，不撑满会缩在列左缘显得稀疏
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .top)
             .background(backgroundLayer)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
             .overlay(

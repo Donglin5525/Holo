@@ -17,6 +17,10 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
     private let showsFilter: Bool
     private let dateControl: DateControl
 
+    /// 宽屏档章节排印放大（iPad 阅读距离更远），iPhone/medium 档不变
+    @Environment(\.holoWindowWidth) private var chapterWindowWidth
+    private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: chapterWindowWidth) }
+
     init(
         presentation: MemoryTimeChapterPresentation,
         moduleFilter: Binding<CalendarModule?>,
@@ -39,14 +43,14 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(presentation.title)
-                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                        .font(.system(size: 15 * typeScale, weight: .semibold, design: .serif))
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
                     if let badge = presentation.currentBadge {
                         Text(badge)
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 9 * typeScale, weight: .bold))
                             .foregroundColor(.holoPrimary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
@@ -56,7 +60,7 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
                 }
 
                 Text(presentation.evidence)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10 * typeScale, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
@@ -97,11 +101,11 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 10, weight: .semibold))
-                    Text(moduleFilter?.displayName ?? String(localized: "全部"))
+                    .font(.system(size: 10 * typeScale, weight: .semibold))
+                Text(moduleFilter?.displayName ?? String(localized: "全部"))
                     .lineLimit(1)
             }
-            .font(.system(size: 10, weight: .semibold))
+            .font(.system(size: 10 * typeScale, weight: .semibold))
             .foregroundColor(.holoTextSecondary)
             .padding(.horizontal, 10)
             .frame(minWidth: 66, minHeight: 34)

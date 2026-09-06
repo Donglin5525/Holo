@@ -64,7 +64,8 @@ struct MemoryTimeChapterPresentation: Equatable {
 
         case .month:
             primaryText = String(localized: "\(calendar.component(.month, from: focusedDate))月")
-            title = String(localized: "\(calendar.component(.year, from: focusedDate))年")
+            // 年份禁止千分位分组：默认数字格式会把 2026 渲染成「2,026年」
+            title = String(localized: "\(calendar.component(.year, from: focusedDate), format: .number.grouping(.never))年")
             emptyEvidence = String(localized: "这个月还没有留下记录")
             currentBadge = isCurrentPeriod ? String(localized: "本月") : nil
             accessibilityLabel = yearMonthFormatter(calendar: calendar).string(from: focusedDate)

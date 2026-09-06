@@ -13,6 +13,8 @@ import SwiftUI
 struct CalendarRootView: View {
 
     @Environment(\.colorScheme) private var colorScheme
+    /// 宽屏档章节大时间放大，与章节头排印同口径
+    @Environment(\.holoWindowWidth) private var scaleWindowWidth
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
     @State private var selectedEventGroup: CalendarEventGroup?
@@ -196,11 +198,12 @@ struct CalendarRootView: View {
     }
 
     private var chapterPrimaryFont: Font {
+        let s = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: scaleWindowWidth)
         switch viewModel.scale {
-        case .day: return .system(size: 48, weight: .medium, design: .serif)
-        case .week: return .system(size: 36, weight: .medium, design: .serif)
-        case .month: return .system(size: 42, weight: .medium, design: .serif)
-        case .timeline: return .system(size: 48, weight: .medium, design: .serif)
+        case .day: return .system(size: 48 * s, weight: .medium, design: .serif)
+        case .week: return .system(size: 36 * s, weight: .medium, design: .serif)
+        case .month: return .system(size: 42 * s, weight: .medium, design: .serif)
+        case .timeline: return .system(size: 48 * s, weight: .medium, design: .serif)
         }
     }
 

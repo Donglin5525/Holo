@@ -489,7 +489,8 @@ struct HabitListView: View {
                             Spacer(minLength: 0)
                         }
                         .padding(14)
-                        .frame(minHeight: 118, alignment: .top)
+                        // 与真实磁贴一致撑满列宽，避免宽屏下示例磁贴缩在列左缘
+                        .frame(maxWidth: .infinity, minHeight: 118, alignment: .top)
                         .background(Color.holoCardBackground.opacity(0.6))
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
                         .overlay(

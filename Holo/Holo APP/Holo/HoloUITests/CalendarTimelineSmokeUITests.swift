@@ -378,3 +378,221 @@ final class HoloIPadAuditV7UITests: XCTestCase {
         }
     }
 }
+
+// MARK: - iPad 审计 v8：横屏全目的地走查（2026-09-07 五轮走查 R1 取证通道）
+// 注意：xcodebuild 安装会重置本模拟器应用容器，故数据种子经 launchEnvironment
+// 随本次运行自造（HoloAppStoreScreenshotSeeder DEBUG 通道）；侧边栏用坐标点击，
+// 绕开 iOS 26 plain 按钮 AX 热区缩水导致的 not hittable。
+final class HoloIPadAuditV8UITests: XCTestCase {
+
+    private let dir = "/tmp/holo_ipad_audit"
+
+    private func shoot(_ name: String) {
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try? png.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
+        print("[IPAD8] shot \(name)")
+    }
+
+    private func launchSeeded(_ orientation: UIDeviceOrientation) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "rhythm"
+        app.launch()
+        sleep(9)
+        XCUIDevice.shared.orientation = orientation
+        sleep(4)
+        return app
+    }
+
+    /// 坐标点击：元素 AX 报 not hittable 时仍按 frame 中心落点。
+    /// 常驻壳层下隐藏层（首页模块环等）仍在 AX 树里，必须按 minX 分区锁定侧边栏/内容区元素。
+    private func tapLabeled(_ app: XCUIApplication, _ label: String, sidebar: Bool, settle: UInt32 = 5) {
+        let els = app.staticTexts.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex
+        let zone: (CGFloat) -> Bool = sidebar ? { $0 < 300 } : { $0 >= 300 }
+        guard let el = els.first(where: { zone($0.frame.minX) }) else {
+            print("[IPAD8] missing \(label) (sidebar=\(sidebar))")
+            return
+        }
+        el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(settle)
+    }
+
+    func testV8LandscapeAllPages() throws {
+        let app = launchSeeded(.landscapeLeft)
+        shoot("v8-l-01-home")
+
+        tapLabeled(app, "想法", sidebar: true)
+        shoot("v8-l-02-thoughts")
+        tapLabeled(app, "财务", sidebar: true)
+        shoot("v8-l-03-finance")
+        tapLabeled(app, "任务", sidebar: true)
+        shoot("v8-l-04-tasks")
+        tapLabeled(app, "习惯", sidebar: true)
+        shoot("v8-l-05-habits")
+
+        // 长廊四档 + 洞察。档位分段控件 AX 受常驻隐藏层干扰，按横屏几何位置直接点按。
+        tapLabeled(app, "记忆长廊", sidebar: true, settle: 6)
+        shoot("v8-l-06-gallery-day")
+        let scaleTaps: [(String, CGFloat, CGFloat)] = [
+            ("v8-l-07-gallery-week", 0.50, 0.127),
+            ("v8-l-08-gallery-month", 0.668, 0.127),
+            ("v8-l-09-gallery-axis", 0.835, 0.127)
+        ]
+        for (name, dx, dy) in scaleTaps {
+            app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: dy)).tap()
+            sleep(4)
+            shoot(name)
+        }
+        // 右上角 日历/洞察 拨动开关（图标段，最右）
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.965, dy: 0.07)).tap()
+        sleep(5)
+        shoot("v8-l-10-gallery-insight")
+
+        tapLabeled(app, "健康", sidebar: true)
+        shoot("v8-l-11-health")
+        tapLabeled(app, "AI 对话", sidebar: true, settle: 6)
+        shoot("v8-l-12-ai")
+        tapLabeled(app, "个人", sidebar: true)
+        shoot("v8-l-13-profile")
+        tapLabeled(app, "设置", sidebar: true, settle: 6)
+        shoot("v8-l-14-settings")
+
+        XCUIDevice.shared.orientation = .portrait
+        sleep(3)
+    }
+
+    func testV8PortraitHabitsAndGallery() throws {
+        let app = launchSeeded(.portrait)
+        tapLabeled(app, "习惯", sidebar: true, settle: 5)
+        shoot("v8-p-habits")
+        tapLabeled(app, "记忆长廊", sidebar: true, settle: 6)
+        shoot("v8-p-gallery-day")
+    }
+}
+
+// MARK: - iPad 审计 v9：旋转往返状态保持 + 深色横屏（R3/R4 取证）
+final class HoloIPadAuditV9UITests: XCTestCase {
+
+    private let dir = "/tmp/holo_ipad_audit"
+
+    private func shoot(_ name: String) {
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try? png.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
+        print("[IPAD9] shot \(name)")
+    }
+
+    private func tapLabeled(_ app: XCUIApplication, _ label: String, sidebar: Bool, settle: UInt32 = 5) {
+        let els = app.staticTexts.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex
+        let zone: (CGFloat) -> Bool = sidebar ? { $0 < 300 } : { $0 >= 300 }
+        guard let el = els.first(where: { zone($0.frame.minX) }) else {
+            print("[IPAD9] missing \(label) (sidebar=\(sidebar))")
+            return
+        }
+        el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(settle)
+    }
+
+    private func launchSeeded(_ orientation: UIDeviceOrientation, dark: Bool = false) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "rhythm"
+        if dark { app.launchArguments += ["-darkModeSetting", "dark"] }
+        app.launch()
+        sleep(9)
+        XCUIDevice.shared.orientation = orientation
+        sleep(4)
+        return app
+    }
+
+    /// 旋转往返：长廊日档状态（聚焦日期/档位）跨旋转保持
+    func testV9ARotationCycleGallery() throws {
+        let app = launchSeeded(.portrait)
+        tapLabeled(app, "记忆长廊", sidebar: true, settle: 6)
+        shoot("v9-r1-portrait-gallery")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(4)
+        shoot("v9-r2-landscape-gallery")
+
+        XCUIDevice.shared.orientation = .portrait
+        sleep(4)
+        shoot("v9-r3-portrait-again")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(4)
+        tapLabeled(app, "习惯", sidebar: true, settle: 5)
+        // 打开一块磁贴详情 sheet，验证横屏 sheet 呈现与关闭
+        let tile = app.staticTexts["晨间阅读"].firstMatch
+        if tile.waitForExistence(timeout: 6) {
+            tile.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(4)
+            shoot("v9-r4-habit-detail-sheet")
+        }
+        XCUIDevice.shared.orientation = .portrait
+        sleep(3)
+    }
+
+    /// 深色模式横屏关键页（东林真机为深色）。
+    /// 不带种子环境：种子启动会强制浅色覆盖 -darkModeSetting；
+    /// 每个用例独立启动，避免状态串扰（前一轮连点导致误触想法详情）。
+    private func darkPage(_ label: String, _ name: String) {
+        let app = XCUIApplication()
+        app.launchArguments += ["-darkModeSetting", "dark"]
+        app.launch()
+        sleep(9)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(4)
+        if label.isEmpty {
+            shoot(name)
+        } else {
+            tapLabeled(app, label, sidebar: true, settle: 6)
+            shoot(name)
+        }
+        XCUIDevice.shared.orientation = .portrait
+        sleep(2)
+    }
+
+    func testV9B1DarkHome() { darkPage("", "v9-d-01-home") }
+    func testV9B2DarkGallery() { darkPage("记忆长廊", "v9-d-02-gallery-day") }
+    func testV9B3DarkHabits() { darkPage("习惯", "v9-d-03-habits") }
+    func testV9B4DarkThoughts() { darkPage("想法", "v9-d-04-thoughts") }
+    func testV9B5DarkTasks() { darkPage("任务", "v9-d-05-tasks") }
+}
+
+// MARK: - iPad 审计 v9b：真实新装空态（须单独一次 xcodebuild 运行——安装会重置容器）
+final class HoloIPadAuditV9bEmptyUITests: XCTestCase {
+
+    private func shoot(_ name: String) {
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try? png.write(to: URL(fileURLWithPath: "/tmp/holo_ipad_audit/\(name).png"))
+        print("[IPAD9b] shot \(name)")
+    }
+
+    func testV9bFreshInstallEmptyStates() throws {
+        let app = XCUIApplication()
+        app.launch()
+        sleep(9)
+        // 跳过新人引导与首页导览：AX 查询在引导层不稳定，按已验证的
+        // 右上角坐标直接点按（竖屏 跳过 ≈ x 94%, y 6.5%），循环覆盖多层浮层
+        let skipPoint = app.coordinate(withNormalizedOffset: CGVector(dx: 0.876, dy: 0.049))
+        for _ in 0..<4 {
+            skipPoint.tap()
+            sleep(2)
+        }
+        shoot("v9b-01-fresh-home")
+
+        let els = app.staticTexts.matching(NSPredicate(format: "label == %@", "习惯")).allElementsBoundByIndex
+        if let el = els.first(where: { $0.frame.minX < 300 }) {
+            el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(5)
+        }
+        shoot("v9b-02-fresh-habits-empty")
+
+        let g = app.staticTexts.matching(NSPredicate(format: "label == %@", "记忆长廊")).allElementsBoundByIndex
+        if let el = g.first(where: { $0.frame.minX < 300 }) {
+            el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(6)
+        }
+        shoot("v9b-03-fresh-gallery-empty")
+    }
+}

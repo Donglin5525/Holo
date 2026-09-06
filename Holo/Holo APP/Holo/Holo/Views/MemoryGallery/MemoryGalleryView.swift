@@ -25,6 +25,13 @@ struct MemoryGalleryView: View {
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @ObservedObject private var deepLinkState = DeepLinkState.shared
+    /// expanded 档放宽内容列（720→920），减少两侧留白；其余档维持全局列宽
+    @Environment(\.holoWindowWidth) private var galleryWindowWidth
+    private var contentColumnWidth: CGFloat {
+        HoloAdaptiveLayout.isExpandedWidth(galleryWindowWidth)
+            ? HoloAdaptiveLayout.galleryColumnMaxWidth
+            : HoloAdaptiveLayout.contentColumnMaxWidth
+    }
 
     #if DEBUG
     /// 是否显示 AI 设置页
@@ -61,12 +68,12 @@ struct MemoryGalleryView: View {
                 // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
                 tabContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .holoContentColumn(paintsBackground: false)
+                    .holoContentColumn(maxWidth: contentColumnWidth, paintsBackground: false)
             }
             // iPad 限宽必须挂在内容层自身：外层包裹（HomeView 常驻出口）会被上面
             // ignoresSafeArea 的背景层撑回全屏宽（背景理想宽度=安全区，不吃 720 提议），
             // 内容跟着通铺。背景通铺 + 内容限宽分离后， iPad 列宽恢复正常。
-            .holoContentColumn(paintsBackground: false)
+            .holoContentColumn(maxWidth: contentColumnWidth, paintsBackground: false)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
@@ -223,19 +230,20 @@ struct MemoryGalleryView: View {
 
     /// 洞察与日/周/月共用「章节开场」语法：一个大主题、一句解释、一行事实证据。
     private var insightChapterHeader: some View {
-        HStack(spacing: 12) {
+        let typeScale = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: galleryWindowWidth)
+        return HStack(spacing: 12) {
             Text("理解")
-                .font(.system(size: 42, weight: .medium, design: .serif))
+                .font(.system(size: 42 * typeScale, weight: .medium, design: .serif))
                 .foregroundColor(.holoTextPrimary)
                 .tracking(-2)
-                .frame(minWidth: 78, alignment: .leading)
+                .frame(minWidth: 78 * typeScale, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Holo 看见的你")
-                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .font(.system(size: 15 * typeScale, weight: .semibold, design: .serif))
                     .foregroundColor(.holoTextPrimary)
                 Text("\(viewModel.totalRecordedDays) 天生活证据 · \(viewModel.totalMemoryCount) 条记录")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10 * typeScale, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(1)
             }

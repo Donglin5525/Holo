@@ -13,6 +13,10 @@ struct DailyReplayEventCard: View {
     let onSelect: (CalendarEvent) -> Void
     let onSelectGroup: ([CalendarEvent]) -> Void
 
+    /// 宽屏档卡片排印放大（与章节头同口径），iPhone/medium 档不变
+    @Environment(\.holoWindowWidth) private var cardWindowWidth
+    private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: cardWindowWidth) }
+
     /// 兼容「当天记录」等旧调用；新日回放统一走 moment 初始化。
     init(event: CalendarEvent,
          onSelect: @escaping (CalendarEvent) -> Void,
@@ -51,7 +55,7 @@ struct DailyReplayEventCard: View {
                     Spacer(minLength: 0)
                     if let count = moment.recordCountText {
                         Text(count)
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: 10 * typeScale, weight: .medium))
                             .foregroundColor(.holoTextPlaceholder)
                     }
                 }
@@ -67,7 +71,7 @@ struct DailyReplayEventCard: View {
                     Spacer(minLength: 4)
                     if let valueText {
                         Text(valueText)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .font(.system(size: 15 * typeScale, weight: .semibold, design: .rounded))
                             .foregroundColor(valueColor)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
@@ -76,14 +80,14 @@ struct DailyReplayEventCard: View {
 
                 if let context = moment.contextText, !context.isEmpty {
                     Text(context)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 11 * typeScale, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
                 }
 
                 if thoughtNeedsFullTextHint {
                     Text("轻点查看全文")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: 10 * typeScale, weight: .medium))
                         .foregroundColor(.holoPrimary.opacity(0.85))
                 }
 
@@ -112,9 +116,9 @@ struct DailyReplayEventCard: View {
     private var moduleBadge: some View {
         HStack(spacing: 5) {
             Image(systemName: moment.module.iconName)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 10 * typeScale, weight: .semibold))
             Text(moment.module.displayName)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 10 * typeScale, weight: .bold))
         }
         .foregroundColor(moment.module.color)
         .padding(.horizontal, 8)
@@ -125,16 +129,16 @@ struct DailyReplayEventCard: View {
 
     private var titleFont: Font {
         moment.module == .thought
-            ? .system(size: 15, weight: .semibold, design: .serif)
-            : .system(size: 15, weight: .semibold)
+            ? .system(size: 15 * typeScale, weight: .semibold, design: .serif)
+            : .system(size: 15 * typeScale, weight: .semibold)
     }
 
     /// 想法正文是否长过 6 行：按卡片实际可用宽度量一次文本高度。
     /// 宽度取「屏宽 − 页边距 − 时间列 − 卡内边距」的近似值，误差只会让临界长文少/多出一次提示。
     private var thoughtNeedsFullTextHint: Bool {
         guard moment.module == .thought else { return false }
-        let base = UIFont.systemFont(ofSize: 15, weight: .semibold)
-        let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: 15) } ?? base
+        let base = UIFont.systemFont(ofSize: 15 * typeScale, weight: .semibold)
+        let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: 15 * typeScale) } ?? base
         let availableWidth = UIScreen.main.bounds.width - 116
         let textHeight = (moment.title as NSString).boundingRect(
             with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
@@ -152,11 +156,11 @@ struct DailyReplayEventCard: View {
                 ForEach(Array(moment.events.prefix(4))) { event in
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 8 * typeScale, weight: .bold))
                         Text(event.title)
                             .lineLimit(1)
                     }
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10 * typeScale, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, 8)
                     .frame(height: 27)
@@ -181,12 +185,12 @@ struct DailyReplayEventCard: View {
                                 .lineLimit(1)
                         }
                     }
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10 * typeScale, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                 }
                 if moment.events.count > 4 {
                     Text("另有 \(moment.events.count - 4) 条")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: 10 * typeScale, weight: .medium))
                         .foregroundColor(.holoTextPlaceholder)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -204,7 +208,7 @@ struct DailyReplayEventCard: View {
         HStack(spacing: 6) {
             ForEach(Array(topics.prefix(3)), id: \.self) { topic in
                 Text(topic)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 9 * typeScale, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)

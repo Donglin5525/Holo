@@ -60,10 +60,44 @@ class HabitRepository: ObservableObject {
     func setup() {
         guard !isReady else { return }
         _ = context
+        registerRemoteChangeRefreshIfNeeded()
         loadActiveHabits()
         isReady = true
     }
-    
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 新设备上 CloudKit 后台导入晚于首次加载：habitDataDidChange 只在本地写入时发，
+    /// 不监听远程变更会让习惯列表停在空态（iPad 首装习惯不显示的根因）。
+    /// 远程变更防抖后重拉列表，并广播 habitDataDidChange 让视图层同步刷新。
+    private var remoteChangeObserver: NSObjectProtocol?
+    private var remoteChangeDebounce: Task<Void, Never>?
+
+    private func registerRemoteChangeRefreshIfNeeded() {
+        // 测试注入的独立 context 不挂共享 coordinator，避免污染测试进程
+        guard remoteChangeObserver == nil,
+              context === CoreDataStack.shared.viewContext else { return }
+        remoteChangeObserver = NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: CoreDataStack.shared.persistentContainer.persistentStoreCoordinator,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.scheduleRemoteChangeRefresh()
+            }
+        }
+    }
+
+    private func scheduleRemoteChangeRefresh() {
+        remoteChangeDebounce?.cancel()
+        remoteChangeDebounce = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            loadActiveHabits()
+            NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
+        }
+    }
+
     // MARK: - 数据加载
     
     /// 加载活跃习惯列表

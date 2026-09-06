@@ -17,6 +17,17 @@ enum HoloAdaptiveLayout {
     /// 横竖屏切换只改变两侧留白、不触发内容重排。
     static let contentColumnMaxWidth: CGFloat = 720
 
+    /// 记忆长廊在 expanded 档的内容列宽度。长廊是通览型纸面（照片/卡片可拉伸），
+    /// 720 在 11-13 寸横屏两侧留白过大（东林反馈「没平铺」），扩到 920；
+    /// 竖屏 medium 档仍用 720 保持与手机一致的阅读栏。
+    static let galleryColumnMaxWidth: CGFloat = 920
+
+    /// 长廊章节排印的宽屏放大系数：iPad 阅读距离更远，章节头/注脚在 expanded 档
+    /// 整体放大约 1.25 倍；iPhone 与 medium 档维持原设计字号。
+    static func galleryTypeScale(forWindowWidth width: CGFloat?) -> CGFloat {
+        isExpandedWidth(width) ? 1.25 : 1
+    }
+
     /// 判断当前水平 size class 是否为 regular（iPad 全屏恒为 regular；iPhone 恒为 compact）
     static func isRegularWidth(_ sizeClass: UserInterfaceSizeClass?) -> Bool {
         sizeClass == .regular

@@ -337,6 +337,10 @@ private struct DailyReplayChapterHeader: View {
 
     private var calendar: Calendar { Calendar.current }
 
+    /// 宽屏档日号放大（与章节头排印同口径）
+    @Environment(\.holoWindowWidth) private var dayHeaderWindowWidth
+    private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayHeaderWindowWidth) }
+
     var body: some View {
         MemoryTimeChapterHeader(
             presentation: presentation,
@@ -350,10 +354,10 @@ private struct DailyReplayChapterHeader: View {
 
     private var dateControl: some View {
         Text("\(calendar.component(.day, from: day))")
-            .font(.system(size: 48, weight: .medium, design: .serif))
+            .font(.system(size: 48 * typeScale, weight: .medium, design: .serif))
             .foregroundColor(.holoTextPrimary)
             .tracking(-2)
-            .frame(width: 66, alignment: .leading)
+            .frame(width: 66 * typeScale, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture(perform: onChooseDate)
             .highPriorityGesture(portalGesture)
@@ -428,6 +432,10 @@ private struct DailyReplayDayContent: View {
     let minimumHeight: CGFloat
     let onEmptySwipe: (DailyReplayEmptyDaySwipeDirection) -> Void
 
+    /// 宽屏档时段注脚与空态文案放大（与章节头排印同口径）
+    @Environment(\.holoWindowWidth) private var dayContentWindowWidth
+    private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayContentWindowWidth) }
+
     private var periodBlocks: [DailyReplayPresentation.PeriodBlock] {
         DailyReplayPresentation.readingOrderBlocks(from: events)
     }
@@ -450,7 +458,7 @@ private struct DailyReplayDayContent: View {
             HStack(spacing: 9) {
                 Rectangle().fill(Color.holoBorder.opacity(0.35)).frame(height: 1)
                 Text(footerText)
-                    .font(.system(size: 9, weight: .medium, design: .serif))
+                    .font(.system(size: 9 * typeScale, weight: .medium, design: .serif))
                     .foregroundColor(.holoTextPlaceholder)
                     .fixedSize()
                 Rectangle().fill(Color.holoBorder.opacity(0.35)).frame(height: 1)
@@ -487,7 +495,7 @@ private struct DailyReplayDayContent: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 9) {
                 Text(period.displayName)
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .font(.system(size: 11 * typeScale, weight: .semibold, design: .serif))
                     .foregroundColor(.holoTextSecondary)
                     .tracking(1.5)
                 Rectangle()
@@ -500,7 +508,7 @@ private struct DailyReplayDayContent: View {
                     )
                     .frame(height: 1)
             }
-            .padding(.leading, 56)
+            .padding(.leading, 56 * typeScale)
 
             ForEach(moments) { moment in
                 // 带图想法走册页风整行版式：时间已在照片下方的手记里，左侧时间列不再重复一遍，
@@ -515,10 +523,10 @@ private struct DailyReplayDayContent: View {
                 } else {
                     HStack(alignment: .top, spacing: 10) {
                         Text(moment.timeText)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .font(.system(size: 11 * typeScale, weight: .medium, design: .rounded))
                             .foregroundColor(.holoTextSecondary)
                             .monospacedDigit()
-                            .frame(width: 46, alignment: .trailing)
+                            .frame(width: 46 * typeScale, alignment: .trailing)
                             .padding(.top, 14)
 
                         DailyReplayEventCard(
@@ -537,11 +545,11 @@ private struct DailyReplayDayContent: View {
     private func dayNarrative(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "sparkle")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 10 * typeScale, weight: .semibold))
                 .foregroundColor(.holoPrimary)
                 .padding(.top, 2)
             Text(text)
-                .font(.system(size: 12, weight: .medium, design: .serif))
+                .font(.system(size: 12 * typeScale, weight: .medium, design: .serif))
                 .foregroundColor(.holoTextSecondary)
                 .lineSpacing(4)
             Spacer(minLength: 0)
@@ -566,7 +574,7 @@ private struct DailyReplayDayContent: View {
 
     private var emptyState: some View {
         Text(moduleFilter.map { String(localized: "这一天没有\($0.displayName)记录") } ?? String(localized: "这一天没有留下记录，生活安静地经过。"))
-            .font(.system(size: 11, weight: .medium, design: .serif))
+            .font(.system(size: 11 * typeScale, weight: .medium, design: .serif))
             .foregroundColor(.holoTextPlaceholder)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
