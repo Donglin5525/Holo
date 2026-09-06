@@ -257,7 +257,8 @@ struct FeedbackSheet: View {
         PhotosPicker(
             selection: $pickerItems,
             maxSelectionCount: maxShotCount - shots.count,
-            matching: .images
+            matching: .images,
+            photoLibrary: .shared()
         ) {
             VStack(spacing: 4) {
                 if isProcessingImages {
@@ -289,11 +290,14 @@ struct FeedbackSheet: View {
         Task {
             var loaded: [FeedbackShot] = []
             var failedCount = 0
+            var permissionRequired = false
             for item in items.prefix(remaining) {
-                guard let data = await PhotoLibraryImageLoader.loadImageData(from: item),
+                let outcome = await PhotoLibraryImageLoader.loadImageData(from: item)
+                guard case .data(let data) = outcome,
                       let jpeg = FeedbackImageCompressor.compress(data),
                       let image = UIImage(data: jpeg) else {
                     failedCount += 1
+                    if case .permissionRequired = outcome { permissionRequired = true }
                     continue
                 }
                 loaded.append(FeedbackShot(image: image, data: jpeg))
@@ -301,7 +305,7 @@ struct FeedbackSheet: View {
             shots.append(contentsOf: loaded)
             pickerItems = []
             isProcessingImages = false
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count, permissionRequired: permissionRequired)
         }
     }
 

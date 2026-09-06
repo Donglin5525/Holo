@@ -17585,6 +17585,22 @@
         }
       }
     },
+    "原图在 iCloud 中，正在自动下载…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原圖在 iCloud 中，正在自動下載…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original is in iCloud — downloading automatically…"
+          }
+        }
+      }
+    },
     "原始分类": {
       "localizations": {
         "zh-Hant": {
@@ -34306,6 +34322,22 @@
         }
       }
     },
+    "无法读取所选图片，请检查网络后重试，或换一张图片": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取所選圖片，請檢查網路後重試，或換一張圖片"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't read the selected photos. Check your connection and try again, or pick another."
+          }
+        }
+      }
+    },
     "无法读取该 Excel 文件（可能是不支持的 xls 老格式，请用 Excel 另存为 .xlsx 后重试）": {
       "localizations": {
         "zh-Hant": {
@@ -45192,6 +45224,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Related Thoughts"
+          }
+        }
+      }
+    },
+    "相册读取权限未开启，无法自动下载 iCloud 中的原图，请在系统设置中允许 Holo 访问照片": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相簿讀取權限未開啟，無法自動下載 iCloud 中的原圖，請在系統設定中允許 Holo 存取照片"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo library access is off, so originals stored in iCloud can't be downloaded automatically. Allow Holo to access Photos in Settings."
           }
         }
       }

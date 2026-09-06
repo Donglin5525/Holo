@@ -291,7 +291,8 @@ struct ThoughtEditorView: View {
             isPresented: $showAttachmentPhotoPicker,
             selection: $selectedAttachmentPhotos,
             maxSelectionCount: maxAttachmentSelection,
-            matching: .images
+            matching: .images,
+            photoLibrary: .shared()
         )
         .onChange(of: selectedAttachmentPhotos) { _, newValue in
             guard !newValue.isEmpty else { return }
@@ -318,14 +319,13 @@ struct ThoughtEditorView: View {
                 )
             }
         }
-        .confirmationDialog("添加图片", isPresented: $showAttachmentSourceChoice) {
-            Button("拍照") {
-                requestCameraAccess()
-            }
-            Button("从相册选择") {
-                showAttachmentPhotoPicker = true
-            }
-            Button("取消", role: .cancel) {}
+        // 添加图片来源：用 .sheet 而非 .confirmationDialog。原因同上方 Token 菜单——
+        // confirmationDialog 呈现时会让 UITextView 失焦，弹层还没显示就被撤回，
+        // 表现为「第一次点图片按钮没反应，第二次（键盘已收起）才弹出来」。
+        .sheet(isPresented: $showAttachmentSourceChoice) {
+            attachmentSourceSheet
+                .presentationDetents([.height(185)])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -941,6 +941,37 @@ struct ThoughtEditorView: View {
         }
     }
 
+    /// 添加图片来源选择（拍照 / 从相册选择），样式对齐 Token 操作菜单
+    private var attachmentSourceSheet: some View {
+        VStack(spacing: HoloSpacing.sm) {
+            Text("添加图片")
+                .font(.holoHeading)
+                .foregroundColor(.holoTextPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, HoloSpacing.sm)
+
+            Divider()
+                .padding(.vertical, 2)
+
+            VStack(spacing: 0) {
+                tokenMenuButton(String(localized: "拍照"), icon: "camera") {
+                    showAttachmentSourceChoice = false
+                    requestCameraAccess()
+                }
+                tokenMenuButton(String(localized: "从相册选择"), icon: "photo") {
+                    showAttachmentSourceChoice = false
+                    Task { @MainActor in
+                        // 相册读取权限是一次性前置申请：它是「iCloud 原图自动下载」的前提；
+                        // 被拒也不阻断选图，本地照片不受影响
+                        await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+                        showAttachmentPhotoPicker = true
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+    }
+
     /// 查看标签：保存当前内容后发筛选通知并退出
     private func viewTagThoughts(_ path: String) {
         autoSaveTask?.cancel()
@@ -1126,9 +1157,12 @@ struct ThoughtEditorView: View {
     private func loadAttachmentPhotos(_ photos: [PhotosPickerItem]) {
         Task { @MainActor in
             var failedCount = 0
+            var permissionRequired = false
             for photo in photos {
-                guard let data = await PhotoLibraryImageLoader.loadImageData(from: photo) else {
+                let outcome = await PhotoLibraryImageLoader.loadImageData(from: photo)
+                guard case .data(let data) = outcome else {
                     failedCount += 1
+                    if case .permissionRequired = outcome { permissionRequired = true }
                     continue
                 }
 
@@ -1160,7 +1194,7 @@ struct ThoughtEditorView: View {
                     }
                 }
             }
-            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count)
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count, permissionRequired: permissionRequired)
             selectedAttachmentPhotos = []
         }
     }

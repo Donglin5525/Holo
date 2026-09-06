@@ -149,6 +149,7 @@
 		AA11BB22CC33DD44EE55F002 /* CloudEvidencePresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55F001 /* CloudEvidencePresenterTests.swift */; };
 		AA11BB22CC33DD44EE55FF01 /* HoloMemoryEvidenceRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */; };
 		AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */; };
+		AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */; };
 		AA55E9C10D42F1B3A7E8C901 /* FullScreenCoverEdgeSwipeBackAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA55E9C10D42F1B3A7E8C902 /* FullScreenCoverEdgeSwipeBackAuditTests.swift */; };
 		AA6574CF2BCFA8397B9DF954 /* HoloMemoryRepositoryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8EDADC5C4B9CC6914DC480 /* HoloMemoryRepositoryIntegrationTests.swift */; };
 		AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */; };
@@ -418,6 +419,7 @@
 		AA11BB22CC33DD44EE55F001 /* CloudEvidencePresenterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudEvidencePresenterTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryEvidenceRoutingTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitStatsFloatUITests.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtImageSourceSheetUITests.swift; sourceTree = "<group>"; };
 		AA55E9C10D42F1B3A7E8C902 /* FullScreenCoverEdgeSwipeBackAuditTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FullScreenCoverEdgeSwipeBackAuditTests.swift; sourceTree = "<group>"; };
 		ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloThoughtToolTests.swift; sourceTree = "<group>"; };
 		AC8EDADC5C4B9CC6914DC480 /* HoloMemoryRepositoryIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryRepositoryIntegrationTests.swift; sourceTree = "<group>"; };
@@ -990,6 +992,7 @@
 				C10D0000A1B1C1D1E1F1AA01 /* HoloCloudAnalysisQAUITests.swift */,
 				AA11BB22CC33DD44EE550006 /* HoloXhsShotUITests.swift */,
 				AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */,
+				AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */,
 			);
 			path = HoloUITests;
 			sourceTree = "<group>";
@@ -1387,6 +1390,7 @@
 				C10D0000A1B1C1D1E1F1BB02 /* CalendarPickerWalkUITests.swift in Sources */,
 				AA11BB22CC33DD44EE550005 /* HoloXhsShotUITests.swift in Sources */,
 				AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */,
+				AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1607,6 +1611,7 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Holo 需要使用麦克风来记录你的语音输入。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Holo 需要保存权限，把分享卡和图片存入你的相册";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Holo 需要读取权限，加载你从相册选择的照片，并在原图位于 iCloud 时自动下载";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -1661,6 +1666,7 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Holo 需要使用麦克风来记录你的语音输入。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Holo 需要保存权限，把分享卡和图片存入你的相册";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Holo 需要读取权限，加载你从相册选择的照片，并在原图位于 iCloud 时自动下载";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

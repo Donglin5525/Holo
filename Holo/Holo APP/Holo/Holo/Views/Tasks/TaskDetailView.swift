@@ -372,7 +372,8 @@ struct TaskDetailView: View {
             isPresented: $showAttachmentPhotoPicker,
             selection: $selectedAttachmentPhotos,
             maxSelectionCount: existingTask != nil ? max(0, 9 - (existingTask?.sortedAttachments.count ?? 0)) : max(0, 9 - pendingImages.count),
-            matching: .images
+            matching: .images,
+            photoLibrary: .shared()
         )
         .onChange(of: selectedAttachmentPhotos) { _, newItems in
             loadAttachmentPhotos(newItems)
@@ -1100,7 +1101,11 @@ struct TaskDetailView: View {
                 requestCameraAccess()
             }
             Button("从相册选择") {
-                showAttachmentPhotoPicker = true
+                Task { @MainActor in
+                    // 相册读取权限前置申请：iCloud 原图自动下载的前提；被拒不阻断选图
+                    await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+                    showAttachmentPhotoPicker = true
+                }
             }
             Button("取消", role: .cancel) {}
         }
@@ -1244,11 +1249,14 @@ struct TaskDetailView: View {
         Task {
             selectedAttachmentPhotos = []
             var failedCount = 0
+            var permissionRequired = false
 
             if let task = existingTask {
                 for item in items {
-                    guard let data = await PhotoLibraryImageLoader.loadImageData(from: item) else {
+                    let outcome = await PhotoLibraryImageLoader.loadImageData(from: item)
+                    guard case .data(let data) = outcome else {
                         failedCount += 1
+                        if case .permissionRequired = outcome { permissionRequired = true }
                         continue
                     }
                     do {
@@ -1262,17 +1270,18 @@ struct TaskDetailView: View {
             } else {
                 var images: [UIImage] = []
                 for item in items {
-                    if let data = await PhotoLibraryImageLoader.loadImageData(from: item),
-                       let image = UIImage(data: data) {
+                    let outcome = await PhotoLibraryImageLoader.loadImageData(from: item)
+                    if case .data(let data) = outcome, let image = UIImage(data: data) {
                         images.append(image)
                     } else {
                         failedCount += 1
+                        if case .permissionRequired = outcome { permissionRequired = true }
                     }
                 }
                 guard !images.isEmpty || failedCount > 0 else { return }
                 pendingImages.append(contentsOf: images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired)
         }
     }
 

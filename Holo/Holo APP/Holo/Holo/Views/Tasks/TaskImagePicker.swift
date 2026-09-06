@@ -28,7 +28,11 @@ struct TaskImagePicker: View {
                     requestCameraAccess()
                 }
                 Button("从相册选择") {
-                    showPhotoPicker = true
+                    Task { @MainActor in
+                        // 相册读取权限前置申请：iCloud 原图自动下载的前提；被拒不阻断选图
+                        await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+                        showPhotoPicker = true
+                    }
                 }
                 Button("取消", role: .cancel) {}
             }
@@ -36,7 +40,8 @@ struct TaskImagePicker: View {
                 isPresented: $showPhotoPicker,
                 selection: $selectedPhotos,
                 maxSelectionCount: remainingSlots,
-                matching: .images
+                matching: .images,
+                photoLibrary: .shared()
             )
             .onChange(of: selectedPhotos) { _, newItems in
                 loadSelectedPhotos(newItems)
@@ -96,19 +101,21 @@ struct TaskImagePicker: View {
         Task {
             var images: [UIImage] = []
             var failedCount = 0
+            var permissionRequired = false
             for item in items {
-                if let data = await PhotoLibraryImageLoader.loadImageData(from: item),
-                   let image = UIImage(data: data) {
+                let outcome = await PhotoLibraryImageLoader.loadImageData(from: item)
+                if case .data(let data) = outcome, let image = UIImage(data: data) {
                     images.append(image)
                 } else {
                     failedCount += 1
+                    if case .permissionRequired = outcome { permissionRequired = true }
                 }
             }
             selectedPhotos = []
             if !images.isEmpty {
                 onSelectImages(images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired)
         }
     }
 }
