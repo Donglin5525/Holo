@@ -1,11 +1,11 @@
 {
   "images": [
     {
-      "filename": "StartupSplashArtwork.png",
+      "filename": "splash-blank.png",
       "idiom": "iphone"
     },
     {
-      "filename": "splash-solid-bg.png",
+      "filename": "StartupSplashMark.png",
       "idiom": "ipad"
     }
   ],

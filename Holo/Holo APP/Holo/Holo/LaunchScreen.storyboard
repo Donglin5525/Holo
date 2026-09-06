@@ -19,6 +19,9 @@
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="StartupSplashArtwork" translatesAutoresizingMaskIntoConstraints="NO" id="launch-artwork">
                                 <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                             </imageView>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="StartupSplashMark" translatesAutoresizingMaskIntoConstraints="NO" id="launch-mark">
+                                <rect key="frame" x="121.5" y="316" width="150" height="169"/>
+                            </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="launch-safe-area"/>
                         <color key="backgroundColor" name="Background"/>
@@ -27,6 +30,10 @@
                             <constraint firstItem="launch-artwork" firstAttribute="bottom" secondItem="launch-root-view" secondAttribute="bottom" id="launch-artwork-bottom"/>
                             <constraint firstItem="launch-artwork" firstAttribute="leading" secondItem="launch-root-view" secondAttribute="leading" id="launch-artwork-leading"/>
                             <constraint firstItem="launch-artwork" firstAttribute="trailing" secondItem="launch-root-view" secondAttribute="trailing" id="launch-artwork-trailing"/>
+                            <constraint firstItem="launch-mark" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" id="launch-mark-center-x"/>
+                            <constraint firstItem="launch-mark" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" id="launch-mark-center-y"/>
+                            <constraint firstItem="launch-mark" firstAttribute="width" constant="310" id="launch-mark-width"/>
+                            <constraint firstItem="launch-mark" firstAttribute="width" secondItem="launch-mark" secondAttribute="height" multiplier="438:493" id="launch-mark-aspect"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -37,6 +44,7 @@
     </scenes>
     <resources>
         <image name="StartupSplashArtwork" width="1290" height="2796"/>
+        <image name="StartupSplashMark" width="438" height="493"/>
         <namedColor name="Background">
             <color red="0.992" green="0.988" blue="0.973" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
