@@ -60,6 +60,13 @@ final class ThoughtOrganizationService {
                 try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
                 return  // 想法已删除，标 failed 跳过，不重试
             }
+            // 软删（回收站/单删）的想法不再上传正文：隐私口径 + 不浪费配额。
+            // 迟到结果的落库守卫在 applyThoughtIndexV2Result，这里拦的是「上传前」。
+            if thought.deletedAt != nil {
+                logger.info("想法已软删，跳过整理：\(thoughtId)")
+                try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+                return
+            }
             content = thought.content
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")

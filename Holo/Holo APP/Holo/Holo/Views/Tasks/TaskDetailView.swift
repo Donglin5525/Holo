@@ -141,6 +141,8 @@ struct TaskDetailView: View {
     @State private var galleryStartIndex = 0
     @State private var showAttachmentSourceChoice = false
     @State private var showAttachmentCamera = false
+    /// 相机权限被拒时的提示（对齐 TaskImagePicker 的做法）
+    @State private var showCameraPermissionAlert = false
     @State private var showAttachmentPhotoPicker = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
     @State private var attachmentsRevision = 0
@@ -410,7 +412,8 @@ struct TaskDetailView: View {
                 deleteTask()
             }
         } message: {
-            Text("删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。")
+            // 如实口径：单条删除是软删但不进「最近删除」列表（模块清空批次才进），用户无法自助恢复
+            Text(String(localized: "删除后将无法恢复，30 天后从设备彻底清除。"))
         }
         .alert("保存失败", isPresented: $showSaveErrorAlert) {
             Button("好的", role: .cancel) {}
@@ -1101,6 +1104,16 @@ struct TaskDetailView: View {
             }
             Button("取消", role: .cancel) {}
         }
+        .alert("无法访问", isPresented: $showCameraPermissionAlert) {
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(String(localized: "请在系统设置中允许 Holo 访问相机"))
+        }
     }
 
     @ViewBuilder
@@ -1202,7 +1215,7 @@ struct TaskDetailView: View {
                 }
             }
         default:
-            break
+            showCameraPermissionAlert = true
         }
     }
 
@@ -1230,28 +1243,36 @@ struct TaskDetailView: View {
         guard !items.isEmpty else { return }
         Task {
             selectedAttachmentPhotos = []
+            var failedCount = 0
 
             if let task = existingTask {
                 for item in items {
-                    guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+                    guard let data = await PhotoLibraryImageLoader.loadImageData(from: item) else {
+                        failedCount += 1
+                        continue
+                    }
                     do {
                         try await repository.addAttachment(imageData: data, to: task)
                     } catch {
                         Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                        failedCount += 1
                     }
                 }
                 attachmentsRevision += 1
             } else {
                 var images: [UIImage] = []
                 for item in items {
-                    if let data = try? await item.loadTransferable(type: Data.self),
+                    if let data = await PhotoLibraryImageLoader.loadImageData(from: item),
                        let image = UIImage(data: data) {
                         images.append(image)
+                    } else {
+                        failedCount += 1
                     }
                 }
-                guard !images.isEmpty else { return }
+                guard !images.isEmpty || failedCount > 0 else { return }
                 pendingImages.append(contentsOf: images)
             }
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count)
         }
     }
 

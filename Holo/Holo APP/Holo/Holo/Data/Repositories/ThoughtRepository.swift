@@ -278,6 +278,7 @@ class ThoughtRepository {
             throw ThoughtError.notFound
         }
 
+        let previousContent = thought.content
         if let content = content {
             thought.content = content
             thought.firstLine = RichContentSerializer.firstLine(fromPlainText: content)
@@ -287,6 +288,19 @@ class ThoughtRepository {
         }
         if let richContentJSON = richContentJSON {
             thought.richContentJSON = richContentJSON
+        }
+
+        // V2 §5.5：正文实变且新内容与已整理版本不同 → 回 pending 等待重排。
+        // 否则编辑过的想法停留在 organized/skipped，旧 AI 标签因 basisTextHash 失效而消失，
+        // 却永远不会被任何入口（启动 rebuild 只取 pending、批量排除 organized）重新拾取。
+        if let content, content != previousContent {
+            let newHash = ThoughtTagIndexProjection.textHash(content)
+            let reorganizableStatuses: Set<String> = ["unprocessed", "organized", "failed", "skipped"]
+            if newHash != thought.indexCompletedHash,
+               reorganizableStatuses.contains(thought.organizedStatus) {
+                thought.organizedStatus = "pending"
+                thought.indexRequestedHash = nil
+            }
         }
 
         thought.updatedAt = Date()
@@ -1141,15 +1155,21 @@ class ThoughtRepository {
         try context.save()
     }
 
-    /// 恢复 processing 超时的想法（App 启动时调用）
-    func recoverStaleProcessingThoughts() {
-        let fiveMinutesAgo = Date().addingTimeInterval(-5 * 60)
-
+    /// 恢复 processing 超时的想法。
+    /// - coldStart: 冷启动路径传 true——新进程不可能有存活请求，processing 一律恢复；
+    ///   否则「整理中被杀 + 5 分钟内重启 + 前台连续使用（无前后台/网络切换）」的想法
+    ///   会永久卡「整理中」。非冷启动（前台切换/网络恢复沿）保留 5 分钟保护，避免误杀进行中的请求。
+    func recoverStaleProcessingThoughts(coldStart: Bool = false) {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "organizedStatus == 'processing' AND organizationStartedAt < %@",
-            fiveMinutesAgo as CVarArg
-        )
+        if coldStart {
+            request.predicate = NSPredicate(format: "organizedStatus == 'processing'")
+        } else {
+            let fiveMinutesAgo = Date().addingTimeInterval(-5 * 60)
+            request.predicate = NSPredicate(
+                format: "organizedStatus == 'processing' AND organizationStartedAt < %@",
+                fiveMinutesAgo as CVarArg
+            )
+        }
 
         do {
             let staleThoughts = try context.fetch(request)

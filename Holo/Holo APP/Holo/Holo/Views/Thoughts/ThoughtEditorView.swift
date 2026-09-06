@@ -101,7 +101,9 @@ struct ThoughtEditorView: View {
     @State private var didEnqueueAIClassification: Bool = false
 
     // MARK: - Attachment State
-    @State private var pendingImages: [UIImage] = []
+    /// 新建模式暂存图：保留原始数据（落库走与编辑模式一致的 2048 压缩管线），
+    /// preview 仅供缩略条展示，不再作为持久化来源。
+    @State private var pendingImageItems: [PendingImageItem] = []
     @State private var showAttachmentSourceChoice: Bool = false
     @State private var showAttachmentPhotoPicker: Bool = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
@@ -110,15 +112,18 @@ struct ThoughtEditorView: View {
     @State private var showAttachmentGallery: Bool = false
     @State private var galleryStartIndex: Int = 0
     @State private var editingAttachments: [ThoughtAttachmentGridItem] = []
+    /// 相机权限被拒时的提示（对齐 TaskImagePicker 的做法）
+    @State private var showCameraPermissionAlert: Bool = false
 
     /// 当前正在编辑的想法 ID（编辑模式用注入的 id，新建模式用草稿 id）
     private var currentThoughtId: UUID? { editingThoughtId ?? draftThoughtId }
     /// 是否为编辑模式（已有记录）
     private var isEditing: Bool { currentThoughtId != nil }
 
-    /// 是否有实质内容（去空格换行后非空）
+    /// 是否有实质内容：文字非空，或已有图片（纯图片想法同样合法，不再被当空草稿丢弃）
     private var hasContent: Bool {
-        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasText = !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return hasText || !pendingImageItems.isEmpty || !editingAttachments.isEmpty
     }
 
     // MARK: - Body
@@ -244,6 +249,20 @@ struct ThoughtEditorView: View {
         .onChange(of: content) { _, _ in
             scheduleAutoSave()
         }
+        // 纯图片想法同样要落库：加图/删图与文字变化走同一套防抖自动保存
+        .onChange(of: pendingImageItems) { _, _ in
+            scheduleAutoSave()
+        }
+        .alert("无法访问", isPresented: $showCameraPermissionAlert) {
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(String(localized: "请在系统设置中允许 Holo 访问相机"))
+        }
         .onChange(of: triggerContext) { _, newValue in
             suggestionViewModel.search(context: newValue, excludingThoughtId: currentThoughtId)
             if newValue != nil, showsColorPalette {
@@ -335,7 +354,7 @@ struct ThoughtEditorView: View {
     ///     避免 Widget 快照、列表刷新等重链路频繁触发）
     @discardableResult
     private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) -> UUID? {
-        // 无内容：不创建空记录。已创建过的草稿（draftThoughtId != nil）删除回退。
+        // 无文字且无图片：不创建空记录。已创建过的草稿（draftThoughtId != nil）删除回退。
         if !hasContent {
             if let draftId = draftThoughtId {
                 try? thoughtRepository.hardDelete(draftId)
@@ -376,6 +395,17 @@ struct ThoughtEditorView: View {
                 )
                 try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
                 persistedThoughtId = thoughtId
+
+                // V2 §5.5：离开编辑器（notifyDataChange=true 即退出沿）且正文已变——
+                // update() 已把状态回 pending，这里重新排队整理。防抖中间保存不触发，
+                // 避免打字过程中每 2 秒消耗一次整理配额。
+                if notifyDataChange, originalContent != content,
+                   let updated = try? repository.fetchById(thoughtId),
+                   updated.organizedStatus == "pending" {
+                    Task { @MainActor in
+                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: thoughtId)
+                    }
+                }
             } else {
                 // 新建模式首次落库：create
                 let thought = try repository.create(
@@ -390,20 +420,17 @@ struct ThoughtEditorView: View {
                 // 不能依赖上面的 @State 在本次同步调用中立即回写；调用方需要继续使用刚创建的 ID。
                 persistedThoughtId = thought.id
 
-                // 上传暂存图片（新建模式首次 create 后转为编辑模式，图片落库）
-                let imagesToUpload = pendingImages
+                // 保存暂存图片（新建模式首次 create 后转为编辑模式；原始数据走与编辑模式一致的压缩管线）
+                let imagesToUpload = pendingImageItems
                 if !imagesToUpload.isEmpty {
-                    pendingImages = []
+                    pendingImageItems = []
                     Task { @MainActor in
                         var failedCount = 0
-                        for image in imagesToUpload {
-                            guard let jpegData = image.jpegData(compressionQuality: 0.85) else {
-                                failedCount += 1
-                                continue
-                            }
+                        for item in imagesToUpload {
                             do {
-                                _ = try await repository.addAttachment(imageData: jpegData, to: thought)
+                                _ = try await repository.addAttachment(imageData: item.data, to: thought)
                             } catch {
+                                ThoughtLog.error("保存暂存图片失败", error.localizedDescription)
                                 failedCount += 1
                             }
                         }
@@ -909,12 +936,12 @@ struct ThoughtEditorView: View {
 
     // MARK: - 图片附件区域
 
-    /// 最大可选数量（新建模式用 pendingImages，编辑模式用 editingAttachments）
+    /// 最大可选数量（新建模式用 pendingImageItems，编辑模式用 editingAttachments）
     private var maxAttachmentSelection: Int {
         if isEditing {
             return max(0, 9 - editingAttachments.count)
         }
-        return max(0, 9 - pendingImages.count)
+        return max(0, 9 - pendingImageItems.count)
     }
 
     /// 当前编辑中的 Thought 对象（用于全屏浏览）
@@ -945,7 +972,7 @@ struct ThoughtEditorView: View {
     }
 
     private var hasAttachments: Bool {
-        isEditing ? !editingAttachments.isEmpty : !pendingImages.isEmpty
+        isEditing ? !editingAttachments.isEmpty : !pendingImageItems.isEmpty
     }
 
     // MARK: - 键盘避让
@@ -1013,18 +1040,18 @@ struct ThoughtEditorView: View {
                 .padding(HoloSpacing.md)
             }
         } else {
-            if !pendingImages.isEmpty {
+            if !pendingImageItems.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: HoloSpacing.sm) {
-                        ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, image in
-                            Image(uiImage: image)
+                        ForEach(pendingImageItems) { item in
+                            Image(uiImage: item.preview)
                                 .resizable()
                                 .aspectRatio(1, contentMode: .fill)
                                 .frame(width: 80, height: 80)
                                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                                 .overlay(alignment: .topTrailing) {
                                     Button {
-                                        pendingImages.remove(at: index)
+                                        pendingImageItems.removeAll { $0.id == item.id }
                                     } label: {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 16))
@@ -1078,31 +1105,46 @@ struct ThoughtEditorView: View {
 
     // MARK: - Attachment Actions
 
-    /// 加载相册选中的图片
+    /// 加载相册选中的图片：统一走 PhotoLibraryImageLoader（Data 失败回退系统转码），
+    /// 失败不再静默跳过，给用户明确提示。
     private func loadAttachmentPhotos(_ photos: [PhotosPickerItem]) {
         Task { @MainActor in
+            var failedCount = 0
             for photo in photos {
-                guard let data = try? await photo.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else { continue }
+                guard let data = await PhotoLibraryImageLoader.loadImageData(from: photo) else {
+                    failedCount += 1
+                    continue
+                }
 
                 if isEditing {
                     // 编辑模式：直接保存到 CoreData
                     guard let thoughtId = editingThoughtId,
-                          let thought = try? thoughtRepository.fetchById(thoughtId) else { continue }
+                          let thought = try? thoughtRepository.fetchById(thoughtId) else {
+                        failedCount += 1
+                        continue
+                    }
                     do {
                         _ = try await thoughtRepository.addAttachment(imageData: data, to: thought)
                         refreshEditingAttachments()
                     } catch {
                         ThoughtLog.error("添加附件失败", error.localizedDescription)
+                        failedCount += 1
                     }
                 } else {
-                    // 新建模式：暂存到内存
+                    // 新建模式：暂存原始数据 + 轻量预览
+                    guard let image = UIImage(data: data) else {
+                        failedCount += 1
+                        continue
+                    }
                     let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
                     if let preview {
-                        pendingImages.append(preview)
+                        pendingImageItems.append(PendingImageItem(data: data, preview: preview))
+                    } else {
+                        failedCount += 1
                     }
                 }
             }
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count)
             selectedAttachmentPhotos = []
         }
     }
@@ -1132,13 +1174,13 @@ struct ThoughtEditorView: View {
             Task { @MainActor in
                 let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
                 if let preview {
-                    pendingImages.append(preview)
+                    pendingImageItems.append(PendingImageItem(data: imageData, preview: preview))
                 }
             }
         }
     }
 
-    /// 请求相机权限
+    /// 请求相机权限（被拒时给出提示而非无反馈）
     private func requestCameraAccess() {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
@@ -1153,7 +1195,7 @@ struct ThoughtEditorView: View {
                 }
             }
         default:
-            break
+            showCameraPermissionAlert = true
         }
     }
 
@@ -1194,6 +1236,19 @@ struct ThoughtEditorView: View {
         DispatchQueue.main.async {
             insertVoiceTranscript(transcript)
         }
+    }
+}
+
+// MARK: - PendingImageItem
+
+/// 新建模式下的暂存图：data 是持久化来源（原始格式），preview 仅用于缩略条展示。
+private struct PendingImageItem: Identifiable, Equatable {
+    let id = UUID()
+    let data: Data
+    let preview: UIImage
+
+    static func == (lhs: PendingImageItem, rhs: PendingImageItem) -> Bool {
+        lhs.id == rhs.id
     }
 }
 

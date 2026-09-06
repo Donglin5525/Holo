@@ -95,16 +95,20 @@ struct TaskImagePicker: View {
 
         Task {
             var images: [UIImage] = []
+            var failedCount = 0
             for item in items {
-                if let data = try? await item.loadTransferable(type: Data.self),
+                if let data = await PhotoLibraryImageLoader.loadImageData(from: item),
                    let image = UIImage(data: data) {
                     images.append(image)
+                } else {
+                    failedCount += 1
                 }
             }
             selectedPhotos = []
             if !images.isEmpty {
                 onSelectImages(images)
             }
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count)
         }
     }
 }

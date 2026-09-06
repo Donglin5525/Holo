@@ -61,8 +61,9 @@ final class ThoughtOrganizationQueue: ObservableObject {
     /// 批量模式已完成数（成功 + 跳过 + 终态 failed；重试中不计）
     @Published private(set) var batchCompleted: Int = 0
     /// 当日配额耗尽标记：撞 rateLimited 后置 true，processNext 短路不再取下一条
-    /// App 重启后重置（靠 rebuildFromDatabase 续做 pending）
+    /// 记录触发日期，跨天自动复位（App 常驻不重启也能在次日续做，兑现「明天自动续做」承诺）
     @Published private(set) var dailyLimitHit: Bool = false
+    private var dailyLimitHitAt: Date?
 
     // MARK: - Init
 
@@ -91,11 +92,12 @@ final class ThoughtOrganizationQueue: ObservableObject {
             logger.info("自动分类已关闭，跳过新想法入队：\(thoughtId)")
             return
         }
-        // 批量进行中时，新想法也计入批量总量（保证进度准确）
+        // 批量进行中时，新想法也计入批量总量（保证进度准确）；
+        // 先去重再递增，重复入队不计入，否则进度虚增导致批量 banner 永不消失
+        guard appendIfNotQueued(thoughtId) else { return }
         if let total = batchTotal {
             self.batchTotal = total + 1
         }
-        guard appendIfNotQueued(thoughtId) else { return }
         processNext()
     }
 
@@ -107,6 +109,7 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
         // 用户主动触发，重置配额暂停标记
         self.dailyLimitHit = false
+        self.dailyLimitHitAt = nil
 
         let isFreshBatch = batchTotal == nil || (pendingItems.isEmpty && currentItem == nil && !isProcessing)
         if isFreshBatch {
@@ -146,9 +149,10 @@ final class ThoughtOrganizationQueue: ObservableObject {
     }
 
     /// App 启动时重建队列（从 Core Data 恢复 pending 想法）
-    func rebuildFromDatabase() {
+    /// - Parameter coldStart: 冷启动（HoloApp 启动链）传 true：processing 一律恢复，新进程无存活请求
+    func rebuildFromDatabase(coldStart: Bool = false) {
         // 先恢复 processing 超时
-        repository.recoverStaleProcessingThoughts()
+        repository.recoverStaleProcessingThoughts(coldStart: coldStart)
 
         // 自动分类关闭时不恢复后台队列；用户仍可从“批量 AI 整理”主动处理。
         guard ThoughtAIClassificationPolicy.isEnabled() else {
@@ -216,7 +220,9 @@ final class ThoughtOrganizationQueue: ObservableObject {
     private func processNext() {
         guard !isProcessing else { return }
 
-        // 配额耗尽暂停：不再取下一条（靠 App 重启 rebuild 续做）
+        // 配额耗尽暂停：不再取下一条。跨天后自动解锁（配额按日重置），
+        // 兑现列表 banner「剩余条目明天自动续做」的承诺——不再只依赖 App 重启。
+        resetDailyLimitIfNewDay()
         guard !dailyLimitHit else { return }
 
         // 断网挂起：不发起注定失败的请求，条目留在队列等网络恢复沿续做
@@ -286,6 +292,16 @@ final class ThoughtOrganizationQueue: ObservableObject {
     private func handleRateLimited(thoughtId: UUID) {
         rollbackToPending(thoughtId: thoughtId, reason: "配额耗尽")
         self.dailyLimitHit = true
+        self.dailyLimitHitAt = Date()
+    }
+
+    /// 跨天复位配额暂停：配额按日重置，触发日与今天不同日即解锁
+    private func resetDailyLimitIfNewDay() {
+        guard let hitAt = dailyLimitHitAt,
+              !Calendar.current.isDate(hitAt, inSameDayAs: Date()) else { return }
+        logger.info("配额暂停已跨天，自动复位续做")
+        dailyLimitHit = false
+        dailyLimitHitAt = nil
     }
 
     // MARK: - 失败重试处理

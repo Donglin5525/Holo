@@ -288,15 +288,20 @@ struct FeedbackSheet: View {
         let remaining = maxShotCount - shots.count
         Task {
             var loaded: [FeedbackShot] = []
+            var failedCount = 0
             for item in items.prefix(remaining) {
-                guard let data = try? await item.loadTransferable(type: Data.self),
+                guard let data = await PhotoLibraryImageLoader.loadImageData(from: item),
                       let jpeg = FeedbackImageCompressor.compress(data),
-                      let image = UIImage(data: jpeg) else { continue }
+                      let image = UIImage(data: jpeg) else {
+                    failedCount += 1
+                    continue
+                }
                 loaded.append(FeedbackShot(image: image, data: jpeg))
             }
             shots.append(contentsOf: loaded)
             pickerItems = []
             isProcessingImages = false
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count)
         }
     }
 

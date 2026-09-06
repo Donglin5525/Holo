@@ -65,8 +65,12 @@ enum APIError: LocalizedError {
     /// 是否可重试
     var isRetryable: Bool {
         switch self {
-        case .networkUnavailable, .rateLimited, .timeout, .serverError:
+        case .networkUnavailable, .timeout, .serverError:
             return true
+        case .rateLimited:
+            // 429 一律不自动重试：当日限流语义下重试毫无意义，
+            // 1+2+4 秒盲重试只会 4 倍放大请求量冲击设备限流窗口（想法批量整理尤其敏感）。
+            return false
         case .backendError(let statusCode, let code, _, _):
             // 模型输出结构/流完整性问题不能在 HTTP 层拿同一 payload 盲重放：
             // Agent runtime 会把它计为一轮，生成带纠错上下文的新 step，再按用户轮数预算继续。
@@ -76,6 +80,7 @@ enum APIError: LocalizedError {
                 "TRUNCATED_MODEL_RESPONSE",
                 "INVALID_INSIGHT_JSON",
                 "INVALID_AGENT_JSON",
+                "MODEL_OUTPUT_INVALID",
                 "UPSTREAM_SSE_INVALID_FRAME",
                 "UPSTREAM_SSE_INCOMPLETE"
             ]

@@ -226,7 +226,7 @@ struct HoloApp: App {
 
                 // 断网挂起 / 网络恢复续做（飞行模式写笔记等场景）
                 ThoughtOrganizationQueue.shared.startObservingNetwork()
-                ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+                ThoughtOrganizationQueue.shared.rebuildFromDatabase(coldStart: true)
                 // V2：仅恢复上次会话的持久任务展示，不再自动发起新一轮归并生成
                 Task {
                     await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
