@@ -85,6 +85,14 @@ struct DailyReplayMoment: Identifiable {
 
 enum DailyReplayPresentation {
 
+    /// 一个时段的记忆分块：河流阅读序的排版单元。
+    struct PeriodBlock: Identifiable {
+        let period: DailyReplayPeriod
+        let moments: [DailyReplayMoment]
+
+        var id: DailyReplayPeriod { period }
+    }
+
     /// 同一分钟、同一模块属于同一个生活动作，合成一个「记忆时刻」。
     /// 不跨模块合并，避免把同一时刻的记账和习惯误表达成同一件事。
     static func moments(from events: [CalendarEvent], calendar: Calendar = .current) -> [DailyReplayMoment] {
@@ -125,6 +133,17 @@ enum DailyReplayPresentation {
     static func momentsByPeriod(from events: [CalendarEvent], calendar: Calendar = .current) -> [DailyReplayPeriod: [DailyReplayMoment]] {
         Dictionary(grouping: moments(from: events, calendar: calendar)) { moment in
             DailyReplayPeriod.classify(moment.events[0], calendar: calendar)
+        }
+    }
+
+    /// 河流阅读序的一天分块：列表自最新向过去流动，一天之内同样自晚到早阅读——
+    /// 时段倒序（深夜在最上），组内时刻也自新到旧；无可靠时间的「当天记录」
+    /// 定位不了时辰，固定沉底作附录。日视图与月历日详情卡共用这一条顺序规则。
+    static func readingOrderBlocks(from events: [CalendarEvent], calendar: Calendar = .current) -> [PeriodBlock] {
+        let grouped = momentsByPeriod(from: events, calendar: calendar)
+        return DailyReplayPeriod.allCases.reversed().compactMap { period in
+            guard let moments = grouped[period], !moments.isEmpty else { return nil }
+            return PeriodBlock(period: period, moments: Array(moments.reversed()))
         }
     }
 

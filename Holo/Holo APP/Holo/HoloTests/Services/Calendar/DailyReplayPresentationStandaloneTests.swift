@@ -80,7 +80,8 @@ struct DailyReplayPresentationStandaloneTests {
         testTodayEmptyDaySwipesBackInsteadOfFuture()
         testEmptyDayDownwardSwipeGoesLater()
         testEarlierPageExtendsBackwardWithoutLowerBound()
-        print("DailyReplayPresentationStandaloneTests passed (10 cases)")
+        testDayReadsNewestFirstWithUntimedAtBottom()
+        print("DailyReplayPresentationStandaloneTests passed (11 cases)")
     }
 
     private static func testSameMinuteAndModuleBecomeOneMoment() {
@@ -218,6 +219,28 @@ struct DailyReplayPresentationStandaloneTests {
         let secondComponents = second.map { Calendar.current.dateComponents([.month, .day], from: $0) }
         expectDailyReplay(secondComponents?.month == 6 && secondComponents?.day == 28,
                           "从 7 月 10 日继续向过去铺页应跨月回到 6 月 28 日——回看没有下限：\(String(describing: second))")
+    }
+
+    private static func testDayReadsNewestFirstWithUntimedAtBottom() {
+        let events = [
+            event(.thought, hour: 14, minute: 16, title: "下午想法", idSuffix: 30),
+            event(.thought, hour: 14, minute: 21, title: "稍晚想法", idSuffix: 31),
+            event(.finance, hour: 17, minute: 10, title: "傍晚记账", idSuffix: 32),
+            event(.habit, hour: 21, minute: 5, title: "晚上习惯", idSuffix: 33),
+            event(.todo, hour: 0, minute: 0, title: "全天任务", idSuffix: 34)
+        ]
+
+        let blocks = DailyReplayPresentation.readingOrderBlocks(from: events)
+        expectDailyReplay(blocks.map(\.period) == [.evening, .afternoon, .untimed],
+                          "河流阅读序时段应自晚到早，无时间记录沉底：\(blocks.map(\.period))")
+
+        let afternoonDates = blocks.first(where: { $0.period == .afternoon })?.moments.map(\.date) ?? []
+        expectDailyReplay(afternoonDates.count == 3 && afternoonDates == afternoonDates.sorted(by: >),
+                          "时段内时刻应自新到旧（14:16/14:21/17:10 同属下午）：\(afternoonDates)")
+
+        let flat = blocks.flatMap(\.moments)
+        expectDailyReplay(flat.count == 5 && flat.last?.module == .todo,
+                          "摊平后应保持块序且无时间记录在末尾：\(flat.map(\.title))")
     }
 
     private static func event(_ module: CalendarModule,

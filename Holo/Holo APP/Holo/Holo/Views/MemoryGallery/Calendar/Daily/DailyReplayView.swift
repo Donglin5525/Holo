@@ -3,7 +3,9 @@
 //  Holo
 //
 //  「记忆河流」日回放：日期是章节，不是右侧索引。列表自最新向过去流动——
-//  打开就在今天，向上滑动回看更早的一天；翻页把更早的页追加在列表底部，
+//  打开就在今天，向上滑动回看更早的一天；一天之内同样自晚到早阅读（时段与
+//  时刻都倒序排布，无时间的记录沉底），往下滑始终是往过去走。
+//  翻页把更早的页追加在列表底部，
 //  永远不动正在阅读的位置（此前「往顶部插入更早内容再钉回位置」的两轮方案
 //  在 SwiftUI 下时序不可靠，已在踩坑速查表结案：位置保持类方案禁止再用于首屏定位）。
 //  无意义的小时网格和常驻彩色导航被移除，视觉重心回到可理解的生活事件。
@@ -426,8 +428,8 @@ private struct DailyReplayDayContent: View {
     let minimumHeight: CGFloat
     let onEmptySwipe: (DailyReplayEmptyDaySwipeDirection) -> Void
 
-    private var momentsByPeriod: [DailyReplayPeriod: [DailyReplayMoment]] {
-        DailyReplayPresentation.momentsByPeriod(from: events)
+    private var periodBlocks: [DailyReplayPresentation.PeriodBlock] {
+        DailyReplayPresentation.readingOrderBlocks(from: events)
     }
 
     var body: some View {
@@ -440,10 +442,8 @@ private struct DailyReplayDayContent: View {
                     dayNarrative(narrative)
                 }
 
-                ForEach(DailyReplayPeriod.allCases) { period in
-                    if let moments = momentsByPeriod[period], !moments.isEmpty {
-                        periodBlock(period, moments: moments)
-                    }
+                ForEach(periodBlocks) { block in
+                    periodBlock(block.period, moments: block.moments)
                 }
             }
 

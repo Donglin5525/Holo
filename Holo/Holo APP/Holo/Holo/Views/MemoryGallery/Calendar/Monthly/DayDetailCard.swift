@@ -16,7 +16,8 @@ struct DayDetailCard: View {
     var onReplay: (() -> Void)? = nil
 
     private var moments: [DailyReplayMoment] {
-        DailyReplayPresentation.moments(from: events)
+        // 与日回放同一河流阅读序：自新到旧，无时间的记录沉底。
+        DailyReplayPresentation.readingOrderBlocks(from: events).flatMap(\.moments)
     }
 
     var body: some View {
