@@ -74,16 +74,10 @@ struct FinanceLedgerView: View {
     /// 操作完成提示
     @State private var operationMessage: OperationMessage?
 
-    // --- 日期滑动切换 ---
+    // --- 日期滑动切换：状态在 DaySwipeContainer 内（隔离每帧重算） ---
 
-    /// 滑动偏移量（跟随手指 + 切换动画）
-    @State private var daySwipeOffset: CGFloat = 0
-    /// 是否正在水平滑动（锁定方向，避免与垂直滚动冲突）
-    @State private var isDaySwiping: Bool = false
-    @State private var daySwipeGestureLock = HorizontalGestureLock()
-    
     // --- 月历展开：连续高度控制 ---
-    
+
     /// 已展开高度（0 = 收起，maxCalendarHeight = 完全展开）
     @State private var calendarRevealHeight: CGFloat = 0
     
@@ -151,49 +145,23 @@ struct FinanceLedgerView: View {
                     .padding(.bottom, 8)
             }
 
-            // 交易列表（支持左右滑动切换日期）
-            ScrollView(showsIndicators: false) {
-                transactionListView
-                    .padding(.bottom, HoloSpacing.lg)
-                    .allowsHitTesting(!isDaySwiping) // 滑动中禁止点击账单
+            // 交易列表（支持左右滑动切换日期）：滑动状态隔离在子容器，
+            // 避免每帧拖动重算整页 body（头部/汇总卡/列表陪跑，行多时跟手性下降）
+            DaySwipeContainer(onDayChange: { forward in
+                if let newDate = Calendar.current.date(
+                    byAdding: .day,
+                    value: forward ? 1 : -1,
+                    to: calendarState.selectedDate
+                ) {
+                    calendarState.selectDate(newDate)
+                }
+            }) {
+                ScrollView(showsIndicators: false) {
+                    transactionListView
+                        .padding(.bottom, HoloSpacing.lg)
+                }
+                .frame(maxHeight: .infinity)
             }
-            .scrollDisabled(isDaySwiping) // 水平滑动时锁定垂直滚动
-            .frame(maxHeight: .infinity)
-            .offset(x: daySwipeOffset)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 15)
-                    .onChanged { value in
-                        switch daySwipeGestureLock.update(translation: value.translation) {
-                        case .horizontal:
-                            isDaySwiping = true
-                            daySwipeOffset = value.translation.width * 0.3
-                        case .vertical:
-                            isDaySwiping = false
-                            daySwipeOffset = 0
-                        case .undecided:
-                            break
-                        }
-                    }
-                    .onEnded { value in
-                        guard daySwipeGestureLock.axis == .horizontal else {
-                            isDaySwiping = false
-                            daySwipeOffset = 0
-                            daySwipeGestureLock.reset()
-                            return
-                        }
-
-                        let threshold: CGFloat = 50
-                        if value.translation.width < -threshold {
-                            performDaySwipe(forward: true)
-                        } else if value.translation.width > threshold {
-                            performDaySwipe(forward: false)
-                        } else {
-                            withAnimation(.spring(response: 0.3)) { daySwipeOffset = 0 }
-                            isDaySwiping = false
-                        }
-                        daySwipeGestureLock.reset()
-                    }
-            )
             }
             .opacity(isInitialContentReady ? 1 : 0)
             .background(Color.holoCardBackground)
@@ -496,11 +464,11 @@ struct FinanceLedgerView: View {
             .padding(.top, 24)
             .padding(.bottom, HoloSpacing.xs)
             
-            VStack(spacing: 0) {
+            // LazyVStack：账单一天可能几十上百行，懒加载只布局可见行
+            LazyVStack(spacing: 0) {
                 ForEach(Array(calendarState.selectedDayTransactions.enumerated()), id: \.element) { index, tx in
                     TransactionRowView(transaction: tx) {
-                        // 滑动切换日期中，忽略点击（防止误触进入编辑页）
-                        guard !isDaySwiping && daySwipeOffset == 0 else { return }
+                        // 滑动切换日期中的点击已被容器 allowsHitTesting 整体拦截
                         editingTransaction = tx
                     }
                     .contextMenu {
@@ -674,38 +642,6 @@ struct FinanceLedgerView: View {
 
     // MARK: - 日期滑动切换（两阶段动画，复用 WeekView 模式）
 
-    /// 执行日期切换动画
-    /// - Parameter forward: true = 左滑 → 后一天，false = 右滑 → 前一天
-    private func performDaySwipe(forward: Bool) {
-        // 阶段1: 快速滑出
-        let slideOut: CGFloat = forward
-            ? -UIScreen.main.bounds.width * 0.3
-            : UIScreen.main.bounds.width * 0.3
-
-        withAnimation(.easeOut(duration: 0.15)) {
-            daySwipeOffset = slideOut
-        }
-
-        // 阶段2: 更新数据 + 弹入新一天
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            if let newDate = Calendar.current.date(
-                byAdding: .day,
-                value: forward ? 1 : -1,
-                to: calendarState.selectedDate
-            ) {
-                calendarState.selectDate(newDate)
-            }
-
-            // 瞬移到对侧，然后弹入
-            daySwipeOffset = -slideOut
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                daySwipeOffset = 0
-            }
-
-            isDaySwiping = false
-        }
-    }
-
     // MARK: - Budget Data
 
     /// 加载预算数据（首页卡片）
@@ -718,4 +654,84 @@ struct FinanceLedgerView: View {
 private struct OperationMessage: Equatable {
     let text: String
     let isError: Bool
+}
+
+/// 日切换滑动容器：把手势状态（偏移量/滑动中标记）隔离在子视图，
+/// 拖动期间的每帧写入只失效本容器，不再重算整页 body
+/// （账单页头部、汇总卡、列表此前都跟着每帧陪跑，行多时横滑跟手性下降）。
+private struct DaySwipeContainer<Content: View>: View {
+    /// 提交切换回调：forward = 左滑切到后一天
+    let onDayChange: (Bool) -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var offset: CGFloat = 0
+    @State private var isSwiping = false
+    @State private var gestureLock = HorizontalGestureLock()
+
+    var body: some View {
+        content()
+            .allowsHitTesting(!isSwiping) // 滑动中禁止点击账单（含 contextMenu）
+            .scrollDisabled(isSwiping) // 水平滑动时锁定垂直滚动
+            .offset(x: offset)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 15)
+                    .onChanged { value in
+                        switch gestureLock.update(translation: value.translation) {
+                        case .horizontal:
+                            isSwiping = true
+                            offset = value.translation.width * 0.3
+                        case .vertical:
+                            isSwiping = false
+                            offset = 0
+                        case .undecided:
+                            break
+                        }
+                    }
+                    .onEnded { value in
+                        guard gestureLock.axis == .horizontal else {
+                            isSwiping = false
+                            offset = 0
+                            gestureLock.reset()
+                            return
+                        }
+
+                        let threshold: CGFloat = 50
+                        if value.translation.width < -threshold {
+                            performDaySwipe(forward: true)
+                        } else if value.translation.width > threshold {
+                            performDaySwipe(forward: false)
+                        } else {
+                            withAnimation(.spring(response: 0.3)) { offset = 0 }
+                            isSwiping = false
+                        }
+                        gestureLock.reset()
+                    }
+            )
+    }
+
+    /// 执行日期切换动画
+    /// - Parameter forward: true = 左滑 → 后一天，false = 右滑 → 前一天
+    private func performDaySwipe(forward: Bool) {
+        // 阶段1: 快速滑出
+        let slideOut: CGFloat = forward
+            ? -UIScreen.main.bounds.width * 0.3
+            : UIScreen.main.bounds.width * 0.3
+
+        withAnimation(.easeOut(duration: 0.15)) {
+            offset = slideOut
+        }
+
+        // 阶段2: 更新数据 + 弹入新一天
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            onDayChange(forward)
+
+            // 瞬移到对侧，然后弹入
+            offset = -slideOut
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                offset = 0
+            }
+
+            isSwiping = false
+        }
+    }
 }

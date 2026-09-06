@@ -35,7 +35,10 @@ struct WeeklyGridView: View {
     @AppStorage("holo.memoryGallery.weeklyGrid.hourScale")
     private var hourScale: Double = 1
     /// 捏合开始时的倍率，手势期间以此为基准连续变化
-    @State private var pinchStartScale: Double?
+    @State private var pinchStartScale: Double = 1
+    /// 捏合进行中的实时倍率（@GestureState 随手势结束自动复位为 1）
+    @GestureState private var pinchMagnification: Double = 1
+    @State private var isPinching = false
     /// 三条横向内容（日期、凌晨、事件）共用同一手势位移，保证任何时刻都在同一列基线上。
     @GestureState private var pagerDragOffset: CGFloat = 0
 
@@ -60,11 +63,19 @@ struct WeeklyGridView: View {
         min(maxHourScale, max(minHourScale, hourScale))
     }
 
+    /// 布局实际使用的倍率：捏合进行中读内存实时值，其余时刻读持久值。
+    /// @AppStorage 每帧写会触发 UserDefaults I/O 并广播全工程，必须只在松手时写一次。
+    private var displayHourScale: Double {
+        guard isPinching else { return clampedHourScale }
+        return min(maxHourScale, max(minHourScale, pinchStartScale * pinchMagnification))
+    }
+
     private func resetHourScale() {
         withAnimation(.easeInOut(duration: 0.2)) {
             hourScale = 1
         }
-        pinchStartScale = nil
+        pinchStartScale = 1
+        isPinching = false
     }
 
     private var visibleStartHour: Int {
@@ -109,7 +120,7 @@ struct WeeklyGridView: View {
             eventCountsByDay: countsByDay,
             startHour: visibleStartHour,
             endHour: endHour,
-            scale: CGFloat(clampedHourScale)
+            scale: CGFloat(displayHourScale)
         )
     }
 
@@ -432,22 +443,28 @@ struct WeeklyGridView: View {
 
     // MARK: - 可滚动时间网格
 
-    /// 双指捏合缩放整条时间轴；与单指滚动/横向翻页同时识别互不抢占
+    /// 双指捏合缩放整条时间轴；与单指滚动/横向翻页同时识别互不抢占。
+    /// 手势期间倍率只在内存（@GestureState）连续变化，@AppStorage 仅在松手时写一次，
+    /// 避免每帧 UserDefaults 写入 + 全工程广播；缩放期间锁定滚动防两指位移带漂页面。
     private var hourScalePinchGesture: some Gesture {
         MagnifyGesture()
-            .onChanged { value in
-                if pinchStartScale == nil {
+            .updating($pinchMagnification) { value, state, _ in
+                state = value.magnification
+            }
+            .onChanged { _ in
+                if !isPinching {
                     pinchStartScale = clampedHourScale
+                    isPinching = true
                 }
+            }
+            .onEnded { value in
+                // 松手圆整到 0.05 步进，避免高度停在亚像素值上
                 hourScale = min(
                     maxHourScale,
-                    max(minHourScale, (pinchStartScale ?? 1) * value.magnification)
+                    max(minHourScale, (pinchStartScale * value.magnification * 20).rounded() / 20)
                 )
-            }
-            .onEnded { _ in
-                // 松手圆整到 0.05 步进，避免高度停在亚像素值上
-                hourScale = (clampedHourScale * 20).rounded() / 20
-                pinchStartScale = nil
+                pinchStartScale = 1
+                isPinching = false
             }
     }
 
@@ -471,6 +488,7 @@ struct WeeklyGridView: View {
                 .frame(width: geo.size.width, height: profile.totalHeight, alignment: .topLeading)
             }
             .simultaneousGesture(hourScalePinchGesture)
+            .scrollDisabled(isPinching)
             // 双击重置用 onTapGesture：不能挡住子级横向翻页的跟手性
             .onTapGesture(count: 2, perform: resetHourScale)
             .overlay {
@@ -642,9 +660,9 @@ struct WeeklyGridView: View {
                 }
             }
             Spacer(minLength: 0)
-            if abs(clampedHourScale - 1) > 0.001 {
+            if abs(displayHourScale - 1) > 0.001 {
                 Button(action: resetHourScale) {
-                    Text(String(format: String(localized: "缩放 %.2f×"), clampedHourScale))
+                    Text(String(format: String(localized: "缩放 %.2f×"), displayHourScale))
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundColor(.holoPrimary)
                         .padding(.horizontal, 8)
@@ -652,7 +670,7 @@ struct WeeklyGridView: View {
                         .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "当前时间轴缩放 \(String(format: "%.2f", clampedHourScale)) 倍，轻点恢复一倍"))
+                .accessibilityLabel(String(localized: "当前时间轴缩放 \(String(format: "%.2f", displayHourScale)) 倍，轻点恢复一倍"))
             }
         }
         .font(.system(size: 10, weight: .medium))
