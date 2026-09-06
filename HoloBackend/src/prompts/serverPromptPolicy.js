@@ -36,6 +36,10 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   bill_column_mapping: "bill_column_mapping",
   bill_categorization: "bill_categorization",
   agent_loop: "agent_loop",
+  personal_context_extraction: "personal_context_extraction",
+  personal_context_verification: "personal_context_verification",
+  personal_context_request: "personal_context_request",
+  personal_context_planning: "personal_context_planning",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，
@@ -57,6 +61,10 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   "thought_voice_summary",
   "thought_organization",
   "agent_loop",
+  // 个人情境：planning/request 输出用户直接阅读 → 多语言；extraction/verification
+  // 是结构化 JSON 契约 → 不注入语言指令（避免破坏下游匹配）。
+  "personal_context_planning",
+  "personal_context_request",
 ]);
 
 export function injectServerPrompt(purpose, messages, options = {}) {

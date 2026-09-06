@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updatedAt": "2026-08-23",
+  "updatedAt": "2026-09-07",
   "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。",
   "intents": [
     {
@@ -220,6 +220,16 @@
       "examples": [
         "\"帮我规划这一周\" → intent: \"weekly_planning\", extractedData: {}",
         "\"下周我该专注什么\" → intent: \"weekly_planning\", extractedData: {}"
+      ]
+    },
+    {
+      "ids": [
+        "contextual_planning"
+      ],
+      "summary": "个人情境规划（只读）：结合我的情况安排/准备一件具体的事（来访、备考、搬家、必花钱、决策）。单一记账/建任务/查数据不是。",
+      "requiredFields": [],
+      "examples": [
+        "\"帮我想想下周末爸妈来怎么安排\" → intent: \"contextual_planning\", mode: \"query\", extractedData: {}"
       ]
     },
     {

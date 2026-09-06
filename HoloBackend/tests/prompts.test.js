@@ -129,9 +129,8 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // 版本号（v29：日期/时间从模板开头移到全提示词最末尾——分钟级变量打断 DeepSeek
-  // 前缀缓存，生产实测命中率仅 20%；后置后前缀日内稳定）
-  assert.equal(prompt.version, 29);
+  // 版本号（v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
+  assert.equal(prompt.version, 30);
 
   // 缓存前缀治理（v29）：时间语境必须落在提示词最末尾，不允许回到开头/中部
   const timeIdx = prompt.content.indexOf("当前时间：");
@@ -142,9 +141,9 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   );
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  // 红线 5750：v28 新增 3 意图后为 ~5679；v29 时间后置治理新增 [HOLO_INTENT_TIME_V29]
+  // 红线 5950（v30 新增 contextual_planning 意图后上调；v28 时为 5750）：v28 新增 3 意图后为 ~5679；v29 时间后置治理新增 [HOLO_INTENT_TIME_V29]
   // 语境段后为 ~5729（红线 5710→5750），结构变更允许重划红线并升版本。
-  assert.ok(prompt.content.length < 5750, `prompt 长度 ${prompt.content.length} 超过 5750`);
+  assert.ok(prompt.content.length < 5950, `prompt 长度 ${prompt.content.length} 超过 5950`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红

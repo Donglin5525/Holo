@@ -881,8 +881,21 @@ export function createApp(overrides = {}) {
         throw new GatewayError("INVALID_REQUEST", "texts must be 1-16 non-empty strings (max 2000 chars each)", 400);
       }
       const purpose = request.purpose ?? "thought_embedding";
-      if (purpose !== "thought_embedding") {
+      // personal_context_embedding：新原文首次外发，不沿用 thought_embedding 的
+      // 「thought_organization 已审核」假设——强制 moderation，未过即拒（§12）。
+      const allowedEmbeddingPurposes = new Set(["thought_embedding", "personal_context_embedding"]);
+      if (!allowedEmbeddingPurposes.has(purpose)) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
+      }
+      if (purpose === "personal_context_embedding") {
+        const moderationResult = await contentModeration.moderate(texts.join("\n"));
+        if (!moderationResult.passed) {
+          throw new GatewayError(
+            "MODERATION_BLOCKED",
+            "Content failed moderation",
+            400,
+          );
+        }
       }
 
       const route = config.routes[purpose];
@@ -1809,6 +1822,10 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "bill_column_mapping" || purpose === "bill_categorization") return QUOTA_TYPES.naturalLanguageFinance;
   if (purpose === "task_action_parser") return QUOTA_TYPES.naturalLanguageTask;
   if (purpose === "insight") return QUOTA_TYPES.memoryInsight;
+  // 通用个人情境：后台萃取/核验不占会员池（独立限流桶兜量）；
+  // 请求准备与方案生成是用户交互路径，归 chat 池（客户端另有每 run 生成次数预算）。
+  if (purpose === "personal_context_extraction" || purpose === "personal_context_verification") return null;
+  if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   return null;
 }
 

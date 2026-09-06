@@ -40,6 +40,12 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   'thought_organize_a',
   'thought_organize_r',
   'thought_organize_b',
+  // 通用个人情境（2026-09-06 方案 §12）：萃取/核验/请求准备承载原始记录正文，
+  // planning 的输入含已筛选情境——一律 metadata_only，管理员开启抓取也不能放开正文。
+  'personal_context_extraction',
+  'personal_context_verification',
+  'personal_context_request',
+  'personal_context_planning',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */

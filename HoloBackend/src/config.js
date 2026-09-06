@@ -235,6 +235,66 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_DAY ?? 120),
       },
     },
+    // 通用个人情境（docs/_common/plans/2026-09-06-HoloAI通用个人情境理解与规划-完整实施方案.md §11）。
+    // 萃取/核验是结构化信号处理：none 思考档（与 memory_domain_extraction 同理）；
+    // 上限作为配置初值（4/分、60/天），实测后经 .env 调整，不默认无限。
+    personal_context_extraction: {
+      provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_TEMPERATURE ?? 0.1),
+      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_MAX_TOKENS ?? 4000),
+      reasoningEffort: process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_REQUESTS_PER_DAY ?? 60),
+      },
+    },
+    personal_context_verification: {
+      provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_PERSONAL_CONTEXT_VERIFICATION_TEMPERATURE ?? 0),
+      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_VERIFICATION_MAX_TOKENS ?? 4000),
+      // 核验是支持度判断：low 档保判断质量（与跨域融合同级）。
+      reasoningEffort: process.env.HOLO_PERSONAL_CONTEXT_VERIFICATION_REASONING_EFFORT ?? "low",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_PERSONAL_CONTEXT_VERIFICATION_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_VERIFICATION_REQUESTS_PER_DAY ?? 60),
+      },
+    },
+    personal_context_request: {
+      provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_PERSONAL_CONTEXT_REQUEST_TEMPERATURE ?? 0),
+      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_REQUEST_MAX_TOKENS ?? 2000),
+      reasoningEffort: process.env.HOLO_PERSONAL_CONTEXT_REQUEST_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_PERSONAL_CONTEXT_REQUEST_REQUESTS_PER_MINUTE ?? 6),
+        perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_REQUEST_REQUESTS_PER_DAY ?? 60),
+      },
+    },
+    personal_context_planning: {
+      provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_MAX_TOKENS ?? 4000),
+      // 方案生成含组合推演：low 档。
+      reasoningEffort: process.env.HOLO_PERSONAL_CONTEXT_PLANNING_REASONING_EFFORT ?? "low",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_REQUESTS_PER_DAY ?? 60),
+      },
+    },
+    // 情境向量：独立 purpose，不沿用 thought_embedding 的「正文已审核」假设（§7.2）；
+    // 端点对 personal_context_embedding 强制先过 moderation。
+    personal_context_embedding: {
+      provider: process.env.HOLO_PERSONAL_CONTEXT_EMBEDDING_PROVIDER ?? process.env.HOLO_EMBEDDING_PROVIDER ?? "mock",
+      model: process.env.HOLO_PERSONAL_CONTEXT_EMBEDDING_MODEL ?? process.env.HOLO_EMBEDDING_MODEL ?? "text-embedding-v3",
+      dimensions: Number(process.env.HOLO_PERSONAL_CONTEXT_EMBEDDING_DIMENSIONS ?? process.env.HOLO_EMBEDDING_DIMENSIONS ?? 1024),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_PERSONAL_CONTEXT_EMBEDDING_REQUESTS_PER_MINUTE ?? 20),
+        perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_EMBEDDING_REQUESTS_PER_DAY ?? 120),
+      },
+    },
     thought_task_extraction: {
       provider: process.env.HOLO_THOUGHT_TASK_EXTRACTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_TASK_EXTRACTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
