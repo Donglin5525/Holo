@@ -965,17 +965,19 @@ struct ChatView: View {
                     .foregroundColor(.holoTextPrimary)
                     .frame(width: 36, height: 36)
             }
+            // 视觉与热区同源：iOS26 下 plain 按钮热区收缩到文字，材质胶囊必须画在 label 内，
+            // contentShape 也必须在 label 末尾（挂在 Button 外不扩展命中区）
+            .padding(.leading, pendingLatestActivityCount > 0 ? 7 : 0)
+            .padding(.trailing, pendingLatestActivityCount > 0 ? 2 : 0)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color.holoTextSecondary.opacity(0.18), lineWidth: 0.5)
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .padding(.leading, pendingLatestActivityCount > 0 ? 7 : 0)
-        .padding(.trailing, pendingLatestActivityCount > 0 ? 2 : 0)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(Color.holoTextSecondary.opacity(0.18), lineWidth: 0.5)
-        }
         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
-        .contentShape(Capsule())
         .accessibilityLabel(
             pendingLatestActivityCount > 0
                 ? String(localized: "回到最新消息，\(pendingLatestActivityCount) 条新消息")

@@ -51,14 +51,33 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onBack: () -> Void
         weak var gesture: UIScreenEdgePanGestureRecognizer?
+        private var gestureLock = HorizontalGestureLock()
 
         init(onBack: @escaping () -> Void) {
             self.onBack = onBack
         }
 
         @objc func handlePan(_ gesture: UIScreenEdgePanGestureRecognizer) {
-            guard gesture.state == .ended else { return }
-            onBack()
+            switch gesture.state {
+            case .began:
+                gestureLock.reset()
+            case .changed:
+                _ = gestureLock.update(translation: gesture.translation(in: gesture.view))
+            case .ended:
+                defer { gestureLock.reset() }
+                // 零阈值提交的坑：左缘起手的纵向滚动只要带一点右向分量，
+                // 抬手就会误关页面。必须横向主导且达标（位移超 35% 屏宽或速度足够）才提交，
+                // 与 SwipeBackModifier 的守门口径一致。
+                guard gestureLock.axis == .horizontal else { return }
+                let translation = gesture.translation(in: gesture.view)
+                let velocity = gesture.velocity(in: gesture.view)
+                let screenWidth = UIScreen.main.bounds.width
+                if translation.x > screenWidth * 0.35 || velocity.x > 500 {
+                    onBack()
+                }
+            default:
+                break
+            }
         }
 
         /// 与页面内其它手势（List 滚动/swipeActions）共存，互不独占

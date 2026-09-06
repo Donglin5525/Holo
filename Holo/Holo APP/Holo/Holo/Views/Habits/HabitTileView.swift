@@ -86,6 +86,18 @@ struct HabitTileView: View {
             .sheet(item: $retroContext) { context in
                 HabitRetroactiveSheet(context: context)
             }
+            // 挂在磁贴根部（不能挂 measureRow）：长按菜单的「撤销今日最近一笔」
+            // 对全部数值类开放，计数类卡片不渲染 measureRow，dialog 必须全场在场
+            .confirmationDialog(
+                "撤销今日最近一笔记录？",
+                isPresented: $showUndoConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("撤销", role: .destructive) {
+                    undoLatestRecord()
+                }
+                Button("取消", role: .cancel) {}
+            }
             .onAppear {
                 cachedHabitId = habit.id
                 loadStatus()
@@ -520,16 +532,6 @@ struct HabitTileView: View {
             .buttonStyle(.plain)
         }
         .animation(.easeOut(duration: 0.2), value: todayValue)
-        .confirmationDialog(
-            "撤销今日最近一笔记录？",
-            isPresented: $showUndoConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("撤销", role: .destructive) {
-                undoLatestRecord()
-            }
-            Button("取消", role: .cancel) {}
-        }
     }
 
     /// 测量类当前值颜色：超标红（复刻原卡片），点亮后白
@@ -562,8 +564,8 @@ struct HabitTileView: View {
     private var menuItems: some View {
         Group {
             if habit.isNumericType {
-                Button {
-                    undoLatestRecord()
+                Button(role: .destructive) {
+                    showUndoConfirm = true
                 } label: {
                     Label("撤销今日最近一笔", systemImage: "arrow.uturn.backward")
                 }

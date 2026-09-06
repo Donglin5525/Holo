@@ -281,23 +281,19 @@ private class EdgeGestureHostView: UIView {
         return false
     }
 
-    /// 检查当前窗口中是否存在有推送内容的 UINavigationController
-    /// NavigationStack 底层使用 UINavigationController，viewControllers.count > 1 表示有推送的视图
+    /// 检查「包含本视图的」导航栈是否有推送内容。
+    /// NavigationStack 底层使用 UINavigationController，viewControllers.count > 1 表示有推送的视图。
+    /// 必须沿响应链向上找自己的导航栈，不能递归扫整个窗口：
+    /// HomeView 常驻模块（ChatView 等）隐藏在后面也算窗口成员，全窗口扫描会让
+    /// 本页的边缘右滑被「别人的」推送内容误杀（2026-09-01 财务搜索页实测，
+    /// 见 FinanceSearchView 同款注释；当时只迁走一处，其余调用点仍暴露在同一坑下）。
     private func hasActiveNavigationStack() -> Bool {
-        guard let window = self.window else { return false }
-        return checkForPushedNavigationController(in: window)
-    }
-
-    /// 递归检查视图层级中是否有推送了内容的 NavigationController
-    private func checkForPushedNavigationController(in view: UIView) -> Bool {
-        if let navController = view.next as? UINavigationController,
-           navController.viewControllers.count > 1 {
-            return true
-        }
-        for subview in view.subviews {
-            if checkForPushedNavigationController(in: subview) {
-                return true
+        var responder: UIResponder? = self
+        while let next = responder?.next {
+            if let navController = next as? UINavigationController {
+                return navController.viewControllers.count > 1
             }
+            responder = next
         }
         return false
     }

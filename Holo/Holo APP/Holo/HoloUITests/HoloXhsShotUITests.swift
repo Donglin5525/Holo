@@ -339,4 +339,90 @@ final class HoloXhsShotUITests: XCTestCase {
             print("[SB-OTH] id=\(e.identifier) label=\(e.label)")
         }
     }
+
+    // MARK: - QA 十轮走查·第2轮手势走查（临时方法，验收后移除）
+
+    /// 磁贴导航+列表滑动+长廊翻页逐态截图：不设硬断言，保证每个界面走到并留证
+    func testQAWalkthroughGestures() throws {
+        continueAfterFailure = true
+        let dir = "/tmp/qa_r2"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        func snap(_ name: String) {
+            let png = XCUIScreen.main.screenshot().pngRepresentation
+            try? png.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
+            print("[QA2] \(name)")
+        }
+
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
+        app.launch()
+        let win = app.windows.firstMatch
+        _ = win.waitForExistence(timeout: 60)
+        sleep(3)
+        snap("01_home")
+
+        func openTile(_ label: String, fallback: CGVector) {
+            let b = app.buttons[label]
+            if b.waitForExistence(timeout: 6) {
+                b.tap()
+            } else {
+                win.coordinate(withNormalizedOffset: fallback).tap()
+            }
+            sleep(3)
+        }
+
+        // 2. 想法列表：左滑露尾部操作 → 右滑 → 滚动
+        openTile("想法", fallback: CGVector(dx: 0.13, dy: 0.485))
+        snap("02_thoughts_list")
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.40))
+            .press(forDuration: 0.15, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.40)))
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("03_thoughts_swipe_left")
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.40))
+            .press(forDuration: 0.15, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.40)))
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("04_thoughts_swipe_right")
+        app.terminate()
+
+        // 3. 任务列表：滑动操作
+        app.launch()
+        _ = win.waitForExistence(timeout: 60)
+        sleep(2)
+        openTile("任务", fallback: CGVector(dx: 0.5, dy: 0.345))
+        snap("05_tasks_list")
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45))
+            .press(forDuration: 0.15, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.45)))
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("06_tasks_swipe_left")
+        app.terminate()
+
+        // 4. 财务：概览→流水列表滑动
+        app.launch()
+        _ = win.waitForExistence(timeout: 60)
+        sleep(2)
+        openTile("财务", fallback: CGVector(dx: 0.837, dy: 0.47))
+        snap("07_finance_root")
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
+            .press(forDuration: 0.15, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.55)))
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("08_finance_swipe")
+        app.terminate()
+
+        // 5. 记忆长廊：进入→横向翻页→点日格
+        app.launch()
+        _ = win.waitForExistence(timeout: 60)
+        sleep(2)
+        openTile("记忆长廊", fallback: CGVector(dx: 0.70, dy: 0.897))
+        sleep(2)
+        snap("09_gallery_root")
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)))
+        sleep(2)
+        snap("10_gallery_swipe_left")
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)))
+        sleep(2)
+        snap("11_gallery_swipe_right")
+    }
 }
