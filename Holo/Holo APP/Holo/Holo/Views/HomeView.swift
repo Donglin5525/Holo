@@ -949,11 +949,18 @@ struct HomeView: View {
 
                 // 重置拖拽状态
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                    draggingItem = nil
                     draggingFromIndex = nil
                     dragOffset = .zero
                     dragAnchorPosition = .zero
                     anchorTotalShift = .zero
+                }
+                // draggingItem 必须延迟一帧清空：立即清空会让 Button 的 tap 判定
+                // （guard draggingItem == nil）在同一个 runloop 里放行，
+                // 长按震动后不拖动直接抬手就会误开功能页（真机已复现）
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                        draggingItem = nil
+                    }
                 }
             }
         

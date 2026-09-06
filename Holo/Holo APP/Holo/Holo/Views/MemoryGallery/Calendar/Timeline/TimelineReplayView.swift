@@ -733,15 +733,19 @@ struct TimelineReplayView: View {
         return result
     }
 
-    static func rangeText(_ start: Date, _ end: Date) -> String {
+    // HH:mm 固定格式，static 缓存：轴档全部事件块一次性物化，拖拽调整时段时
+    // 整帧重算，每帧每块新建 DateFormatter 是肉眼可感的卡顿来源
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        return "\(formatter.string(from: start))-\(formatter.string(from: end))"
+        return formatter
+    }()
+
+    static func rangeText(_ start: Date, _ end: Date) -> String {
+        "\(timeFormatter.string(from: start))-\(timeFormatter.string(from: end))"
     }
 
     static func timeText(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        timeFormatter.string(from: date)
     }
 }

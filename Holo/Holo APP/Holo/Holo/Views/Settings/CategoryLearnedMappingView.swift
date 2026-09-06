@@ -17,6 +17,8 @@ struct CategoryLearnedMappingView: View {
     @State private var isRebuilding = false
     @State private var rebuildResult: Int?
     @State private var showRebuildResult = false
+    /// 右滑待删除的映射（先确认再删，右滑本身只露出按钮）
+    @State private var pendingDeleteEntry: CategoryLearnedMapping.LearnedMappingEntry?
 
     private var filteredMappings: [CategoryLearnedMapping.LearnedMappingEntry] {
         let query = searchText.lowercased()
@@ -64,6 +66,24 @@ struct CategoryLearnedMappingView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("将扫描 AI 创建的交易，按「AI 原始猜测 → 你最终确认的分类」重建映射。已存在的映射不会被覆盖。")
+        }
+        .confirmationDialog(
+            "删除这条学习映射？",
+            isPresented: Binding(
+                get: { pendingDeleteEntry != nil },
+                set: { if !$0 { pendingDeleteEntry = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let entry = pendingDeleteEntry {
+                    deleteEntry(entry)
+                }
+                pendingDeleteEntry = nil
+            }
+            Button("取消", role: .cancel) { pendingDeleteEntry = nil }
+        } message: {
+            Text("删除后，同类交易将不再自动套用这条分类规则。")
         }
         .alert(
             isPresented: $showRebuildResult
@@ -159,7 +179,7 @@ struct CategoryLearnedMappingView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                deleteEntry(entry)
+                pendingDeleteEntry = entry
             } label: {
                 Label("删除", systemImage: "trash")
             }

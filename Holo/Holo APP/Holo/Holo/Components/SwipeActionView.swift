@@ -93,7 +93,8 @@ struct SwipeActionView<Content: View>: View {
                 onDelete()
             }
         } message: {
-            Text("此操作不可撤销，确定要删除吗？")
+            // 使用方（想法/任务列表）均为软删进入 30 天回收站，可撤销；文案与任务详情页同口径
+            Text("删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。")
         }
     }
 

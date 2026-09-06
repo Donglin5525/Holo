@@ -16,7 +16,13 @@ final class ChatReportTabViewModel: ObservableObject {
 
     // MARK: - 档案
 
-    @Published private(set) var entries: [ReportArchiveDTO] = []
+    @Published private(set) var entries: [ReportArchiveDTO] = [] {
+        didSet { rebuildGroupedEntries() }
+    }
+    /// 月份分组缓存：本 Tab 在聊天页常驻不可见（opacity 0），AI 流式期间聊天页 body
+    /// 以约 30fps 重算连带本视图——分组只在档案/筛选变化时重算一次，
+    /// 不再每次求值新建 DateFormatter + 全量分组。
+    private(set) var groupedEntries: [(monthLabel: String, entries: [ReportArchiveDTO])] = []
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoadedOnce = false
     @Published private(set) var reachedEnd = false
@@ -120,7 +126,9 @@ final class ChatReportTabViewModel: ObservableObject {
     // MARK: - 场景筛选
 
     /// nil = 全部。筛选作用于非搜索态的档案展示（搜索态按关键词优先）。
-    @Published var selectedScenarioFilter: ReportScenarioTag?
+    @Published var selectedScenarioFilter: ReportScenarioTag? {
+        didSet { rebuildGroupedEntries() }
+    }
 
     /// 当前档案中实际存在的场景（按固定顺序），驱动筛选行动态出链
     var availableScenarioFilters: [ReportScenarioTag] {
@@ -136,18 +144,23 @@ final class ChatReportTabViewModel: ObservableObject {
 
     // MARK: - 月份分组
 
-    /// 非搜索态的档案按月份分组（「档案越来越厚」的视觉节奏）。
-    var groupedEntries: [(monthLabel: String, entries: [ReportArchiveDTO])] {
+    private static let monthLabelFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("yMMM")
+        return formatter
+    }()
+
+    /// 非搜索态的档案按月份分组（「档案越来越厚」的视觉节奏）。
+    /// 只在 entries/selectedScenarioFilter 变化时重建，视图 body 直接读缓存。
+    private func rebuildGroupedEntries() {
         var order: [String] = []
         var buckets: [String: [ReportArchiveDTO]] = [:]
         for entry in displayEntries {
-            let label = formatter.string(from: entry.timestamp)
+            let label = Self.monthLabelFormatter.string(from: entry.timestamp)
             if buckets[label] == nil { order.append(label) }
             buckets[label, default: []].append(entry)
         }
-        return order.map { ($0, buckets[$0] ?? []) }
+        groupedEntries = order.map { ($0, buckets[$0] ?? []) }
     }
 
     // MARK: - 搜索

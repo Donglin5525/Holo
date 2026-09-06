@@ -53,7 +53,9 @@ final class CalendarViewModel: ObservableObject {
     @Published var scale: CalendarScale = .day
 
     /// 模块筛选（nil = 全部），三档间保持
-    @Published var moduleFilter: CalendarModule? = nil
+    @Published var moduleFilter: CalendarModule? = nil {
+        didSet { dayGroupingCache = nil }
+    }
 
     /// 待办时间维度（完成/到期）
     @Published var todoDimension: TodoTimeDimension = .completed
@@ -62,7 +64,14 @@ final class CalendarViewModel: ObservableObject {
 
     /// 预载到内存的原始事件（未筛选）：切日/切周/翻月直接取，不边滑边查库；
     /// 切换 moduleFilter 即时过滤，不用重查
-    @Published private(set) var timelineEvents: [CalendarEvent] = []
+    @Published private(set) var timelineEvents: [CalendarEvent] = [] {
+        didSet { dayGroupingCache = nil }
+    }
+
+    /// eventsByDay 的缓存：日回放滚动跨天/点卡都会重算 CalendarRootView body，
+    /// timelineEvents 随浏览累积无上限，每次全量过滤+分组在长会话里是周期性顿挫。
+    /// 只在数据/筛选变化（didSet 置空）后首个读取者重建一次。
+    private var dayGroupingCache: [Date: [CalendarEvent]]?
 
     /// 最近一次拉取的模块加载状态（失败不静默，三档共用）
     @Published private(set) var timelineResult: CalendarEventsResult = .empty
@@ -155,8 +164,11 @@ final class CalendarViewModel: ObservableObject {
 
     /// 周档网格 / 日档日期珠：按天分组的筛选事件（key = startOfDay）
     var eventsByDay: [Date: [CalendarEvent]] {
+        if let cached = dayGroupingCache { return cached }
         let cal = Calendar.current
-        return Dictionary(grouping: filteredTimeline) { cal.startOfDay(for: $0.date) }
+        let grouped = Dictionary(grouping: filteredTimeline) { cal.startOfDay(for: $0.date) }
+        dayGroupingCache = grouped
+        return grouped
     }
 
     /// 月档：本月按天分组（key = startOfDay）

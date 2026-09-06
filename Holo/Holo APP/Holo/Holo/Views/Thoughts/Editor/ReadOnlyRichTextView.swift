@@ -293,7 +293,8 @@ struct ReadOnlyRichTextPreview: View {
         isOverflowing = ReadOnlyRichTextLayoutMetrics.exceedsLineLimit(
             nodes: nodes,
             width: availableWidth,
-            lineLimit: lineLimit
+            lineLimit: lineLimit,
+            sizeCategory: sizeCategory
         )
     }
 }
@@ -302,13 +303,31 @@ struct ReadOnlyRichTextPreview: View {
 /// 不用字符数估算，中文、英文、Emoji、Markdown 和 Token 都沿用编辑器的实际字体与段落样式。
 private enum ReadOnlyRichTextLayoutMetrics {
 
+    /// 溢出判定结果缓存：LazyVStack 卡片滚出即销毁、滚回即重建，onAppear 每次都重算；
+    /// 全量 Markdown 构建 + 两次全文排版是 O(笔记长度) 的主线程重活（长文几十 ms），
+    /// 而同一内容在同一宽度/行数/字号档下的溢出结论是确定的，直接命中缓存。
+    private static let overflowCache: NSCache<NSString, NSNumber> = {
+        let cache = NSCache<NSString, NSNumber>()
+        cache.countLimit = 600
+        return cache
+    }()
+
     static func exceedsLineLimit(
         nodes: [HoloContentNode],
         width: CGFloat,
-        lineLimit: Int
+        lineLimit: Int,
+        sizeCategory: ContentSizeCategory?
     ) -> Bool {
+        let key = cacheKey(nodes: nodes, width: width, lineLimit: lineLimit, sizeCategory: sizeCategory)
+        if let cached = overflowCache.object(forKey: key) {
+            return cached.boolValue
+        }
+
         let attributedText = MarkdownTextView.makeAttributedText(from: nodes)
-        guard attributedText.length > 0 else { return false }
+        guard attributedText.length > 0 else {
+            overflowCache.setObject(NSNumber(false), forKey: key)
+            return false
+        }
 
         let fullHeight = measuredHeight(
             for: attributedText,
@@ -320,7 +339,32 @@ private enum ReadOnlyRichTextLayoutMetrics {
             width: width,
             maximumNumberOfLines: lineLimit
         )
-        return fullHeight > limitedHeight + 1
+        let result = fullHeight > limitedHeight + 1
+        overflowCache.setObject(NSNumber(value: result), forKey: key)
+        return result
+    }
+
+    /// 宽度按 1pt 取整成档（过滤亚像素抖动）；其余维度原样入键。
+    private static func cacheKey(
+        nodes: [HoloContentNode],
+        width: CGFloat,
+        lineLimit: Int,
+        sizeCategory: ContentSizeCategory?
+    ) -> NSString {
+        var key = "\(Int(width.rounded()))|\(lineLimit)|\(sizeCategory.map(String.init(describing:)) ?? "-")|"
+        for node in nodes {
+            switch node {
+            case .text(let value):
+                key += "t\(value.utf16.count)|\(value)"
+            case .tag(let id, let displayPath):
+                key += "g\(id.uuidString)|\(displayPath)"
+            case .reference(let noteId, let displayText, let snapshot):
+                key += "r\(noteId.uuidString)|\(displayText.utf16.count)|\(displayText)|\(snapshot.utf16.count)|\(snapshot)"
+            case .taskMark(let id, let taskId, let displayText, _):
+                key += "k\(id.uuidString)|\(taskId.uuidString)|\(displayText.utf16.count)|\(displayText)"
+            }
+        }
+        return key as NSString
     }
 
     private static func measuredHeight(

@@ -44,16 +44,17 @@ struct ThoughtCardView: View {
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
+    /// 「…」菜单删除的二次确认（软删进回收站，提示可恢复）
+    @State private var showDeleteConfirm = false
     /// 分享卡面板
     @State private var showShareCard = false
-    /// 整理队列断网状态：pending 徽章据此显示「等待网络」而非「整理中」
-    @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
-
-    /// 徽章点按语义：整理失败可重试、待确认进详情确认位；nil = 纯展示态
-    private enum StatusBadgeAction {
-        case retryOrganize
-        case openConfirmation
+    /// 菜单项的连环弹层意图：菜单自身收起动画结束前请求新弹层会被系统静默丢弃
+    /// （真机实证：分享卡点了没反应），先记意图、待菜单收起后再真正弹出。
+    private enum PendingMenuAction {
+        case shareCard
+        case deleteConfirm
     }
+    @State private var pendingMenuAction: PendingMenuAction?
 
     // MARK: - Body
 
@@ -83,6 +84,35 @@ struct ThoughtCardView: View {
         // 必须用 onTapGesture：highPriorityGesture 会抢先拦截子视图（「…」按钮、标签 chip）的单击，
         // 导致这些按钮点按无反应（SwiftUI 手势竞争中子视图应优先）。
         .onTapGesture(count: 2) { onEdit?() }
+        // 挂在卡片根（与「…」菜单不同锚点，避免连环弹层冲突）
+        .confirmationDialog(
+            "删除这条想法？",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                onDelete?()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。")
+        }
+        // 分享面板同样挂卡片根：与「…」菜单锚点解耦后，菜单收起完成再请求才可靠弹出
+        .sheet(isPresented: $showShareCard) {
+            ThoughtShareSheet(thought: thought)
+        }
+        // 菜单收起动画（约 0.4s）走完后再弹目标层；提前请求会被弹层系统丢弃
+        .onChange(of: showActionSheet) { _, isPresented in
+            guard !isPresented, let action = pendingMenuAction else { return }
+            pendingMenuAction = nil
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                switch action {
+                case .shareCard: showShareCard = true
+                case .deleteConfirm: showDeleteConfirm = true
+                }
+            }
+        }
     }
 
     // MARK: - 顶部区域
@@ -96,7 +126,13 @@ struct ThoughtCardView: View {
 
             Spacer()
 
-            statusBadge(aiTagNames: aiTagNames)
+            ThoughtCardStatusBadge(
+                thought: thought,
+                aiTagNames: aiTagNames,
+                recognizedTagKeys: recognizedTagKeys,
+                onRetryOrganize: onRetryOrganize,
+                onOpenConfirmation: onConfirmNavigate ?? onNavigate
+            )
 
             // 更多操作按钮（仅当至少有一个可用操作时才展示）
             if hasAvailableActions {
@@ -108,13 +144,17 @@ struct ThoughtCardView: View {
                         .font(.system(size: 16))
                         .foregroundColor(.holoTextSecondary)
                         .frame(width: 44, height: 44)
+                        // iOS 26 plain 按钮热区会收缩到图标笔画，44×44 里大半是点不动的
+                        // 空白（真机「时灵时不灵」的根因）；显式声明热区=整个 frame
+                        .contentShape(Rectangle())
                 }
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "更多操作"))
                     // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
                     .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
                         Button(String(localized: "生成分享卡")) {
-                            showShareCard = true
+                            pendingMenuAction = .shareCard
+                            showActionSheet = false
                         }
                         if let onRetryOrganize {
                             Button("重新整理") { onRetryOrganize() }
@@ -126,12 +166,12 @@ struct ThoughtCardView: View {
                             Button(archiveActionTitle, role: nil) { onArchive() }
                         }
                         if let onDelete {
-                            Button("删除", role: .destructive) { onDelete() }
+                            Button("删除", role: .destructive) {
+                                pendingMenuAction = .deleteConfirm
+                                showActionSheet = false
+                            }
                         }
                         Button("取消", role: .cancel) {}
-                    }
-                    .sheet(isPresented: $showShareCard) {
-                        ThoughtShareSheet(thought: thought)
                     }
             }
         }
@@ -140,103 +180,6 @@ struct ThoughtCardView: View {
     /// 是否存在至少一个可用的更多操作
     private var hasAvailableActions: Bool {
         onMoveToTopic != nil || onArchive != nil || onRetryOrganize != nil || onDelete != nil
-    }
-
-    @ViewBuilder
-    private func statusBadge(aiTagNames: [String]) -> some View {
-        // 正常态不说话：已归类/已整理对用户没有信息量，徽章只在需要用户知道异动时亮
-        if let status = organizationDisplayStatus(aiTagNames: aiTagNames) {
-            switch status.action {
-            case .retryOrganize:
-                // 整理失败：一键重试
-                if let onRetryOrganize {
-                    Button {
-                        onRetryOrganize()
-                    } label: {
-                        badgeLabel(status)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "整理失败，点按重试"))
-                } else {
-                    badgeLabel(status)
-                }
-            case .openConfirmation:
-                // 待确认：直达详情页的 AI 归纳确认位（✓/✗），不再让徽章成为死胡同
-                if let handler = onConfirmNavigate ?? onNavigate {
-                    Button {
-                        handler()
-                    } label: {
-                        badgeLabel(status)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "查看 AI 归纳建议"))
-                    .accessibilityHint(String(localized: "打开详情，确认或拒绝 AI 给这条想法打的标签"))
-                } else {
-                    badgeLabel(status)
-                }
-            case nil:
-                badgeLabel(status)
-            }
-        }
-    }
-
-    private func badgeLabel(_ status: (title: String, icon: String, color: Color, action: StatusBadgeAction?)) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: status.icon)
-                .font(.system(size: 9, weight: .semibold))
-            Text(status.title)
-                .font(.system(size: 10, weight: .semibold))
-        }
-        .foregroundColor(status.color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(status.color.opacity(0.1))
-        .clipShape(Capsule())
-        // iOS 26 plain 按钮会把命中区收缩到文字内容：显式声明热区=可视胶囊
-        .contentShape(Capsule())
-    }
-
-    /// 徽章三态：整理中（含等网络）/ 待确认 / 整理失败（可点重试）；正常态返回 nil 不渲染
-    private func organizationDisplayStatus(aiTagNames: [String]) -> (title: String, icon: String, color: Color, action: StatusBadgeAction?)? {
-        if thought.organizedStatus == "processing" {
-            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
-        }
-        if thought.organizedStatus == "pending" {
-            // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
-            if orgQueue.isOffline {
-                return (String(localized: "整理中"), "wifi.slash", .holoTextSecondary, nil)
-            }
-            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
-        }
-        // failed 优先于待确认：用户需要先知道失败并可一键重试
-        if thought.organizedStatus == "failed" {
-            return (String(localized: "整理失败"), "exclamationmark.circle.fill", .holoError, .retryOrganize)
-        }
-        // 「待确认」：含新标签或低置信主题，点徽章直达详情页确认位（D-07′，规则集中在 Policy）
-        if showsPendingConfirmation(aiTagNames: aiTagNames) {
-            return (String(localized: "待确认"), "questionmark.circle", .holoAI, .openConfirmation)
-        }
-        return nil
-    }
-
-    /// 卡片层待确认判定：优先用精确认可集合（D-07′ 新标签语义），降级为「有 ai 标签」
-    private func showsPendingConfirmation(aiTagNames: [String]) -> Bool {
-        guard thought.organizedStatus == "organized" else { return false }
-        if let recognizedTagKeys {
-            return ThoughtOrganizationPresentationPolicy.cardShowsPendingConfirmation(
-                organizedStatus: thought.organizedStatus,
-                hasPendingTagConfirmation: ThoughtOrganizationPresentationPolicy.aiTagPresentation(
-                    hasAITagAssignments: !aiTagNames.isEmpty,
-                    aiTagNames: aiTagNames,
-                    recognizedTagKeys: recognizedTagKeys
-                ) == .pendingConfirmation,
-                topicConfidence: thought.topicConfidence
-            )
-        }
-        // 降级：无认可集合时以「存在 ai 标签或低置信主题」近似
-        let lowConfidenceTopic = thought.topicConfidence > 0
-            && thought.topicConfidence < ThoughtRepository.topicConfirmationThreshold
-        return !aiTagNames.isEmpty || lowConfidenceTopic
     }
 
     // MARK: - 内容区域
@@ -401,6 +344,122 @@ struct ThoughtCardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "按 AI 标签 \(tagName) 筛选"))
+    }
+}
+
+// MARK: - 状态徽章子视图
+
+/// 卡片右上角的状态徽章（整理中/待确认/整理失败）。
+/// 独立成视图并在此订阅整理队列：队列的进度/断网状态跳变只重算这个小徽章，
+/// 不再把整张卡片（乃至整个列表）拖进状态型重算。
+private struct ThoughtCardStatusBadge: View {
+
+    let thought: Thought
+    let aiTagNames: [String]
+    var recognizedTagKeys: Set<String>? = nil
+    var onRetryOrganize: (() -> Void)?
+    var onOpenConfirmation: (() -> Void)?
+
+    @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
+
+    /// 徽章点按语义：整理失败可重试、待确认进详情确认位；nil = 纯展示态
+    private enum StatusBadgeAction {
+        case retryOrganize
+        case openConfirmation
+    }
+
+    var body: some View {
+        // 正常态不说话：已归类/已整理对用户没有信息量，徽章只在需要用户知道异动时亮
+        if let status = organizationDisplayStatus {
+            switch status.action {
+            case .retryOrganize:
+                if let onRetryOrganize {
+                    Button {
+                        onRetryOrganize()
+                    } label: {
+                        badgeLabel(status)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "整理失败，点按重试"))
+                } else {
+                    badgeLabel(status)
+                }
+            case .openConfirmation:
+                if let onOpenConfirmation {
+                    Button {
+                        onOpenConfirmation()
+                    } label: {
+                        badgeLabel(status)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "查看 AI 归纳建议"))
+                    .accessibilityHint(String(localized: "打开详情，确认或拒绝 AI 给这条想法打的标签"))
+                } else {
+                    badgeLabel(status)
+                }
+            case nil:
+                badgeLabel(status)
+            }
+        }
+    }
+
+    private func badgeLabel(_ status: (title: String, icon: String, color: Color, action: StatusBadgeAction?)) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: status.icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(status.title)
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundColor(status.color)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(status.color.opacity(0.1))
+        .clipShape(Capsule())
+        // iOS 26 plain 按钮会把命中区收缩到文字内容：显式声明热区=可视胶囊
+        .contentShape(Capsule())
+    }
+
+    /// 徽章三态：整理中（含等网络）/ 待确认 / 整理失败（可点重试）；正常态返回 nil 不渲染
+    private var organizationDisplayStatus: (title: String, icon: String, color: Color, action: StatusBadgeAction?)? {
+        if thought.organizedStatus == "processing" {
+            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
+        }
+        if thought.organizedStatus == "pending" {
+            // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
+            if orgQueue.isOffline {
+                return (String(localized: "整理中"), "wifi.slash", .holoTextSecondary, nil)
+            }
+            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
+        }
+        // failed 优先于待确认：用户需要先知道失败并可一键重试
+        if thought.organizedStatus == "failed" {
+            return (String(localized: "整理失败"), "exclamationmark.circle.fill", .holoError, .retryOrganize)
+        }
+        // 「待确认」：含新标签或低置信主题，点徽章直达详情页确认位（D-07′，规则集中在 Policy）
+        if showsPendingConfirmation {
+            return (String(localized: "待确认"), "questionmark.circle", .holoAI, .openConfirmation)
+        }
+        return nil
+    }
+
+    /// 卡片层待确认判定：优先用精确认可集合（D-07′ 新标签语义），降级为「有 ai 标签」
+    private var showsPendingConfirmation: Bool {
+        guard thought.organizedStatus == "organized" else { return false }
+        if let recognizedTagKeys {
+            return ThoughtOrganizationPresentationPolicy.cardShowsPendingConfirmation(
+                organizedStatus: thought.organizedStatus,
+                hasPendingTagConfirmation: ThoughtOrganizationPresentationPolicy.aiTagPresentation(
+                    hasAITagAssignments: !aiTagNames.isEmpty,
+                    aiTagNames: aiTagNames,
+                    recognizedTagKeys: recognizedTagKeys
+                ) == .pendingConfirmation,
+                topicConfidence: thought.topicConfidence
+            )
+        }
+        // 降级：无认可集合时以「存在 ai 标签或低置信主题」近似
+        let lowConfidenceTopic = thought.topicConfidence > 0
+            && thought.topicConfidence < ThoughtRepository.topicConfirmationThreshold
+        return !aiTagNames.isEmpty || lowConfidenceTopic
     }
 }
 

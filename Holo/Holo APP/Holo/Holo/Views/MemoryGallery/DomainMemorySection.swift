@@ -239,11 +239,15 @@ struct DomainMemorySection: View {
     }
 
     /// 组头摘要：条数 + 组内最新一条的更新日期，排序改为时间倒序后这是「新的在上面」的直接线索。
-    private static func groupMetaText(count: Int, latest: Date) -> String {
-        guard latest != .distantPast else { return String(localized: "\(count) 条") }
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("MMMd")
-        return String(localized: "\(count) 条 · \(formatter.string(from: latest))更新")
+        return formatter
+    }()
+
+    private static func groupMetaText(count: Int, latest: Date) -> String {
+        guard latest != .distantPast else { return String(localized: "\(count) 条") }
+        return String(localized: "\(count) 条 · \(dayFormatter.string(from: latest))更新")
     }
 
     private func specialMemoryGroup(
@@ -655,6 +659,12 @@ struct HoloMemoryFeedbackBadgeView: View {
 }
 
 enum HoloMemoryUserPresentation {
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter
+    }()
+
     static func durationTitle(for record: HoloMemoryRecord) -> String {
         switch record.persistenceClass {
         case .currentState: return String(localized: "近期观察")
@@ -687,8 +697,8 @@ enum HoloMemoryUserPresentation {
     }
 
     static func timeRange(for record: HoloMemoryRecord) -> String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        // 每张记忆卡 body 都会调用，formatter 必须缓存（创建是 Foundation 重操作）
+        let formatter = dayFormatter
         switch (record.validFrom, record.validTo) {
         case let (start?, end?):
             if Calendar.current.isDate(start, inSameDayAs: end) {
