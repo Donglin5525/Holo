@@ -92,3 +92,43 @@ CategoryManagementView、SpendingProjectDetailView（pendingDeletionID 范式）
 
 - UI 测试走查发现：XCUITest 启动的 app 不继承 scheme 的语言参数（跟模拟器系统语言走，本次为繁体）——与单元测试行为不同，后续 UI 断言注意。
 - 临时手势走查方法 testQAWalkthroughGestures 暂托管在 HoloXhsShotUITests.swift（该文件已接线，新文件需 pbxproj 手动挂）。
+
+---
+
+## 第 3 轮：滚动与性能（进行中）
+
+### 已完成并推送（0ba273813）
+- R3-1 [P2→已修] 周历捏合缩放：@GestureState 内存连续变化 + @AppStorage 松手一次写 + 缩放期 scrollDisabled（R2-G2）
+- R3-2 [P2→已修] 财务日滑动：手势状态隔离进 DaySwipeContainer + 列表 LazyVStack（R2-G3）
+
+### 确认问题与修复（第 3 轮第二批）
+
+| 编号 | 级别 | 位置 | 问题 | 修复 | 回归 |
+|---|---|---|---|---|---|
+| R3-3 | P1 | ReadOnlyRichTextView.swift:267-348 | 想法卡片每张滚入视口触发全量 Markdown 重建+两次全文排版（LazyVStack 行滚回重建、无缓存），长笔记滚动掉帧 | 溢出判定结果按「内容key+1pt宽度档+行数+字号档」进 NSCache（countLimit 600） | 编译✅ |
+| R3-4 | P2 | ChatReportTabViewModel.swift | 报告 Tab 常驻不可见但 AI 流式期间以约30fps 重算；groupedEntries 每次新建 DateFormatter+全量分组 | formatter 提为 static let；groupedEntries 改缓存字段，entries/筛选 didSet 时重建 | 编译✅ |
+| R3-5 | P2 | TimelineReplayView.swift:736-746 | rangeText/timeText 每次新建 DateFormatter；轴档拖拽时段时整帧重算全部事件块，一天 15 块=每帧 15-30ms | static let 缓存 HH:mm formatter | 编译✅ |
+| R3-6 | P2 | DomainMemorySection.swift:242/689 | 记忆卡渲染每次新建 DateFormatter（两处不同类型）；洞察 tab 非懒渲染叠加 | 两类型各补 static let dayFormatter | 编译✅ |
+| R3-7 | P2 | CalendarViewModel.swift:157-160 | eventsByDay 计算属性每次 body 重算全量过滤+分组；timelineEvents 随浏览累积无上限，长会话滚动周期性顿挫 | 改缓存字段：timelineEvents/moduleFilter didSet 置空，首读重建 | 编译✅ |
+| R3-8 | P2 | HomeView.swift:945（东林确认复现） | 首页长按排序后不拖动立即抬手误开功能页：onEnded 同步清空 draggingItem 使 tap 判定放行 | draggingItem 延迟一帧清空（DispatchQueue.main.async），tap 守卫在窗口期内必然拦截 | 编译✅ |
+| R3-9 | P2 | CategoryLearnedMappingView.swift | 学习映射右滑删除直删无确认（东林拍板：加确认） | 右滑只记 pendingDeleteEntry，confirmationDialog 确认后才删，附影响说明 | 编译✅ |
+| R3-10 | P2 | SwipeActionView.swift:90 + ThoughtCardView.swift | 想法删除无回收站提示（东林拍板：对齐任务口径）；「此操作不可撤销」文案与软删事实相反 | 共享确认文案改为「进入回收站保留30天可恢复」；「…」菜单删除补二次确认（挂卡片根避免连环弹层冲突） | 编译✅ |
+
+灰色地带（待评估）：filteredThoughts 每次 body 求值两遍+搜索用 localizedCaseInsensitiveContains（建议换 localizedStandardContains+缓存）；hasProcessingThoughts/shouldShowAIEducation 列表层 O(n) 扫描×2；ChatScrollBehavior.swift:80-98 同发布首尾ID同变判为 .replaced 跳过视口保持（低概率）。
+
+已核对安全（摘要）：想法列表 LazyVStack✅；三轮「…」卡顿修复未退化（ThoughtContentBody/无障碍二级缓存/渲染输入缓存）✅；聊天流式重绘双保险（33ms节流+equatable 只比源字段+流式纯文本不跑Markdown）✅；渐进分页防跳屏（KVO补偿+0.4s稳定窗+预取阈值）✅；卡片缩略图预生成小图✅；DateFormatter 想法/聊天已静态缓存✅。
+
+基建发现：21 个 @main 独立测试套件不在自动回归（只能手动 swiftc 跑），无统一 runner——建议第 10 轮收口补自动化。另：XCUITest 启动的 app 不继承 scheme 语言参数（跟模拟器系统语言）。
+
+### 长廊+日回放专员补充发现（已并入上表）
+- R3-5/R3-6/R3-7 来自该专员。灰色地带记录：momentsByPeriod 每次渲染重复分组 7 遍（单日几十条时 1-3ms，暂不动）；拍立得 onAppear 同步解码 300×300 缩略图（可接受，调大缩略图规格时需重估）；MemoryGalleryView 两处低频 formatter（点热力图才触发，暂不动）；DomainMemorySection nonemptyGroups O(n) 排序（与 R3-6 同源，数据量大后再治）。
+- 死代码记录：TodayMemoryCabinetCard / RecentDayCoverView 全库无调用点（第 10 轮收口清理候选）。
+
+### 已核对安全（长廊+日回放方向）
+日回放 LazyVStack+pinned headers✅；「禁止顶部插入」铁律未退化（翻页只底部追加）✅；focusedDate 单一事实源未退化✅；展开/收起重锚定健在✅；长廊列表只进 300×300 预生成缩略图✅；热力图等组件规模有界✅。
+
+### 东林拍板记录（2026-09-06）
+- 首页长按排序抬手误开页：东林确认此前真机遇到过 → 转 R3-8 已修；
+- 想法删除加回收站提示 → R3-10 已修；学习映射删除加确认 → R3-9 已修；
+- 轴档改名「排程」：**挂起**，东林要再想想；「下一个事项」前瞻条已向他解释含义（顶部常驻小横条：下一个安排+多久开始+今日剩余空档），待他决定是否加；
+- 轴档①滑动劫持治理（0.5s 长按+震动+可见把手）与②凌晨折叠（复用周历模式）暂列待实施，动工前再与东林确认方案细节。
