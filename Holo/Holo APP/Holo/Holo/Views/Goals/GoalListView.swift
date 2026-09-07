@@ -32,27 +32,29 @@ struct GoalListView: View {
         self._pendingGoalDetailId = pendingGoalDetailId
     }
 
+    /// 宽屏卡墙分档（通宵冲刺 D7）：expanded 档目标卡两两并排（每列 ≥340pt），
+    /// 对齐知识树/习惯磁贴的通览口径；iPhone/竖屏单列不变
+    @Environment(\.holoWindowWidth) private var goalWindowWidth
+    private var goalColumnCount: Int {
+        HoloAdaptiveLayout.isExpandedWidth(goalWindowWidth) ? 2 : 1
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.md) {
-                if !hasLoadedOnce {
-                    // 首次加载前显示轻量占位，避免空态闪现
-                    ProgressView()
-                        .padding(.top, 80)
-                } else if repository.goals.isEmpty {
-                    emptyState
+            Group {
+                if goalColumnCount > 1 {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: HoloSpacing.md), count: goalColumnCount), spacing: HoloSpacing.md) {
+                        goalCards
+                    }
                 } else {
-                    ForEach(repository.goals, id: \.id) { goal in
-                        Button {
-                            selectedGoalRoute = GoalDetailRoute(id: goal.id)
-                        } label: {
-                            goalRow(goal)
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                    VStack(spacing: HoloSpacing.md) {
+                        goalCards
                     }
                 }
             }
             .padding(HoloSpacing.lg)
+            // 通览型页面对齐长廊 920 口径（通宵冲刺 D7）；iPhone 直通
+            .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
         }
         .background(Color.holoBackground)
         .navigationTitle("我的目标")
@@ -125,6 +127,27 @@ struct GoalListView: View {
             Button("知道了", role: .cancel) {}
         } message: {
             Text(operationError ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private var goalCards: some View {
+        if !hasLoadedOnce {
+            // 首次加载前显示轻量占位，避免空态闪现
+            ProgressView()
+                .padding(.top, 80)
+        } else if repository.goals.isEmpty {
+            emptyState
+        } else {
+            ForEach(repository.goals, id: \.id) { goal in
+                Button {
+                    selectedGoalRoute = GoalDetailRoute(id: goal.id)
+                } label: {
+                    goalRow(goal)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .holoHover()
+            }
         }
     }
 

@@ -42,6 +42,8 @@ struct GoalDetailView: View {
                 actionSection
             }
             .padding(HoloSpacing.lg)
+            // 纵读详情在 iPad 限宽居中（通宵冲刺 D7）；iPhone 直通
+            .holoContentColumn(paintsBackground: false)
         }
         .background(Color.holoBackground)
         .navigationTitle("目标详情")
