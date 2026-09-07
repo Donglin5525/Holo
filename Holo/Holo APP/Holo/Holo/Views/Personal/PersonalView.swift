@@ -77,6 +77,8 @@ struct PersonalView: View {
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
+                // 通宵冲刺 D6（B-P1-1）：iPad 限宽居中为设置型阅读列；iPhone 直通
+                .holoContentColumn(paintsBackground: false)
             }
             .background(Color.holoBackground)
             .navigationTitle("个人")

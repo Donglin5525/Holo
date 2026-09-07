@@ -423,6 +423,9 @@ struct SettingsView: View {
                 }
                 .signInWithAppleButtonStyle(darkModeManager.colorScheme == .dark ? .white : .black)
                 .frame(height: 44)
+                // 通宵冲刺 D6（东林拍板项）：Apple 登录按钮在 iPad（regular）限宽居中；
+                // iPhone 维持拉满全宽不变
+                .modifier(AppleButtonWidthCapModifier())
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
         }
@@ -1492,4 +1495,20 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+}
+
+/// Apple 登录按钮宽屏限宽（通宵冲刺 D6）：regular（iPad）下 360pt 居中，
+/// compact（iPhone）直通保持全宽。
+struct AppleButtonWidthCapModifier: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    func body(content: Content) -> some View {
+        if HoloAdaptiveLayout.isRegularWidth(horizontalSizeClass) {
+            content
+                .frame(maxWidth: 360)
+                .frame(maxWidth: .infinity)
+        } else {
+            content
+        }
+    }
 }
