@@ -1,10 +1,14 @@
 # CloudKit Schema 部署到 Production（上架前必做）
 
 > 交给 GPT 执行的自包含操作文档。更新于 2026-09-07，适用于 1.0.2 提审前。
-> ⚠️ 2026-08-25（build 21）之后部署过一次 Production；本清点覆盖 8 月 25 日之后代码里的全部 schema 变更。
-> 背景：有用户报告 1.0.1 双设备数据不同步——若 8 月 25 日后新增的 schema 未部署过 Production，
-> 线上版本的这类数据会**静默同步失败**（本机保存成功、上传/下载失败且无提示）。本次部署同时是对
-> 线上 1.0/1.0.1 用户的修复前置。
+> ⚠️⚠️ **2026-09-08 实查更正**：此前记载「8-25（build 21）部署过一次 Production」**与事实不符**——
+> 当日在 CloudKit Console 实查，容器 `iCloud.com.tangyuxuan.Holo` 的 **Production 环境从未部署成功过**：
+> Record Types 仅有系统自带的 `Users`，全部业务类型（CD_Account/CD_TodoTask 等 30+）均不存在。
+> 这正是线上 1.0/1.0.1（App Store 版连 Production）用户 iCloud 同步静默失败、双设备不同步的根因。
+> 另：Development 环境已有大部分类型（含 CD_TaskScheduleMirror / CD_CategoryMappingRecordEntity），
+> 但缺 `CD_CategoryInductionRuleEntity` 与 `CD_RecycleBinBatch` 及 1.0.2 想法索引字段——
+> 说明推 Development schema 的设备跑的不是最新代码；部署前须先用**最新 release/1.0.2 代码**真机跑一次补全。
+> 部署完成后请删除本段更正说明。
 
 ## 背景（为什么做）
 
