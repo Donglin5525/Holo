@@ -25,6 +25,13 @@ struct HealthView: View {
     @State private var insightViewModel = HealthInsightViewModel()
     @State private var selectedEvidenceInsight: GeneratedHealthInsight?
 
+    /// 宽屏双栏（通宵冲刺 D1）：expanded 档左（hero+指标+数据源）/右（洞察+生活闭环+周趋势），
+    /// 修复单列卡片流在 iPad 全宽拉伸的「放大版 iPhone」观感；iPhone/竖屏单列不变。
+    @Environment(\.holoWindowWidth) private var healthWindowWidth
+    private var isExpandedWidth: Bool {
+        HoloAdaptiveLayout.isExpandedWidth(healthWindowWidth)
+    }
+
     private var snapshot: HealthDashboardSnapshot {
         let stepsAvail: HealthMetricAvailability = dayData.steps > 0 ? .available : .noData
         let sleepAvail: HealthMetricAvailability = dayData.sleep > 0 ? .available : .noData
@@ -101,23 +108,48 @@ struct HealthView: View {
         VStack(spacing: 0) {
             headerView
             ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.md) {
-                    heroCard
-                    metricSummaryRow
-                    dataSourceCard
-                    coreInsightCard
-                    lifestyleInsightCard
-                    weeklyTrendCard
-                    Text("健康数据由 AI 分析，仅供参考")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary.opacity(0.7))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .fixedSize(horizontal: false, vertical: true)
+                Group {
+                    if isExpandedWidth {
+                        // v2 宽屏双栏（通宵冲刺 D1）：状态与数据靠左，洞察与趋势靠右
+                        HStack(alignment: .top, spacing: HoloSpacing.md) {
+                            VStack(spacing: HoloSpacing.md) {
+                                heroCard
+                                metricSummaryRow
+                                dataSourceCard
+                            }
+                            .frame(maxWidth: .infinity)
+                            VStack(spacing: HoloSpacing.md) {
+                                coreInsightCard
+                                lifestyleInsightCard
+                                weeklyTrendCard
+                                healthFootnote
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    } else {
+                        VStack(spacing: HoloSpacing.md) {
+                            heroCard
+                            metricSummaryRow
+                            dataSourceCard
+                            coreInsightCard
+                            lifestyleInsightCard
+                            weeklyTrendCard
+                            healthFootnote
+                        }
+                    }
                 }
                 .padding(HoloSpacing.md)
             }
         }
         .background(Color.holoBackground)
+    }
+
+    private var healthFootnote: some View {
+        Text("健康数据由 AI 分析，仅供参考")
+            .font(.system(size: 11))
+            .foregroundColor(.holoTextSecondary.opacity(0.7))
+            .frame(maxWidth: .infinity, alignment: .center)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// 返回首页按钮（对齐全局 fullScreenCover 模块约定，复用于各分支）

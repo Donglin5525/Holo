@@ -59,6 +59,8 @@ struct HealthDetailView: View {
                     relatedSection
                 }
                 .padding(HoloSpacing.md)
+                // 纵读详情页在 iPad 限宽居中（通宵冲刺 D1，B-P1-3）；iPhone 直通
+                .holoContentColumn(paintsBackground: false)
             }
         }
         .background(Color.holoBackground)
