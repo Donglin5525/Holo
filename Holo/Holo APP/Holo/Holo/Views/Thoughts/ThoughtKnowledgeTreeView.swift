@@ -37,6 +37,15 @@ struct ThoughtKnowledgeTreeView: View {
     /// 数据刷新节流任务（批量整理时通知风暴，合并刷新避免主线程卡顿）
     @State private var refreshTask: Task<Void, Never>? = nil
 
+    /// 宽屏排印分档（通宵冲刺 D3）：主题卡墙列数随内容列宽度自适应（每列 ≥300pt，2-4 列），
+    /// 修复宽屏固定 2 列单卡 ~480pt 的拉伸观感；iPhone 恒 2 列不变
+    @Environment(\.holoWindowWidth) private var knowledgeWindowWidth
+    private var topicGridColumnCount: Int {
+        guard HoloAdaptiveLayout.isExpandedWidth(knowledgeWindowWidth) else { return 2 }
+        let column = max(300, HoloAdaptiveLayout.galleryColumnMaxWidth / 3.4)
+        return max(2, min(4, Int(HoloAdaptiveLayout.galleryColumnMaxWidth / column)))
+    }
+
     /// 按想法数降序排列的主题（同数按名称）
     private var sortedTopics: [Topic] {
         topics.sorted { lhs, rhs in
@@ -74,6 +83,8 @@ struct ThoughtKnowledgeTreeView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, 100)
+            // 通览型页面对齐长廊 920 口径（通宵冲刺 D3）；iPhone 直通
+            .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
         }
         .task { await loadData() }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
@@ -216,7 +227,7 @@ struct ThoughtKnowledgeTreeView: View {
     }
 
     private var topicGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: topicGridColumnCount), spacing: 12) {
             ForEach(sortedTopics, id: \.id) { topic in
                 topicCard(topic)
             }
