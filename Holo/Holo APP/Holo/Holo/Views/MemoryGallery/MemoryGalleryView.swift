@@ -188,39 +188,25 @@ struct MemoryGalleryView: View {
                 VStack(spacing: 0) {
                     insightChapterHeader
 
-                    VStack(spacing: HoloSpacing.lg) {
-                        // 报告门卡（一个家两个门）：最新一份报告的轻入口，直达 Holo AI 报告 Tab。
-                        // 无报告时不展示，长廊对无报告用户保持零噪音。
-                        if let reportEntry = viewModel.latestReportEntry {
-                            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                                sectionHeading(title: String(localized: "它看懂了你"), icon: "sparkles")
-                                ReportDoorCard(entry: reportEntry) {
-                                    DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
-                                    ChatReportTabRouter.shared.openReportTab()
-                                }
-                            }
+                    // 通宵冲刺 D4（v2 三批欠账）：expanded 档洞察分双栏——
+                    // 左「理解档案」（报告门/域记忆/DailySense）、右「行为层」（热力图/计划/精选故事）
+                    if HoloAdaptiveLayout.isExpandedWidth(galleryWindowWidth) {
+                        HStack(alignment: .top, spacing: HoloSpacing.lg) {
+                            insightUnderstandingColumn
+                                .frame(maxWidth: .infinity)
+                            insightActivityColumn
+                                .frame(maxWidth: .infinity)
                         }
-
-                        // 用户只看到可理解的记忆结论与控制，不暴露内部评分参数。
-                        DomainMemorySection()
-
-                        // Daily Sense 状态卡片
-                        if InsightFeatureFlags.dailySenseEnabled,
-                           let snapshot = viewModel.dailySenseSnapshot,
-                           !snapshot.signals.isEmpty {
-                            DailySenseStatusCard(snapshot: snapshot)
+                        .padding(.horizontal, HoloSpacing.md)
+                        .padding(.bottom, HoloSpacing.lg)
+                    } else {
+                        VStack(spacing: HoloSpacing.lg) {
+                            insightUnderstandingColumn
+                            insightActivityColumn
                         }
-
-                        // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
-                        heatmapSection
-
-                        // 一起做的计划（LifePlan 台账）：理解档案第三块
-                        LifePlanGallerySection()
-
-                        featuredStoriesSection
+                        .padding(.horizontal, HoloSpacing.md)
+                        .padding(.bottom, HoloSpacing.lg)
                     }
-                    .padding(.horizontal, HoloSpacing.md)
-                    .padding(.bottom, HoloSpacing.lg)
                 }
                 // 不加 containerRelativeFrame(.horizontal)：它按容器全宽定宽，
                 // 在 iPad 上无视 720 列提议并沿安全区链把整个 tab 层撑回全屏（通铺根因）
@@ -473,6 +459,48 @@ struct MemoryGalleryView: View {
             case .summary:
                 EmptyView()
             }
+        }
+    }
+
+    // MARK: - 洞察双栏内容（通宵冲刺 D4）
+
+    /// 左栏「理解档案」：报告门 + 域记忆 + Daily Sense
+    private var insightUnderstandingColumn: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            // 报告门卡（一个家两个门）：最新一份报告的轻入口，直达 Holo AI 报告 Tab。
+            // 无报告时不展示，长廊对无报告用户保持零噪音。
+            if let reportEntry = viewModel.latestReportEntry {
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    sectionHeading(title: String(localized: "它看懂了你"), icon: "sparkles")
+                    ReportDoorCard(entry: reportEntry) {
+                        DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
+                        ChatReportTabRouter.shared.openReportTab()
+                    }
+                }
+            }
+
+            // 用户只看到可理解的记忆结论与控制，不暴露内部评分参数。
+            DomainMemorySection()
+
+            // Daily Sense 状态卡片
+            if InsightFeatureFlags.dailySenseEnabled,
+               let snapshot = viewModel.dailySenseSnapshot,
+               !snapshot.signals.isEmpty {
+                DailySenseStatusCard(snapshot: snapshot)
+            }
+        }
+    }
+
+    /// 右栏「行为层」：热力图 + 计划台账 + 精选故事
+    private var insightActivityColumn: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
+            heatmapSection
+
+            // 一起做的计划（LifePlan 台账）：理解档案第三块
+            LifePlanGallerySection()
+
+            featuredStoriesSection
         }
     }
 

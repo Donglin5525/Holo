@@ -15,14 +15,25 @@ struct MemoryHeatmapView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let weekdays = [String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六"), String(localized: "日")]
-    private let cellSize: CGFloat = 16
+
+    /// 宽屏分档（通宵冲刺 D4，v2 三批欠账）：expanded 档半年 26 周、格径 20，
+    /// 修复 13 周×16pt 固定小图在宽内容列右侧大片空白；iPhone/竖屏维持 13 周×16
+    @Environment(\.holoWindowWidth) private var heatmapWindowWidth
+    private var weekCount: Int {
+        HoloAdaptiveLayout.isExpandedWidth(heatmapWindowWidth) ? 26 : 13
+    }
+    private var cellSize: CGFloat {
+        HoloAdaptiveLayout.isExpandedWidth(heatmapWindowWidth) ? 20 : 16
+    }
+    private var hitSize: CGFloat {
+        HoloAdaptiveLayout.isExpandedWidth(heatmapWindowWidth) ? 26 : 22
+    }
     private let cellSpacing: CGFloat = 3
-    private let hitSize: CGFloat = 22
 
     private var weekStarts: [Date] {
         let currentWeekStart = Date().startOfDay.startOfWeek
-        return (0..<13).map { offset in
-            currentWeekStart.addingWeeks(offset - 12)
+        return (0..<weekCount).map { offset in
+            currentWeekStart.addingWeeks(offset - (weekCount - 1))
         }
     }
 
