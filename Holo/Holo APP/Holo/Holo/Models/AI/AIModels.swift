@@ -51,6 +51,9 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     case generateMemoryInsight = "generate_memory_insight"
     // 每周生活计划类
     case weeklyPlanning = "weekly_planning"
+    // 通用个人情境规划（只读 query 类；ConversationCoordinator 在写执行前分流，
+    // 方案 2026-09-06-HoloAI通用个人情境理解与规划 §9.1）
+    case contextualPlanning = "contextual_planning"
     // 兜底
     case unknown = "unknown"
 }
@@ -58,7 +61,7 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
 // MARK: - AIIntent Category Helpers
 
 extension AIIntent {
-    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis, .flexibleDataQuery]
+    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis, .flexibleDataQuery, .contextualPlanning]
     nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask, .modifyTaskItems]
     nonisolated static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
 
@@ -91,6 +94,7 @@ extension AIIntent {
         case .flexibleDataQuery: return String(localized: "查询卡片")
         case .generateMemoryInsight: return String(localized: "已生成回放")
         case .weeklyPlanning: return String(localized: "本周重点")
+        case .contextualPlanning: return String(localized: "个人情境规划")
         case .unknown: return String(localized: "未识别指令")
         case .query: return String(localized: "查询")
         }
