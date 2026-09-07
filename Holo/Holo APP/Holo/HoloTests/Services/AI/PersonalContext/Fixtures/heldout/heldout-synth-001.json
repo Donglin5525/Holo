@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-001",
+  "domainTags": [
+    "家庭"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-1-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "每周三的事：安排弟弟来访的行程。弟弟之前提过要静养休息，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-1-1"
+    },
+    {
+      "sourceID": "conv-1-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "职称英语的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-1-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "安排弟弟来访的行程",
+    "goalSummary": "安排弟弟来访的行程",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在每周三处理：安排弟弟来访的行程",
+      "basisSourceIDs": [
+        "thought-1-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "弟弟方面要注意静养休息",
+      "basisSourceIDs": [
+        "thought-1-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "弟弟的具体时间",
+    "职称英语的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑静养休息"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "弟弟已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-1-1",
+      "expectedEffect": "静养休息相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-1-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

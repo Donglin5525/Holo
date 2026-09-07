@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-016",
+  "domainTags": [
+    "工作"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-16-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "十一假期的事：准备房贷相关的工作安排。室友之前提过要错峰出行，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-16-1"
+    },
+    {
+      "sourceID": "conv-16-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "房贷的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-16-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "准备房贷相关的工作安排",
+    "goalSummary": "准备房贷相关的工作安排",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在十一假期处理：准备房贷相关的工作安排",
+      "basisSourceIDs": [
+        "thought-16-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "室友方面要注意错峰出行",
+      "basisSourceIDs": [
+        "thought-16-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "室友的具体时间",
+    "房贷的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑错峰出行"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "室友已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-16-1",
+      "expectedEffect": "错峰出行相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-16-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

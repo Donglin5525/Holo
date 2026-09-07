@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-007",
+  "domainTags": [
+    "人际"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-7-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上个月的事：准备与父亲的一次重要沟通。父亲之前提过要控制预算，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-7-1"
+    },
+    {
+      "sourceID": "conv-7-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "职称英语的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-7-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "准备与父亲的一次重要沟通",
+    "goalSummary": "准备与父亲的一次重要沟通",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在上个月处理：准备与父亲的一次重要沟通",
+      "basisSourceIDs": [
+        "thought-7-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "父亲方面要注意控制预算",
+      "basisSourceIDs": [
+        "thought-7-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "父亲的具体时间",
+    "职称英语的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑控制预算"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "父亲已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-7-1",
+      "expectedEffect": "控制预算相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-7-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

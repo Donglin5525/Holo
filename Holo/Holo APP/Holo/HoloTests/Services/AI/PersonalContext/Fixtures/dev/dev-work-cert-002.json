@@ -1,0 +1,102 @@
+{
+  "fixtureID": "dev-work-cert-002",
+  "domainTags": ["工作", "学习", "决策"],
+  "sources": [
+    {
+      "sourceID": "thought-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "公司今年考评里有英语加分项，如果要评高级职称，得在年底前拿到一个英语证明。我英语底子还行，就是口语不行。",
+      "recordedAt": "2026-07-20T22:40:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "thought-2",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "十月中旬项目要交付三期，那段时间肯定天天加班，什么都学不进去。九月和十一月相对空一点。",
+      "recordedAt": "2026-08-30T19:20:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "task-1",
+      "sourceDomain": "task",
+      "sourceKind": "structuredRecord",
+      "plainText": "任务：完成职称材料初审（截止 10 月 31 日）",
+      "recordedAt": "2026-09-01T09:00:00+08:00",
+      "revisionDigest": "rev-2"
+    },
+    {
+      "sourceID": "conv-1",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "assistant",
+      "plainText": "建议您可以了解一下托业（TOEIC）或剑桥商务英语，这两类考试周期较短。",
+      "recordedAt": "2026-09-03T21:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我想考个英语证，帮我规划一下怎么准备",
+    "goalSummary": "年底前取得英语证明以支持职称评定",
+    "referenceTime": "2026-09-06T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户的职称评定要求年底前取得英语证明",
+      "basisSourceIDs": ["thought-1"],
+      "epistemicStatus": "declared",
+      "temporal": { "kind": "ongoing", "originalExpression": "今年考评" }
+    },
+    {
+      "statement": "用户英语口语较弱，其他方面尚可",
+      "basisSourceIDs": ["thought-1"],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "十月中旬项目交付期间用户无暇学习，九月与十一月相对空闲",
+      "basisSourceIDs": ["thought-2"],
+      "epistemicStatus": "declared",
+      "temporal": { "kind": "ongoing", "originalExpression": "本季度项目节奏" }
+    },
+    {
+      "statement": "用户已有 10 月 31 日截止的职称材料初审任务",
+      "basisSourceIDs": ["task-1"],
+      "epistemicStatus": "observed",
+      "temporal": { "kind": "event", "originalExpression": "截止 10 月 31 日" }
+    }
+  ],
+  "unknowns": [
+    "用户单位认可哪类英语考试（托业/四六级/雅思等）",
+    "最近一次可报名的考试场次与报名截止时间",
+    "口语薄弱到什么程度（是否需要专门的口语训练）"
+  ],
+  "expectedPlanEffects": [
+    { "effectKind": "shouldAsk", "description": "应先确认单位认可的考试类型，再排具体备考计划" },
+    { "effectKind": "shouldAdjust", "description": "备考强度应避开十月中旬交付期，重心放九月与十一月" },
+    { "effectKind": "shouldInclude", "description": "英语证明目标应与 10 月 31 日材料初审任务的时间关系被提及" },
+    { "effectKind": "shouldInclude", "description": "口语薄弱应在训练安排中被针对性覆盖" }
+  ],
+  "forbiddenClaims": [
+    "用户单位认可托业成绩（conv-1 是助手建议，不是用户事实）",
+    "已为用户报名某场考试",
+    "用户英语口语已经达标"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-1（职称英语要求）",
+      "expectedEffect": "考英语证退化为一般学习目标，不再有年底期限约束，计划可以更宽松"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "thought-2 改为『十一月也要出差两周』",
+      "expectedEffect": "可学习窗口进一步收窄到九月，方案应更激进或建议调整目标期限"
+    },
+    {
+      "variantID": "cf-3",
+      "change": "删除 conv-1（助手建议消息）",
+      "expectedEffect": "不得再把托业当作已知候选推荐来源；考试类型完全未知，必须先问"
+    }
+  ]
+}

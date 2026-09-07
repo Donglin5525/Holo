@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-036",
+  "domainTags": [
+    "家庭"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-36-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "每年秋天的事：安排父亲来访的行程。父亲之前提过要低盐饮食，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-36-1"
+    },
+    {
+      "sourceID": "conv-36-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "职称英语的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-36-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "安排父亲来访的行程",
+    "goalSummary": "安排父亲来访的行程",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在每年秋天处理：安排父亲来访的行程",
+      "basisSourceIDs": [
+        "thought-36-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "父亲方面要注意低盐饮食",
+      "basisSourceIDs": [
+        "thought-36-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "父亲的具体时间",
+    "职称英语的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑低盐饮食"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "父亲已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-36-1",
+      "expectedEffect": "低盐饮食相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-36-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

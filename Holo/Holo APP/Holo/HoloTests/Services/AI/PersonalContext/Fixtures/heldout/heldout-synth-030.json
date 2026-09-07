@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-030",
+  "domainTags": [
+    "工作"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-30-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上个月的事：准备暖气费相关的工作安排。同事小周之前提过要静养休息，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-30-1"
+    },
+    {
+      "sourceID": "conv-30-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "暖气费的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-30-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "准备暖气费相关的工作安排",
+    "goalSummary": "准备暖气费相关的工作安排",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在上个月处理：准备暖气费相关的工作安排",
+      "basisSourceIDs": [
+        "thought-30-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "同事小周方面要注意静养休息",
+      "basisSourceIDs": [
+        "thought-30-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "同事小周的具体时间",
+    "暖气费的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑静养休息"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "同事小周已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-30-1",
+      "expectedEffect": "静养休息相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-30-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

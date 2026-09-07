@@ -1,0 +1,332 @@
+{
+  "summary": {
+    "set": "heldout",
+    "device": "pc-eval-2026-09-06-00",
+    "providerModel": "deepseek-v4-flash（生产）",
+    "fixtures": 20,
+    "completed": 20,
+    "errors": 0,
+    "recall": {
+      "hit": 40,
+      "total": 40,
+      "rate": 1
+    },
+    "groundedRate": 1,
+    "planOKRate": 1,
+    "forbiddenViolations": 1,
+    "byDomain": {
+      "家庭": 1,
+      "工作": 1,
+      "学习": 1,
+      "健康": 1,
+      "财务": 1,
+      "决策": 1,
+      "人际": 1
+    },
+    "note": "词面口径（CJK 双字词重叠 ≥34%）；语义同义命中与 plan effects 的 judge 辅助评分待人工补充"
+  },
+  "results": [
+    {
+      "fixtureID": "heldout-synth-001",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-002",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-003",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-004",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": false,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-005",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": false,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-006",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-007",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-008",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-009",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-010",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-011",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-012",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-013",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-014",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-015",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [
+        "同事小周已确认全部安排"
+      ],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-016",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-017",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-018",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-019",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-020",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    }
+  ]
+}

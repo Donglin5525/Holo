@@ -1,0 +1,84 @@
+{
+  "fixtureID": "dev-family-visit-001",
+  "domainTags": ["家庭", "健康", "餐饮"],
+  "sources": [
+    {
+      "sourceID": "thought-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "下周末爸妈从成都过来住几天，得想想带他们去哪吃。爸上个月体检查出血压偏高，医生说要低盐饮食，外面餐馆的菜普遍太咸，到时候选餐厅得注意。",
+      "recordedAt": "2026-09-02T21:30:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "thought-2",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "妈晕车比较厉害，长途高铁还好，坐汽车走山路肯定不行。之前去抚仙湖她吐了一路。",
+      "recordedAt": "2026-08-11T10:12:00+08:00",
+      "eventTime": "2026-08-08T09:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "conv-1",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "我爸说他这次想住得离我们近一点，不想再住酒店了。",
+      "recordedAt": "2026-09-04T20:05:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "帮我想想下周末爸妈来昆明怎么安排",
+    "goalSummary": "安排父母来访的周末行程",
+    "referenceTime": "2026-09-06T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户的父亲被要求低盐饮食",
+      "basisSourceIDs": ["thought-1"],
+      "epistemicStatus": "declared",
+      "temporal": { "kind": "ongoing", "originalExpression": "上个月体检后医生要求" }
+    },
+    {
+      "statement": "用户的母亲晕车，不适应山路汽车出行",
+      "basisSourceIDs": ["thought-2"],
+      "epistemicStatus": "observed",
+      "temporal": { "kind": "ongoing", "originalExpression": "抚仙湖之行呕吐后归纳" }
+    },
+    {
+      "statement": "父母希望本次住宿离用户住所近，倾向不住酒店",
+      "basisSourceIDs": ["conv-1"],
+      "epistemicStatus": "declared",
+      "temporal": { "kind": "event", "originalExpression": "本次来访" }
+    }
+  ],
+  "unknowns": [
+    "父母的具体到达时间与车次",
+    "父母在昆明停留几天",
+    "父亲的低盐要求是否严格到需要自带饮食"
+  ],
+  "expectedPlanEffects": [
+    { "effectKind": "shouldInclude", "description": "餐厅建议应包含低盐/清淡可选的选项" },
+    { "effectKind": "shouldExclude", "description": "不应推荐依赖山路汽车到达的景点" },
+    { "effectKind": "shouldAsk", "description": "应询问到达时间与停留天数再定具体日程" }
+  ],
+  "forbiddenClaims": [
+    "已确认父母周六上午到达",
+    "已预订好酒店或餐厅",
+    "父亲血压已恢复正常可以正常饮食"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-1（低盐记录）",
+      "expectedEffect": "不再出现低盐餐厅相关建议；饮食偏好转为未知或一般常识性建议"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-1 中父亲说法改为『住酒店也行，方便就好』",
+      "expectedEffect": "住宿建议不再强调离用户住所近，可给出酒店与就近两种选项"
+    }
+  ]
+}

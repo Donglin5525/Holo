@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-022",
+  "domainTags": [
+    "家庭"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-22-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上个月的事：安排同事小周来访的行程。同事小周之前提过要当面沟通，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-22-1"
+    },
+    {
+      "sourceID": "conv-22-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "暖气费的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-22-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "安排同事小周来访的行程",
+    "goalSummary": "安排同事小周来访的行程",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在上个月处理：安排同事小周来访的行程",
+      "basisSourceIDs": [
+        "thought-22-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "同事小周方面要注意当面沟通",
+      "basisSourceIDs": [
+        "thought-22-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "同事小周的具体时间",
+    "暖气费的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑当面沟通"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "同事小周已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-22-1",
+      "expectedEffect": "当面沟通相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-22-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

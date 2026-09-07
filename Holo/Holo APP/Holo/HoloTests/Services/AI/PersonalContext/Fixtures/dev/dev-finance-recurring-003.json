@@ -1,0 +1,83 @@
+{
+  "fixtureID": "dev-finance-recurring-003",
+  "domainTags": ["财务", "家庭"],
+  "sources": [
+    {
+      "sourceID": "thought-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上个月帮爸妈把老家的暖气费交了，一年一缴的那种，大概两千八。以后每年这个事我来负责，不用他们操心。",
+      "recordedAt": "2026-09-05T23:10:00+08:00",
+      "eventTime": "2026-08-12T15:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "thought-2",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "房贷每月 15 号自动扣款，卡里得留够钱。有一次差点忘了，还好提前两天想起来转了钱。",
+      "recordedAt": "2026-07-28T08:30:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "txn-1",
+      "sourceDomain": "transaction",
+      "sourceKind": "structuredRecord",
+      "plainText": "支出：侄子生日红包 ¥600（2026-08-20）",
+      "recordedAt": "2026-08-20T18:40:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "最近手头有点紧，帮我看看接下来几个月哪些钱是必须花的",
+    "goalSummary": "梳理未来数月固定与必要支出",
+    "referenceTime": "2026-09-06T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户承诺每年负责缴纳老家暖气费（约两千八）",
+      "basisSourceIDs": ["thought-1"],
+      "epistemicStatus": "declared",
+      "temporal": { "kind": "recurring", "originalExpression": "一年一缴，每年由用户负责" }
+    },
+    {
+      "statement": "用户房贷每月 15 号自动扣款，需提前保证卡内余额",
+      "basisSourceIDs": ["thought-2"],
+      "epistemicStatus": "declared",
+      "temporal": { "kind": "recurring", "originalExpression": "每月 15 号" }
+    },
+    {
+      "statement": "用户在 2026-08-20 给侄子生日红包 600 元（事件时间为 8 月，非记录当天语境）",
+      "basisSourceIDs": ["txn-1"],
+      "epistemicStatus": "observed",
+      "temporal": { "kind": "event", "originalExpression": "2026-08-20" }
+    }
+  ],
+  "unknowns": [
+    "老家暖气费的具体缴费窗口期（哪个月开始收）",
+    "侄子生日是否每年都有红包惯例及金额是否固定",
+    "手头紧的具体程度与可压缩的非必要支出项"
+  ],
+  "expectedPlanEffects": [
+    { "effectKind": "shouldInclude", "description": "每月 15 号房贷应作为刚性支出列出" },
+    { "effectKind": "shouldInclude", "description": "年度暖气费应作为近期或年内将发生的刚性支出提示（缴费窗口未知则列为待确认）" },
+    { "effectKind": "shouldExclude", "description": "8 月 20 日的红包是一次性已发生支出，不应列入未来数月必花清单" }
+  ],
+  "forbiddenClaims": [
+    "暖气费缴费窗口是 9 月（原文未说）",
+    "侄子生日红包每年固定 600 元（仅一次记录）",
+    "已为用户设置了自动缴费"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "thought-1 改为『今年帮爸妈交了一次暖气费，明年的再说』",
+      "expectedEffect": "暖气费从年度承诺降为单次已完成事件，不再进入未来必花清单，只作历史记录"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "thought-2 中房贷扣款日从 15 号改为『每个月具体哪天不固定』",
+      "expectedEffect": "房贷仍是刚性支出，但具体日期转为未知，方案应提示向银行确认而非给出固定日期"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "fixtureID": "heldout-synth-006",
+  "domainTags": [
+    "决策"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-6-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上个月的事：决定要不要推进驾照考试。父亲之前提过要低盐饮食，记着这点。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-6-1"
+    },
+    {
+      "sourceID": "conv-6-2",
+      "sourceDomain": "conversation",
+      "sourceKind": "chatMessage",
+      "role": "user",
+      "plainText": "驾照考试的事是我自己负责的，不用别人代管。",
+      "recordedAt": "2026-08-25T20:00:00+08:00",
+      "revisionDigest": "rev-6-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "决定要不要推进驾照考试",
+    "goalSummary": "决定要不要推进驾照考试",
+    "referenceTime": "2026-09-07T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户需要在上个月处理：决定要不要推进驾照考试",
+      "basisSourceIDs": [
+        "thought-6-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "父亲方面要注意低盐饮食",
+      "basisSourceIDs": [
+        "thought-6-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "父亲的具体时间",
+    "驾照考试的细节"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应考虑低盐饮食"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "未知事项应先询问"
+    }
+  ],
+  "forbiddenClaims": [
+    "父亲已确认全部安排",
+    "已替用户完成操作"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-6-1",
+      "expectedEffect": "低盐饮食相关建议消失或转为未知"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "conv-6-2 改为 role: assistant",
+      "expectedEffect": "助手消息不可作为用户事实"
+    }
+  ]
+}

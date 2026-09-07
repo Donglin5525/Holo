@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HoloPersonalContextFixture",
+  "description": "通用个人情境能力评测夹具（P0 冻结格式）",
+  "type": "object",
+  "required": [
+    "fixtureID",
+    "domainTags",
+    "sources",
+    "currentRequest",
+    "expectedSupportedRelations",
+    "unknowns",
+    "expectedPlanEffects",
+    "forbiddenClaims",
+    "counterfactualVariants"
+  ],
+  "properties": {
+    "fixtureID": {
+      "type": "string",
+      "pattern": "^(dev|heldout)-[a-z0-9-]+$",
+      "description": "dev-* 为开发集，heldout-* 为留出集"
+    },
+    "domainTags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "覆盖领域（开放集合：工作/家庭/健康/学习/决策/财务/人际…）"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["sourceID", "sourceDomain", "sourceKind", "plainText", "revisionDigest"],
+        "properties": {
+          "sourceID": { "type": "string" },
+          "sourceDomain": { "type": "string", "description": "thought/conversation/task/transaction…（开放集合）" },
+          "sourceKind": { "type": "string", "description": "userNote/chatMessage/structuredRecord…（开放集合）" },
+          "plainText": { "type": "string" },
+          "role": { "type": "string", "enum": ["user", "assistant"], "description": "conversation 来源必须保留 role" },
+          "eventTime": { "type": "string", "format": "date-time", "description": "事件实际发生时间（可与 recordedAt 相差很远：补记场景）" },
+          "recordedAt": { "type": "string", "format": "date-time", "description": "记录落库时间" },
+          "revisionDigest": { "type": "string" }
+        }
+      }
+    },
+    "currentRequest": {
+      "type": "object",
+      "required": ["utterance"],
+      "properties": {
+        "utterance": { "type": "string", "description": "本轮用户原话" },
+        "goalSummary": { "type": "string" },
+        "referenceTime": { "type": "string", "format": "date-time", "description": "评测锚定时间；相对表述（下个月/周末）以此解析" }
+      }
+    },
+    "expectedSupportedRelations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["statement", "basisSourceIDs", "epistemicStatus"],
+        "properties": {
+          "statement": { "type": "string", "description": "可独立理解的克制命题" },
+          "basisSourceIDs": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "epistemicStatus": { "type": "string", "enum": ["declared", "observed", "inferred"] },
+          "temporal": {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["event", "ongoing", "recurring", "conditional"] },
+              "originalExpression": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "系统应识别为未知的问题；不得有 source 支持其答案"
+    },
+    "expectedPlanEffects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["effectKind", "description"],
+        "properties": {
+          "effectKind": { "type": "string", "enum": ["shouldInclude", "shouldExclude", "shouldAsk", "shouldAdjust"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "forbiddenClaims": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "输出中出现即记失败：伪造来源/未经确认执行/把未知当事实/把本次完成当永久取消"
+    },
+    "counterfactualVariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["variantID", "change", "expectedEffect"],
+        "properties": {
+          "variantID": { "type": "string" },
+          "change": { "type": "string", "description": "对 sources 的修改/删除/替换描述" },
+          "expectedEffect": { "type": "string", "description": "建议应如何正确变化（含应消失的建议与应出现的新未知）" }
+        }
+      }
+    }
+  }
+}

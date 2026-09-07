@@ -171,6 +171,40 @@ struct MessageBubbleView: View {
                 } else {
                     bubbleContent
                 }
+            } else if message.messageType == .contextPlan {
+                if message.contextPlanJSON != nil {
+                    ContextPlanChatCard(
+                        draftJSON: message.contextPlanJSON,
+                        receipts: ContextPlanUserDefaultsReceipts(),
+                        onCreateTasks: { creations in
+                            // 结构化映射直接建任务（§10：不把计划重新丢回意图识别模型）。
+                            // 逐项回报真实回执：写入成功才算成功，失败项如实交回卡片。
+                            let repo = TodoRepository.shared
+                            var receipts: [String: HoloContextPlanCreationReceipt] = [:]
+                            for creation in creations {
+                                do {
+                                    let task = try repo.createTask(
+                                        title: creation.title,
+                                        list: nil,
+                                        priority: .medium,
+                                        dueDate: creation.dueDate,
+                                        isAllDay: true,
+                                        reminders: nil,
+                                        checkItemTitles: nil
+                                    )
+                                    receipts[creation.idempotencyKey] = .success(taskID: task.id.uuidString)
+                                } catch {
+                                    receipts[creation.idempotencyKey] = .failure(
+                                        error.localizedDescription
+                                    )
+                                }
+                            }
+                            return receipts
+                        }
+                    )
+                } else {
+                    bubbleContent
+                }
             } else if message.isQueryAnalysis {
                 if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
                     AgentDeepAnalysisCard(message: message) {

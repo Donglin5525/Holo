@@ -1,0 +1,82 @@
+{
+  "summary": {
+    "set": "dev",
+    "device": "pc-eval-2026-09-06",
+    "providerModel": "deepseek-v4-flash（生产）",
+    "fixtures": 3,
+    "completed": 3,
+    "errors": 0,
+    "recall": {
+      "hit": 9,
+      "total": 10,
+      "rate": 0.9
+    },
+    "groundedRate": 1,
+    "planOKRate": 1,
+    "forbiddenViolations": 1,
+    "byDomain": {
+      "家庭": 0.833,
+      "健康": 0.667,
+      "餐饮": 0.667,
+      "财务": 1,
+      "工作": 1,
+      "学习": 1,
+      "决策": 1
+    },
+    "note": "词面口径（CJK 双字词重叠 ≥34%）；语义同义命中与 plan effects 的 judge 辅助评分待人工补充"
+  },
+  "results": [
+    {
+      "fixtureID": "dev-family-visit-001",
+      "domains": [
+        "家庭",
+        "健康",
+        "餐饮"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 3,
+      "verifiedPass": 6,
+      "verifiedTotal": 6,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "dev-finance-recurring-003",
+      "domains": [
+        "财务",
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 3,
+      "totalRelations": 3,
+      "verifiedPass": 4,
+      "verifiedTotal": 4,
+      "planOK": true,
+      "forbiddenViolations": [
+        "侄子生日红包每年固定 600 元（仅一次记录）"
+      ],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "dev-work-cert-002",
+      "domains": [
+        "工作",
+        "学习",
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 4,
+      "totalRelations": 4,
+      "verifiedPass": 5,
+      "verifiedTotal": 5,
+      "planOK": true,
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    }
+  ]
+}
