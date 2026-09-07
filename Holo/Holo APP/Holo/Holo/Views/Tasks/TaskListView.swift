@@ -159,6 +159,20 @@ struct TaskListView: View {
     }
     @State private var selectedTask: TaskSelection? = nil
 
+    /// 宽屏双栏门控（D2）：expanded 档列表+详情同屏
+    @Environment(\.holoWindowWidth) private var taskWindowWidth
+    private var isWideLayout: Bool {
+        HoloAdaptiveLayout.isExpandedWidth(taskWindowWidth)
+    }
+
+    /// 详情 sheet 的门控绑定：宽屏详情常驻右栏，sheet 恒 nil 不弹；窄屏原语义
+    private var detailSheetBinding: Binding<TaskSelection?> {
+        Binding(
+            get: { isWideLayout ? nil : selectedTask },
+            set: { selectedTask = $0 }
+        )
+    }
+
     /// 是否显示归档管理页面
     @State private var showArchiveManagement = false
     /// 是否显示通知设置页面
@@ -196,7 +210,8 @@ struct TaskListView: View {
 
     // MARK: - Body
 
-    var body: some View {
+    /// 任务主列（原单列整页内容：头部 + 列表 + 撤回浮层）；宽屏作双栏左栏
+    private var taskMasterColumn: some View {
         VStack(spacing: 0) {
             headerView
 
@@ -249,6 +264,64 @@ struct TaskListView: View {
                         postponeUndoBanner
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: - 宽屏右栏详情（通宵冲刺 D2）
+
+    @ViewBuilder
+    private var taskDetailPane: some View {
+        if let selection = selectedTask {
+            if let task = tasks.first(where: { $0.id == selection.id }) ?? repository.findTask(by: selection.id) {
+                TaskDetailView(task: task, repository: repository, onBack: { selectedTask = nil })
+                    // 切换任务重置详情滚动与编辑态
+                    .id(selection.id)
+            } else {
+                // 任务被删除/未落库：右栏给出出口，不留死胡同
+                TaskNotFoundView(onDismiss: { selectedTask = nil })
+            }
+        } else {
+            taskDetailPlaceholder
+        }
+    }
+
+    /// 无选中时的引导位（对齐想法右栏范式的文案风格）
+    private var taskDetailPlaceholder: some View {
+        VStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "checklist")
+                .font(.system(size: 30))
+                .foregroundColor(.holoTextPlaceholder)
+            Text("选一条任务查看")
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+            Text("在左侧轻点任务，详情和编辑会在这里展开")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextPlaceholder)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoBackground)
+        .accessibilityElement(children: .combine)
+    }
+
+    var body: some View {
+        // 通宵冲刺 D2（v2 二批欠账）：宽屏左列表 46% + 右详情 54% 同屏，详情不再走 sheet；
+        // 窄屏/iPhone 维持原单列 + sheet 语义
+        Group {
+            if isWideLayout {
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        taskMasterColumn
+                            .frame(width: geo.size.width * 0.46)
+                        Rectangle()
+                            .fill(Color.holoBorder.opacity(0.4))
+                            .frame(width: 0.5)
+                        taskDetailPane
+                            .frame(width: geo.size.width * 0.54)
+                    }
+                }
+            } else {
+                taskMasterColumn
             }
         }
         .onAppear {
@@ -311,7 +384,7 @@ struct TaskListView: View {
             // 撤回/确认完成时同步 Hero 数字
             loadTodayProgress()
         }
-        .sheet(item: $selectedTask, onDismiss: {
+        .sheet(item: detailSheetBinding, onDismiss: {
             // 复位选中状态，确保下次 DeepLink 命中相同 taskId 时能重新触发 sheet
             selectedTask = nil
         }) { selection in
