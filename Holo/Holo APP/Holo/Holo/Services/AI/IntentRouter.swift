@@ -134,6 +134,9 @@ final class IntentRouter {
             return try handleQueryTasks(result)
         case .queryHabits:
             return try handleQueryHabits(result)
+        case .contextualPlanning:
+            // 只读意图：Coordinator 已在写执行前分流到规划器；这里兜底不执行任何写动作
+            return RouteResult(text: result.responseText ?? "正在结合你的情况整理方案…")
         case .query, .queryAnalysis, .flexibleDataQuery, .unknown:
             return RouteResult(
                 text: result.responseText ?? "我可以帮你记账、创建任务、记录心情等。有什么需要帮忙的吗？"
