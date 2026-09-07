@@ -80,6 +80,7 @@ struct ThoughtCardView: View {
                 .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoHover()
         // 双击命中整张卡片，短文下方的留白也能直接进入编辑器；单击详情仍只由正文区域处理。
         // 必须用 onTapGesture：highPriorityGesture 会抢先拦截子视图（「…」按钮、标签 chip）的单击，
         // 导致这些按钮点按无反应（SwiftUI 手势竞争中子视图应优先）。

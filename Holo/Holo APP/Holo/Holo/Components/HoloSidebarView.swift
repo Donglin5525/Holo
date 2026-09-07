@@ -185,6 +185,7 @@ struct HoloSidebarView: View {
             )
         }
         .buttonStyle(.plain)
+        .holoHover()
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -213,6 +214,7 @@ struct HoloSidebarView: View {
             .shadow(color: Color.holoPrimary.opacity(0.3), radius: 12, x: 0, y: 5)
         }
         .buttonStyle(.plain)
+        .holoHover()
         .accessibilityLabel(String(localized: "快速记录"))
     }
 

@@ -230,6 +230,7 @@ struct TasksView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
+                .holoHover()
             }
             Spacer()
         }

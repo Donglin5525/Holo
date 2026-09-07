@@ -81,6 +81,7 @@ struct HabitTileView: View {
                     )
             )
             .contextMenu { menuItems }
+            .holoHover()
             .onTapGesture { handlePrimaryAction() }
             .sheet(isPresented: $showValueInput) { valueInputSheet }
             .sheet(isPresented: $showCheckInNote) { checkInNoteSheet }

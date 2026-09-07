@@ -254,8 +254,25 @@ struct TaskCardView: View {
         // 整卡热区：留白、元信息、子任务平铺区点按均可进入任务页；
         // 完成圈 / 子任务勾选 / 纪念日徽章等子视图交互优先消费，不触发跳转
         .contentShape(Rectangle())
+        .holoHover()
         .onTapGesture {
             onNavigate?()
+        }
+        // 通宵冲刺 E 轮：右键/长按菜单与行内既有操作同语义（指针用户不依赖左滑）
+        .contextMenu {
+            Button {
+                toggleCompletion()
+            } label: {
+                Label(showsCompleted ? "标记为未完成" : "标记为完成",
+                      systemImage: showsCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
+            }
+            if let onPostpone = onPostpone {
+                Button {
+                    onPostpone()
+                } label: {
+                    Label("延期", systemImage: "calendar.badge.clock")
+                }
+            }
         }
     }
 

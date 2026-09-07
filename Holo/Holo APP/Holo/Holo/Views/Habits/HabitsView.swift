@@ -153,6 +153,7 @@ struct HabitsView: View {
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .holoHover()
             }
             Spacer()
         }
