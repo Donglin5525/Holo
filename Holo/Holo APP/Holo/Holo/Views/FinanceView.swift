@@ -175,11 +175,14 @@ struct FinanceView: View {
             AddTransactionSheet(editingTransaction: nil) { _ in
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
+            // 通宵冲刺 D8 起点：高频表单弹层宽度政策（iPad 定宽 560 居中；iPhone 全宽不变）
+            .holoSheetWidth(.form)
         }
         .sheet(item: $deepLinkedTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
+            .holoSheetWidth(.form)
         }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
@@ -285,6 +288,7 @@ struct FinanceView: View {
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .holoHover()
             }
             Spacer()
         }

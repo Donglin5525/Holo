@@ -47,6 +47,10 @@ struct ChatReportTabView: View {
                 archiveList
             }
         }
+        // 通宵冲刺 D5（B-P0-2）：报告卡对齐 AI 模块阅读列口径（气泡640/输入条720 同族），
+        // 修复宽屏全宽卡 1300px+ 行长；iPhone 直通
+        .holoContentColumn(maxWidth: 720, paintsBackground: false)
+        .frame(maxWidth: .infinity)
         .background(Color.holoBackground.ignoresSafeArea())
         .fullScreenCover(isPresented: $showFavorites) {
             ReportFavoritesView(
