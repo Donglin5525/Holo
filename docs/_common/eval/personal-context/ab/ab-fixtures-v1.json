@@ -1,0 +1,391 @@
+{
+  "version": "ab-fixtures-v1",
+  "frozenAt": "2026-09-07",
+  "referenceTime": "2026-09-15T09:00:00+08:00",
+  "design": "24 目标 × 3 版本 = 72 输入。V0=原事实；V1=关键条件改变（sources 按 mutation 替换/追加）；V2=仅加无关信息（baseSources + irrelevantSource）。utterance 三版本完全一致。陌生语义保留原文，不靠场景名匹配。",
+  "coverage": ["responsibility 责任", "temporal 时间依赖", "third-party 多人对象", "stale-state 旧状态", "counter-evidence 新反证", "insufficient-data 资料不足", "suppress-reminder 应该少提醒", "preference 偏好约束"],
+  "goals": [
+    {
+      "goalID": "ab-01", "category": "responsibility", "domain": "家庭",
+      "utterance": "下周五我要去上海出差两天，帮我安排一下这几天家里的事",
+      "goalSummary": "出差期间家中事务安排",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "家里只有我照顾猫，豆豆的粮和猫砂都是我管，别人不熟悉它的脾气"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "豆豆吃的是处方粮，一天两顿，换粮会拉肚子"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "上个月开始我爱人也学会照顾猫了，豆豆的粮和猫砂她都能管"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我喜欢蓝色的笔记本，记事都用蓝皮本"},
+      "expectedRelations": ["家里只有用户照顾猫", "猫吃处方粮一天两顿不能换粮"],
+      "expectedEffectV0": "方案必须安排他人照料猫（上门喂猫/寄养），并注明处方粮与每天两顿的喂养要求",
+      "expectedEffectV1": "爱人会照顾猫，方案应转向提醒夫妻交接喂养细节即可，不需要安排外部寄养",
+      "mustKeepV2": "核心安排仍是安排照料猫，不得因蓝皮本等无关喜好改变",
+      "forbiddenClaims": ["已预订宠物寄养", "已请朋友上门喂猫"]
+    },
+    {
+      "goalID": "ab-02", "category": "responsibility", "domain": "家庭",
+      "utterance": "国庆想回老家一趟，帮我理一理要走之前要准备什么",
+      "goalSummary": "回老家前的准备安排",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我妈腿脚不便，我一个人负责定期去看她送菜，我出差或回老家的日子得先安排邻居张姨帮忙送"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "张姨有我家备用钥匙，她帮忙送菜一次我给她转五十"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "我妈上个月搬进了城里的养老院，白天有护工照看，不再需要送菜"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "最近在听评书，通勤路上解闷"},
+      "expectedRelations": ["用户负责定期给母亲送菜", "张姨有备用钥匙可帮忙"],
+      "expectedEffectV0": "方案必须包含安排张姨国庆期间代为送菜或探望，并提到酬谢",
+      "expectedEffectV1": "母亲已住养老院有护工，方案不应再安排送菜，转向探望安排即可",
+      "mustKeepV2": "核心仍是探望母亲的安排，评书爱好不得进入方案",
+      "forbiddenClaims": ["已和张姨约好送菜"]
+    },
+    {
+      "goalID": "ab-03", "category": "responsibility", "domain": "工作",
+      "utterance": "十月要带团队做一个新项目，帮我提前盘一下要注意什么",
+      "goalSummary": "十月新项目的提前准备",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我十月要陪产假，家里二胎预产期在十月中，项目启动那两周我肯定顾不上"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "团队里老陈经验最足，之前我休假都是他顶上"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "二胎计划取消了，十月没有陪产假的安排，我可以全程盯项目"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "办公室常备薄荷糖，开会前含一颗"},
+      "expectedRelations": ["用户十月要休陪产假", "老陈是可托付的替补"],
+      "expectedEffectV0": "方案必须提前把项目关键节点安排在陪产假前，并建议指定老陈代理",
+      "expectedEffectV1": "无陪产假，方案不应再安排代理交接，转为正常项目节奏规划",
+      "mustKeepV2": "项目准备的核心安排不变，薄荷糖细节不得影响方案",
+      "forbiddenClaims": ["已和老陈确认代理"]
+    },
+    {
+      "goalID": "ab-04", "category": "temporal", "domain": "证件",
+      "utterance": "年底想去日本玩一趟，帮我看看要提前准备什么",
+      "goalSummary": "年底日本旅行的准备",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我护照 2026 年 12 月 20 日到期，办日本签证要求护照有效期至少还有六个月"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "上次换护照花了三周，还得去出入境大厅两次"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "我护照 2034 年才到期，办签证的有效期完全够"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "行李箱喜欢选 24 寸的，大小正好"},
+      "expectedRelations": ["用户护照2026年12月到期", "日签要求护照有效期至少六个月"],
+      "expectedEffectV0": "方案必须把换护照列为第一步（时间紧迫），并提醒办证周期三周",
+      "expectedEffectV1": "护照有效期充足，方案不应包含换护照，直接进入签证与行程准备",
+      "mustKeepV2": "签证与行程准备不变，行李箱偏好不得成为核心安排",
+      "forbiddenClaims": ["已预约护照办理"]
+    },
+    {
+      "goalID": "ab-05", "category": "temporal", "domain": "健康",
+      "utterance": "这阵子比较忙，帮我看看有没有不能拖的事",
+      "goalSummary": "梳理近期不能拖延的事项",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "医生说我这颗智齿必须九月底前拔掉，拖久了会影响旁边的牙"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "车辆保险十月初到期，续保要提前一周办"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "智齿八月底已经拔掉了，恢复得不错，医生说不用再复查"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "泡脚喜欢四十五度的水温"},
+      "expectedRelations": ["智齿须九月底前拔除", "车险十月初到期需提前续"],
+      "expectedEffectV0": "方案应把拔智齿列为最紧急事项，其次续车险",
+      "expectedEffectV1": "智齿已拔除无需复查，方案不应再列拔牙，聚焦车险续保",
+      "mustKeepV2": "车险续保仍是核心，泡脚偏好不得改变安排",
+      "forbiddenClaims": ["已预约拔牙", "已完成续保"]
+    },
+    {
+      "goalID": "ab-06", "category": "temporal", "domain": "学习",
+      "utterance": "我想考个证提升一下，帮我规划一下什么时候开始合适",
+      "goalSummary": "考证时间规划",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "目标证书的报名截止是十月八号，考试在十二月中旬，错过要再等一年"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "十月底到十一月我要驻场，晚上基本没时间看书"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "这个证书明年改成一年两次考试，上半年三月也能考，报名截止一月底"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "学习时喜欢用黄色荧光笔画重点"},
+      "expectedRelations": ["报名截止十月八号", "十一月驻场晚间无空"],
+      "expectedEffectV0": "方案应明确十月八号前报名，学习窗口安排在九月中到十月底",
+      "expectedEffectV1": "可改报明年三月批次，方案应给出两档选择并比较，不再强调眼下紧迫",
+      "mustKeepV2": "报考时间安排逻辑不变，荧光笔偏好无关",
+      "forbiddenClaims": ["已完成报名"]
+    },
+    {
+      "goalID": "ab-07", "category": "third-party", "domain": "家庭",
+      "utterance": "周末请爸妈来家里吃饭，帮我规划一下菜单和采购",
+      "goalSummary": "周末家宴菜单与采购",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我爸有糖尿病，甜口的菜和含糖饮料都不能上桌"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "我妈牙口不好，菜要炖烂一点"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "我爸上半年体检血糖已经正常了，医生说普通饮食不用特别忌糖"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "家里餐桌布是米白色的，搭配原木餐具"},
+      "expectedRelations": ["父亲患糖尿病须忌糖", "母亲牙口不好菜要炖烂"],
+      "expectedEffectV0": "菜单必须无糖低升糖、菜品软烂，采购清单体现这两点",
+      "expectedEffectV1": "血糖已正常，菜单不必严格忌糖，但仍应清淡均衡",
+      "mustKeepV2": "菜单核心逻辑不变，桌布餐具无关",
+      "forbiddenClaims": ["已买好食材"]
+    },
+    {
+      "goalID": "ab-08", "category": "third-party", "domain": "人际",
+      "utterance": "下周要请合作方吃饭，帮我定个餐厅类型",
+      "goalSummary": "商务宴请餐厅选择",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "对接的王总吃素食，之前饭局他全程只碰青菜豆腐"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "王总不喝酒，席间以茶代酒"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "对接人换成李总，李总是无肉不欢的西北人，喜欢面食和牛羊肉"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我自己的钱包是长款的，习惯放外套内袋"},
+      "expectedRelations": ["王总吃素食", "王总以茶代酒"],
+      "expectedEffectV0": "餐厅应选有优质素食的餐馆，建议备茶",
+      "expectedEffectV1": "对接人换成李总后，方案不应再按素食安排，转向西北菜或牛羊肉面食",
+      "mustKeepV2": "餐厅类型逻辑不变，钱包习惯无关",
+      "forbiddenClaims": ["已订好餐厅"]
+    },
+    {
+      "goalID": "ab-09", "category": "third-party", "domain": "人际",
+      "utterance": "朋友的孩子满月要送礼，帮我想想送什么",
+      "goalSummary": "满月礼选择",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "老同学家里条件一般，之前我随礼他都按老家标准回，金额太高会让他有压力"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "他家孩子是二胎，大件的东西都有了"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "他家是头胎，婴儿床、安全座椅什么都还没置办"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我平时网购多用橙色软件下单"},
+      "expectedRelations": ["随礼金额过高会让老同学有压力", "他家是二胎大件已齐"],
+      "expectedEffectV0": "建议应避开大件、金额克制，选轻量贴心的礼物",
+      "expectedEffectV1": "头胎缺大件，方案可建议实用大件（安全座椅等）或大额实用礼",
+      "mustKeepV2": "送礼逻辑不变，购物软件偏好无关",
+      "forbiddenClaims": ["已下单礼物"]
+    },
+    {
+      "goalID": "ab-10", "category": "stale-state", "domain": "生活",
+      "utterance": "帮我看看最近有什么需要打理的事",
+      "goalSummary": "近期事务梳理",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "去年装修后甲醛超标，当时天天开窗通风放味"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "上个月检测甲醛已经达标了，完全可以放心入住"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "最近总觉得屋里还有味儿，打算下个月再测一次甲醛"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "阳台的多肉这个夏天长得很好"},
+      "expectedRelations": ["甲醛上个月已达标可放心入住"],
+      "expectedEffectV0": "方案不应再安排通风放味任务，该事项视为已完结",
+      "expectedEffectV1": "用户仍有疑虑计划复测，方案应把复测甲醛列入安排",
+      "mustKeepV2": "复测与事务梳理逻辑不变，多肉无关",
+      "forbiddenClaims": []
+    },
+    {
+      "goalID": "ab-11", "category": "stale-state", "domain": "健康",
+      "utterance": "帮我规划一下这个秋天的运动安排",
+      "goalSummary": "秋季运动计划",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "去年膝盖韧带拉伤，医生叮嘱半年内不能跑步，只能游泳和骑车"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "上个月复查医生说膝盖完全好了，可以恢复正常运动"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "上个月膝盖又有轻微不适，医生建议继续避免跑跳类运动"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "运动时喜欢穿白色的袜子"},
+      "expectedRelations": ["膝盖已痊愈可恢复正常运动", "半年保护期已过"],
+      "expectedEffectV0": "方案可包含跑步等正常运动，不必再回避",
+      "expectedEffectV1": "膝盖仍有不适须避免跑跳，方案应继续以游泳骑车为主",
+      "mustKeepV2": "运动安排逻辑不变，袜子颜色无关",
+      "forbiddenClaims": []
+    },
+    {
+      "goalID": "ab-12", "category": "stale-state", "domain": "财务",
+      "utterance": "年底了，帮我看看明年的钱怎么安排",
+      "goalSummary": "明年财务安排",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "前年背的教育贷款，今年六月已经全部还清了，无债一身轻"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "每月工资到账先转两千到理财账户，剩下的日常花"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "去年装修找银行贷的十五万还在还，每月要还四千三，还有三年"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "记账喜欢用绿色标签标记餐饮"},
+      "expectedRelations": ["教育贷款已还清无负债", "每月固定转两千理财"],
+      "expectedEffectV0": "方案不应再安排还贷预算，可建议提高储蓄或投资比例",
+      "expectedEffectV1": "仍有月供四千三，方案应把还贷列为固定支出优先项",
+      "mustKeepV2": "财务安排逻辑不变，记账标签习惯无关",
+      "forbiddenClaims": []
+    },
+    {
+      "goalID": "ab-13", "category": "counter-evidence", "domain": "饮食",
+      "utterance": "周末朋友聚餐要我选地方，帮我参考一下吃什么",
+      "goalSummary": "周末聚餐选址参考",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我以前特别能吃辣，无辣不欢"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "最近肠胃出了问题，医生让我这段时间完全忌辣，清淡饮食"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "肠胃早就调理好了，吃辣完全没问题，最近又开始重辣自由了"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "聚餐喜欢选有包间的店，说话方便"},
+      "expectedRelations": ["医生要求近期完全忌辣清淡饮食"],
+      "expectedEffectV0": "方案应建议清淡菜系（粤菜/江浙菜等），不推荐辣锅",
+      "expectedEffectV1": "已恢复吃辣，方案可建议川湘菜或火锅",
+      "mustKeepV2": "选菜逻辑不变，包间偏好可作次要参考",
+      "forbiddenClaims": []
+    },
+    {
+      "goalID": "ab-14", "category": "counter-evidence", "domain": "生活",
+      "utterance": "家里想添个大件，帮我参谋一下优先买什么",
+      "goalSummary": "大件采购优先级",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "一直想换一台大屏电视，客厅那台还是十年前的"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "上周洗衣机彻底坏了修不了，衣服只能手洗，太耽误事了"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "洗衣机上个月已经换成新的了，目前家里电器都运转正常"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我喜欢在品牌旗舰店买东西，售后放心"},
+      "expectedRelations": ["洗衣机已坏须优先解决", "电视十年未换"],
+      "expectedEffectV0": "方案应把洗衣机列为第一优先（生活刚需受阻）",
+      "expectedEffectV1": "洗衣机已换新，方案应转向电视或其他升级型采购",
+      "mustKeepV2": "采购优先级逻辑不变，渠道偏好次要",
+      "forbiddenClaims": []
+    },
+    {
+      "goalID": "ab-15", "category": "insufficient-data", "domain": "家庭",
+      "utterance": "亲戚一家五口国庆要来我们城市玩两天，让我帮他们安排行程",
+      "goalSummary": "亲戚来访两日行程",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "亲戚家有两个孩子，大的上小学小的刚会走"}
+      ],
+      "mutation": null,
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我们城市秋天的银杏很出名"},
+      "expectedRelations": [],
+      "expectedEffectV0": "关键信息缺失（孩子年龄/体力、亲戚预算、住宿诉求）时应明确列出未知并提问，或给分档的一般建议，不得编造亲戚的偏好和预算",
+      "expectedEffectV1": null,
+      "mustKeepV2": "未知澄清逻辑不变，银杏可作行程点缀但不得替代澄清",
+      "forbiddenClaims": ["亲戚喜欢吃辣", "亲戚预算充足"]
+    },
+    {
+      "goalID": "ab-16", "category": "insufficient-data", "domain": "财务",
+      "utterance": "朋友想找我借一笔钱应急，帮我分析一下怎么处理",
+      "goalSummary": "朋友借款应对",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "这个朋友认识十年了，人靠谱，上次借钱提前还了"}
+      ],
+      "mutation": null,
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我的银行卡开通了短信提醒"},
+      "expectedRelations": [],
+      "expectedEffectV0": "缺关键信息（金额、自己的结余、朋友用途）时方案应先列未知并给决策框架（可借额度/借据/期限），不得替用户拍板金额，不得编造自己的财务数字",
+      "expectedEffectV1": null,
+      "mustKeepV2": "决策框架逻辑不变，短信提醒无关",
+      "forbiddenClaims": ["我每月结余八千", "朋友要借三万"]
+    },
+    {
+      "goalID": "ab-17", "category": "suppress-reminder", "domain": "生活",
+      "utterance": "最近的事帮我理一理，看看有什么要跟进的",
+      "goalSummary": "近期事项跟进梳理",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "考驾照科目二挂了一次，我决定先放一放，明年夏天再说，别催我"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "物业通知九月三十号前交停车费，不交会影响下季度车位"}
+      ],
+      "mutation": null,
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我的车是白色的，洗车喜欢去楼下那家"},
+      "expectedRelations": ["用户明确驾照的事先放一放别催", "停车费九月底前要交"],
+      "expectedEffectV0": "方案必须把停车费列为待办，同时不得把驾照考试列入跟进（用户已明确搁置）",
+      "expectedEffectV1": null,
+      "mustKeepV2": "跟进逻辑不变，洗车偏好无关",
+      "forbiddenClaims": ["建议尽快预约科目二"]
+    },
+    {
+      "goalID": "ab-18", "category": "suppress-reminder", "domain": "健康",
+      "utterance": "帮我看看有什么健康上的事要注意",
+      "goalSummary": "健康注意事项",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "体检报告说我尿酸偏高，建议少喝啤酒少吃海鲜"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "我已经在按医生方案吃降酸药三个月了，最近复查指标正常了，这事算是翻篇了"}
+      ],
+      "mutation": null,
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我的保温杯是五百毫升的"},
+      "expectedRelations": ["尿酸指标已复查正常此事已翻篇"],
+      "expectedEffectV0": "方案不应再反复强调忌口与降酸（用户已明确翻篇），可轻量维持建议",
+      "expectedEffectV1": null,
+      "mustKeepV2": "健康提醒的分寸不变，保温杯无关",
+      "forbiddenClaims": ["必须立即戒酒戒海鲜"]
+    },
+    {
+      "goalID": "ab-19", "category": "preference", "domain": "财务",
+      "utterance": "想给自己加点预算提升生活质量，帮我规划一下",
+      "goalSummary": "生活质量提升预算",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我每月娱乐预算上限三百，超了会有负罪感，这是我自己定的红线"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "我攒钱是为了明年底付装修首付，大额支出都会让路"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "装修首付已经攒够了，现在每个月花四五百在娱乐上也没什么压力"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我喜欢在雨天听爵士乐"},
+      "expectedRelations": ["娱乐预算上限三百是用户红线", "攒钱目标装修首付"],
+      "expectedEffectV0": "方案应尊重三百上限，建议小成本提升（不突破红线），大额支出让路首付",
+      "expectedEffectV1": "首付已就绪且当前月花四五百无压力，方案可建议适度提高娱乐预算",
+      "mustKeepV2": "预算逻辑不变，音乐偏好无关",
+      "forbiddenClaims": ["建议每月加两千娱乐预算"]
+    },
+    {
+      "goalID": "ab-20", "category": "preference", "domain": "饮食",
+      "utterance": "下周想开始带饭上班，帮我做个计划",
+      "goalSummary": "带饭计划",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我是素食者，肉蛋都不吃，纯植物饮食两年多了"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "公司有微波炉，没有冰箱，食物放到中午容易坏"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "今年体检查出贫血，医生建议我开始吃红肉，现在饮食上不再忌肉了"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "我的饭盒是玻璃的分格款"},
+      "expectedRelations": ["用户是纯素食者", "公司无冰箱食物易坏"],
+      "expectedEffectV0": "食谱必须全素且耐存放（无冰箱），不得推荐肉类",
+      "expectedEffectV1": "已不忌肉且需补铁，方案应包含红肉并兼顾存放问题",
+      "mustKeepV2": "带饭计划逻辑不变，饭盒材质无关",
+      "forbiddenClaims": []
+    },
+    {
+      "goalID": "ab-21", "category": "responsibility", "domain": "家庭",
+      "utterance": "爸妈下周要出远门旅游一周，帮我把他们走之前的事理一理",
+      "goalSummary": "父母出门前的准备",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我爸的心脏药吃一个月的量只剩一周了，出门必须带够，断药很危险"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "爸妈家的花和鱼每次他们出门都是我隔天去照看"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "鱼缸上个月送给亲戚了，花也托给了小区的园艺阿姨，这次不用我管了"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "爸妈的行李箱是银色的"},
+      "expectedRelations": ["父亲心脏药余量仅一周须备足", "用户负责隔天照看花和鱼"],
+      "expectedEffectV0": "方案必须包含提前配药/备足药量，并安排照看花鱼的交接",
+      "expectedEffectV1": "花鱼已托付，方案不再安排照看交接，聚焦配药与出行清单",
+      "mustKeepV2": "备药仍是第一优先，行李箱颜色无关",
+      "forbiddenClaims": ["已买好机票", "已配好药"]
+    },
+    {
+      "goalID": "ab-22", "category": "temporal", "domain": "工作",
+      "utterance": "我下周想请几天假处理私事，帮我看看怎么安排最合适",
+      "goalSummary": "请假时间安排",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "下月十号是项目投标截止日，截止前一周是最忙的，我走不开"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "我还有五天年假，年底作废"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "项目投标延期到下月底了，最近一个月都没有硬性节点"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "请假单要走线上流程，手机上就能提"},
+      "expectedRelations": ["投标截止前一周走不开", "有五天年假年底作废"],
+      "expectedEffectV0": "方案应避开投标周，把假期安排在节点之后，并提醒年假年底作废尽早用",
+      "expectedEffectV1": "投标延期后近期无节点，方案应建议近期即可休假",
+      "mustKeepV2": "假期安排逻辑不变，线上流程无关",
+      "forbiddenClaims": ["已提交请假申请"]
+    },
+    {
+      "goalID": "ab-23", "category": "third-party", "domain": "人际",
+      "utterance": "我要给团队每个人准备生日福利，帮我列个注意清单",
+      "goalSummary": "团队生日福利清单",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "团队里小赵对芒果严重过敏，去年团建误食进了急诊"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "团队十个人，预算人均一百"}
+      ],
+      "mutation": {"replaceSourceID": "s1", "plainText": "小赵上个月调去其他部门了，现在团队没有已知的过敏情况"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "生日贺卡我喜欢手写的"},
+      "expectedRelations": ["小赵对芒果严重过敏", "预算人均一百"],
+      "expectedEffectV0": "清单必须包含避开芒果制品的硬性注意项",
+      "expectedEffectV1": "小赵已调走，方案不再列芒果禁忌，转为一般性偏好收集建议",
+      "mustKeepV2": "清单逻辑不变，贺卡偏好无关",
+      "forbiddenClaims": ["已买好生日礼物"]
+    },
+    {
+      "goalID": "ab-24", "category": "stale-state", "domain": "学习",
+      "utterance": "年前想集中提升一下英语，帮我定个计划",
+      "goalSummary": "年前英语提升计划",
+      "baseSources": [
+        {"sourceID": "s1", "role": "thought", "revisionDigest": "r1", "plainText": "我英语底子就是高中水平，词汇量大概两千"},
+        {"sourceID": "s2", "role": "thought", "revisionDigest": "r2", "plainText": "去年考了两次雅思都是五分，今年决定不出国了，学英语就是工作要用"}
+      ],
+      "mutation": {"replaceSourceID": "s2", "plainText": "公司确定了明年外派去新加坡，英语要快速达到能开会谈判的水平，目标是雅思六分以上"},
+      "irrelevantSource": {"sourceID": "s9", "role": "thought", "revisionDigest": "r9", "plainText": "背单词喜欢用纸质的单词本"},
+      "expectedRelations": ["学英语是为了工作使用不出国", "词汇量两千高中底子"],
+      "expectedEffectV0": "方案应以工作实用英语为主线（邮件/会议），不走应试刷题路线",
+      "expectedEffectV1": "外派新加坡需要快速达标雅思六分，方案应转向应试+口语强化路线",
+      "mustKeepV2": "学习路线逻辑不变，纸质单词本无关",
+      "forbiddenClaims": []
+    }
+  ]
+}

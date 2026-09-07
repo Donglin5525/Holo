@@ -1,0 +1,41 @@
+{
+  "evaluatedAt": "2026-09-07",
+  "goals": 6,
+  "inputs": 23,
+  "calls": 57,
+  "tokens": {
+    "prompt": 66070,
+    "completion": 34324
+  },
+  "models": [
+    "deepseek-v4-flash"
+  ],
+  "planEffectsPresentRate": {
+    "pass": 6,
+    "total": 6
+  },
+  "personalEffectRate": {
+    "pass": 6,
+    "total": 6
+  },
+  "forbiddenViolations": 0,
+  "planParseRepaired": 0,
+  "judge": {
+    "contextAppliedV0": {
+      "pass": 4,
+      "total": 6
+    },
+    "counterfactualV1": {
+      "pass": 5,
+      "total": 5
+    },
+    "irrelevantRobustV2": {
+      "pass": 3,
+      "total": 6
+    },
+    "pairwiseAB": {
+      "pass": 4,
+      "total": 6
+    }
+  }
+}

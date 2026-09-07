@@ -1,0 +1,1997 @@
+{
+  "evaluatedAt": "2026-09-07",
+  "note": "A 臂=纯 utterance 普通聊天（线上基线下界近似，未含 chat 记忆摘要注入）；B 臂规划输入含 harness 附加 planEffects 要求；judge 为模型初评，人工盲评待做；设备轮换为过渡口径",
+  "results": [
+    {
+      "goalID": "ab-09",
+      "category": "third-party",
+      "domain": "人际",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我随礼时会考虑老同学的家庭经济条件，避免金额过高给他造成压力",
+            "老同学家孩子是二胎，大件物品已经齐全"
+          ],
+          "plan": {
+            "goalSummary": "为老同学的二胎满月礼提供合适方案，兼顾二胎特点与对方经济条件，避免大件重复或费用压力",
+            "answerText": "考虑到是你老同学的二胎满月，且你平时会留意对方经济压力，建议别送婴儿床、推车这类大件（基本都备齐了），也别让礼金造成负担。更推荐选在这些方向：\n\n1. 消耗型实用品（纸尿裤 S/M 码组合、婴儿湿巾、棉柔巾）——不会重复，用得到，单价可控；\n2. 可长期留存的纪念物（小金锁、纯银手镯，预算量力而行就好）；\n3. 如果关系亲近，也可以提前问一句缺什么，带着一份按需准备的礼物上门。\n\n整体上比纠结\"送什么贵重\"更贴合朋友家现在的实际需要，也符合你一直以来的分寸感。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "送纸尿裤/消耗品套装",
+                "kind": "adjustment",
+                "reason": "二胎家庭大件齐全，消耗品每天真用得上，且金额可控不会造成压力",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "满月礼当天或提前送达",
+                "selected": true
+              },
+              {
+                "itemID": "i2",
+                "title": "送纪念性小饰品（金锁/银手镯）",
+                "kind": "checklistItem",
+                "reason": "有纪念意义且不占空间，金额可自主控制在舒适范围",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "无",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "直接问朋友缺什么，按需准备",
+                "kind": "task",
+                "reason": "避免猜错，也能体现贴心；适合关系够近的场合",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "送礼前1-2天",
+                "selected": false
+              }
+            ],
+            "unknowns": [],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因二胎大件已齐，避开婴儿床、推车等大件礼物",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "因注重对方经济压力，优先选择金额适中的实用品或纪念品",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为老同学的二胎满月礼提供合适方案，兼顾二胎特点与对方经济条件，避免大件重复或费用压力\",\"answerText\":\"考虑到是你老同学的二胎满月，且你平时会留意对方经济压力，建议别送婴儿床、推车这类大件（基本都备齐了），也别让礼金造成负担。更推荐选在这些方向：\\n\\n1. 消耗型实用品（纸尿裤 S/M 码组合、婴儿湿巾、棉柔巾）——不会重复，用得到，单价可控；\\n2. 可长期留存的纪念物（小金锁、纯银手镯，预算量力而行就好）；\\n3. 如果关系亲近，也可以提前问一句缺什么，带着一份按需准备的礼物上门。\\n\\n整体上比纠结\\\"送什么贵重\\\"更贴合朋友家现在的实际需要，也符合你一直以来的分寸感。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"送纸尿裤/消耗品套装\",\"kind\":\"adjustment\",\"reason\":\"二胎家庭大件齐全，消耗品每天真用得上，且金额可控不会造成压力\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"满月礼当天或提前送达\",\"selected\":true},{\"itemID\":\"i2\",\"title\":\"送纪念性小饰品（金锁/银手镯）\",\"kind\":\"checklistItem\",\"reason\":\"有纪念意义且不占空间，金额可自主控制在舒适范围\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"无\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"直接问朋友缺什么，按需准备\",\"kind\":\"task\",\"reason\":\"避免猜错，也能体现贴心；适合关系够近的场合\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"送礼前1-2天\",\"selected\":false}],\"unknowns\":[],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因二胎大件已齐，避开婴儿床、推车等大件礼物\",\"contextRefs\":[\"c2\"]},{\"kind\":\"choice\",\"summary\":\"因注重对方经济压力，优先选择金额适中的实用品或纪念品\",\"contextRefs\":[\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1134,
+              "completionTokens": 351,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3672
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 958,
+              "completionTokens": 283,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2829
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1268,
+              "completionTokens": 632,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_planning",
+              "latencyMs": 6040
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我随礼时会考虑老同学的经济条件，避免金额过高给他造成压力",
+            "老同学家是头胎，婴儿床、安全座椅等婴儿用品尚未置办"
+          ],
+          "plan": {
+            "goalSummary": "为老同学孩子满月挑一份兼顾心意、实用且不会造成经济压力的礼物",
+            "answerText": "既然是老同学，又考虑到对方是头胎、婴儿用品还没置办齐，送礼可以往实用性走。不过你也提到不想让他有压力——那就别选太贵的大件（比如婴儿床、安全座椅这类动辄上千的），更合适的是价位适中、每天都用得到的东西。\n\n我建议这样：先从他还没置办的东西里挑个小件，比如新生儿衣服礼盒（纯棉、3-6个月码）、纸尿裤S码整箱、或一套小毛巾口水巾组合，心意足又没有负担。如果想更稳妥，可以先问一句家里还缺什么，照着那个买。另外满月礼大多主打寓意，像银手镯保值但费用偏高，若你担心经济压力可以换成功用型。\n\n具体清单我放在下方了，你看看合不合用。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "新生儿实用衣礼盒（纯棉、3-6个月码）",
+                "kind": "task",
+                "reason": "朋友头胎未备齐婴儿用品，送实用衣物不会显贵且高频使用",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "在满月宴前1-2天",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "纸尿裤S码整箱（或问清对方在用的品牌）",
+                "kind": "task",
+                "reason": "消耗品类刚需，金额中等，能减轻他们实际开销",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "满月前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "先微信问一句'家里还缺什么'，再决定具体买什么",
+                "kind": "adjustment",
+                "reason": "直接问能避免买重或踩中他担心'太破费'的顾虑",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "送礼前先做",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "预算控制在300元内，不选婴儿床/安全座椅等大件",
+                "kind": "information",
+                "reason": "考虑同学经济压力，降低礼物金额相关建议",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "对方当地满月礼是否有特定习俗（如必送银饰/红包）？",
+                "impact": "若当地有硬性习俗，方案可能要调整送礼品类",
+                "independentParts": "如果你的目标是纯实用礼物，那么不依赖此答案的部分是'先问缺什么再买'的思路"
+              },
+              {
+                "question": "你大概的预算是多少？",
+                "impact": "预算直接影响能选的大小和品牌",
+                "independentParts": "通用考虑'避免贵重大件'的基调不依赖此答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i3",
+                "to": "i1"
+              },
+              {
+                "from": "i3",
+                "to": "i2"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因对方未置办婴儿用品，优先选用实用型送礼而非红包或象征性物品",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "因顾虑同学经济压力，将大件换成价位适中、消耗型的小件",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为老同学孩子满月挑一份兼顾心意、实用且不会造成经济压力的礼物\",\"answerText\":\"既然是老同学，又考虑到对方是头胎、婴儿用品还没置办齐，送礼可以往实用性走。不过你也提到不想让他有压力——那就别选太贵的大件（比如婴儿床、安全座椅这类动辄上千的），更合适的是价位适中、每天都用得到的东西。\\n\\n我建议这样：先从他还没置办的东西里挑个小件，比如新生儿衣服礼盒（纯棉、3-6个月码）、纸尿裤S码整箱、或一套小毛巾口水巾组合，心意足又没有负担。如果想更稳妥，可以先问一句家里还缺什么，照着那个买。另外满月礼大多主打寓意，像银手镯保值但费用偏高，若你担心经济压力可以换成功用型。\\n\\n具体清单我放在下方了，你看看合不合用。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"新生儿实用衣礼盒（纯棉、3-6个月码）\",\"kind\":\"task\",\"reason\":\"朋友头胎未备齐婴儿用品，送实用衣物不会显贵且高频使用\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"在满月宴前1-2天\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"纸尿裤S码整箱（或问清对方在用的品牌）\",\"kind\":\"task\",\"reason\":\"消耗品类刚需，金额中等，能减轻他们实际开销\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"满月前\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"先微信问一句'家里还缺什么'，再决定具体买什么\",\"kind\":\"adjustment\",\"reason\":\"直接问能避免买重或踩中他担心'太破费'的顾虑\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"送礼前先做\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"预算控制在300元内，不选婴儿床/安全座椅等大件\",\"kind\":\"information\",\"reason\":\"考虑同学经济压力，降低礼物金额相关建议\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"对方当地满月礼是否有特定习俗（如必送银饰/红包）？\",\"impact\":\"若当地有硬性习俗，方案可能要调整送礼品类\",\"independentParts\":\"如果你的目标是纯实用礼物，那么不依赖此答案的部分是'先问缺什么再买'的思路\"},{\"question\":\"你大概的预算是多少？\",\"impact\":\"预算直接影响能选的大小和品牌\",\"independentParts\":\"通用考虑'避免贵重大件'的基调不依赖此答案\"}],\"dependencyEdges\":[{\"from\":\"i3\",\"to\":\"i1\"},{\"from\":\"i3\",\"to\":\"i2\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因对方未置办婴儿用品，优先选用实用型送礼而非红包或象征性物品\",\"contextRefs\":[\"c2\"]},{\"kind\":\"choice\",\"summary\":\"因顾虑同学经济压力，将大件换成价位适中、消耗型的小件\",\"contextRefs\":[\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1141,
+              "completionTokens": 364,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2516
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 975,
+              "completionTokens": 402,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 4352
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1273,
+              "completionTokens": 868,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_planning",
+              "latencyMs": 8466
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我随礼时会考虑老同学的经济条件，避免金额过高给他造成压力",
+            "老同学家孩子是二胎，大件物品已备齐",
+            "我平时网购主要使用橙色软件（淘宝）下单"
+          ],
+          "plan": {
+            "goalSummary": "为朋友二胎满月选择合适的礼物",
+            "answerText": "朋友孩子满月，考虑到这是二胎且大件物品基本备齐，建议避开婴儿车、床等重复大件，转向更有心意或实用的小件，比如定制满月纪念品、育儿小工具、或直接送上金额适中的红包。你平时习惯用淘宝，选购方便，注意别让礼金或礼物给对方造成负担就好。具体推荐：如果预算合适且关系亲近，可以送一套质量好的新生儿衣物、一件带有纪念意义的金银小件，或者实用的纸尿裤礼盒（提前确认品牌）。如果拿不准，红包是最稳妥又不添负担的选择，金额参考你们老同学之间的惯例即可。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认对方偏好与需求",
+                "kind": "task",
+                "reason": "二胎家庭可能已有明确缺口或偏好，先问一句更稳妥，避免送重复或他不需要的东西",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "行动前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "挑选非大件礼物",
+                "kind": "task",
+                "reason": "从记录看，老同学二胎、大件已备齐，送礼应避开大件，聚焦小件或消耗品",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "控制礼金或礼物预算",
+                "kind": "adjustment",
+                "reason": "你会考虑对方经济条件，避免过高压力，预算应适中，不追求贵重",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "通过淘宝下单",
+                "kind": "adjustment",
+                "reason": "你平时主要用淘宝网购，选购和下单渠道已明确，可维持习惯",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "对方孩子是否存在特定品牌偏好或已登记过的需求缺口？",
+                "impact": "影响礼物具体品类选择，决定是否采买实物或改用红包",
+                "independentParts": "一般满月礼金范围、可用渠道不受影响"
+              },
+              {
+                "question": "你和这位老同学关系的亲密程度，平常随礼的惯例范围？",
+                "impact": "影响礼金数额或礼物价值档位",
+                "independentParts": "送礼形式（实物/红包）可以从大方向先定"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因二胎大件已备齐，选择非大件礼物替代常规大件",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "reschedule",
+                "summary": "先确认对方缺口再下单，避免冲动购买",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为朋友二胎满月选择合适的礼物\",\"answerText\":\"朋友孩子满月，考虑到这是二胎且大件物品基本备齐，建议避开婴儿车、床等重复大件，转向更有心意或实用的小件，比如定制满月纪念品、育儿小工具、或直接送上金额适中的红包。你平时习惯用淘宝，选购方便，注意别让礼金或礼物给对方造成负担就好。具体推荐：如果预算合适且关系亲近，可以送一套质量好的新生儿衣物、一件带有纪念意义的金银小件，或者实用的纸尿裤礼盒（提前确认品牌）。如果拿不准，红包是最稳妥又不添负担的选择，金额参考你们老同学之间的惯例即可。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认对方偏好与需求\",\"kind\":\"task\",\"reason\":\"二胎家庭可能已有明确缺口或偏好，先问一句更稳妥，避免送重复或他不需要的东西\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"行动前\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"挑选非大件礼物\",\"kind\":\"task\",\"reason\":\"从记录看，老同学二胎、大件已备齐，送礼应避开大件，聚焦小件或消耗品\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false},{\"itemID\":\"i3\",\"title\":\"控制礼金或礼物预算\",\"kind\":\"adjustment\",\"reason\":\"你会考虑对方经济条件，避免过高压力，预算应适中，不追求贵重\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false},{\"itemID\":\"i4\",\"title\":\"通过淘宝下单\",\"kind\":\"adjustment\",\"reason\":\"你平时主要用淘宝网购，选购和下单渠道已明确，可维持习惯\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"对方孩子是否存在特定品牌偏好或已登记过的需求缺口？\",\"impact\":\"影响礼物具体品类选择，决定是否采买实物或改用红包\",\"independentParts\":\"一般满月礼金范围、可用渠道不受影响\"},{\"question\":\"你和这位老同学关系的亲密程度，平常随礼的惯例范围？\",\"impact\":\"影响礼金数额或礼物价值档位\",\"independentParts\":\"送礼形式（实物/红包）可以从大方向先定\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因二胎大件已备齐，选择非大件礼物替代常规大件\",\"contextRefs\":[\"c2\"]},{\"kind\":\"reschedule\",\"summary\":\"先确认对方缺口再下单，避免冲动购买\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1162,
+              "completionTokens": 472,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2969
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1028,
+              "completionTokens": 246,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2965
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1289,
+              "completionTokens": 731,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_planning",
+              "latencyMs": 6535
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "朋友孩子满月，这份心意最重的是“记得”。如果不确定喜好，红包是最稳妥的，金额看你们关系，不必硬凑。\n\n想送实物的话，可以分几类考虑：\n\n实用派：纸尿裤（直接问尺码，最好L或XL，因为朋友自己已经囤了不少NB和S）、婴儿衣服礼盒、恒温睡袋。这类最不容易踩雷。\n\n保值派：小金锁、小金镯，传统又有纪念意义，孩子长大后还能留作念想。\n\n有心派：手足印泥套盒，或定制出生日期的相框，适合关系比较近的朋友，显得用心。\n\n小提醒：送衣服玩具尽量避开前三个月“吃灰”阶段，送可长期使用或能解决当下需求的，朋友更会觉得贴心。"
+          },
+          "rawPlan": "朋友孩子满月，这份心意最重的是“记得”。如果不确定喜好，红包是最稳妥的，金额看你们关系，不必硬凑。\n\n想送实物的话，可以分几类考虑：\n\n实用派：纸尿裤（直接问尺码，最好L或XL，因为朋友自己已经囤了不少NB和S）、婴儿衣服礼盒、恒温睡袋。这类最不容易踩雷。\n\n保值派：小金锁、小金镯，传统又有纪念意义，孩子长大后还能留作念想。\n\n有心派：手足印泥套盒，或定制出生日期的相框，适合关系比较近的朋友，显得用心。\n\n小提醒：送衣服玩具尽量避开前三个月“吃灰”阶段，送可长期使用或能解决当下需求的，朋友更会觉得贴心。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1400,
+              "completionTokens": 254,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "chat",
+              "latencyMs": 3474
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": false
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "planX明确考虑对方经济压力与大件已齐，推荐轻量实用品并克制金额，更符合合格标准。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2042,
+            "completionTokens": 322,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 3102
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "Y正视头胎未置办婴儿用品的实际，而X仍误判为大件已齐备。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2330,
+            "completionTokens": 709,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 6375
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "X",
+          "reason": "Y基于无关的购物软件偏好增加了‘通过淘宝下单’这一多余安排，X未受影响。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2231,
+            "completionTokens": 105,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 1940
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y 结合了对方经济压力和二胎已备齐大件的背景，给出避开大件、金额克制的轻量建议，明显比通用方案更贴合。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2092,
+            "completionTokens": 49,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 1149
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-21",
+      "category": "responsibility",
+      "domain": "家庭",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我父亲的心脏药存量不足，一个月的量只剩一周，断药有危险",
+            "我父亲出门时必须带够心脏药",
+            "父母出门时，我隔天去照看他们家的花和鱼"
+          ],
+          "plan": {
+            "goalSummary": "帮爸妈出发前理清准备事项，重点是确保爸爸心脏药带够、安排好家里花鱼照看",
+            "answerText": "我先帮你把爸妈出门前的事分几块理一理：\n1. **补药**：爸爸的心脏药现在只剩一周的量，出门正好要一周，这个风险必须提前解决。出发前一定要去医院或药店补足药量，宁多勿少，至少多备2-3天，以防行程延误。\n2. **带药**：把“心脏药随身带”写进打包清单里最醒目的位置，最好分成两份——一份放随身小包，一份放行李箱，并提醒他们登机/坐车时别托运。\n3. **照看家里**：既然你隔天要去照看花和鱼，建议在出发前和他们确认好花怎么浇、鱼喂多少，定好固定间隔（比如隔天晚上），别临时想起来才去。可以顺手记在手机的提醒里。\n\n目前有一个不确定的点需要确认：爸爸每天吃几次药、一次吃几粒？如果只知道剩一周的量，我需要知道每天用量才能判断需要补多少。另外，这次旅游的药物是否需要处方才能开？如果没有现成的，可能需要提前预约拿药。\n\n如果方便的话，你可以先告诉我这两个情况，我再帮你把清单精确到具体日期和动作。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "出发前补足爸爸的心脏药（至少备够8-10天）",
+                "kind": "task",
+                "reason": "药存量只够一周，而出门旅行正好一周，必须提前补药避免断药风险",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前2日内",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "把心脏药放入随身包并额外备一份在行李箱",
+                "kind": "checklistItem",
+                "reason": "出门必须带够药，分开存放可防止丢失或托运延误",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "出发当天清点",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "规划并设置隔天照看花鱼的提醒",
+                "kind": "adjustment",
+                "reason": "父母离家期间需隔天照看，设置固定提醒可避免遗忘",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出国期间每两天一次",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "爸爸每天吃几次心脏药？每次需要几粒？这决定要补多少量",
+                "impact": "无法确认补药数量是否足够覆盖整个出行周并留有安全余量",
+                "independentParts": "照看花鱼的安排不依赖此答案"
+              },
+              {
+                "question": "这次出行前是否方便提前去开药/买药？有无处方限制？",
+                "impact": "影响补药动作的具体时间安排和解锁方式",
+                "independentParts": "花鱼照看安排和打包清单不依赖此答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "因爸爸药存量只够一周且出行一周，安排提前补足药量作为出发前必须完成的任务",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因需要隔天照看花鱼，增加定期到访的日程安排与提醒",
+                "contextRefs": [
+                  "c3"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"帮爸妈出发前理清准备事项，重点是确保爸爸心脏药带够、安排好家里花鱼照看\",\"answerText\":\"我先帮你把爸妈出门前的事分几块理一理：\\n1. **补药**：爸爸的心脏药现在只剩一周的量，出门正好要一周，这个风险必须提前解决。出发前一定要去医院或药店补足药量，宁多勿少，至少多备2-3天，以防行程延误。\\n2. **带药**：把“心脏药随身带”写进打包清单里最醒目的位置，最好分成两份——一份放随身小包，一份放行李箱，并提醒他们登机/坐车时别托运。\\n3. **照看家里**：既然你隔天要去照看花和鱼，建议在出发前和他们确认好花怎么浇、鱼喂多少，定好固定间隔（比如隔天晚上），别临时想起来才去。可以顺手记在手机的提醒里。\\n\\n目前有一个不确定的点需要确认：爸爸每天吃几次药、一次吃几粒？如果只知道剩一周的量，我需要知道每天用量才能判断需要补多少。另外，这次旅游的药物是否需要处方才能开？如果没有现成的，可能需要提前预约拿药。\\n\\n如果方便的话，你可以先告诉我这两个情况，我再帮你把清单精确到具体日期和动作。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"出发前补足爸爸的心脏药（至少备够8-10天）\",\"kind\":\"task\",\"reason\":\"药存量只够一周，而出门旅行正好一周，必须提前补药避免断药风险\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"出发前2日内\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"把心脏药放入随身包并额外备一份在行李箱\",\"kind\":\"checklistItem\",\"reason\":\"出门必须带够药，分开存放可防止丢失或托运延误\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"出发当天清点\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"规划并设置隔天照看花鱼的提醒\",\"kind\":\"adjustment\",\"reason\":\"父母离家期间需隔天照看，设置固定提醒可避免遗忘\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":\"出国期间每两天一次\",\"selected\":false}],\"unknowns\":[{\"question\":\"爸爸每天吃几次心脏药？每次需要几粒？这决定要补多少量\",\"impact\":\"无法确认补药数量是否足够覆盖整个出行周并留有安全余量\",\"independentParts\":\"照看花鱼的安排不依赖此答案\"},{\"question\":\"这次出行前是否方便提前去开药/买药？有无处方限制？\",\"impact\":\"影响补药动作的具体时间安排和解锁方式\",\"independentParts\":\"花鱼照看安排和打包清单不依赖此答案\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"因爸爸药存量只够一周且出行一周，安排提前补足药量作为出发前必须完成的任务\",\"contextRefs\":[\"c1\"]},{\"kind\":\"add\",\"summary\":\"因需要隔天照看花鱼，增加定期到访的日程安排与提醒\",\"contextRefs\":[\"c3\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1137,
+              "completionTokens": 557,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3980
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1013,
+              "completionTokens": 220,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2255
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1295,
+              "completionTokens": 1423,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_planning",
+              "latencyMs": 13990
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我父亲需要长期服用心脏药，目前存量只够一周，而一个月的量原本已消耗三周，断药风险高，出门需带足药量。",
+            "鱼缸在上个月送给了亲戚，花也托付给小区园艺阿姨照料，因此这次我不需要负责它们。"
+          ],
+          "plan": {
+            "answerText": "帮你把爸妈出门前的事理一理。目前你提到几个关键点：爸爸的心脏药存量只剩一周，而出门一整周，药量必须带足——建议现在就核对剩余药量，按天数分开装好，必要时提前挂号开药，别等到临行前才发现不够。另外，鱼缸和花都已经托付给亲戚和园艺阿姨了，这次不用操心这些，可以把精力集中在药品和路上需要的东西上。\n\n我列了一个清单：核心是药物准备（今天确认存量、按周分装、带够往返路程的余量），然后是旅行用品和证件（身份证、医保卡、常用电话），再就是家里水电门窗的检查，以及跟亲戚或邻居打个招呼留意一下。如果你愿意，也可以帮他们提前查一下当地天气，准备合适的衣物。\n\n需要提醒的是，药物方面如果连出门前到开药的时间都不够，要尽早安排，别等到周末。",
+            "parseRepaired": true
+          },
+          "rawPlan": "{\"goalSummary\":\"父母下周出远门旅游一周，帮他们理清出发前要办的事\",\"answerText\":\"帮你把爸妈出门前的事理一理。目前你提到几个关键点：爸爸的心脏药存量只剩一周，而出门一整周，药量必须带足——建议现在就核对剩余药量，按天数分开装好，必要时提前挂号开药，别等到临行前才发现不够。另外，鱼缸和花都已经托付给亲戚和园艺阿姨了，这次不用操心这些，可以把精力集中在药品和路上需要的东西上。\\n\\n我列了一个清单：核心是药物准备（今天确认存量、按周分装、带够往返路程的余量），然后是旅行用品和证件（身份证、医保卡、常用电话），再就是家里水电门窗的检查，以及跟亲戚或邻居打个招呼留意一下。如果你愿意，也可以帮他们提前查一下当地天气，准备合适的衣物。\\n\\n需要提醒的是，药物方面如果连出门前到开药的时间都不够，要尽早安排，别等到周末。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"核对父亲心脏药存量，提前安排开药\",\"kind\":\"task\",\"reason\":\"心脏药存量只够一周，出门一周需带足药量，且有断药风险，必须提前处理\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"今天或明早，尽早确认\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"将一周药量按天数分装并多备一两天余量\",\"kind\":\"task\",\"reason\":\"避免旅途中漏服或延误，同时预留路上可能的延误时间\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"出发前一天\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"帮爸妈准备身份证、医保卡、紧急联系人电话\",\"kind\":\"checklistItem\",\"reason\":\"出门必备证件与应急联系方式，属于一般出行准备\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"出发前一两天\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"检查家里水电燃气并关好门窗\",\"kind\":\"checklistItem\",\"reason\":\"出门一周时间较长，安全起见需检查\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"出发当天\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"告知亲戚或邻居父母出门时间，方便照应\",\"kind\":\"checklistItem\",\"reason\":\"出于安全与便利，可请熟悉的人留意一下房子\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"出发前一两天\",\"selected\":false},{\"itemID\":\"i6\",\"title\":\"取消\"照顾花草和鱼类\"类准备（已托付完成）\",\"kind\":\"adjustment\",\"reason\":\"鱼缸已送亲戚、花交由阿姨照料，这次不需要额外安排\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"现在\",\"selected\":false}],\"unknowns\":[{\"question\":\"父母具体哪天出发？\",\"impact\":\"决定各项准备的时间安排，以及是否需要紧急预约开药窗口\",\"independentParts\":\"药物核对与分装仍要先做，不依赖该日期即可启动\"},{\"question\":\"父亲上次开药日期和处方是否允许这次提前开足量？\",\"impact\":\"若医院限制提前开药，可能需要调整开药方案或咨询医生临时加量\",\"independentParts\":\"先按现存量做分装预案，不管开药安排如何都值得做\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"心脏药存量紧迫，增加提前核对与开药的安排，确保带足一周药量\",\"contextRefs\":[\"c1\"]},{\"kind\":\"add\",\"summary\":\"药物需按天分装并多备余量，降低断药风险\",\"contextRefs\":[\"c1\"]},{\"kind\":\"remove\",\"summary\":\"鱼缸和花草已托付出去，删除原本可能的照料准备\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1146,
+              "completionTokens": 480,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3919
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1012,
+              "completionTokens": 119,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1970
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1305,
+              "completionTokens": 949,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_planning",
+              "latencyMs": 9370
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我父亲的心脏药需要持续服用，断药有危险，目前存量不足",
+            "父母出门期间，我隔天去照看他们家的花和鱼",
+            "父母的行李箱是银色的"
+          ],
+          "plan": {
+            "goalSummary": "帮父母整理下周一出行前的准备事项，重点覆盖药品、行李、家中照看与临行核查",
+            "answerText": "爸妈下周要出发一周。结合你说的几件事，我把出门前要落实的整理成下面几步：\n\n1. **优先补足心脏药**——这是最要紧的。父亲的心脏药不能断，现在存量不足，最好在出发前 1–2 天把药配齐，并算好够用一周以上的量。\n2. **提醒带药与分装**——出发当天把药放进随身包或行李易取处，最好再备一份分装小盒，避免路上遗漏。\n3. **核对行李箱**——家里行李箱是银色的，出发前帮他们确认是否有两个箱子、标识是否好认，避免机场/车站拿错。\n4. **约定隔天照看花和鱼**——他们不在家这周，你隔天去一次，走之前把钥匙、进门方式、花浇水频率、鱼食量确认清楚。\n5. **走前最后一遍检查**——建议出发前日晚上做三查：证件车票、药品、水电煤气门窗是否关好。\n\n要不要我帮你把“出发前 2 天 / 1 天 / 当天”做成一个每日提醒清单？",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "补足父亲的心脏药并确认用量",
+                "kind": "task",
+                "reason": "存量不足且持续用药不能断，需在出发前补足至少一周以上的量",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前 1–2 天",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "提醒父母分装并随身带药",
+                "kind": "checklistItem",
+                "reason": "出行途中保证用药可达，避免托运或遗忘",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "出发当天早上",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "确认银色行李箱的标识与品项",
+                "kind": "checklistItem",
+                "reason": "家中行李箱颜色已知，出发前核对数量和标识可防错拿",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前 1 天",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "落实隔天照看花鱼的安排",
+                "kind": "task",
+                "reason": "父母外出期间需定期照看，出发前确认钥匙、浇水频率等",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "父母出发前",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "出发前夜做最后核查（证件/药/水电门窗）",
+                "kind": "checklistItem",
+                "reason": "降低遗漏风险，属于出门前常规收尾",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [
+                  "i1",
+                  "i4"
+                ],
+                "relativeTiming": "出发前一天晚上",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "父母具体哪一天出发？",
+                "impact": "用来确定补药、照看安排的具体日期起点，以及提醒清单时间轴",
+                "independentParts": "药品准备、行李箱提醒本身不依赖具体日期，可以先做"
+              },
+              {
+                "question": "家里花需要浇水的频率和鱼食量是多少？",
+                "impact": "如果要写进照看说明，需要具体喂养参数",
+                "independentParts": "钥匙交接与进门方式不依赖这个细节"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i5"
+              },
+              {
+                "from": "i4",
+                "to": "i5"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "因父亲心脏药存量不足，增加出发前补药并确认随身带的专项任务，优先级最高",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因你隔天去照看花和鱼，增加出发前确认钥匙与照看参数的安排",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "因行李箱为银色，识别提示按银色行李箱来设计，提醒核对标记以防拿错",
+                "contextRefs": [
+                  "c3"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"帮父母整理下周一出行前的准备事项，重点覆盖药品、行李、家中照看与临行核查\",\"answerText\":\"爸妈下周要出发一周。结合你说的几件事，我把出门前要落实的整理成下面几步：\\n\\n1. **优先补足心脏药**——这是最要紧的。父亲的心脏药不能断，现在存量不足，最好在出发前 1–2 天把药配齐，并算好够用一周以上的量。\\n2. **提醒带药与分装**——出发当天把药放进随身包或行李易取处，最好再备一份分装小盒，避免路上遗漏。\\n3. **核对行李箱**——家里行李箱是银色的，出发前帮他们确认是否有两个箱子、标识是否好认，避免机场/车站拿错。\\n4. **约定隔天照看花和鱼**——他们不在家这周，你隔天去一次，走之前把钥匙、进门方式、花浇水频率、鱼食量确认清楚。\\n5. **走前最后一遍检查**——建议出发前日晚上做三查：证件车票、药品、水电煤气门窗是否关好。\\n\\n要不要我帮你把“出发前 2 天 / 1 天 / 当天”做成一个每日提醒清单？\",\"items\":[{\"itemID\":\"i1\",\"title\":\"补足父亲的心脏药并确认用量\",\"kind\":\"task\",\"reason\":\"存量不足且持续用药不能断，需在出发前补足至少一周以上的量\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"出发前 1–2 天\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"提醒父母分装并随身带药\",\"kind\":\"checklistItem\",\"reason\":\"出行途中保证用药可达，避免托运或遗忘\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"出发当天早上\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"确认银色行李箱的标识与品项\",\"kind\":\"checklistItem\",\"reason\":\"家中行李箱颜色已知，出发前核对数量和标识可防错拿\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":\"出发前 1 天\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"落实隔天照看花鱼的安排\",\"kind\":\"task\",\"reason\":\"父母外出期间需定期照看，出发前确认钥匙、浇水频率等\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"父母出发前\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"出发前夜做最后核查（证件/药/水电门窗）\",\"kind\":\"checklistItem\",\"reason\":\"降低遗漏风险，属于出门前常规收尾\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[\"i1\",\"i4\"],\"relativeTiming\":\"出发前一天晚上\",\"selected\":false}],\"unknowns\":[{\"question\":\"父母具体哪一天出发？\",\"impact\":\"用来确定补药、照看安排的具体日期起点，以及提醒清单时间轴\",\"independentParts\":\"药品准备、行李箱提醒本身不依赖具体日期，可以先做\"},{\"question\":\"家里花需要浇水的频率和鱼食量是多少？\",\"impact\":\"如果要写进照看说明，需要具体喂养参数\",\"independentParts\":\"钥匙交接与进门方式不依赖这个细节\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i5\"},{\"from\":\"i4\",\"to\":\"i5\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"因父亲心脏药存量不足，增加出发前补药并确认随身带的专项任务，优先级最高\",\"contextRefs\":[\"c1\"]},{\"kind\":\"add\",\"summary\":\"因你隔天去照看花和鱼，增加出发前确认钥匙与照看参数的安排\",\"contextRefs\":[\"c2\"]},{\"kind\":\"choice\",\"summary\":\"因行李箱为银色，识别提示按银色行李箱来设计，提醒核对标记以防拿错\",\"contextRefs\":[\"c3\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1164,
+              "completionTokens": 531,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 4025
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1028,
+              "completionTokens": 367,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 3390
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1291,
+              "completionTokens": 1022,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_planning",
+              "latencyMs": 9268
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "可以先按这份清单帮爸妈逐项核对，不用着急一次做完：\n\n1. 证件与行程：身份证、手机里的机票/酒店确认单放好；如果是出境，确认签证有效期和护照。  \n2. 健康准备：慢性病药按出行天数多备两天，常用药单独装；随身带医保卡，病历拍照存手机。  \n3. 家中安全：走前倒垃圾、清掉易坏食物，关好水电燃气；贵重物品收好，钥匙可托给信得过的邻居或亲戚。  \n4. 钱与支付：换少量现金，确认手机支付和银行卡能正常用；建议买一份覆盖旅行天数的意外险。  \n5. 通讯约定：把行程发一份给你，约定每天固定时间报平安；留一个紧急联系人的电话给爸妈。\n\n先挑最要紧的证件和常用药核对，其他有时间再逐项过。需要的话，你也可以告诉我他们要去的和行程天数，我再帮你看有没有漏掉的。"
+          },
+          "rawPlan": "可以先按这份清单帮爸妈逐项核对，不用着急一次做完：\n\n1. 证件与行程：身份证、手机里的机票/酒店确认单放好；如果是出境，确认签证有效期和护照。  \n2. 健康准备：慢性病药按出行天数多备两天，常用药单独装；随身带医保卡，病历拍照存手机。  \n3. 家中安全：走前倒垃圾、清掉易坏食物，关好水电燃气；贵重物品收好，钥匙可托给信得过的邻居或亲戚。  \n4. 钱与支付：换少量现金，确认手机支付和银行卡能正常用；建议买一份覆盖旅行天数的意外险。  \n5. 通讯约定：把行程发一份给你，约定每天固定时间报平安；留一个紧急联系人的电话给爸妈。\n\n先挑最要紧的证件和常用药核对，其他有时间再逐项过。需要的话，你也可以告诉我他们要去的和行程天数，我再帮你看有没有漏掉的。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1406,
+              "completionTokens": 776,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "chat",
+              "latencyMs": 9356
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 2,
+        "personalEffectRefsNonEmpty": 2,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "X明确包含提前补足药量和照看花鱼的安排，Y未涉及照看花鱼且补药表述不够明确。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2321,
+            "completionTokens": 126,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 1579
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "方案Y把无关的行李箱颜色纳入核对条目，属多余安排；方案X未多加。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2695,
+            "completionTokens": 128,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 2158
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y把药量不足与出行时长精确关联，并落地隔天照料花鱼的安排，信息用得准；X则停留在常见提醒，未贴合该用户的隐患。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2377,
+            "completionTokens": 91,
+            "device": "pc-abeval-2026-09-07-180",
+            "purpose": "chat",
+            "latencyMs": 1434
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-22",
+      "category": "temporal",
+      "domain": "工作",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "下月十号是项目投标截止日，截止前一周最忙，我走不开",
+            "我还有五天年假，年底作废"
+          ],
+          "plan": {
+            "goalSummary": "为你安排下周的请假时间，避开工作高峰期并合理使用年假",
+            "answerText": "你提到下月十号是项目投标截止日，截止前一周（大约10月3日到10月10日）你会非常忙，走不开。同时你还有五天年假年底作废，建议尽量在这段时间内用掉。\n\n本周或下周初（9月15日后到月底）相对安全，可以考虑在这里安排请假；如果私事必须在下月处理，那最好安排在10月10日之后，避免撞上投标冲刺期。你打算请几天、私事有没有固定日期？我可以帮你细化到具体安排。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "优先在9月底或10月中旬后安排年假",
+                "kind": "adjustment",
+                "reason": "避开投标截止前最忙的一周，确保不影响工作",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "9月底至10月初之前，或10月10日之后",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "确认请假天数并预留年假使用计划",
+                "kind": "information",
+                "reason": "年假年底作废，需在年底前用完五天",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "年底前",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你具体想请几天假？",
+                "impact": "决定需要避开的时间窗口长度以及年假是否足够"
+              },
+              {
+                "question": "私事是否有必须固定的日期？",
+                "impact": "如果固定日期正好落在忙期，需要寻找替代方案或提前沟通"
+              },
+              {
+                "question": "如果缺人，是否有人能暂代你的工作？",
+                "impact": "影响是否能在忙期前后请假"
+              },
+              {
+                "question": "你倾向在忙期前请假还是忙期后请假？",
+                "impact": "影响具体的日期选择"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "reschedule",
+                "summary": "需将请假时间避开10月3日至10月10日投标前最忙的一周",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "优先在9月底使用年假，避免与投标冲刺期冲突，同时确保年底前用掉",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "具体请假天数",
+                "私事日期",
+                "工作替代安排"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为你安排下周的请假时间，避开工作高峰期并合理使用年假\",\"answerText\":\"你提到下月十号是项目投标截止日，截止前一周（大约10月3日到10月10日）你会非常忙，走不开。同时你还有五天年假年底作废，建议尽量在这段时间内用掉。\\n\\n本周或下周初（9月15日后到月底）相对安全，可以考虑在这里安排请假；如果私事必须在下月处理，那最好安排在10月10日之后，避免撞上投标冲刺期。你打算请几天、私事有没有固定日期？我可以帮你细化到具体安排。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"优先在9月底或10月中旬后安排年假\",\"kind\":\"adjustment\",\"reason\":\"避开投标截止前最忙的一周，确保不影响工作\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"9月底至10月初之前，或10月10日之后\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"确认请假天数并预留年假使用计划\",\"kind\":\"information\",\"reason\":\"年假年底作废，需在年底前用完五天\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"年底前\",\"selected\":false}],\"unknowns\":[{\"question\":\"你具体想请几天假？\",\"impact\":\"决定需要避开的时间窗口长度以及年假是否足够\"},{\"question\":\"私事是否有必须固定的日期？\",\"impact\":\"如果固定日期正好落在忙期，需要寻找替代方案或提前沟通\"},{\"question\":\"如果缺人，是否有人能暂代你的工作？\",\"impact\":\"影响是否能在忙期前后请假\"},{\"question\":\"你倾向在忙期前请假还是忙期后请假？\",\"impact\":\"影响具体的日期选择\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"reschedule\",\"summary\":\"需将请假时间避开10月3日至10月10日投标前最忙的一周\",\"contextRefs\":[\"c1\"]},{\"kind\":\"choice\",\"summary\":\"优先在9月底使用年假，避免与投标冲刺期冲突，同时确保年底前用掉\",\"contextRefs\":[\"c1\",\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"具体请假天数\",\"私事日期\",\"工作替代安排\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1131,
+              "completionTokens": 313,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2417
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 950,
+              "completionTokens": 110,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1867
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1269,
+              "completionTokens": 648,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_planning",
+              "latencyMs": 6243
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "项目投标延期到下月底，最近一个月没有硬性节点",
+            "我还有五天年假，年底作废"
+          ],
+          "plan": {
+            "goalSummary": "请假时间安排",
+            "answerText": "从你的情况看，下周请假比较合适：近期没有硬性项目节点（投标已延期到下月底），机动空间大；同时你有5天年假年太低作废，正好可以先用掉一部分。建议结合私事的实际需求，选连续的工作日来请，比如周中连休几天，再配个周末，能凑出更长的一段完整时间。请之前确认一下工作交接和备查事项，避免回来堆积。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认私事所需天数和日期范围",
+                "kind": "task",
+                "reason": "安排请假的第一步是先明确需要处理私事的时间需求，才能选择最佳请假区间",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "下周前确认",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "提交年假请假申请",
+                "kind": "task",
+                "reason": "你还有5天年假年底作废，建议优先使用年假来覆盖请假天数",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "下周使用",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "进行工作交接和安排提醒",
+                "kind": "checklistItem",
+                "reason": "请假前需要确认手头事项无硬性节点，并做好交接以防遗漏",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "请假前1-2天完成",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "说明：项目近期无硬性节点，可按需灵活安排",
+                "kind": "information",
+                "reason": "近期投标延期到下月底，没有冲突节点，请假对项目影响小",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "私事大约需要占用几个工作日？",
+                "impact": "决定请假总时长和是否使用全部或部分年假比例，也可能影响是否跨周末组合",
+                "independentParts": "项目空窗期本身不影响天数，你可以在无节点期内自由选定时长"
+              },
+              {
+                "question": "需要处理私事的具体时段有没有优先偏好？",
+                "impact": "影响具体安排周几到周几，以及是否需要和周末衔接",
+                "independentParts": "年假总量是固定的，使用时长的优先级不依赖具体时段"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "利用项目投标延期后的空窗期来请假，避开硬性节点",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "优先用年假覆盖请假天数，因为年假年底作废",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"请假时间安排\",\"answerText\":\"从你的情况看，下周请假比较合适：近期没有硬性项目节点（投标已延期到下月底），机动空间大；同时你有5天年假年太低作废，正好可以先用掉一部分。建议结合私事的实际需求，选连续的工作日来请，比如周中连休几天，再配个周末，能凑出更长的一段完整时间。请之前确认一下工作交接和备查事项，避免回来堆积。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认私事所需天数和日期范围\",\"kind\":\"task\",\"reason\":\"安排请假的第一步是先明确需要处理私事的时间需求，才能选择最佳请假区间\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"下周前确认\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"提交年假请假申请\",\"kind\":\"task\",\"reason\":\"你还有5天年假年底作废，建议优先使用年假来覆盖请假天数\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"下周使用\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"进行工作交接和安排提醒\",\"kind\":\"checklistItem\",\"reason\":\"请假前需要确认手头事项无硬性节点，并做好交接以防遗漏\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"请假前1-2天完成\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"说明：项目近期无硬性节点，可按需灵活安排\",\"kind\":\"information\",\"reason\":\"近期投标延期到下月底，没有冲突节点，请假对项目影响小\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"私事大约需要占用几个工作日？\",\"impact\":\"决定请假总时长和是否使用全部或部分年假比例，也可能影响是否跨周末组合\",\"independentParts\":\"项目空窗期本身不影响天数，你可以在无节点期内自由选定时长\"},{\"question\":\"需要处理私事的具体时段有没有优先偏好？\",\"impact\":\"影响具体安排周几到周几，以及是否需要和周末衔接\",\"independentParts\":\"年假总量是固定的，使用时长的优先级不依赖具体时段\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"利用项目投标延期后的空窗期来请假，避开硬性节点\",\"contextRefs\":[\"c1\"]},{\"kind\":\"choice\",\"summary\":\"优先用年假覆盖请假天数，因为年假年底作废\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1126,
+              "completionTokens": 290,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2319
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 931,
+              "completionTokens": 154,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2104
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1262,
+              "completionTokens": 911,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_planning",
+              "latencyMs": 8675
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "下月十号是项目投标截止日，截止前一周最忙，我走不开",
+            "我还有五天年假，年底作废",
+            "请假单要走线上流程，手机上就能提"
+          ],
+          "plan": {
+            "goalSummary": "帮助用户为下周请假处理私事安排时间",
+            "answerText": "从你的情况看，下周（约9月下旬）相对从容——你的投标截止在10月10日，最忙的应该是截止前一周（约10月3日之后）。所以下周请假不会撞上最忙时段，可以放心安排。\n\n你还有5天年假且年底作废，这次私事如果不超过5天，建议直接用年假，不用额外纠结调休或扣薪。请假单手机就能走线上流程，提前在工作群里同步一下、安排好交接即可。\n\n另外有两个小提醒：一是先确认你具体想请哪几天、一共几天，这样我能帮你核对是否要避开已有会议；二是如果私事日期灵活，可以选在周中（周二到周四）请，工作量堆积最少。\n\n你计划请几天？有没有必须卡死的日期？我可以帮你把请假的每一天排得更顺。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认请假天数与起止日期",
+                "kind": "task",
+                "reason": "需要知道请假跨度和具体日期，才能判断是否冲突并安排交接",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "下周",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "优先使用年假（剩余5天）申请",
+                "kind": "adjustment",
+                "reason": "年假年底作废，用来抵扣私事请假最合适",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "申请前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "提前线上提交请假单并同步工作群",
+                "kind": "checklistItem",
+                "reason": "请假流程手机即可操作，需要预留审批时间",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "计划请假前1-2天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你打算请几天假？具体是哪几天？",
+                "impact": "决定年假是否够用，以及是否与团队会议或交接节点冲突",
+                "independentParts": "不影响“下周请年假”这个大方向"
+              },
+              {
+                "question": "私事的日期是否必须固定，还是有弹性？",
+                "impact": "若灵活可选最佳避峰日期；若固定，需围绕它做交接",
+                "independentParts": "线上下请假流程本身不受影响"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [
+                "用户具体请假天数",
+                "私事是否绑定日期"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"帮助用户为下周请假处理私事安排时间\",\"answerText\":\"从你的情况看，下周（约9月下旬）相对从容——你的投标截止在10月10日，最忙的应该是截止前一周（约10月3日之后）。所以下周请假不会撞上最忙时段，可以放心安排。\\n\\n你还有5天年假且年底作废，这次私事如果不超过5天，建议直接用年假，不用额外纠结调休或扣薪。请假单手机就能走线上流程，提前在工作群里同步一下、安排好交接即可。\\n\\n另外有两个小提醒：一是先确认你具体想请哪几天、一共几天，这样我能帮你核对是否要避开已有会议；二是如果私事日期灵活，可以选在周中（周二到周四）请，工作量堆积最少。\\n\\n你计划请几天？有没有必须卡死的日期？我可以帮你把请假的每一天排得更顺。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认请假天数与起止日期\",\"kind\":\"task\",\"reason\":\"需要知道请假跨度和具体日期，才能判断是否冲突并安排交接\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"下周\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"优先使用年假（剩余5天）申请\",\"kind\":\"adjustment\",\"reason\":\"年假年底作废，用来抵扣私事请假最合适\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"申请前\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"提前线上提交请假单并同步工作群\",\"kind\":\"checklistItem\",\"reason\":\"请假流程手机即可操作，需要预留审批时间\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":\"计划请假前1-2天\",\"selected\":false}],\"unknowns\":[{\"question\":\"你打算请几天假？具体是哪几天？\",\"impact\":\"决定年假是否够用，以及是否与团队会议或交接节点冲突\",\"independentParts\":\"不影响“下周请年假”这个大方向\"},{\"question\":\"私事的日期是否必须固定，还是有弹性？\",\"impact\":\"若灵活可选最佳避峰日期；若固定，需围绕它做交接\",\"independentParts\":\"线上下请假流程本身不受影响\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[\"用户具体请假天数\",\"私事是否绑定日期\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1161,
+              "completionTokens": 454,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2955
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1022,
+              "completionTokens": 168,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1934
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1288,
+              "completionTokens": 1141,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_planning",
+              "latencyMs": 10850
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "我这边没有你下周的日程和任务记录，没法直接判断哪几天请假最合适。你可以先告诉我下周哪几天有固定会议、交付节点或不能推迟的安排，我再帮你一起比对。\n\n如果私事需要连续几天，也可以考虑拆成“半天+半天”，尽量避开习惯打卡最频繁的阶段。你大致想办什么事、需要几天时间？这样我能给更具体的建议。"
+          },
+          "rawPlan": "我这边没有你下周的日程和任务记录，没法直接判断哪几天请假最合适。你可以先告诉我下周哪几天有固定会议、交付节点或不能推迟的安排，我再帮你一起比对。\n\n如果私事需要连续几天，也可以考虑拆成“半天+半天”，尽量避开习惯打卡最频繁的阶段。你大致想办什么事、需要几天时间？这样我能给更具体的建议。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1404,
+              "completionTokens": 831,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "chat",
+              "latencyMs": 9260
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 2,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "方案X明确避开投标周、建议10月10日后休假并提醒年假年底作废，符合全部要求；方案Y未针对投标节点给出安排。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2021,
+            "completionTokens": 142,
+            "device": "pc-abeval-2026-09-07-181",
+            "purpose": "chat",
+            "latencyMs": 1919
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "Y方案根据投标延期后的无硬性节点空窗期建议近期即可休假，而X仍按旧截止日安排避开忙期，不符合变化后的背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2267,
+            "completionTokens": 513,
+            "device": "pc-abeval-2026-09-07-181",
+            "purpose": "chat",
+            "latencyMs": 4629
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "Y新增的线上提交请假单并同步工作群是由无关信息引入的多余条目，核心安排并未改变",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2290,
+            "completionTokens": 643,
+            "device": "pc-abeval-2026-09-07-181",
+            "purpose": "chat",
+            "latencyMs": 6236
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y参考了用户投标截止日与年假作废信息，避开忙期并提出用假优先级，显著优于X的通用询问。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2075,
+            "completionTokens": 62,
+            "device": "pc-abeval-2026-09-07-181",
+            "purpose": "chat",
+            "latencyMs": 1714
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-23",
+      "category": "third-party",
+      "domain": "人际",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "团队里小赵对芒果严重过敏，去年团建误食进了急诊",
+            "团队有十个人，预算人均一百"
+          ],
+          "plan": {
+            "goalSummary": "团队生日福利注意清单",
+            "answerText": "给你整理一份生日福利的注意清单，重点结合你提到的情况：\n\n1. **过敏排查优先**：小赵对芒果严重过敏，去年因误食进过急诊。所有含芒果成分的食品（蛋糕、水果、饮品、沙拉酱等）都要避开或单独分开，最好选之前明确安全的产品，并查看配料表。\n2. **预算控制**：十个人，人均一百，总预算一千。买蛋糕或礼物的组合要提前核算，别超支。\n3. **日期与喜好统计**：先确认每个人的生日月份或具体日期，避免漏掉；可以简单问一下忌口和偏好（不吃辣、乳糖不耐等），但不要因此显得麻烦。\n4. **统一采购 vs 分开准备**：建议统一水果或点心类时，避开所有人的已知过敏源；如果准备礼物，需考虑实用性或偏好，最好按个人特点选。\n5. **急诊风险提示**：如果福利包含食品，包装上或现场提示过敏信息，也提醒大家确认配料。\n6. **备用方案**：万一有人临时不能参加，预留小额替代或说明。\n\n以上是基于你提供的信息整理的，具体的日期和每人偏好需要你补充。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认过敏源清单（重点：小赵芒果过敏）",
+                "kind": "checklistItem",
+                "reason": "涉及急诊史，需优先排除风险",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "准备福利前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "全团队饮食忌口快速收集",
+                "kind": "task",
+                "reason": "避免其他过敏或忌口遗漏，且人员较多",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "采购前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "按预算100元/人核算总预算1000元",
+                "kind": "checklistItem",
+                "reason": "十人、人均100，需控制总支出",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "采购时",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "检查福利食品的配料表，确保不含芒果",
+                "kind": "checklistItem",
+                "reason": "仅靠口头陈述不够，需实物核验",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "采购后查验",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "预留过敏紧急处理提示",
+                "kind": "adjustment",
+                "reason": "有既往急诊史，建议在现场或包装上标注过敏信息并提醒",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "发放福利时",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "团队每个人的具体生日日期和偏好是什么？",
+                "impact": "需要确定发放时间和个别化选择",
+                "independentParts": "过敏排查与预算结构不依赖此信息"
+              },
+              {
+                "question": "福利形式是统一食品还是混合礼物？",
+                "impact": "会影响采购方式与过敏隔离措施",
+                "independentParts": "过敏预警、预算上限已可先列"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "因小赵有芒果过敏急诊史，增加配料表核查与过敏提示两项",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "明确按10人、人均100核算总预算避免超支",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"团队生日福利注意清单\",\"answerText\":\"给你整理一份生日福利的注意清单，重点结合你提到的情况：\\n\\n1. **过敏排查优先**：小赵对芒果严重过敏，去年因误食进过急诊。所有含芒果成分的食品（蛋糕、水果、饮品、沙拉酱等）都要避开或单独分开，最好选之前明确安全的产品，并查看配料表。\\n2. **预算控制**：十个人，人均一百，总预算一千。买蛋糕或礼物的组合要提前核算，别超支。\\n3. **日期与喜好统计**：先确认每个人的生日月份或具体日期，避免漏掉；可以简单问一下忌口和偏好（不吃辣、乳糖不耐等），但不要因此显得麻烦。\\n4. **统一采购 vs 分开准备**：建议统一水果或点心类时，避开所有人的已知过敏源；如果准备礼物，需考虑实用性或偏好，最好按个人特点选。\\n5. **急诊风险提示**：如果福利包含食品，包装上或现场提示过敏信息，也提醒大家确认配料。\\n6. **备用方案**：万一有人临时不能参加，预留小额替代或说明。\\n\\n以上是基于你提供的信息整理的，具体的日期和每人偏好需要你补充。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认过敏源清单（重点：小赵芒果过敏）\",\"kind\":\"checklistItem\",\"reason\":\"涉及急诊史，需优先排除风险\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"准备福利前\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"全团队饮食忌口快速收集\",\"kind\":\"task\",\"reason\":\"避免其他过敏或忌口遗漏，且人员较多\",\"basis\":\"inference\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"采购前\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"按预算100元/人核算总预算1000元\",\"kind\":\"checklistItem\",\"reason\":\"十人、人均100，需控制总支出\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"采购时\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"检查福利食品的配料表，确保不含芒果\",\"kind\":\"checklistItem\",\"reason\":\"仅靠口头陈述不够，需实物核验\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"采购后查验\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"预留过敏紧急处理提示\",\"kind\":\"adjustment\",\"reason\":\"有既往急诊史，建议在现场或包装上标注过敏信息并提醒\",\"basis\":\"inference\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"发放福利时\",\"selected\":false}],\"unknowns\":[{\"question\":\"团队每个人的具体生日日期和偏好是什么？\",\"impact\":\"需要确定发放时间和个别化选择\",\"independentParts\":\"过敏排查与预算结构不依赖此信息\"},{\"question\":\"福利形式是统一食品还是混合礼物？\",\"impact\":\"会影响采购方式与过敏隔离措施\",\"independentParts\":\"过敏预警、预算上限已可先列\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"因小赵有芒果过敏急诊史，增加配料表核查与过敏提示两项\",\"contextRefs\":[\"c1\"]},{\"kind\":\"add\",\"summary\":\"明确按10人、人均100核算总预算避免超支\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1126,
+              "completionTokens": 300,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2658
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 937,
+              "completionTokens": 108,
+              "device": "pc-abeval-2026-09-07-180",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1759
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1264,
+              "completionTokens": 849,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_planning",
+              "latencyMs": 7509
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "小赵上个月调去其他部门了",
+            "团队目前没有已知的过敏情况",
+            "团队有十个人",
+            "团队预算人均一百"
+          ],
+          "plan": {
+            "goalSummary": "为10人团队准备生日福利，人均预算100元的注意事项清单",
+            "answerText": "我帮你整理了一份生日福利的注意清单，结合你给的团队情况和预算：\n\n**先厘清两件事：**\n1. **团队现在到底几个人？** 你说团队有十个人，但小赵上个月调去其他部门了——这会影响福利人数和总预算，先确认一下。\n2. **预算覆盖范围：** 人均100，若按10人算总预算1000；若小赵不在，则按9人算900。\n\n**这份清单按流程排好了，你可以照着过一遍：**",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认当前团队花名册",
+                "kind": "checklistItem",
+                "reason": "小赵已调部门，需确认他是否仍在庆祝范围内；团队人数直接决定总预算",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "开始前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "计算总预算并预留弹性",
+                "kind": "task",
+                "reason": "预算人均100，需按确认后的人数算出总额，并预留约10%作为买蛋糕或加急配送的弹性",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3",
+                  "c4"
+                ],
+                "preconditions": [],
+                "relativeTiming": "确认人数后",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "统一收集大家的生日日期",
+                "kind": "checklistItem",
+                "reason": "生日福利要按每个成员的生日来安排，需提前收集日期避免漏掉",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "开始前",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "确认是否有饮食禁忌或过敏",
+                "kind": "checklistItem",
+                "reason": "目前团队没有已知过敏，但建议临近时再口头确认一次，防止临时新增情况",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "购买前",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "选择合适的福利形式（定制蛋糕/小礼物/下午茶）",
+                "kind": "task",
+                "reason": "人均100预算需在形式上作取舍；建议先询问团队偏好，避免买到最后闲置",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "确认人数后可作初步方案",
+                "selected": false
+              },
+              {
+                "itemID": "i6",
+                "title": "提前安排生日当天的庆祝小环节",
+                "kind": "checklistItem",
+                "reason": "生日福利不只物质，还包括时机和仪式感；建议在当天有简短祝福环节",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "每个成员生日前1-2天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "确认后的小赵还需要纳入庆祝名单吗？",
+                "impact": "直接决定总人数和总预算，影响所有购买数量的计算",
+                "independentParts": "日期收集和福利形式选择不受这个答案影响"
+              },
+              {
+                "question": "大家偏好哪种福利形式（生日蛋糕、下午茶、实用小礼物）？",
+                "impact": "影响资金分配和采购清单，但不会影响人数与日期",
+                "independentParts": "人数、预算、禁忌确认流程均可先完成"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i1",
+                "to": "i3"
+              },
+              {
+                "from": "i4",
+                "to": "i5"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3",
+              "c4"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "由于小赵已调部门，需先确认他是否仍在团队庆祝名单中，这会影响人数和总预算计算",
+                "contextRefs": [
+                  "c1",
+                  "c3"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因团队无已知过敏记录，仍建议在购买前口头复核一次饮食禁忌，作为新增提醒",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3",
+                "c4"
+              ],
+              "missingScopes": [
+                "团队生日具体日期",
+                "福利形式偏好"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为10人团队准备生日福利，人均预算100元的注意事项清单\",\"answerText\":\"我帮你整理了一份生日福利的注意清单，结合你给的团队情况和预算：\\n\\n**先厘清两件事：**\\n1. **团队现在到底几个人？** 你说团队有十个人，但小赵上个月调去其他部门了——这会影响福利人数和总预算，先确认一下。\\n2. **预算覆盖范围：** 人均100，若按10人算总预算1000；若小赵不在，则按9人算900。\\n\\n**这份清单按流程排好了，你可以照着过一遍：**\", \"items\":[{\"itemID\":\"i1\",\"title\":\"确认当前团队花名册\",\"kind\":\"checklistItem\",\"reason\":\"小赵已调部门，需确认他是否仍在庆祝范围内；团队人数直接决定总预算\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c3\"],\"preconditions\":[],\"relativeTiming\":\"开始前\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"计算总预算并预留弹性\",\"kind\":\"task\",\"reason\":\"预算人均100，需按确认后的人数算出总额，并预留约10%作为买蛋糕或加急配送的弹性\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\",\"c4\"],\"preconditions\":[],\"relativeTiming\":\"确认人数后\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"统一收集大家的生日日期\",\"kind\":\"checklistItem\",\"reason\":\"生日福利要按每个成员的生日来安排，需提前收集日期避免漏掉\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"开始前\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"确认是否有饮食禁忌或过敏\",\"kind\":\"checklistItem\",\"reason\":\"目前团队没有已知过敏，但建议临近时再口头确认一次，防止临时新增情况\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"购买前\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"选择合适的福利形式（定制蛋糕/小礼物/下午茶）\",\"kind\":\"task\",\"reason\":\"人均100预算需在形式上作取舍；建议先询问团队偏好，避免买到最后闲置\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"确认人数后可作初步方案\",\"selected\":false},{\"itemID\":\"i6\",\"title\":\"提前安排生日当天的庆祝小环节\",\"kind\":\"checklistItem\",\"reason\":\"生日福利不只物质，还包括时机和仪式感；建议在当天有简短祝福环节\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"每个成员生日前1-2天\",\"selected\":false}],\"unknowns\":[{\"question\":\"确认后的小赵还需要纳入庆祝名单吗？\",\"impact\":\"直接决定总人数和总预算，影响所有购买数量的计算\",\"independentParts\":\"日期收集和福利形式选择不受这个答案影响\"},{\"question\":\"大家偏好哪种福利形式（生日蛋糕、下午茶、实用小礼物）？\",\"impact\":\"影响资金分配和采购清单，但不会影响人数与日期\",\"independentParts\":\"人数、预算、禁忌确认流程均可先完成\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i1\",\"to\":\"i3\"},{\"from\":\"i4\",\"to\":\"i5\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\",\"c4\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"由于小赵已调部门，需先确认他是否仍在团队庆祝名单中，这会影响人数和总预算计算\",\"contextRefs\":[\"c1\",\"c3\"]},{\"kind\":\"add\",\"summary\":\"因团队无已知过敏记录，仍建议在购买前口头复核一次饮食禁忌，作为新增提醒\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\",\"c4\"],\"missingScopes\":[\"团队生日具体日期\",\"福利形式偏好\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1129,
+              "completionTokens": 535,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3425
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1009,
+              "completionTokens": 201,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1905
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1284,
+              "completionTokens": 1031,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_planning",
+              "latencyMs": 7926
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "团队里小赵对芒果严重过敏，去年团建误食进了急诊",
+            "团队有十个人，预算人均一百",
+            "生日贺卡我喜欢手写的"
+          ],
+          "plan": {
+            "goalSummary": "团队生日福利注意清单",
+            "answerText": "为团队十人准备生日福利，给你列一份注意清单：\n\n1. **先摸底过生日名单**：确认每个人的生日日期，避免漏买或重复准备。\n2. **过敏与忌口是首位**：已知小赵对芒果严重过敏（曾因误食进急诊），一定要避开带芒果的食品，并仔细检查成分标签；同时建议私下问一下其他人有没有别的过敏或忌口（如坚果、乳制品等）。\n3. **预算控制**：团队10人、人均100元，总预算约1000元，选购时留意单价，最好留一点弹性。\n4. **手写贺卡**：你喜欢手写贺卡，建议提前购买或制作卡片，并预留充足书写时间，让心意更到位。\n5. **发放节奏安排**：福利是统一在每月某个时间发，还是在每个人生日当天发？建议提前定好节奏，以免撞车或遗漏。\n6. **做记录**：每次送完都留个档，记录买了什么、对方喜欢的反馈，方便后续调整。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "整理全体成员生日日期与近期生日名单",
+                "kind": "task",
+                "reason": "确保覆盖全体10人，避免遗漏或重复准备",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "近期",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "询问并确认成员过敏与忌口，尤其核对小赵对芒果的过敏情况",
+                "kind": "task",
+                "reason": "过敏源直接影响食品安全，已知小赵有严重芒果过敏史",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "选购前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "选购福利时避开芒果成分并核查标签",
+                "kind": "adjustment",
+                "reason": "防止过敏风险，因小赵对芒果严重过敏",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [
+                  "i2"
+                ],
+                "relativeTiming": "每次选购时",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "按预算人均100元控制总支出",
+                "kind": "checklistItem",
+                "reason": "团队10人、人均预算100元，总预算约1000元",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "准备手写生日贺卡并预留书写时间",
+                "kind": "task",
+                "reason": "你偏好手写贺卡，需要额外安排时间和物料",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "生日前一周",
+                "selected": false
+              },
+              {
+                "itemID": "i6",
+                "title": "确定福利发放节奏与方式",
+                "kind": "information",
+                "reason": "便于安排资源和递送顺序，避免遗漏",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "除了小赵，其他团队成员是否有已知的过敏、宗教忌口或特别偏好？",
+                "impact": "这会影响食品类福利的具体选择范围，避免再度引发过敏风险。",
+                "independentParts": "过敏清单之外，日期和预算安排不受此影响。"
+              },
+              {
+                "question": "生日福利是统一按月发放，还是按每个人生日当日单独准备？",
+                "impact": "这决定了采购和贺卡书写的批次与提前量。",
+                "independentParts": "过敏排查与预算控制不依赖这个答案。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因小赵对芒果严重过敏，福利选购需避免含芒果食品，并核查产品标签",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因你偏好手写贺卡，需要提前准备卡片并预留书写时间",
+                "contextRefs": [
+                  "c3"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "user_request",
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\n  \"goalSummary\": \"团队生日福利注意清单\",\n  \"answerText\": \"为团队十人准备生日福利，给你列一份注意清单：\\n\\n1. **先摸底过生日名单**：确认每个人的生日日期，避免漏买或重复准备。\\n2. **过敏与忌口是首位**：已知小赵对芒果严重过敏（曾因误食进急诊），一定要避开带芒果的食品，并仔细检查成分标签；同时建议私下问一下其他人有没有别的过敏或忌口（如坚果、乳制品等）。\\n3. **预算控制**：团队10人、人均100元，总预算约1000元，选购时留意单价，最好留一点弹性。\\n4. **手写贺卡**：你喜欢手写贺卡，建议提前购买或制作卡片，并预留充足书写时间，让心意更到位。\\n5. **发放节奏安排**：福利是统一在每月某个时间发，还是在每个人生日当天发？建议提前定好节奏，以免撞车或遗漏。\\n6. **做记录**：每次送完都留个档，记录买了什么、对方喜欢的反馈，方便后续调整。\",\n  \"items\": [\n    {\n      \"itemID\": \"i1\",\n      \"title\": \"整理全体成员生日日期与近期生日名单\",\n      \"kind\": \"task\",\n      \"reason\": \"确保覆盖全体10人，避免遗漏或重复准备\",\n      \"basis\": \"generalKnowledge\",\n      \"sourceRefs\": [\"c2\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"近期\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i2\",\n      \"title\": \"询问并确认成员过敏与忌口，尤其核对小赵对芒果的过敏情况\",\n      \"kind\": \"task\",\n      \"reason\": \"过敏源直接影响食品安全，已知小赵有严重芒果过敏史\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c1\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"选购前\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i3\",\n      \"title\": \"选购福利时避开芒果成分并核查标签\",\n      \"kind\": \"adjustment\",\n      \"reason\": \"防止过敏风险，因小赵对芒果严重过敏\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c1\"],\n      \"preconditions\": [\"i2\"],\n      \"relativeTiming\": \"每次选购时\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i4\",\n      \"title\": \"按预算人均100元控制总支出\",\n      \"kind\": \"checklistItem\",\n      \"reason\": \"团队10人、人均预算100元，总预算约1000元\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c2\"],\n      \"preconditions\": [],\n      \"relativeTiming\": null,\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i5\",\n      \"title\": \"准备手写生日贺卡并预留书写时间\",\n      \"kind\": \"task\",\n      \"reason\": \"你偏好手写贺卡，需要额外安排时间和物料\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c3\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"生日前一周\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i6\",\n      \"title\": \"确定福利发放节奏与方式\",\n      \"kind\": \"information\",\n      \"reason\": \"便于安排资源和递送顺序，避免遗漏\",\n      \"basis\": \"generalKnowledge\",\n      \"sourceRefs\": [],\n      \"preconditions\": [],\n      \"relativeTiming\": null,\n      \"selected\": false\n    }\n  ],\n  \"unknowns\": [\n    {\n      \"question\": \"除了小赵，其他团队成员是否有已知的过敏、宗教忌口或特别偏好？\",\n      \"impact\": \"这会影响食品类福利的具体选择范围，避免再度引发过敏风险。\",\n      \"independentParts\": \"过敏清单之外，日期和预算安排不受此影响。\"\n    },\n    {\n      \"question\": \"生日福利是统一按月发放，还是按每个人生日当日单独准备？\",\n      \"impact\": \"这决定了采购和贺卡书写的批次与提前量。\",\n      \"independentParts\": \"过敏排查与预算控制不依赖这个答案。\"\n    }\n  ],\n  \"dependencyEdges\": [\n    {\n      \"from\": \"i2\",\n      \"to\": \"i3\"\n    }\n  ],\n  \"usedContextRefs\": [\"c1\", \"c2\", \"c3\"],\n  \"planEffects\": [\n    {\n      \"kind\": \"choice\",\n      \"summary\": \"因小赵对芒果严重过敏，福利选购需避免含芒果食品，并核查产品标签\",\n      \"contextRefs\": [\"c1\"]\n    },\n    {\n      \"kind\": \"add\",\n      \"summary\": \"因你偏好手写贺卡，需要提前准备卡片并预留书写时间\",\n      \"contextRefs\": [\"c3\"]\n    }\n  ],\n  \"coverage\": {\n    \"readSources\": [\"user_request\", \"c1\", \"c2\", \"c3\"],\n    \"missingScopes\": [],\n    \"externalFactsVerified\": false\n  }\n}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1153,
+              "completionTokens": 433,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2514
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1000,
+              "completionTokens": 136,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1523
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1280,
+              "completionTokens": 3051,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "personal_context_planning",
+              "latencyMs": 26244
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "生日福利清单，可以按这个顺序准备：\n\n1. 先核对真实生日：和HR"
+          },
+          "rawPlan": "生日福利清单，可以按这个顺序准备：\n\n1. 先核对真实生日：和HR",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1401,
+              "completionTokens": 1024,
+              "device": "pc-abeval-2026-09-07-181",
+              "purpose": "chat",
+              "latencyMs": 11411
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "PlanX明确包含避开芒果制品及配料表核查等硬性注意项，PlanY未提及芒果过敏。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2078,
+            "completionTokens": 112,
+            "device": "pc-abeval-2026-09-07-181",
+            "purpose": "chat",
+            "latencyMs": 1716
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "X仍以小赵芒果过敏为核心禁忌，未反映其已调走且团队无已知过敏；Y改为确认名单并一般性复核饮食禁忌，更符合变化后背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2486,
+            "completionTokens": 283,
+            "device": "pc-abeval-2026-09-07-181",
+            "purpose": "chat",
+            "latencyMs": 3183
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "Y将无关的贺卡偏好加入安排，增加了不必要的额外条目；X未受影响，更合理。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2616,
+            "completionTokens": 245,
+            "device": "pc-abeval-2026-09-07-182",
+            "purpose": "chat",
+            "latencyMs": 2440
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y明确包含避开芒果制品及过敏排查的硬性注意项，X未涉及该关键安全信息。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2129,
+            "completionTokens": 150,
+            "device": "pc-abeval-2026-09-07-182",
+            "purpose": "chat",
+            "latencyMs": 2233
+          }
+        }
+      }
+    }
+  ]
+}
