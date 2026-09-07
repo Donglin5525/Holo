@@ -165,6 +165,9 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
     /// 必须保持可选型——旧 recordData 缺这两个 key，非可选合成解码会整库失败。
     var usageCount: Int?
     var lastUsedAt: Date?
+    /// 通用个人情境载荷（信封）。可选型：旧记录没有该 key；未知 schemaVersion 由
+    /// 信封内部原样保留，不降为 nil 覆盖。原始字段（displaySummary 等）继续是兼容摘要。
+    var personalContext: HoloPersonalContextPayloadEnvelope?
 
     init(
         id: String,
@@ -203,7 +206,8 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         updatedAt: Date,
         schemaVersion: Int = 1,
         usageCount: Int? = nil,
-        lastUsedAt: Date? = nil
+        lastUsedAt: Date? = nil,
+        personalContext: HoloPersonalContextPayloadEnvelope? = nil
     ) {
         self.id = id
         self.scope = scope
@@ -242,6 +246,7 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         self.schemaVersion = schemaVersion
         self.usageCount = usageCount
         self.lastUsedAt = lastUsedAt
+        self.personalContext = personalContext
     }
 
     func validate() throws {

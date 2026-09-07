@@ -84,6 +84,29 @@ protocol AIProvider {
 
     /// 生成健康洞察（健康专用 system prompt + 结构化 context JSON，JSON mode）
     func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult
+
+    // MARK: 通用个人情境（实施方案 §11）
+    // 声明在协议本体以获得动态派发（与 completeWeeklyPlan 同理）；
+    // 输入为程序组装好的结构化 prompt，输出为原始 JSON 文本（解析与校验在服务层）。
+
+    /// 领域内开放关系萃取：从来源包中提取情境候选。
+    func extractPersonalContext(prompt: String, context: UserContext) async throws -> String
+
+    /// 候选语义核验：批量检查 supported/qualified/unsupported。
+    func verifyPersonalContext(prompt: String, context: UserContext) async throws -> String
+
+    /// 显式入口无 frame 时的目标框架准备。
+    func prepareContextRequest(prompt: String, context: UserContext) async throws -> String
+
+    /// 本次方案生成（结构化 JSON 契约输出）。
+    func generateContextPlan(prompt: String, context: UserContext) async throws -> String
+}
+
+/// 支持通用情境向量批量的 Provider 能力协议（可选能力）。
+/// 不支持的 Provider 降级混合词法检索，不得悄悄把原文改发另一家。
+protocol HoloContextEmbeddingProvider: AIProvider {
+    /// 批量文本向量（1-16 条，每条 ≤2000 字符，由调用方保证）。
+    func embedPersonalContext(texts: [String]) async throws -> [[Double]]
 }
 
 /// 结构化执行解析类型
@@ -151,6 +174,23 @@ extension AIProvider {
     /// 默认实现：不支持健康洞察生成
     func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult {
         throw APIError.serverError("当前 Provider 不支持健康洞察生成")
+    }
+
+    /// 默认实现：不支持通用情境四方法（OpenAICompatibleProvider 覆盖为 iOS 后备契约）。
+    func extractPersonalContext(prompt: String, context: UserContext) async throws -> String {
+        throw APIError.serverError("当前 Provider 不支持个人情境萃取")
+    }
+
+    func verifyPersonalContext(prompt: String, context: UserContext) async throws -> String {
+        throw APIError.serverError("当前 Provider 不支持个人情境核验")
+    }
+
+    func prepareContextRequest(prompt: String, context: UserContext) async throws -> String {
+        throw APIError.serverError("当前 Provider 不支持个人情境请求准备")
+    }
+
+    func generateContextPlan(prompt: String, context: UserContext) async throws -> String {
+        throw APIError.serverError("当前 Provider 不支持个人情境规划")
     }
 
     /// 默认实现：不支持结构化执行解析
