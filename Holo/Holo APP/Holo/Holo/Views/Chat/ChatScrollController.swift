@@ -29,6 +29,8 @@ final class ChatScrollController: ObservableObject {
     private var bottomPinFinishWorkItem: DispatchWorkItem?
     private var isAdjustingOffset = false
     private var interactionSequence = 0
+    private var settlingPolicy = ChatOffsetSettlingPolicy()
+    private var settleDisplayLink: CADisplayLink?
 
     /// 顶部提前约半屏开始取下一页，数据通常能在用户真正到顶前准备好。
     private let topPrefetchDistance: CGFloat = 260
@@ -113,6 +115,7 @@ final class ChatScrollController: ObservableObject {
         prependFinishWorkItem = nil
         bottomPinFinishWorkItem?.cancel()
         bottomPinFinishWorkItem = nil
+        stopOffsetSettling()
         isPreservingPrepend = false
         isBottomPinActive = false
         isClampPending = false
@@ -141,6 +144,7 @@ final class ChatScrollController: ObservableObject {
 
     func requestOffsetClamp() {
         isClampPending = true
+        beginOffsetSettling()
         guard let scrollView else { return }
 
         DispatchQueue.main.async { [weak self, weak scrollView] in
@@ -149,6 +153,39 @@ final class ChatScrollController: ObservableObject {
             if self.clampOffset(in: scrollView) {
                 self.isClampPending = false
             }
+        }
+    }
+
+    /// 内容大幅收缩（卡片收起、消息删除）后开启逐帧稳定校验窗口。
+    /// 一次性钳制会被 isAdjustingOffset 重入保护丢事件，也可能早于
+    /// defaultScrollAnchor 的框架级再定位；只有逐帧核对最终不变量能兜住。
+    func beginOffsetSettling() {
+        settlingPolicy = ChatOffsetSettlingPolicy()
+        guard settleDisplayLink == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(handleSettleTick))
+        link.add(to: .main, forMode: .common)
+        settleDisplayLink = link
+    }
+
+    private func stopOffsetSettling() {
+        settleDisplayLink?.invalidate()
+        settleDisplayLink = nil
+    }
+
+    @objc
+    private func handleSettleTick() {
+        guard let scrollView else {
+            stopOffsetSettling()
+            return
+        }
+        let isUserInteracting = scrollView.isTracking
+            || scrollView.isDragging
+            || scrollView.isDecelerating
+        // 用户拖动期间不与手指抢位置，只重置稳定计数；松手后自会回弹到合法范围。
+        let didClamp = isUserInteracting ? false : clampOffset(in: scrollView)
+        settlingPolicy.advance(needClamp: didClamp, isUserInteracting: isUserInteracting)
+        if settlingPolicy.isFinished {
+            stopOffsetSettling()
         }
     }
 
@@ -204,7 +241,10 @@ final class ChatScrollController: ObservableObject {
             )
         } else if heightDelta < -0.5 {
             // 卡片收起或消息删除后主动修正越界，避免出现整屏空白。
+            // LazyVStack 会分多帧继续收缩，KVO 也可能被重入保护丢弃，
+            // 因此立即钳制之外再开逐帧校验窗口兜底。
             _ = clampOffset(in: scrollView)
+            beginOffsetSettling()
         }
 
         if isClampPending, clampOffset(in: scrollView) {

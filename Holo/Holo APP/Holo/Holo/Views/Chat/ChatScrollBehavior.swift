@@ -62,6 +62,50 @@ nonisolated enum ChatInitialPresentationPolicy {
     }
 }
 
+/// 收起洞察卡、删除消息等内容大幅收缩后的偏移稳定校验策略。
+///
+/// 为什么不能只靠 contentSize KVO 一次性钳制：setOffset 的重入保护会把布局
+/// 过程中同步到来的 contentSize 变化直接丢弃；defaultScrollAnchor(.bottom)
+/// 的框架级再定位移动偏移时不再产生 contentSize 事件。两条路都会让最后一次
+/// 收缩无人处理，偏移停在使用旧几何算出的合法位置上——落在最终内容之外，
+/// 表现为整屏空白。只有逐帧校验「偏移在内容合法范围内」这个最终不变量，
+/// 才能在布局彻底稳定前兜住所有时序。
+nonisolated struct ChatOffsetSettlingPolicy: Equatable {
+    /// 连续无越界帧数达到该值即认为布局已稳定（60Hz 下约 0.2 秒）。
+    let stableFrameLimit: Int
+    /// 校验窗口硬上限，防止病态的高度震荡让逐帧循环常驻。
+    let totalFrameLimit: Int
+
+    private(set) var stableFrameCount = 0
+    private(set) var elapsedFrameCount = 0
+    private(set) var isFinished = false
+
+    init(stableFrameLimit: Int = 12, totalFrameLimit: Int = 90) {
+        self.stableFrameLimit = stableFrameLimit
+        self.totalFrameLimit = totalFrameLimit
+    }
+
+    /// 每帧推进一次。needClamp=本帧偏移越界并已修正；isUserInteracting=用户正在触摸或惯性滚动。
+    mutating func advance(needClamp: Bool, isUserInteracting: Bool) {
+        guard !isFinished else { return }
+        elapsedFrameCount += 1
+        if elapsedFrameCount >= totalFrameLimit {
+            isFinished = true
+            return
+        }
+        if isUserInteracting {
+            // 用户接管滚动，松手后 UIScrollView 自会回弹到合法范围。
+            stableFrameCount = 0
+            return
+        }
+        // LazyVStack 分多帧收缩：稳定几帧后再次越界必须重新计数，窗口保持打开。
+        stableFrameCount = needClamp ? 0 : stableFrameCount + 1
+        if stableFrameCount >= stableFrameLimit {
+            isFinished = true
+        }
+    }
+}
+
 /// 用首尾 ID 判断列表变化来自哪里，防止 prepend 历史消息被误判为“收到新消息”。
 nonisolated enum ChatMessageListMutation: Equatable, Sendable {
     case unchanged

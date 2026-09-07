@@ -19,6 +19,9 @@ struct ChatScrollBehaviorStandaloneTests {
         testScrollGeometryPreservesViewportAndHandlesShortContent()
         testInitialPresentationWaitsForScreenTransition()
         testHistoryPageResultDistinguishesFailure()
+        testOffsetSettlingFinishesAfterConsecutiveStableFrames()
+        testOffsetSettlingStaysOpenThroughMultiFrameShrink()
+        testOffsetSettlingDefersToUserInteractionAndHonorsHardCap()
         print("ChatScrollBehaviorStandaloneTests passed")
     }
 
@@ -197,6 +200,75 @@ struct ChatScrollBehaviorStandaloneTests {
                 screenTransitionDuration: -1
             ) == ChatInitialPresentationPolicy.transitionSafetyMargin,
             "异常的负转场时长应收敛为安全余量"
+        )
+    }
+
+    private static func testOffsetSettlingFinishesAfterConsecutiveStableFrames() {
+        var policy = ChatOffsetSettlingPolicy()
+
+        policy.advance(needClamp: true, isUserInteracting: false)
+        policy.advance(needClamp: true, isUserInteracting: false)
+        expect(
+            !policy.isFinished,
+            "收起后连续越界期间稳定校验不能提前结束"
+        )
+
+        for _ in 0..<policy.stableFrameLimit - 1 {
+            policy.advance(needClamp: false, isUserInteracting: false)
+        }
+        expect(
+            !policy.isFinished,
+            "稳定帧数尚未达到阈值时不能结束校验"
+        )
+        policy.advance(needClamp: false, isUserInteracting: false)
+        expect(
+            policy.isFinished,
+            "连续稳定达到阈值后应结束校验，不能常驻逐帧循环"
+        )
+    }
+
+    private static func testOffsetSettlingStaysOpenThroughMultiFrameShrink() {
+        var policy = ChatOffsetSettlingPolicy()
+
+        for _ in 0..<4 {
+            policy.advance(needClamp: false, isUserInteracting: false)
+        }
+        // LazyVStack 分多帧收缩：稳定几帧后又一帧越界，必须重新计数。
+        policy.advance(needClamp: true, isUserInteracting: false)
+        expect(
+            policy.stableFrameCount == 0 && !policy.isFinished,
+            "再次越界必须重置稳定计数，窗口保持打开"
+        )
+
+        var retriggered = ChatOffsetSettlingPolicy()
+        retriggered.advance(needClamp: false, isUserInteracting: false)
+        retriggered.advance(needClamp: true, isUserInteracting: false)
+        retriggered.advance(needClamp: true, isUserInteracting: false)
+        expect(
+            retriggered.stableFrameCount == 0,
+            "重入的收缩（如内容尺寸 KVO 重发）必须把窗口重新拉开"
+        )
+    }
+
+    private static func testOffsetSettlingDefersToUserInteractionAndHonorsHardCap() {
+        var policy = ChatOffsetSettlingPolicy()
+
+        for _ in 0..<policy.stableFrameLimit - 1 {
+            policy.advance(needClamp: false, isUserInteracting: false)
+        }
+        policy.advance(needClamp: false, isUserInteracting: true)
+        expect(
+            policy.stableFrameCount == 0 && !policy.isFinished,
+            "用户接管滚动时不能累积稳定帧，也不能替用户抢位置"
+        )
+
+        var capped = ChatOffsetSettlingPolicy()
+        for _ in 0..<capped.totalFrameLimit {
+            capped.advance(needClamp: true, isUserInteracting: false)
+        }
+        expect(
+            capped.isFinished,
+            "病态的高度震荡必须在硬上限帧数内停止逐帧循环"
         )
     }
 
