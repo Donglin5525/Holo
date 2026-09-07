@@ -25,6 +25,9 @@ struct ThoughtsView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var showAddThought: Bool = false
+    /// 宽屏双栏判定：FAB 只在窄屏/手机出现（宽屏新建入口在列表顶部）
+    @Environment(\.holoWindowWidth) private var thoughtsWindowWidth
+    private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(thoughtsWindowWidth) }
 
     /// 列表筛选意图（知识树视图「未归类/已归档」等入口驱动列表重载）
     @State private var drawerSelection: DrawerNode? = nil
@@ -60,9 +63,12 @@ struct ThoughtsView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // 右下角浮动新增按钮（替代原来的假 Tab）
-            addButton
-                .zIndex(30)
+            // 右下角浮动新增按钮（替代原来的假 Tab）。
+            // 宽屏双栏下退役（挡双栏内容），新建入口上移到列表顶部——设计稿④
+            if !isWideLayout {
+                addButton
+                    .zIndex(30)
+            }
         }
         .task {
             // P1.5.7: 进入想法页时合并 CloudKit 同步产生的重复 Topic（幂等）

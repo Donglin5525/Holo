@@ -103,6 +103,60 @@ final class TimelineAxisLayoutTests: XCTestCase {
         XCTAssertEqual(collapsed.laneYTop(startMinute: 480), collapsed.y(minute: 480), accuracy: 0.001)
     }
 
+    // MARK: - 泳道分配（宽屏多泳道展开）
+
+    private func spans(_ tuples: [(String, CGFloat, CGFloat)]) -> [(id: String, start: CGFloat, end: CGFloat)] {
+        tuples.map { (id: $0.0, start: $0.1, end: $0.2) }
+    }
+
+    func testAssignLanes_NoOverlap_SingleLane() {
+        let plan = TimelineAxisLayout.assignLanes(spans: spans([
+            ("a", 480, 540), ("b", 600, 660), ("c", 660, 720)
+        ]))
+        XCTAssertEqual(plan.laneCount, 1, "互不重叠应共用一条泳道")
+        XCTAssertEqual(plan.lanes["a"], 0)
+        XCTAssertEqual(plan.lanes["b"], 0)
+        XCTAssertEqual(plan.lanes["c"], 0)
+    }
+
+    func testAssignLanes_Overlap_GetsOwnLane() {
+        let plan = TimelineAxisLayout.assignLanes(spans: spans([
+            ("a", 480, 600), ("b", 540, 660)
+        ]))
+        XCTAssertEqual(plan.laneCount, 2, "时间重叠必须分泳道，不得叠印")
+        XCTAssertNotEqual(plan.lanes["a"], plan.lanes["b"])
+    }
+
+    func testAssignLanes_FreedLaneIsReused() {
+        // c 在 a 结束后开始：复用 a 的泳道，不再新开
+        let plan = TimelineAxisLayout.assignLanes(spans: spans([
+            ("a", 480, 540), ("b", 480, 660), ("c", 540, 600)
+        ]))
+        XCTAssertEqual(plan.laneCount, 2)
+        XCTAssertEqual(plan.lanes["c"], plan.lanes["a"], "复用已释放泳道")
+    }
+
+    func testAssignLanes_ThreeWayOverlap_ThreeLanes() {
+        let plan = TimelineAxisLayout.assignLanes(spans: spans([
+            ("a", 480, 700), ("b", 490, 690), ("c", 500, 600)
+        ]))
+        XCTAssertEqual(plan.laneCount, 3)
+        XCTAssertEqual(Set(plan.lanes.values), [0, 1, 2])
+    }
+
+    func testAssignLanes_TouchingEdges_ShareLane() {
+        // 前一条结束 == 后一条开始：不算重叠（日程接龙是合法排法）
+        let plan = TimelineAxisLayout.assignLanes(spans: spans([
+            ("a", 480, 540), ("b", 540, 600)
+        ]))
+        XCTAssertEqual(plan.laneCount, 1)
+    }
+
+    func testAssignLanes_EmptyInput_DegenerateToOneLane() {
+        let plan = TimelineAxisLayout.assignLanes(spans: spans([]))
+        XCTAssertEqual(plan.laneCount, 1, "空组记 1 条泳道，宽度分配退化为对半且不除零")
+    }
+
     // MARK: - 拖拽换算比例
 
     func testMinutesPerPoint() {

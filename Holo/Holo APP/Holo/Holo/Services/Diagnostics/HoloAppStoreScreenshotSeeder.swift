@@ -1361,6 +1361,18 @@ enum HoloAppStoreScreenshotSeeder {
         focusTask.plannedStart = focusStart
         focusTask.plannedEnd = date(from: startOfWeek, dayOffset: 0, hour: 17, minute: 30)
 
+        // 轴档多泳道固定夹具：与产品复盘时间重叠（15:30–16:45 vs 16:00–17:30），
+        // 让今天的轴档天然呈现「重叠条目各占一条泳道」的宽屏展开效果
+        let laneFixtureStart = date(from: startOfWeek, dayOffset: 0, hour: 15, minute: 30)
+        let laneFixture = TodoTask.create(
+            in: context,
+            title: "准备复盘材料",
+            priority: .medium,
+            dueDate: laneFixtureStart
+        )
+        laneFixture.plannedStart = laneFixtureStart
+        laneFixture.plannedEnd = date(from: startOfWeek, dayOffset: 0, hour: 16, minute: 45)
+
         let tomorrow = date(from: startOfWeek, dayOffset: 5, hour: 8, minute: 0)
         let actionTask = TodoTask.create(
             in: context,

@@ -77,4 +77,26 @@ struct TimelineAxisLayout {
     func laneYTop(startMinute: CGFloat) -> CGFloat {
         y(minute: max(startMinute, collapseMorning ? Self.morningEndMinute : 0))
     }
+
+    // MARK: - 泳道分配（v2 宽屏多泳道展开）
+
+    /// 贪心泳道分配：按开始时间排序，时间重叠的条目各占一条泳道；
+    /// 泳道上一条结束时间 ≤ 当前开始即可复用。返回 id → 泳道序号 与 泳道数（空输入记 1，
+    /// 让调用方的「按泳道数比例分配宽度」在无数据组上退化为对半，不除零）。
+    static func assignLanes<ID: Hashable>(
+        spans: [(id: ID, start: CGFloat, end: CGFloat)]
+    ) -> (lanes: [ID: Int], laneCount: Int) {
+        var lanes: [ID: Int] = [:]
+        var laneEndMinutes: [CGFloat] = []
+        for span in spans.sorted(by: { $0.start < $1.start }) {
+            if let reusableIndex = laneEndMinutes.firstIndex(where: { $0 <= span.start }) {
+                laneEndMinutes[reusableIndex] = span.end
+                lanes[span.id] = reusableIndex
+            } else {
+                laneEndMinutes.append(span.end)
+                lanes[span.id] = laneEndMinutes.count - 1
+            }
+        }
+        return (lanes, max(laneEndMinutes.count, 1))
+    }
 }

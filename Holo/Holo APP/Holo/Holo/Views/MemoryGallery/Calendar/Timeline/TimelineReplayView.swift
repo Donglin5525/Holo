@@ -2,8 +2,9 @@
 //  TimelineReplayView.swift
 //  Holo
 //
-//  记忆长廊「轴」档（三期）：0–24 纵向刻度，双泳道同轴回放
-//  左泳道=带时间段的任务（含已完成，带计划/实际对比），右泳道=系统日程（按需拉取，不限活跃窗口）。
+//  记忆长廊「轴」档（三期）：0–24 纵向刻度，任务/日程两组多泳道同轴回放
+//  组内时间重叠的条目各占一条泳道，宽度按两组泳道数比例分配（1:1 退化为对半）；
+//  左组=带时间段的任务（含已完成，带计划/实际对比），右组=系统日程（按需拉取，不限活跃窗口）。
 //  拖拽反写：空白处长按拖出选区直接建带时间段任务（15 分钟吸附）；拖任务块上下缘调整时间段。
 //
 //  交互分层原则：默认一切触摸都给滚动；建任务/调时间必须长按成立（震动提示）后才接管手指，
@@ -134,17 +135,31 @@ struct TimelineReplayView: View {
                     nowLine
                 }
 
-                // 左右泳道：任务块 / 日程块
+                // 泳道：任务 / 日程两组，组内时间重叠的各占一条泳道，
+                // 宽度按两组泳道数比例分配——1:1 退化为对半，重叠越多该组展得越开（宽屏不空）
                 GeometryReader { geometry in
-                    let laneWidth = (geometry.size.width - TimelineAxisLayout.gutterWidth) / 2
+                    let available = geometry.size.width - TimelineAxisLayout.gutterWidth
+                    let taskPlan = TimelineAxisLayout.assignLanes(spans: visibleTimedTasks.map {
+                        ($0.id, minute(of: effectiveStart($0)), minute(of: effectiveEnd($0)))
+                    })
+                    let schedulePlan = TimelineAxisLayout.assignLanes(spans: visibleSchedules.map {
+                        ($0.id, minute(of: $0.startDate), minute(of: $0.endDate))
+                    })
+                    let taskRegionWidth = available * CGFloat(taskPlan.laneCount)
+                        / CGFloat(taskPlan.laneCount + schedulePlan.laneCount)
+                    let scheduleRegionWidth = available - taskRegionWidth
+                    let taskLaneWidth = taskRegionWidth / CGFloat(taskPlan.laneCount)
+                    let scheduleLaneWidth = scheduleRegionWidth / CGFloat(schedulePlan.laneCount)
+
                     ZStack(alignment: .topLeading) {
                         ForEach(visibleTimedTasks, id: \.id) { task in
                             let laneTop = axisLayout.laneYTop(startMinute: minute(of: effectiveStart(task)))
                             let laneBottom = axisLayout.y(minute:minute(of: effectiveEnd(task)))
-                            taskBlock(task, laneWidth: laneWidth)
-                                .frame(width: laneWidth - 6)
+                            let lane = taskPlan.lanes[task.id] ?? 0
+                            taskBlock(task, laneWidth: taskLaneWidth)
+                                .frame(width: taskLaneWidth - 6)
                                 .position(
-                                    x: TimelineAxisLayout.gutterWidth + (laneWidth - 6) / 2,
+                                    x: TimelineAxisLayout.gutterWidth + CGFloat(lane) * taskLaneWidth + (taskLaneWidth - 6) / 2,
                                     y: laneTop + max(30, laneBottom - laneTop) / 2
                                 )
                         }
@@ -152,10 +167,11 @@ struct TimelineReplayView: View {
                         ForEach(visibleSchedules) { item in
                             let laneTop = axisLayout.laneYTop(startMinute: minute(of: item.startDate))
                             let laneBottom = axisLayout.y(minute:minute(of: item.endDate))
-                            scheduleBlock(item, laneWidth: laneWidth)
-                                .frame(width: laneWidth - 6)
+                            let lane = schedulePlan.lanes[item.id] ?? 0
+                            scheduleBlock(item, laneWidth: scheduleLaneWidth)
+                                .frame(width: scheduleLaneWidth - 6)
                                 .position(
-                                    x: TimelineAxisLayout.gutterWidth + laneWidth + (laneWidth - 6) / 2,
+                                    x: TimelineAxisLayout.gutterWidth + taskRegionWidth + CGFloat(lane) * scheduleLaneWidth + (scheduleLaneWidth - 6) / 2,
                                     y: laneTop + max(26, laneBottom - laneTop) / 2
                                 )
                         }

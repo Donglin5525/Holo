@@ -14,7 +14,49 @@ import AuthenticationServices
 // MARK: - SettingsView
 
 /// 设置页面
+/// 宽屏（expanded 档）双栏：左侧分组导航（含用户信息卡），右侧只渲染所选分组；
+/// 窄屏/iPhone 维持单列长滚动（v2 规划「左分组导航右内容」）。
 struct SettingsView: View {
+
+    /// 设置分组：与单列滚动的 section 一一对应，双栏左列的导航项
+    private enum SettingsSection: String, CaseIterable, Identifiable {
+        case nickname, darkMode, iCloudSync, calendar, aiOrganization, aiPlayback
+        case storage, privacySecurity, legal, accountData, other
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .nickname: return String(localized: "昵称")
+            case .darkMode: return String(localized: "外观")
+            case .iCloudSync: return String(localized: "iCloud 同步")
+            case .calendar: return String(localized: "日历")
+            case .aiOrganization: return String(localized: "AI 整理")
+            case .aiPlayback: return String(localized: "AI 回放")
+            case .storage: return String(localized: "存储与缓存")
+            case .privacySecurity: return String(localized: "隐私与安全")
+            case .legal: return String(localized: "法律与隐私")
+            case .accountData: return String(localized: "账号与数据")
+            case .other: return String(localized: "其他")
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .nickname: return "person.crop.square"
+            case .darkMode: return "moon.fill"
+            case .iCloudSync: return "icloud.fill"
+            case .calendar: return "calendar"
+            case .aiOrganization: return "sparkles"
+            case .aiPlayback: return "waveform"
+            case .storage: return "internaldrive.fill"
+            case .privacySecurity: return "lock.shield.fill"
+            case .legal: return "doc.text.fill"
+            case .accountData: return "person.crop.circle.badge.clock"
+            case .other: return "ellipsis.circle"
+            }
+        }
+    }
 
     // MARK: - Environment
 
@@ -65,70 +107,35 @@ struct SettingsView: View {
     @State private var showNicknameEditor = false
     @State private var nicknameDraft = ""
 
+    // 宽屏双栏：当前选中的分组
+    @State private var selectedSection: SettingsSection = .nickname
+    @Environment(\.holoWindowWidth) private var settingsWindowWidth
+    private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(settingsWindowWidth) }
+
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: HoloSpacing.lg) {
-                    // 用户信息卡片
-                    userInfoCard
+            settingsContent
+                .background(Color.holoBackground)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            close()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                    }
 
-                    // 昵称（首页问候怎么称呼你，随 iCloud 同步）
-                    nicknameSection
-
-                    // 深色模式设置
-                    darkModeSection
-
-                    // iCloud 同步
-                    iCloudSyncSection
-
-                    // 日历（系统日历接入）
-                    ScheduleSettingsSection()
-
-                    // AI 整理设置
-                    aiOrganizationSection
-
-                    // AI 回放设置
-                    aiPlaybackSection
-
-                    // 存储与缓存
-                    storageSection
-
-                    // 隐私与安全
-                    privacySecuritySection
-
-                    // 法律与隐私
-                    legalSection
-
-                    // 账号与数据
-                    accountDataSection
-
-                    // 其他设置（占位）
-                    otherSettingsSection
-                }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.vertical, HoloSpacing.md)
-            }
-            .background(Color.holoBackground)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        close()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                    ToolbarItem(placement: .principal) {
+                        Text("设置")
+                            .font(.holoHeading)
+                            .foregroundColor(.holoTextPrimary)
                     }
                 }
-
-                ToolbarItem(placement: .principal) {
-                    Text("设置")
-                        .font(.holoHeading)
-                        .foregroundColor(.holoTextPrimary)
-                }
-            }
         }
         .preferredColorScheme(darkModeManager.colorScheme)
         .id(darkModeManager.currentSetting)
@@ -160,6 +167,147 @@ struct SettingsView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("保存后随 iCloud 同步，卸载重装也能找回来")
+        }
+    }
+
+    // MARK: - 双栏外壳（expanded）/ 单列长滚动（medium 与 iPhone）
+
+    @ViewBuilder
+    private var settingsContent: some View {
+        if isWideLayout {
+            HStack(spacing: 0) {
+                settingsNavColumn
+                Rectangle()
+                    .fill(Color.holoBorder.opacity(0.4))
+                    .frame(width: 0.5)
+                selectedSectionPane
+            }
+        } else {
+            settingsScroll
+        }
+    }
+
+    /// 单列长滚动（窄屏/iPhone 原样）
+    private var settingsScroll: some View {
+        ScrollView {
+            VStack(spacing: HoloSpacing.lg) {
+                // 用户信息卡片
+                userInfoCard
+
+                // 昵称（首页问候怎么称呼你，随 iCloud 同步）
+                nicknameSection
+
+                // 深色模式设置
+                darkModeSection
+
+                // iCloud 同步
+                iCloudSyncSection
+
+                // 日历（系统日历接入）
+                ScheduleSettingsSection()
+
+                // AI 整理设置
+                aiOrganizationSection
+
+                // AI 回放设置
+                aiPlaybackSection
+
+                // 存储与缓存
+                storageSection
+
+                // 隐私与安全
+                privacySecuritySection
+
+                // 法律与隐私
+                legalSection
+
+                // 账号与数据
+                accountDataSection
+
+                // 其他设置（占位）
+                otherSettingsSection
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.vertical, HoloSpacing.md)
+        }
+    }
+
+    /// 宽屏左列：用户信息卡 + 分组导航
+    private var settingsNavColumn: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: HoloSpacing.md) {
+                userInfoCard
+
+                VStack(spacing: 4) {
+                    ForEach(SettingsSection.allCases) { section in
+                        settingsNavRow(section)
+                    }
+                }
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, HoloSpacing.md)
+        }
+        .frame(width: 252)
+    }
+
+    private func settingsNavRow(_ section: SettingsSection) -> some View {
+        let isSelected = selectedSection == section
+        return Button {
+            guard selectedSection != section else { return }
+            withAnimation(HoloAnimation.quick) {
+                selectedSection = section
+            }
+            HapticManager.light()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: section.icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                    .frame(width: 22)
+                Text(section.title)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                    .fill(isSelected ? Color.holoPrimary.opacity(0.10) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// 宽屏右栏：只渲染所选分组（id 重置滚动，切组从顶部开始读）
+    private var selectedSectionPane: some View {
+        ScrollView(showsIndicators: false) {
+            sectionBody(selectedSection)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.vertical, HoloSpacing.md)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .id(selectedSection)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func sectionBody(_ section: SettingsSection) -> some View {
+        switch section {
+        case .nickname: nicknameSection
+        case .darkMode: darkModeSection
+        case .iCloudSync: iCloudSyncSection
+        case .calendar: ScheduleSettingsSection()
+        case .aiOrganization: aiOrganizationSection
+        case .aiPlayback: aiPlaybackSection
+        case .storage: storageSection
+        case .privacySecurity: privacySecuritySection
+        case .legal: legalSection
+        case .accountData: accountDataSection
+        case .other: otherSettingsSection
         }
     }
 

@@ -107,6 +107,23 @@ struct ThoughtListView: View {
     /// P0 卡片分级判定：用户认可标签集合（归一化 key），列表层一次查询避免逐卡片 N+1
     @State private var recognizedTagKeys: Set<String> = []
 
+    /// 宽屏双栏（v2 设计稿③）：expanded 档列表+详情同屏（46:54），不再全屏跳转；
+    /// 11 寸竖屏/medium 档与手机维持「点卡片全屏详情」
+    @Environment(\.holoWindowWidth) private var thoughtWindowWidth
+    private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(thoughtWindowWidth) }
+
+    /// 全屏详情 cover 的门控绑定：宽屏详情常驻右栏，cover 恒 nil 不弹；
+    /// 窄屏保持原有 item 语义（选中即全屏）
+    private var detailCoverBinding: Binding<UUID?> {
+        Binding(
+            get: { isWideLayout ? nil : selectedThoughtId },
+            set: { newValue in
+                selectedThoughtId = newValue
+                if newValue == nil { selectedThoughtFocusConfirmation = false }
+            }
+        )
+    }
+
     // MARK: - Computed Properties
 
     private var isKnowledgeMode: Bool { browseMode == "knowledge" }
@@ -189,6 +206,31 @@ struct ThoughtListView: View {
                     },
                     onAIOrganize: { onAIOrganize() }
                 )
+            } else if isWideLayout {
+                // v2 设计稿③：左列表 + 右详情双栏（46:54），轻点卡片右栏即展详情
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            searchBarView
+                            aiOrganizationBanner
+                            filterBarView
+
+                            if filteredThoughts.isEmpty && hasLoadedOnce {
+                                emptyStateView
+                            } else {
+                                thoughtListView
+                            }
+                        }
+                        .frame(width: geo.size.width * 0.46)
+
+                        Rectangle()
+                            .fill(Color.holoBorder.opacity(0.4))
+                            .frame(width: 0.5)
+
+                        thoughtDetailPane
+                            .frame(width: geo.size.width * 0.54)
+                    }
+                }
             } else {
                 // 搜索栏
                 searchBarView
@@ -209,7 +251,8 @@ struct ThoughtListView: View {
         }
         // 主列表先进入详情，阅读、引用关系与编辑入口保持同一条产品路径。
         // 编辑器仍由详情页的「编辑」动作打开，避免列表入口绕过反向链接。
-        .fullScreenCover(item: $selectedThoughtId, onDismiss: {
+        // 宽屏双栏下 cover 恒为 nil（详情常驻右栏），窄屏保持原全屏语义。
+        .fullScreenCover(item: detailCoverBinding, onDismiss: {
             selectedThoughtFocusConfirmation = false
         }) { thoughtId in
             ThoughtDetailView(
@@ -340,6 +383,48 @@ struct ThoughtListView: View {
             batchOrganizeNotice = String(localized: "标签整理完成，正在归纳主题")
             onAIOrganize()
         }
+        .onChange(of: thoughts) { _, updatedThoughts in
+            // 宽屏双栏：选中的想法被删除后右栏退回引导位（详情内联模式 dismiss() 不生效）
+            guard let selectedThoughtId,
+                  !updatedThoughts.contains(where: { $0.id == selectedThoughtId }) else { return }
+            self.selectedThoughtId = nil
+        }
+    }
+
+    // MARK: - 宽屏右栏详情（v2 设计稿③）
+
+    @ViewBuilder
+    private var thoughtDetailPane: some View {
+        if let thoughtId = selectedThoughtId {
+            ThoughtDetailView(
+                thoughtId: thoughtId,
+                thoughtRepository: ThoughtRepository(),
+                showsDismissButton: false,
+                focusAIConfirmation: selectedThoughtFocusConfirmation
+            )
+            // 切换想法重置阅读滚动位置
+            .id(thoughtId)
+        } else {
+            detailPlaceholder
+        }
+    }
+
+    /// 无选中时的引导位（设计稿②：详情常驻，不留白板）
+    private var detailPlaceholder: some View {
+        VStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 30))
+                .foregroundColor(.holoTextPlaceholder)
+            Text("选一条想法查看")
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+            Text("在左侧轻点卡片，详情会在这里展开")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextPlaceholder)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoBackground)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - AI 归纳状态条
@@ -786,6 +871,26 @@ struct ThoughtListView: View {
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
+
+            // 宽屏双栏下右下角 FAB 退役（会挡双栏内容），新建入口上移到顶部（设计稿④）
+            if isWideLayout {
+                Button {
+                    showAddThought = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("新建")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(Capsule().fill(Color.holoPrimary))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "新增想法"))
+            }
 
             // 右上「…」菜单：知识树模式含主题管理；清空想法数据（数据清理）两种模式均提供
             Menu {

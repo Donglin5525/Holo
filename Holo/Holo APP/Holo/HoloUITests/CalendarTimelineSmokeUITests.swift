@@ -8,6 +8,19 @@
 
 import XCTest
 
+/// 旋转偶发失效（连续竖屏跑完一整轮），设置后用窗口宽高校验，失败重试。
+/// 文件级供 V8/V9 各审计类共用；XCTest 用例默认跑在主线程，assumeIsolated 安全。
+func auditRotateToLandscape(_ app: XCUIApplication) {
+    MainActor.assumeIsolated {
+        for attempt in 0..<3 {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            sleep(3)
+            if app.frame.width > app.frame.height { return }
+            print("[AUDIT] rotation attempt \(attempt) failed, retrying")
+        }
+    }
+}
+
 final class CalendarTimelineSmokeUITests: XCTestCase {
 
     var app: XCUIApplication!
@@ -399,8 +412,7 @@ final class HoloIPadAuditV8UITests: XCTestCase {
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "rhythm"
         app.launch()
         sleep(9)
-        XCUIDevice.shared.orientation = orientation
-        sleep(4)
+        auditRotateToLandscape(app)
         return app
     }
 
@@ -499,8 +511,7 @@ final class HoloIPadAuditV9UITests: XCTestCase {
         if dark { app.launchArguments += ["-darkModeSetting", "dark"] }
         app.launch()
         sleep(9)
-        XCUIDevice.shared.orientation = orientation
-        sleep(4)
+        auditRotateToLandscape(app)
         return app
     }
 
@@ -540,8 +551,7 @@ final class HoloIPadAuditV9UITests: XCTestCase {
         app.launchArguments += ["-darkModeSetting", "dark"]
         app.launch()
         sleep(9)
-        XCUIDevice.shared.orientation = .landscapeLeft
-        sleep(4)
+        auditRotateToLandscape(app)
         if label.isEmpty {
             shoot(name)
         } else {
@@ -594,5 +604,73 @@ final class HoloIPadAuditV9bEmptyUITests: XCTestCase {
             sleep(6)
         }
         shoot("v9b-03-fresh-gallery-empty")
+    }
+}
+
+// MARK: - iPad 审计 v10：拍板项实施取证（轴档多泳道/设置双栏/想法双栏）
+final class HoloIPadAuditV10UITests: XCTestCase {
+
+    private let dir = "/tmp/holo_ipad_audit"
+
+    private func shoot(_ name: String) {
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try? png.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
+        print("[IPAD10] shot \(name)")
+    }
+
+    private func tapLabeled(_ app: XCUIApplication, _ label: String, sidebar: Bool, settle: UInt32 = 5) {
+        let els = app.staticTexts.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex
+        let zone: (CGFloat) -> Bool = sidebar ? { $0 < 300 } : { $0 >= 300 }
+        guard let el = els.first(where: { zone($0.frame.minX) }) else {
+            print("[IPAD10] missing \(label) (sidebar=\(sidebar))")
+            return
+        }
+        el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(settle)
+    }
+
+    private func launchSeededLandscape() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "rhythm"
+        app.launch()
+        sleep(9)
+        auditRotateToLandscape(app)
+        return app
+    }
+
+    func testV10LandscapePivotImplementations() throws {
+        let app = launchSeededLandscape()
+
+        // ②轴档多泳道：重叠任务各占一条泳道
+        tapLabeled(app, "记忆长廊", sidebar: true, settle: 6)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.835, dy: 0.127)).tap()
+        sleep(4)
+        shoot("v10-01-axis-lanes")
+
+        // ④设置宽屏双栏
+        tapLabeled(app, "设置", sidebar: true, settle: 6)
+        shoot("v10-02-settings-two-column")
+
+        // ③想法列表-详情双栏：未选中→引导位；点左列表卡片→右栏详情
+        tapLabeled(app, "想法", sidebar: true, settle: 6)
+        shoot("v10-03-thoughts-placeholder")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.5)).tap()
+        sleep(5)
+        shoot("v10-04-thoughts-detail")
+
+        XCUIDevice.shared.orientation = .portrait
+        sleep(3)
+    }
+
+    func testV10PortraitThoughtsRegression() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "rhythm"
+        app.launch()
+        sleep(9)
+        tapLabeled(app, "想法", sidebar: true, settle: 6)
+        // 竖屏回归：单列列表 + 右下角 FAB 在场
+        shoot("v10-05-thoughts-portrait")
     }
 }
