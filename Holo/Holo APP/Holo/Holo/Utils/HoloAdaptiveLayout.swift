@@ -165,4 +165,126 @@ extension View {
                            paintsBackground: Bool = true) -> some View {
         modifier(HoloContentColumnModifier(maxWidth: maxWidth, paintsBackground: paintsBackground))
     }
+
+    /// 通宵冲刺 2026-09-08：iPad 弹层宽度政策（v2 计划阶段 3 欠账）。
+    /// iPad 上 .sheet 的呈现宽度跟随内容理想宽度，给表单内容套上限即可得到
+    /// 居中的合理宽度弹窗；iPhone（compact）sheet 恒全宽，此修饰器无感。
+    /// - form：常规表单（记账/筛选/确认类），560pt
+    /// - wide：宽内容（图表/对照/编辑类），720pt
+    func holoSheetWidth(_ kind: HoloSheetWidthKind = .form) -> some View {
+        modifier(HoloSheetWidthModifier(kind: kind))
+    }
+
+    /// 通宵冲刺 2026-09-08：宽屏 hover 反馈（触控板/妙控键盘指针）。
+    /// iPhone/无指针环境无任何效果；仅在 regular 宽度挂载，保证手机端零变化。
+    func holoHover(_ style: HoverEffect = .highlight) -> some View {
+        modifier(HoloHoverModifier(style: style))
+    }
+}
+
+// MARK: - 弹层宽度政策（v2 阶段 3）
+
+enum HoloSheetWidthKind {
+    /// 常规表单：记账、筛选、确认类
+    case form
+    /// 宽内容：图表、对照列表、富文本
+    case wide
+    /// 自定义宽度（pt）
+    case custom(CGFloat)
+
+    var maxWidth: CGFloat {
+        switch self {
+        case .form: return 560
+        case .wide: return 720
+        case .custom(let w): return w
+        }
+    }
+}
+
+struct HoloSheetWidthModifier: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let kind: HoloSheetWidthKind
+
+    func body(content: Content) -> some View {
+        // iPhone 任意方向恒 compact（sheet 全宽直通）；iPad（regular）限宽居中。
+        // 用 size class 而非窗口宽度门控：iPhone 横屏宽度可达 932pt 也必须零变化。
+        if HoloAdaptiveLayout.isRegularWidth(horizontalSizeClass) {
+            content
+                .frame(maxWidth: kind.maxWidth)
+                .frame(maxWidth: .infinity)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - hover 反馈基建（通宵冲刺 E 轮铺量用）
+
+struct HoloHoverModifier: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let style: HoverEffect
+
+    func body(content: Content) -> some View {
+        if HoloAdaptiveLayout.isRegularWidth(horizontalSizeClass) {
+            content.hoverEffect(style)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - 列表-详情双栏容器（v2 设计稿范式：左 46% 列表 + 右 54% 详情）
+
+/// expanded 档渲染「列表 | 详情」双栏（中间细分隔线），窄档只渲染列表，
+/// 详情交互语义由调用方按档位分流（想法/任务/知识树共用）。
+struct HoloListDetailSplit<Master: View, Detail: View>: View {
+    @Environment(\.holoWindowWidth) private var windowWidth
+
+    var masterFraction: CGFloat
+    var separator: Bool
+    @ViewBuilder var master: () -> Master
+    @ViewBuilder var detail: () -> Detail
+
+    init(masterFraction: CGFloat = 0.46,
+         separator: Bool = true,
+         @ViewBuilder master: @escaping () -> Master,
+         @ViewBuilder detail: @escaping () -> Detail) {
+        self.masterFraction = masterFraction
+        self.separator = separator
+        self.master = master
+        self.detail = detail
+    }
+
+    var body: some View {
+        if HoloAdaptiveLayout.isExpandedWidth(windowWidth) {
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    master()
+                        .frame(width: geo.size.width * masterFraction)
+                    if separator {
+                        Rectangle()
+                            .fill(Color.holoBorder.opacity(0.4))
+                            .frame(width: 0.5)
+                    }
+                    detail()
+                        .frame(width: geo.size.width * (1 - masterFraction))
+                }
+            }
+        } else {
+            master()
+        }
+    }
+}
+
+// MARK: - 宽屏排印分档（长廊 1.25x 的通用化，健康/目标等复用）
+
+extension HoloAdaptiveLayout {
+
+    /// 通用宽屏排印放大系数：与长廊同规则（expanded ×1.25）。
+    /// 阅读距离更远的大屏统一提字号，iPhone 与竖屏 medium 档维持原设计。
+    static func wideTypeScale(forWindowWidth width: CGFloat?) -> CGFloat {
+        galleryTypeScale(forWindowWidth: width)
+    }
 }
