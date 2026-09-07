@@ -8,16 +8,17 @@
 //  「首启一次性加载跑在后台导入之前」的时序会让列表永远停在空态
 //  （iPad 新装机数据不同步的根因）。
 //
-//  这里全局唯一监听 store 的远程变更通知，防抖合并后广播 holoCloudDataDidSync，
-//  各模块订阅这一条通知重拉各自数据即可，不再各自维护一套监听+防抖代码。
+//  这里监听 CloudKit 同步引擎的 setup/import 事件完成，防抖合并后广播
+//  holoCloudDataDidSync，各模块订阅这一条通知重拉各自数据。
+//  刻意不用 NSPersistentStoreRemoteChange：那条通知在本地保存时同样会发，
+//  会让所有模块在每次写入后多跑一轮无意义重拉。
 //
 
 import Foundation
 import CoreData
 
 extension Notification.Name {
-    /// iCloud 云端数据已同步到本地（主线程广播；本地写入触发的导出同样会经过这里，
-    /// 模块侧重拉是幂等 fetch，代价可接受）
+    /// iCloud 云端数据已同步到本地（主线程广播）
     static let holoCloudDataDidSync = Notification.Name("holoCloudDataDidSync")
 }
 
@@ -33,15 +34,28 @@ final class CloudImportRelay {
 
     private init() {}
 
-    /// 开启远程变更监听（幂等），由首个订阅者触发即可，无需等 store 加载完成
+    /// 开启同步事件监听（幂等），由首个订阅者触发即可，无需等 store 加载完成
     func start() {
         guard observer == nil else { return }
         observer = NotificationCenter.default.addObserver(
-            forName: .NSPersistentStoreRemoteChange,
-            object: CoreDataStack.shared.persistentContainer.persistentStoreCoordinator,
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: nil,
             queue: .main
-        ) { [weak self] _ in
-            self?.scheduleBroadcast()
+        ) { [weak self] notification in
+            guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                    as? NSPersistentCloudKitContainer.Event else {
+                return
+            }
+            // 只认「云端数据落地」：setup（引擎初始化，首批导入常随其后落地）与
+            // import（后续增量导入）；export 是本机上传，不触发重拉
+            switch event.type {
+            case .setup, .import:
+                self?.scheduleBroadcast()
+            case .export:
+                break
+            @unknown default:
+                break
+            }
         }
     }
 
