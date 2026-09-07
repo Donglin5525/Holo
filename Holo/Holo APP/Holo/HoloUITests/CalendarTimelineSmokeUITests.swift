@@ -776,28 +776,20 @@ final class HoloIPadOvernightUITests: XCTestCase {
         let app = launchSeeded()
         tapLabeled(app, "财务", sidebar: true, settle: 5)
         shoot("ov-fin-01-accounts")
+        // 「记一笔」FAB 只在账户/账本页显示——默认账户页先拍弹层，再切子页
+        let fab = app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.94))
+        let fabText = app.staticTexts.matching(NSPredicate(format: "label == %@", "记一笔")).allElementsBoundByIndex.first
+        if let fl = fabText, fl.isHittable {
+            fl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        } else {
+            fab.tap()
+        }
+        sleep(4)
+        shoot("ov-fin-06-sheet-addtransaction")
+        dismissSheet(app)
         for (label, name) in [("账本", "ov-fin-02-ledger"), ("统计", "ov-fin-03-stats"), ("固定支出", "ov-fin-04-spending"), ("设置", "ov-fin-05-settings")] {
             _ = tapLabeled(app, label, sidebar: false, settle: 4)
             shoot(name)
-        }
-        // 回账户 tab 打开「记一笔」弹层（弹层政策基线）
-        _ = tapLabeled(app, "账户", sidebar: false, settle: 3)
-        let fab = app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.90))
-        let fabLabel = app.staticTexts.matching(NSPredicate(format: "label == %@", "记一笔")).allElementsBoundByIndex.first
-        if let fl = fabLabel, fl.isHittable {
-            fl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            sleep(4)
-            shoot("ov-fin-06-sheet-addtransaction")
-            dismissSheet(app)
-        } else {
-            fab.tap()
-            sleep(4)
-            shoot("ov-fin-06-sheet-addtransaction")
-            dismissSheet(app)
-        }
-        if false {
-            shoot("ov-fin-06-sheet-addtransaction")
-            dismissSheet(app)
         }
     }
 
@@ -865,11 +857,14 @@ final class HoloIPadOvernightUITests: XCTestCase {
         }
         tapLabeled(app, "个人", sidebar: true, settle: 4)
         shoot("ov-profile-01")
-        // 个人页常见行
-        for (label, name) in [("会员", "ov-profile-02-membership"), ("订阅", "ov-profile-02-membership")] {
-            if tapLabeled(app, label, sidebar: false, settle: 4) {
-                shoot(name)
-                break
+        // 目标列表（D7 卡墙验证）：从个人页我的目标进入
+        if tapLabeled(app, "目标管理", sidebar: false, settle: 4) {
+            shoot("ov-goal-01-list")
+            // 点第一张目标卡进详情（限宽验证）
+            if let card = firstCard(in: app) {
+                card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                sleep(4)
+                shoot("ov-goal-02-detail")
             }
         }
     }
