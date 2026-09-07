@@ -6,8 +6,8 @@
   "inputs": 92,
   "calls": 227,
   "tokens": {
-    "prompt": 268555,
-    "completion": 149035
+    "prompt": 264133,
+    "completion": 136331
   },
   "models": [
     "deepseek-v4-flash"
@@ -17,50 +17,50 @@
     "total": 24
   },
   "personalEffectRate": {
-    "pass": 21,
+    "pass": 22,
     "total": 24
   },
   "forbiddenViolations": 0,
-  "planParseRepaired": 1,
+  "planParseRepaired": 2,
   "judge": {
     "contextAppliedV0": {
-      "pass": 20,
-      "total": 20,
-      "skippedDamaged": 4
-    },
-    "counterfactualV1": {
-      "pass": 20,
-      "total": 20,
-      "skippedDamaged": 0
-    },
-    "irrelevantRobustV2": {
-      "pass": 12,
+      "pass": 18,
       "total": 18,
       "skippedDamaged": 6
     },
+    "counterfactualV1": {
+      "pass": 18,
+      "total": 19,
+      "skippedDamaged": 1
+    },
+    "irrelevantRobustV2": {
+      "pass": 10,
+      "total": 21,
+      "skippedDamaged": 3
+    },
     "pairwiseAB": {
-      "pass": 20,
-      "total": 20,
-      "skippedDamaged": 4
+      "pass": 18,
+      "total": 18,
+      "skippedDamaged": 6
     }
   },
   "byCategory": {
     "responsibility": {
       "goals": 4,
       "contextAppliedV0": {
-        "pass": 3,
+        "pass": 2,
         "total": 4
       },
       "counterfactualV1": {
-        "pass": 4,
-        "total": 4
-      },
-      "pairwiseAB": {
         "pass": 3,
         "total": 4
       },
+      "pairwiseAB": {
+        "pass": 2,
+        "total": 4
+      },
       "irrelevantRobustV2": {
-        "pass": 4,
+        "pass": 3,
         "total": 4
       }
     },
@@ -71,7 +71,7 @@
         "total": 4
       },
       "counterfactualV1": {
-        "pass": 4,
+        "pass": 3,
         "total": 4
       },
       "pairwiseAB": {
@@ -79,14 +79,14 @@
         "total": 4
       },
       "irrelevantRobustV2": {
-        "pass": 4,
+        "pass": 2,
         "total": 4
       }
     },
     "third-party": {
       "goals": 4,
       "contextAppliedV0": {
-        "pass": 3,
+        "pass": 4,
         "total": 4
       },
       "counterfactualV1": {
@@ -94,11 +94,11 @@
         "total": 4
       },
       "pairwiseAB": {
-        "pass": 3,
+        "pass": 4,
         "total": 4
       },
       "irrelevantRobustV2": {
-        "pass": 2,
+        "pass": 3,
         "total": 4
       }
     },
@@ -117,7 +117,7 @@
         "total": 2
       },
       "irrelevantRobustV2": {
-        "pass": 0,
+        "pass": 1,
         "total": 2
       }
     },
@@ -132,14 +132,14 @@
         "total": 2
       },
       "irrelevantRobustV2": {
-        "pass": 2,
+        "pass": 1,
         "total": 2
       }
     },
     "stale-state": {
       "goals": 4,
       "contextAppliedV0": {
-        "pass": 3,
+        "pass": 2,
         "total": 4
       },
       "counterfactualV1": {
@@ -147,11 +147,11 @@
         "total": 4
       },
       "pairwiseAB": {
-        "pass": 3,
+        "pass": 2,
         "total": 4
       },
       "irrelevantRobustV2": {
-        "pass": 3,
+        "pass": 2,
         "total": 4
       }
     },
@@ -166,14 +166,14 @@
         "total": 2
       },
       "irrelevantRobustV2": {
-        "pass": 2,
+        "pass": 1,
         "total": 2
       }
     },
     "preference": {
       "goals": 2,
       "contextAppliedV0": {
-        "pass": 1,
+        "pass": 0,
         "total": 2
       },
       "counterfactualV1": {
@@ -181,11 +181,11 @@
         "total": 2
       },
       "pairwiseAB": {
-        "pass": 1,
+        "pass": 0,
         "total": 2
       },
       "irrelevantRobustV2": {
-        "pass": 1,
+        "pass": 0,
         "total": 2
       }
     }

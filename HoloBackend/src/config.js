@@ -276,7 +276,8 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_TEMPERATURE ?? 0.3),
-      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_MAX_TOKENS ?? 4000),
+      // 8000：completion 计费含思考输出，4000 实测被长回答截断致 JSON 解析失败。
+      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_MAX_TOKENS ?? 8000),
       // 方案生成含组合推演：low 档。
       reasoningEffort: process.env.HOLO_PERSONAL_CONTEXT_PLANNING_REASONING_EFFORT ?? "low",
       requestLimits: {

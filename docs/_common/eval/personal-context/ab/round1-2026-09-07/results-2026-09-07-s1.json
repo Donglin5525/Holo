@@ -1,0 +1,2307 @@
+{
+  "evaluatedAt": "2026-09-07",
+  "note": "A 臂=纯 utterance 普通聊天（线上基线下界近似，未含 chat 记忆摘要注入）；B 臂规划输入含 harness 附加 planEffects 要求；judge 为模型初评，人工盲评待做；设备轮换为过渡口径",
+  "results": [
+    {
+      "goalID": "ab-02",
+      "category": "responsibility",
+      "domain": "家庭",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我负责定期给腿脚不便的母亲送菜",
+            "我出差或回老家时需提前安排邻居张姨帮忙给母亲送菜",
+            "张姨有我家备用钥匙",
+            "张姨帮忙送菜一次我给她转五十元"
+          ],
+          "plan": {
+            "goalSummary": "梳理国庆回老家前的准备工作，重点是安排好母亲每日送菜事宜。",
+            "answerText": "回老家前最需要操心的是母亲的送菜问题。既然你有备用钥匙能给张姨，平时也是她在你不在时帮忙送菜，那这次出发前需要做几件事：先和张姨确认你离开的日期和天数，让她知道需要帮忙送几天；按每次50元准备好报酬，可以提前转或回来后转；如果离开时间较长，也和母亲打个招呼让她知道张姨会来。另外，别忘了把行程中家里其他需要交代的事项一并理顺，比如水电、信箱等，但送菜是核心。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "联系张姨确认送菜安排",
+                "kind": "task",
+                "reason": "你不在时需张姨帮忙送菜，必须提前沟通具体日期和天数",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [
+                  "确定回老家的确切日期和天数"
+                ],
+                "relativeTiming": "出发前至少3天",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "告诉母亲张姨会来送菜",
+                "kind": "task",
+                "reason": "让母亲知晓安排，避免误会或遗漏",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [
+                  "已联系张姨"
+                ],
+                "relativeTiming": "出发前1-2天",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "准备张姨的送菜报酬",
+                "kind": "task",
+                "reason": "张姨帮忙送菜每次50元，需提前准备好钱或转账",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c4"
+                ],
+                "preconditions": [
+                  "确认送菜总次数"
+                ],
+                "relativeTiming": "出发前或送菜结束后",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "清点家中其他临行事项",
+                "kind": "checklistItem",
+                "reason": "除送菜外，回老家前通常需处理水电、门窗等，但需根据实际情况",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "出发前1天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你计划回老家几天？",
+                "impact": "决定张姨需要送菜的总次数和提前沟通的具体日程",
+                "independentParts": "只要确定是否有人送菜这一安排本身即可，天数影响具体频次"
+              },
+              {
+                "question": "张姨能否在国庆期间帮忙？",
+                "impact": "若张姨不便，需要另找替代方案",
+                "independentParts": "送菜是核心，但替代方案不影响其他准备工作"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i1",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c4"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "因你需为母亲送菜，出发前增加联系张姨并协调送菜安排的任务",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "为送菜安排增加一项准备报酬的事项，按每次50元计算",
+                "contextRefs": [
+                  "c4"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "需要通知母亲送菜安排，避免她不知情",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3",
+                "c4"
+              ],
+              "missingScopes": [
+                "具体的日期和天数未知"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\n  \"goalSummary\": \"梳理国庆回老家前的准备工作，重点是安排好母亲每日送菜事宜。\",\n  \"answerText\": \"回老家前最需要操心的是母亲的送菜问题。既然你有备用钥匙能给张姨，平时也是她在你不在时帮忙送菜，那这次出发前需要做几件事：先和张姨确认你离开的日期和天数，让她知道需要帮忙送几天；按每次50元准备好报酬，可以提前转或回来后转；如果离开时间较长，也和母亲打个招呼让她知道张姨会来。另外，别忘了把行程中家里其他需要交代的事项一并理顺，比如水电、信箱等，但送菜是核心。\",\n  \"items\": [\n    {\n      \"itemID\": \"i1\",\n      \"title\": \"联系张姨确认送菜安排\",\n      \"kind\": \"task\",\n      \"reason\": \"你不在时需张姨帮忙送菜，必须提前沟通具体日期和天数\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c2\"],\n      \"preconditions\": [\"确定回老家的确切日期和天数\"],\n      \"relativeTiming\": \"出发前至少3天\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i2\",\n      \"title\": \"告诉母亲张姨会来送菜\",\n      \"kind\": \"task\",\n      \"reason\": \"让母亲知晓安排，避免误会或遗漏\",\n      \"basis\": \"inference\",\n      \"sourceRefs\": [\"c1\", \"c2\"],\n      \"preconditions\": [\"已联系张姨\"],\n      \"relativeTiming\": \"出发前1-2天\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i3\",\n      \"title\": \"准备张姨的送菜报酬\",\n      \"kind\": \"task\",\n      \"reason\": \"张姨帮忙送菜每次50元，需提前准备好钱或转账\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c4\"],\n      \"preconditions\": [\"确认送菜总次数\"],\n      \"relativeTiming\": \"出发前或送菜结束后\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i4\",\n      \"title\": \"清点家中其他临行事项\",\n      \"kind\": \"checklistItem\",\n      \"reason\": \"除送菜外，回老家前通常需处理水电、门窗等，但需根据实际情况\",\n      \"basis\": \"generalKnowledge\",\n      \"sourceRefs\": [],\n      \"preconditions\": [],\n      \"relativeTiming\": \"出发前1天\",\n      \"selected\": false\n    }\n  ],\n  \"unknowns\": [\n    {\n      \"question\": \"你计划回老家几天？\",\n      \"impact\": \"决定张姨需要送菜的总次数和提前沟通的具体日程\",\n      \"independentParts\": \"只要确定是否有人送菜这一安排本身即可，天数影响具体频次\"\n    },\n    {\n      \"question\": \"张姨能否在国庆期间帮忙？\",\n      \"impact\": \"若张姨不便，需要另找替代方案\",\n      \"independentParts\": \"送菜是核心，但替代方案不影响其他准备工作\"\n    }\n  ],\n  \"dependencyEdges\": [\n    { \"from\": \"i1\", \"to\": \"i2\" },\n    { \"from\": \"i1\", \"to\": \"i3\" }\n  ],\n  \"usedContextRefs\": [\"c1\", \"c2\", \"c4\"],\n  \"planEffects\": [\n    {\n      \"kind\": \"add\",\n      \"summary\": \"因你需为母亲送菜，出发前增加联系张姨并协调送菜安排的任务\",\n      \"contextRefs\": [\"c2\"]\n    },\n    {\n      \"kind\": \"add\",\n      \"summary\": \"为送菜安排增加一项准备报酬的事项，按每次50元计算\",\n      \"contextRefs\": [\"c4\"]\n    },\n    {\n      \"kind\": \"add\",\n      \"summary\": \"需要通知母亲送菜安排，避免她不知情\",\n      \"contextRefs\": [\"c1\"]\n    }\n  ],\n  \"coverage\": {\n    \"readSources\": [\"c1\", \"c2\", \"c3\", \"c4\"],\n    \"missingScopes\": [\"具体的日期和天数未知\"],\n    \"externalFactsVerified\": false\n  }\n}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1147,
+              "completionTokens": 642,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 4656
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1065,
+              "completionTokens": 223,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2209
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1307,
+              "completionTokens": 1034,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_planning",
+              "latencyMs": 7556
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我母亲上个月搬进了城里的养老院，白天有护工照看，不再需要送菜",
+            "张姨有我家备用钥匙，她帮忙送菜一次我给她转五十"
+          ],
+          "plan": {
+            "goalSummary": "国庆回老家前的行前准备安排，重点结合母亲已搬入养老院这一新情况调整原托付安排。",
+            "answerText": "根据我们目前聊到的信息，有一个关键变化：母亲上个月已经搬进养老院，白天有护工照顾，所以原来托张姨送菜的事就自然不用了。你回老家前，建议重点做这几件事：\n\n1. 先跟张姨明确说一声——母亲已住养老院，不用再送菜，备用钥匙也确认好是否还需要放在她那里（避免她继续照旧帮忙）。\n2. 确认回老家的行程（车票、住宿）以及到养老院探望母亲的时间安排，最好提前问一下养老院的探视规定。\n3. 想想母亲在养老院是否需要带点家里的东西（比如常用衣物、老照片或她惦记的小物件），可在出发前打个电话问问她。\n\n如果还有家里植物需要浇水、水电门窗要检查之类的事，也一并考虑进去。需要我帮你列成一张待办清单吗？",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "通知张姨不用再送菜，并确认备用钥匙处理",
+                "kind": "adjustment",
+                "reason": "母亲已搬进养老院，原有送菜委托随之失效，需主动终止并处理钥匙问题。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前",
+                "selected": true
+              },
+              {
+                "itemID": "i2",
+                "title": "确认国庆返乡行程及火车/票务",
+                "kind": "task",
+                "reason": "出行基本前提，需提前安排。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "出发前尽早",
+                "selected": true
+              },
+              {
+                "itemID": "i3",
+                "title": "联系养老院确认探视时间与规定",
+                "kind": "task",
+                "reason": "母亲已住养老院，看望需按机构规则预约/安排。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [
+                  "i1完成后"
+                ],
+                "relativeTiming": "确认行程后",
+                "selected": true
+              },
+              {
+                "itemID": "i4",
+                "title": "给母亲打个电话，问问是否需要带东西",
+                "kind": "task",
+                "reason": "体现关心，提前确认具体需求。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前几天",
+                "selected": true
+              },
+              {
+                "itemID": "i5",
+                "title": "检查老家房屋水电、门窗及植物照料",
+                "kind": "checklistItem",
+                "reason": "离家较长时间，回家后需确认房屋安全；若有绿植可顺带安排。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "到达老家后",
+                "selected": true
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "母亲在养老院近期有无特别需要带的物品或希望你来时做的事？",
+                "impact": "这会影响你实际带的行李和探望内容。",
+                "independentParts": "返程交通和通知张姨等基础安排不依赖此答案。"
+              },
+              {
+                "question": "老家房屋是否长期无人居住、是否有需要他人照管的绿植或宠物？",
+                "impact": "影响行前是否要安排额外照管事务。",
+                "independentParts": "探望母亲的安排已与租房照料脱钩。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "remove",
+                "summary": "因母亲已搬进养老院，取消了原本托张姨送菜的安排。",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "currentRequest",
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"国庆回老家前的行前准备安排，重点结合母亲已搬入养老院这一新情况调整原托付安排。\",\"answerText\":\"根据我们目前聊到的信息，有一个关键变化：母亲上个月已经搬进养老院，白天有护工照顾，所以原来托张姨送菜的事就自然不用了。你回老家前，建议重点做这几件事：\\n\\n1. 先跟张姨明确说一声——母亲已住养老院，不用再送菜，备用钥匙也确认好是否还需要放在她那里（避免她继续照旧帮忙）。\\n2. 确认回老家的行程（车票、住宿）以及到养老院探望母亲的时间安排，最好提前问一下养老院的探视规定。\\n3. 想想母亲在养老院是否需要带点家里的东西（比如常用衣物、老照片或她惦记的小物件），可在出发前打个电话问问她。\\n\\n如果还有家里植物需要浇水、水电门窗要检查之类的事，也一并考虑进去。需要我帮你列成一张待办清单吗？\",\"items\":[{\"itemID\":\"i1\",\"title\":\"通知张姨不用再送菜，并确认备用钥匙处理\",\"kind\":\"adjustment\",\"reason\":\"母亲已搬进养老院，原有送菜委托随之失效，需主动终止并处理钥匙问题。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"出发前\",\"selected\":true},{\"itemID\":\"i2\",\"title\":\"确认国庆返乡行程及火车/票务\",\"kind\":\"task\",\"reason\":\"出行基本前提，需提前安排。\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"出发前尽早\",\"selected\":true},{\"itemID\":\"i3\",\"title\":\"联系养老院确认探视时间与规定\",\"kind\":\"task\",\"reason\":\"母亲已住养老院，看望需按机构规则预约/安排。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[\"i1完成后\"],\"relativeTiming\":\"确认行程后\",\"selected\":true},{\"itemID\":\"i4\",\"title\":\"给母亲打个电话，问问是否需要带东西\",\"kind\":\"task\",\"reason\":\"体现关心，提前确认具体需求。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"出发前几天\",\"selected\":true},{\"itemID\":\"i5\",\"title\":\"检查老家房屋水电、门窗及植物照料\",\"kind\":\"checklistItem\",\"reason\":\"离家较长时间，回家后需确认房屋安全；若有绿植可顺带安排。\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"到达老家后\",\"selected\":true}],\"unknowns\":[{\"question\":\"母亲在养老院近期有无特别需要带的物品或希望你来时做的事？\",\"impact\":\"这会影响你实际带的行李和探望内容。\",\"independentParts\":\"返程交通和通知张姨等基础安排不依赖此答案。\"},{\"question\":\"老家房屋是否长期无人居住、是否有需要他人照管的绿植或宠物？\",\"impact\":\"影响行前是否要安排额外照管事务。\",\"independentParts\":\"探望母亲的安排已与租房照料脱钩。\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"remove\",\"summary\":\"因母亲已搬进养老院，取消了原本托张姨送菜的安排。\",\"contextRefs\":[\"c1\",\"c2\"]}],\"coverage\":{\"readSources\":[\"currentRequest\",\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1142,
+              "completionTokens": 406,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2758
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 981,
+              "completionTokens": 239,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2475
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1281,
+              "completionTokens": 1304,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_planning",
+              "latencyMs": 11515
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我负责定期去看望母亲并给她送菜",
+            "我出差或回老家时，需要提前安排邻居张姨帮忙给母亲送菜",
+            "张姨有我家备用钥匙",
+            "张姨帮忙送菜一次，我给她转五十元",
+            "我最近在通勤路上听评书解闷"
+          ],
+          "plan": {
+            "goalSummary": "国庆回老家前的准备安排",
+            "answerText": "国庆想回老家的话，提前把妈妈这边的事安排好，路上也能安心。看你的记录，平时是你负责给妈妈送菜，回老家时就要把这几周交给张姨。建议：\n1. 先确认你这次回去的具体日期（什么时候出发、待几天），好算出张姨需要代送几趟菜。\n2. 提前跟张姨打个招呼，核对好送菜时间和频率。\n3. 每次送菜照常转50元，可以一次性算好提前转，或分次转，看你习惯。\n4. 出发前给妈妈打个电话说一声，让她知道这几天是张姨来，有什么需要叫张姨帮忙。\n5. 如果家中有别的临时事项（比如取快递、浇绿植），也一并交代张姨。\n具体还要看你的出发日期和妈妈那边有没有其他安排。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认回老家的具体日期和天数",
+                "kind": "task",
+                "reason": "决定张姨代送菜的次数，是安排的基础",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "出发前确定",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "提前联系张姨，确认代送菜安排",
+                "kind": "task",
+                "reason": "记录显示回老家时需要提前安排张姨送菜，需要先进行沟通",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前3-5天",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "准备张姨的代送费用",
+                "kind": "checklistItem",
+                "reason": "每次张姨送菜需要转五十元，需按次数准备",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c4"
+                ],
+                "preconditions": [
+                  "i2"
+                ],
+                "relativeTiming": "出发前",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "发微信/打电话告诉妈妈，近期由张姨送菜",
+                "kind": "task",
+                "reason": "让妈妈知晓变化，有需要可直接联系张姨",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前1-2天",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "检查家中是否还有其他需要张姨代办的事项",
+                "kind": "checklistItem",
+                "reason": "张姨有备用钥匙，可利用其协助处理基本家务",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "出发前",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              "这次回去的具体出发日期和天数？以便算代送次数。",
+              "妈妈那边是否还有其他临时需求需要转告张姨？"
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3",
+              "c4"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "因回老家的安排，需额外增加联系张姨代送蔬菜的任务",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "需按代送次数准备支付给张姨的费用",
+                "contextRefs": [
+                  "c4"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因张姨有备用钥匙，可以考虑将家中其他代办事项一并托付",
+                "contextRefs": [
+                  "c3"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3",
+                "c4",
+                "c5"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"国庆回老家前的准备安排\",\"answerText\":\"国庆想回老家的话，提前把妈妈这边的事安排好，路上也能安心。看你的记录，平时是你负责给妈妈送菜，回老家时就要把这几周交给张姨。建议：\\n1. 先确认你这次回去的具体日期（什么时候出发、待几天），好算出张姨需要代送几趟菜。\\n2. 提前跟张姨打个招呼，核对好送菜时间和频率。\\n3. 每次送菜照常转50元，可以一次性算好提前转，或分次转，看你习惯。\\n4. 出发前给妈妈打个电话说一声，让她知道这几天是张姨来，有什么需要叫张姨帮忙。\\n5. 如果家中有别的临时事项（比如取快递、浇绿植），也一并交代张姨。\\n具体还要看你的出发日期和妈妈那边有没有其他安排。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认回老家的具体日期和天数\",\"kind\":\"task\",\"reason\":\"决定张姨代送菜的次数，是安排的基础\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"出发前确定\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"提前联系张姨，确认代送菜安排\",\"kind\":\"task\",\"reason\":\"记录显示回老家时需要提前安排张姨送菜，需要先进行沟通\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"出发前3-5天\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"准备张姨的代送费用\",\"kind\":\"checklistItem\",\"reason\":\"每次张姨送菜需要转五十元，需按次数准备\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c4\"],\"preconditions\":[\"i2\"],\"relativeTiming\":\"出发前\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"发微信/打电话告诉妈妈，近期由张姨送菜\",\"kind\":\"task\",\"reason\":\"让妈妈知晓变化，有需要可直接联系张姨\",\"basis\":\"inference\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"出发前1-2天\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"检查家中是否还有其他需要张姨代办的事项\",\"kind\":\"checklistItem\",\"reason\":\"张姨有备用钥匙，可利用其协助处理基本家务\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":\"出发前\",\"selected\":false}],\"unknowns\":[\"这次回去的具体出发日期和天数？以便算代送次数。\",\"妈妈那边是否还有其他临时需求需要转告张姨？\"],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\",\"c4\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"因回老家的安排，需额外增加联系张姨代送蔬菜的任务\",\"contextRefs\":[\"c2\"]},{\"kind\":\"add\",\"summary\":\"需按代送次数准备支付给张姨的费用\",\"contextRefs\":[\"c4\"]},{\"kind\":\"add\",\"summary\":\"因张姨有备用钥匙，可以考虑将家中其他代办事项一并托付\",\"contextRefs\":[\"c3\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\",\"c4\",\"c5\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1179,
+              "completionTokens": 777,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 4502
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1145,
+              "completionTokens": 172,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2863
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1330,
+              "completionTokens": 1071,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_planning",
+              "latencyMs": 9401
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": ""
+          },
+          "rawPlan": "",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1403,
+              "completionTokens": 1024,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "chat",
+              "latencyMs": 11293
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "PlanY取消了送菜安排，转向探望养老院母亲；PlanX仍以送菜为核心，不符合背景变化。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2395,
+            "completionTokens": 124,
+            "device": "pc-abeval-2026-09-07-20",
+            "purpose": "chat",
+            "latencyMs": 1511
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "tie",
+          "reason": "两份方案核心均为送菜衔接，且未引入评书等无关信息；Y 多出的确认日期只是合理执行步骤，不构成不合理的额外安排。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2396,
+            "completionTokens": 1006,
+            "device": "pc-abeval-2026-09-07-20",
+            "purpose": "chat",
+            "latencyMs": 8981
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        }
+      }
+    },
+    {
+      "goalID": "ab-06",
+      "category": "temporal",
+      "domain": "学习",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "目标证书的报名截止时间是十月八号，考试在十二月中旬，错过要再等一年",
+            "十月底到十一月需要驻场，晚上基本没有时间看书"
+          ],
+          "plan": {
+            "goalSummary": "考证准备时间规划",
+            "answerText": "结合你的情况，我有几点规划建议：\n\n第一步是**在10月8日截止前完成报名**，这是硬性节点，错过要再等一年。\n\n从今天（9月中旬）到12月中旬考试，大约有3个月。但需要注意：**10月底到11月你需要驻场，晚上基本没时间看书**，意味着这段约一个月的时间备考效率会大幅下降。所以备考节奏要往前压：\n\n1. **9月中到10月底**（驻场前）是黄金备考期，尽量利用晚上时间完成基础学习和大部分知识点掌握，尤其把需要大量专注的内容放在这个阶段。\n2. **驻场期间（10月底-11月）**只能靠白天零星时间或周末复习，建议只安排轻量的刷题或错题回顾，不要给自己定太难的任务，避免焦虑。\n3. **12月初到考前**（驻场结束）可集中冲刺模拟和查漏补缺。\n\n这样安排可以尽量避开驻场带来的时间缺口。具体每天投入多少时间、你的基础如何，会影响细节分配，但目前从时间框架上是可行的。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "在10月8日前完成考试报名",
+                "kind": "task",
+                "reason": "报名截止是硬性时间节点，错过需再等一年",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "在10月8日前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "9月中旬至10月底前完成基础阶段学习",
+                "kind": "checklistItem",
+                "reason": "利用驻场前晚上可控的时间，完成需要整块时间的知识学习",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "10月底之前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "驻场期间安排轻量复习（刷题/错题回顾）",
+                "kind": "adjustment",
+                "reason": "驻场后每晚没时间，应降低强度避免中断感",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "10月底至11月",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "12月初驻场结束后进入冲刺阶段",
+                "kind": "task",
+                "reason": "考前集中进行模拟与查漏补缺",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "12月初至考前",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你目前在考证科目上的基础如何？",
+                "impact": "决定基础阶段需要预留多长时间，影响9月到10月的排课强度",
+                "independentParts": "报名时间节点不依赖此答案"
+              },
+              {
+                "question": "你除了晚上外，周末或白天有没有可利用的碎片时间？",
+                "impact": "影响驻场期间的复习安排密度",
+                "independentParts": "报名和基础阶段计划不依赖此答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              },
+              {
+                "from": "i3",
+                "to": "i4"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "reschedule",
+                "summary": "将主要的晚间学习安排在驻场之前（9月至10月底），避开10月底至11月的无晚间时间窗口",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "驻场期间改用轻量复习策略，不安排高强度学习任务",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "用户每日可支配时间",
+                "考试科目难度"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"考证准备时间规划\",\"answerText\":\"结合你的情况，我有几点规划建议：\\n\\n第一步是**在10月8日截止前完成报名**，这是硬性节点，错过要再等一年。\\n\\n从今天（9月中旬）到12月中旬考试，大约有3个月。但需要注意：**10月底到11月你需要驻场，晚上基本没时间看书**，意味着这段约一个月的时间备考效率会大幅下降。所以备考节奏要往前压：\\n\\n1. **9月中到10月底**（驻场前）是黄金备考期，尽量利用晚上时间完成基础学习和大部分知识点掌握，尤其把需要大量专注的内容放在这个阶段。\\n2. **驻场期间（10月底-11月）**只能靠白天零星时间或周末复习，建议只安排轻量的刷题或错题回顾，不要给自己定太难的任务，避免焦虑。\\n3. **12月初到考前**（驻场结束）可集中冲刺模拟和查漏补缺。\\n\\n这样安排可以尽量避开驻场带来的时间缺口。具体每天投入多少时间、你的基础如何，会影响细节分配，但目前从时间框架上是可行的。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"在10月8日前完成考试报名\",\"kind\":\"task\",\"reason\":\"报名截止是硬性时间节点，错过需再等一年\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"在10月8日前\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"9月中旬至10月底前完成基础阶段学习\",\"kind\":\"checklistItem\",\"reason\":\"利用驻场前晚上可控的时间，完成需要整块时间的知识学习\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"10月底之前\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"驻场期间安排轻量复习（刷题/错题回顾）\",\"kind\":\"adjustment\",\"reason\":\"驻场后每晚没时间，应降低强度避免中断感\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"10月底至11月\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"12月初驻场结束后进入冲刺阶段\",\"kind\":\"task\",\"reason\":\"考前集中进行模拟与查漏补缺\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"12月初至考前\",\"selected\":false}],\"unknowns\":[{\"question\":\"你目前在考证科目上的基础如何？\",\"impact\":\"决定基础阶段需要预留多长时间，影响9月到10月的排课强度\",\"independentParts\":\"报名时间节点不依赖此答案\"},{\"question\":\"你除了晚上外，周末或白天有没有可利用的碎片时间？\",\"impact\":\"影响驻场期间的复习安排密度\",\"independentParts\":\"报名和基础阶段计划不依赖此答案\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i3\"},{\"from\":\"i3\",\"to\":\"i4\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"reschedule\",\"summary\":\"将主要的晚间学习安排在驻场之前（9月至10月底），避开10月底至11月的无晚间时间窗口\",\"contextRefs\":[\"c2\"]},{\"kind\":\"choice\",\"summary\":\"驻场期间改用轻量复习策略，不安排高强度学习任务\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"用户每日可支配时间\",\"考试科目难度\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1136,
+              "completionTokens": 325,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2104
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 966,
+              "completionTokens": 104,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1286
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1272,
+              "completionTokens": 1104,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_planning",
+              "latencyMs": 9796
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [],
+          "plan": {
+            "goalSummary": "考证时间规划（当前缺少个人情境，无法具体排期）",
+            "answerText": "目前我对你的工作节奏、空闲时间和目标证书都还不了解，没法给出靠谱的排期。不过可以先搭一个通用框架：第一步定证书（含报名条件、考试频次、认可度）；第二步倒推备考周期（常见3～6个月，语言类或执业类更长）；第三步把每周可投入的小时数算出来，再分配阶段目标。先告诉我两件事：想考哪个方向的证？每周大概能挤出几个小时？我再帮你细化开始时间。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确定目标证书与考试时间",
+                "kind": "task",
+                "reason": "排期需要锚定考试日期与报名条件",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "先完成此步",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "估算每周可投入学习时间",
+                "kind": "task",
+                "reason": "决定备考周期与每日安排",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "与确定证书同步做",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "列出证书要求后倒推开始日",
+                "kind": "checklistItem",
+                "reason": "多数证书备考周期约3～6个月",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [
+                  "i1",
+                  "i2"
+                ],
+                "relativeTiming": "在i1、i2后进行",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你想考哪个方向的证？具体证书名或领域是什么？",
+                "impact": "不同证书报名条件、考试频率、备考周期差异极大，直接影响何时开始",
+                "independentParts": "大框架不依赖此答案；具体排期必须依赖"
+              },
+              {
+                "question": "你目前每周大概能挤出多少小时用于学习？工作日和周末的可用时段分布如何？",
+                "impact": "决定备考周期的长短和每日任务量，影响开始时间是否要提前",
+                "independentParts": "框架方向不受影响；精细计划依赖"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i3"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [],
+            "planEffects": [],
+            "coverage": {
+              "readSources": [],
+              "missingScopes": [
+                "个人空闲时间",
+                "职业方向",
+                "目标证书",
+                "学习习惯"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"考证时间规划（当前缺少个人情境，无法具体排期）\",\"answerText\":\"目前我对你的工作节奏、空闲时间和目标证书都还不了解，没法给出靠谱的排期。不过可以先搭一个通用框架：第一步定证书（含报名条件、考试频次、认可度）；第二步倒推备考周期（常见3～6个月，语言类或执业类更长）；第三步把每周可投入的小时数算出来，再分配阶段目标。先告诉我两件事：想考哪个方向的证？每周大概能挤出几个小时？我再帮你细化开始时间。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确定目标证书与考试时间\",\"kind\":\"task\",\"reason\":\"排期需要锚定考试日期与报名条件\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"先完成此步\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"估算每周可投入学习时间\",\"kind\":\"task\",\"reason\":\"决定备考周期与每日安排\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"与确定证书同步做\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"列出证书要求后倒推开始日\",\"kind\":\"checklistItem\",\"reason\":\"多数证书备考周期约3～6个月\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[\"i1\",\"i2\"],\"relativeTiming\":\"在i1、i2后进行\",\"selected\":false}],\"unknowns\":[{\"question\":\"你想考哪个方向的证？具体证书名或领域是什么？\",\"impact\":\"不同证书报名条件、考试频率、备考周期差异极大，直接影响何时开始\",\"independentParts\":\"大框架不依赖此答案；具体排期必须依赖\"},{\"question\":\"你目前每周大概能挤出多少小时用于学习？工作日和周末的可用时段分布如何？\",\"impact\":\"决定备考周期的长短和每日任务量，影响开始时间是否要提前\",\"independentParts\":\"框架方向不受影响；精细计划依赖\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i3\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[],\"planEffects\":[],\"coverage\":{\"readSources\":[],\"missingScopes\":[\"个人空闲时间\",\"职业方向\",\"目标证书\",\"学习习惯\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1135,
+              "completionTokens": 346,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2833
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 962,
+              "completionTokens": 393,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_verification",
+              "latencyMs": 4556
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1222,
+              "completionTokens": 568,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_planning",
+              "latencyMs": 6603
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "目标证书的报名截止日期是十月八号，考试在十二月中旬，错过要再等一年",
+            "十月底到十一月需要驻场，晚上基本没时间看书",
+            "学习时喜欢用黄色荧光笔画重点"
+          ],
+          "plan": {
+            "goalSummary": "为考证制定时间规划，考虑报名截止、驻场无空档期等个人情境",
+            "answerText": "从今天（9月15日）来看，这个证书的节奏很紧凑：报名10月8日截止，考试12月中旬，错过要等一年。你10月底到11月要驻场、晚上基本没时间看书，这是最大的冲突点。建议的方案是：\n\n1. **立即确认报名**：如果还没报名，务必在10月8日前完成，避免错过周期。\n2. **分阶段安排**：\n   - 9月中~10月底（约6周）：利用通勤、午休等碎片时间，完成基础内容学习，把需要整块时间的内容放在这段内。\n   - 10月底~11月（驻场期）：接受晚上没空的事实，只安排每天15~30分钟的轻量复习（如做几道题、看笔记），保持手感即可，不给自己加压。\n   - 12月上旬：集中冲刺，安排2~3个周末做模拟和查漏补缺。\n3. 驻场期虽然晚上没时间，但碎片化复习仍可行，关键是提前把大块内容消化掉。\n\n另外注意到你学习时喜欢用黄色荧光笔画重点——这属于个人偏好，可照常使用，不影响安排。\n\n建议你先确认两件事：是否已报名？每天大致能挤出多长的连续学习时间？我再帮你把具体周计划排细。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认是否已报名，若未报名则在10月8日前完成",
+                "kind": "task",
+                "reason": "报名截止10月8日，错过需等一年，是时间线的硬约束",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "在10月8日之前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "制定分阶段学习计划（基础期→驻场期轻量→冲刺期）",
+                "kind": "checklistItem",
+                "reason": "驻场导致晚上时间稀缺，需提前将重头学习安排在10月底之前",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "从当前到12月中旬，按阶段推进",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "调整驻场期的学习预期为碎片化轻量复习",
+                "kind": "adjustment",
+                "reason": "10月底到11月晚上无时间看书，需降低该时段的学习目标，避免挫败",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "10月底至11月",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你目前是否已经报名了？",
+                "impact": "若已报名则无需赶deadline；若未报名，10月8日截止是首要硬约束",
+                "independentParts": "报名状态不影响学习内容分阶段的大方向"
+              },
+              {
+                "question": "你每天大概能挤出多少连续学习时间？",
+                "impact": "决定基础期每天的任务量以及是否需要调整阶段时长",
+                "independentParts": "不影响整体阶段划分，只影响每天计划的具体强度"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i2",
+                "to": "i1"
+              },
+              {
+                "from": "i3",
+                "to": "i2"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "reschedule",
+                "summary": "把大量学习任务安排在10月底驻场开始前，驻场期仅保留轻量复习",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "采用分阶段策略，在驻场前完成基础学习，驻场期保持最小接触，12月冲刺",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [
+                "考试科目与难度详情、每日具体可用时间"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\n  \"goalSummary\": \"为考证制定时间规划，考虑报名截止、驻场无空档期等个人情境\",\n  \"answerText\": \"从今天（9月15日）来看，这个证书的节奏很紧凑：报名10月8日截止，考试12月中旬，错过要等一年。你10月底到11月要驻场、晚上基本没时间看书，这是最大的冲突点。建议的方案是：\\n\\n1. **立即确认报名**：如果还没报名，务必在10月8日前完成，避免错过周期。\\n2. **分阶段安排**：\\n   - 9月中~10月底（约6周）：利用通勤、午休等碎片时间，完成基础内容学习，把需要整块时间的内容放在这段内。\\n   - 10月底~11月（驻场期）：接受晚上没空的事实，只安排每天15~30分钟的轻量复习（如做几道题、看笔记），保持手感即可，不给自己加压。\\n   - 12月上旬：集中冲刺，安排2~3个周末做模拟和查漏补缺。\\n3. 驻场期虽然晚上没时间，但碎片化复习仍可行，关键是提前把大块内容消化掉。\\n\\n另外注意到你学习时喜欢用黄色荧光笔画重点——这属于个人偏好，可照常使用，不影响安排。\\n\\n建议你先确认两件事：是否已报名？每天大致能挤出多长的连续学习时间？我再帮你把具体周计划排细。\",\n  \"items\": [\n    {\n      \"itemID\": \"i1\",\n      \"title\": \"确认是否已报名，若未报名则在10月8日前完成\",\n      \"kind\": \"task\",\n      \"reason\": \"报名截止10月8日，错过需等一年，是时间线的硬约束\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c1\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"在10月8日之前\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i2\",\n      \"title\": \"制定分阶段学习计划（基础期→驻场期轻量→冲刺期）\",\n      \"kind\": \"checklistItem\",\n      \"reason\": \"驻场导致晚上时间稀缺，需提前将重头学习安排在10月底之前\",\n      \"basis\": \"inference\",\n      \"sourceRefs\": [\"c1\", \"c2\"],\n      \"preconditions\": [\"i1\"],\n      \"relativeTiming\": \"从当前到12月中旬，按阶段推进\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i3\",\n      \"title\": \"调整驻场期的学习预期为碎片化轻量复习\",\n      \"kind\": \"adjustment\",\n      \"reason\": \"10月底到11月晚上无时间看书，需降低该时段的学习目标，避免挫败\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c2\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"10月底至11月\",\n      \"selected\": false\n    }\n  ],\n  \"unknowns\": [\n    {\n      \"question\": \"你目前是否已经报名了？\",\n      \"impact\": \"若已报名则无需赶deadline；若未报名，10月8日截止是首要硬约束\",\n      \"independentParts\": \"报名状态不影响学习内容分阶段的大方向\"\n    },\n    {\n      \"question\": \"你每天大概能挤出多少连续学习时间？\",\n      \"impact\": \"决定基础期每天的任务量以及是否需要调整阶段时长\",\n      \"independentParts\": \"不影响整体阶段划分，只影响每天计划的具体强度\"\n    }\n  ],\n  \"dependencyEdges\": [\n    { \"from\": \"i2\", \"to\": \"i1\" },\n    { \"from\": \"i3\", \"to\": \"i2\" }\n  ],\n  \"usedContextRefs\": [\"c1\", \"c2\"],\n  \"planEffects\": [\n    {\n      \"kind\": \"reschedule\",\n      \"summary\": \"把大量学习任务安排在10月底驻场开始前，驻场期仅保留轻量复习\",\n      \"contextRefs\": [\"c2\"]\n    },\n    {\n      \"kind\": \"choice\",\n      \"summary\": \"采用分阶段策略，在驻场前完成基础学习，驻场期保持最小接触，12月冲刺\",\n      \"contextRefs\": [\"c1\", \"c2\"]\n    }\n  ],\n  \"coverage\": {\n    \"readSources\": [\"c1\", \"c2\", \"c3\"],\n    \"missingScopes\": [\"考试科目与难度详情、每日具体可用时间\"],\n    \"externalFactsVerified\": false\n  }\n}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1165,
+              "completionTokens": 458,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3604
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1036,
+              "completionTokens": 155,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2339
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1291,
+              "completionTokens": 1259,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "personal_context_planning",
+              "latencyMs": 11237
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "你想提升，那从现在开始就是最早的时候。不过“什么时候开始”不是拍脑袋定的，得先看两件事：你想考的是哪一类证书，以及它最近的考试/报名时间点。\n\n我没有你的职业方向信息，也没法替你查具体报名日历，所以先聊三句：\n\n- 目标和动机：证书是为了转行、升职加薪，还是补齐某项硬能力？不同目的，备考深度完全不同。\n- 可支配时间：工作日能稳定留出多少时间？周末呢？这决定你的战线该排多长。\n- 考试节点：确定考证种类后，去官方报名系统查一下最近的排期，再往前倒推备考周期。\n\n如果只是想先动起来，一个小切口：选一个最接近你当前工作的证书，把它的考试大纲和报名要求整理成一页纸。确定好之后再动手不迟。\n\n你想考的方向是什么？可以说来我听听，帮你一起理理思路。"
+          },
+          "rawPlan": "你想提升，那从现在开始就是最早的时候。不过“什么时候开始”不是拍脑袋定的，得先看两件事：你想考的是哪一类证书，以及它最近的考试/报名时间点。\n\n我没有你的职业方向信息，也没法替你查具体报名日历，所以先聊三句：\n\n- 目标和动机：证书是为了转行、升职加薪，还是补齐某项硬能力？不同目的，备考深度完全不同。\n- 可支配时间：工作日能稳定留出多少时间？周末呢？这决定你的战线该排多长。\n- 考试节点：确定考证种类后，去官方报名系统查一下最近的排期，再往前倒推备考周期。\n\n如果只是想先动起来，一个小切口：选一个最接近你当前工作的证书，把它的考试大纲和报名要求整理成一页纸。确定好之后再动手不迟。\n\n你想考的方向是什么？可以说来我听听，帮你一起理理思路。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1401,
+              "completionTokens": 627,
+              "device": "pc-abeval-2026-09-07-20",
+              "purpose": "chat",
+              "latencyMs": 8538
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 2,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "PlanX明确了10月8日前报名并将主要学习安排在9月中至10月底，而PlanY缺乏具体时间规划。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2278,
+            "completionTokens": 247,
+            "device": "pc-abeval-2026-09-07-20",
+            "purpose": "chat",
+            "latencyMs": 2811
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "both_bad",
+          "reason": "两份方案都未给出「报12月或改报明年3月」的两档选择比较；PlanX仍执着于10月截止的紧迫感，PlanY又过于泛化，均不符合变化后的背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2326,
+            "completionTokens": 533,
+            "device": "pc-abeval-2026-09-07-20",
+            "purpose": "chat",
+            "latencyMs": 5719
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "方案Y在回答中加入了与备考无关的荧光笔偏好说明，属于不必要的额外内容。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2660,
+            "completionTokens": 482,
+            "device": "pc-abeval-2026-09-07-20",
+            "purpose": "chat",
+            "latencyMs": 5198
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y明确结合了用户10月8日报名截止和驻场前黄金备考期的具体信息，而X只是泛泛建议未给出符合用户时间表的方案。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2329,
+            "completionTokens": 348,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 3840
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-10",
+      "category": "stale-state",
+      "domain": "生活",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "去年装修后曾出现甲醛超标，当时通过天天开窗通风来放味",
+            "上个月检测甲醛已达标，可以放心入住"
+          ],
+          "plan": {
+            "goalSummary": "近期事务梳理",
+            "answerText": "从记录看，你上个月已确认甲醛检测达标，说明去年那轮通风放味是有效的，房子现在可以放心入住——这件事本身已经收尾，没有因此衍生出的待办项。\n\n至于你问“最近有什么需要打理的事”，我手头还不太清楚你指的是哪个范围：是入住相关的琐事、日常家务，还是别的安排？你跟我多讲一句，我再帮你按时间一件件排出来。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认甲醛已达标，居住无需额外处理",
+                "kind": "information",
+                "reason": "上个月检测已达标，说明通风放味生效，可放心入住，不需要再重复排查",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你这次想打理的“事”具体指哪个范围？比如入住收尾、日常生活、财务、还是日程安排？",
+                "impact": "影响我梳理方向：没有范围时我无法判断哪些事项值得列进来，也无法排序优先级",
+                "independentParts": "已确认的甲醛达标结论不依赖这个答案，可直接采纳"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "入住以外的事务范围不明确"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"近期事务梳理\",\"answerText\":\"从记录看，你上个月已确认甲醛检测达标，说明去年那轮通风放味是有效的，房子现在可以放心入住——这件事本身已经收尾，没有因此衍生出的待办项。\\n\\n至于你问“最近有什么需要打理的事”，我手头还不太清楚你指的是哪个范围：是入住相关的琐事、日常家务，还是别的安排？你跟我多讲一句，我再帮你按时间一件件排出来。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认甲醛已达标，居住无需额外处理\",\"kind\":\"information\",\"reason\":\"上个月检测已达标，说明通风放味生效，可放心入住，不需要再重复排查\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"你这次想打理的“事”具体指哪个范围？比如入住收尾、日常生活、财务、还是日程安排？\",\"impact\":\"影响我梳理方向：没有范围时我无法判断哪些事项值得列进来，也无法排序优先级\",\"independentParts\":\"已确认的甲醛达标结论不依赖这个答案，可直接采纳\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"入住以外的事务范围不明确\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1127,
+              "completionTokens": 298,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2769
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 942,
+              "completionTokens": 166,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2367
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1260,
+              "completionTokens": 987,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_planning",
+              "latencyMs": 11070
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "去年装修后甲醛超标，当时通过天天开窗通风来放味",
+            "最近觉得屋里可能还有甲醛味，打算下个月再测一次甲醛"
+          ],
+          "plan": {
+            "goalSummary": "近期事务梳理",
+            "answerText": "从你提到的情况看，最近最值得留意的是甲醛相关的事：你去年装修后通过通风放味，现在感觉屋里可能还有味道，也打算下个月再测一次。眼下可以先坚持日常通风，把下个月的复测列入计划，等结果出来再决定是否要处理。除此之外，我没有掌握你其他明确待办的事项；如果你想起了什么需要打理的事，告诉我，我可以帮你一起排。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "安排下个月甲醛复测",
+                "kind": "task",
+                "reason": "你已计划下个月再测一次甲醛，需要具体定日期、联系检测方或购买自测工具",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "下个月",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "保持日常开窗通风",
+                "kind": "checklistItem",
+                "reason": "装修后有甲醛超标历史，通风是降低室内甲醛的日常有效措施",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "除了甲醛相关的事，还有没有其他需要近期打理的事项？",
+                "impact": "可能改变当前任务清单的优先级和安排",
+                "independentParts": "甲醛相关安排本身不受影响"
+              },
+              {
+                "question": "下个月的甲醛复测是否已确定具体日期或方式？",
+                "impact": "影响是否需要提前准备预约或购买检测工具",
+                "independentParts": "通风的日常行动无需依赖此答案"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "根据你的计划，把下个月的甲醛复测加入待办清单",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因有甲醛超标历史，保留并提醒每日通风作为日常行动",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"近期事务梳理\",\"answerText\":\"从你提到的情况看，最近最值得留意的是甲醛相关的事：你去年装修后通过通风放味，现在感觉屋里可能还有味道，也打算下个月再测一次。眼下可以先坚持日常通风，把下个月的复测列入计划，等结果出来再决定是否要处理。除此之外，我没有掌握你其他明确待办的事项；如果你想起了什么需要打理的事，告诉我，我可以帮你一起排。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"安排下个月甲醛复测\",\"kind\":\"task\",\"reason\":\"你已计划下个月再测一次甲醛，需要具体定日期、联系检测方或购买自测工具\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"下个月\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"保持日常开窗通风\",\"kind\":\"checklistItem\",\"reason\":\"装修后有甲醛超标历史，通风是降低室内甲醛的日常有效措施\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"每天\",\"selected\":false}],\"unknowns\":[{\"question\":\"除了甲醛相关的事，还有没有其他需要近期打理的事项？\",\"impact\":\"可能改变当前任务清单的优先级和安排\",\"independentParts\":\"甲醛相关安排本身不受影响\"},{\"question\":\"下个月的甲醛复测是否已确定具体日期或方式？\",\"impact\":\"影响是否需要提前准备预约或购买检测工具\",\"independentParts\":\"通风的日常行动无需依赖此答案\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"根据你的计划，把下个月的甲醛复测加入待办清单\",\"contextRefs\":[\"c2\"]},{\"kind\":\"add\",\"summary\":\"因有甲醛超标历史，保留并提醒每日通风作为日常行动\",\"contextRefs\":[\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1131,
+              "completionTokens": 337,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3220
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 951,
+              "completionTokens": 246,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_verification",
+              "latencyMs": 3145
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1263,
+              "completionTokens": 988,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_planning",
+              "latencyMs": 10030
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "去年装修后曾出现甲醛超标，当时通过天天开窗通风来放味",
+            "上个月检测甲醛已达标，可以放心入住",
+            "阳台的多肉这个夏天长得很好"
+          ],
+          "plan": {
+            "goalSummary": "近期事务梳理",
+            "answerText": "结合你目前的情况，有两件事值得留意：一是甲醛达标后，原本每天开窗通风的做法可以适当调整，不再需要如此频繁；二是阳台多肉刚经历一个生长旺盛的夏天，初秋时节可以注意逐步调节光照和浇水节奏。另外，如果你近期还有其他想打理的事项，也可以一起告诉我。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "调整通风习惯",
+                "kind": "adjustment",
+                "reason": "甲醛检测已达标，原为放味而坚持的开窗通风可以降低频率",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "立即",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "多肉入秋养护检查",
+                "kind": "task",
+                "reason": "夏季长势良好，进入初秋后光照强度与浇水频率需逐渐调整",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "本月中旬至下旬",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "除了通风和多肉，你是否还有其他最近需要打理的家居或生活事务？",
+                "impact": "若存在其他事务，方案会多出相应任务排期",
+                "independentParts": "通风和多肉两项本身可先执行"
+              },
+              {
+                "question": "多肉当前是露养还是室内养护？",
+                "impact": "影响入秋后的光照调整建议的具体细节",
+                "independentParts": "调整通风的结论不受影响"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "reschedule",
+                "summary": "因为你上个月甲醛已达标，原天天通风的安排可改为偶尔通风，不必再刻意每天进行",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "考虑到多肉夏季长势好，建议采用初秋养护节奏而非继续沿用夏季浇水频率",
+                "contextRefs": [
+                  "c3"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"近期事务梳理\",\"answerText\":\"结合你目前的情况，有两件事值得留意：一是甲醛达标后，原本每天开窗通风的做法可以适当调整，不再需要如此频繁；二是阳台多肉刚经历一个生长旺盛的夏天，初秋时节可以注意逐步调节光照和浇水节奏。另外，如果你近期还有其他想打理的事项，也可以一起告诉我。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"调整通风习惯\",\"kind\":\"adjustment\",\"reason\":\"甲醛检测已达标，原为放味而坚持的开窗通风可以降低频率\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"立即\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"多肉入秋养护检查\",\"kind\":\"task\",\"reason\":\"夏季长势良好，进入初秋后光照强度与浇水频率需逐渐调整\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":\"本月中旬至下旬\",\"selected\":false}],\"unknowns\":[{\"question\":\"除了通风和多肉，你是否还有其他最近需要打理的家居或生活事务？\",\"impact\":\"若存在其他事务，方案会多出相应任务排期\",\"independentParts\":\"通风和多肉两项本身可先执行\"},{\"question\":\"多肉当前是露养还是室内养护？\",\"impact\":\"影响入秋后的光照调整建议的具体细节\",\"independentParts\":\"调整通风的结论不受影响\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"reschedule\",\"summary\":\"因为你上个月甲醛已达标，原天天通风的安排可改为偶尔通风，不必再刻意每天进行\",\"contextRefs\":[\"c1\",\"c2\"]},{\"kind\":\"choice\",\"summary\":\"考虑到多肉夏季长势好，建议采用初秋养护节奏而非继续沿用夏季浇水频率\",\"contextRefs\":[\"c3\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1155,
+              "completionTokens": 431,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3310
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1008,
+              "completionTokens": 280,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_verification",
+              "latencyMs": 3370
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1277,
+              "completionTokens": 1094,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_planning",
+              "latencyMs": 12203
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "我这边暂时没有你的待办、账单或打卡记录，所以给不出具体的“到期提醒”。你可以告诉我你最惦记哪一块——比如“这个月账单”“今天的待办”“习惯有没有断档”——我陪你一起理一理；要是你印象里有几件事想确认，直接说给我也行。"
+          },
+          "rawPlan": "我这边暂时没有你的待办、账单或打卡记录，所以给不出具体的“到期提醒”。你可以告诉我你最惦记哪一块——比如“这个月账单”“今天的待办”“习惯有没有断档”——我陪你一起理一理；要是你印象里有几件事想确认，直接说给我也行。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1395,
+              "completionTokens": 546,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "chat",
+              "latencyMs": 6276
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 2,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "方案X明确认可了甲醛已达标并将该事项视为完结，未再安排通风放味；方案Y则未回应这一背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 1793,
+            "completionTokens": 276,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 2831
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "方案Y明确把下个月的甲醛复测列入安排并回应了仍有疑虑的背景，方案X则误判为无需处理。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2007,
+            "completionTokens": 229,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 2704
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "X",
+          "reason": "无关信息不应改变原方案结构，方案Y因此多加了通风和多肉两项额外安排，属于不合理扩展。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2042,
+            "completionTokens": 305,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 3608
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "方案Y能基于用户历史记录确认甲醛已达标、通风事项已收尾，不再安排相关任务，比通用方案X更贴合其具体情况。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 1838,
+            "completionTokens": 83,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 1782
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-14",
+      "category": "counter-evidence",
+      "domain": "生活",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我想换一台大屏电视，因为客厅现有的电视已经用了十年",
+            "上周洗衣机彻底坏了且无法维修，目前衣服只能手洗"
+          ],
+          "plan": {
+            "goalSummary": "大件采购优先级",
+            "answerText": "从目前情况看，建议优先添置洗衣机：它已经彻底坏了且无法维修，手洗会影响每天的日常，属于刚需；电视虽然用了十年，但没有坏，可以再等等。如果预算紧张，先集中解决洗衣机；如果预算宽裕，买完洗衣机后可以考虑电视升级。\n\n几点参考：\n1. 洗衣机：先量好家中预留尺寸，确定要波轮还是滚筒、需不需要烘干功能，再对比品牌能效和售后。\n2. 电视：主要看客厅观看距离选尺寸，确定是否需要智能系统和特定画质，不急的话可以等大促。\n\n你更在意预算上限，还是更想一步到位？告诉我这两点，我能帮你更具体地圈定型号范围。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "先选购一台合适的洗衣机",
+                "kind": "task",
+                "reason": "洗衣机彻底损坏且无法维修，目前只能手洗，属于影响日常生活的刚性需求，优先级最高。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "尽快",
+                "selected": true
+              },
+              {
+                "itemID": "i2",
+                "title": "确认安装条件并预约送货",
+                "kind": "checklistItem",
+                "reason": "洗衣机需要水电接口和放置空间，提前确认尺寸和管路才能避免买了装不上。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "购买后",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "电视升级列入后续备选",
+                "kind": "task",
+                "reason": "电视已使用十年但未损坏，非紧急，可等洗衣机解决后再考虑。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "洗衣机搞定后",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "预算上限大概是多少？",
+                "impact": "决定是否需要二选一以及可选品牌/型号范围。",
+                "independentParts": "即使不回答，也可先确定洗衣机优先的原则。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "reorder",
+                "summary": "将洗衣机采购置于电视升级之前，因为洗衣机故障已影响日常且属刚需。",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "若预算有限，建议先只购买洗衣机，电视暂缓；若有充足预算再并行考虑电视。",
+                "contextRefs": [
+                  "c2",
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "预算信息",
+                "洗衣机可维修性进一步确认"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"大件采购优先级\",\"answerText\":\"从目前情况看，建议优先添置洗衣机：它已经彻底坏了且无法维修，手洗会影响每天的日常，属于刚需；电视虽然用了十年，但没有坏，可以再等等。如果预算紧张，先集中解决洗衣机；如果预算宽裕，买完洗衣机后可以考虑电视升级。\\n\\n几点参考：\\n1. 洗衣机：先量好家中预留尺寸，确定要波轮还是滚筒、需不需要烘干功能，再对比品牌能效和售后。\\n2. 电视：主要看客厅观看距离选尺寸，确定是否需要智能系统和特定画质，不急的话可以等大促。\\n\\n你更在意预算上限，还是更想一步到位？告诉我这两点，我能帮你更具体地圈定型号范围。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"先选购一台合适的洗衣机\",\"kind\":\"task\",\"reason\":\"洗衣机彻底损坏且无法维修，目前只能手洗，属于影响日常生活的刚性需求，优先级最高。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"尽快\",\"selected\":true},{\"itemID\":\"i2\",\"title\":\"确认安装条件并预约送货\",\"kind\":\"checklistItem\",\"reason\":\"洗衣机需要水电接口和放置空间，提前确认尺寸和管路才能避免买了装不上。\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[\"c2\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"购买后\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"电视升级列入后续备选\",\"kind\":\"task\",\"reason\":\"电视已使用十年但未损坏，非紧急，可等洗衣机解决后再考虑。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"洗衣机搞定后\",\"selected\":false}],\"unknowns\":[{\"question\":\"预算上限大概是多少？\",\"impact\":\"决定是否需要二选一以及可选品牌/型号范围。\",\"independentParts\":\"即使不回答，也可先确定洗衣机优先的原则。\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"reorder\",\"summary\":\"将洗衣机采购置于电视升级之前，因为洗衣机故障已影响日常且属刚需。\",\"contextRefs\":[\"c2\"]},{\"kind\":\"choice\",\"summary\":\"若预算有限，建议先只购买洗衣机，电视暂缓；若有充足预算再并行考虑电视。\",\"contextRefs\":[\"c2\",\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"预算信息\",\"洗衣机可维修性进一步确认\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1132,
+              "completionTokens": 342,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2551
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 952,
+              "completionTokens": 305,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_verification",
+              "latencyMs": 3128
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1266,
+              "completionTokens": 658,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_planning",
+              "latencyMs": 6009
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我想换一台大屏电视，因为客厅那台已经用了十年",
+            "洗衣机上个月已更换为新机，目前家里电器运转正常"
+          ],
+          "plan": {
+            "goalSummary": "大件采购优先级：在家庭现有电器状况下决定先买什么",
+            "answerText": "从你给的情况看，客厅电视用了十年，属于明显超龄服役的老电器；而洗衣机上个月刚换新，家里其他电器运转正常。综合来看，我会优先建议换电视：一是老化电器在画质、能耗和出故障风险上都更值得替换，二是你已经有明确想换的念头，需求清晰。如果预算允许，先集中资源搞定电视，其他大件可以往后放一放。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "优先考虑更换大屏电视",
+                "kind": "task",
+                "reason": "电视已用十年超出典型寿命周期，且你明确想换，替代价值高；洗衣机刚更新不需考虑",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "近期可启动",
+                "selected": true
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "预算大概多少？对画质（4K/OLED等）、尺寸和摆放空间有偏好吗？",
+                "impact": "直接影响电视型号选择和购买时机",
+                "independentParts": "不影响是否优先电视的结论，只影响具体选型"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因洗衣机上月已更换且其他电器正常，将电视列为首选大件，排除洗衣机及其他常规电器",
+                "contextRefs": [
+                  "c2",
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"大件采购优先级：在家庭现有电器状况下决定先买什么\",\"answerText\":\"从你给的情况看，客厅电视用了十年，属于明显超龄服役的老电器；而洗衣机上个月刚换新，家里其他电器运转正常。综合来看，我会优先建议换电视：一是老化电器在画质、能耗和出故障风险上都更值得替换，二是你已经有明确想换的念头，需求清晰。如果预算允许，先集中资源搞定电视，其他大件可以往后放一放。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"优先考虑更换大屏电视\",\"kind\":\"task\",\"reason\":\"电视已用十年超出典型寿命周期，且你明确想换，替代价值高；洗衣机刚更新不需考虑\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"近期可启动\",\"selected\":true}],\"unknowns\":[{\"question\":\"预算大概多少？对画质（4K/OLED等）、尺寸和摆放空间有偏好吗？\",\"impact\":\"直接影响电视型号选择和购买时机\",\"independentParts\":\"不影响是否优先电视的结论，只影响具体选型\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因洗衣机上月已更换且其他电器正常，将电视列为首选大件，排除洗衣机及其他常规电器\",\"contextRefs\":[\"c2\",\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1133,
+              "completionTokens": 321,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2658
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 952,
+              "completionTokens": 197,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2262
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1266,
+              "completionTokens": 481,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_planning",
+              "latencyMs": 5349
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我想换一台大屏电视，因为客厅那台已经用了十年",
+            "上周洗衣机彻底坏了且无法维修，目前只能手洗衣服",
+            "我喜欢在品牌旗舰店买东西，因为售后放心"
+          ],
+          "plan": {
+            "goalSummary": "大件采购优先级：洗衣机亟需替换，电视可延后",
+            "answerText": "按你目前的情况，洗衣机应该是第一优先——上周坏了且无法维修，现在只能手洗，这会持续消耗每天的精力，属于刚性需求。而电视虽然用了十年想换，但不影响日常生活，可以排在洗衣机后面。既然你习惯在品牌旗舰店购买、看重售后，那洗衣机首选在官方旗舰店选；同一位店员或客服还能顺便了解电视款式，等洗衣机安顿好再从容挑电视也不迟。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "去品牌旗舰店选购并下单新洗衣机",
+                "kind": "task",
+                "reason": "洗衣机彻底损坏且无法维修，手洗不可持续，是当前最紧迫的大件需求",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2",
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "本周内尽快",
+                "selected": true
+              },
+              {
+                "itemID": "i2",
+                "title": "确认洗衣机尺寸、上下水及安装条件",
+                "kind": "checklistItem",
+                "reason": "避免买回后因空间或管线不合适耽误安装",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c2",
+                  "c3"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "下单前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "将电视更换排入下一阶段计划",
+                "kind": "adjustment",
+                "reason": "电视虽用十年但未报故障，优先级低于洗衣机，建议待洗衣机落实后再规划",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "洗衣机到位后",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "这次采购的大致预算是多少？",
+                "impact": "决定可选型号区间及是否需要分期或比价",
+                "independentParts": "洗衣机/电视的排序不受预算影响"
+              },
+              {
+                "question": "对洗衣机有无特定容量或功能要求（如洗烘一体、波轮/滚筒）？",
+                "impact": "影响选购范围，但不影响先买洗衣机的决定",
+                "independentParts": "优先顺序不依赖此答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i1",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "reorder",
+                "summary": "把洗衣机置于电视之前，因为它已损坏且无法使用，直接影响日常生活（优先处理应急的一件）",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "购买渠道优先考虑品牌旗舰店，以匹配你信赖售后保障的购物习惯",
+                "contextRefs": [
+                  "c3"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"大件采购优先级：洗衣机亟需替换，电视可延后\",\"answerText\":\"按你目前的情况，洗衣机应该是第一优先——上周坏了且无法维修，现在只能手洗，这会持续消耗每天的精力，属于刚性需求。而电视虽然用了十年想换，但不影响日常生活，可以排在洗衣机后面。既然你习惯在品牌旗舰店购买、看重售后，那洗衣机首选在官方旗舰店选；同一位店员或客服还能顺便了解电视款式，等洗衣机安顿好再从容挑电视也不迟。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"去品牌旗舰店选购并下单新洗衣机\",\"kind\":\"task\",\"reason\":\"洗衣机彻底损坏且无法维修，手洗不可持续，是当前最紧迫的大件需求\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\",\"c3\"],\"preconditions\":[],\"relativeTiming\":\"本周内尽快\",\"selected\":true},{\"itemID\":\"i2\",\"title\":\"确认洗衣机尺寸、上下水及安装条件\",\"kind\":\"checklistItem\",\"reason\":\"避免买回后因空间或管线不合适耽误安装\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[\"c2\",\"c3\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"下单前\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"将电视更换排入下一阶段计划\",\"kind\":\"adjustment\",\"reason\":\"电视虽用十年但未报故障，优先级低于洗衣机，建议待洗衣机落实后再规划\",\"basis\":\"inference\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"洗衣机到位后\",\"selected\":false}],\"unknowns\":[{\"question\":\"这次采购的大致预算是多少？\",\"impact\":\"决定可选型号区间及是否需要分期或比价\",\"independentParts\":\"洗衣机/电视的排序不受预算影响\"},{\"question\":\"对洗衣机有无特定容量或功能要求（如洗烘一体、波轮/滚筒）？\",\"impact\":\"影响选购范围，但不影响先买洗衣机的决定\",\"independentParts\":\"优先顺序不依赖此答案\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i1\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"reorder\",\"summary\":\"把洗衣机置于电视之前，因为它已损坏且无法使用，直接影响日常生活（优先处理应急的一件）\",\"contextRefs\":[\"c2\"]},{\"kind\":\"choice\",\"summary\":\"购买渠道优先考虑品牌旗舰店，以匹配你信赖售后保障的购物习惯\",\"contextRefs\":[\"c3\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1162,
+              "completionTokens": 488,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2962
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1025,
+              "completionTokens": 380,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_verification",
+              "latencyMs": 3844
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1286,
+              "completionTokens": 779,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "personal_context_planning",
+              "latencyMs": 7444
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "你得先说实话：我现在还没到能替你拍板“优先买哪个”的程度。没有预算、空间和真实使用需求这些依据，我不乱给结论。\n\n不如先想清楚三件事：1. 有没有哪件是因为明显不方便，几乎每周都让你堵心；2. 预算大概什么范围，能接受多少钱以内；3. 买来后每周大概会用几次、放在哪里。\n\n你把答案告诉我，我再按“解决多大问题 ÷ 花多少钱”帮你排个优先级。"
+          },
+          "rawPlan": "你得先说实话：我现在还没到能替你拍板“优先买哪个”的程度。没有预算、空间和真实使用需求这些依据，我不乱给结论。\n\n不如先想清楚三件事：1. 有没有哪件是因为明显不方便，几乎每周都让你堵心；2. 预算大概什么范围，能接受多少钱以内；3. 买来后每周大概会用几次、放在哪里。\n\n你把答案告诉我，我再按“解决多大问题 ÷ 花多少钱”帮你排个优先级。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1400,
+              "completionTokens": 648,
+              "device": "pc-abeval-2026-09-07-21",
+              "purpose": "chat",
+              "latencyMs": 7961
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "PlanX 明确将洗衣机列为第一优先并给出行动路径，而 PlanY 拒绝排序，不符合需求。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2000,
+            "completionTokens": 119,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 1688
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "planY正确识别洗衣机已换新，将方案转向优先购买电视，符合变化后的背景；planX仍建议先买洗衣机，与背景矛盾。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2094,
+            "completionTokens": 236,
+            "device": "pc-abeval-2026-09-07-21",
+            "purpose": "chat",
+            "latencyMs": 2675
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "方案Y基于无关的购物喜好额外指定了渠道安排，增加了不必要的条目。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2238,
+            "completionTokens": 374,
+            "device": "pc-abeval-2026-09-07-22",
+            "purpose": "chat",
+            "latencyMs": 3916
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y充分考虑了洗衣机已坏、手洗耽误日常的刚需背景，将洗衣机列为优先，而X未结合用户任何具体情况。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2050,
+            "completionTokens": 102,
+            "device": "pc-abeval-2026-09-07-22",
+            "purpose": "chat",
+            "latencyMs": 1438
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-18",
+      "category": "suppress-reminder",
+      "domain": "健康",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "体检报告显示尿酸偏高，医生建议少喝啤酒、少吃海鲜",
+            "我按医生方案服用降酸药三个月，最近复查指标正常，尿酸问题已解决"
+          ],
+          "plan": {
+            "goalSummary": "健康注意事项",
+            "answerText": "从你的记录看，之前体检发现的尿酸偏高问题，经过三个月按医嘱服用降酸药后，复查指标已恢复正常，这个问题已经解决了。目前没有其他需要特别留意的健康方面记录。\n\n如果你想要更具体的健康建议，我可以基于一般常识给你一些参考，比如保持均衡饮食、多喝水、适量运动、规律作息这些方向；但因为不知道你具体的身体状况和习惯，这些只作为日常参考，不算针对性建议。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "尿酸问题已解决，无需额外干预",
+                "kind": "information",
+                "reason": "根据个人记录，尿酸偏高已通过规范治疗恢复正常，当前无需针对此方面的特别健康管理。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "如需要可建立一般性健康习惯提醒",
+                "kind": "checklistItem",
+                "reason": "若希望保持健康，可从一般常识出发建议均衡饮食、适量运动、充足睡眠等，属于通用参考框架。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"健康注意事项\",\"answerText\":\"从你的记录看，之前体检发现的尿酸偏高问题，经过三个月按医嘱服用降酸药后，复查指标已恢复正常，这个问题已经解决了。目前没有其他需要特别留意的健康方面记录。\\n\\n如果你想要更具体的健康建议，我可以基于一般常识给你一些参考，比如保持均衡饮食、多喝水、适量运动、规律作息这些方向；但因为不知道你具体的身体状况和习惯，这些只作为日常参考，不算针对性建议。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"尿酸问题已解决，无需额外干预\",\"kind\":\"information\",\"reason\":\"根据个人记录，尿酸偏高已通过规范治疗恢复正常，当前无需针对此方面的特别健康管理。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false},{\"itemID\":\"i2\",\"title\":\"如需要可建立一般性健康习惯提醒\",\"kind\":\"checklistItem\",\"reason\":\"若希望保持健康，可从一般常识出发建议均衡饮食、适量运动、充足睡眠等，属于通用参考框架。\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1138,
+              "completionTokens": 394,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2521
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 970,
+              "completionTokens": 606,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_verification",
+              "latencyMs": 6244
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1265,
+              "completionTokens": 507,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_planning",
+              "latencyMs": 5520
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "体检报告提示尿酸偏高，医生建议少喝啤酒、少吃海鲜",
+            "我按医生方案服用降酸药三个月，最近复查指标正常，此事已结束",
+            "我的保温杯容量是五百毫升"
+          ],
+          "plan": {
+            "goalSummary": "健康注意事项",
+            "answerText": "从记录来看，你去年因为尿酸偏高遵医嘱服药，最近复查已恢复正常，这个情况算告一段落了。医生当时提到的少喝啤酒、少吃海鲜，是值得延续的生活习惯，不需要当作任务，平时留意就好。除此之外，没有看见其他明确的健康风险。若想主动管理，最通用也最稳的一步是保证喝水量——你手边的保温杯是500ml，可以用它做个量度，一天喝到三到四杯左右，对多数人来说是比较合适的量（具体需考虑运动、天气和个人习惯）。如果有新的体检报告或不适，可以再告诉我一起看。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "延续低嘌呤饮食偏好（少啤酒、少海鲜）",
+                "kind": "adjustment",
+                "reason": "曾有尿酸偏高，医生给出生活建议，虽然复查已正常，但延续该习惯有助于降低复发风险。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "日常习惯",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "以500ml保温杯为量杯，保证每日饮水量",
+                "kind": "information",
+                "reason": "你的保温杯是500ml，可用来估算饮水，一般常识建议每日饮水1500-2000ml左右，可作为参考。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每日",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "近期是否有新的体检报告或其他不适？",
+                "impact": "如果有其他指标异常，需要额外调整建议方向。",
+                "independentParts": "当前给出的饮水与饮食建议本身不受影响。"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [
+                "睡眠、运动、压力等健康维度未有数据"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\n  \"goalSummary\": \"健康注意事项\",\n  \"answerText\": \"从记录来看，你去年因为尿酸偏高遵医嘱服药，最近复查已恢复正常，这个情况算告一段落了。医生当时提到的少喝啤酒、少吃海鲜，是值得延续的生活习惯，不需要当作任务，平时留意就好。除此之外，没有看见其他明确的健康风险。若想主动管理，最通用也最稳的一步是保证喝水量——你手边的保温杯是500ml，可以用它做个量度，一天喝到三到四杯左右，对多数人来说是比较合适的量（具体需考虑运动、天气和个人习惯）。如果有新的体检报告或不适，可以再告诉我一起看。\",\n  \"items\": [\n    {\n      \"itemID\": \"i1\",\n      \"title\": \"延续低嘌呤饮食偏好（少啤酒、少海鲜）\",\n      \"kind\": \"adjustment\",\n      \"reason\": \"曾有尿酸偏高，医生给出生活建议，虽然复查已正常，但延续该习惯有助于降低复发风险。\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c1\", \"c2\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"日常习惯\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i2\",\n      \"title\": \"以500ml保温杯为量杯，保证每日饮水量\",\n      \"kind\": \"information\",\n      \"reason\": \"你的保温杯是500ml，可用来估算饮水，一般常识建议每日饮水1500-2000ml左右，可作为参考。\",\n      \"basis\": \"generalKnowledge\",\n      \"sourceRefs\": [\"c3\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"每日\",\n      \"selected\": false\n    }\n  ],\n  \"unknowns\": [\n    {\n      \"question\": \"近期是否有新的体检报告或其他不适？\",\n      \"impact\": \"如果有其他指标异常，需要额外调整建议方向。\",\n      \"independentParts\": \"当前给出的饮水与饮食建议本身不受影响。\"\n    }\n  ],\n  \"dependencyEdges\": [],\n  \"usedContextRefs\": [\"c1\", \"c2\", \"c3\"],\n  \"planEffects\": [],\n  \"coverage\": {\n    \"readSources\": [\"c1\", \"c2\", \"c3\"],\n    \"missingScopes\": [\"睡眠、运动、压力等健康维度未有数据\"],\n    \"externalFactsVerified\": false\n  }\n}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1166,
+              "completionTokens": 480,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3378
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1035,
+              "completionTokens": 128,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1830
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1281,
+              "completionTokens": 1066,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_planning",
+              "latencyMs": 9690
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "目前我这里还没有你近期的睡眠、运动、饮食或身体状态相关记录，所以没法凭空判断该注意什么。如果你愿意说说最近哪里不舒服，或者想关注哪个方面的健康，我可以结合已有习惯记录帮你梳理一下。若是身体持续异常，记得先去看看医生。"
+          },
+          "rawPlan": "目前我这里还没有你近期的睡眠、运动、饮食或身体状态相关记录，所以没法凭空判断该注意什么。如果你愿意说说最近哪里不舒服，或者想关注哪个方面的健康，我可以结合已有习惯记录帮你梳理一下。若是身体持续异常，记得先去看看医生。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1395,
+              "completionTokens": 624,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "chat",
+              "latencyMs": 6583
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 2,
+        "personalEffectRefsNonEmpty": 0,
+        "forbiddenHit": [],
+        "unknownsHonest": false
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "X确认尿酸问题已翻篇，仅保留一般健康建议；Y回避用户已提供信息，未给出轻量维持建议。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 1738,
+            "completionTokens": 228,
+            "device": "pc-abeval-2026-09-07-22",
+            "purpose": "chat",
+            "latencyMs": 2783
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "方案Y因无关的保温杯信息额外新增了每日饮水量条目，属于不必要安排；方案X未受影响。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 1903,
+            "completionTokens": 228,
+            "device": "pc-abeval-2026-09-07-22",
+            "purpose": "chat",
+            "latencyMs": 2761
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "方案Y利用用户复查正常的记录，不再反复强调忌口降酸，更贴合已翻篇的实际情况。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 1783,
+            "completionTokens": 76,
+            "device": "pc-abeval-2026-09-07-22",
+            "purpose": "chat",
+            "latencyMs": 1483
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-22",
+      "category": "temporal",
+      "domain": "工作",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "下月十号是项目投标截止日，截止前一周最忙，我走不开",
+            "我还有五天年假，年底作废"
+          ],
+          "plan": {
+            "goalSummary": "协助在下周安排请假处理私事，以不耽误工作为重",
+            "answerText": "你下周（约9月21日那周）请假是可行的，但要留一个心眼：下月十号是项目投标截止日，截止前一周（约10月3日到9日）最忙，那段日子千万别请假。\n\n建议这样安排：\n1) 请假尽量放在下周的前半段（周一至周三），把私事集中处理掉，后半周回到工作节奏，给月底留出缓冲。\n2) 你有五天年假、年底作废，不用一次休完——可以这次休2~3天，剩下的拆开在后面需要时用，急事有备无患。\n3) 请假前最好把手上关键任务的状态列个清单，跟同事同步一下，避免等你回来后突然堆一摊事。\n\n需要我帮你把具体每天的安排理出来吗？也可以告诉我你私事的性质（比如是否需要全天无打扰），我再帮你微调。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "避开投标截止日前一周，请假放在下周前半段",
+                "kind": "adjustment",
+                "reason": "投标截止前一周最忙，不宜离开；下周前半段离截止日远，风险较低",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "下周（2026-09-21那周）的前半段",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "拆开年假，先休2~3天，保留剩余天数",
+                "kind": "adjustment",
+                "reason": "五天年假年底作废，拆开用更灵活，避免一次用尽后临时要请假无假可用",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "下周内分次使用",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "请假前与同事同步关键任务进展",
+                "kind": "task",
+                "reason": "确保请假期间工作不断档，回来后能快速接续",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "请假的前一天或前两天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "私事的性质需要多少整段空闲时间？",
+                "impact": "决定请假天数和时段安排（是否需要连休、是否需避开会议）",
+                "independentParts": "只要不在截止日前一周，具体日期可以灵活"
+              },
+              {
+                "question": "下周是否已有固定会议或交付节点？",
+                "impact": "可能影响请假的具体日期选择",
+                "independentParts": "不影响避开截止周的大原则"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "reschedule",
+                "summary": "请假安排避开项目投标截止日前一周，选在相对空闲的下周前半段",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "年假不一次休完，先拆用2~3天，保留剩余以应对后续需求",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"协助在下周安排请假处理私事，以不耽误工作为重\",\"answerText\":\"你下周（约9月21日那周）请假是可行的，但要留一个心眼：下月十号是项目投标截止日，截止前一周（约10月3日到9日）最忙，那段日子千万别请假。\\n\\n建议这样安排：\\n1) 请假尽量放在下周的前半段（周一至周三），把私事集中处理掉，后半周回到工作节奏，给月底留出缓冲。\\n2) 你有五天年假、年底作废，不用一次休完——可以这次休2~3天，剩下的拆开在后面需要时用，急事有备无患。\\n3) 请假前最好把手上关键任务的状态列个清单，跟同事同步一下，避免等你回来后突然堆一摊事。\\n\\n需要我帮你把具体每天的安排理出来吗？也可以告诉我你私事的性质（比如是否需要全天无打扰），我再帮你微调。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"避开投标截止日前一周，请假放在下周前半段\",\"kind\":\"adjustment\",\"reason\":\"投标截止前一周最忙，不宜离开；下周前半段离截止日远，风险较低\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"下周（2026-09-21那周）的前半段\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"拆开年假，先休2~3天，保留剩余天数\",\"kind\":\"adjustment\",\"reason\":\"五天年假年底作废，拆开用更灵活，避免一次用尽后临时要请假无假可用\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"下周内分次使用\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"请假前与同事同步关键任务进展\",\"kind\":\"task\",\"reason\":\"确保请假期间工作不断档，回来后能快速接续\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"请假的前一天或前两天\",\"selected\":false}],\"unknowns\":[{\"question\":\"私事的性质需要多少整段空闲时间？\",\"impact\":\"决定请假天数和时段安排（是否需要连休、是否需避开会议）\",\"independentParts\":\"只要不在截止日前一周，具体日期可以灵活\"},{\"question\":\"下周是否已有固定会议或交付节点？\",\"impact\":\"可能影响请假的具体日期选择\",\"independentParts\":\"不影响避开截止周的大原则\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"reschedule\",\"summary\":\"请假安排避开项目投标截止日前一周，选在相对空闲的下周前半段\",\"contextRefs\":[\"c1\"]},{\"kind\":\"choice\",\"summary\":\"年假不一次休完，先拆用2~3天，保留剩余以应对后续需求\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1131,
+              "completionTokens": 312,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2342
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 950,
+              "completionTokens": 115,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1698
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1269,
+              "completionTokens": 863,
+              "device": "pc-abeval-2026-09-07-22",
+              "purpose": "personal_context_planning",
+              "latencyMs": 7567
+            }
+          ]
+        }
+      },
+      "error": "personal_context_extraction HTTP 502: <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n<hr><center>nginx/1.24.0 (Ubuntu)</center>\r\n</body>\r\n</h"
+    }
+  ]
+}

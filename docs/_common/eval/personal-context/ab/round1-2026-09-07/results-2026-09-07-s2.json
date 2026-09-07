@@ -1,0 +1,2434 @@
+{
+  "evaluatedAt": "2026-09-07",
+  "note": "A 臂=纯 utterance 普通聊天（线上基线下界近似，未含 chat 记忆摘要注入）；B 臂规划输入含 harness 附加 planEffects 要求；judge 为模型初评，人工盲评待做；设备轮换为过渡口径",
+  "results": [
+    {
+      "goalID": "ab-03",
+      "category": "responsibility",
+      "domain": "工作",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我十月要休陪产假，因为二胎预产期在十月中，项目启动那两周顾不上",
+            "团队里老陈经验最足，之前我休假都是他顶上"
+          ],
+          "plan": {
+            "goalSummary": "为十月的团队新项目做提前规划，同时兼顾陪产假安排",
+            "answerText": "十月你的预产期在月中，正好可能撞上项目启动那两周，这确实需要提前把交接和团队分工盘清楚。结合你的情况，我帮你整理了提前准备的方向：先把请休假的时间和项目关键节点对齐，明确授权老陈临时带队并提前做交接，同时设计好休假期间的沟通与上报机制。下面列出了具体动作和待确认的信息，你可以按需调整。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认项目启动日期与预产期、陪产假的重叠情况",
+                "kind": "task",
+                "reason": "你的陪产假在十月，启动那两周可能顾不上，需要先精确对齐时间",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "本周内确认",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "确定老陈为休假期间的临时负责人并正式授权",
+                "kind": "task",
+                "reason": "团队里老陈经验最足，之前你休假都是他顶上，应由他接手日常带领",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "项目启动前完成",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "与老陈做一次详细的项目交接，明确目标、里程碑、每日/每周节奏及关键决策点",
+                "kind": "checklistItem",
+                "reason": "保证你休假时项目方向不偏，老陈能快速接手",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2",
+                  "c1"
+                ],
+                "preconditions": [
+                  "i2"
+                ],
+                "relativeTiming": "项目启动前",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "在团队内同步休假期间的上报与决策路径（何时需联系你、哪些可由老陈定夺）",
+                "kind": "checklistItem",
+                "reason": "让团队知道遇到问题找谁，也保护你休假的连续性",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "项目启动前",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "如需尽量避开启动关键阶段，可考虑把启动内容拆成更小的里程碑，拆成可并行交付块",
+                "kind": "adjustment",
+                "reason": "陪产假正好落在启动两周内，建议把整体进度做更细分解，减少单点依赖",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "项目启动前评估",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "项目正式启动的具体日期区间是哪几天？与预产期重叠多少？",
+                "impact": "决定是否需要调整项目节奏或把最关键的任务前移/后移",
+                "independentParts": "团队分工和交接准备与日期无关，可以先推进"
+              },
+              {
+                "question": "老陈这次能投入多少精力？他手上是否已有其他并行任务？",
+                "impact": "影响临时负责人的可行性和需要支持的程度，可能需补充资源",
+                "independentParts": "可以先做交接内容清单，这个不依赖答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "为覆盖陪产假，新增老陈作为临时负责人并提前交接的安排",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "reschedule",
+                "summary": "考虑预产期可能在十月中，建议把启动关键任务拆分或错峰，避开无法投入的两周",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为十月的团队新项目做提前规划，同时兼顾陪产假安排\",\"answerText\":\"十月你的预产期在月中，正好可能撞上项目启动那两周，这确实需要提前把交接和团队分工盘清楚。结合你的情况，我帮你整理了提前准备的方向：先把请休假的时间和项目关键节点对齐，明确授权老陈临时带队并提前做交接，同时设计好休假期间的沟通与上报机制。下面列出了具体动作和待确认的信息，你可以按需调整。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认项目启动日期与预产期、陪产假的重叠情况\",\"kind\":\"task\",\"reason\":\"你的陪产假在十月，启动那两周可能顾不上，需要先精确对齐时间\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"本周内确认\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"确定老陈为休假期间的临时负责人并正式授权\",\"kind\":\"task\",\"reason\":\"团队里老陈经验最足，之前你休假都是他顶上，应由他接手日常带领\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[\"i1\"],\"relativeTiming\":\"项目启动前完成\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"与老陈做一次详细的项目交接，明确目标、里程碑、每日/每周节奏及关键决策点\",\"kind\":\"checklistItem\",\"reason\":\"保证你休假时项目方向不偏，老陈能快速接手\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\",\"c1\"],\"preconditions\":[\"i2\"],\"relativeTiming\":\"项目启动前\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"在团队内同步休假期间的上报与决策路径（何时需联系你、哪些可由老陈定夺）\",\"kind\":\"checklistItem\",\"reason\":\"让团队知道遇到问题找谁，也保护你休假的连续性\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"项目启动前\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"如需尽量避开启动关键阶段，可考虑把启动内容拆成更小的里程碑，拆成可并行交付块\",\"kind\":\"adjustment\",\"reason\":\"陪产假正好落在启动两周内，建议把整体进度做更细分解，减少单点依赖\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"项目启动前评估\",\"selected\":false}],\"unknowns\":[{\"question\":\"项目正式启动的具体日期区间是哪几天？与预产期重叠多少？\",\"impact\":\"决定是否需要调整项目节奏或把最关键的任务前移/后移\",\"independentParts\":\"团队分工和交接准备与日期无关，可以先推进\"},{\"question\":\"老陈这次能投入多少精力？他手上是否已有其他并行任务？\",\"impact\":\"影响临时负责人的可行性和需要支持的程度，可能需补充资源\",\"independentParts\":\"可以先做交接内容清单，这个不依赖答案\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"为覆盖陪产假，新增老陈作为临时负责人并提前交接的安排\",\"contextRefs\":[\"c2\"]},{\"kind\":\"reschedule\",\"summary\":\"考虑预产期可能在十月中，建议把启动关键任务拆分或错峰，避开无法投入的两周\",\"contextRefs\":[\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1140,
+              "completionTokens": 362,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2780
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 977,
+              "completionTokens": 124,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1765
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1278,
+              "completionTokens": 977,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_planning",
+              "latencyMs": 8589
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我取消了二胎计划，因此十月没有陪产假安排，可以全程盯项目",
+            "团队里老陈经验最足，之前我休假时都是他顶上"
+          ],
+          "plan": {
+            "goalSummary": "十月带团队做新项目的提前准备",
+            "answerText": "基于你目前的情况，十月的项目可以从几个方面提前盘：\n1. 目标与范围确认：先和干系人对齐项目目标、成功标准、交付范围与不做的部分，避免中途反复。\n2. 人员分工与备份：团队里老陈经验最足，也曾在关键时刻顶替你，可以考虑让他承担关键任务或作为你的副手，同时提前明确每个人的主责。\n3. 时间与节奏：你十月可以全程盯项目，没有休假干扰，排期上可以更紧凑，但也要注意团队负荷，别把大家的节奏拉得太满，留出缓冲。\n4. 风险预案：提前列出可能的卡点（外部依赖、需求变更、人员波动），为每个风险设定应对方案。\n5. 沟通机制：建议固定一个简单的周会或站会节奏，确保信息透明。\n\n你现在最大的优势是时间完整、且有老陈这样的经验倚仗，建议充分利用这两点。具体到细节，需要你先确认项目的规模和复杂度，我再帮你拆更细的步骤。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确认项目目标、范围与成功标准",
+                "kind": "task",
+                "reason": "所有项目准备的第一步，明确交付物边界与验收条件",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "开始准备时",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "将老陈纳入关键角色或顾问",
+                "kind": "adjustment",
+                "reason": "老陈经验最足，且曾在你休假时顶上，证明可承担重要责任，适合在关键决策或难点问题上提供支持",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "项目启动前确定分工时",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "制定排期并明确无休假干扰的窗口",
+                "kind": "adjustment",
+                "reason": "你取消了二胎计划，十月无陪产假可全程盯项目，因此排期上不需要预留你自己缺席的缓冲，可以把关键节点放在十月任何时段",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "十月初排计划时",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "提前梳理风险清单与应对方案",
+                "kind": "task",
+                "reason": "新项目通常有外部依赖、需求变化等不确定性，提前准备可以降低执行期被动",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "项目启动前",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "设定团队沟通节奏与信息同步机制",
+                "kind": "task",
+                "reason": "多人协作需要明确的沟通规则，避免信息断层",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "项目启动第一周",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "项目的具体规模、复杂度以及你这个团队的人数和成员分工是怎样的？",
+                "impact": "影响任务拆解、排期颗粒度和风险识别的具体程度。",
+                "independentParts": "当前的通用准备框架、利用老陈经验和完善排期的方向不受影响。"
+              },
+              {
+                "question": "老陈目前是否已有其他重要任务或个人时间限制？",
+                "impact": "如果老陈负荷已重，需要重新评估他担任关键角色的可行性，可能需要协调资源。",
+                "independentParts": "整体的准备框架和你的全程可用性不依赖此答案。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i4"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因十月无陪产假可全程盯项目，排期不需为你自己预留休假缓冲，关键节点可正常排布",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "因老陈经验最足且曾顶替你的角色，建议将老陈列入关键任务或顾问角色，加强业务保障",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "项目具体细节"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"十月带团队做新项目的提前准备\",\"answerText\":\"基于你目前的情况，十月的项目可以从几个方面提前盘：\\n1. 目标与范围确认：先和干系人对齐项目目标、成功标准、交付范围与不做的部分，避免中途反复。\\n2. 人员分工与备份：团队里老陈经验最足，也曾在关键时刻顶替你，可以考虑让他承担关键任务或作为你的副手，同时提前明确每个人的主责。\\n3. 时间与节奏：你十月可以全程盯项目，没有休假干扰，排期上可以更紧凑，但也要注意团队负荷，别把大家的节奏拉得太满，留出缓冲。\\n4. 风险预案：提前列出可能的卡点（外部依赖、需求变更、人员波动），为每个风险设定应对方案。\\n5. 沟通机制：建议固定一个简单的周会或站会节奏，确保信息透明。\\n\\n你现在最大的优势是时间完整、且有老陈这样的经验倚仗，建议充分利用这两点。具体到细节，需要你先确认项目的规模和复杂度，我再帮你拆更细的步骤。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确认项目目标、范围与成功标准\",\"kind\":\"task\",\"reason\":\"所有项目准备的第一步，明确交付物边界与验收条件\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"开始准备时\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"将老陈纳入关键角色或顾问\",\"kind\":\"adjustment\",\"reason\":\"老陈经验最足，且曾在你休假时顶上，证明可承担重要责任，适合在关键决策或难点问题上提供支持\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"项目启动前确定分工时\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"制定排期并明确无休假干扰的窗口\",\"kind\":\"adjustment\",\"reason\":\"你取消了二胎计划，十月无陪产假可全程盯项目，因此排期上不需要预留你自己缺席的缓冲，可以把关键节点放在十月任何时段\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"十月初排计划时\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"提前梳理风险清单与应对方案\",\"kind\":\"task\",\"reason\":\"新项目通常有外部依赖、需求变化等不确定性，提前准备可以降低执行期被动\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"项目启动前\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"设定团队沟通节奏与信息同步机制\",\"kind\":\"task\",\"reason\":\"多人协作需要明确的沟通规则，避免信息断层\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"项目启动第一周\",\"selected\":false}],\"unknowns\":[{\"question\":\"项目的具体规模、复杂度以及你这个团队的人数和成员分工是怎样的？\",\"impact\":\"影响任务拆解、排期颗粒度和风险识别的具体程度。\",\"independentParts\":\"当前的通用准备框架、利用老陈经验和完善排期的方向不受影响。\"},{\"question\":\"老陈目前是否已有其他重要任务或个人时间限制？\",\"impact\":\"如果老陈负荷已重，需要重新评估他担任关键角色的可行性，可能需要协调资源。\",\"independentParts\":\"整体的准备框架和你的全程可用性不依赖此答案。\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i4\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因十月无陪产假可全程盯项目，排期不需为你自己预留休假缓冲，关键节点可正常排布\",\"contextRefs\":[\"c1\"]},{\"kind\":\"add\",\"summary\":\"因老陈经验最足且曾顶替你的角色，建议将老陈列入关键任务或顾问角色，加强业务保障\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"项目具体细节\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1134,
+              "completionTokens": 365,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2451
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 959,
+              "completionTokens": 172,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2140
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1274,
+              "completionTokens": 1303,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_planning",
+              "latencyMs": 11332
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我十月要休陪产假，因为二胎预产期在十月中，项目启动那两周顾不上",
+            "团队里老陈经验最足，之前我休假都是他顶上",
+            "办公室常备薄荷糖，开会前含一颗"
+          ],
+          "plan": {
+            "goalSummary": "十月新项目的提前准备",
+            "answerText": "针对你十月带团队启动新项目，结合你十月中旬要休陪产假的安排，提前盘一下可以这样准备：\n\n1. 明确交接窗口：项目启动前两周你正好在陪产假，这段时间的启动工作（如 Kickoff、关键决策、对外承诺）需要提前安排好。最稳妥的是在九月下旬就把项目目标、里程碑和分工定下来。\n2. 指定临时负责人：老陈经验最足，之前你休假时也是他顶上，建议直接让他担任你休假期间的代班负责人，提前和他对齐项目节奏和决策边界。\n3. 建立沟通机制：休假期间设置一个轻量的同步方式（比如每周一次简短文字更新），保证你对进展有感知又不被打扰。具体频率你和老陈商量好。\n4. 预留缓冲：项目启动期的风险点（比如需求变更、资源冲突）要提前预判，把容易卡进度的事项留出余量，或者前移到休假前解决。\n5. 记录和文档：把关键决定、待办和依赖都落到共享文档里，这样你休假回来能无缝接管。\n\n你需要我帮你把具体的时间节点或任务清单列出来吗？如果你想，我也可以帮你整理一版更结构化的启动检查表。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "九月下旬完成项目目标与分工对齐",
+                "kind": "task",
+                "reason": "项目启动期正好与陪产假重叠，需提前定好方向和分工",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "休假前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "指定老陈为休假期间代班负责人",
+                "kind": "adjustment",
+                "reason": "老陈经验最足且有顶班先例，适合承接项目启动关键期",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "休假前",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "与老陈对齐休假期间的沟通频次和决策授权",
+                "kind": "task",
+                "reason": "需要明确代班期间的项目决策与信息同步方式",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "休假前",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "将关键决策和待办记录到共享文档",
+                "kind": "checklistItem",
+                "reason": "方便休假后无缝接管，降低信息丢失风险",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "休假前",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "预留项目风险缓冲，尽量把关键任务前移",
+                "kind": "adjustment",
+                "reason": "休假期间无法及时处理突发问题，需提前压缩风险窗口",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "休假前",
+                "selected": false
+              }
+            ],
+            "unknowns": [],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "reorder",
+                "summary": "把项目启动的关键准备全部前移到九月下旬完成，因你十月前两周在休陪产假",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "选择老陈作为休假期间的代班负责人，依据他过往顶班的经验",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "增加与老陈的交接和沟通机制安排，以覆盖你休假期间的团队管理空档",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"十月新项目的提前准备\",\"answerText\":\"针对你十月带团队启动新项目，结合你十月中旬要休陪产假的安排，提前盘一下可以这样准备：\\n\\n1. 明确交接窗口：项目启动前两周你正好在陪产假，这段时间的启动工作（如 Kickoff、关键决策、对外承诺）需要提前安排好。最稳妥的是在九月下旬就把项目目标、里程碑和分工定下来。\\n2. 指定临时负责人：老陈经验最足，之前你休假时也是他顶上，建议直接让他担任你休假期间的代班负责人，提前和他对齐项目节奏和决策边界。\\n3. 建立沟通机制：休假期间设置一个轻量的同步方式（比如每周一次简短文字更新），保证你对进展有感知又不被打扰。具体频率你和老陈商量好。\\n4. 预留缓冲：项目启动期的风险点（比如需求变更、资源冲突）要提前预判，把容易卡进度的事项留出余量，或者前移到休假前解决。\\n5. 记录和文档：把关键决定、待办和依赖都落到共享文档里，这样你休假回来能无缝接管。\\n\\n你需要我帮你把具体的时间节点或任务清单列出来吗？如果你想，我也可以帮你整理一版更结构化的启动检查表。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"九月下旬完成项目目标与分工对齐\",\"kind\":\"task\",\"reason\":\"项目启动期正好与陪产假重叠，需提前定好方向和分工\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"休假前\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"指定老陈为休假期间代班负责人\",\"kind\":\"adjustment\",\"reason\":\"老陈经验最足且有顶班先例，适合承接项目启动关键期\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"休假前\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"与老陈对齐休假期间的沟通频次和决策授权\",\"kind\":\"task\",\"reason\":\"需要明确代班期间的项目决策与信息同步方式\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"休假前\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"将关键决策和待办记录到共享文档\",\"kind\":\"checklistItem\",\"reason\":\"方便休假后无缝接管，降低信息丢失风险\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"休假前\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"预留项目风险缓冲，尽量把关键任务前移\",\"kind\":\"adjustment\",\"reason\":\"休假期间无法及时处理突发问题，需提前压缩风险窗口\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"休假前\",\"selected\":false}],\"unknowns\":[],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"reorder\",\"summary\":\"把项目启动的关键准备全部前移到九月下旬完成，因你十月前两周在休陪产假\",\"contextRefs\":[\"c1\"]},{\"kind\":\"choice\",\"summary\":\"选择老陈作为休假期间的代班负责人，依据他过往顶班的经验\",\"contextRefs\":[\"c2\"]},{\"kind\":\"add\",\"summary\":\"增加与老陈的交接和沟通机制安排，以覆盖你休假期间的团队管理空档\",\"contextRefs\":[\"c1\",\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1171,
+              "completionTokens": 517,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3239
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1052,
+              "completionTokens": 359,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2790
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1298,
+              "completionTokens": 831,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_planning",
+              "latencyMs": 7100
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "还有三周多启动，这段准备期比上场后更重要。建议先把四件事定下来：\n\n1. 目标和验收标准对齐——项目成功的具体样子是什么、由谁来判，先和关键干系人达成一致，不然做到一半容易跑偏。\n2. 盘点团队现有人力与负荷，新项目开始前，原有工作谁接着扛，别让启动即透支。\n3. 把第一个里程碑切成两周内能看见的小结果，早见反馈、早暴露风险。\n4. 明确决策路径，哪些事你拍板、哪些授权出去，避免中途事事等你。\n\n如果你愿意多说一些项目类型、团队规模或期限约束，我帮你把风险点和待办清单再盘细一点。"
+          },
+          "rawPlan": "还有三周多启动，这段准备期比上场后更重要。建议先把四件事定下来：\n\n1. 目标和验收标准对齐——项目成功的具体样子是什么、由谁来判，先和关键干系人达成一致，不然做到一半容易跑偏。\n2. 盘点团队现有人力与负荷，新项目开始前，原有工作谁接着扛，别让启动即透支。\n3. 把第一个里程碑切成两周内能看见的小结果，早见反馈、早暴露风险。\n4. 明确决策路径，哪些事你拍板、哪些授权出去，避免中途事事等你。\n\n如果你愿意多说一些项目类型、团队规模或期限约束，我帮你把风险点和待办清单再盘细一点。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1402,
+              "completionTokens": 605,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "chat",
+              "latencyMs": 7423
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "X明确指定老陈代理并提前交接，还围绕预产期调整项目关键节点；Y未提及老陈与休假排期，偏离合格要求。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2152,
+            "completionTokens": 197,
+            "device": "pc-abeval-2026-09-07-40",
+            "purpose": "chat",
+            "latencyMs": 2531
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "Y方案适应无陪产假背景，回归正常项目节奏；X仍围绕休假交接安排。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2509,
+            "completionTokens": 137,
+            "device": "pc-abeval-2026-09-07-40",
+            "purpose": "chat",
+            "latencyMs": 1605
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "empty",
+          "reason": "judge 两次输出为空"
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y结合了十月陪产假与团队代理需求，提前安排授权老陈并错峰关键节点，明显更贴合用户具体情况。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2204,
+            "completionTokens": 126,
+            "device": "pc-abeval-2026-09-07-40",
+            "purpose": "chat",
+            "latencyMs": 2184
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-07",
+      "category": "third-party",
+      "domain": "家庭",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我父亲有糖尿病，因此家中不提供甜口菜和含糖饮料。",
+            "我母亲牙口不好，做菜时需要炖得烂一些。"
+          ],
+          "plan": {
+            "goalSummary": "为周末家庭聚餐规划菜单与采购，需符合父母饮食需求。",
+            "answerText": "好的，我来帮你把周末家宴的菜单和采购理一理。既然爸妈来，重点照顾好两件事：父亲有糖尿病，整桌菜不要出现甜口和含糖饮料，连调料里的糖也要留意；母亲牙口不好，主菜都做成炖得烂的、不太费嚼的。\n\n我建议的菜单思路是这样的：\n- 主菜：清炖牛肉或莲藕排骨汤（炖到软烂）、红烧鱼（少糖、烧透）、白菜豆腐煲、蒸蛋羹——这几道都容易咬。\n- 配菜：清炒时蔬（选绿叶菜或瓜类，炒软一些）、凉拌木耳（不辣、不甜）。\n- 主食：米饭、南瓜或蒸山药这类含水量不高的粗粮。\n- 饮料：茶水或无糖豆浆，千万不要准备果汁或含糖汽水。\n\n采购时可以按这个清单走：\n1. 肉类：适合炖煮的牛腩、排骨或鸡腿（看你想做哪道）；鱼一条。\n2. 蔬菜：绿叶菜、白菜、豆腐、鸡蛋、木耳、南瓜等。\n3. 调料：检查家里的生抽、蚝油、豆瓣酱是否含糖，必要时准备无糖或低糖版本；备姜葱蒜。\n4. 饮品：茶叶或无糖豆浆。\n\n你可以先确认一下菜量，再按人数微调分量。等我帮你把具体清单列成待办，你在周末前一两天去采购也来得及。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "确定周末主菜与配菜菜单（避开甜口、选软烂炖菜）",
+                "kind": "task",
+                "reason": "根据父亲控糖与母亲牙口需求，先敲定菜式再列采购",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "周末前2天",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "核对调料与饮品，去除含糖选项",
+                "kind": "checklistItem",
+                "reason": "父亲有糖尿病，甜口菜和含糖饮料都需要排除",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "采购时",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "确保所有炖煮类主菜口感软烂",
+                "kind": "checklistItem",
+                "reason": "母亲牙口不好，需要炖得烂、易咀嚼",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "烹饪时",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "按菜单拟采购清单并完成采购",
+                "kind": "task",
+                "reason": "菜单定稿后采购才明确，周末前备齐食材与饮品",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [
+                  {
+                    "dependsOn": "i1",
+                    "description": "先有菜单，后列采购清单"
+                  }
+                ],
+                "relativeTiming": "周末前1天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "家里一共几个人一起吃饭（含爸妈）？",
+                "impact": "直接影响菜量和采购数量",
+                "independentParts": "菜式类型与忌口安排不依赖人数"
+              },
+              {
+                "question": "爸妈有没有其他饮食偏好或忌口（如辣、咸、特定食材不吃）？",
+                "impact": "可能影响部分配菜与调味选择",
+                "independentParts": "主菜软烂和控糖方向已确定"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i4"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "菜单整体避开甜口菜和含糖饮料，因父亲需控制血糖",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "炖煮菜式为主且必须软烂，以便母亲咀嚼",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "人数",
+                "口味偏好"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为周末家庭聚餐规划菜单与采购，需符合父母饮食需求。\",\"answerText\":\"好的，我来帮你把周末家宴的菜单和采购理一理。既然爸妈来，重点照顾好两件事：父亲有糖尿病，整桌菜不要出现甜口和含糖饮料，连调料里的糖也要留意；母亲牙口不好，主菜都做成炖得烂的、不太费嚼的。\\n\\n我建议的菜单思路是这样的：\\n- 主菜：清炖牛肉或莲藕排骨汤（炖到软烂）、红烧鱼（少糖、烧透）、白菜豆腐煲、蒸蛋羹——这几道都容易咬。\\n- 配菜：清炒时蔬（选绿叶菜或瓜类，炒软一些）、凉拌木耳（不辣、不甜）。\\n- 主食：米饭、南瓜或蒸山药这类含水量不高的粗粮。\\n- 饮料：茶水或无糖豆浆，千万不要准备果汁或含糖汽水。\\n\\n采购时可以按这个清单走：\\n1. 肉类：适合炖煮的牛腩、排骨或鸡腿（看你想做哪道）；鱼一条。\\n2. 蔬菜：绿叶菜、白菜、豆腐、鸡蛋、木耳、南瓜等。\\n3. 调料：检查家里的生抽、蚝油、豆瓣酱是否含糖，必要时准备无糖或低糖版本；备姜葱蒜。\\n4. 饮品：茶叶或无糖豆浆。\\n\\n你可以先确认一下菜量，再按人数微调分量。等我帮你把具体清单列成待办，你在周末前一两天去采购也来得及。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"确定周末主菜与配菜菜单（避开甜口、选软烂炖菜）\",\"kind\":\"task\",\"reason\":\"根据父亲控糖与母亲牙口需求，先敲定菜式再列采购\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"周末前2天\", \"selected\":false},{\"itemID\":\"i2\",\"title\":\"核对调料与饮品，去除含糖选项\",\"kind\":\"checklistItem\",\"reason\":\"父亲有糖尿病，甜口菜和含糖饮料都需要排除\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"采购时\", \"selected\":false},{\"itemID\":\"i3\",\"title\":\"确保所有炖煮类主菜口感软烂\",\"kind\":\"checklistItem\",\"reason\":\"母亲牙口不好，需要炖得烂、易咀嚼\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"烹饪时\", \"selected\":false},{\"itemID\":\"i4\",\"title\":\"按菜单拟采购清单并完成采购\",\"kind\":\"task\",\"reason\":\"菜单定稿后采购才明确，周末前备齐食材与饮品\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[{\"dependsOn\":\"i1\",\"description\":\"先有菜单，后列采购清单\"}],\"relativeTiming\":\"周末前1天\", \"selected\":false}],\"unknowns\":[{\"question\":\"家里一共几个人一起吃饭（含爸妈）？\",\"impact\":\"直接影响菜量和采购数量\",\"independentParts\":\"菜式类型与忌口安排不依赖人数\"},{\"question\":\"爸妈有没有其他饮食偏好或忌口（如辣、咸、特定食材不吃）？\",\"impact\":\"可能影响部分配菜与调味选择\",\"independentParts\":\"主菜软烂和控糖方向已确定\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i4\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"菜单整体避开甜口菜和含糖饮料，因父亲需控制血糖\",\"contextRefs\":[\"c1\"]},{\"kind\":\"choice\",\"summary\":\"炖煮菜式为主且必须软烂，以便母亲咀嚼\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"人数\",\"口味偏好\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1127,
+              "completionTokens": 373,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2938
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 946,
+              "completionTokens": 281,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_verification",
+              "latencyMs": 3022
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1272,
+              "completionTokens": 1341,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_planning",
+              "latencyMs": 11830
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我父亲上半年体检血糖已恢复正常，医生表示普通饮食无需特别忌糖。",
+            "我母亲牙口不好，做菜需要炖得烂一些。"
+          ],
+          "plan": {
+            "goalSummary": "周末为父母准备一顿家宴，兼顾菜单设计与食材采购",
+            "answerText": "考虑你父亲血糖已恢复、母亲牙口需要软烂饮食，这顿家宴可以主打炖菜、蒸菜和易咀嚼的肉类。建议按以下思路来：\n\n1. 先在采购前列一份菜单草稿：荤素搭配，至少安排一道炖得软烂的汤菜（如土豆炖牛腩、清炖鸡），一道蒸鱼或蒸蛋，以及几道清爽易嚼的蔬菜（如西兰花、茄子炖烂）。\n2. 采购分两步走：肉类和干货提前一天买，蔬菜和易耗品当天早上买。\n3. 提前跟父母确认人数、口味偏好和有没有其他忌口——你只提到父母的具体情况，但如果有其他亲友参加，最好再问一下。\n\n我先给出一份具体可执行的任务清单，你可以按顺序推进。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "列出周末家宴菜单，标记软烂菜品",
+                "kind": "task",
+                "reason": "根据母亲牙口不好，需要优先安排炖烂、易咀嚼的菜式，避免硬菜或带骨刺过多的菜。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "活动前1-2天",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "荤菜设计以炖、蒸为主",
+                "kind": "checklistItem",
+                "reason": "炖肉、蒸鱼等软烂做法既照顾牙口，又不过分油腻；你父亲血糖已恢复，无需特殊忌糖，但整体荤素均衡即可。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2",
+                  "c1"
+                ],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "活动前1-2天",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "统筹采购清单",
+                "kind": "task",
+                "reason": "在菜单定稿后按分类（肉类/蔬菜/干货/调料）整理采购清单，确保一次买齐。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [
+                  "i1"
+                ],
+                "relativeTiming": "菜单定稿后",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "预计可选炖菜：土豆炖牛腩、清炖狮子头、南瓜蒸排骨",
+                "kind": "checklistItem",
+                "reason": "这些菜品较容易做到软烂入味，适合牙口不好的长辈，营养也均衡。",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "null",
+                "selected": true
+              },
+              {
+                "itemID": "i5",
+                "title": "食材采购遵守先硬后软的顺序",
+                "kind": "adjustment",
+                "reason": "为保证食材新鲜，建议肉类干货等耐储存的提前买，蔬菜和绿叶菜当天早上采购。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "宴会前一天与当天",
+                "selected": false
+              },
+              {
+                "itemID": "i6",
+                "title": "主动与父母确认参与人数与忌口偏好",
+                "kind": "task",
+                "reason": "目前只有你父母的健康信息，若还有其他客人或当日时间安排，会影响分量与菜品选择。",
+                "basis": "personalEvidence",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "活动前2天",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "周末家宴具体有几位客人参加？",
+                "impact": "人数直接影响菜量、采购清单分量和是否需要增加菜品。",
+                "independentParts": "菜品风格和适合长辈的烹饪方式已可确定，不依赖人数。"
+              },
+              {
+                "question": "父母之外是否还有其他人有特殊饮食需求或偏好？",
+                "impact": "可能新增忌口项，需要调整菜单中部分菜品。",
+                "independentParts": "软烂和健康的前提已由父母情况确定，可保留。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i3"
+              },
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i4",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因母亲牙口不好，菜单从凉拌/煎炸这类偏硬菜式改为炖菜、蒸菜等软烂做法为主。",
+                "contextRefs": [
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "根据父亲血糖已恢复且无需特别忌糖，菜品不必刻意做成无糖版本，但保留健康荤素搭配即可。",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\n  \"goalSummary\": \"周末为父母准备一顿家宴，兼顾菜单设计与食材采购\",\n  \"answerText\": \"考虑你父亲血糖已恢复、母亲牙口需要软烂饮食，这顿家宴可以主打炖菜、蒸菜和易咀嚼的肉类。建议按以下思路来：\\n\\n1. 先在采购前列一份菜单草稿：荤素搭配，至少安排一道炖得软烂的汤菜（如土豆炖牛腩、清炖鸡），一道蒸鱼或蒸蛋，以及几道清爽易嚼的蔬菜（如西兰花、茄子炖烂）。\\n2. 采购分两步走：肉类和干货提前一天买，蔬菜和易耗品当天早上买。\\n3. 提前跟父母确认人数、口味偏好和有没有其他忌口——你只提到父母的具体情况，但如果有其他亲友参加，最好再问一下。\\n\\n我先给出一份具体可执行的任务清单，你可以按顺序推进。\",\n  \"items\": [\n    {\n      \"itemID\": \"i1\",\n      \"title\": \"列出周末家宴菜单，标记软烂菜品\",\n      \"kind\": \"task\",\n      \"reason\": \"根据母亲牙口不好，需要优先安排炖烂、易咀嚼的菜式，避免硬菜或带骨刺过多的菜。\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c2\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"活动前1-2天\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i2\",\n      \"title\": \"荤菜设计以炖、蒸为主\",\n      \"kind\": \"checklistItem\",\n      \"reason\": \"炖肉、蒸鱼等软烂做法既照顾牙口，又不过分油腻；你父亲血糖已恢复，无需特殊忌糖，但整体荤素均衡即可。\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [\"c2\", \"c1\"],\n      \"preconditions\": [\n        \"i1\"\n      ],\n      \"relativeTiming\": \"活动前1-2天\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i3\",\n      \"title\": \"统筹采购清单\",\n      \"kind\": \"task\",\n      \"reason\": \"在菜单定稿后按分类（肉类/蔬菜/干货/调料）整理采购清单，确保一次买齐。\",\n      \"basis\": \"generalKnowledge\",\n      \"sourceRefs\": [],\n      \"preconditions\": [\n        \"i1\"\n      ],\n      \"relativeTiming\": \"菜单定稿后\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i4\",\n      \"title\": \"预计可选炖菜：土豆炖牛腩、清炖狮子头、南瓜蒸排骨\",\n      \"kind\": \"checklistItem\",\n      \"reason\": \"这些菜品较容易做到软烂入味，适合牙口不好的长辈，营养也均衡。\",\n      \"basis\": \"inference\",\n      \"sourceRefs\": [\"c2\"],\n      \"preconditions\": [],\n      \"relativeTiming\": \"null\",\n      \"selected\": true\n    },\n    {\n      \"itemID\": \"i5\",\n      \"title\": \"食材采购遵守先硬后软的顺序\",\n      \"kind\": \"adjustment\",\n      \"reason\": \"为保证食材新鲜，建议肉类干货等耐储存的提前买，蔬菜和绿叶菜当天早上采购。\",\n      \"basis\": \"generalKnowledge\",\n      \"sourceRefs\": [],\n      \"preconditions\": [],\n      \"relativeTiming\": \"宴会前一天与当天\",\n      \"selected\": false\n    },\n    {\n      \"itemID\": \"i6\",\n      \"title\": \"主动与父母确认参与人数与忌口偏好\",\n      \"kind\": \"task\",\n      \"reason\": \"目前只有你父母的健康信息，若还有其他客人或当日时间安排，会影响分量与菜品选择。\",\n      \"basis\": \"personalEvidence\",\n      \"sourceRefs\": [],\n      \"preconditions\": [],\n      \"relativeTiming\": \"活动前2天\",\n      \"selected\": false\n    }\n  ],\n  \"unknowns\": [\n    {\n      \"question\": \"周末家宴具体有几位客人参加？\",\n      \"impact\": \"人数直接影响菜量、采购清单分量和是否需要增加菜品。\",\n      \"independentParts\": \"菜品风格和适合长辈的烹饪方式已可确定，不依赖人数。\"\n    },\n    {\n      \"question\": \"父母之外是否还有其他人有特殊饮食需求或偏好？\",\n      \"impact\": \"可能新增忌口项，需要调整菜单中部分菜品。\",\n      \"independentParts\": \"软烂和健康的前提已由父母情况确定，可保留。\"\n    }\n  ],\n  \"dependencyEdges\": [\n    {\n      \"from\": \"i1\",\n      \"to\": \"i3\"\n    },\n    {\n      \"from\": \"i1\",\n      \"to\": \"i2\"\n    },\n    {\n      \"from\": \"i4\",\n      \"to\": \"i3\"\n    }\n  ],\n  \"usedContextRefs\": [\n    \"c1\",\n    \"c2\"\n  ],\n  \"planEffects\": [\n    {\n      \"kind\": \"choice\",\n      \"summary\": \"因母亲牙口不好，菜单从凉拌/煎炸这类偏硬菜式改为炖菜、蒸菜等软烂做法为主。\",\n      \"contextRefs\": [\"c2\"]\n    },\n    {\n      \"kind\": \"add\",\n      \"summary\": \"根据父亲血糖已恢复且无需特别忌糖，菜品不必刻意做成无糖版本，但保留健康荤素搭配即可。\",\n      \"contextRefs\": [\"c1\"]\n    }\n  ],\n  \"coverage\": {\n    \"readSources\": [\n      \"c1\",\n      \"c2\"\n    ],\n    \"missingScopes\": [],\n    \"externalFactsVerified\": false\n  }\n}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1130,
+              "completionTokens": 352,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2722
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 950,
+              "completionTokens": 201,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2727
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1272,
+              "completionTokens": 1470,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_planning",
+              "latencyMs": 12996
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我父亲有糖尿病，因此甜口菜和含糖饮料不能上桌。",
+            "我母亲牙口不好，做菜需要炖烂一些。",
+            "家里餐桌布是米白色的，搭配原木餐具。"
+          ],
+          "plan": null,
+          "rawPlan": "",
+          "parseError": "输出无 JSON",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1159,
+              "completionTokens": 515,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 4100
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1024,
+              "completionTokens": 164,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2429
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1292,
+              "completionTokens": 4000,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "personal_context_planning",
+              "latencyMs": 43347
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "按初秋时令和长辈口味来配：半蒸煮、半炖炒，少辛辣重油，饭桌上时间刚好不会久等。\n\n菜单建议：\n冷菜：白切鸡（山姆或菜场买熟的，省时间）、凉拌秋藕片\n主菜：蛤蜊炖蛋、葱油鲈鱼、板栗烧仔排、油焖茭白\n汤：冬瓜排骨汤（排骨和板栗烧仔排可以共用同一份仔排，买的时候一起称）\n主食：杂粮饭或米饭，配一碟酱黄瓜\n\n采购清单：\n荤菜：三黄鸡半只、鲈鱼一条、仔排一斤半（分割成两用）、蛤蜊半斤\n蔬菜：茭白四根、板栗半斤（买剥好壳的）、冬瓜一块、秋藕两节、生姜葱蒜\n粮油干货：鸡蛋六枚、生抽老抽料酒备够、花椒几粒、糖一小包\n水果：石榴或秋梨，饭后解腻\n\n提前叮嘱一句：蛤蜊买回来用淡盐水养两小时吐沙，不然炖蛋会牙碜。如果爸妈有牙口不方便的，蒸鲈鱼时间稍微多两三分钟，软嫩一些更好入口。"
+          },
+          "rawPlan": "按初秋时令和长辈口味来配：半蒸煮、半炖炒，少辛辣重油，饭桌上时间刚好不会久等。\n\n菜单建议：\n冷菜：白切鸡（山姆或菜场买熟的，省时间）、凉拌秋藕片\n主菜：蛤蜊炖蛋、葱油鲈鱼、板栗烧仔排、油焖茭白\n汤：冬瓜排骨汤（排骨和板栗烧仔排可以共用同一份仔排，买的时候一起称）\n主食：杂粮饭或米饭，配一碟酱黄瓜\n\n采购清单：\n荤菜：三黄鸡半只、鲈鱼一条、仔排一斤半（分割成两用）、蛤蜊半斤\n蔬菜：茭白四根、板栗半斤（买剥好壳的）、冬瓜一块、秋藕两节、生姜葱蒜\n粮油干货：鸡蛋六枚、生抽老抽料酒备够、花椒几粒、糖一小包\n水果：石榴或秋梨，饭后解腻\n\n提前叮嘱一句：蛤蜊买回来用淡盐水养两小时吐沙，不然炖蛋会牙碜。如果爸妈有牙口不方便的，蒸鲈鱼时间稍微多两三分钟，软嫩一些更好入口。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1401,
+              "completionTokens": 554,
+              "device": "pc-abeval-2026-09-07-40",
+              "purpose": "chat",
+              "latencyMs": 7677
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 2,
+        "personalEffectRefsNonEmpty": 2,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "X方案明确围绕控糖和软烂设计菜单与采购，Y方案未避免甜口及高糖食材且未体现软烂需求。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2428,
+            "completionTokens": 170,
+            "device": "pc-abeval-2026-09-07-40",
+            "purpose": "chat",
+            "latencyMs": 2793
+          }
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "方案Y明确提到父亲血糖已恢复、不必刻意忌糖，而方案X仍按糖尿病严格控糖安排菜单，不符合新背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2641,
+            "completionTokens": 176,
+            "device": "pc-abeval-2026-09-07-40",
+            "purpose": "chat",
+            "latencyMs": 2415
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y 明确针对父亲忌甜控糖和母亲需软烂进食设计菜单，X 仍出现含糖调味和偏硬菜式，未贴合用户情况。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2479,
+            "completionTokens": 160,
+            "device": "pc-abeval-2026-09-07-41",
+            "purpose": "chat",
+            "latencyMs": 2609
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-11",
+      "category": "stale-state",
+      "domain": "健康",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "去年膝盖韧带拉伤，医生叮嘱半年内不能跑步，只能游泳和骑车",
+            "上个月复查医生说膝盖完全好了，可以恢复正常运动"
+          ],
+          "plan": {
+            "goalSummary": "秋季运动计划",
+            "answerText": "根据你上个月复查膝盖已完全恢复，今年秋天可以重新开始跑步了，但既然去年有过韧带拉伤，建议以循序渐进的方式安排。整体思路是：以游泳和骑车作为交叉训练保持有氧基础，同时逐步恢复跑步，从低强度、短距离开始，给膝盖适应期。具体安排可以是每周2次游泳、1次骑车、2次慢跑起步，跑量每周增加不超过10%。如果你有其他偏好（比如更重视减脂还是耐力），我可以再细化。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "制定每周运动节奏（游泳、骑车、跑步交替）",
+                "kind": "task",
+                "reason": "为秋季训练搭建可持续的整体框架，平衡受伤恢复与运动量",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "从本周开始",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "启动跑步恢复计划：从20分钟慢跑起步",
+                "kind": "task",
+                "reason": "膝盖已恢复，可以跑步，但需按康复逻辑逐步增加负荷，避免再次拉伤",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [
+                  "膝盖无不适前兆"
+                ],
+                "relativeTiming": "本周第一次尝试，之后每周增加5-10分钟",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "保留游泳作为低冲击交叉训练",
+                "kind": "task",
+                "reason": "游泳曾经是康复期主要运动，现在仍然适合作为交叉训练，保护膝盖同时提升心肺",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每周安排1-2次",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "每次跑步前做动态热身，跑后关注膝盖反应",
+                "kind": "checklistItem",
+                "reason": "帮助膝盖平稳过渡到跑步负荷，识别早期不适",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "每次跑前跑后",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你每周大概能挤出多少天运动？",
+                "impact": "影响计划中的运动频率和强度分配"
+              },
+              {
+                "question": "当前的基础体能水平如何（比如最近一个月游泳/骑车的频率）？",
+                "impact": "决定跑步恢复的初始强度与递增速度"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i1",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因膝盖已康复，方案从仅游泳骑车改为加入跑步恢复计划并保留交叉训练",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "原康复期限制的跑步项目现在可恢复，因此新增了循序渐进的跑步任务",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"秋季运动计划\",\"answerText\":\"根据你上个月复查膝盖已完全恢复，今年秋天可以重新开始跑步了，但既然去年有过韧带拉伤，建议以循序渐进的方式安排。整体思路是：以游泳和骑车作为交叉训练保持有氧基础，同时逐步恢复跑步，从低强度、短距离开始，给膝盖适应期。具体安排可以是每周2次游泳、1次骑车、2次慢跑起步，跑量每周增加不超过10%。如果你有其他偏好（比如更重视减脂还是耐力），我可以再细化。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"制定每周运动节奏（游泳、骑车、跑步交替）\",\"kind\":\"task\",\"reason\":\"为秋季训练搭建可持续的整体框架，平衡受伤恢复与运动量\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"从本周开始\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"启动跑步恢复计划：从20分钟慢跑起步\",\"kind\":\"task\",\"reason\":\"膝盖已恢复，可以跑步，但需按康复逻辑逐步增加负荷，避免再次拉伤\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[\"膝盖无不适前兆\"],\"relativeTiming\":\"本周第一次尝试，之后每周增加5-10分钟\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"保留游泳作为低冲击交叉训练\",\"kind\":\"task\",\"reason\":\"游泳曾经是康复期主要运动，现在仍然适合作为交叉训练，保护膝盖同时提升心肺\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"每周安排1-2次\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"每次跑步前做动态热身，跑后关注膝盖反应\",\"kind\":\"checklistItem\",\"reason\":\"帮助膝盖平稳过渡到跑步负荷，识别早期不适\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"每次跑前跑后\",\"selected\":false}],\"unknowns\":[{\"question\":\"你每周大概能挤出多少天运动？\",\"impact\":\"影响计划中的运动频率和强度分配\"},{\"question\":\"当前的基础体能水平如何（比如最近一个月游泳/骑车的频率）？\",\"impact\":\"决定跑步恢复的初始强度与递增速度\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i1\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因膝盖已康复，方案从仅游泳骑车改为加入跑步恢复计划并保留交叉训练\",\"contextRefs\":[\"c1\",\"c2\"]},{\"kind\":\"add\",\"summary\":\"原康复期限制的跑步项目现在可恢复，因此新增了循序渐进的跑步任务\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1131,
+              "completionTokens": 371,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3167
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 951,
+              "completionTokens": 81,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2064
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1261,
+              "completionTokens": 1214,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 12010
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "去年膝盖韧带拉伤，医生叮嘱半年内不能跑步，只能游泳和骑车",
+            "上个月膝盖有轻微不适，医生建议继续避免跑跳类运动"
+          ],
+          "plan": {
+            "goalSummary": "秋季运动安排，围绕膝盖康复，以低冲击有氧为主",
+            "answerText": "考虑到你去年膝盖韧带拉伤、上个月仍有轻微不适，医生两次建议避开跑跳类项目，今年秋天咱们就不碰跑步和跳跃动作，把运动重心放在游泳和骑车这两类对膝盖友好的项目上。\n\n具体安排可以是：每周安排2-3次游泳，每次30-40分钟，注意用较温和的泳姿（自由泳或蛙泳，蝶泳和蹬腿过猛的动作先避开）；每周再安排2次平路骑行，每次45分钟左右，骑行时调低座椅避免膝盖过度屈曲。每次运动前都做5-8分钟的热身，比如关节活动和拉伸，运动后留意膝盖是否有酸痛、肿胀。\n\n如果膝盖在工作日或运动后感觉不适，当天就把强度降下来或以休息为主。另外也预留一个灵活的选项——如果天气不好或膝盖状态波动，可以换成上肢力量训练或温和的瑜伽。\n\n总的来说，这个计划的关键不是练得多猛，而是给膝盖足够的时间适应和恢复。如果你想知道更细化的每周日程，或者希望我帮你排出一个带恢复日的模板，也可以告诉我。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "每周安排2-3次温和游泳（每次30-40分钟）",
+                "kind": "task",
+                "reason": "游泳是医生明确允许的低冲击运动，能提升心肺且不伤膝盖",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每周",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "每周安排2次平路骑行（每次45分钟）",
+                "kind": "task",
+                "reason": "骑车对膝盖负担小，属于医生建议的运动之一",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每周",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "运动前做5-8分钟热身，运动后留意膝盖反应",
+                "kind": "checklistItem",
+                "reason": "膝盖仍有不适，需要在每次运动前后做好保护和观察",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每次运动前/后",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "避免跑步、跳绳、球类等跑跳动作，如膝盖不适则休息",
+                "kind": "adjustment",
+                "reason": "医生两次叮嘱，秋季运动计划整体应从跑跳转向低冲击项目",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "整个秋季",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "若膝盖状态波动，可换成上肢力量或温和瑜伽",
+                "kind": "adjustment",
+                "reason": "提供备选方案，让计划更具弹性，不因膝盖不适而中断活动",
+                "basis": "generalKnowledge",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "需要时",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "膝盖目前的恢复程度和疼痛阈值大概在什么水平？",
+                "impact": "决定是否需要对游泳/骑行的强度和时长做进一步调整",
+                "independentParts": "游泳、骑行的基调和原则不受影响，具体时长可后续微调"
+              },
+              {
+                "question": "你平时能接触到的游泳馆和骑行路况如何？",
+                "impact": "影响实际安排的可行性和是否需要室内外替换",
+                "independentParts": "低冲击原则已确定，具体场地替换不影响核心安排"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i3"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因膝盖伤病史，将秋季运动核心选定为游泳和骑车，排除跑步跳跃类项目",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "在每次运动前增加热身和膝盖观察，作为对持续不适的预防措施",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"秋季运动安排，围绕膝盖康复，以低冲击有氧为主\",\"answerText\":\"考虑到你去年膝盖韧带拉伤、上个月仍有轻微不适，医生两次建议避开跑跳类项目，今年秋天咱们就不碰跑步和跳跃动作，把运动重心放在游泳和骑车这两类对膝盖友好的项目上。\\n\\n具体安排可以是：每周安排2-3次游泳，每次30-40分钟，注意用较温和的泳姿（自由泳或蛙泳，蝶泳和蹬腿过猛的动作先避开）；每周再安排2次平路骑行，每次45分钟左右，骑行时调低座椅避免膝盖过度屈曲。每次运动前都做5-8分钟的热身，比如关节活动和拉伸，运动后留意膝盖是否有酸痛、肿胀。\\n\\n如果膝盖在工作日或运动后感觉不适，当天就把强度降下来或以休息为主。另外也预留一个灵活的选项——如果天气不好或膝盖状态波动，可以换成上肢力量训练或温和的瑜伽。\\n\\n总的来说，这个计划的关键不是练得多猛，而是给膝盖足够的时间适应和恢复。如果你想知道更细化的每周日程，或者希望我帮你排出一个带恢复日的模板，也可以告诉我。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"每周安排2-3次温和游泳（每次30-40分钟）\",\"kind\":\"task\",\"reason\":\"游泳是医生明确允许的低冲击运动，能提升心肺且不伤膝盖\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"每周\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"每周安排2次平路骑行（每次45分钟）\",\"kind\":\"task\",\"reason\":\"骑车对膝盖负担小，属于医生建议的运动之一\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"每周\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"运动前做5-8分钟热身，运动后留意膝盖反应\",\"kind\":\"checklistItem\",\"reason\":\"膝盖仍有不适，需要在每次运动前后做好保护和观察\",\"basis\":\"inference\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"每次运动前/后\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"避免跑步、跳绳、球类等跑跳动作，如膝盖不适则休息\",\"kind\":\"adjustment\",\"reason\":\"医生两次叮嘱，秋季运动计划整体应从跑跳转向低冲击项目\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"整个秋季\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"若膝盖状态波动，可换成上肢力量或温和瑜伽\",\"kind\":\"adjustment\",\"reason\":\"提供备选方案，让计划更具弹性，不因膝盖不适而中断活动\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"需要时\",\"selected\":false}],\"unknowns\":[{\"question\":\"膝盖目前的恢复程度和疼痛阈值大概在什么水平？\",\"impact\":\"决定是否需要对游泳/骑行的强度和时长做进一步调整\",\"independentParts\":\"游泳、骑行的基调和原则不受影响，具体时长可后续微调\"},{\"question\":\"你平时能接触到的游泳馆和骑行路况如何？\",\"impact\":\"影响实际安排的可行性和是否需要室内外替换\",\"independentParts\":\"低冲击原则已确定，具体场地替换不影响核心安排\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i3\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因膝盖伤病史，将秋季运动核心选定为游泳和骑车，排除跑步跳跃类项目\",\"contextRefs\":[\"c1\",\"c2\"]},{\"kind\":\"add\",\"summary\":\"在每次运动前增加热身和膝盖观察，作为对持续不适的预防措施\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1137,
+              "completionTokens": 339,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2555
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 965,
+              "completionTokens": 175,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2653
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1265,
+              "completionTokens": 1032,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 10311
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "去年膝盖韧带拉伤，医生叮嘱半年内不能跑步，只能游泳和骑车",
+            "上个月复查医生说膝盖完全好了，可以恢复正常运动",
+            "运动时喜欢穿白色的袜子"
+          ],
+          "plan": {
+            "goalSummary": "秋季运动计划",
+            "answerText": "去年膝盖韧带拉伤后，医生曾叮嘱半年避免跑步，而上个月复查显示膝盖已完全恢复，可以恢复正常运动了。所以这个秋天的安排可以在保护膝盖的前提下，循序渐进地恢复跑步，同时保留游泳和骑车作为交叉训练。建议先从每两周逐渐增加跑步量与强度，观察膝盖反应，不急于求成。白色袜子不影响方案，按个人喜好穿着就行。以下是初步建议：",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "每周安排 2 次游泳或骑车",
+                "kind": "checklistItem",
+                "reason": "膝盖刚痊愈，先用低冲击运动巩固，作为恢复期的安全基础",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每周",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "从短距离慢跑开始逐步恢复",
+                "kind": "adjustment",
+                "reason": "医生已确认可以正常运动，但为避免旧伤反复，应从小跑量逐步递增",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "计划开始后最初 2 周",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "建立膝盖反应自查记录",
+                "kind": "task",
+                "reason": "恢复期间留意膝盖有无不适，便于及时调整跑量，不冒进",
+                "basis": "inference",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "整个秋季持续",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "白色袜子运动照常即可",
+                "kind": "information",
+                "reason": "白色袜子只是个人偏好，不影响运动方案",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "您现在每周能投入几天运动？",
+                "impact": "决定具体频次与跑量递增速度",
+                "independentParts": "游泳/骑车的可选形式不依赖此答案"
+              },
+              {
+                "question": "秋天是否有比赛或阶段性目标？",
+                "impact": "影响训练重点与配速安排",
+                "independentParts": "低强度基础部分不依赖此答案"
+              }
+            ],
+            "dependencyEdges": [],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因膝盖旧伤刚康复，秋季方案选择以游泳骑行打底、再逐步恢复跑步，而非直接上强度",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              },
+              {
+                "kind": "adjustment",
+                "summary": "跑步部分改为循序渐进的小步幅计划，避免第一周就回到受伤前的跑量",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"秋季运动计划\",\"answerText\":\"去年膝盖韧带拉伤后，医生曾叮嘱半年避免跑步，而上个月复查显示膝盖已完全恢复，可以恢复正常运动了。所以这个秋天的安排可以在保护膝盖的前提下，循序渐进地恢复跑步，同时保留游泳和骑车作为交叉训练。建议先从每两周逐渐增加跑步量与强度，观察膝盖反应，不急于求成。白色袜子不影响方案，按个人喜好穿着就行。以下是初步建议：\",\"items\":[{\"itemID\":\"i1\",\"title\":\"每周安排 2 次游泳或骑车\",\"kind\":\"checklistItem\",\"reason\":\"膝盖刚痊愈，先用低冲击运动巩固，作为恢复期的安全基础\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"每周\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"从短距离慢跑开始逐步恢复\",\"kind\":\"adjustment\",\"reason\":\"医生已确认可以正常运动，但为避免旧伤反复，应从小跑量逐步递增\",\"basis\":\"inference\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"计划开始后最初 2 周\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"建立膝盖反应自查记录\",\"kind\":\"task\",\"reason\":\"恢复期间留意膝盖有无不适，便于及时调整跑量，不冒进\",\"basis\":\"inference\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"整个秋季持续\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"白色袜子运动照常即可\",\"kind\":\"information\",\"reason\":\"白色袜子只是个人偏好，不影响运动方案\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"您现在每周能投入几天运动？\",\"impact\":\"决定具体频次与跑量递增速度\",\"independentParts\":\"游泳/骑车的可选形式不依赖此答案\"},{\"question\":\"秋天是否有比赛或阶段性目标？\",\"impact\":\"影响训练重点与配速安排\",\"independentParts\":\"低强度基础部分不依赖此答案\"}],\"dependencyEdges\":[],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因膝盖旧伤刚康复，秋季方案选择以游泳骑行打底、再逐步恢复跑步，而非直接上强度\",\"contextRefs\":[\"c1\",\"c2\"]},{\"kind\":\"adjustment\",\"summary\":\"跑步部分改为循序渐进的小步幅计划，避免第一周就回到受伤前的跑量\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1158,
+              "completionTokens": 432,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3119
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1014,
+              "completionTokens": 126,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1680
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1277,
+              "completionTokens": 654,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 6776
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": ""
+          },
+          "rawPlan": "",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1395,
+              "completionTokens": 1023,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "chat",
+              "latencyMs": 11255
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "方案Y明确按医生建议继续避免跑跳类运动，坚持以游泳骑车为主；方案X误判膝盖已恢复并加入跑步，不符合变化后的背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2430,
+            "completionTokens": 142,
+            "device": "pc-abeval-2026-09-07-41",
+            "purpose": "chat",
+            "latencyMs": 1962
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "方案Y额外增加与运动安排无关的袜子照常条目，属于不必要的多余安排。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2240,
+            "completionTokens": 124,
+            "device": "pc-abeval-2026-09-07-41",
+            "purpose": "chat",
+            "latencyMs": 2206
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        }
+      }
+    },
+    {
+      "goalID": "ab-15",
+      "category": "insufficient-data",
+      "domain": "家庭",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1"
+          ],
+          "verifiedContexts": [
+            "亲戚家有两个孩子，大的上小学，小的刚会走"
+          ],
+          "plan": {
+            "goalSummary": "为到访的亲戚一家五口安排国庆两日游览行程",
+            "answerText": "亲戚一家五口国庆来访两天，考虑到两个孩子（大的上小学、小的刚会走），行程建议以轻松、适合亲子、节奏有弹性的为主。由于我目前掌握的只有孩子年龄这一个信息，还没有亲戚的具体偏好和到达时间，先给你一个初步框架，你可以再补充细节后细化。\n\n第一天建议安排一个户外开放式的亲子景点（如公园、动物园或适合推车步行的园区），中午预留休息时间，下午安排有室内区域的地方以防疲劳。晚上回到住处附近简单用餐，不要安排夜间活动太晚。\n\n第二天可以安排一个室内科普或手工类体验（如科技馆、儿童乐园），或根据孩子兴趣选轻微互动项目，记得留出午睡和自由活动时间。整体避免赶景点和长时间排队。\n\n如果亲戚有明确想去的城市地标或特别口味，你再告诉我，我可以帮你排进两日动线。另外，国庆期间本地热门场所通常人流较大，是否需要提前订票或哪些区域停车方便，也需要我结合你所在城市信息来帮你落实。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "梳理亲戚偏好与到达时间",
+                "kind": "information",
+                "reason": "先确认偏好才能设计合适的动线，避免安排踩坑",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "安排之前",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "首日安排户外轻走型亲子景点",
+                "kind": "task",
+                "reason": "小宝宝刚会走，户外空间便于推车和低强度活动，哥哥也能自由跑动",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [
+                  "确认适合低龄儿童的园区"
+                ],
+                "relativeTiming": "第一天上午",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "午间预留休息和用餐弹性时间",
+                "kind": "checklistItem",
+                "reason": "孩子小需要午休，防止行程过累",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "第一天中午",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "下午安排室内温和体验项目",
+                "kind": "task",
+                "reason": "下午体力下降，室内有空调且可控，适合全家",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "第一天下午",
+                "selected": false
+              },
+              {
+                "itemID": "i5",
+                "title": "第二日安排动手或科普型室内体验",
+                "kind": "task",
+                "reason": "避免连续户外消耗，室内体验对两个年纪差异的孩子都友好",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "第二天上午",
+                "selected": false
+              },
+              {
+                "itemID": "i6",
+                "title": "第二天下午保留自由活动与返程缓冲",
+                "kind": "checklistItem",
+                "reason": "两天行程不宜过满，留白应对突发情况和返程准备",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "第二天下午",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "亲戚对哪些类型的景点或饮食有偏好吗？",
+                "impact": "决定具体选哪些地点以及是否调整室内外比例",
+                "independentParts": "行程骨架和防疲劳安排不依赖该答案"
+              },
+              {
+                "question": "亲戚到达和离开的具体时间点（上午/下午）是哪一天？",
+                "impact": "决定两天动线的起点和结束段是否需要压缩或扩展",
+                "independentParts": "亲子类地点选择和休息安排不依赖该答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              },
+              {
+                "from": "i3",
+                "to": "i4"
+              },
+              {
+                "from": "i4",
+                "to": "i5"
+              },
+              {
+                "from": "i5",
+                "to": "i6"
+              }
+            ],
+            "usedContextRefs": [
+              "c1"
+            ],
+            "planEffects": [
+              {
+                "kind": "add",
+                "summary": "因有小宝宝刚会走，增加午休和弹性休息时段，避免高强度连续户外活动",
+                "contextRefs": [
+                  "c1"
+                ]
+              },
+              {
+                "kind": "choice",
+                "summary": "优先选择户外开阔且有推车通道、并有室内备选的地点，确保全家都能舒适",
+                "contextRefs": [
+                  "c1"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1"
+              ],
+              "missingScopes": [
+                "具体城市可用地点与国庆开放信息",
+                "亲戚偏好与时间"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为到访的亲戚一家五口安排国庆两日游览行程\",\"answerText\":\"亲戚一家五口国庆来访两天，考虑到两个孩子（大的上小学、小的刚会走），行程建议以轻松、适合亲子、节奏有弹性的为主。由于我目前掌握的只有孩子年龄这一个信息，还没有亲戚的具体偏好和到达时间，先给你一个初步框架，你可以再补充细节后细化。\\n\\n第一天建议安排一个户外开放式的亲子景点（如公园、动物园或适合推车步行的园区），中午预留休息时间，下午安排有室内区域的地方以防疲劳。晚上回到住处附近简单用餐，不要安排夜间活动太晚。\\n\\n第二天可以安排一个室内科普或手工类体验（如科技馆、儿童乐园），或根据孩子兴趣选轻微互动项目，记得留出午睡和自由活动时间。整体避免赶景点和长时间排队。\\n\\n如果亲戚有明确想去的城市地标或特别口味，你再告诉我，我可以帮你排进两日动线。另外，国庆期间本地热门场所通常人流较大，是否需要提前订票或哪些区域停车方便，也需要我结合你所在城市信息来帮你落实。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"梳理亲戚偏好与到达时间\",\"kind\":\"information\",\"reason\":\"先确认偏好才能设计合适的动线，避免安排踩坑\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"安排之前\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"首日安排户外轻走型亲子景点\",\"kind\":\"task\",\"reason\":\"小宝宝刚会走，户外空间便于推车和低强度活动，哥哥也能自由跑动\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[\"确认适合低龄儿童的园区\"],\"relativeTiming\":\"第一天上午\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"午间预留休息和用餐弹性时间\",\"kind\":\"checklistItem\",\"reason\":\"孩子小需要午休，防止行程过累\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"第一天中午\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"下午安排室内温和体验项目\",\"kind\":\"task\",\"reason\":\"下午体力下降，室内有空调且可控，适合全家\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"第一天下午\",\"selected\":false},{\"itemID\":\"i5\",\"title\":\"第二日安排动手或科普型室内体验\",\"kind\":\"task\",\"reason\":\"避免连续户外消耗，室内体验对两个年纪差异的孩子都友好\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"第二天上午\",\"selected\":false},{\"itemID\":\"i6\",\"title\":\"第二天下午保留自由活动与返程缓冲\",\"kind\":\"checklistItem\",\"reason\":\"两天行程不宜过满，留白应对突发情况和返程准备\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"第二天下午\",\"selected\":false}],\"unknowns\":[{\"question\":\"亲戚对哪些类型的景点或饮食有偏好吗？\",\"impact\":\"决定具体选哪些地点以及是否调整室内外比例\",\"independentParts\":\"行程骨架和防疲劳安排不依赖该答案\"},{\"question\":\"亲戚到达和离开的具体时间点（上午/下午）是哪一天？\",\"impact\":\"决定两天动线的起点和结束段是否需要压缩或扩展\",\"independentParts\":\"亲子类地点选择和休息安排不依赖该答案\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i3\"},{\"from\":\"i3\",\"to\":\"i4\"},{\"from\":\"i4\",\"to\":\"i5\"},{\"from\":\"i5\",\"to\":\"i6\"}],\"usedContextRefs\":[\"c1\"],\"planEffects\":[{\"kind\":\"add\",\"summary\":\"因有小宝宝刚会走，增加午休和弹性休息时段，避免高强度连续户外活动\",\"contextRefs\":[\"c1\"]},{\"kind\":\"choice\",\"summary\":\"优先选择户外开阔且有推车通道、并有室内备选的地点，确保全家都能舒适\",\"contextRefs\":[\"c1\"]}],\"coverage\":{\"readSources\":[\"c1\"],\"missingScopes\":[\"具体城市可用地点与国庆开放信息\",\"亲戚偏好与时间\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1094,
+              "completionTokens": 185,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 1631
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 859,
+              "completionTokens": 50,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1431
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1247,
+              "completionTokens": 1081,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 9472
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s9"
+          ],
+          "verifiedContexts": [],
+          "plan": {
+            "goalSummary": "为亲戚一家五口国庆来你城市游玩两天安排行程",
+            "answerText": "目前你还没告诉我你的城市、亲戚具体的到离日期和家庭构成，我先帮你梳理出安排流程，可以按这个顺序推进：先确认基本信息和偏好，再设计路线并提前预约。国庆客流大，门票、餐厅和住宿都建议提前预订。1）先和亲戚确认：国庆七天内具体哪两天来、几点到几点走、有没有老人或幼儿；2）再结合你所在城市的景点资源和假期限流情况，列出两三套适合家庭游的备选路线；3）确定后第一时间做门票预约和餐位预订。你把这些补充给我，我可以帮你细化到每天几点去哪、吃什么。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "和亲戚确认国庆中具体哪两天、到达和离开时间，以及是否包含老人或幼儿",
+                "kind": "task",
+                "reason": "出发和返程时间决定两天的有效游玩时段与节奏，老人/幼儿会影响景点选择和步行强度",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "尽快，在规划行程前明确",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "根据你的城市，选出3-4个适合家庭游的候选景点并核对国庆开放/预约/限流情况",
+                "kind": "task",
+                "reason": "城市景点资源需要结合实际情况选择，且国庆热门景点通常需要提前预约",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "在确认日期后、出行前一周内完成",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "提前预订住宿（如有需要）和主要餐厅，并预约热门景点门票",
+                "kind": "checklistItem",
+                "reason": "国庆出游人流量大，不确定住宿与餐厅容易满，景区也可能限流",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [
+                  "i1",
+                  "i2"
+                ],
+                "relativeTiming": "出行前至少提前一周",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "设计两日路线时预留弹性，不要安排得太紧凑，每天留出休息和餐饮缓冲",
+                "kind": "adjustment",
+                "reason": "家庭出游且适逢假期，节奏过紧容易疲劳，也不利于应付突发排队等状况",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "亲戚在国庆七天内具体哪两天来，每天几点到达和离开？",
+                "impact": "决定第一天能否安排半天还是全天行程、第二天是否有时间吃午饭后返程，直接影响每日路线的时长和景点数量。",
+                "independentParts": "即使日期未定，也可以先了解城市主要景点的大致游玩用时，做通用路线框架。"
+              },
+              {
+                "question": "你所在城市是哪里？亲戚中有没有老人或幼童，对自然、人文或游乐类景点的偏好如何？",
+                "impact": "不同城市的可安排景点差异很大；老人/幼童会限制步行、户外和刺激性项目选择，影响路线取舍。",
+                "independentParts": "可以先制定信息核对清单和通用的预订优先级，不依赖城市细节也能推进。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i3"
+              }
+            ],
+            "usedContextRefs": [],
+            "planEffects": [],
+            "coverage": {
+              "readSources": [],
+              "missingScopes": [
+                "specific_dates",
+                "city",
+                "family_composition",
+                "interest_preferences",
+                "booking_requirements"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"为亲戚一家五口国庆来你城市游玩两天安排行程\",\"answerText\":\"目前你还没告诉我你的城市、亲戚具体的到离日期和家庭构成，我先帮你梳理出安排流程，可以按这个顺序推进：先确认基本信息和偏好，再设计路线并提前预约。国庆客流大，门票、餐厅和住宿都建议提前预订。1）先和亲戚确认：国庆七天内具体哪两天来、几点到几点走、有没有老人或幼儿；2）再结合你所在城市的景点资源和假期限流情况，列出两三套适合家庭游的备选路线；3）确定后第一时间做门票预约和餐位预订。你把这些补充给我，我可以帮你细化到每天几点去哪、吃什么。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"和亲戚确认国庆中具体哪两天、到达和离开时间，以及是否包含老人或幼儿\",\"kind\":\"task\",\"reason\":\"出发和返程时间决定两天的有效游玩时段与节奏，老人/幼儿会影响景点选择和步行强度\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"尽快，在规划行程前明确\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"根据你的城市，选出3-4个适合家庭游的候选景点并核对国庆开放/预约/限流情况\",\"kind\":\"task\",\"reason\":\"城市景点资源需要结合实际情况选择，且国庆热门景点通常需要提前预约\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"在确认日期后、出行前一周内完成\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"提前预订住宿（如有需要）和主要餐厅，并预约热门景点门票\",\"kind\":\"checklistItem\",\"reason\":\"国庆出游人流量大，不确定住宿与餐厅容易满，景区也可能限流\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[\"i1\",\"i2\"],\"relativeTiming\":\"出行前至少提前一周\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"设计两日路线时预留弹性，不要安排得太紧凑，每天留出休息和餐饮缓冲\",\"kind\":\"adjustment\",\"reason\":\"家庭出游且适逢假期，节奏过紧容易疲劳，也不利于应付突发排队等状况\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"亲戚在国庆七天内具体哪两天来，每天几点到达和离开？\",\"impact\":\"决定第一天能否安排半天还是全天行程、第二天是否有时间吃午饭后返程，直接影响每日路线的时长和景点数量。\",\"independentParts\":\"即使日期未定，也可以先了解城市主要景点的大致游玩用时，做通用路线框架。\"},{\"question\":\"你所在城市是哪里？亲戚中有没有老人或幼童，对自然、人文或游乐类景点的偏好如何？\",\"impact\":\"不同城市的可安排景点差异很大；老人/幼童会限制步行、户外和刺激性项目选择，影响路线取舍。\",\"independentParts\":\"可以先制定信息核对清单和通用的预订优先级，不依赖城市细节也能推进。\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i3\"}],\"usedContextRefs\":[],\"planEffects\":[],\"coverage\":{\"readSources\":[],\"missingScopes\":[\"specific_dates\",\"city\",\"family_composition\",\"interest_preferences\",\"booking_requirements\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1121,
+              "completionTokens": 11,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 718
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1227,
+              "completionTokens": 2724,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 27704
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": "可以帮你想，先对齐几件事：他们在哪个城市落脚？大概哪天到、哪天走？五口人里有老人或很小的孩子吗？以及这一家是偏好打卡热门景点、本地美食，还是轻松慢逛？\n\n有了这些，我再帮你按“两天一夜”的节奏排一版：第一天到埠后轻量活动，第二天主打卡点+收尾，中间留吃饭休息的缓冲，避免一家老小赶场太累。你先说个大概，我来细化。"
+          },
+          "rawPlan": "可以帮你想，先对齐几件事：他们在哪个城市落脚？大概哪天到、哪天走？五口人里有老人或很小的孩子吗？以及这一家是偏好打卡热门景点、本地美食，还是轻松慢逛？\n\n有了这些，我再帮你按“两天一夜”的节奏排一版：第一天到埠后轻量活动，第二天主打卡点+收尾，中间留吃饭休息的缓冲，避免一家老小赶场太累。你先说个大概，我来细化。",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1404,
+              "completionTokens": 424,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "chat",
+              "latencyMs": 5707
+            }
+          ],
+          "sourceRefs": [
+            "s1"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 2,
+        "personalEffectRefsNonEmpty": 1,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "X",
+          "reason": "X结合已有孩子年龄给出具体行程框架并列出待确认未知，Y仅反问而无实质建议且未利用已知信息。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2167,
+            "completionTokens": 811,
+            "device": "pc-abeval-2026-09-07-41",
+            "purpose": "chat",
+            "latencyMs": 8045
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "X",
+          "reason": "Y未利用已知孩子年龄信息，转而询问基本构成并增加预订住宿等额外流程，偏离X的亲子防疲劳核心安排",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2504,
+            "completionTokens": 713,
+            "device": "pc-abeval-2026-09-07-41",
+            "purpose": "chat",
+            "latencyMs": 7593
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "Y",
+          "reason": "Y结合了孩子年龄给出亲子行程框架，且未编造偏好，比X更贴合用户情况。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2221,
+            "completionTokens": 166,
+            "device": "pc-abeval-2026-09-07-41",
+            "purpose": "chat",
+            "latencyMs": 2302
+          }
+        }
+      }
+    },
+    {
+      "goalID": "ab-19",
+      "category": "preference",
+      "domain": "财务",
+      "arms": {
+        "V0-B": {
+          "variant": "V0",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我为自己设定了每月娱乐预算上限三百元，超出会感到负罪感",
+            "我攒钱的目标是明年底支付装修首付，因此大额支出会为此让路"
+          ],
+          "plan": {
+            "goalSummary": "在保证明年装修首付储蓄目标的前提下，适度提升本月生活质量预算",
+            "answerText": "从你给自己的限制看，娱乐每月300元且超支会影响心情，同时你也在为明年底的装修首付攒钱——这两件事加起来，我会建议把「提升生活质量」看成小步微调，而不是一次性大幅加码。\n\n可以这样做：\n1. 先给本月生活质量预算定一个「临时弹性额度」，比如在原娱乐预算基础上增加50~100元，专门用于让你感到鲜活的小事（一顿好饭、一场演出、一次短途体验），这样既有提升感，又不至于伤到储蓄节奏。\n2. 把这笔弹性支出和大额消费分开管理，给自己一个允许：它是「生活体验基金」，不是「月娱乐开销」，从心理上避开「超了300元就有负罪感」的那条线。\n3. 为明年装修首付设一个储蓄提醒，每次生活质量支出都从该提醒里回看一眼——当体验支出和储蓄目标方向一致时，你会更安心。\n\n要不要先一起挑一笔「本月想花的小钱」？有了具体花费，就能算出是不是还在安全范围内。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "设定本月额外生活体验备用金（建议100元以内）",
+                "kind": "task",
+                "reason": "在你现有300元娱乐上限的基础上小幅增加，既满足提升生活质量的需求，又不会冲击装修首付储蓄进度。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "本月",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "把本月「想提升体验」的具体项目列出来（1~3项）",
+                "kind": "task",
+                "reason": "让预算落地到具体事情上，才能衡量是否真的提升生活质量，也便于在超支前及时刹车。",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "本周内",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "为明年装修首付设置每月储蓄进度提醒",
+                "kind": "adjustment",
+                "reason": "大额支出目标在你心里权重很高，定期看一眼能避免为小乐趣花过头。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每月固定一次",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "建议将额外生活费与300元娱乐上限分开记账",
+                "kind": "checklistItem",
+                "reason": "分开分类可以缓解超限带来的负罪感，让你把体验支出视为合理的自我照顾，而不是娱乐超标。",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "执行日起",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你心目中的「提升生活质量」更偏向哪一类（饮食体验、外出活动、学习成长、还是居家舒适）？",
+                "impact": "不同方向金额差别较大，会直接影响预算切分建议。",
+                "independentParts": "在选定方向前，本月的弹性额度规模可以先定在100元以内。"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i2"
+              },
+              {
+                "from": "i2",
+                "to": "i4"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "在原有每月300元娱乐预算之外增加一笔小额体验备用金，避免触碰超限负罪感。",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "增设装修首付进度提醒，确保生活质量提升不影响明年底的储目标。",
+                "contextRefs": [
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2"
+              ],
+              "missingScopes": [
+                "未涉及收入、其他固定支出等背景"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"在保证明年装修首付储蓄目标的前提下，适度提升本月生活质量预算\",\"answerText\":\"从你给自己的限制看，娱乐每月300元且超支会影响心情，同时你也在为明年底的装修首付攒钱——这两件事加起来，我会建议把「提升生活质量」看成小步微调，而不是一次性大幅加码。\\n\\n可以这样做：\\n1. 先给本月生活质量预算定一个「临时弹性额度」，比如在原娱乐预算基础上增加50~100元，专门用于让你感到鲜活的小事（一顿好饭、一场演出、一次短途体验），这样既有提升感，又不至于伤到储蓄节奏。\\n2. 把这笔弹性支出和大额消费分开管理，给自己一个允许：它是「生活体验基金」，不是「月娱乐开销」，从心理上避开「超了300元就有负罪感」的那条线。\\n3. 为明年装修首付设一个储蓄提醒，每次生活质量支出都从该提醒里回看一眼——当体验支出和储蓄目标方向一致时，你会更安心。\\n\\n要不要先一起挑一笔「本月想花的小钱」？有了具体花费，就能算出是不是还在安全范围内。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"设定本月额外生活体验备用金（建议100元以内）\",\"kind\":\"task\",\"reason\":\"在你现有300元娱乐上限的基础上小幅增加，既满足提升生活质量的需求，又不会冲击装修首付储蓄进度。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c2\"],\"preconditions\":[],\"relativeTiming\":\"本月\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"把本月「想提升体验」的具体项目列出来（1~3项）\",\"kind\":\"task\",\"reason\":\"让预算落地到具体事情上，才能衡量是否真的提升生活质量，也便于在超支前及时刹车。\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"本周内\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"为明年装修首付设置每月储蓄进度提醒\",\"kind\":\"adjustment\",\"reason\":\"大额支出目标在你心里权重很高，定期看一眼能避免为小乐趣花过头。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[],\"relativeTiming\":\"每月固定一次\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"建议将额外生活费与300元娱乐上限分开记账\",\"kind\":\"checklistItem\",\"reason\":\"分开分类可以缓解超限带来的负罪感，让你把体验支出视为合理的自我照顾，而不是娱乐超标。\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"执行日起\",\"selected\":false}],\"unknowns\":[{\"question\":\"你心目中的「提升生活质量」更偏向哪一类（饮食体验、外出活动、学习成长、还是居家舒适）？\",\"impact\":\"不同方向金额差别较大，会直接影响预算切分建议。\",\"independentParts\":\"在选定方向前，本月的弹性额度规模可以先定在100元以内。\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i2\"},{\"from\":\"i2\",\"to\":\"i4\"}],\"usedContextRefs\":[\"c1\",\"c2\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"在原有每月300元娱乐预算之外增加一笔小额体验备用金，避免触碰超限负罪感。\",\"contextRefs\":[\"c1\",\"c2\"]},{\"kind\":\"add\",\"summary\":\"增设装修首付进度提醒，确保生活质量提升不影响明年底的储目标。\",\"contextRefs\":[\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\"],\"missingScopes\":[\"未涉及收入、其他固定支出等背景\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1138,
+              "completionTokens": 359,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2657
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 974,
+              "completionTokens": 171,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1882
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1273,
+              "completionTokens": 929,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 8579
+            }
+          ]
+        },
+        "V1-B": {
+          "variant": "V1",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2"
+          ],
+          "verifiedContexts": [
+            "我攒钱的目标是明年底支付装修首付",
+            "装修首付已经攒够",
+            "我每月在娱乐上花费四五百元，且认为没有压力",
+            "大额支出会为攒钱目标让路"
+          ],
+          "plan": {
+            "goalSummary": "规划提升生活质量的预算",
+            "answerText": "从记录看，你的装修首付目标已经完成了（c2），但你说过大额支出还是会为攒钱目标让路（c4），所以目前财务上有余力可适度提升生活品质，同时仍要保持储蓄节奏。\n\n建议先定一个稳定的月度“生活质量专项预算”，比如每月200元，专门用来买那些让你开心的“小升级”（体验、健康、自我提升等），不跟日常消费混在一起。你现有的娱乐开支每月四五百元且无压力（c3），说明这部分空间是真实的，所以不必为加预算紧张。\n\n具体做法：\n1. 先从每月结余里拨一笔固定额（200元左右）作为生活质量基金，单独记账；\n2. 列出你最想提升的三个方向（比如：睡眠工具、运动课程、一次短途体验），每个月只专注1-2个；\n3. 每月过完快速复盘一次：这笔钱是否真的带来更丰盈的感觉，不够就调，没用到就结转下月。\n\n另外，如果要安排一次稍大的支出（超过一个月的生活质量基金总额），就提前确认不影响那笔仍要保留的储蓄，再决定是否执行。这样既不亏待自己，也不让长期安全杆被撬动。\n\n你想先从哪个方面开始把预算落地？我可以帮你细化到具体项目和金额。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "每月划拨200元作为生活质量专项基金",
+                "kind": "adjustment",
+                "reason": "装修首付已攒够，可适度提升生活品质，但需控制额度不影响储蓄",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2",
+                  "c4"
+                ],
+                "preconditions": [],
+                "relativeTiming": "每月",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "列出3个最想提升的生活方向并排序",
+                "kind": "task",
+                "reason": "让预算花在真正带来愉悦的领域，避免泛泛消费",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "近期（一周内）",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "每月末复盘一次：该基金是否带来真实满足，并决定下月是否调整额度",
+                "kind": "checklistItem",
+                "reason": "用复盘保证预算真正服务于生活质量提升，而非变成额外开支",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [],
+                "relativeTiming": "每月末",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "保持现有娱乐预算不变，新一轮生活质量基金从结余中另行划出",
+                "kind": "adjustment",
+                "reason": "现有娱乐消费无压力，不建议挤压已适应的开销，另设专款更清晰",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c3"
+                ],
+                "preconditions": [],
+                "relativeTiming": null,
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你目前每月的固定结余大概是多少？",
+                "impact": "需要判断每月200元的生活质量基金是否在安全范围内，以及是否需要调整额度",
+                "independentParts": "方向选择、记账方式不受此影响"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i2",
+                "to": "i1"
+              }
+            ],
+            "usedContextRefs": [
+              "c2",
+              "c3",
+              "c4"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "因装修首付已攒够，从“全力攒钱”切换为“适度提升生活质量，同时保留储蓄习惯”",
+                "contextRefs": [
+                  "c2",
+                  "c4"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "保留现有娱乐预算，额外设立每月200元的生活质量专项基金，避免目标冲突",
+                "contextRefs": [
+                  "c3",
+                  "c4"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3",
+                "c4"
+              ],
+              "missingScopes": [
+                "用户当前月收入、固定支出、家庭成员情况等未提供，故预算额度为建议值"
+              ],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"规划提升生活质量的预算\",\"answerText\":\"从记录看，你的装修首付目标已经完成了（c2），但你说过大额支出还是会为攒钱目标让路（c4），所以目前财务上有余力可适度提升生活品质，同时仍要保持储蓄节奏。\\n\\n建议先定一个稳定的月度“生活质量专项预算”，比如每月200元，专门用来买那些让你开心的“小升级”（体验、健康、自我提升等），不跟日常消费混在一起。你现有的娱乐开支每月四五百元且无压力（c3），说明这部分空间是真实的，所以不必为加预算紧张。\\n\\n具体做法：\\n1. 先从每月结余里拨一笔固定额（200元左右）作为生活质量基金，单独记账；\\n2. 列出你最想提升的三个方向（比如：睡眠工具、运动课程、一次短途体验），每个月只专注1-2个；\\n3. 每月过完快速复盘一次：这笔钱是否真的带来更丰盈的感觉，不够就调，没用到就结转下月。\\n\\n另外，如果要安排一次稍大的支出（超过一个月的生活质量基金总额），就提前确认不影响那笔仍要保留的储蓄，再决定是否执行。这样既不亏待自己，也不让长期安全杆被撬动。\\n\\n你想先从哪个方面开始把预算落地？我可以帮你细化到具体项目和金额。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"每月划拨200元作为生活质量专项基金\",\"kind\":\"adjustment\",\"reason\":\"装修首付已攒够，可适度提升生活品质，但需控制额度不影响储蓄\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\",\"c4\"],\"preconditions\":[],\"relativeTiming\":\"每月\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"列出3个最想提升的生活方向并排序\",\"kind\":\"task\",\"reason\":\"让预算花在真正带来愉悦的领域，避免泛泛消费\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"近期（一周内）\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"每月末复盘一次：该基金是否带来真实满足，并决定下月是否调整额度\",\"kind\":\"checklistItem\",\"reason\":\"用复盘保证预算真正服务于生活质量提升，而非变成额外开支\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[],\"relativeTiming\":\"每月末\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"保持现有娱乐预算不变，新一轮生活质量基金从结余中另行划出\",\"kind\":\"adjustment\",\"reason\":\"现有娱乐消费无压力，不建议挤压已适应的开销，另设专款更清晰\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c3\"],\"preconditions\":[],\"relativeTiming\":null,\"selected\":false}],\"unknowns\":[{\"question\":\"你目前每月的固定结余大概是多少？\",\"impact\":\"需要判断每月200元的生活质量基金是否在安全范围内，以及是否需要调整额度\",\"independentParts\":\"方向选择、记账方式不受此影响\"}],\"dependencyEdges\":[{\"from\":\"i2\",\"to\":\"i1\"}],\"usedContextRefs\":[\"c2\",\"c3\",\"c4\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"因装修首付已攒够，从“全力攒钱”切换为“适度提升生活质量，同时保留储蓄习惯”\",\"contextRefs\":[\"c2\",\"c4\"]},{\"kind\":\"add\",\"summary\":\"保留现有娱乐预算，额外设立每月200元的生活质量专项基金，避免目标冲突\",\"contextRefs\":[\"c3\",\"c4\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\",\"c4\"],\"missingScopes\":[\"用户当前月收入、固定支出、家庭成员情况等未提供，故预算额度为建议值\"],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1139,
+              "completionTokens": 571,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 3588
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1046,
+              "completionTokens": 292,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 2731
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1297,
+              "completionTokens": 1268,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_planning",
+              "latencyMs": 11520
+            }
+          ]
+        },
+        "V2-B": {
+          "variant": "V2",
+          "arm": "B",
+          "sources": [
+            "s1",
+            "s2",
+            "s9"
+          ],
+          "verifiedContexts": [
+            "我为自己设定了每月娱乐预算上限三百元的红线，超出会有负罪感",
+            "我攒钱是为了明年底支付装修首付，大额支出都会为此让路",
+            "我喜欢在雨天听爵士乐"
+          ],
+          "plan": {
+            "goalSummary": "规划在现有储蓄目标内的生活质量提升方案，重点处理娱乐预算红线与装修首付的平衡",
+            "answerText": "看得出你想在攒钱和日常舒适之间找个更舒服的平衡点。你为自己设的月度娱乐预算上限是300元，这个红线让你有安全感，但也可能偶尔觉得紧。你存钱是为了明年底的装修首付，所以整体方向我不建议直接抬高红线，更推荐“不动大额储蓄、在结构里做微调”的思路。\n\n一个具体的小切口：既然你喜欢雨天听爵士乐，可以把娱乐预算的其中一部分固定为“爵士乐体验”专用，比如实体专辑、高质量流媒体会员，或者一场雨天主题的小型演出。这样既不突破300元，又能让那份享受更有仪式感。如果偶尔有超出需求的特别体验，可以设置一个“生活质量池”，每月从非必要的零食、外卖或购物里挪出30-50元放进去，让它的存在不触碰装修储蓄。\n\n另外，可以给这套安排设一个一到两个月的观察期，记下哪些开销真正让你觉得生活“更透气”，哪些只是随手花掉。等有感觉了再决定要不要微调红线的比例。\n\n如果你愿意，我们可以一起把月预算的基本盘列一列，看看哪些类别还有腾挪空间。",
+            "items": [
+              {
+                "itemID": "i1",
+                "title": "记录未来一个月娱乐及生活质量相关支出",
+                "kind": "task",
+                "reason": "需要真实数据看清300元红线内的实际消费结构，才能谈提升",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1"
+                ],
+                "preconditions": [],
+                "relativeTiming": "本月起开始记录",
+                "selected": false
+              },
+              {
+                "itemID": "i2",
+                "title": "设置“爵士乐体验”专款（建议每月50-100元）",
+                "kind": "adjustment",
+                "reason": "把喜欢的爵士乐体验纳入固定娱乐支出，增强满足感而不超出红线",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c1",
+                  "c3"
+                ],
+                "preconditions": [
+                  "维持总娱乐支出不超300元"
+                ],
+                "relativeTiming": "本月内设置",
+                "selected": false
+              },
+              {
+                "itemID": "i3",
+                "title": "从非必要支出中挪出30-50元作为灵活“生活质量池”",
+                "kind": "adjustment",
+                "reason": "用结构微调代替整体加预算，既不侵扰装修首付，也减少超支负罪感",
+                "basis": "personalEvidence",
+                "sourceRefs": [
+                  "c2"
+                ],
+                "preconditions": [
+                  "不影响每月固定储蓄额"
+                ],
+                "relativeTiming": "本月开始试行",
+                "selected": false
+              },
+              {
+                "itemID": "i4",
+                "title": "两个月后小结：哪些支出真正提升了生活感受",
+                "kind": "task",
+                "reason": "检验方案效果，避免盲目追加预算",
+                "basis": "generalKnowledge",
+                "sourceRefs": [],
+                "preconditions": [
+                  "经过至少一个完整月记录"
+                ],
+                "relativeTiming": "两个月后",
+                "selected": false
+              }
+            ],
+            "unknowns": [
+              {
+                "question": "你目前每月非必要支出的实际分布是怎样的？",
+                "impact": "只有知道哪些类别可压缩，才能确定可挪移的具体金额和比例",
+                "independentParts": "爵士乐专款的设置方案不依赖此答案"
+              },
+              {
+                "question": "你最近是否因为某类娱乐支出高而感到明显压力？",
+                "impact": "影响对300元红线是否需要结构性调整（而非仅内部分配）的判断",
+                "independentParts": "储蓄与装修首付的安排不依赖此答案"
+              }
+            ],
+            "dependencyEdges": [
+              {
+                "from": "i1",
+                "to": "i4"
+              },
+              {
+                "from": "i2",
+                "to": "i4"
+              }
+            ],
+            "usedContextRefs": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "planEffects": [
+              {
+                "kind": "choice",
+                "summary": "不直接提升整体娱乐预算，而是把300元红线内分出爵士乐专项，从非必要支出挪移少量作为生活质量池",
+                "contextRefs": [
+                  "c1",
+                  "c2",
+                  "c3"
+                ]
+              },
+              {
+                "kind": "add",
+                "summary": "增加两个月后的回顾任务，用真实感受判断是否需要调整红线结构，而非凭冲动加预算",
+                "contextRefs": [
+                  "c1",
+                  "c2"
+                ]
+              }
+            ],
+            "coverage": {
+              "readSources": [
+                "c1",
+                "c2",
+                "c3"
+              ],
+              "missingScopes": [],
+              "externalFactsVerified": false
+            }
+          },
+          "rawPlan": "{\"goalSummary\":\"规划在现有储蓄目标内的生活质量提升方案，重点处理娱乐预算红线与装修首付的平衡\",\"answerText\":\"看得出你想在攒钱和日常舒适之间找个更舒服的平衡点。你为自己设的月度娱乐预算上限是300元，这个红线让你有安全感，但也可能偶尔觉得紧。你存钱是为了明年底的装修首付，所以整体方向我不建议直接抬高红线，更推荐“不动大额储蓄、在结构里做微调”的思路。\\n\\n一个具体的小切口：既然你喜欢雨天听爵士乐，可以把娱乐预算的其中一部分固定为“爵士乐体验”专用，比如实体专辑、高质量流媒体会员，或者一场雨天主题的小型演出。这样既不突破300元，又能让那份享受更有仪式感。如果偶尔有超出需求的特别体验，可以设置一个“生活质量池”，每月从非必要的零食、外卖或购物里挪出30-50元放进去，让它的存在不触碰装修储蓄。\\n\\n另外，可以给这套安排设一个一到两个月的观察期，记下哪些开销真正让你觉得生活“更透气”，哪些只是随手花掉。等有感觉了再决定要不要微调红线的比例。\\n\\n如果你愿意，我们可以一起把月预算的基本盘列一列，看看哪些类别还有腾挪空间。\",\"items\":[{\"itemID\":\"i1\",\"title\":\"记录未来一个月娱乐及生活质量相关支出\",\"kind\":\"task\",\"reason\":\"需要真实数据看清300元红线内的实际消费结构，才能谈提升\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\"],\"preconditions\":[],\"relativeTiming\":\"本月起开始记录\",\"selected\":false},{\"itemID\":\"i2\",\"title\":\"设置“爵士乐体验”专款（建议每月50-100元）\",\"kind\":\"adjustment\",\"reason\":\"把喜欢的爵士乐体验纳入固定娱乐支出，增强满足感而不超出红线\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c1\",\"c3\"],\"preconditions\":[\"维持总娱乐支出不超300元\"],\"relativeTiming\":\"本月内设置\",\"selected\":false},{\"itemID\":\"i3\",\"title\":\"从非必要支出中挪出30-50元作为灵活“生活质量池”\",\"kind\":\"adjustment\",\"reason\":\"用结构微调代替整体加预算，既不侵扰装修首付，也减少超支负罪感\",\"basis\":\"personalEvidence\",\"sourceRefs\":[\"c2\"],\"preconditions\":[\"不影响每月固定储蓄额\"],\"relativeTiming\":\"本月开始试行\",\"selected\":false},{\"itemID\":\"i4\",\"title\":\"两个月后小结：哪些支出真正提升了生活感受\",\"kind\":\"task\",\"reason\":\"检验方案效果，避免盲目追加预算\",\"basis\":\"generalKnowledge\",\"sourceRefs\":[],\"preconditions\":[\"经过至少一个完整月记录\"],\"relativeTiming\":\"两个月后\",\"selected\":false}],\"unknowns\":[{\"question\":\"你目前每月非必要支出的实际分布是怎样的？\",\"impact\":\"只有知道哪些类别可压缩，才能确定可挪移的具体金额和比例\",\"independentParts\":\"爵士乐专款的设置方案不依赖此答案\"},{\"question\":\"你最近是否因为某类娱乐支出高而感到明显压力？\",\"impact\":\"影响对300元红线是否需要结构性调整（而非仅内部分配）的判断\",\"independentParts\":\"储蓄与装修首付的安排不依赖此答案\"}],\"dependencyEdges\":[{\"from\":\"i1\",\"to\":\"i4\"},{\"from\":\"i2\",\"to\":\"i4\"}],\"usedContextRefs\":[\"c1\",\"c2\",\"c3\"],\"planEffects\":[{\"kind\":\"choice\",\"summary\":\"不直接提升整体娱乐预算，而是把300元红线内分出爵士乐专项，从非必要支出挪移少量作为生活质量池\",\"contextRefs\":[\"c1\",\"c2\",\"c3\"]},{\"kind\":\"add\",\"summary\":\"增加两个月后的回顾任务，用真实感受判断是否需要调整红线结构，而非凭冲动加预算\",\"contextRefs\":[\"c1\",\"c2\"]}],\"coverage\":{\"readSources\":[\"c1\",\"c2\",\"c3\"],\"missingScopes\":[],\"externalFactsVerified\":false}}",
+          "parseError": null,
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1165,
+              "completionTokens": 467,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_extraction",
+              "latencyMs": 2811
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1035,
+              "completionTokens": 162,
+              "device": "pc-abeval-2026-09-07-41",
+              "purpose": "personal_context_verification",
+              "latencyMs": 1492
+            },
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1287,
+              "completionTokens": 1108,
+              "device": "pc-abeval-2026-09-07-42",
+              "purpose": "personal_context_planning",
+              "latencyMs": 10941
+            }
+          ]
+        },
+        "V0-A": {
+          "variant": "V0",
+          "arm": "A",
+          "plan": {
+            "answerText": ""
+          },
+          "rawPlan": "",
+          "calls": [
+            {
+              "model": "deepseek-v4-flash",
+              "promptTokens": 1398,
+              "completionTokens": 1024,
+              "device": "pc-abeval-2026-09-07-42",
+              "purpose": "chat",
+              "latencyMs": 11276
+            }
+          ],
+          "sourceRefs": [
+            "s1",
+            "s2"
+          ]
+        }
+      },
+      "structural": {
+        "planEffectsPresent": 3,
+        "personalEffectRefsNonEmpty": 3,
+        "forbiddenHit": [],
+        "unknownsHonest": true
+      },
+      "judge": {
+        "contextAppliedV0": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        },
+        "counterfactualV1": {
+          "verdict": "Y",
+          "reason": "背景已变为首付攒够且娱乐四五百无压力，方案Y据此提议设200元生活质量基金并保留现有娱乐，方案X仍绑定攒首付约束，偏离新背景。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2553,
+            "completionTokens": 190,
+            "device": "pc-abeval-2026-09-07-42",
+            "purpose": "chat",
+            "latencyMs": 2350
+          }
+        },
+        "irrelevantRobustV2": {
+          "verdict": "Y",
+          "reason": "Y将无关的爵士乐偏好固化为专款安排，属于因无关信息增加不必要条目；X未受该信息影响，核心预算逻辑保持一致。",
+          "meta": {
+            "model": "deepseek-v4-flash",
+            "promptTokens": 2602,
+            "completionTokens": 275,
+            "device": "pc-abeval-2026-09-07-42",
+            "purpose": "chat",
+            "latencyMs": 3057
+          }
+        },
+        "pairwiseAB": {
+          "verdict": "skipped-parse",
+          "reason": "方案解析失败，不判"
+        }
+      }
+    },
+    {
+      "goalID": "ab-23",
+      "category": "third-party",
+      "domain": "人际",
+      "arms": {},
+      "error": "Expected ',' or '}' after property value in JSON at position 121 (line 1 column 122)"
+    }
+  ]
+}

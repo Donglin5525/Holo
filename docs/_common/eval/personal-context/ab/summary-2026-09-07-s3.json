@@ -4,8 +4,8 @@
   "inputs": 23,
   "calls": 57,
   "tokens": {
-    "prompt": 66070,
-    "completion": 34324
+    "prompt": 67206,
+    "completion": 40516
   },
   "models": [
     "deepseek-v4-flash"
@@ -30,7 +30,7 @@
       "total": 5
     },
     "irrelevantRobustV2": {
-      "pass": 3,
+      "pass": 4,
       "total": 6
     },
     "pairwiseAB": {

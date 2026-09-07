@@ -130,12 +130,15 @@ function repairAndParse(raw, originalError) {
   throw originalError;
 }
 
-// 规划输入尾部的 planEffects 输出要求（生产 prompt 发版前的 harness 侧镜像）。
+// 规划输入尾部的输出要求（生产 prompt 发版前的 harness 侧镜像，含无关性约束）。
 const PLAN_EFFECTS_SUFFIX =
   "\n\n输出要求补充：除原字段外，增加 planEffects 数组——只写因个人情境产生的方案变化" +
   "（增加/取消/调序/改时/方案选择），每项 {\"kind\":\"add|remove|reorder|reschedule|choice\"," +
   "\"summary\":\"用户可读的一句话变化说明\",\"contextRefs\":[\"依据的 contextID\"]}；" +
-  "一般常识引起的调整不写；没有个人情境引起的变化时输出空数组。";
+  "一般常识引起的调整不写；没有个人情境引起的变化时输出空数组。" +
+  "contexts 里与本次请求无因果关系的情境（与目标无关的日常偏好/习惯/事实）不得引入 items 或 planEffects；" +
+  "判断标准：去掉该情境后核心安排不变，即为无关。" +
+  "answerText 控制在 300 字以内，只讲结论与理由；具体步骤放 items。";
 
 function sourcesFor(goal, variant) {
   if (variant === "V0") return goal.baseSources;
