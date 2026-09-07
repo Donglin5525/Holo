@@ -133,6 +133,46 @@ Holo 是一款生活记录和个人管理工具，把记账、待办、习惯、
 
 ### 版本更新说明
 
+#### 1.0.2（2026-09-08 提审版）
+
+**简体中文：**
+
+Holo 1.0.2 来了，这一版把力气花在「更可靠」上：
+【iCloud 同步全面升级】新设备登录后数据自动出现，各页面实时刷新、不再需要重启 App；同步进行到哪一步、是否出错，状态页真实可见，首次同步时还有明确提示。
+【iPad 体验再进化】新增侧边栏导航；想法支持列表与详情双栏浏览；设置页适配宽屏双栏；「轴」档支持多泳道展开；开屏画面完成大屏适配。
+【支持英文与繁体中文】界面语言跟随系统设置，英文和繁体用户都能完整使用。
+【想法更可靠】照片想法加载更快更稳，iCloud 原图自动下载；支持纯图片想法；删除的想法也会进入回收站，30 天内可找回；长列表滚动更流畅。
+【想法分享卡】把一条想法生成精美的手账风长图，分享给朋友。
+【账户详情页焕新】余额一眼看清，新增对账状态与本月收支，账目更安心。
+【稳定性与性能】修复删除闪退、右滑返回误触、对话收起后偶发空白等十余处问题；列表滚动与加载性能全面优化。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文：**
+
+Holo 1.0.2 來了，這一版把力氣花在「更可靠」上：
+【iCloud 同步全面升級】新裝置登入後資料自動出現，各頁面即時重新整理、不再需要重啟 App；同步進度與錯誤狀態真實可見，首次同步時還有明確提示。
+【iPad 體驗再進化】新增側邊欄導覽；想法支援列表與詳情雙欄瀏覽；設定頁适配寬螢幕雙欄；「軸」檔支援多泳道展開；啟動畫面完成大螢幕适配。
+【支援英文與繁體中文】介面語言跟隨系統設定，英文與繁體使用者都能完整使用。
+【想法更可靠】照片想法載入更快更穩，iCloud 原圖自動下載；支援純圖片想法；刪除的想法也會進回收站，30 天內可找回；長列表捲動更流暢。
+【想法分享卡】把一則想法製作成精美的手帳風長圖，分享給朋友。
+【帳戶詳情頁煥新】餘額一目瞭然，新增對帳狀態與本月收支。
+【穩定性與效能】修復刪除閃退、右滑返回誤觸、對話收起後偶發空白等十餘處問題；列表捲動與載入效能全面最佳化。
+感謝每一位使用者的支持，有問題隨時在設定裡回饋給我們。
+
+**English:**
+
+Holo 1.0.2 focuses on reliability:
+- iCloud sync, rebuilt: your data now appears automatically on a newly signed-in device, and every screen refreshes in real time — no more restarting the app. Sync progress and errors are shown honestly, with a clear indicator during first-time sync.
+- Better on iPad: new sidebar navigation, two-column Thoughts (list and detail), wide-screen Settings, a multi-lane timeline view, and a proper launch screen.
+- English and Traditional Chinese are now fully supported.
+- More reliable Thoughts: photos load faster with automatic iCloud original downloads, image-only thoughts are supported, deleted thoughts now go to the Trash (recoverable for 30 days), and long lists scroll more smoothly.
+- Thought share cards: turn any thought into a beautiful journal-style image to share.
+- Refreshed account details: your balance at a glance, with reconciliation status and this month's income and spending up front.
+- Stability and performance: fixed over a dozen issues, including delete crashes, accidental back-swipe dismissals, and occasional blank chat after collapsing an insight card. Scrolling and loading are faster throughout.
+Thank you for your support — reach us anytime via Settings.
+
+#### 1.0（历史存档）
+
 首次提交 App Store：记录记账、待办、习惯、笔记和健康状态，支持日历复盘、记忆长廊和 AI 整理。
 
 ### Support URL
