@@ -37,6 +37,8 @@ enum ChatMessageType: String, Codable, Sendable {
     case userCancelled
     // 每周生活计划（extractedData 持久 planID，卡片按台账实时状态渲染）
     case lifePlan
+    // 通用个人情境方案草案（contextPlanJSON 持久 HoloContextPlanDraft）
+    case contextPlan
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
@@ -85,6 +87,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var rawLog: LLMLog?
     var agentResult: HoloRenderedAgentResult?
     var insightResult: MemoryInsightPayload?
+    /// 通用个人情境方案草案 JSON（原样字符串，卡片自解码 iso8601）
+    var contextPlanJSON: String?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
     /// 关联实体的删除态缓存（预计算，避免渲染时逐条查 Core Data）
@@ -117,7 +121,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         analysisContext: AnalysisContext? = nil,
         rawLog: LLMLog? = nil,
         agentResult: HoloRenderedAgentResult? = nil,
-        insightResult: MemoryInsightPayload? = nil
+        insightResult: MemoryInsightPayload? = nil,
+        contextPlanJSON: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -134,6 +139,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.rawLog = rawLog
         self.agentResult = agentResult
         self.insightResult = insightResult
+        self.contextPlanJSON = contextPlanJSON
         self.metadataState = .loaded
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
@@ -159,7 +165,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON),
             rawLog: Self.decodeRawLog(message.rawLogJSON),
             agentResult: Self.decodeAgentResult(message.agentResultJSON),
-            insightResult: Self.decodeInsightResult(message.insightResultJSON)
+            insightResult: Self.decodeInsightResult(message.insightResultJSON),
+            contextPlanJSON: message.contextPlanJSON
         )
     }
 
@@ -189,7 +196,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String),
             rawLog: Self.decodeRawLog(dictionary["rawLogJSON"] as? String),
             agentResult: Self.decodeAgentResult(dictionary["agentResultJSON"] as? String),
-            insightResult: Self.decodeInsightResult(dictionary["insightResultJSON"] as? String)
+            insightResult: Self.decodeInsightResult(dictionary["insightResultJSON"] as? String),
+            contextPlanJSON: dictionary["contextPlanJSON"] as? String
         )
     }
 
@@ -227,6 +235,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             self.agentResult = nil
         }
         self.insightResult = Self.decodeInsightResult(dictionary["insightResultJSON"] as? String)
+        self.contextPlanJSON = dictionary["contextPlanJSON"] as? String
 
         // 元数据状态：首屏轻量查询会带上卡片渲染和日志所需字段，避免等待滚动触发懒加载。
         let hasFetchedCardMetadata =
@@ -259,7 +268,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         analysisContext: AnalysisContext?,
         rawLog: LLMLog?,
         agentResult: HoloRenderedAgentResult?,
-        insightResult: MemoryInsightPayload?
+        insightResult: MemoryInsightPayload?,
+        contextPlanJSON: String? = nil
     ) {
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
@@ -267,6 +277,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.rawLog = rawLog
         self.agentResult = agentResult
         self.insightResult = insightResult
+        self.contextPlanJSON = contextPlanJSON
         self.metadataState = .loaded
         refreshDerivedState()
     }

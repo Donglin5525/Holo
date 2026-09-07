@@ -117,6 +117,14 @@ extension CoreDataStack {
         insightResultJSON.isOptional = true
         chatAttributes.append(insightResultJSON)
 
+        // 通用个人情境方案草案 JSON（HoloContextPlanDraft 序列化）
+        // 由 contextual_planning 只读意图触发生成，渲染为 ContextPlanChatCard；可选属性轻量迁移。
+        let chatContextPlanJSON = NSAttributeDescription()
+        chatContextPlanJSON.name = "contextPlanJSON"
+        chatContextPlanJSON.attributeType = .stringAttributeType
+        chatContextPlanJSON.isOptional = true
+        chatAttributes.append(chatContextPlanJSON)
+
         // 报告收藏时间（报告 Tab 右滑收藏）。nil = 未收藏；非 nil 即收藏时间，
         // 一个字段同时承载状态与排序，轻量迁移。
         let chatFavoritedAt = NSAttributeDescription()

@@ -584,6 +584,7 @@ final class ChatMessageRepository: ObservableObject {
         rawLogJSON: String? = nil,
         agentResultJSON: String? = nil,
         insightResultJSON: String? = nil,
+        contextPlanJSON: String? = nil,
         messageType: ChatMessageType? = nil
     ) {
         guard let message = messageForUpdate(messageId) else { return }
@@ -600,6 +601,7 @@ final class ChatMessageRepository: ObservableObject {
         message.rawLogJSON = nil
         message.agentResultJSON = agentResultJSON
         message.insightResultJSON = insightResultJSON
+        message.contextPlanJSON = contextPlanJSON
         if let messageType {
             message.messageType = messageType.rawValue
         }
@@ -657,6 +659,7 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.rawLog = nil
             snapshot.agentResult = decodedAgentResult
             snapshot.insightResult = decodedInsightResult
+            snapshot.contextPlanJSON = contextPlanJSON
             if let messageType {
                 snapshot.messageType = messageType
             }
