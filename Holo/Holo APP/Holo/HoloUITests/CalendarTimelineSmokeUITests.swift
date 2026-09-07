@@ -674,3 +674,203 @@ final class HoloIPadAuditV10UITests: XCTestCase {
         shoot("v10-05-thoughts-portrait")
     }
 }
+
+// MARK: - 通宵冲刺深页取证（2026-09-08，iPad 10→80）
+// 覆盖 V8 未及的子页面/弹层/详情页；ov- 前缀落 /tmp/holo_ipad_audit。
+final class HoloIPadOvernightUITests: XCTestCase {
+
+    private let dir = "/tmp/holo_ipad_audit"
+
+    private func shoot(_ name: String, settle: UInt32 = 2) {
+        if settle > 0 { sleep(settle) }
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try? png.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
+        print("[OV] shot \(name)")
+    }
+
+    private func launchSeeded(_ story: String = "rhythm") -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = story
+        app.launch()
+        sleep(9)
+        auditRotateToLandscape(app)
+        return app
+    }
+
+    /// 按标签点按（侧边栏 x<300，内容区 x>=300；先 staticTexts 后 buttons）
+    private func tapLabeled(_ app: XCUIApplication, _ label: String, sidebar: Bool, settle: UInt32 = 4) -> Bool {
+        let zone: (CGFloat) -> Bool = sidebar ? { $0 < 300 } : { $0 >= 300 }
+        var texts: [XCUIElement] = []
+        for el in app.staticTexts.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex {
+            if zone(el.frame.minX) { texts.append(el) }
+        }
+        var btns: [XCUIElement] = []
+        for el in app.buttons.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex {
+            if zone(el.frame.minX) { btns.append(el) }
+        }
+        // 常驻壳层隐藏元素仍在 AX 树：优先可点，其次按钮，最后坐标兜底
+        let candidates: [XCUIElement] = {
+            var c = btns.filter { $0.isHittable } + texts.filter { $0.isHittable }
+            if c.isEmpty { c = btns + texts }
+            return c
+        }()
+        guard let el = candidates.first else {
+            print("[OV] missing \(label) (sidebar=\(sidebar))")
+            return false
+        }
+        el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(settle)
+        return true
+    }
+
+    /// 按标签前缀点按（复合 label 的卡片/芯片，如「步数 8,670 …」）
+    private func tapLabelPrefix(_ app: XCUIApplication, _ prefix: String, settle: UInt32 = 4) -> Bool {
+        var btns: [XCUIElement] = []
+        for el in app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).allElementsBoundByIndex {
+            if el.frame.minX >= 300 { btns.append(el) }
+        }
+        guard let el = (btns.filter { $0.isHittable }.first ?? btns.first) else {
+            print("[OV] missing prefix \(prefix)")
+            return false
+        }
+        el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(settle)
+        return true
+    }
+
+    /// 关闭弹层：优先「取消/X/关闭」标签，否则从标题区往下抹
+    private func dismissSheet(_ app: XCUIApplication) {
+        for label in ["取消", "关闭", "X", "完成"] {
+            let btns = app.buttons.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex
+            if let b = btns.first(where: { $0.isHittable }) {
+                b.tap(); sleep(2); return
+            }
+            let texts = app.staticTexts.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex
+            if let t = texts.first(where: { $0.isHittable }) {
+                t.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap(); sleep(2); return
+            }
+        }
+        let win = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.18))
+        let dst = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+        win.press(forDuration: 0.05, thenDragTo: dst)
+        sleep(2)
+    }
+
+
+    /// 内容区找第一张卡片式按钮（任务卡/想法卡），显式循环避开长闭包类型推断超时
+    private func firstCard(in app: XCUIApplication, maxX: CGFloat = 2000) -> XCUIElement? {
+        let all = app.buttons.allElementsBoundByIndex
+        var best: XCUIElement?
+        for el in all {
+            let f = el.frame
+            if f.minX >= 300 && f.minX < maxX && f.minY > 150 && f.height > 60 && f.height < 400 {
+                best = el
+                break
+            }
+        }
+        return best
+    }
+
+    func testOV01FinanceDeep() throws {
+        let app = launchSeeded()
+        tapLabeled(app, "财务", sidebar: true, settle: 5)
+        shoot("ov-fin-01-accounts")
+        for (label, name) in [("账本", "ov-fin-02-ledger"), ("统计", "ov-fin-03-stats"), ("固定支出", "ov-fin-04-spending"), ("设置", "ov-fin-05-settings")] {
+            _ = tapLabeled(app, label, sidebar: false, settle: 4)
+            shoot(name)
+        }
+        // 回账户 tab 打开「记一笔」弹层（弹层政策基线）
+        _ = tapLabeled(app, "账户", sidebar: false, settle: 3)
+        let fab = app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.90))
+        let fabLabel = app.staticTexts.matching(NSPredicate(format: "label == %@", "记一笔")).allElementsBoundByIndex.first
+        if let fl = fabLabel, fl.isHittable {
+            fl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(4)
+            shoot("ov-fin-06-sheet-addtransaction")
+            dismissSheet(app)
+        } else {
+            fab.tap()
+            sleep(4)
+            shoot("ov-fin-06-sheet-addtransaction")
+            dismissSheet(app)
+        }
+        if false {
+            shoot("ov-fin-06-sheet-addtransaction")
+            dismissSheet(app)
+        }
+    }
+
+    func testOV02TasksDeep() throws {
+        let app = launchSeeded("busy-week")
+        tapLabeled(app, "任务", sidebar: true, settle: 5)
+        shoot("ov-task-01-list-busyweek")
+        // 任务卡详情（content 区第一张卡，按坐标点列表头下方第一卡中心）
+        if tapLabeled(app, "准备复盘材料", sidebar: false, settle: 4) {
+            shoot("ov-task-02-detail")
+            dismissSheet(app)
+        } else {
+            print("[OV] no task title found")
+        }
+        for (label, name) in [("统计", "ov-task-03-stats"), ("纪念日", "ov-task-04-anniversary")] {
+            _ = tapLabeled(app, label, sidebar: false, settle: 4)
+            shoot(name)
+        }
+    }
+
+    func testOV03ThoughtsDeep() throws {
+        let app = launchSeeded()
+        tapLabeled(app, "想法", sidebar: true, settle: 5)
+        // 知识树 tab（浏览切换：想法|知识树）
+        if tapLabeled(app, "主题", sidebar: false, settle: 5) {
+            shoot("ov-th-01-knowledge-tree")
+        }
+        _ = tapLabeled(app, "想法", sidebar: false, settle: 4)
+        // 双栏右栏：点第一张想法卡
+        if let card = firstCard(in: app, maxX: 900) {
+            card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(4)
+            shoot("ov-th-02-detail-pane")
+        }
+    }
+
+    func testOV04HealthDeep() throws {
+        let app = launchSeeded()
+        tapLabeled(app, "健康", sidebar: true, settle: 5)
+        if tapLabelPrefix(app, "步数", settle: 4) {
+            shoot("ov-health-01-detail-steps")
+        }
+        if tapLabelPrefix(app, "睡眠", settle: 4) {
+            shoot("ov-health-02-detail-sleep")
+        }
+    }
+
+    func testOV05SettingsDeep() throws {
+        let app = launchSeeded()
+        tapLabeled(app, "设置", sidebar: true, settle: 5)
+        shoot("ov-set-00-shell")
+        let groups = ["外观", "iCloud 同步", "日历", "AI 整理", "AI 回放", "存储与缓存", "隐私与安全", "法律与隐私", "账号与数据"]
+        for (idx, g) in groups.enumerated() {
+            if tapLabeled(app, g, sidebar: false, settle: 3) {
+                shoot(String(format: "ov-set-%02d-%@", idx + 1, g.replacingOccurrences(of: " ", with: "-")))
+            }
+        }
+    }
+
+    func testOV06AIAndProfile() throws {
+        let app = launchSeeded()
+        tapLabeled(app, "AI 对话", sidebar: true, settle: 6)
+        if tapLabeled(app, "报告", sidebar: false, settle: 5) {
+            shoot("ov-ai-01-report")
+        }
+        tapLabeled(app, "个人", sidebar: true, settle: 4)
+        shoot("ov-profile-01")
+        // 个人页常见行
+        for (label, name) in [("会员", "ov-profile-02-membership"), ("订阅", "ov-profile-02-membership")] {
+            if tapLabeled(app, label, sidebar: false, settle: 4) {
+                shoot(name)
+                break
+            }
+        }
+    }
+}
