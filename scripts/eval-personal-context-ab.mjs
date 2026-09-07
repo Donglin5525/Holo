@@ -38,6 +38,8 @@ const onlyGoal = args.includes("--goal") ? args[args.indexOf("--goal") + 1] : nu
 const skipJudge = args.includes("--no-judge");
 // 分片：--shard <index> 让并行进程各跑 1/4 的目标、各用独立设备池避开限流。
 const shard = args.includes("--shard") ? Number(args[args.indexOf("--shard") + 1]) : null;
+// --no-suffix：不加 harness 附加约束，验证生产 prompt（发版后）独立输出 planEffects/无关性约束。
+const noSuffix = args.includes("--no-suffix");
 const shardCount = 4;
 const deviceBase = shard === null ? 0 : shard * 20;
 let deviceIndex = 0;
@@ -198,7 +200,7 @@ async function runPipeline(goal, variant) {
     rawFallbackSegments: [],
     semanticCoverage: verified.length > 0 ? "full" : "degraded",
   };
-  const plan = await callPurpose("personal_context_planning", JSON.stringify(planInput) + PLAN_EFFECTS_SUFFIX);
+  const plan = await callPurpose("personal_context_planning", JSON.stringify(planInput) + (noSuffix ? "" : PLAN_EFFECTS_SUFFIX));
   calls.push(plan.meta);
   let planJSON = null;
   let parseError = null;
