@@ -77,6 +77,9 @@ struct HoloApp: App {
         // 因此只在运行时确认可用后提前启动监听；设置页仍可按需展示不可用状态。
         if CloudKitRuntimeAvailability.isAvailable {
             _ = ICloudSyncStatusService.shared
+            // 启动即静默拉一次账号状态：列表空态的「首次同步尚未完成」判断
+            // 和手动同步的结果反馈都依赖它，不能等到打开设置页才开始
+            Task { await ICloudSyncStatusService.shared.warmUpAccountStatus() }
         }
 
         // 监听财务/想法/习惯/待办/目标/纪念日变更，维护桌面小组件使用的轻量快照

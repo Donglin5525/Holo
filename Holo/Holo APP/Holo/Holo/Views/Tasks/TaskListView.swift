@@ -1385,6 +1385,13 @@ struct TaskListView: View {
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary.opacity(0.7))
             }
+
+            if selectedFilter != .today, ICloudSyncStatusService.shared.isInitialSyncPending {
+                Text("正在从 iCloud 恢复数据，稍等片刻就会显示")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoInfo)
+                    .transition(.opacity)
+            }
         }
         .padding(.top, 80)
     }

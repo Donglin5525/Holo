@@ -60,8 +60,29 @@ class AnniversaryRepository {
 
     /// 初始化加载（进入模块时调用）
     func setup() {
+        registerCloudSyncRefreshIfNeeded()
         loadActiveAnniversaries()
         rescheduleNotificationsIfNeeded()
+    }
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 新设备上 CloudKit 后台导入晚于首次加载：anniversaryDataDidChange 只在本地写入时发，
+    /// 不监听远程变更会让纪念日列表停在空态。订阅统一中继，防抖后重拉、重排通知并广播。
+    private var cloudSyncObserver: NSObjectProtocol?
+
+    private func registerCloudSyncRefreshIfNeeded() {
+        // 测试注入的独立 context 不挂共享 store，不订阅
+        guard cloudSyncObserver == nil, contextOverride == nil else { return }
+        cloudSyncObserver = CloudImportRelay.shared.addObserver { [weak self] in
+            Task { @MainActor in self?.reloadAfterCloudSync() }
+        }
+    }
+
+    private func reloadAfterCloudSync() {
+        loadActiveAnniversaries()
+        rescheduleNotificationsIfNeeded()
+        NotificationCenter.default.post(name: .anniversaryDataDidChange, object: nil)
     }
 
     /// 冷启动全量重排纪念日通知（提醒 + 里程碑）。

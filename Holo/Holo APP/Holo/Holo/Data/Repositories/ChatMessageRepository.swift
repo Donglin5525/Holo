@@ -31,7 +31,28 @@ final class ChatMessageRepository: ObservableObject {
     private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
 
     /// init 不做任何 I/O 操作，避免阻塞主线程
-    private init() {}
+    private init() {
+        registerCloudSyncRefreshIfNeeded()
+    }
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 新设备上 CloudKit 后台导入晚于聊天页首载：不监听远程变更会一直停在空会话。
+    /// 仅在当前没有任何消息时重拉当前会话，避免用户正在浏览时整体替换列表打断浏览；
+    /// 已有本地消息的设备上，新消息本就由本地写入链路刷新，无需整体重载。
+    private var cloudSyncObserver: NSObjectProtocol?
+
+    private func registerCloudSyncRefreshIfNeeded() {
+        guard cloudSyncObserver == nil else { return }
+        cloudSyncObserver = CloudImportRelay.shared.addObserver { [weak self] in
+            Task { @MainActor in self?.reloadAfterCloudSyncIfEmpty() }
+        }
+    }
+
+    private func reloadAfterCloudSyncIfEmpty() {
+        guard messages.isEmpty else { return }
+        Task { await loadCurrentSessionLightweightMessagesAsync() }
+    }
 
     // MARK: - Load
 

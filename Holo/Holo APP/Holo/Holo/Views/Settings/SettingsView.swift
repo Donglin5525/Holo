@@ -594,7 +594,7 @@ struct SettingsView: View {
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
-                        Text(iCloudSyncStatus.lastEventDescription)
+                        Text(iCloudSyncStatus.statusDisplayText)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
 
@@ -607,6 +607,40 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 12)
+
+                // 同步自检指引：账号可用但本机从未完成过任何同步事件，多半是系统
+                // 设置里 Holo 的 iCloud 权限被关——给出明确指引，不再静默等待
+                if iCloudSyncStatus.isInitialSyncPending {
+                    Divider()
+                        .padding(.leading, 56)
+
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(Color.holoInfo.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "icloud.slash")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoInfo)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("同步尚未开始")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text("请在 系统设置 → 顶部你的名字 → iCloud → 保存到 iCloud 中，确认 Holo 的开关已打开")
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(3)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                }
 
                 // 错误信息
                 if iCloudSyncStatus.lastErrorMessage != nil {
@@ -695,6 +729,15 @@ struct SettingsView: View {
             }
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            // 手动同步的真实结果异步到达（探针上传事件落地或超时），转发到按钮下的提示位
+            .onReceive(iCloudSyncStatus.$refreshToast) { toast in
+                guard let toast else { return }
+                iCloudRefreshToast = toast
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    iCloudRefreshToast = nil
+                }
+            }
         }
     }
 

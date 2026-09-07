@@ -423,6 +423,16 @@ const DEFAULT_CONFIG = {
   },
   subscription: {
     appleVerificationMode: process.env.HOLO_APPLE_VERIFICATION_MODE ?? "disabled",
+    // production 验单的苹果凭据（mode=production 时首次验单前必须配齐，缺失报 503）：
+    // 密钥来自 App Store Connect 的 In-App Purchase key（.p8），二选一：内联 PEM 或文件路径。
+    apple: {
+      bundleId: process.env.HOLO_APPLE_BUNDLE_ID ?? "com.tangyuxuan.holo-app",
+      appAppleId: Number(process.env.HOLO_APPLE_APP_APPLE_ID ?? 0) || 0,
+      issuerId: process.env.HOLO_APPLE_ISSUER_ID ?? "",
+      keyId: process.env.HOLO_APPLE_KEY_ID ?? "",
+      privateKeyPem: process.env.HOLO_APPLE_PRIVATE_KEY_PEM ?? "",
+      privateKeyPath: process.env.HOLO_APPLE_KEY_PATH ?? "",
+    },
   },
   // AI 内容安全审核（App Store Guideline 1.2）：阿里云文本审核增强版。
   // 未配置 AccessKey 时降级放行，配置后自动生效。

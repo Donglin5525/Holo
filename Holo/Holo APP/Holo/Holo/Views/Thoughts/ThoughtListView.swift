@@ -351,16 +351,11 @@ struct ThoughtListView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
-            // 节流：批量整理每条完成都发通知，合并 500ms 后统一刷新，避免主线程卡顿
-            refreshTask?.cancel()
-            refreshTask = Task {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                if !Task.isCancelled {
-                    loadThoughts()
-                    loadTags()
-                    loadUnprocessedCount()
-                }
-            }
+            scheduleListRefreshAfterDataChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoCloudDataDidSync)) { _ in
+            // iCloud 云端数据到达：新设备上后台导入晚于首载，收到广播即刷新列表
+            scheduleListRefreshAfterDataChange()
         }
         .onChange(of: drawerSelection) { _, newValue in
             // 外部筛选请求（如编辑器/详情页「查看标签」）只有想法列表能承载；
@@ -579,6 +574,20 @@ struct ThoughtListView: View {
     }
 
     // MARK: - 数据加载
+
+    /// 节流：批量整理每条完成都发通知，合并 500ms 后统一刷新，避免主线程卡顿；
+    /// iCloud 云端数据到达广播也走同一条链路
+    private func scheduleListRefreshAfterDataChange() {
+        refreshTask?.cancel()
+        refreshTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if !Task.isCancelled {
+                loadThoughts()
+                loadTags()
+                loadUnprocessedCount()
+            }
+        }
+    }
 
     private func loadThoughts() {
         // 抽屉筛选生效时保持筛选语义（删除/归档/通知后的刷新也走这里，不能退回全部）
@@ -1234,6 +1243,13 @@ struct ThoughtListView: View {
             Text("点右下角 + 记录第一条想法")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+            if ICloudSyncStatusService.shared.isInitialSyncPending {
+                Text("正在从 iCloud 恢复数据，稍等片刻就会显示")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoInfo)
+                    .transition(.opacity)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 40)

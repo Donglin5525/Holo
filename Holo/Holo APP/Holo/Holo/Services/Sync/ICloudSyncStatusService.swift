@@ -81,7 +81,9 @@ final class ICloudSyncStatusService: ObservableObject {
     @Published private(set) var accountStatus: CKAccountStatus = .couldNotDetermine
     @Published private(set) var isSyncing: Bool = false
     @Published private(set) var isRefreshing: Bool = false
-    @Published private(set) var lastEventDescription: String = String(localized: "尚未检测")
+    /// 最近一次真实同步事件的描述；nil = 本机还没发生过任何同步事件。
+    /// 不要在打开设置页时回写账号态默认文案——那会把真实进度冲掉，制造「同步没在跑」的假象。
+    @Published private(set) var lastEventDescription: String?
     @Published private(set) var lastErrorMessage: String?
     @Published private(set) var lastSyncTime: Date?
     @Published private(set) var lastStatusCheckTime: Date?
@@ -125,13 +127,25 @@ final class ICloudSyncStatusService: ObservableObject {
         // 最少显示 0.6 秒 loading，让用户能看到反馈
         let start = Date()
         await updateAccountStatus()
-        lastEventDescription = statusDescriptionForCurrentAccount()
         let elapsed = Date().timeIntervalSince(start)
         if elapsed < 0.6 {
             try? await Task.sleep(for: .milliseconds(Int((0.6 - elapsed) * 1000)))
         }
         isRefreshing = false
         refreshToast = String(localized: "状态已更新：") + accountStatusText
+    }
+
+    /// 静默初始化：App 启动时拉一次账号状态并开始记录同步事件，
+    /// 供列表空态判断「首次同步是否尚未完成」。不写任何 toast 与状态文案。
+    func warmUpAccountStatus() async {
+        await updateAccountStatus()
+    }
+
+    /// 账号可用且本机还没完成过任何一次同步事件：新设备首次恢复中。
+    /// 列表空态用它提示「数据正在路上」，设置页用它提示检查 iCloud 权限；
+    /// 任一同步事件完成后即翻为 false。
+    var isInitialSyncPending: Bool {
+        CloudKitRuntimeAvailability.isAvailable && accountStatus == .available && lastSyncTime == nil
     }
 
     func requestManualSync() async {
@@ -144,8 +158,9 @@ final class ICloudSyncStatusService: ObservableObject {
                 let requestedAt = try await writeSyncProbe()
                 lastManualSyncRequestTime = requestedAt
                 UserDefaults.standard.set(requestedAt, forKey: lastManualSyncRequestTimeKey)
-                lastEventDescription = String(localized: "已请求同步，等待系统完成")
-                refreshToast = String(localized: "已请求同步")
+                // 即时反馈只承认「已递交」；真实结果等探针上传事件落地后再报
+                refreshToast = String(localized: "已递交同步请求，结果稍后显示在这里")
+                beginProbeFeedbackWait()
             } catch {
                 lastErrorMessage = error.localizedDescription
                 lastEventDescription = String(localized: "同步请求失败")
@@ -153,7 +168,6 @@ final class ICloudSyncStatusService: ObservableObject {
                 logger.error("写入 iCloud 同步探针失败：\(error.localizedDescription)")
             }
         } else {
-            lastEventDescription = statusDescriptionForCurrentAccount()
             refreshToast = String(localized: "状态已更新：") + accountStatusText
         }
 
@@ -162,6 +176,40 @@ final class ICloudSyncStatusService: ObservableObject {
             try? await Task.sleep(for: .milliseconds(Int((0.6 - elapsed) * 1000)))
         }
         isRefreshing = false
+    }
+
+    // MARK: - 手动同步的真实结果反馈
+
+    /// 探针写入会触发一次真实的上传事件；等它落地再报结果，
+    /// 不再「递交请求就报成功」——那会让用户误以为数据已同步完成。
+    private static let probeFeedbackTimeout: TimeInterval = 12
+    private var pendingProbeFeedback = false
+    private var probeFeedbackTimeoutTask: Task<Void, Never>?
+
+    private func beginProbeFeedbackWait() {
+        pendingProbeFeedback = true
+        probeFeedbackTimeoutTask?.cancel()
+        probeFeedbackTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.probeFeedbackTimeout))
+            guard !Task.isCancelled else { return }
+            await self?.finishProbeFeedback(timedOut: true)
+        }
+    }
+
+    @MainActor
+    private func finishProbeFeedback(timedOut: Bool) {
+        guard pendingProbeFeedback else { return }
+        pendingProbeFeedback = false
+        probeFeedbackTimeoutTask = nil
+        if timedOut {
+            refreshToast = String(localized: "同步暂未响应，系统稍后会自动重试")
+        }
+        // 成功路径的 toast 在 handleCloudKitEvent 里给
+    }
+
+    /// 状态主文案：优先展示真实同步事件，没发生过事件时回落到账号状态描述
+    var statusDisplayText: String {
+        lastEventDescription ?? statusDescriptionForCurrentAccount()
     }
 
     var accountStatusText: String {
@@ -216,11 +264,30 @@ final class ICloudSyncStatusService: ObservableObject {
             let syncTime = event.endDate ?? Date()
             lastSyncTime = syncTime
             UserDefaults.standard.set(syncTime, forKey: lastSyncTimeKey)
+
+            // 手动同步的探针上传落地了，报真实结果
+            if pendingProbeFeedback, event.type == .export {
+                pendingProbeFeedback = false
+                probeFeedbackTimeoutTask?.cancel()
+                probeFeedbackTimeoutTask = nil
+                if event.error == nil {
+                    refreshToast = String(localized: "同步完成：本机数据已上传 iCloud")
+                }
+            }
         }
 
         if let error = event.error {
-            lastErrorMessage = error.localizedDescription
-            logger.error("iCloud 同步事件错误：\(error.localizedDescription)")
+            // 「操作被取消」= 同步进行到一半被切后台/锁屏/断网中断，系统会自动重试，
+            // 属正常现象，不进「最近错误」吓用户
+            if (error as? CKError)?.code == .operationCancelled {
+                logger.info("iCloud 同步事件被系统取消（自动重试）：\(error.localizedDescription)")
+            } else {
+                lastErrorMessage = error.localizedDescription
+                logger.error("iCloud 同步事件错误：\(error.localizedDescription)")
+            }
+        } else if !isSyncing {
+            // 事件成功完成即清除旧错误：「最近错误」只反映最近一次结果
+            lastErrorMessage = nil
         }
     }
 

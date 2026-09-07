@@ -197,6 +197,12 @@ export function createCloudAnalysisExecutor({
     }
 
     try {
+      // 取消检查点：取消即整行删除（cancel 是 DELETE），行已不存在就不再调用模型
+      if (!taskStore.get(taskId)) {
+        if (reservation) quotaLedger.release(reservation);
+        log(`回放任务已取消（行已删除），停止执行 taskId=${taskId}`);
+        return "cancelled";
+      }
       const systemPrompted = injectServerPrompt("insight", [
         { role: "user", content: contextJSON },
       ]);
@@ -231,7 +237,13 @@ export function createCloudAnalysisExecutor({
         completedAt: new Date().toISOString(),
         engine: "cloud-m2a-replay",
       };
-      taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      const completed = taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      if (!completed) {
+        // 行已在执行中被取消/删除：结果无处落地，不提交额度、不发推送
+        if (reservation) quotaLedger.release(reservation);
+        log(`回放任务已取消（落库未生效）taskId=${taskId}`);
+        return "cancelled";
+      }
       if (reservation) quotaLedger.commit(reservation);
       pushTaskCompleted(task.device_id, { title: "回放已生成", body: "点按查看这段时光的回顾" });
       log(`回放任务完成 taskId=${taskId} chars=${content.length}`);
@@ -292,7 +304,10 @@ export function createCloudAnalysisExecutor({
         completedAt: new Date().toISOString(),
         engine: "cloud-digest",
       };
-      taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      if (!taskStore.complete({ id: taskId, result: JSON.stringify(result) })) {
+        log(`摘要任务已取消（落库未生效）taskId=${taskId}`);
+        return "cancelled";
+      }
       log(`摘要任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
@@ -312,6 +327,7 @@ export function createCloudAnalysisExecutor({
    * 返回最终状态；所有异常落 fail() 不上抛（fire-and-forget 调用安全）。
    */
   async function run(taskId) {
+    let reservation = null;
     try {
       const task = taskStore.getDecrypted(taskId, ["question", "snapshot"]);
       if (!task) {
@@ -343,6 +359,24 @@ export function createCloudAnalysisExecutor({
       }
       if (!taskStore.transition(taskId, "running")) {
         return taskStore.get(taskId)?.status ?? "conflict";
+      }
+
+      // 深度分析与本地 agent_loop 同池（deepAnalysis，free 2/天、plus 10/天）：
+      // 预订-提交语义，失败/取消自动释放。此前云端轨道完全绕过会员额度池，
+      // 免费用户本地被 2 次/天卡死而云端无限放行，属权益旁路。
+      if (quotaLedger && entitlementResolver) {
+        const entitlement = entitlementResolver.resolve(task.device_id);
+        const attempt = quotaLedger.reserve({
+          subjectId: entitlement.usageSubjectId,
+          tier: entitlement.tier,
+          quotaType: "deepAnalysis",
+          actionId: `cloud-deep-analysis-${taskId}`,
+        });
+        if (!attempt.allowed) {
+          taskStore.fail({ id: taskId, reason: attempt.userMessage ?? "今日深度分析额度已用完" });
+          return "failed";
+        }
+        reservation = attempt;
       }
 
       const messages = [];
@@ -395,6 +429,13 @@ export function createCloudAnalysisExecutor({
       }
 
       for (let round = 1; round <= maxRounds; round += 1) {
+        // 取消检查点：取消即整行删除（cancel 是 DELETE），每轮调用模型前查一次，
+        // 防止取消后继续白烧剩余轮次（此前最多 12 轮 × 每轮 3 次重试照跑不误）。
+        if (!taskStore.get(taskId)) {
+          if (reservation) quotaLedger.release(reservation);
+          log(`任务已取消（行已删除），停止执行 taskId=${taskId} round=${round}`);
+          return "cancelled";
+        }
         const response = await callProvider(messages, route, {
           taskId,
           deviceId: task.device_id,
@@ -417,6 +458,7 @@ export function createCloudAnalysisExecutor({
         try {
           output = JSON.parse(validation.content);
         } catch {
+          if (reservation) quotaLedger.release(reservation);
           taskStore.fail({ id: taskId, reason: "模型输出解析失败" });
           return "failed";
         }
@@ -436,7 +478,14 @@ export function createCloudAnalysisExecutor({
             completedAt: new Date().toISOString(),
             engine: "cloud-m2a",
           };
-          taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+          const completed = taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+          if (!completed) {
+            // 行已在执行中被取消/删除：结果无处落地，不提交额度、不发推送
+            if (reservation) quotaLedger.release(reservation);
+            log(`任务完成落库未生效（已被取消或删除）taskId=${taskId}`);
+            return "cancelled";
+          }
+          if (reservation) quotaLedger.commit(reservation);
           pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看" });
           log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}`);
           return "completed";
@@ -463,9 +512,11 @@ export function createCloudAnalysisExecutor({
           });
         }
       }
+      if (reservation) quotaLedger.release(reservation);
       taskStore.fail({ id: taskId, reason: `超过最大轮次（${maxRounds}）未能形成最终结论` });
       return "failed";
     } catch (error) {
+      if (reservation) quotaLedger.release(reservation);
       const reason = error?.message ?? String(error);
       try {
         taskStore.fail({ id: taskId, reason: `云端执行失败：${reason}` });

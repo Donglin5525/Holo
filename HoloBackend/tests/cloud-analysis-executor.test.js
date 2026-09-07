@@ -511,3 +511,119 @@ test("insightMaxTokensFor: 长周期提到 8192，短周期与非周期维持原
   assert.equal(insightMaxTokensFor(null, 4096), 4096);
   assert.equal(insightMaxTokensFor(undefined, 4096), 4096);
 });
+
+// —— 深度分析额度与取消（2026-09-07 体检 M3：云端轨道接入同池额度 + 取消检查点）——
+
+function makeRecordingLedger({ allowed = true } = {}) {
+  const calls = { reserve: [], commit: 0, release: 0 };
+  return {
+    calls,
+    reserve(input) {
+      calls.reserve.push(input);
+      return allowed
+        ? { allowed: true, subjectId: "s", tier: "free", quotaType: "deepAnalysis", actionId: "a", periodKey: "p" }
+        : { allowed: false, reason: "quota_exceeded", userMessage: "今日深度分析额度已用完" };
+    },
+    commit() { calls.commit += 1; },
+    release() { calls.release += 1; },
+  };
+}
+
+test("deep_analysis：额度预订-提交（同池 deepAnalysis，actionId 幂等）", async () => {
+  const provider = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const quota = makeRecordingLedger();
+  const pushes = [];
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async (deviceId, payload) => pushes.push(payload) },
+  });
+  const task = store.create({ deviceId: "device-da", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  assert.equal(quota.calls.reserve.length, 1);
+  assert.equal(quota.calls.reserve[0].quotaType, "deepAnalysis");
+  assert.ok(quota.calls.reserve[0].actionId.startsWith("cloud-deep-analysis-"));
+  assert.equal(quota.calls.commit, 1);
+  assert.equal(quota.calls.release, 0);
+  assert.equal(pushes.length, 1);
+});
+
+test("deep_analysis：额度拒绝→failed，不调模型，原因回传", async () => {
+  const provider = makeProvider([]);
+  const quota = makeRecordingLedger({ allowed: false });
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+  });
+  const task = store.create({ deviceId: "d", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(provider.calls.length, 0, "额度不足不得调用模型");
+  const row = store.getDecrypted(task.id, ["failureReason"]);
+  assert.ok(row.failureReason.includes("额度"));
+});
+
+test("deep_analysis：中途取消（行已删除）→下一轮前停止，返回 cancelled，额度释放、无推送", async () => {
+  let store;
+  let task;
+  let firstCall = true;
+  const provider = {
+    calls: 0,
+    async complete() {
+      this.calls += 1;
+      if (firstCall) {
+        firstCall = false;
+        store.cancel(task.id); // 用户在第一轮执行期间取消：取消即整行删除
+        return agentJson("need_tools", { toolRequests: [] });
+      }
+      return agentJson("final_claims", { claims: [] });
+    },
+  };
+  const pushes = [];
+  const quota = makeRecordingLedger();
+  const made = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async (deviceId, payload) => pushes.push(payload) },
+  });
+  store = made.store;
+  task = store.create({ deviceId: "d", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await made.executor.run(task.id), "cancelled");
+  assert.equal(provider.calls, 1, "取消后不得再调用模型");
+  assert.equal(quota.calls.commit, 0);
+  assert.equal(quota.calls.release, 1);
+  assert.equal(pushes.length, 0, "已取消的任务不得收到完成推送");
+});
+
+test("deep_analysis：完成落库前被取消→cancelled，不提交额度、无推送", async () => {
+  let store;
+  let task;
+  const provider = {
+    calls: 0,
+    async complete() {
+      this.calls += 1;
+      store.cancel(task.id); // 模型给出 final_claims 的同时用户取消
+      return agentJson("final_claims", { claims: [] });
+    },
+  };
+  const pushes = [];
+  const quota = makeRecordingLedger();
+  const made = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async (deviceId, payload) => pushes.push(payload) },
+  });
+  store = made.store;
+  task = store.create({ deviceId: "d", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await made.executor.run(task.id), "cancelled");
+  assert.equal(pushes.length, 0);
+  assert.equal(quota.calls.commit, 0);
+  assert.equal(quota.calls.release, 1);
+});

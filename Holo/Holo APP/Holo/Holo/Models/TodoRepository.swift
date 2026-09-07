@@ -85,10 +85,33 @@ class TodoRepository: ObservableObject {
     /// 在 Core Data store 就绪后调用（HomeView.task 中）
     func setup() {
         guard !isReady else { return }
+        registerCloudSyncRefreshIfNeeded()
         loadFolders()
         loadActiveTasks()
         loadTrashedTasks()
         isReady = true
+    }
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 新设备上 CloudKit 后台导入晚于首次加载：todoDataDidChange 只在本地写入时发，
+    /// 不监听远程变更会让任务列表停在空态。订阅统一中继，防抖后重拉三张列表并广播，
+    /// 日程对账引擎等监听方随之自动联动。
+    private var cloudSyncObserver: NSObjectProtocol?
+
+    private func registerCloudSyncRefreshIfNeeded() {
+        // 测试注入的独立 context 不挂共享 store，不订阅
+        guard cloudSyncObserver == nil, contextOverride == nil else { return }
+        cloudSyncObserver = CloudImportRelay.shared.addObserver { [weak self] in
+            Task { @MainActor in self?.reloadAfterCloudSync() }
+        }
+    }
+
+    private func reloadAfterCloudSync() {
+        loadFolders()
+        loadActiveTasks()
+        loadTrashedTasks()
+        NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
     }
 
     // MARK: - 数据加载

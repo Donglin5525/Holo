@@ -116,6 +116,13 @@ class MemoryGalleryViewModel: ObservableObject {
 
     init() {
         setupNotifications()
+        registerCloudSyncRefreshIfNeeded()
+    }
+
+    deinit {
+        if let cloudSyncObserver {
+            NotificationCenter.default.removeObserver(cloudSyncObserver)
+        }
     }
 
     // MARK: - Notifications
@@ -147,11 +154,37 @@ class MemoryGalleryViewModel: ObservableObject {
         )
     }
 
+    /// 多模块广播常在同一窗口内连发（批量写入、云端导入后的模块级联刷新），合并成一次刷新
+    private var dataChangeRefreshTask: Task<Void, Never>?
+
     @objc private func handleDataChange() {
         invalidateCache()
-        Task {
+        dataChangeRefreshTask?.cancel()
+        dataChangeRefreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
             await refresh()
         }
+    }
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 新设备上 CloudKit 后台导入晚于首载：长廊的记忆记录（HoloMemory）没有本地写入通知，
+    /// 列表为空时收到云端数据到达广播后重拉；已有内容时不整体刷新，防止时间线滚动位置被打断。
+    private var cloudSyncObserver: NSObjectProtocol?
+
+    private func registerCloudSyncRefreshIfNeeded() {
+        guard cloudSyncObserver == nil else { return }
+        cloudSyncObserver = CloudImportRelay.shared.addObserver { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in await self.refreshAfterCloudSyncIfEmpty() }
+        }
+    }
+
+    private func refreshAfterCloudSyncIfEmpty() async {
+        guard timelineSections.isEmpty, !isLoading else { return }
+        invalidateCache()
+        await refresh()
     }
 
     // MARK: - Cache Management

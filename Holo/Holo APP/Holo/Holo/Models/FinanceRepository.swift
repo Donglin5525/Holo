@@ -72,6 +72,10 @@ class FinanceRepository {
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
             SeedRevivalRepair.repairIfNeeded(context: FinanceRepository.shared.context)
+            // 云端导入可能带来新账单/账户（新设备首启导入晚于首载）：广播刷新让
+            // 账本/分析页重查，否则财务列表会停在空态。仓库无内存缓存，视图本就
+            // 靠该通知重查，广播是唯一需要的动作。
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         }
     }
 

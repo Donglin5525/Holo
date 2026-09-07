@@ -26,7 +26,27 @@ final class GoalRepository: ObservableObject {
         CoreDataStack.shared.viewContext
     }
 
-    private init() {}
+    private init() {
+        registerCloudSyncRefreshIfNeeded()
+    }
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 新设备上 CloudKit 后台导入晚于首次加载：goalDataDidChange 只在本地写入时发，
+    /// 不监听远程变更会让目标列表停在空态。订阅统一中继，防抖后重拉并广播。
+    private var cloudSyncObserver: NSObjectProtocol?
+
+    private func registerCloudSyncRefreshIfNeeded() {
+        guard cloudSyncObserver == nil else { return }
+        cloudSyncObserver = CloudImportRelay.shared.addObserver { [weak self] in
+            Task { @MainActor in self?.reloadAfterCloudSync() }
+        }
+    }
+
+    private func reloadAfterCloudSync() {
+        loadGoals()
+        NotificationCenter.default.post(name: .goalDataDidChange, object: nil)
+    }
 
     func loadGoals() {
         let request = Goal.fetchRequest()

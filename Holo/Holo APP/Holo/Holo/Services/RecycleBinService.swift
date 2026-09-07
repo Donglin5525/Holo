@@ -153,7 +153,22 @@ final class RecycleBinService: ObservableObject {
     /// 旧标记迁移的 UserDefaults 开关
     private static let legacyMigrationKey = "recycleBin.legacySoftDeleteMigrated.v1"
 
-    private init() {}
+    private init() {
+        registerCloudSyncRefreshIfNeeded()
+    }
+
+    // MARK: - iCloud 远程变更刷新
+
+    /// 其他设备上删除的数据经 CloudKit 导入后，回收站批次要能实时出现；
+    /// 反之本机删除同步到云端删除后，远端批次行回来时也靠这里重拉对齐。
+    private var cloudSyncObserver: NSObjectProtocol?
+
+    private func registerCloudSyncRefreshIfNeeded() {
+        guard cloudSyncObserver == nil else { return }
+        cloudSyncObserver = CloudImportRelay.shared.addObserver { [weak self] in
+            Task { @MainActor in await self?.reloadBatches() }
+        }
+    }
 
     // MARK: - 清空请求
 
