@@ -27,6 +27,8 @@ struct ConversationProcessResult {
     var intentCallLog: LLMCallLog?
     /// 结构化执行 parser 调用日志
     var actionParserCallLog: LLMCallLog?
+    /// 个人情境规划产出（只读草案，不写业务事项）；非 nil 时 ChatViewModel 落 .contextPlan 草案卡消息。
+    var contextPlanOutcome: HoloContextChatPlanner.PlanOutcome?
 }
 
 @MainActor
@@ -64,7 +66,8 @@ final class ConversationCoordinator {
     func process(
         text: String,
         userContext: UserContext,
-        provider: AIProvider
+        provider: AIProvider,
+        activePlanningRunID: String? = nil
     ) async throws -> ConversationProcessResult {
         let parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
         let intentLog = provider.lastCallLog
@@ -173,6 +176,50 @@ final class ConversationCoordinator {
             )
         }
 
+        // 个人情境规划分流（只读，实施方案 §9.1）：显式规划意图开新 run；
+        // 活跃规划会话（最后一条 AI 消息是未解决草案卡）内的非写消息续接追问，
+        // 不再绕过草案直接走写链路或普通聊天。生成失败/闸关闭/预算耗尽时
+        // 落回下方普通流式聊天，不阻断对话。
+        let planningWriteItems = parseBatch.items.filter { !$0.intent.isQuery && $0.intent != .unknown }
+        if planningWriteItems.isEmpty {
+            let explicitPlanning = parseBatch.items.contains { $0.intent == .contextualPlanning }
+            if explicitPlanning || activePlanningRunID != nil {
+                let outcome: HoloContextChatPlanner.PlanOutcome?
+                if explicitPlanning {
+                    outcome = try? await HoloContextChatPlanner.plan(
+                        utterance: text,
+                        parentMessageID: nil,
+                        provider: provider
+                    )
+                } else if let runID = activePlanningRunID {
+                    outcome = try? await HoloContextChatPlanner.followUp(
+                        runID: runID,
+                        utterance: text,
+                        provider: provider
+                    )
+                } else {
+                    outcome = nil
+                }
+                if let outcome {
+                    logger.info("个人情境规划分流：run=\(outcome.runID) items=\(outcome.draft.items.count)")
+                    return ConversationProcessResult(
+                        finalText: outcome.draft.answerText,
+                        parsedBatch: parseBatch,
+                        executionBatch: nil,
+                        firstIntent: .contextualPlanning,
+                        firstExtractedData: nil,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        intentCallLog: intentLog,
+                        actionParserCallLog: nil,
+                        contextPlanOutcome: outcome
+                    )
+                }
+                logger.info("个人情境规划不可用，落回普通聊天路径")
+            }
+        }
+
         // 纯查询
         if parseBatch.mode == .query, parseBatch.items.count == 1 {
             return ConversationProcessResult(
@@ -238,7 +285,16 @@ final class ConversationCoordinator {
         var executionItems: [AIExecutionItem] = []
         var actionParserLog: LLMCallLog?
 
-        for item in parseBatch.items {
+        // 同一句话识别出的多条待办：日期相容（都无日期或同一天）时是同一个场景，
+        // 合并为一个主任务 + 子条目，避免拆成一堆碎片任务；日期各异保持独立。
+        let taskGroupPlan = TaskGroupMergePlanner.mergePlan(
+            for: parseBatch.items.map {
+                TaskGroupMergePlanner.Candidate(isCreateTask: $0.intent == .createTask, extractedData: $0.extractedData)
+            },
+            originalText: text
+        )
+
+        for (itemIndex, item) in parseBatch.items.enumerated() {
             try Task.checkCancellation()
 
             // 删除任务必须经用户确认（删除是破坏性操作）：唯一命中时生成「删除确认卡」，
@@ -269,13 +325,26 @@ final class ConversationCoordinator {
             }
 
             if item.intent == .createTask {
-                var renderData = item.extractedData ?? [:]
+                // 合并组成员：由锚点项统一产出一张合并确认卡
+                if let plan = taskGroupPlan, plan.memberIndices.contains(itemIndex), plan.anchorIndex != itemIndex {
+                    continue
+                }
+
+                var renderData: [String: String]
+                var pendingSummary: String
+                if let plan = taskGroupPlan, plan.anchorIndex == itemIndex {
+                    renderData = plan.plan.renderData
+                    pendingSummary = "我识别到 \(plan.plan.memberCount) 项待办，已并为一个任务清单，请确认后创建"
+                } else {
+                    renderData = item.extractedData ?? [:]
+                    pendingSummary = "我识别到一个待办，请确认后创建"
+                }
 
                 // 重复任务：触发 action parser 补充 repeat 字段
-                if Self.looksLikeRepeatTask(text, data: item.extractedData),
+                if Self.looksLikeRepeatTask(text, data: renderData),
                    let actionResult = try? await callActionParser(
                        text: text,
-                       data: item.extractedData,
+                       data: renderData,
                        kind: .taskRepeat,
                        userContext: userContext,
                        provider: provider
@@ -302,7 +371,7 @@ final class ConversationCoordinator {
                         status: .skipped,
                         summaryText: renderData["repeatEnabled"] == "true"
                             ? "我识别到一个重复提醒，请确认后创建"
-                            : "我识别到一个待办，请确认后创建",
+                            : pendingSummary,
                         renderData: renderData.isEmpty ? nil : renderData,
                         linkedEntityType: nil,
                         linkedEntityId: nil,
@@ -693,8 +762,18 @@ final class ConversationCoordinator {
             return prefix + item.summaryText
         }
 
+        // 话术与真实状态对齐：没执行完就不说「已处理」
         let failedCount = items.filter { $0.status == .failed }.count
-        var result = "已为你处理 \(items.count) 件事：\n" + lines.joined(separator: "\n")
+        let pendingCount = items.filter { $0.status == .skipped }.count
+        var header: String
+        if pendingCount == items.count {
+            header = "识别到 \(items.count) 项待办，待你确认后创建：\n"
+        } else if pendingCount > 0 {
+            header = "已处理 \(items.count - pendingCount) 项，\(pendingCount) 项待你确认：\n"
+        } else {
+            header = "已为你处理 \(items.count) 件事：\n"
+        }
+        var result = header + lines.joined(separator: "\n")
         if failedCount > 0 {
             result += "\n其中 \(failedCount) 项失败"
         }

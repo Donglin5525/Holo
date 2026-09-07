@@ -615,6 +615,9 @@ final class ChatViewModel: ObservableObject {
                 var userContext = await UserContextBuilder.shared.buildContext()
                 userContext.recentLinkedTask = self.resolveRecentLinkedTask()
 
+                // 活跃规划会话检测：过滤流式占位，只看已定稿的历史消息
+                let activePlanningRunID = self.latestUnresolvedContextPlanRunID()
+
                 // ENERGY: 锁定检查预留位
 
                 // 用户明确从 Result 发起或当前会话存在高置信承接词时，
@@ -667,10 +670,33 @@ final class ChatViewModel: ObservableObject {
                     processResult = try await self.coordinator.process(
                         text: text,
                         userContext: userContext,
-                        provider: self.provider
+                        provider: self.provider,
+                        activePlanningRunID: activePlanningRunID
                     )
                 }
                 try Task.checkCancellation()
+
+                // 个人情境规划产出：草案卡消息（只读，不写业务事项；保存走卡片按钮）
+                if let planOutcome = processResult.contextPlanOutcome {
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .iso8601
+                    let draftJSON = (try? encoder.encode(planOutcome.draft))
+                        .flatMap { String(data: $0, encoding: .utf8) }
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: planOutcome.draft.answerText,
+                        intent: AIIntent.contextualPlanning.rawValue,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
+                        contextPlanJSON: draftJSON,
+                        messageType: .contextPlan
+                    )
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                    return
+                }
 
                 // ENERGY: 能量检查预留位
 
@@ -926,6 +952,7 @@ final class ChatViewModel: ObservableObject {
                         let markerResult = self.consumeMemoryUsageMarker(
                             from: fullText,
                             availableMemoryIDs: memorySummary.sourceIDs,
+                            memoryEntries: memorySummary.entries,
                             channel: .analysis
                         )
                         self.streamingText = markerResult.cleanText
@@ -977,6 +1004,7 @@ final class ChatViewModel: ObservableObject {
                         let markerResult = self.consumeMemoryUsageMarker(
                             from: fullText,
                             availableMemoryIDs: memorySummary.sourceIDs,
+                            memoryEntries: memorySummary.entries,
                             channel: .chat
                         )
                         self.streamingText = markerResult.cleanText
@@ -1760,9 +1788,18 @@ final class ChatViewModel: ObservableObject {
     private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
         guard !items.isEmpty else { return String(localized: "已处理") }
         if items.count == 1 { return items[0].summaryText }
-        return String(localized: "已为你处理 \(items.count) 件事：\n") + items.enumerated().map { index, item in
+        // 与真实状态对齐：还有未确认项时不说「已处理」
+        let pendingCount = items.filter { $0.status == .skipped }.count
+        let body = items.enumerated().map { index, item in
             "\(index + 1). \(item.summaryText)"
         }.joined(separator: "\n")
+        if pendingCount == items.count {
+            return String(localized: "识别到 \(items.count) 项待办，待你确认后创建：\n") + body
+        }
+        if pendingCount > 0 {
+            return String(localized: "已处理 \(items.count - pendingCount) 项，\(pendingCount) 项待你确认：\n") + body
+        }
+        return String(localized: "已为你处理 \(items.count) 件事：\n") + body
     }
 
     // MARK: - Pending Goal Choice Confirmation
@@ -2719,25 +2756,57 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// 活跃规划会话检测：最后一条已定稿的 AI 消息是未解决的规划草案卡时，
+    /// 会话处于规划续接态，非写消息由 Coordinator 走 followUp 重新生成草案。
+    /// 用户点过「已安排好/本次不用」或之后又聊了别的，即退出续接态。
+    private func latestUnresolvedContextPlanRunID() -> String? {
+        guard let lastAIMessage = messages.last(where: { $0.role != "user" && !$0.isStreaming }) else { return nil }
+        guard lastAIMessage.messageType == .contextPlan,
+              let json = lastAIMessage.contextPlanJSON,
+              let data = json.data(using: .utf8),
+              let runID = try? JSONDecoder().decode(ContextPlanRunIDEnvelope.self, from: data).runID,
+              !runID.isEmpty
+        else { return nil }
+        // resolve 只会落 arranged/declined；无记录 = 仍在续接态
+        guard ContextPlanUserDefaultsReceipts().loadResolution(runID: runID) == nil else { return nil }
+        return runID
+    }
+
+    private struct ContextPlanRunIDEnvelope: Decodable {
+        let runID: String
+    }
+
     /// 返回剥离 marker 后的正文 + 实际引用的记忆 ID（供消息持久署名）。
     private func consumeMemoryUsageMarker(
         from text: String,
         availableMemoryIDs: [String],
+        memoryEntries: [HoloMemorySummaryEntry],
         channel: HoloMemoryReceiptChannel
     ) -> (cleanText: String, usedMemoryIDs: [String]) {
         let result = HoloMemoryUsageMarker.parseAndStrip(
             text,
             allowedMemoryIDs: Set(availableMemoryIDs)
         )
-        if !result.usedMemoryIDs.isEmpty {
-            let notice = String(localized: "Holo 参考了 \(result.usedMemoryIDs.count) 条已记住的信息")
+        var usedMemoryIDs = result.usedMemoryIDs
+        if usedMemoryIDs.isEmpty, !memoryEntries.isEmpty {
+            // 署名兜底：注入了记忆但模型没吐引用标记时，按内容词对账补署名，
+            // 避免「用了记忆却不说来源」。
+            usedMemoryIDs = HoloMemoryAttributionReconciler.matchedMemoryIDs(
+                reply: result.cleanText,
+                entries: memoryEntries.map {
+                    HoloMemoryAttributionReconciler.Entry(id: $0.id, text: $0.title + "\n" + $0.aiUseSummary)
+                }
+            )
+        }
+        if !usedMemoryIDs.isEmpty {
+            let notice = String(localized: "Holo 参考了 \(usedMemoryIDs.count) 条已记住的信息")
             HoloMemoryReceiptStore.record(
                 kind: .use,
                 channel: channel,
-                memoryIDs: result.usedMemoryIDs,
+                memoryIDs: usedMemoryIDs,
                 message: notice
             )
-            recordMemoryUsage(result.usedMemoryIDs)
+            recordMemoryUsage(usedMemoryIDs)
             memoryNotice = notice
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(3))
@@ -2746,7 +2815,7 @@ final class ChatViewModel: ObservableObject {
                 }
             }
         }
-        return (result.cleanText, result.usedMemoryIDs)
+        return (result.cleanText, usedMemoryIDs)
     }
 
     /// 使用统计写入：走 repository 专用通道，不进版本链、不触发萃取调度；失败静默（统计非关键数据）。

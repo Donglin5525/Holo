@@ -43,6 +43,7 @@ SUITES=(
   "ExtractorOrchestrator|$TESTS/Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS,$PC_EXTRACT_DEPS,$APP/Services/AI/MemoryRepository/HoloMemoryRepository.swift,$APP/Services/AI/MemoryCore/HoloSemanticTombstoneMatcher.swift"
   "ContextRetrieval|$TESTS/Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS,$PC_RETRIEVAL_DEPS,$APP/Services/AI/PersonalContext/HoloContextAccessPolicy.swift,$APP/Models/AI/HoloPersonalContextControls.swift,$APP/Services/AI/PersonalContext/HoloPersonalContextValidator.swift"
   "ContextPlan|$TESTS/Services/AI/PersonalContext/ContextPlanStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS,$PC_RETRIEVAL_DEPS,$PC_PLAN_DEPS,$APP/Services/AI/PersonalContext/HoloContextAccessPolicy.swift,$APP/Models/AI/HoloPersonalContextControls.swift,$APP/Services/AI/PersonalContext/HoloContextPlanExecutionAdapter.swift"
+  "ChatTaskGroup|$TESTS/Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift|$APP/Services/AI/TaskGroupMergePlanner.swift,$APP/Services/AI/HoloMemoryAttributionReconciler.swift"
 )
 
 FILTER="${1:-}"

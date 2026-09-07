@@ -18,7 +18,9 @@ struct ContextPlanChatCard: View {
     /// 保存回执存储（logicalItemID → 内容指纹）。
     let receipts: ContextPlanReceiptStoring
     /// 任务创建出口（返回幂等键 → 真实回执；已发送请求≠成功，卡片按回执更新）。
-    let onCreateTasks: ([HoloContextPlanTaskCreation]) -> [String: HoloContextPlanCreationReceipt]
+    /// 第二参数是合并主任务标题：选中的无日期条目 ≥2 时为草案目标摘要，
+    /// 落库侧据此并成一个主任务 + 子条目；nil 表示逐条建独立任务。
+    let onCreateTasks: ([HoloContextPlanTaskCreation], String?) -> [String: HoloContextPlanCreationReceipt]
 
     @State private var draft0: HoloContextPlanDraft?
     @State private var selected: Set<String> = []
@@ -484,7 +486,13 @@ struct ContextPlanChatCard: View {
             successfulReceipts: receipts.loadReceipts(),
             existingTaskTitles: existingTitles
         )
-        let results = onCreateTasks(outcome.creations)
+        // 无日期的选中条目 ≥2 时交给落库侧并成一个主任务 + 子条目；
+        // 用户指定了日期的条目是时间锚定的独立事项，保持独立任务。
+        let groupParentTitle: String? =
+            (outcome.creations.count >= 2 && outcome.creations.allSatisfy { $0.dueDate == nil })
+            ? draft.goalSummary
+            : nil
+        let results = onCreateTasks(outcome.creations, groupParentTitle)
         // 回执以仓储写入结果为准：失败不记、不虚报（纯逻辑在 Adapter，可 standalone 测试）。
         let reconciliation = HoloContextPlanExecutionAdapter.reconcileReceipts(
             creations: outcome.creations,

@@ -1268,6 +1268,21 @@ extension ChatCardData {
 // 把"解码 JSON / 重建卡片"的成本从滑动渲染期移到数据创建期。
 
 extension ChatCardData: Sendable {}
+
+extension ChatCardData {
+    /// 待确认类卡片：写操作还没经用户拍板。多卡汇总话术据此区分
+    /// 「已处理」与「待确认」，不再对未确认的卡片说「已为你处理」。
+    var isPendingConfirmation: Bool {
+        switch self {
+        case .transaction(let data):
+            return ["pending", "confirming"].contains(data.confirmationStatus ?? "")
+        case .task(let data):
+            return data.requiresConfirmation
+        default:
+            return false
+        }
+    }
+}
 extension TransactionCardData: Sendable {}
 extension FlexibleQueryChatCardData: Sendable {}
 extension FlexibleQueryTransactionRow: Sendable {}

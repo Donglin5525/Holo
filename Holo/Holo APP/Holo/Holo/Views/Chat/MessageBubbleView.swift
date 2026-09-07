@@ -176,11 +176,38 @@ struct MessageBubbleView: View {
                     ContextPlanChatCard(
                         draftJSON: message.contextPlanJSON,
                         receipts: ContextPlanUserDefaultsReceipts(),
-                        onCreateTasks: { creations in
+                        onCreateTasks: { creations, groupParentTitle in
                             // 结构化映射直接建任务（§10：不把计划重新丢回意图识别模型）。
                             // 逐项回报真实回执：写入成功才算成功，失败项如实交回卡片。
                             let repo = TodoRepository.shared
                             var receipts: [String: HoloContextPlanCreationReceipt] = [:]
+
+                            // 无日期的多条目并成一个主任务 + 子条目，避免一个场景
+                            // 拆成一堆碎片任务；单条或带日期的条目保持独立任务。
+                            if let groupTitle = groupParentTitle.flatMap({ $0.isEmpty ? nil : $0 }),
+                               creations.count >= 2 {
+                                do {
+                                    let parent = try repo.createTask(
+                                        title: TaskGroupMergePlanner.mergedGroupTitle(from: groupTitle),
+                                        list: nil,
+                                        priority: .medium,
+                                        dueDate: nil,
+                                        isAllDay: true,
+                                        reminders: nil,
+                                        checkItemTitles: creations.map(\.title)
+                                    )
+                                    for creation in creations {
+                                        receipts[creation.idempotencyKey] = .success(taskID: parent.id.uuidString)
+                                    }
+                                    return receipts
+                                } catch {
+                                    for creation in creations {
+                                        receipts[creation.idempotencyKey] = .failure(error.localizedDescription)
+                                    }
+                                    return receipts
+                                }
+                            }
+
                             for creation in creations {
                                 do {
                                     let task = try repo.createTask(
@@ -249,10 +276,11 @@ struct MessageBubbleView: View {
                 bubbleContent
             }
 
-            // 意图标签只服务于可跳转结果；普通对话和未知意图不增加视觉噪声。
+            // 意图标签只服务于可跳转结果；普通对话、未知意图和草案卡消息不增加视觉噪声。
             if let intent = message.intent,
                let intentValue = AIIntent(rawValue: intent),
                intentValue != .unknown,
+               message.messageType != .contextPlan,
                !isUser,
                !hasCards,
                singleCard == nil,
@@ -380,12 +408,13 @@ struct MessageBubbleView: View {
     /// 多卡片渲染（带汇总标题）
     @ViewBuilder
     private func multiCardView(cards: [ChatCardData]) -> some View {
+        let pendingCount = cards.filter(\.isPendingConfirmation).count
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: pendingCount == cards.count ? "checklist" : "checkmark.circle.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoSuccess)
-                Text("已为你处理 \(cards.count) 件事")
+                    .foregroundColor(pendingCount == cards.count ? .holoPrimary : .holoSuccess)
+                Text(summaryHeaderText(cardCount: cards.count, pendingCount: pendingCount))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
             }
@@ -394,6 +423,17 @@ struct MessageBubbleView: View {
                 cardView(for: card)
             }
         }
+    }
+
+    /// 汇总话术与真实状态对齐：没执行完的不说「已处理」。
+    private func summaryHeaderText(cardCount: Int, pendingCount: Int) -> String {
+        if pendingCount == cardCount {
+            return String(localized: "识别到 \(cardCount) 项，待你确认")
+        }
+        if pendingCount > 0 {
+            return String(localized: "已处理 \(cardCount - pendingCount) 项，\(pendingCount) 项待确认")
+        }
+        return String(localized: "已为你处理 \(cardCount) 件事")
     }
 
     /// 根据卡片数据渲染对应领域的卡片视图
@@ -491,30 +531,34 @@ struct MessageBubbleView: View {
             canTap = false
         }
 
-        return AnyView(
-            Button {
-                if canTap {
-                    onIntentTagTap?(message)
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: intentIcon(intent))
-                        .font(.system(size: 10))
-                    Text(intent.chatDisplayLabel)
-                        .font(.system(size: 11))
-                    if canTap {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
-                }
-                .foregroundColor(.holoPrimary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Color.holoPrimary.opacity(0.1))
-                .cornerRadius(8)
+        // 无跳转目标的标签不渲染成按钮（避免「看起来能点、点了没反应」）
+        let chip = HStack(spacing: 4) {
+            Image(systemName: intentIcon(intent))
+                .font(.system(size: 10))
+            Text(intent.chatDisplayLabel)
+                .font(.system(size: 11))
+            if canTap {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
             }
-            .buttonStyle(.plain)
-        )
+        }
+        .foregroundColor(.holoPrimary.opacity(canTap ? 1 : 0.65))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color.holoPrimary.opacity(canTap ? 0.1 : 0.06))
+        .cornerRadius(8)
+
+        if canTap {
+            return AnyView(
+                Button {
+                    onIntentTagTap?(message)
+                } label: {
+                    chip
+                }
+                .buttonStyle(.plain)
+            )
+        }
+        return AnyView(chip)
     }
 
     private func intentIcon(_ intent: AIIntent) -> String {
