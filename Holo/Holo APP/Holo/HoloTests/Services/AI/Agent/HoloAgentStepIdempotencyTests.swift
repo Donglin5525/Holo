@@ -96,6 +96,7 @@ final class HoloAgentStepIdempotencyTests: XCTestCase {
         MockURLProtocol.reset(responses: Array(repeating:
             (409, #"{"error":{"code":"STEP_IN_PROGRESS","message":"processing"}}"#), count: 10))
         let client = makeClient()
+        client.stepInProgressDelayForAttempt = { _ in 0.01 }
 
         do {
             let _: OKResponse = try await client.send(makeRequest())
@@ -105,7 +106,7 @@ final class HoloAgentStepIdempotencyTests: XCTestCase {
                 return XCTFail("应抛 stepInProgress，实际 \(error)")
             }
         }
-        XCTAssertEqual(MockURLProtocol.requestCount, 4, "首次 + 3 次退避重试，实际 \(MockURLProtocol.requestCount)")
+        XCTAssertEqual(MockURLProtocol.requestCount, 6, "首次 + 5 次退避重试（预算须覆盖单轮上游时延），实际 \(MockURLProtocol.requestCount)")
     }
 
     /// 409 STEP_ID_CONFLICT → 不重试，直接抛 typed error（协议冲突是终态）。

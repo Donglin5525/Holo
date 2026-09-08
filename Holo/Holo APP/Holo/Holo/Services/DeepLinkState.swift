@@ -27,6 +27,25 @@ struct FinanceEvidenceReviewDeepLink: Equatable {
     var sourceEvidenceID: String?
 }
 
+extension DeepLinkState {
+    /// 报告证据「点按核对」→ 账单复核页的统一跳转入口。
+    /// 聊天页 / 收藏夹等所有报告入口共用，避免 DeepLink 构造漂移。
+    static func openFinanceEvidenceReview(_ drilldown: HoloRenderedFinanceDrilldown) {
+        let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
+        DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
+            title: normalizedKeyword.map { String(localized: "\($0)数据依据") } ?? String(localized: "财务数据依据"),
+            label: drilldown.label,
+            keyword: normalizedKeyword,
+            start: drilldown.start,
+            end: drilldown.end,
+            baselineStart: drilldown.baselineStart,
+            baselineEnd: drilldown.baselineEnd,
+            sourceEvidenceID: drilldown.sourceEvidenceID
+        )))
+    }
+}
+
 /// Deep Link 跳转目标
 /// 各模块通过匹配对应 case 决定是否响应跳转
 enum DeepLinkTarget: Equatable {

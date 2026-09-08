@@ -14,6 +14,26 @@ nonisolated struct APIRequest {
     let method: HTTPMethod
     let headers: [String: String]
     let body: Encodable?
+    /// 请求级超时覆盖（秒）；nil = 默认 60s。长时延的非流式 AI 调用必须覆盖：
+    /// agent 单轮模型时延实测可达 90s+，60s 会导致首试必然超时、重试全部撞
+    /// 自己的在途步锁吃 409（2026-09-08 深度分析卡死事故的深层根因）。
+    var timeoutInterval: TimeInterval?
+
+    init(
+        baseURL: String,
+        path: String,
+        method: HTTPMethod,
+        headers: [String: String] = [:],
+        body: Encodable? = nil,
+        timeoutInterval: TimeInterval? = nil
+    ) {
+        self.baseURL = baseURL
+        self.path = path
+        self.method = method
+        self.headers = headers
+        self.body = body
+        self.timeoutInterval = timeoutInterval
+    }
 
     nonisolated enum HTTPMethod: String {
         case get = "GET"
@@ -29,7 +49,7 @@ nonisolated struct APIRequest {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        request.timeoutInterval = 60
+        request.timeoutInterval = timeoutInterval ?? 60
 
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)

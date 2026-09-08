@@ -319,19 +319,8 @@ struct ChatView: View {
                 message: message,
                 chatViewModel: viewModel,
                 onFinanceDrilldown: { drilldown in
-                    let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
-                    DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
-                        title: normalizedKeyword.map { String(localized: "\($0)数据依据") } ?? String(localized: "财务数据依据"),
-                        label: drilldown.label,
-                        keyword: normalizedKeyword,
-                        start: drilldown.start,
-                        end: drilldown.end,
-                        baselineStart: drilldown.baselineStart,
-                        baselineEnd: drilldown.baselineEnd,
-                        sourceEvidenceID: drilldown.sourceEvidenceID
-                    )))
                     // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
+                    DeepLinkState.openFinanceEvidenceReview(drilldown)
                 }
             )
             .holoContentColumn()

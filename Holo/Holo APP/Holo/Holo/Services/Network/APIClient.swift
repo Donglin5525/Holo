@@ -16,6 +16,9 @@ nonisolated final class APIClient {
     private let logger = Logger(subsystem: "com.holo.app", category: "APIClient")
     private let urlSession: URLSession
     private let maxRetries = 3
+    /// STEP_IN_PROGRESS 退避序列：入参为第几次重试（1 起），默认指数 2^n 秒。
+    /// 步锁重试预算（次数×间隔）须覆盖 agent 单轮上游时延，见 sendWithResponse 注释。
+    var stepInProgressDelayForAttempt: (Int) -> TimeInterval = { pow(2.0, Double($0)) }
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -50,7 +53,13 @@ nonisolated final class APIClient {
     func sendWithResponse<T: Decodable>(_ request: APIRequest) async throws -> Response<T> {
         var attempt = 0
         var stepInProgressRetries = 0
-        let maxStepInProgressRetries = 3
+        // 预算必须盖过「本 step 的上游仍在算」的窗口：agent 单轮模型时延 30-60s，
+        // 首试瞬断后重试会在锁放行前连续吃 409（2026-09-08 实测：2/4/8 共 14s
+        // 不够，耗尽后旧代码静默上抛致任务卡死）。5 次 2/4/8/16/32 ≈ 62s 覆盖，
+        // 上游算完即幂等命中秒回；仍耗尽则由 runLoop 落 failed 终态如实收尾。
+        let maxStepInProgressRetries = 5
+        // 步锁退避序列（测试注入零延迟用）
+        let stepInProgressDelay = stepInProgressDelayForAttempt
 
         while true {
             do {
@@ -71,7 +80,7 @@ nonisolated final class APIClient {
                 // §8.2：STEP_IN_PROGRESS——后端正在处理同一 step，独立退避重试同一请求
                 if case .stepInProgress = error, stepInProgressRetries < maxStepInProgressRetries {
                     stepInProgressRetries += 1
-                    let delay = pow(2.0, Double(stepInProgressRetries))
+                    let delay = stepInProgressDelay(stepInProgressRetries)
                     logger.warning("后端 step 处理中，\(delay)秒后重试同一请求（第\(stepInProgressRetries)次）")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue

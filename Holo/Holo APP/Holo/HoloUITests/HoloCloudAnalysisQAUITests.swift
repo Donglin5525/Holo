@@ -318,4 +318,72 @@ final class HoloCloudAnalysisQAUITests: XCTestCase {
         shoot("u12_final")
         print("[RESULT] done=\(done) 深度分析=\(labelCount("深度分析")) 证据=\(labelCount("证据")) 依据=\(labelCount("依据")) 近180天=\(labelCount("近180天")) TIMA=\(labelCount("TIMA"))")
     }
+
+    // MARK: - 杀 App 恢复挂死复现（2026-09-08 根因取证专用）
+
+    /// 复现驱动：本地轨道发起深度分析 → 第一轮 LLM 在途时 terminate（模拟杀 App）
+    /// → 重新 launch（触发冷启动恢复链）→ 回到 AI 对话页驻留，每 15s 采样消息状态
+    /// 文本，最长 8 分钟。宿主侧在挂死窗口对 App 进程 `sample` 抓线程堆栈定位根因。
+    /// 注意：新加的停滞兜底会在 Chat 驻留 3 分钟后把停滞任务终结——采样须在重启后
+    /// 2.5 分钟内完成。
+    /// 门禁：会真实消耗深度分析额度，须 TEST_RUNNER_HOLO_REPRO=1 才运行。
+    func testReproKillMidRunAndWatchResume() throws {
+        guard ProcessInfo.processInfo.environment["HOLO_REPRO"] == "1" else {
+            throw XCTSkip("取证复现用例：须 TEST_RUNNER_HOLO_REPRO=1 显式运行（消耗额度）")
+        }
+        try FileManager.default.createDirectory(atPath: Self.dir, withIntermediateDirectories: true)
+        // 强制本地轨道（云端 flag 用 launch args 覆盖，避免 UserDefaults 残留态干扰）
+        app.launchArguments += ["-holo_cloud_deepAnalysisEnabled", "NO"]
+        app.launch()
+        sleep(5)
+        shoot("repro00_home")
+
+        let orb = app.buttons["闪光"].firstMatch
+        XCTAssertTrue(orb.waitForExistence(timeout: 15), "AI 圆球未找到")
+        orb.tap()
+        sleep(3)
+        let input = app.textFields["输入消息..."].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "聊天输入框未找到")
+        shoot("repro01_chat")
+
+        let prompt = "分析一下近半年的电费趋势"
+        typeChinese(into: input, text: prompt)
+        let send = app.buttons["发送消息"].firstMatch
+        XCTAssertTrue(send.waitForExistence(timeout: 8), "发送按钮未找到")
+        send.tap()
+        print("[REPRO] 已发送，等第一轮 LLM 在途 35s…")
+        sleep(35)
+        shoot("repro02_inflight")
+        print("[REPRO] terminate（模拟杀 App）t=\(Date())")
+        app.terminate()
+
+        sleep(3)
+        print("[REPRO] 重新 launch（触发冷启动恢复链）t=\(Date())")
+        app.launch()
+        sleep(8)
+        let orb2 = app.buttons["闪光"].firstMatch
+        if orb2.waitForExistence(timeout: 10) {
+            orb2.tap()
+            sleep(3)
+        }
+        shoot("repro03_relaunched_chat")
+        print("[REPRO] 观测窗口开始 t=\(Date())（宿主侧请在此窗口 sample）")
+
+        var summary = ""
+        for i in 0..<32 {
+            sleep(15)
+            let thinking = labelCount("正在深度分析") + labelCount("深入思考") + labelCount("调用模型")
+            let interrupted = labelCount("深度分析已中断")
+            let stopped = labelCount("已停止生成")
+            summary = "t=+\(i * 15 + 15)s thinking=\(thinking) interrupted=\(interrupted) stopped=\(stopped)"
+            print("[WATCH] i=\(i) \(summary)")
+            if i % 2 == 0 { shoot("repro_watch_\(i)") }
+            if interrupted > 0 {
+                print("[WATCH] 已见中断终态，结束观测")
+                break
+            }
+        }
+        shoot("repro_final")
+        print("[REPRO] 观测结束 \(summary)")
+    }
 }

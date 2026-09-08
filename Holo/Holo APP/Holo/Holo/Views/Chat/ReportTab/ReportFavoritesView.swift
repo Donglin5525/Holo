@@ -47,6 +47,8 @@ struct ReportFavoritesView: View {
             ReportDetailRoute(
                 message: message,
                 chatViewModel: chatViewModel,
+                // 收藏夹此前未传下钻回调，证据行在该入口全静态；补齐与聊天页同源通道
+                onFinanceDrilldown: { DeepLinkState.openFinanceEvidenceReview($0) },
                 onDismiss: {
                     // 详情里可能追问出了新报告，回来刷新列表让「追问 ×N」计数准确
                     Task { await load() }

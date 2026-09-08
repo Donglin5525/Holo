@@ -156,12 +156,20 @@ final class HoloCloudAnalysisService {
             let snapshot = try await HoloCloudAnalysisSnapshotBuilder.buildJSON()
             let started = try await client.start(question: question)
             try Task.checkCancellation()
-            try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: snapshot)
+            let context = TaskContext(messageID: sourceMessageID, question: question, taskType: "deep_analysis")
+            // start 成功即登记（提前于快照上传）：上传中途被杀，冷启动也能恢复轮询
+            // 领取，对账兜底也能据此识别「云端在途」、不按「无 job 超 90s」误判中断
+            activeTasks[started.taskId] = context
+            do {
+                try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: snapshot)
+            } catch {
+                // 上传失败不进 poll（poll 的 defer 清不到），登记须自行撤回，
+                // 否则任务位被永久占住、后续云端任务全部回落本地
+                activeTasks[started.taskId] = nil
+                throw error
+            }
             logger.info("云端任务已提交 taskId=\(started.taskId, privacy: .public) type=deep_analysis")
-            await poll(
-                taskId: started.taskId,
-                context: TaskContext(messageID: sourceMessageID, question: question, taskType: "deep_analysis")
-            )
+            await poll(taskId: started.taskId, context: context)
             return true
         } catch is CancellationError {
             await cancelActiveIfNeeded()
@@ -200,17 +208,22 @@ final class HoloCloudAnalysisService {
             let material = try JSONEncoder().encode(context)
             let started = try await client.start(question: "period_replay", taskType: "period_replay")
             try Task.checkCancellation()
-            try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: material)
-            logger.info("云端回放任务已提交 taskId=\(started.taskId, privacy: .public)")
-            await poll(
-                taskId: started.taskId,
-                context: TaskContext(
-                    messageID: sourceMessageID,
-                    question: "period_replay",
-                    taskType: "period_replay",
-                    snapshotHash: snapshotHash
-                )
+            let taskContext = TaskContext(
+                messageID: sourceMessageID,
+                question: "period_replay",
+                taskType: "period_replay",
+                snapshotHash: snapshotHash
             )
+            // 与深度分析同口径：start 成功即登记，上传失败自行撤回
+            activeTasks[started.taskId] = taskContext
+            do {
+                try await client.uploadSnapshot(taskId: started.taskId, snapshotJSON: material)
+            } catch {
+                activeTasks[started.taskId] = nil
+                throw error
+            }
+            logger.info("云端回放任务已提交 taskId=\(started.taskId, privacy: .public)")
+            await poll(taskId: started.taskId, context: taskContext)
             return true
         } catch is CancellationError {
             await cancelActiveIfNeeded()
@@ -223,7 +236,8 @@ final class HoloCloudAnalysisService {
 
     /// 轮询直到终态；failed/超时回落本地（按任务类型分流）。
     private func poll(taskId: String, context: TaskContext) async {
-        activeTasks[taskId] = context
+        // attempt 已在 start 成功时提前登记；冷启动恢复路径经此幂等补登
+        if activeTasks[taskId] == nil { activeTasks[taskId] = context }
         defer {
             activeTasks[taskId] = nil
             pollingTasks[taskId]?.cancel()
@@ -316,6 +330,13 @@ final class HoloCloudAnalysisService {
         !activeTasks.isEmpty
     }
 
+    /// 指定消息是否有在途云端任务（轮询中，或冷启动恢复后待领取）。
+    /// HoloAgentAnalysisService 的对账兜底据此豁免：云端轨道刻意不落本地 job、
+    /// 真实耗时可达 6-10 分钟，不能按「无 job 超 90s」误判为「没真正开始」。
+    func isActiveTask(forMessageID messageID: UUID) -> Bool {
+        activeTasks.values.contains { $0.messageID == messageID }
+    }
+
     /// 云端轨道快查（不触发上云）：flag 开启 + 隐私 v2 已同意 + 无并发任务。
     /// Coordinator 据此决定回放先走云端还是本地；真正接管以 attempt 系列的完整检查为准。
     func canTakeCloudTask() -> Bool {
@@ -363,11 +384,15 @@ final class HoloCloudAnalysisService {
         let summary = claims.isEmpty
             ? "本期暂无显著观察"
             : claims.joined(separator: "；")
+        // 证据收敛：云端证据池是「查过什么就有什么」，按结论引用（claims.evidenceIDs）
+        // 过滤后上屏，探索阶段带出的无关分类（问电费带出房租/红包）不再混进核对列表
+        let evidencePool = result.evidence ?? []
+        let citedEvidence = HoloCloudEvidencePresenter.citedEvidence(from: evidencePool, claims: result.claims ?? [])
         var rendered = HoloRenderedAgentResult(
             title: result.title ?? "深度分析",
             summary: summary,
             sections: sections,
-            evidenceReferences: HoloCloudEvidencePresenter.evidenceReferences(from: result.evidence ?? []),
+            evidenceReferences: HoloCloudEvidencePresenter.evidenceReferences(from: citedEvidence),
             failure: nil,
             question: question,
             scope: HoloRenderedAnswerScope(
@@ -377,7 +402,7 @@ final class HoloCloudAnalysisService {
                 snapshotCutoffAt: nil,
                 attribution: nil
             ),
-            dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: result.evidence ?? [])
+            dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: citedEvidence)
         )
         // 追问血统身份（方案B）：云端结果不落本地 Job/Result 档案，用「cloud-任务ID」作本地等价编号——
         // 报告页据此显示追问入口，追问记录据此挂载血统；cloud- 前缀与本地 UUID 空间天然不冲突
@@ -386,7 +411,7 @@ final class HoloCloudAnalysisService {
         rendered.agentResultID = cloudIdentity
         rendered.rootUserQuestion = question
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
-        logger.info("云端结果已落地 claims=\(claims.count, privacy: .public) evidence=\(result.evidence?.count ?? 0, privacy: .public)")
+        logger.info("云端结果已落地 claims=\(claims.count, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
     }
 
     private func fallbackToLocal(question: String, sourceMessageID: UUID) async {

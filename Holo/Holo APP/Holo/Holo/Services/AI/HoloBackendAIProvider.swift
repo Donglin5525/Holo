@@ -407,6 +407,9 @@ final class HoloBackendAIProvider: AIProvider {
     ) -> APIRequest {
         // §8.1：step 三字段仅 agentLoop 携带；其他 purpose 保持兼容不编码
         let includeStep = purpose == .agentLoop ? step : nil
+        // agent_loop 非流式单轮时延实测可达 90s+，60s 默认超时会掐掉长轮次
+        // （客户端超时后上游继续算，重试只能吃 409 等缓存），单独放宽到 180s
+        let timeout: TimeInterval? = purpose == .agentLoop ? 180 : nil
         return APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/chat/completions",
@@ -424,7 +427,8 @@ final class HoloBackendAIProvider: AIProvider {
                 stepId: includeStep?.stepID,
                 requestHash: includeStep?.requestHash,
                 usageActionId: includeStep?.runID ?? UUID().uuidString
-            )
+            ),
+            timeoutInterval: timeout
         )
     }
 

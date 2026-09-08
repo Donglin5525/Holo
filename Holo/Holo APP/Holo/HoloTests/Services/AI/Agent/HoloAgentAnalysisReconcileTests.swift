@@ -32,6 +32,14 @@ final class HoloAgentAnalysisReconcileTests: XCTestCase {
         func next(messages: [HoloAgentMessage], step: HoloAgentLLMRequestRecord?) async throws -> String { "" }
     }
 
+    /// 恒抛指定错误的 LLM（步锁冲突/网络故障等注入用）。
+    private actor ThrowingLLM: HoloAgentLLMClientProtocol {
+        let error: Error
+        init(error: Error) { self.error = error }
+        func next(messages: [HoloAgentMessage]) async throws -> String { throw error }
+        func next(messages: [HoloAgentMessage], step: HoloAgentLLMRequestRecord?) async throws -> String { throw error }
+    }
+
     private actor FakeExecutor: HoloAgentToolExecuting {
         func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
             HoloDataToolResult(
@@ -44,10 +52,13 @@ final class HoloAgentAnalysisReconcileTests: XCTestCase {
 
     private struct ServiceFixture {
         let service: HoloAgentAnalysisService
+        let scheduler: HoloAgentScheduler
         let jobStore: HoloAgentJobStore
     }
 
-    private func makeServiceFixture() -> ServiceFixture {
+    private func makeServiceFixture(
+        llm: HoloAgentLLMClientProtocol = FakeLLM()
+    ) -> ServiceFixture {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("holo-agent-reconcile-test-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -64,12 +75,13 @@ final class HoloAgentAnalysisReconcileTests: XCTestCase {
             persistence: persistence,
             jobStore: jobStore,
             checkpointStore: checkpointStore,
-            llmClient: FakeLLM(),
+            llmClient: llm,
             toolExecutor: FakeExecutor()
         )
         let scheduler = HoloAgentScheduler(runtime: runtime)
         return ServiceFixture(
             service: HoloAgentAnalysisService(runtime: runtime, scheduler: scheduler),
+            scheduler: scheduler,
             jobStore: jobStore
         )
     }
@@ -156,6 +168,27 @@ final class HoloAgentAnalysisReconcileTests: XCTestCase {
         XCTAssertTrue(message?.isStreaming ?? false, "宽限期内不得把发送中的分析误判为中断")
     }
 
+    // MARK: - 云端轨道豁免（2026-09-08 假失败「分析启动前被中断」修复）
+
+    /// 云端深度分析刻意不落本地 job、真实耗时可达 6-10 分钟：在途期间（有
+    /// HoloCloudAnalysisService 注册表背书）不得按「无 job 超 90s」判「没真正开始」。
+    /// 注册表本身无法注入，经 reconcile 的查询插槽模拟「云端在途」。
+    func testLiveCloudTaskExemptedFromNeverStartedFinalization() async {
+        let repo = ChatMessageRepository.shared
+        let fixture = makeServiceFixture()
+        let messageId = makeHangingAnalysisMessage(in: repo)
+
+        let didChange = await fixture.service.reconcileStalledAnalysisMessages(
+            repository: repo,
+            now: Date().addingTimeInterval(200),
+            hasLiveCloudTask: { [messageId] in $0 == messageId }
+        )
+
+        XCTAssertFalse(didChange)
+        let message = repo.messages.first(where: { $0.id == messageId })
+        XCTAssertTrue(message?.isStreaming ?? false, "云端在途消息不得被对账落地为中断")
+    }
+
     // MARK: - 有 job 超截止
 
     /// job 停在 waitingForLLM 落盘态（强杀时正在等模型响应）、已超绝对截止、
@@ -183,5 +216,104 @@ final class HoloAgentAnalysisReconcileTests: XCTestCase {
         let fixture = makeServiceFixture()
         let didChange = await fixture.service.reconcileStalledAnalysisMessages(repository: repo)
         XCTAssertFalse(didChange)
+    }
+
+    // MARK: - 活跃态停滞兜底（2026-09-08 恢复后执行体挂死卡死回归）
+
+    /// 停在 running、updatedAt 停滞超窗（未超绝对截止）：对账应落 failed 终态，
+    /// 消息如实显示中断。实测事故形态：恢复后的执行体在发请求前挂死、零进展，
+    /// 消息永远停在「思考中」无人收尾。
+    func testStalledActiveJobFinalizedAfterStaleness() async throws {
+        let repo = ChatMessageRepository.shared
+        let fixture = makeServiceFixture()
+        let messageId = makeHangingAnalysisMessage(in: repo)
+        let now = Date()
+        let stalled = HoloAgentJob(
+            id: UUID().uuidString,
+            type: .deepAnalysis,
+            userQuestion: "分析近半年电费趋势",
+            trigger: .userQuestion,
+            state: .running,
+            currentStep: .executeTools,
+            createdAt: now.addingTimeInterval(-300),
+            updatedAt: now.addingTimeInterval(-240),
+            lastForegroundRunAt: nil,
+            timeRange: nil,
+            budget: HoloAgentBudget.normalDeep(),
+            checkpointID: nil,
+            resultID: nil,
+            errorSummary: nil,
+            deviceID: nil,
+            sourceMessageID: messageId,
+            absoluteDeadline: now.addingTimeInterval(1800)
+        )
+        try await fixture.jobStore.upsert(stalled)
+
+        let didChange = await fixture.service.reconcileStalledAnalysisMessages(repository: repo)
+
+        XCTAssertTrue(didChange)
+        let message = repo.messages.first(where: { $0.id == messageId })
+        XCTAssertFalse(message?.isStreaming ?? true, "活跃态停滞超窗应落地终态")
+        XCTAssertTrue(message?.content.hasPrefix("深度分析已中断") ?? false)
+        let persisted = try await fixture.jobStore.load().first(where: { $0.id == stalled.id })
+        XCTAssertEqual(persisted?.state, .failed, "停滞活跃 job 应被终结为 failed")
+    }
+
+    /// 活跃态但进展正常（updatedAt 新鲜）不得被停滞兜底误杀。
+    func testFreshActiveJobNotFinalizedAsStalled() async throws {
+        let repo = ChatMessageRepository.shared
+        let fixture = makeServiceFixture()
+        let messageId = makeHangingAnalysisMessage(in: repo)
+        let now = Date()
+        let fresh = HoloAgentJob(
+            id: UUID().uuidString,
+            type: .deepAnalysis,
+            userQuestion: "分析近半年电费趋势",
+            trigger: .userQuestion,
+            state: .running,
+            currentStep: .executeTools,
+            createdAt: now.addingTimeInterval(-60),
+            updatedAt: now.addingTimeInterval(-10),
+            lastForegroundRunAt: nil,
+            timeRange: nil,
+            budget: HoloAgentBudget.normalDeep(),
+            checkpointID: nil,
+            resultID: nil,
+            errorSummary: nil,
+            deviceID: nil,
+            sourceMessageID: messageId,
+            absoluteDeadline: now.addingTimeInterval(1800)
+        )
+        try await fixture.jobStore.upsert(fresh)
+
+        _ = await fixture.service.reconcileStalledAnalysisMessages(repository: repo)
+
+        let message = repo.messages.first(where: { $0.id == messageId })
+        XCTAssertTrue(message?.isStreaming ?? false, "进展正常的活跃 job 不得被对账终结")
+        let persisted = try await fixture.jobStore.load().first(where: { $0.id == fresh.id })
+        XCTAssertEqual(persisted?.state, .running)
+    }
+
+    // MARK: - STEP_IN_PROGRESS 退避耗尽落终态（2026-09-08 409 卡死回归）
+
+    /// 服务端步骤锁持续冲突（APIClient 独立退避 3 次耗尽后上抛）：runLoop 必须把
+    /// job 落成 failed 终态。曾静默上抛导致 job 停在 waitingForLLM、消息永远「思考中」。
+    func testStepInProgressExhaustionFailsJobTerminally() async throws {
+        let repo = ChatMessageRepository.shared
+        let fixture = makeServiceFixture(llm: ThrowingLLM(
+            error: APIError.stepInProgress("Step is currently in progress")
+        ))
+        let userMessageId = repo.addMessage(role: "user", content: "分析近半年电费趋势")
+        let messageId = repo.addStreamingMessage(role: "assistant", parentMessageId: userMessageId)
+
+        let job = try await fixture.scheduler.start(
+            question: "分析近半年电费趋势",
+            systemTemplate: "",
+            toolDescriptions: "",
+            sourceMessageID: messageId
+        )
+
+        XCTAssertEqual(job.state, .failed, "409 退避耗尽应落 failed 终态，实际：\(job.state.rawValue)")
+        XCTAssertTrue(job.errorSummary?.contains("重新发起") ?? false)
     }
 }

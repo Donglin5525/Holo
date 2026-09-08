@@ -683,6 +683,27 @@ final class HoloAgentAnalysisService {
         showsActivityIndicator: false
     )
 
+    /// 活跃态 job 停滞的判定窗口。正常执行的 runLoop 每个 LLM 轮至少刷新一次
+    /// updatedAt（间隔为单次请求时长，请求超时 60s）；3 分钟零进展 = 执行已挂死
+    /// 或已消失（2026-09-08 实测：恢复后的执行体在发请求前挂死、零网络零落盘）。
+    private static let stalledActiveJobStaleness: TimeInterval = 180
+
+    /// 活跃态 job 停滞的统一终态文案（与超截止/无 job 悬挂并列的第三类收尾）。
+    private static let stalledActiveJobStatus = HoloAgentChatStatus(
+        title: "深度分析已中断",
+        detail: "分析长时间没有进展，已自动结束本次分析。请重新发送问题发起分析。",
+        keepsMessageStreaming: false,
+        showsActivityIndicator: false
+    )
+
+    /// running/waitingForLLM 是「应有进程内执行持续写盘」的活跃态；停滞超窗即视同
+    /// 挂死。等待类状态（暂停/等网络/等前台）不在此列——它们由恢复链负责拉起。
+    private static func isStalledActiveJob(_ job: HoloAgentJob, at now: Date) -> Bool {
+        let activeStates: Set<HoloAgentJobState> = [.running, .waitingForLLM]
+        return activeStates.contains(job.state)
+            && now.timeIntervalSince(job.updatedAt) >= stalledActiveJobStaleness
+    }
+
     /// 聊天页驻留期间的对账兜底，每轮覆盖三类悬挂：
     /// ① 有 job、超绝对截止、无进程内活跃执行 → 终结为「已中断」
     ///    （refreshLiveProgress 只在 sendMessage 存活期间被调用，重进后无人触发，
@@ -690,15 +711,25 @@ final class HoloAgentAnalysisService {
     /// ② 有 job、非终态未超时 → 刷新进度文案（文案未变时仓储层去重，无写放大）；
     /// ③ 无 job、超过宽限 → 落地「已中断」。一次性孤儿清理（180s 宽限、仅页面
     ///    重建时跑）接不住强杀后短时间重进的场景，这里是常驻兜底。
+    /// 云端轨道豁免：云端深度分析刻意不落本地 job、真实耗时可达 6-10 分钟，
+    /// 在途消息有 HoloCloudAnalysisService 注册表背书，不适用「无 job 超 90s」
+    /// 判定（否则 90 秒必被误判「分析启动前被中断」，与云端轮询互相覆盖来回横跳）；
+    /// 其超时/回落由云端轮询侧（15 分钟超时+回落本地）兜底，不会悬挂。
+    /// - Parameters:
+    ///   - hasLiveCloudTask: 云端在途查询，默认查 HoloCloudAnalysisService 注册表；
+    ///     测试注入用插槽（与 repository/now 同一模式）。
     /// - Returns: 是否发生状态变更。
     @discardableResult
     func reconcileStalledAnalysisMessages(
         repository: ChatMessageRepository? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        hasLiveCloudTask: ((UUID) -> Bool)? = nil
     ) async -> Bool {
         let repository = repository ?? ChatMessageRepository.shared
         let candidates = repository.streamingAnalysisLoadingMessages()
         guard !candidates.isEmpty else { return false }
+        let isCloudTrackMessage = hasLiveCloudTask
+            ?? { HoloCloudAnalysisService.shared.isActiveTask(forMessageID: $0) }
 
         let jobs: [HoloAgentJob]
         do {
@@ -718,6 +749,7 @@ final class HoloAgentAnalysisService {
         for candidate in candidates {
             let messageID = candidate.id
             if repository.messageType(for: messageID) == .userCancelled { continue }
+            if isCloudTrackMessage(messageID) { continue }
             if let job = latestJobByMessage[messageID] {
                 let status = HoloAgentChatStatusPresenter.status(for: job)
                 guard status.keepsMessageStreaming else { continue }
@@ -726,6 +758,16 @@ final class HoloAgentAnalysisService {
                     _ = try? await runtime.failJob(jobID: job.id, reason: "任务已超过截止时限，不再继续")
                     HoloAgentPauseNotifier.clearPausedNotice(jobID: job.id)
                     repository.updateAgentMessageProgress(messageID, status: Self.deadlineExceededStatus)
+                    didChange = true
+                } else if Self.isStalledActiveJob(job, at: now) {
+                    // 活跃态停滞兜底：不管执行体是已消失还是进程内挂死（挂死时
+                    // hasActiveExecution 仍为 true，不能作为豁免依据），超窗即落
+                    // 终态并如实告知，不让消息永远停在「思考中」。
+                    let hadActiveExecution = await scheduler.hasActiveExecution(jobID: job.id)
+                    logger.info("[Agent] 活跃态停滞落地中断 messageID=\(messageID.uuidString, privacy: .public) state=\(job.state.rawValue, privacy: .public) 仍有活跃执行=\(hadActiveExecution, privacy: .public)")
+                    _ = try? await runtime.failJob(jobID: job.id, reason: "分析执行长时间无进展（停滞超窗），自动结束")
+                    HoloAgentPauseNotifier.clearPausedNotice(jobID: job.id)
+                    repository.updateAgentMessageProgress(messageID, status: Self.stalledActiveJobStatus)
                     didChange = true
                 } else {
                     repository.updateAgentMessageProgress(messageID, status: status)

@@ -575,6 +575,20 @@ actor HoloLocalAgentRuntime {
                     try await jobStore.upsert(job)
                     return job
                 }
+                // §8.2：STEP_IN_PROGRESS 经 APIClient 独立退避（3 次）仍持续——服务端步骤锁
+                // 长时间未释放，与断网不同，就地等待没有语义（锁不随本端重试消退）。
+                // 必须落 failed 终态：曾静默上抛导致 job 停在 waitingForLLM、消息永远
+                // 停在「思考中」无人收尾（2026-09-08 实测事故）。
+                if let apiError = error as? APIError, case .stepInProgress(let message) = apiError {
+                    try await guardExecutionGeneration(generation, jobID: jobID)
+                    job.state = .failed
+                    job.errorSummary = "分析步骤锁冲突（服务端 \(message ?? "STEP_IN_PROGRESS")），本次未能继续，请重新发起分析"
+                    job.waitReason = nil
+                    job.updatedAt = now
+                    job.endActiveSegment(at: now)
+                    try await jobStore.upsert(job)
+                    return job
+                }
                 // §7.2：可恢复网络错误 → 保存 checkpoint 并进入 waitingForCondition+network，不落失败。
                 // 锁屏高可用改造：落盘等待态后不再直接退出 runLoop——只要本执行 Task 仍被
                 // 租约护着（前台/legacy/CP），就地指数退避后自动重发本轮流请求：

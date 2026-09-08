@@ -92,6 +92,30 @@ nonisolated enum HoloCloudEvidencePresenter {
         return output
     }
 
+    /// 证据池按结论引用收敛：云端执行器跨轮累积的证据是「查过什么就有什么」，
+    /// 探索阶段的全量分组查询会把与结论无关的分类桶（问电费带出房租/红包礼金）
+    /// 一起送进核对列表。claims.evidenceIDs 是模型对「结论用了哪些证据」的引用，
+    /// 按它过滤；rows 行样本没有可引用 ID，保留「被引用指标所属数据集」的行样本
+    /// （行样本是指标的逐笔核对材料）。引用缺失或过滤结果为空时保留原列表——
+    /// 模型未按契约给引用时不至于把证据清空。
+    static func citedEvidence(
+        from evidence: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudEvidence],
+        claims: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudClaim]
+    ) -> [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudEvidence] {
+        let citedIDs = Set(claims.flatMap { $0.evidenceIDs ?? [] }.filter { !$0.isEmpty })
+        guard !citedIDs.isEmpty else { return evidence }
+        let citedMetrics = evidence.filter { item in
+            guard let key = item.metricKey else { return false }
+            return citedIDs.contains(key)
+        }
+        guard !citedMetrics.isEmpty else { return evidence }
+        let citedDatasets = Set(citedMetrics.compactMap(\.dataset))
+        let citedDatasetRows = evidence.filter { item in
+            item.kind == "rows" && item.dataset.map { citedDatasets.contains($0) } == true
+        }
+        return citedMetrics + citedDatasetRows
+    }
+
     /// 证据引用：metric → 中文口径句；rows → 行样本摘录。最多 8 条防长列表。
     static func evidenceReferences(
         from evidence: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudEvidence]
@@ -105,17 +129,20 @@ nonisolated enum HoloCloudEvidencePresenter {
                 references.append(HoloRenderedEvidenceReference(
                     id: "cloud-rows-\(index)",
                     summary: "已核对 \(item.count ?? excerpts.count) 条\(label)：\(excerpts.prefix(3).joined(separator: "；"))",
-                    financeDrilldown: nil,
+                    financeDrilldown: financeDrilldown(
+                        dataset: item.dataset, group: nil, excerpts: excerpts, evidenceID: "cloud-rows-\(index)"
+                    ),
                     sourceModule: nil,
                     formula: nil,
                     baselineText: nil
                 ))
             } else {
                 guard let summary = metricEvidenceSummary(item) else { continue }
+                let id = item.metricKey ?? "cloud-metric-\(index)"
                 references.append(HoloRenderedEvidenceReference(
-                    id: item.metricKey ?? "cloud-metric-\(index)",
+                    id: id,
                     summary: summary,
-                    financeDrilldown: nil,
+                    financeDrilldown: financeDrilldown(dataset: item.dataset, group: item.group, evidenceID: id),
                     sourceModule: nil,
                     formula: item.formula,
                     baselineText: nil
@@ -126,13 +153,78 @@ nonisolated enum HoloCloudEvidencePresenter {
         return references
     }
 
+    /// 财务交易类证据 → 账单复核下钻（与本地轨道 HoloAgentResultRenderer.financeDrilldown
+    /// 同一落点 FinanceEvidenceReviewView）：分类=分组名、时间=快照窗口，
+    /// 用户据此逐笔核对。复核页 keyword 会匹配分类名，分组名可直接作关键词；
+    /// rows 行样本没有分组名，从摘录提取共有类别词预过滤，避免点进去是全量账单；
+    /// 其他数据集暂无复核页，保持静态文本。
+    private static func financeDrilldown(
+        dataset: String?,
+        group: String?,
+        excerpts: [String]? = nil,
+        evidenceID: String
+    ) -> HoloRenderedFinanceDrilldown? {
+        guard dataset == "finance.transactions" else { return nil }
+        let end = Date()
+        let start = Calendar.current.date(
+            byAdding: .day,
+            value: -HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays,
+            to: end
+        ) ?? end
+        let groupKeyword = group?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyword = groupKeyword?.isEmpty == false
+            ? groupKeyword
+            : drilldownKeyword(fromExcerpts: excerpts ?? [])
+        return HoloRenderedFinanceDrilldown(
+            sourceEvidenceID: evidenceID,
+            label: datasetLabels[dataset ?? ""] ?? "交易明细",
+            keyword: keyword,
+            start: start,
+            end: end,
+            baselineStart: nil,
+            baselineEnd: nil
+        )
+    }
+
+    /// 行样本摘录 → 下钻分类关键词：摘录是执行器的人话行记录
+    /// （如「7月5日 电费 6月电费 -¥136」），取「在每条摘录中都出现」且非日期/
+    /// 金额形状的词（按空格分词；含数字/¥ 的词排除——日期与金额必含数字，类别与
+    /// 备注被误伤时宁缺勿滤）。多摘录无共有词（混类抽样）返回 nil，下钻保持全量窗口。
+    static func drilldownKeyword(fromExcerpts excerpts: [String]) -> String? {
+        guard let first = excerpts.first else { return nil }
+        func contentTokens(of line: String) -> [String] {
+            line.split(whereSeparator: \.isWhitespace).map(String.init).filter { token in
+                guard !token.isEmpty, !token.contains("¥"), !token.contains("￥") else { return false }
+                return token.contains(where: \.isNumber) == false
+            }
+        }
+        var candidates = contentTokens(of: first)
+        guard !candidates.isEmpty else { return nil }
+        for line in excerpts.dropFirst() {
+            let lineTokens = Set(contentTokens(of: line))
+            candidates = candidates.filter { lineTokens.contains($0) }
+        }
+        guard let keyword = candidates.max(by: { $0.count < $1.count }), keyword.count >= 2 else { return nil }
+        return keyword
+    }
+
     /// metric 证据 → 中文口径句：`交易明细·「音乐」：合计「交易金额」= 3316 元（来源 1 条）`
     static func metricEvidenceSummary(
         _ item: HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudEvidence
     ) -> String? {
         guard let value = item.value else { return nil }
         let datasetLabel = datasetLabels[item.dataset ?? ""] ?? "数据"
-        let group = item.group.map { "「\($0)」" } ?? "全部"
+        // 分组名三态：nil=未按维度分组（「全部」）；空串=分组维度取值为空
+        // （如无分类交易的分组桶）→「未分类」，不能渲染成空的「」
+        let trimmedGroup = item.group?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let group: String
+        if item.group == nil {
+            group = "全部"
+        } else if trimmedGroup.isEmpty {
+            group = "「未分类」"
+        } else {
+            group = "「\(trimmedGroup)」"
+        }
         var operation = "统计"
         var fieldLabel: String?
         if let formula = item.formula,
