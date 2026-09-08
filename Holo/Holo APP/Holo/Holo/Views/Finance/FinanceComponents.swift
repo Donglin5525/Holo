@@ -247,6 +247,19 @@ struct TransactionRowView: View {
         return text.isEmpty ? nil : text
     }
 
+    /// 搜索等跨账户场景的元信息行：时间 · 账户 · 备注。
+    /// 账户不受「默认账户省略」规则限制——搜索结果跨账户，账户是关键上下文。
+    private var searchMetadataText: String {
+        var parts = [formatDateTime(transaction.date)]
+        if let account = transaction.account {
+            parts.append(account.name)
+        }
+        if hasRemark, let remark = transaction.remark {
+            parts.append(remark)
+        }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         Button(action: onTap) {
             // 列表行风格：左侧分类信息，右侧金额严格对齐
@@ -277,6 +290,11 @@ struct TransactionRowView: View {
                                 .foregroundColor(.holoTextSecondary)
                                 .lineLimit(1)
                         }
+                    } else if showsDate {
+                        Text(searchMetadataText)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
                     } else {
                         // 副标题：有备注显示备注，无备注不显示副标题
                         if hasRemark, let remark = transaction.remark {
@@ -325,7 +343,12 @@ struct TransactionRowView: View {
 
     private func formatDateTime(_ date: Date) -> String {
         let f = DateFormatter()
-        f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
+        // 同年省略年份，跨年带年份，避免跨年列表（如搜索结果）产生年份歧义
+        if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year) {
+            f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
+        } else {
+            f.setLocalizedDateFormatFromTemplate("yMMMdHHmm")
+        }
         return f.string(from: date)
     }
 }
