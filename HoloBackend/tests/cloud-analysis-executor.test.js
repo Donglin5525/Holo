@@ -435,6 +435,76 @@ test("snapshot_rows：limit 钳制到 10、空结果返回 empty、未知数据�
   assert.equal(missing.error.recoverable, true);
 });
 
+// —— 2026-09-09 根治：_search 虚拟字段 + 未知字段显式报错 ——
+
+test("_search：跨字段关键词命中备注与分类（猫砂补货误报回归）", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  // 备注命中：商品名在 text 字段（提示词 v19 承诺的核心场景）
+  const byNote = engine.sampleRows({
+    source: "finance.transactions",
+    filters: [{ field: "_search", operation: "contains", value: { type: "text", text: "TIMA" } }],
+    sortBy: "date",
+    sortDirection: "descending",
+    limit: 10,
+  }, NOTE_SNAPSHOT);
+  assert.equal(byNote.status, "success");
+  assert.equal(byNote.events.length, 1);
+  assert.ok(byNote.events[0].excerpt.includes("TIMA音乐盛典"));
+  // 分类命中：_search 同时覆盖目录声明的全部 text 字段
+  const byCategory = engine.execute({
+    source: "finance.transactions",
+    filters: [{ field: "_search", operation: "contains", value: { type: "text", text: "音乐" } }],
+    groupBy: [],
+    aggregations: [{ id: "n", operation: "count" }],
+    derivations: [],
+    limit: 10,
+    evidenceLimit: 10,
+  }, NOTE_SNAPSHOT);
+  assert.equal(byCategory.status, "success");
+  assert.equal(byCategory.metrics[0].value, 2);
+});
+
+test("_search：仅允许 contains，其他操作报可恢复错误", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const result = engine.sampleRows({
+    source: "finance.transactions",
+    filters: [{ field: "_search", operation: "equal", value: { type: "text", text: "猫砂" } }],
+  }, NOTE_SNAPSHOT);
+  assert.equal(result.status, "error");
+  assert.equal(result.error.code, "INVALID_PARAMS");
+  assert.equal(result.error.recoverable, true);
+});
+
+test("未知字段：snapshot_rows 与 dynamicPlan 一律报 UNKNOWN_FIELD，不再静默返回空", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const rows = engine.sampleRows({
+    source: "finance.transactions",
+    filters: [{ field: "note", operation: "contains", value: { type: "text", text: "猫砂" } }],
+  }, NOTE_SNAPSHOT);
+  assert.equal(rows.status, "error");
+  assert.equal(rows.error.code, "UNKNOWN_FIELD");
+  assert.equal(rows.error.recoverable, true);
+  assert.ok(rows.error.message.includes("note"), "错误须点名拼错的字段");
+  assert.ok(rows.error.message.includes("_search"), "错误须指引 _search 用法");
+
+  const dynamic = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    groupBy: [],
+    aggregations: [{
+      id: "n",
+      operation: "count",
+      filters: [{ field: "note", operation: "contains", value: { type: "text", text: "麦当劳" } }],
+    }],
+    derivations: [],
+    limit: 10,
+    evidenceLimit: 10,
+  }, SNAPSHOT);
+  assert.equal(dynamic.status, "error");
+  assert.equal(dynamic.error.code, "UNKNOWN_FIELD");
+  assert.equal(dynamic.error.recoverable, true);
+});
+
 test("执行器：聚合+行明细混合查询→final result.evidence 回传 metric 与 rows 两类证据", async () => {
   const provider = makeProvider([
     agentJson("need_tools", {

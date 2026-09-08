@@ -15,6 +15,11 @@
  *
  * M2a 能力边界：expression/linearTrend/coverage/baseline 派生按可恢复错误返回，
  * 模型按协议换路。
+ *
+ * 【_search 虚拟字段（2026-09-09 根治）】提示词 v19 教模型用 _search 做跨字段
+ * 关键词检索，但该字段从未在任何引擎实现，云端静默返回空导致「账里没记录」
+ * 误报。现实现为「目录声明为 text 的全部字段拼接匹配」，并新增未知字段校验：
+ * 未声明字段一律返回 UNKNOWN_FIELD（可恢复），不再静默当空值。
  */
 
 export function createCloudAnalysisQueryEngine() {
@@ -45,10 +50,55 @@ export function createCloudAnalysisQueryEngine() {
     return String(a).localeCompare(String(b));
   }
 
-  function filterPasses(row, filter) {
-    const actual = row[filter.field];
+  /**
+   * _search 虚拟字段的可搜索范围：目录声明为 text 的全部字段
+   * （财务域即 分类/账户/备注合并文本/项目——提示词 v19 承诺的「分类、备注、商户、标签」）。
+   * iOS 端 HoloDataTool 按 row.fields 里 .text 值拼接，语义一致。
+   */
+  function searchableFields(dataset) {
+    return (dataset.fields ?? [])
+      .filter((f) => f.type === "text")
+      .map((f) => f.name);
+  }
+
+  /**
+   * 过滤字段校验。未知字段此前被静默当空值处理，模型把「字段拼错」误读成
+   * 「账里没数据」并言之凿凿下结论（2026-09-09 猫砂补货误报根因）——
+   * 必须显式报错让模型换路。_search 仅允许 contains（跨字段关键词检索的唯一用法）。
+   */
+  function validateFilters(filters, dataset, path) {
+    const declared = new Set((dataset.fields ?? []).map((f) => f.name));
+    for (const filter of filters ?? []) {
+      const field = filter?.field;
+      if (field === "_search") {
+        if (filter.operation !== "contains") {
+          return {
+            code: "INVALID_PARAMS",
+            message: `${path}：_search 仅支持 contains（跨字段关键词检索）`,
+            recoverable: true,
+          };
+        }
+        continue;
+      }
+      if (!declared.has(field)) {
+        return {
+          code: "UNKNOWN_FIELD",
+          message: `${path}：数据集没有字段 ${field}（可用字段：${[...declared].join("、")}；跨字段关键词搜索用 _search）`,
+          recoverable: true,
+        };
+      }
+    }
+    return null;
+  }
+
+  function filterPasses(row, filter, searchFields) {
     const expected = filter.value?.number ?? filter.value?.text ?? filter.value?.date
       ?? filter.value?.boolean ?? null;
+    if (filter.field === "_search") {
+      const haystack = searchFields.map((name) => String(row[name] ?? "")).join(" ");
+      return haystack.includes(String(expected ?? ""));
+    }
+    const actual = row[filter.field];
     switch (filter.operation) {
       case "equal": return compareByKind(actual, expected) === 0;
       case "notEqual": return compareByKind(actual, expected) !== 0;
@@ -121,8 +171,13 @@ export function createCloudAnalysisQueryEngine() {
       });
     }
     let rows = dataset.rows ?? [];
+    const filterError = validateFilters(plan.filters, dataset, "filters");
+    if (filterError) {
+      return toolResultEnvelope(toolRequestID, tool, { status: "error", error: filterError });
+    }
+    const searchFields = searchableFields(dataset);
     for (const filter of plan.filters ?? []) {
-      rows = rows.filter((row) => filterPasses(row, filter));
+      rows = rows.filter((row) => filterPasses(row, filter, searchFields));
     }
     if (plan.sortBy) {
       const field = plan.sortBy;
@@ -192,9 +247,19 @@ export function createCloudAnalysisQueryEngine() {
       });
     }
 
+    const filterError = validateFilters(plan.filters, dataset, "filters")
+      ?? (plan.aggregations ?? []).reduce(
+        (err, agg, index) => err ?? validateFilters(agg.filters, dataset, `aggregations[${index}].filters`),
+        null,
+      );
+    if (filterError) {
+      return toolResultEnvelope(toolRequestID, tool, { status: "error", error: filterError });
+    }
+
+    const searchFields = searchableFields(dataset);
     let rows = dataset.rows ?? [];
     for (const filter of plan.filters ?? []) {
-      rows = rows.filter((row) => filterPasses(row, filter));
+      rows = rows.filter((row) => filterPasses(row, filter, searchFields));
     }
 
     // 分组（iOS 语义：单分组维度；无分组 = "all" 桶）
@@ -220,7 +285,7 @@ export function createCloudAnalysisQueryEngine() {
       for (const agg of plan.aggregations ?? []) {
         let target = bucket.rows;
         for (const filter of agg.filters ?? []) {
-          target = target.filter((row) => filterPasses(row, filter));
+          target = target.filter((row) => filterPasses(row, filter, searchFields));
         }
         const value = agg.operation === "count"
           ? target.length
@@ -310,6 +375,7 @@ export function buildCloudToolCatalog(snapshot) {
     "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
     'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',
     "返回匹配行的人话摘录（含备注、内容原文）。例：查音乐分类最大 3 笔支出 → filters:[{field:\"category\",operation:\"equal\",value:{text:\"音乐\"}}], sortBy:\"amount\", sortDirection:\"descending\", limit:3。",
+    '关键词跨字段筛选（商品名/品牌/备注词，如"猫砂""烟"）用 _search 虚拟字段，会同时匹配目录中全部文本字段：filters:[{field:"_search",operation:"contains",value:{type:"text",text:"猫砂"}}]。',
   );
   return `云端工具目录（数据来自设备快照，仅覆盖快照时间窗）：\n${lines.join("\n")}`;
 }
