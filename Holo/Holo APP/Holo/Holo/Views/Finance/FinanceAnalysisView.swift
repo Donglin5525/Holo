@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct FinanceAnalysisView: View {
     let onBack: () -> Void

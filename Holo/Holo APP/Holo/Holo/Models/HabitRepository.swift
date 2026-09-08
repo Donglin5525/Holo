@@ -799,84 +799,74 @@ class HabitRepository: ObservableObject {
     }
     
     /// 计算连续天数（打卡型）
+    /// 一次取回窗口内全部完成记录后在内存中逐日核对；
+    /// 原实现每天一次 fetch（最多 3650 次/习惯）且在主线程，统计页×习惯数放大（体检 R0-1）
     func calculateStreak(for habit: Habit) -> Int {
         guard habit.isCheckInType else { return 0 }
 
         let calendar = Calendar.current
         var streak = 0
-        var checkDate = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: Date())
+        var checkDate = today
 
         if habit.isBadHabit {
             // 坏习惯：连续未打卡天数（连续控制住的天数）
             // 今天已打卡（做了坏事）→ 从昨天开始倒查
-            let todayCompleted = isTodayCompleted(for: habit)
-            if todayCompleted {
+            if isTodayCompleted(for: habit) {
                 guard let yesterday = calendar.date(byAdding: .day, value: -1, to: checkDate) else {
                     return 0
                 }
                 checkDate = yesterday
             }
-
-            let maxLookback = 3650
-            for _ in 0..<maxLookback {
-                let dayStart = checkDate
-                guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
-
-                let request = HabitRecord.fetchRequest()
-                request.predicate = NSPredicate(
-                    format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                    habit.id as CVarArg,
-                    dayStart as NSDate,
-                    dayEnd as NSDate
-                )
-                request.fetchLimit = 1
-
-                let hasBadRecord = ((try? context.fetch(request))?.count ?? 0) > 0
+            let completedDays = fetchCompletedDays(for: habit, before: checkDate, maxLookbackDays: 3650)
+            for _ in 0..<3650 {
                 // 有打卡记录（做了坏事）→ 中断连续控制
-                guard !hasBadRecord else { break }
-
+                guard !completedDays.contains(checkDate) else { break }
                 streak += 1
                 guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
                 checkDate = previousDay
             }
-
             return streak
         }
 
         // 好习惯：原始逻辑（连续打卡天数）
         // 今天未完成 → 从昨天开始倒查
-        let todayCompleted = isTodayCompleted(for: habit)
-        if !todayCompleted {
+        if !isTodayCompleted(for: habit) {
             guard let yesterday = calendar.date(byAdding: .day, value: -1, to: checkDate) else {
                 return 0
             }
             checkDate = yesterday
         }
 
-        // 向前逐天检查，最多追溯 3650 天（防止极端情况）
-        let maxLookback = 3650
-        for _ in 0..<maxLookback {
-            let dayStart = checkDate
-            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
-
-            let request = HabitRecord.fetchRequest()
-            request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                habit.id as CVarArg,
-                dayStart as NSDate,
-                dayEnd as NSDate
-            )
-            request.fetchLimit = 1
-
-            let hasRecord = ((try? context.fetch(request))?.count ?? 0) > 0
-            guard hasRecord else { break }
-
+        let completedDays = fetchCompletedDays(for: habit, before: checkDate, maxLookbackDays: 3650)
+        for _ in 0..<3650 {
+            guard completedDays.contains(checkDate) else { break }
             streak += 1
             guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
             checkDate = previousDay
         }
 
         return streak
+    }
+
+    /// 一次取回 checkDate 往前 maxLookbackDays 天窗口内的全部完成记录，
+    /// 返回「天起点 → 是否有完成记录」集合（与逐日 fetchLimit=1 查询语义一致）
+    private func fetchCompletedDays(for habit: Habit, before checkDate: Date, maxLookbackDays: Int) -> Set<Date> {
+        let calendar = Calendar.current
+        guard let windowStart = calendar.date(byAdding: .day, value: -maxLookbackDays, to: checkDate),
+              let windowEnd = calendar.date(byAdding: .day, value: 1, to: checkDate) else {
+            return []
+        }
+
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
+            habit.id as CVarArg,
+            windowStart as NSDate,
+            windowEnd as NSDate
+        )
+        let records = (try? context.fetch(request)) ?? []
+        return Set(records.map { calendar.startOfDay(for: $0.date) })
     }
 
     /// 根据习惯频率计算连续坚持信息（打卡型）
@@ -894,55 +884,27 @@ class HabitRepository: ObservableObject {
             let days = calculateStreak(for: habit)
             return HabitStreak(value: days, unit: .day)
         case .weekly:
-            let weeks = calculatePeriodicStreak(
-                for: habit, target: target,
-                periodComponent: .weekOfYear,
-                periodCount: { [weak self] habit, start, end in
-                    self?.countDistinctCompletionDays(for: habit, from: start, to: end) ?? 0
-                }
-            )
+            let weeks = calculatePeriodicStreak(for: habit, target: target, periodComponent: .weekOfYear)
             return HabitStreak(value: weeks, unit: .week)
         case .monthly:
-            let months = calculatePeriodicStreak(
-                for: habit, target: target,
-                periodComponent: .month,
-                periodCount: { [weak self] habit, start, end in
-                    self?.countDistinctCompletionDays(for: habit, from: start, to: end) ?? 0
-                }
-            )
+            let months = calculatePeriodicStreak(for: habit, target: target, periodComponent: .month)
             return HabitStreak(value: months, unit: .month)
         }
     }
 
     // MARK: - 周期连续性私有方法
 
-    /// 统计时间范围内的不同打卡天数
-    private func countDistinctCompletionDays(for habit: Habit, from start: Date, to end: Date) -> Int {
-        let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-            habit.id as CVarArg,
-            start as NSDate,
-            end as NSDate
-        )
-
-        let records = (try? context.fetch(request)) ?? []
-        let calendar = Calendar.current
-        let distinctDays = Set(records.map { calendar.startOfDay(for: $0.date) })
-        return distinctDays.count
-    }
-
     /// 通用周期连续性计算（周/月复用）
+    /// 一次取回整个回溯窗口的完成记录，按天起点建集合后在内存中逐周期核对；
+    /// 原实现每周期一次 fetch（周最坏 520 次/习惯）（体检 R0-1）
     /// - Parameters:
     ///   - habit: 习惯
     ///   - target: 每周期目标次数
     ///   - periodComponent: .weekOfYear 或 .month
-    ///   - periodCount: 计算某周期内完成次数的闭包
     private func calculatePeriodicStreak(
         for habit: Habit,
         target: Int,
-        periodComponent: Calendar.Component,
-        periodCount: (Habit, Date, Date) -> Int
+        periodComponent: Calendar.Component
     ) -> Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -959,8 +921,20 @@ class HabitRepository: ObservableObject {
             return 0
         }
 
+        let maxLookback = periodComponent == .weekOfYear ? 520 : 120
+        let completedDays = fetchCompletedDays(
+            for: habit,
+            windowStart: currentPeriodStart,
+            windowEnd: currentPeriodEnd,
+            lookbackPeriods: maxLookback,
+            periodComponent: periodComponent
+        )
+
         // 判断当前周期是否已达标，决定起始检查周期
-        let currentCount = periodCount(habit, currentPeriodStart, currentPeriodEnd)
+        let currentCount = countDistinctCompletedDays(
+            in: currentPeriodStart..<currentPeriodEnd,
+            completedDays: completedDays
+        )
         var checkPeriodStart: Date
 
         if currentCount >= target {
@@ -973,11 +947,13 @@ class HabitRepository: ObservableObject {
         }
 
         var streak = 0
-        let maxLookback = periodComponent == .weekOfYear ? 520 : 120
 
         for _ in 0..<maxLookback {
             guard let periodEnd = calendar.date(byAdding: periodComponent, value: 1, to: checkPeriodStart) else { break }
-            let count = periodCount(habit, checkPeriodStart, periodEnd)
+            let count = countDistinctCompletedDays(
+                in: checkPeriodStart..<periodEnd,
+                completedDays: completedDays
+            )
             guard count >= target else { break }
 
             streak += 1
@@ -986,6 +962,46 @@ class HabitRepository: ObservableObject {
         }
 
         return streak
+    }
+
+    /// 取回周期回溯窗口（checkPeriod 往前 lookbackPeriods 个周期）内全部完成记录的天起点集合
+    private func fetchCompletedDays(
+        for habit: Habit,
+        windowStart: Date,
+        windowEnd: Date,
+        lookbackPeriods: Int,
+        periodComponent: Calendar.Component
+    ) -> Set<Date> {
+        let calendar = Calendar.current
+        guard let windowFloor = calendar.date(byAdding: periodComponent, value: -lookbackPeriods, to: windowStart) else {
+            return []
+        }
+
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
+            habit.id as CVarArg,
+            windowFloor as NSDate,
+            windowEnd as NSDate
+        )
+        let records = (try? context.fetch(request)) ?? []
+        return Set(records.map { calendar.startOfDay(for: $0.date) })
+    }
+
+    /// 统计区间 [lower, upper) 内有完成记录的不同天数（与原逐周期 fetch+Set 映射语义一致）
+    private func countDistinctCompletedDays(
+        in period: Range<Date>,
+        completedDays: Set<Date>
+    ) -> Int {
+        let calendar = Calendar.current
+        var count = 0
+        var day = period.lowerBound
+        while day < period.upperBound {
+            if completedDays.contains(day) { count += 1 }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return count
     }
 
     /// 计算周期内完成次数（打卡型）
