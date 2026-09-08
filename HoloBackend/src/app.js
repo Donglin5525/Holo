@@ -24,7 +24,7 @@ import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
 import { createAppleRevokeService } from "./auth/appleRevokeService.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
-import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
+import { injectServerPrompt, buildVisionExtractionMessages } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
 import { createEntitlementStore } from "./subscription/entitlementStore.js";
 import { createAcceptanceStore } from "./subscription/acceptanceStore.js";
@@ -1205,19 +1205,19 @@ export function createApp(overrides = {}) {
         }
       }
 
-      const userMessage = {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: caption
-              ? `请看图输出「图片理解单」。用户随图附言：「${caption}」`
-              : "请看图输出「图片理解单」。用户没有附言。",
-          },
-          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${request.image}` } },
-        ],
-      };
-      const serverPrompt = injectServerPrompt("vision_extraction", [userMessage]);
+      const captionLine = caption
+        ? `\n\n用户随图附言：「${caption}」`
+        : "\n\n用户没有附言。";
+      const serverPrompt = buildVisionExtractionMessages([
+        {
+          type: "text",
+          // 图片之后的收尾提醒放在最近位置：货币符号先看原文再输出（外币红线最近一次强提醒）
+          text: "提醒：先核对图中金额的货币符号原文，再输出理解单。非人民币一律 foreign_currency 且 transactions 为空。",
+        },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${request.image}` } },
+      ]);
+      // 附言并入提示词文本（prompt 在 user 位，见 buildVisionExtractionMessages 注释）
+      serverPrompt.messages[0].content[0].text += captionLine;
 
       logId = captureAiCallLogs
         ? adminLogStore.startAiCall({

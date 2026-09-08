@@ -104,6 +104,37 @@ export function promptTypeForPurpose(purpose) {
   return PURPOSE_PROMPT_TYPES[purpose] ?? null;
 }
 
+/**
+ * 截图识别专用：抽取提示词放「用户消息位」而非 system。
+ * M0 评测（docs/holoai-audit/vision-eval/）24/24 的配置是整段 prompt 作为 user message；
+ * 生产首版改放 system 后模型对外币红线的服从性显著下降（实测美元小票连
+ * amountOriginalText 都被归一化成 ¥）。视觉抽取不注入 persona preamble，
+ * 与评测配置保持一致；purpose 注册表契约（缺配置即 PROMPT_NOT_FOUND）不变。
+ */
+export function buildVisionExtractionMessages(userContentParts) {
+  const promptType = PURPOSE_PROMPT_TYPES.vision_extraction;
+  if (!promptType) {
+    throw new GatewayError("PROMPT_NOT_FOUND", "No server prompt is configured for vision_extraction", 503);
+  }
+  const prompt = getPrompt(promptType);
+  if (!prompt?.content) {
+    throw new GatewayError("PROMPT_NOT_FOUND", `Server prompt is unavailable: ${promptType}`, 503);
+  }
+  return {
+    promptType,
+    promptVersion: prompt.version,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: renderPromptVariables(prompt.content) },
+          ...userContentParts,
+        ],
+      },
+    ],
+  };
+}
+
 export function renderPromptVariables(content, now = new Date()) {
   const shanghaiDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
   const thirtyDaysAgo = new Date(shanghaiDate);

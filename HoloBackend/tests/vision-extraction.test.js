@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 import { loadConfig } from "../src/config.js";
 import { getPrompt } from "../src/prompts/promptRegistry.js";
-import { injectServerPrompt } from "../src/prompts/serverPromptPolicy.js";
+import { injectServerPrompt, buildVisionExtractionMessages } from "../src/prompts/serverPromptPolicy.js";
 import {
   extractJsonContent,
   normalizeUnderstanding,
@@ -67,6 +67,22 @@ test("vision_extraction：多模态 messages 可过 injectServerPrompt（不 503
   assert.ok(!injected.messages[0].content.includes("{{todayISODate}}"), "变量必须被渲染");
   // 多模态 content 数组必须原样透传（不被字符串化）
   assert.ok(Array.isArray(injected.messages[1].content));
+});
+
+test("vision_extraction：生产装配把抽取 prompt 放用户位（评测 24/24 配置），变量已渲染", () => {
+  const assembled = buildVisionExtractionMessages([
+    { type: "text", text: "提醒：先核对货币符号。" },
+    { type: "image_url", image_url: { url: "data:image/jpeg;base64,xxx" } },
+  ]);
+  assert.equal(assembled.promptType, "vision_extraction");
+  assert.equal(assembled.messages.length, 1, "无 system 消息——与评测配置一致");
+  const content = assembled.messages[0].content;
+  assert.ok(Array.isArray(content));
+  // 提示词在最前、提醒与图片其后
+  assert.ok(content[0].text.includes("【货币判定示例】"), "抽取 prompt 必须在用户消息位");
+  assert.ok(!content[0].text.includes("{{todayISODate}}"), "变量必须被渲染");
+  assert.equal(content[1].type, "text");
+  assert.equal(content[2].type, "image_url");
 });
 
 test("vision_extraction：日志 metadata_only 强制清单覆盖", () => {
