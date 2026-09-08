@@ -57,7 +57,11 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_CHAT_TEMPERATURE ?? 0.2),
-      maxTokens: Number(process.env.HOLO_CHAT_MAX_TOKENS ?? 1024),
+      // 4096：completion 计费含推理输出；推理模型（v4-flash）不配 reasoning_effort 时
+      // 1024 上限会被思考吃满导致 content 空（2026-09-08 空白消息事故实锤），放宽上限。
+      maxTokens: Number(process.env.HOLO_CHAT_MAX_TOKENS ?? 4096),
+      // 不配 reasoning_effort 时推理模型默认全速思考，正文极易被挤空；low 档保正文。
+      reasoningEffort: process.env.HOLO_CHAT_REASONING_EFFORT ?? "low",
     },
     analysis: {
       provider: process.env.HOLO_ANALYSIS_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
