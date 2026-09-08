@@ -26,7 +26,6 @@ struct TrendChartView: View {
     private let barTopUnit: Double = 55          // 柱带：0...55（柱轴上限映射到 55）
     private let lineBandLow: Double = 62         // 线带：62...95（余额最小值→62，最大值→95）
     private let lineBandHigh: Double = 95
-    private let breakZoneHeight: Double = 6      // 断口区：主柱顶与小帽之间的留白
     private let barOffsetUnits: Double = 0.29    // 支出/收入柱相对当天中线的偏移（x 单位）
     private let restBarOpacity: Double = 0.78    // 非峰值日柱子透明度（峰值日实色高亮）
 
@@ -221,22 +220,15 @@ struct TrendChartView: View {
     private func flowBar(x: Double, value: Double, cap: Double, color: Color, opacity: Double, isClipped: Bool) -> some ChartContent {
         if value > 0 {
             if isClipped {
+                // 截断柱画整根到量程顶，由 clippedBreakAnnotations 用卡片底色斜缝
+                // 在柱身上切出断口（柱先留空隙再画缝会让缝隐身，2026-09-09 实测）
                 BarMark(
                     x: .value("日期", x),
                     yStart: .value("起点", 0.0),
-                    yEnd: .value("金额", barTopUnit - breakZoneHeight),
-                    width: .fixed(barWidth)
-                )
-                .cornerRadius(2)
-                .foregroundStyle(color.opacity(opacity))
-
-                BarMark(
-                    x: .value("日期", x),
-                    yStart: .value("起点", barTopUnit - 3),
                     yEnd: .value("金额", barTopUnit),
                     width: .fixed(barWidth)
                 )
-                .cornerRadius(1.5)
+                .cornerRadius(2)
                 .foregroundStyle(color.opacity(opacity))
             } else {
                 BarMark(
@@ -284,22 +276,23 @@ struct TrendChartView: View {
         )
     }
 
-    /// 断口：白色斜杠两道 + 左侧真实值标注
+    /// 断口：柱身画整根，用两道卡片底色斜缝在柱顶下方切出断口（旧版白杠深色模式刺眼、
+    /// 浅色模式不可见，且缝画在柱外空隙里等于隐身）+ 柱右侧真实值标注（原与纵轴刻度重叠）
     @ViewBuilder
     private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, amountLabel: String) -> some View {
         ForEach(0..<2, id: \.self) { slashIndex in
             Capsule()
-                .fill(Color.white)
-                .frame(width: 9, height: 1.8)
+                .fill(Color.holoCardBackground)
+                .frame(width: barWidth + 3, height: 1.6)
                 .rotationEffect(.degrees(-24))
-                .position(x: barXPos, y: capTopY - breakZoneHeight / 2 + (slashIndex == 0 ? -1.8 : 1.8))
+                .position(x: barXPos, y: capTopY + 6.5 + CGFloat(slashIndex) * 4.5)
         }
 
         Text(amountLabel)
             .font(.system(size: 9, weight: .semibold))
             .foregroundColor(.holoSuccessDark)
-            .frame(width: 44, alignment: .trailing)
-            .position(x: barXPos - barWidth / 2 - 3, y: capTopY + 9)
+            .frame(width: 40, alignment: .leading)
+            .position(x: barXPos + barWidth / 2 + 24, y: capTopY - 7)
     }
 
     // MARK: 数值换算
