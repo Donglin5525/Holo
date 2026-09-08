@@ -9,6 +9,29 @@
 import SwiftUI
 import os
 
+/// 缓存的日期格式器：列表滚动时每卡每次 body 求值都新建 DateFormatter 是持续 CPU 尖峰（体检 R0-3）
+private enum TaskCardFormatters {
+    static let time: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    static let monthDay: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M/d"
+        return f
+    }()
+
+    static let dueDate: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMd")
+        return f
+    }()
+}
+
 struct TaskCardView: View {
     let task: TodoTask
     @ObservedObject var repository: TodoRepository
@@ -307,10 +330,7 @@ struct TaskCardView: View {
     /// 完成/进行完成中：绿胶囊（有完成时刻则带上）
     private var completedText: String {
         guard !isCompleting, let completedAt = task.completedAt else { return String(localized: "已完成") }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        return String(localized: "已完成 \(formatter.string(from: completedAt))")
+        return String(localized: "已完成 \(TaskCardFormatters.time.string(from: completedAt))")
     }
 
     /// 过期文案：过期 N 天（当天内过期只写「过期」）
@@ -328,24 +348,17 @@ struct TaskCardView: View {
     /// 今天/明天胶囊文案（全天任务不带时刻）
     private func nearText(prefix: String) -> String {
         guard let due = task.dueDate, !task.isAllDay else { return prefix }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        return "\(prefix) \(formatter.string(from: due))"
+        return "\(prefix) \(TaskCardFormatters.time.string(from: due))"
     }
 
     /// 计划时间段徽章文案：今天「10:00–12:00」，非今天「8/30 10:00–12:00」；字段不完整返回 nil 不显示
     private func plannedRangeText(_ task: TodoTask) -> String? {
         guard let start = task.plannedStart, let end = task.plannedEnd else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        let range = "\(formatter.string(from: start))–\(formatter.string(from: end))"
+        let range = "\(TaskCardFormatters.time.string(from: start))–\(TaskCardFormatters.time.string(from: end))"
         if Calendar.current.isDateInToday(start) {
             return range
         }
-        formatter.dateFormat = "M/d"
-        return "\(formatter.string(from: start)) \(range)"
+        return "\(TaskCardFormatters.monthDay.string(from: start)) \(range)"
     }
 
     // MARK: - 优先级小胶囊
@@ -374,9 +387,7 @@ struct TaskCardView: View {
         } else if task.isOverdue {
             return String(localized: "已过期")
         } else {
-            let f = DateFormatter()
-            f.setLocalizedDateFormatFromTemplate("MMMd")
-            return f.string(from: date)
+            return TaskCardFormatters.dueDate.string(from: date)
         }
     }
 

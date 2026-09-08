@@ -52,7 +52,13 @@ struct FinanceAnalysisView: View {
                 state.setCustomDateRange(start: start, end: end)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+        // 节流合并：同步/导入风暴时 financeDataDidChange 连发，每条都全量重算图表会打爆主线程；
+        // 首发立即刷（保持「记一笔立刻可见」），风暴窗口内只保留最新一条，终态与逐条刷新一致（体检 R0-11）
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: .financeDataDidChange)
+                .throttle(for: .milliseconds(500), scheduler: DispatchQueue.main, latest: true)
+        ) { _ in
             state.refresh()
         }
         .onAppear {

@@ -9,6 +9,41 @@
 
 import SwiftUI
 
+/// 缓存的日期格式器：图表逐日取标签、列表分组头/时段标题逐行取文案，
+/// 内联新建是每次渲染的持续开销（体检 R0-5）
+private enum DetailTabFormatters {
+    static let dayLabel: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "zh_CN")
+        df.dateFormat = "M.d"
+        return df
+    }()
+
+    static let dayWeekday: DateFormatter = {
+        let df = DateFormatter()
+        df.setLocalizedDateFormatFromTemplate("MMMdEEEE")
+        return df
+    }()
+
+    static let periodHour: DateFormatter = {
+        let df = DateFormatter()
+        df.setLocalizedDateFormatFromTemplate("MMMdHH")
+        return df
+    }()
+
+    static let periodDay: DateFormatter = {
+        let df = DateFormatter()
+        df.setLocalizedDateFormatFromTemplate("MMMd")
+        return df
+    }()
+
+    static let periodMonth: DateFormatter = {
+        let df = DateFormatter()
+        df.setLocalizedDateFormatFromTemplate("yMMM")
+        return df
+    }()
+}
+
 // MARK: - DetailTabView
 
 /// 明细 Tab 视图
@@ -60,13 +95,9 @@ struct DetailTabView: View {
                 .filter { $0.transactionType == .income }
                 .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
-            let df = DateFormatter()
-            df.locale = Locale(identifier: "zh_CN")
-            df.dateFormat = "M.d"
-
             points.append(ChartDataPoint(
                 date: current,
-                label: df.string(from: current),
+                label: DetailTabFormatters.dayLabel.string(from: current),
                 expense: expense,
                 income: income,
                 transactionCount: dayTxns.count
@@ -231,28 +262,22 @@ struct DetailTabView: View {
     // MARK: - 时间段标题
 
     private func periodTitle(for date: Date) -> String {
-        let df = DateFormatter()
-
         switch state.chartGranularity {
         case .hour:
-            df.setLocalizedDateFormatFromTemplate("MMMdHH")
-            return df.string(from: date) + ":00" + String(localized: " 时段")
+            return DetailTabFormatters.periodHour.string(from: date) + ":00" + String(localized: " 时段")
 
         case .day:
-            df.setLocalizedDateFormatFromTemplate("MMMd")
-            return df.string(from: date)
+            return DetailTabFormatters.periodDay.string(from: date)
 
         case .week:
             let weekStart = date.startOfWeek
             guard let weekEnd = Calendar.current.date(byAdding: .day, value: 6, to: weekStart) else {
                 return String(localized: "本周")
             }
-            df.setLocalizedDateFormatFromTemplate("MMMd")
-            return "\(df.string(from: weekStart)) - \(df.string(from: weekEnd))"
+            return "\(DetailTabFormatters.periodDay.string(from: weekStart)) - \(DetailTabFormatters.periodDay.string(from: weekEnd))"
 
         case .month:
-            df.setLocalizedDateFormatFromTemplate("yMMM")
-            return df.string(from: date)
+            return DetailTabFormatters.periodMonth.string(from: date)
         }
     }
 
@@ -470,8 +495,7 @@ struct DetailTabView: View {
             .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
         return HStack(spacing: HoloSpacing.sm) {
-            let formatter = DateFormatter()
-            Text(formatter.monthDayWeekdayString(from: date))
+            Text(DetailTabFormatters.dayWeekday.string(from: date))
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
@@ -545,20 +569,6 @@ struct DetailTabView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, HoloSpacing.xxl)
-    }
-}
-
-// MARK: - DateFormatter Extension
-
-private extension DateFormatter {
-    func monthDayString(from date: Date) -> String {
-        setLocalizedDateFormatFromTemplate("MMMd")
-        return string(from: date)
-    }
-
-    func monthDayWeekdayString(from date: Date) -> String {
-        setLocalizedDateFormatFromTemplate("MMMdEEEE")
-        return string(from: date)
     }
 }
 

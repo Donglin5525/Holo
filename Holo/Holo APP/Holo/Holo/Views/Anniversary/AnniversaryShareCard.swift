@@ -99,13 +99,20 @@ struct AnniversaryShareSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var renderedImage: Image {
+    /// init 时渲染一次：原计算属性在 ShareLink 的 item+preview 各取一次，
+    /// 每次 body 求值都重渲位图（体检 R0-16）
+    private let renderedImage: Image
+
+    init(card: AnniversaryShareCard, tint: Color = Color(hex: "#F46D38")) {
+        self.card = card
+        self.tint = tint
         let renderer = ImageRenderer(content: card)
         renderer.scale = 2.5
         if let uiImage = renderer.uiImage {
-            return Image(uiImage: uiImage)
+            self.renderedImage = Image(uiImage: uiImage)
+        } else {
+            self.renderedImage = Image(systemName: "photo")
         }
-        return Image(systemName: "photo")
     }
 
     var body: some View {

@@ -70,10 +70,17 @@ struct ThoughtGalleryView: View {
 
     private func loadAllImages() {
         for (index, attachment) in attachments.enumerated() {
-            // 优先从 CoreData 二进制数据加载（iCloud 同步后可用）
+            // 优先从 CoreData 二进制加载（iCloud 同步后可用）
+            // 二进制取值须在主线程（viewContext），解码放后台：全尺寸原图在主线程逐张解会卡死翻页
             if let imageData = attachment.imageData {
-                if index < images.count {
-                    images[index] = UIImage(data: imageData)
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let base = UIImage(data: imageData)
+                    let image = base?.preparingForDisplay() ?? base
+                    DispatchQueue.main.async {
+                        if index < images.count {
+                            images[index] = image
+                        }
+                    }
                 }
                 continue
             }

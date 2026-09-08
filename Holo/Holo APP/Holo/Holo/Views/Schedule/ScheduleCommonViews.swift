@@ -12,6 +12,27 @@ import SwiftUI
 import EventKit
 import EventKitUI
 
+/// 缓存的日期格式器：首页/看板高频取用，内联新建是每次刷新的持续 CPU 开销（体检 R0-4）
+private enum ScheduleFormatters {
+    static let time: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    static let sourceDate: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
+        return f
+    }()
+
+    static let dayName: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMdEEE")
+        return f
+    }()
+}
+
 // MARK: - 接入引导条（未开启时出现在任务页/看板，原地发起授权，不必去设置页）
 
 struct ScheduleOnboardingBar: View {
@@ -190,9 +211,7 @@ struct TodayScheduleBar: View {
     }
 
     private var timeText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return nextItem.map { formatter.string(from: $0.startDate) } ?? ""
+        nextItem.map { ScheduleFormatters.time.string(from: $0.startDate) } ?? ""
     }
 
     var body: some View {
@@ -367,10 +386,8 @@ struct ScheduleRowCard: View {
     }
 
     private var timeRangeText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
         if item.isAllDay { return String(localized: "全天") }
-        return "\(formatter.string(from: item.startDate)) – \(formatter.string(from: item.endDate))"
+        return "\(ScheduleFormatters.time.string(from: item.startDate)) – \(ScheduleFormatters.time.string(from: item.endDate))"
     }
 }
 
@@ -500,12 +517,10 @@ struct ScheduleDetailSheet: View {
     }
 
     private var followUpSourceText: String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMdHHmm")
         if item.isAllDay {
             return String(localized: "\(item.title)（\(item.calendarTitle) · 全天）")
         }
-        return "\(formatter.string(from: item.startDate)) \(item.title)（\(item.calendarTitle)）"
+        return "\(ScheduleFormatters.sourceDate.string(from: item.startDate)) \(item.title)（\(item.calendarTitle)）"
     }
 
     private func detailRow(icon: String, title: String, value: String, content: () -> some View) -> some View {
@@ -521,14 +536,10 @@ struct ScheduleDetailSheet: View {
     }
 
     private var timeText: String {
-        let formatter = DateFormatter()
-        let dayFormatter = DateFormatter()
-        dayFormatter.setLocalizedDateFormatFromTemplate("MMMdEEE")
-        formatter.dateFormat = "HH:mm"
         if item.isAllDay {
-            return String(localized: "\(dayFormatter.string(from: item.startDate)) · 全天")
+            return String(localized: "\(ScheduleFormatters.dayName.string(from: item.startDate)) · 全天")
         }
-        return "\(dayFormatter.string(from: item.startDate)) \(formatter.string(from: item.startDate)) – \(formatter.string(from: item.endDate))"
+        return "\(ScheduleFormatters.dayName.string(from: item.startDate)) \(ScheduleFormatters.time.string(from: item.startDate)) – \(ScheduleFormatters.time.string(from: item.endDate))"
     }
 }
 

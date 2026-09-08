@@ -92,7 +92,14 @@ struct PolaroidMomentCard: View {
         .sensoryFeedback(.selection, trigger: topIndex)
         .onAppear {
             guard decodedImages.isEmpty, !photos.isEmpty else { return }
-            decodedImages = photos.map { UIImage(data: $0) }
+            // 解码放后台：日历一天多张拍立得同时出现时，主线程逐张解原图会掉帧（体检 R0-8）
+            let data = photos
+            DispatchQueue.global(qos: .userInitiated).async {
+                let decoded = data.map { UIImage(data: $0) }
+                DispatchQueue.main.async {
+                    decodedImages = decoded
+                }
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)

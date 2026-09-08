@@ -57,7 +57,7 @@
 
 | 编号 | 级 | 对象 | 行数 | 状态 |
 |---|---|---|---|---|
-| R0-30 | P1 | 旧记账簇：Views/AddTransactionView.swift + Views/AddTransaction/ 5 文件（生产用 AddTransactionSheet；2026-09-09 在途改动曾往死文件加 146 行仍不可达） | 1,971+146 | 待删→R2 |
+| R0-30 | P1 | 旧记账簇：Views/AddTransactionView.swift + Views/AddTransaction/ 5 文件（生产用 AddTransactionSheet；1cc30301b 又曾往死文件加项目挂靠 UI 146 行仍不可达） | 2,117 | 待删→R2 |
 | R0-31 | P1 | 任务旧组件簇：ChecklistView/RepeatPicker/RepeatRuleView/AddFolderSheet/EditFolderSheet/PriorityPicker | 1,407 | 待删→R2 |
 | R0-32 | P1 | AI 记忆旧簇：HoloMemoryObserverService/HoloLongTermMemoryCandidateObserver/HoloMemorySnapshotBuilder/HoloEpisodicMemoryDetailView/HoloMemoryCandidateCard | 901 | 待删→R2 |
 | R0-33 | P1 | MockAIProvider | 547 | 待删→R2 |
@@ -101,3 +101,15 @@ print 仅 2 处且在 DEBUG 内；debugPrint 0；try!×1、as!×6、fatalError×
 
 - 2026-09-09 R0：三路排查完成（结构/性能/死代码），人工复核纠正 1 处误判（R0-35）；在途 47+35 文件按 6 主题分拣提交；增量编译 0 警告，全量单测启动。
 - 2026-09-09 R0 协调事件：并行会话 01:08 提交推送 `1cc30301b 财务项目一期`（抢走 C1 主体 28 文件），本会话仅补齐 4 残余文件（amend 为 `f6c87141d`）；C4 小组件批归还并行会话（其在途 widget-interactivity 批次）。首轮全量单测 TEST FAILED——但跑测窗口内源码被并行会话持续改写（HabitRepository 01:10 仍在写入），结果视为污染无效，失败明细因日志过滤管道截断未留存；**全量测试门禁延后到工作区安静后重跑**，R1 先做与并行会话零交集的文件。
+- 2026-09-09 R1a 完工（零交集 8 项，行为等价）：
+  - R0-3 ✅ TaskCardView 4 处内联 formatter → TaskCardFormatters 缓存（time/monthDay/dueDate）
+  - R0-4 ✅ ScheduleCommonViews 5 处（多于排查报告的 4 处）→ ScheduleFormatters 缓存，全天分支前移免建
+  - R0-5 ✅ DetailTabView 图表逐日 formatter 出循环 + periodTitle 3 模板缓存 + dateHeader 缓存；顺删孤儿扩展 monthDayString/monthDayWeekdayString（无调用方）
+  - R0-6 ✅ ThoughtGalleryView 全尺寸解码挪后台 + preparingForDisplay（全屏缩放查看器保持全分辨率不降采样）
+  - R0-8 ✅ PolaroidMomentCard onAppear 批量解码挪后台
+  - R0-9 ✅ AttachmentGalleryView 同 R0-6 模式
+  - R0-11 ✅ FinanceAnalysisView 通知流 throttle(500ms, latest:true)——首发立即刷、风暴合并，终态一致
+  - R0-16 ✅ AnniversaryShareSheet renderedImage 计算属性 → init 渲染一次（原 body 每次求值渲染 2 遍）
+  - R0-10 ⏸️ 豁免：看板为固定 8 分区仪表盘，外层 Lazy 无收益；任务行惰性化在带背景裁切卡片内会出现「背景随滚动渐进生长」视觉变化，违反零功能变化红线；行成本已由 R0-3 降低
+  - R0-17 ⏸️ 豁免：洞察页为编辑式固定版面，精选故事有 prefix 限量，非长列表
+  - 验证：独立派生数据目录编译（/tmp/holo-techdebt-dd，避免与并行会话构建锁互踩）；全量测试门禁与 R1b 一并在工作区安静后补跑。
