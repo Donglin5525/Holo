@@ -49,6 +49,9 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var earlierHistoryLoadFailed: Bool = false
     /// 用户从某份 Agent Result 发起的短时追问锚点；发送、取消或离开页面后清空。
     @Published var continuationDraft: HoloAgentContinuationDraft?
+    /// 截图识别：AI 消息 → 识别出支付通道匹配的账户。确认落库后把交易
+    /// 从默认账户搬到该账户（拍板 6）；会话级内存表，重装后自然消失。
+    private var visionAccountByMessageID: [UUID: UUID] = [:]
 
     // MARK: - Private
 
@@ -562,6 +565,132 @@ final class ChatViewModel: ObservableObject {
     }
 
     // MARK: - Send Message
+
+    // MARK: - 截图识别记账（Vision）
+
+    /// 截图识别入口（docs/plans/2026-09-09-screenshot-receipt-billing-plan.md §4）。
+    /// 独立发送分支：不嵌进 sendMessage 的文本分支（该分支已承载 contextPlan/Agent/
+    /// 续问等多路分流）。两段式：第一段视觉调用出「图片理解单」；第二段把理解单
+    /// 拼成自然语言走现有 coordinator 管道，落同一套 TransactionChatCard 确认流。
+    /// 拒识（转账/外币/无关/低置信）直接落拒识气泡，不进管道——宁可问不瞎猜落库。
+    func sendVisionMessage(rawImageData: Data, caption rawCaption: String) async {
+        guard !isStreaming else { return }
+        await retryConfigurationLoadIfNeeded()
+        await ensureChatRepositoryReady()
+        guard let chatRepo = chatRepo else { return }
+        guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
+            showConsentPrompt = true
+            return
+        }
+        let caption = rawCaption.trimmingCharacters(in: .whitespacesAndNewlines)
+        errorMessage = nil
+
+        // 1. 用户消息（内容=附言，无附言落占位）+ 确定性路径缩略图（拍板 5，不进 Core Data）
+        let displayText = caption.isEmpty ? String(localized: "[图片]") : caption
+        let userMessageId = chatRepo.addMessage(role: "user", content: displayText)
+        if let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData) {
+            VisionImageStore.save(jpeg, messageID: userMessageId)
+        }
+
+        // 2. AI 占位 + 流式状态（停止键/watchdog 复用既有机制）
+        let aiMessageId = chatRepo.addStreamingMessage(role: "assistant", parentMessageId: userMessageId)
+        isStreaming = true
+        streamingText = String(localized: "正在看图…")
+        activeStreamingMessageID = aiMessageId
+        startStreamingWatchdog(aiMessageId: aiMessageId)
+
+        currentTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let outcome = try await HoloVisionExtractionService.shared.extract(
+                    rawImageData: rawImageData,
+                    caption: caption.isEmpty ? nil : caption
+                )
+                try Task.checkCancellation()
+
+                // 拒识分流：资金流转/外币/清单/未支付/无关/低置信 → 诚实拒识气泡
+                if let rejection = outcome.rejectionText {
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: rejection,
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        rawLogJSON: nil
+                    )
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                    return
+                }
+
+                // 防重软提示（拍板 9：只提示不阻断），独立消息不入卡片流
+                for hint in outcome.duplicateHints {
+                    _ = chatRepo.addMessage(role: "assistant", content: hint)
+                }
+                if let account = outcome.matchedAccount {
+                    self.visionAccountByMessageID[aiMessageId] = account.id
+                }
+
+                // 第二段：理解单拼自然语言 → 现有 intent 管道（方案 §2 零改动承诺）
+                let stage2 = HoloVisionExtractionService.shared.stage2Text(
+                    for: outcome.understanding,
+                    caption: caption.isEmpty ? nil : caption
+                )
+                let userContext = await UserContextBuilder.shared.buildContext()
+                let processResult = try await self.coordinator.process(
+                    text: stage2,
+                    userContext: userContext,
+                    provider: self.provider
+                )
+                try Task.checkCancellation()
+
+                // 视图分支只认「记账操作」结果；管道没解出记账动作就诚实兜底，
+                // 不降级成闲聊流式（避免图片消息收到答非所问的长文）。
+                let hasFinanceItem = processResult.parsedBatch?.items.contains { $0.intent.isFinance } == true
+                if hasFinanceItem {
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: processResult.finalText,
+                        intent: processResult.firstIntent?.rawValue,
+                        extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                        parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
+                        executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
+                        rawLogJSON: nil
+                    )
+                } else {
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: String(localized: "这张图我没能可靠地变成一笔账。重新拍一张清楚的，或手动记一笔？"),
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        rawLogJSON: nil
+                    )
+                }
+                self.concludeStreamingSession(aiMessageId: aiMessageId)
+            } catch is CancellationError {
+                // 用户点停止：占位消息已由 cancelStreaming 收尾，这里只防旧 Task 晚归覆盖
+                if self.activeStreamingMessageID == aiMessageId {
+                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: self.streamingText)
+                }
+            } catch {
+                guard self.activeStreamingMessageID == aiMessageId else { return }
+                self.logger.error("截图识别失败：\(error.localizedDescription)")
+                let userMessage: String
+                if let visionError = error as? HoloVisionExtractionService.VisionError {
+                    userMessage = visionError.userMessage
+                } else {
+                    userMessage = HoloAIUserErrorMapper.message(for: error)
+                }
+                self.errorMessage = userMessage
+                self.chatRepo?.finishStreaming(aiMessageId, finalContent: userMessage)
+                if self.activeStreamingMessageID == aiMessageId {
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                }
+            }
+        }
+    }
 
     func sendMessage() async {
         // 一条流式回复进行中时禁止再发：并发发送会互相覆盖 currentTask/activeStreamingMessageID，
@@ -2095,6 +2224,16 @@ final class ChatViewModel: ObservableObject {
                         sourceMessageId: message.id.uuidString,
                         sourceItemId: itemId
                     )
+                    // 截图识别账户归位（拍板 6）：识别出的支付通道匹配到更合适的账户时，
+                    // 把交易从默认账户搬过去；只换 account 关系，不动分类与统计口径
+                    if let accountId = self.visionAccountByMessageID[message.id] {
+                        Task {
+                            try? await FinanceRepository.shared.moveTransactionToAccount(
+                                transactionId: txId,
+                                accountId: accountId
+                            )
+                        }
+                    }
                 }
 
                 guard let currentIndex = currentBatch.items.firstIndex(where: { $0.id == itemId }) else {

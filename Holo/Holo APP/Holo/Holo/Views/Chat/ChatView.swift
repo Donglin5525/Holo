@@ -642,6 +642,15 @@ struct ChatView: View {
                 viewModel: viewModel,
                 onVoiceInputTap: {
                     activeSheet = .voiceInput
+                },
+                onImagePicked: { data in
+                    // 截图识别记账：附言取当前输入框文字（方案 §3.2 随图文字优先）
+                    let caption = viewModel.inputText
+                    viewModel.inputText = ""
+                    Task { await viewModel.sendVisionMessage(rawImageData: data, caption: caption) }
+                },
+                onImagePickFailed: { message in
+                    viewModel.errorMessage = message
                 }
             )
         }

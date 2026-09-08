@@ -57,8 +57,10 @@ const MODELS = {
   },
 };
 
-// ---------- 理解单抽取 prompt（与后端 vision_extraction 同源） ----------
-const PROMPT = `你是记账应用的图片理解引擎。仔细看图，输出一张「图片理解单」。只输出一个 JSON 对象，禁止输出任何其他文字、解释或代码块标记。
+// ---------- 理解单抽取 prompt ----------
+// 单一真源是 HoloBackend/src/prompts/defaultPrompts.json 的 vision_extraction（生产热更体系），
+// 本脚本优先读它；嵌入常量只作仓库不齐时的兜底。改 prompt 先跑本评测。
+const EMBEDDED_PROMPT = `你是记账应用的图片理解引擎。仔细看图，输出一张「图片理解单」。只输出一个 JSON 对象，禁止输出任何其他文字、解释或代码块标记。
 
 imageType 取值（必选其一）：
 - receipt：纸质小票/购物凭证/发票
@@ -87,6 +89,22 @@ imageType 取值（必选其一）：
 
 输出结构：
 {"imageType":"receipt","confidence":0.9,"summary":"一句话摘要","merchant":"商户或null","paidAt":"YYYY-MM-DD或null","paymentChannel":"微信支付或支付宝或现金或银行卡尾号4位或null","currency":"CNY","amountOriginalText":"¥98.60","items":[{"name":"条目","amount":0}],"transactions":[{"type":"expense","amount":0,"note":"商户或条目摘要","date":"YYYY-MM-DD"}],"rejectReason":null}`;
+
+function loadProductionPrompt() {
+  try {
+    const json = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'HoloBackend/src/prompts/defaultPrompts.json'), 'utf8'),
+    );
+    const content = typeof json.vision_extraction === 'string' ? json.vision_extraction : json.vision_extraction?.content;
+    if (typeof content === 'string' && content.length > 0) {
+      return content.replaceAll('{{todayISODate}}', new Date().toISOString().slice(0, 10));
+    }
+  } catch {
+    // 仓库不齐时走嵌入兜底
+  }
+  return EMBEDDED_PROMPT;
+}
+const PROMPT = loadProductionPrompt();
 
 // ---------- 调用 ----------
 async function callVision(cfg, b64) {

@@ -75,12 +75,28 @@ struct MessageBubbleView: View {
         message.role == "user"
     }
 
+    /// 截图识别无附言时的占位内容；已有缩略图时不再重复渲染文字气泡
+    private var isImageOnlyCaption: Bool {
+        message.content == String(localized: "[图片]")
+    }
+
     var body: some View {
         Group {
             if isUser {
                 HStack(alignment: .top, spacing: 8) {
                     Spacer(minLength: 60)
-                    messageContent
+                    // 截图识别消息：缩略图按确定性路径探测（拍板 5），
+                    // 图 + 无附言时不再渲染「[图片]」占位气泡
+                    VStack(alignment: .trailing, spacing: 8) {
+                        if let thumbURL = VisionImageStore.thumbnailURL(for: message.id) {
+                            VisionChatThumbnail(url: thumbURL)
+                            if !isImageOnlyCaption {
+                                messageContent
+                            }
+                        } else {
+                            messageContent
+                        }
+                    }
                     userAvatar
                 }
             } else {
@@ -616,5 +632,34 @@ struct BubbleShape: Shape {
         }
 
         return path
+    }
+}
+
+/// 截图识别消息的用户侧缩略图：一次性从本地文件加载，不参与流式重绘
+struct VisionChatThumbnail: View {
+    let url: URL
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color.holoCardBackground
+            }
+        }
+        .frame(width: 128, height: 170)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+        )
+        .task {
+            // 压缩图长边 ≤2400，直接整图解码；列表滚动中只解码一次
+            image = UIImage(contentsOfFile: url.path)
+        }
+        .accessibilityLabel(String(localized: "识别的图片"))
     }
 }
