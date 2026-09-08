@@ -232,9 +232,9 @@ test("system_prompt 默认 Prompt 使用结论先行与渐进披露约束", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 4);
-  // v4: 表达边界与档案规则由 Persona Preamble 接管，正文只保留核心能力与操作禁令；
-  // C 端阅读格式仍由 _consumer_readable_answer_v1_contract 契约片段 append。
+  assert.equal(prompt.version, 5);
+  // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止；
+  // 表达边界与档案规则由 Persona Preamble 接管，C 端阅读格式由 _consumer_readable_answer_v1_contract 契约片段 append。
   assert.match(prompt.content, /HOLO_CONSUMER_READABLE_ANSWER_V1/);
   assert.match(prompt.content, /第一段直接回答用户最关心的问题/);
   assert.match(prompt.content, /一个主结论和最多三个关键点/);
@@ -250,8 +250,8 @@ test("analysis_prompt 默认 Prompt 使用温档洞察方法论与 few-shot", as
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 5);
-  // v5: 温档——补洞察方法论 + few-shot；表达边界与输出格式段由 Persona Preamble / 契约接管。
+  assert.equal(prompt.version, 6);
+  // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档——补洞察方法论 + few-shot，表达边界与输出格式段由 Persona Preamble / 契约接管。
   assert.match(prompt.content, /洞察方法论/);
   assert.match(prompt.content, /从数据读生活场景/);
   assert.match(prompt.content, /工作日午饭的节奏/);

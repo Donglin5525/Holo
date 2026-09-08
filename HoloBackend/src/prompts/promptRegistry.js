@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
-  system_prompt: 4,                 // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
+  system_prompt: 5,                 // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止
   intent_recognition: 30,           // v30: 新增 contextual_planning 意图（个人情境规划）；v29: 时间后置（缓存前缀治理）
   memory_insight_generation: 10,    // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
-  analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
+  analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 2,
   thought_voice_summary: 3,                 // v3: 从「保守润色」转向「主动提炼」；加情绪/状态白名单、自我纠正、口癖清单、用户小前缀保留
   flexible_query_planner: 4,

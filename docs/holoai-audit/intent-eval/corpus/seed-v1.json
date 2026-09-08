@@ -1022,6 +1022,14 @@
         "update_goal_field"
       ],
       "note": "目标状态变更：field=status value=paused"
+    },
+    {
+      "id": "cp01",
+      "text": "帮我想想下周末爸妈来要准备什么",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：结合具体情况安排/准备一件事（只读）"
     }
   ]
 }
