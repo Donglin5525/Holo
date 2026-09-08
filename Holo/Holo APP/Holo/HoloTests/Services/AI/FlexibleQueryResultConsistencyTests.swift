@@ -24,7 +24,8 @@ final class FlexibleQueryResultConsistencyTests: XCTestCase {
                 categoryName: "快餐",
                 parentCategoryName: "餐饮",
                 aiCandidate: nil,
-                accountId: nil
+                accountId: nil,
+                projectName: nil
             )
         }
 
@@ -151,7 +152,8 @@ final class FlexibleQueryResultConsistencyTests: XCTestCase {
             categoryName: "快餐",
             parentCategoryName: "餐饮",
             aiCandidate: nil,
-            accountId: nil
+            accountId: nil,
+            projectName: nil
         )
     }
 }

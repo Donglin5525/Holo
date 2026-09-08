@@ -69,7 +69,7 @@ nonisolated class CoreDataStack {
             : NSPersistentContainer(name: "HoloDataModel", managedObjectModel: model)
 
         if let description = container.persistentStoreDescriptions.first {
-            description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
+            description.url = Self.resolveStoreURLForMigration(model: model)
 
             // 异步加载：不阻塞调用线程，避免主线程死锁
             // store 加载完成后通过 completion handler 信号通知
@@ -143,6 +143,63 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createRecycleBinEntities())
         model.entities = entities
         return model
+    }
+
+    // MARK: - Store 位置（App Group 共享区）
+
+    /// App Group 标识（与小组件等扩展共享的数据区，须与 entitlements 一致）
+    private static let appGroupIdentifier = "group.com.tangyuxuan.holo-app"
+
+    /// 数据库应处的位置：App Group 共享区（小组件等扩展进程可直接读写）
+    nonisolated static var sharedStoreURL: URL {
+        if let groupRoot = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+            return groupRoot.appendingPathComponent("HoloDataModel.sqlite")
+        }
+        // App Group 不可用的环境（部分单元测试宿主）：退回旧沙盒路径
+        return URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
+    }
+
+    /// 1.0.3 之前的旧位置（沙盒 Documents），升级用户的数据仍在那里
+    nonisolated static var legacyStoreURL: URL {
+        URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
+    }
+
+    /// 决定本次装载用哪个库：
+    /// 共享区已有库 → 直接用；旧址有库 → 先整体搬进共享区（失败留在旧址，绝不落到空库）；
+    /// 两处都无 → 全新安装，直接在共享区建库。
+    nonisolated static func resolveStoreURLForMigration(model: NSManagedObjectModel) -> URL {
+        let fm = FileManager.default
+        let newURL = sharedStoreURL
+        let oldURL = legacyStoreURL
+        guard newURL != oldURL else { return newURL }
+
+        if fm.fileExists(atPath: newURL.path) { return newURL }
+        guard fm.fileExists(atPath: oldURL.path) else {
+            try? fm.createDirectory(at: newURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            return newURL
+        }
+
+        do {
+            try migrateStore(at: oldURL, to: newURL, model: model)
+            // 旧文件原地保留，作为本次搬家的回退底稿（后续版本再清理）
+            return newURL
+        } catch {
+            return oldURL
+        }
+    }
+
+    /// 用独立协调器把旧库整体搬到新址（SQLite 标准搬迁，含 schema 升级与一致性拷贝）
+    nonisolated static func migrateStore(at oldURL: URL, to newURL: URL, model: NSManagedObjectModel) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: newURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        let options: [AnyHashable: Any] = [
+            NSMigratePersistentStoresAutomaticallyOption: true,
+            NSInferMappingModelAutomaticallyOption: true
+        ]
+        let mover = NSPersistentStoreCoordinator(managedObjectModel: model)
+        let legacyStore = try mover.addPersistentStore(type: .sqlite, at: oldURL)
+        try mover.migratePersistentStore(legacyStore, to: newURL, options: options, type: .sqlite)
     }
 
     /// 主上下文（用于 UI 操作）
