@@ -1,0 +1,86 @@
+{
+  "version": "seed-v1-cp-check",
+  "note": "contextual_planning 样本专项检查（生产）",
+  "samples": [
+    {
+      "id": "cp01",
+      "text": "帮我想想下周末爸妈来要准备什么",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：结合具体情况安排/准备一件事（只读）"
+    },
+    {
+      "id": "cp02",
+      "text": "国庆节要去日本，帮我规划下出门之前家里要安排的事情",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：出行前家里准备（2026-09-08 真实案例）"
+    },
+    {
+      "id": "cp03",
+      "text": "下周要搬家了，帮我列一下搬家前要准备的事",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：搬家准备"
+    },
+    {
+      "id": "cp04",
+      "text": "下个月要考试了，帮我安排下考前的复习和生活节奏",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：备考安排"
+    },
+    {
+      "id": "cp05",
+      "text": "我要出差五天，家里猫没人照顾，帮我提前规划下",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：宠物照看缺口"
+    },
+    {
+      "id": "cp06",
+      "text": "周末爸妈第一次来我新家，帮我准备一下",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：来访准备"
+    },
+    {
+      "id": "cp07",
+      "text": "下周想自己开火做饭，帮我规划下买菜和备餐怎么安排",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：做饭采购"
+    },
+    {
+      "id": "cp08",
+      "text": "周末几个同学要来我这儿聚会，帮我提前准备下",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：居家聚会"
+    },
+    {
+      "id": "cp09",
+      "text": "订阅和年费快要集中扣费了，帮我提前规划下这些固定支出的安排",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：订阅缴费（原句含查询成分已改写为规划句式）"
+    },
+    {
+      "id": "cp10",
+      "text": "换季了，帮我规划下家里这段时间要做哪些维护",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：居家维护"
+    }
+  ]
+}

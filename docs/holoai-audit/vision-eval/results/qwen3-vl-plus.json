@@ -1,0 +1,1257 @@
+{
+  "model": "qwen3-vl-plus",
+  "ranAt": "2026-09-08T17:09:32.193Z",
+  "summary": {
+    "pass": 23,
+    "total": 24
+  },
+  "rows": [
+    {
+      "file": "r01_luckin_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3202,
+        "completion_tokens": 188,
+        "total_tokens": 3390,
+        "completion_tokens_details": {
+          "text_tokens": 188
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2402,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.98,\"summary\":\"瑞幸咖啡星海广场店0412消费小票，含生椰拿铁与黄油可颂\",\"merchant\":\"瑞幸咖啡 LUCKIN 星海广场店 0412\",\"paidAt\":\"2026-08-28\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥19.90\",\"items\":[{\"name\":\"大杯生椰拿铁（热 / 标准糖）\",\"amount\":9.9},{\"name\":\"黄油可颂\",\"amount\":10.0}],\"transactions\":[{\"type\":\"expense\",\"amount\":19.9,\"note\":\"瑞幸咖啡 LUCKIN 星海广场店 0412\",\"date\":\"2026-08-28\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.98,
+        "summary": "瑞幸咖啡星海广场店0412消费小票，含生椰拿铁与黄油可颂",
+        "merchant": "瑞幸咖啡 LUCKIN 星海广场店 0412",
+        "paidAt": "2026-08-28",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥19.90",
+        "items": [
+          {
+            "name": "大杯生椰拿铁（热 / 标准糖）",
+            "amount": 9.9
+          },
+          {
+            "name": "黄油可颂",
+            "amount": 10
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 19.9,
+            "note": "瑞幸咖啡 LUCKIN 星海广场店 0412",
+            "date": "2026-08-28"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r02_hema_alipay.jpg",
+      "usage": {
+        "prompt_tokens": 3277,
+        "completion_tokens": 214,
+        "total_tokens": 3491,
+        "completion_tokens_details": {
+          "text_tokens": 214
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2477,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.98,\"summary\":\"盒马鲜生星光大道店购物小票，实付98.60元\",\"merchant\":\"盒马鲜生\",\"paidAt\":\"2026-09-01\",\"paymentChannel\":\"支付宝\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥98.60\",\"items\":[{\"name\":\"有机菠菜 300g\",\"amount\":6.9},{\"name\":\"冷鲜牛奶 950ml\",\"amount\":12.5},{\"name\":\"土鸡蛋 10枚\",\"amount\":19.9},{\"name\":\"黑猪五花肉 400g\",\"amount\":32.8},{\"name\":\"阳光玫瑰葡萄 500g\",\"amount\":26.5}],\"transactions\":[{\"type\":\"expense\",\"amount\":98.6,\"note\":\"盒马鲜生 星光大道店\",\"date\":\"2026-09-01\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.98,
+        "summary": "盒马鲜生星光大道店购物小票，实付98.60元",
+        "merchant": "盒马鲜生",
+        "paidAt": "2026-09-01",
+        "paymentChannel": "支付宝",
+        "currency": "CNY",
+        "amountOriginalText": "¥98.60",
+        "items": [
+          {
+            "name": "有机菠菜 300g",
+            "amount": 6.9
+          },
+          {
+            "name": "冷鲜牛奶 950ml",
+            "amount": 12.5
+          },
+          {
+            "name": "土鸡蛋 10枚",
+            "amount": 19.9
+          },
+          {
+            "name": "黑猪五花肉 400g",
+            "amount": 32.8
+          },
+          {
+            "name": "阳光玫瑰葡萄 500g",
+            "amount": 26.5
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 98.6,
+            "note": "盒马鲜生 星光大道店",
+            "date": "2026-09-01"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r03_didi_bank.jpg",
+      "usage": {
+        "prompt_tokens": 3058,
+        "completion_tokens": 153,
+        "total_tokens": 3211,
+        "completion_tokens_details": {
+          "text_tokens": 153
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2258,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"滴滴出行电子行程单，12.6公里快车费用\",\"merchant\":\"滴滴出行\",\"paidAt\":\"2026-08-30\",\"paymentChannel\":\"4321\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥23.50\",\"items\":[{\"name\":\"里程费 12.6公里（含时长费）\",\"amount\":23.5}],\"transactions\":[{\"type\":\"expense\",\"amount\":23.5,\"note\":\"滴滴出行 里程费 12.6公里（含时长费）\",\"date\":\"2026-08-30\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "滴滴出行电子行程单，12.6公里快车费用",
+        "merchant": "滴滴出行",
+        "paidAt": "2026-08-30",
+        "paymentChannel": "4321",
+        "currency": "CNY",
+        "amountOriginalText": "¥23.50",
+        "items": [
+          {
+            "name": "里程费 12.6公里（含时长费）",
+            "amount": 23.5
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 23.5,
+            "note": "滴滴出行 里程费 12.6公里（含时长费）",
+            "date": "2026-08-30"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r04_family_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3202,
+        "completion_tokens": 151,
+        "total_tokens": 3353,
+        "completion_tokens_details": {
+          "text_tokens": 151
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2402,
+          "text_tokens": 800,
+          "cached_tokens": 0
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"全家FAMILYMart高新园区店消费小票，微信支付15元\",\"merchant\":\"全家 FAMILYMart\",\"paidAt\":\"2026-09-02\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥15.00\",\"items\":[{\"name\":\"森林水 555ml\",\"amount\":2.00},{\"name\":\"金枪鱼三明治\",\"amount\":13.00}],\"transactions\":[{\"type\":\"expense\",\"amount\":15.00,\"note\":\"全家 FAMILYMart\",\"date\":\"2026-09-02\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "全家FAMILYMart高新园区店消费小票，微信支付15元",
+        "merchant": "全家 FAMILYMart",
+        "paidAt": "2026-09-02",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥15.00",
+        "items": [
+          {
+            "name": "森林水 555ml",
+            "amount": 2
+          },
+          {
+            "name": "金枪鱼三明治",
+            "amount": 13
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 15,
+            "note": "全家 FAMILYMart",
+            "date": "2026-09-02"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r05_haidilao_alipay.jpg",
+      "usage": {
+        "prompt_tokens": 3286,
+        "completion_tokens": 176,
+        "total_tokens": 3462,
+        "completion_tokens_details": {
+          "text_tokens": 176
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2486,
+          "text_tokens": 800,
+          "cached_tokens": 0
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.98,\"summary\":\"海底捞火锅万象城店消费小票，实付271.00元\",\"merchant\":\"海底捞火锅\",\"paidAt\":\"2026-08-29\",\"paymentChannel\":\"支付宝\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥271.00\",\"items\":[{\"name\":\"招牌锅底\",\"amount\":78.0},{\"name\":\"捞派滑牛肉\",\"amount\":88.0},{\"name\":\"虾滑\",\"amount\":59.0},{\"name\":\"蔬菜拼盘\",\"amount\":46.0}],\"transactions\":[{\"type\":\"expense\",\"amount\":271.0,\"note\":\"海底捞火锅 万象城店\",\"date\":\"2026-08-29\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.98,
+        "summary": "海底捞火锅万象城店消费小票，实付271.00元",
+        "merchant": "海底捞火锅",
+        "paidAt": "2026-08-29",
+        "paymentChannel": "支付宝",
+        "currency": "CNY",
+        "amountOriginalText": "¥271.00",
+        "items": [
+          {
+            "name": "招牌锅底",
+            "amount": 78
+          },
+          {
+            "name": "捞派滑牛肉",
+            "amount": 88
+          },
+          {
+            "name": "虾滑",
+            "amount": 59
+          },
+          {
+            "name": "蔬菜拼盘",
+            "amount": 46
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 271,
+            "note": "海底捞火锅 万象城店",
+            "date": "2026-08-29"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r06_jd_order.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 135,
+        "total_tokens": 3445,
+        "completion_tokens_details": {
+          "text_tokens": 135
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"payment_screenshot\",\"confidence\":0.95,\"summary\":\"京东订单详情：无线蓝牙耳机，微信支付 ¥89.00，已付款完成\",\"merchant\":\"京东\",\"paidAt\":\"2026-09-03\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥89.00\",\"items\":[{\"name\":\"无线蓝牙耳机\",\"amount\":89.00}],\"transactions\":[{\"type\":\"expense\",\"amount\":89.00,\"note\":\"无线蓝牙耳机\",\"date\":\"2026-09-03\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "payment_screenshot",
+        "confidence": 0.95,
+        "summary": "京东订单详情：无线蓝牙耳机，微信支付 ¥89.00，已付款完成",
+        "merchant": "京东",
+        "paidAt": "2026-09-03",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥89.00",
+        "items": [
+          {
+            "name": "无线蓝牙耳机",
+            "amount": 89
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 89,
+            "note": "无线蓝牙耳机",
+            "date": "2026-09-03"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r07_meituan_alipay.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 136,
+        "total_tokens": 3446,
+        "completion_tokens_details": {
+          "text_tokens": 136
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 0
+        }
+      },
+      "raw": "{\"imageType\":\"payment_screenshot\",\"confidence\":0.95,\"summary\":\"美团外卖订单详情：老乡鸡(青泥店)实付¥42.80\",\"merchant\":\"老乡鸡(青泥店)\",\"paidAt\":\"2026-09-04\",\"paymentChannel\":\"支付宝\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥42.80 含配送费 ¥3.80\",\"items\":[],\"transactions\":[{\"type\":\"expense\",\"amount\":42.8,\"note\":\"老乡鸡(青泥店)\",\"date\":\"2026-09-04\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "payment_screenshot",
+        "confidence": 0.95,
+        "summary": "美团外卖订单详情：老乡鸡(青泥店)实付¥42.80",
+        "merchant": "老乡鸡(青泥店)",
+        "paidAt": "2026-09-04",
+        "paymentChannel": "支付宝",
+        "currency": "CNY",
+        "amountOriginalText": "¥42.80 含配送费 ¥3.80",
+        "items": [],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 42.8,
+            "note": "老乡鸡(青泥店)",
+            "date": "2026-09-04"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r08_watsons_cash.jpg",
+      "usage": {
+        "prompt_tokens": 3202,
+        "completion_tokens": 163,
+        "total_tokens": 3365,
+        "completion_tokens_details": {
+          "text_tokens": 163
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2402,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.98,\"summary\":\"屈臣氏中央大道店现金支付小票，含洗面奶与抽纸两件商品\",\"merchant\":\"屈臣氏 WATSONS\",\"paidAt\":\"2026-08-27\",\"paymentChannel\":\"现金\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥56.40\",\"items\":[{\"name\":\"氨基酸洗面奶 150g\",\"amount\":39.9},{\"name\":\"三层抽纸 8包\",\"amount\":16.5}],\"transactions\":[{\"type\":\"expense\",\"amount\":56.4,\"note\":\"屈臣氏 WATSONS\",\"date\":\"2026-08-27\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.98,
+        "summary": "屈臣氏中央大道店现金支付小票，含洗面奶与抽纸两件商品",
+        "merchant": "屈臣氏 WATSONS",
+        "paidAt": "2026-08-27",
+        "paymentChannel": "现金",
+        "currency": "CNY",
+        "amountOriginalText": "¥56.40",
+        "items": [
+          {
+            "name": "氨基酸洗面奶 150g",
+            "amount": 39.9
+          },
+          {
+            "name": "三层抽纸 8包",
+            "amount": 16.5
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 56.4,
+            "note": "屈臣氏 WATSONS",
+            "date": "2026-08-27"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r09_refund_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3058,
+        "completion_tokens": 153,
+        "total_tokens": 3211,
+        "completion_tokens_details": {
+          "text_tokens": 153
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2258,
+          "text_tokens": 800,
+          "cached_tokens": 0
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"优衣库来福士店退货退款凭证，退款39.90元\",\"merchant\":\"优衣库 UNIQLO\",\"paidAt\":\"2026-09-05\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥39.90\",\"items\":[{\"name\":\"纯色圆领T恤 (M)\",\"amount\":39.9},{\"name\":\"合计\",\"amount\":39.9}],\"transactions\":[{\"type\":\"income\",\"amount\":39.9,\"note\":\"优衣库 退货退款\",\"date\":\"2026-09-05\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "优衣库来福士店退货退款凭证，退款39.90元",
+        "merchant": "优衣库 UNIQLO",
+        "paidAt": "2026-09-05",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥39.90",
+        "items": [
+          {
+            "name": "纯色圆领T恤 (M)",
+            "amount": 39.9
+          },
+          {
+            "name": "合计",
+            "amount": 39.9
+          }
+        ],
+        "transactions": [
+          {
+            "type": "income",
+            "amount": 39.9,
+            "note": "优衣库 退货退款",
+            "date": "2026-09-05"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r10_alipay_bills.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 136,
+        "total_tokens": 3446,
+        "completion_tokens_details": {
+          "text_tokens": 136
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"payment_screenshot\",\"confidence\":0.95,\"summary\":\"支付宝账单截图，含两笔账户余额支付的消费记录\",\"merchant\":null,\"paidAt\":null,\"paymentChannel\":\"账户余额\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥8.00\",\"items\":[],\"transactions\":[{\"type\":\"expense\",\"amount\":8.0,\"note\":\"桂林米粉 (青泥店)\",\"date\":\"2026-09-06\"},{\"type\":\"expense\",\"amount\":25.5,\"note\":\"鲜丰水果\",\"date\":\"2026-09-06\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "payment_screenshot",
+        "confidence": 0.95,
+        "summary": "支付宝账单截图，含两笔账户余额支付的消费记录",
+        "merchant": null,
+        "paidAt": null,
+        "paymentChannel": "账户余额",
+        "currency": "CNY",
+        "amountOriginalText": "¥8.00",
+        "items": [],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 8,
+            "note": "桂林米粉 (青泥店)",
+            "date": "2026-09-06"
+          },
+          {
+            "type": "expense",
+            "amount": 25.5,
+            "note": "鲜丰水果",
+            "date": "2026-09-06"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r11_gas_bank.jpg",
+      "usage": {
+        "prompt_tokens": 3058,
+        "completion_tokens": 166,
+        "total_tokens": 3224,
+        "completion_tokens_details": {
+          "text_tokens": 166
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2258,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"中国石化东快路加油站加油小票，92号汽油40.56L，实付350.00元\",\"merchant\":\"中国石化 SINOPEC\",\"paidAt\":\"2026-08-31\",\"paymentChannel\":\"6688\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥350.00\",\"items\":[{\"name\":\"92号汽油 40.56L\",\"amount\":350.0}],\"transactions\":[{\"type\":\"expense\",\"amount\":350.0,\"note\":\"92号汽油 40.56L\",\"date\":\"2026-08-31\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "中国石化东快路加油站加油小票，92号汽油40.56L，实付350.00元",
+        "merchant": "中国石化 SINOPEC",
+        "paidAt": "2026-08-31",
+        "paymentChannel": "6688",
+        "currency": "CNY",
+        "amountOriginalText": "¥350.00",
+        "items": [
+          {
+            "name": "92号汽油 40.56L",
+            "amount": 350
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 350,
+            "note": "92号汽油 40.56L",
+            "date": "2026-08-31"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r12_pharmacy_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3202,
+        "completion_tokens": 168,
+        "total_tokens": 3370,
+        "completion_tokens_details": {
+          "text_tokens": 168
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2402,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"老百姓大药房黄河路店购药小票，微信支付45.70元\",\"merchant\":\"老百姓大药房 黄河路店\",\"paidAt\":\"2026-09-06\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥45.70\",\"items\":[{\"name\":\"感冒灵颗粒 10袋\",\"amount\":15.8},{\"name\":\"维C泡腾片 20片\",\"amount\":29.9}],\"transactions\":[{\"type\":\"expense\",\"amount\":45.7,\"note\":\"老百姓大药房 黄河路店\",\"date\":\"2026-09-06\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "老百姓大药房黄河路店购药小票，微信支付45.70元",
+        "merchant": "老百姓大药房 黄河路店",
+        "paidAt": "2026-09-06",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥45.70",
+        "items": [
+          {
+            "name": "感冒灵颗粒 10袋",
+            "amount": 15.8
+          },
+          {
+            "name": "维C泡腾片 20片",
+            "amount": 29.9
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 45.7,
+            "note": "老百姓大药房 黄河路店",
+            "date": "2026-09-06"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r13_invoice_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3058,
+        "completion_tokens": 122,
+        "total_tokens": 3180,
+        "completion_tokens_details": {
+          "text_tokens": 122
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2258,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"星巴克咖啡电子发票，微信支付35元\",\"merchant\":\"星巴克咖啡\",\"paidAt\":\"2026-09-01\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥35.00\",\"items\":[{\"name\":\"咖啡饮品\",\"amount\":35.00}],\"transactions\":[{\"type\":\"expense\",\"amount\":35.00,\"note\":\"咖啡饮品\",\"date\":\"2026-09-01\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "星巴克咖啡电子发票，微信支付35元",
+        "merchant": "星巴克咖啡",
+        "paidAt": "2026-09-01",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥35.00",
+        "items": [
+          {
+            "name": "咖啡饮品",
+            "amount": 35
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 35,
+            "note": "咖啡饮品",
+            "date": "2026-09-01"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "r14_movie_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 132,
+        "total_tokens": 3442,
+        "completion_tokens_details": {
+          "text_tokens": 132
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"payment_screenshot\",\"confidence\":0.95,\"summary\":\"猫眼电影订单详情：《流浪地球3》IMAX 2张票，实付¥79.80\",\"merchant\":\"猫眼电影\",\"paidAt\":\"2026-09-07\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥79.80\",\"items\":[{\"name\":\"流浪地球3(IMAX 2张)\",\"amount\":79.8}],\"transactions\":[],\"rejectReason\":\"支付完成的订单详情截图，非消费凭证小票，不计入账目\"}",
+      "parsed": {
+        "imageType": "payment_screenshot",
+        "confidence": 0.95,
+        "summary": "猫眼电影订单详情：《流浪地球3》IMAX 2张票，实付¥79.80",
+        "merchant": "猫眼电影",
+        "paidAt": "2026-09-07",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥79.80",
+        "items": [
+          {
+            "name": "流浪地球3(IMAX 2张)",
+            "amount": 79.8
+          }
+        ],
+        "transactions": [],
+        "rejectReason": "支付完成的订单详情截图，非消费凭证小票，不计入账目"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": false,
+        "amounts": false,
+        "types": false,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": false,
+      "lenient": false
+    },
+    {
+      "file": "r15_blur_wechat.jpg",
+      "usage": {
+        "prompt_tokens": 3202,
+        "completion_tokens": 156,
+        "total_tokens": 3358,
+        "completion_tokens_details": {
+          "text_tokens": 156
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2402,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"receipt\",\"confidence\":0.95,\"summary\":\"永和豆浆解放路店早餐小票，含现磨豆浆与大油条\",\"merchant\":\"永和豆浆 解放路店\",\"paidAt\":\"2026-09-06\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥12.00\",\"items\":[{\"name\":\"现磨豆浆（大）\",\"amount\":5.00},{\"name\":\"大油条\",\"amount\":7.00}],\"transactions\":[{\"type\":\"expense\",\"amount\":12.00,\"note\":\"永和豆浆 解放路店\",\"date\":\"2026-09-06\"}],\"rejectReason\":null}",
+      "parsed": {
+        "imageType": "receipt",
+        "confidence": 0.95,
+        "summary": "永和豆浆解放路店早餐小票，含现磨豆浆与大油条",
+        "merchant": "永和豆浆 解放路店",
+        "paidAt": "2026-09-06",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥12.00",
+        "items": [
+          {
+            "name": "现磨豆浆（大）",
+            "amount": 5
+          },
+          {
+            "name": "大油条",
+            "amount": 7
+          }
+        ],
+        "transactions": [
+          {
+            "type": "expense",
+            "amount": 12,
+            "note": "永和豆浆 解放路店",
+            "date": "2026-09-06"
+          }
+        ],
+        "rejectReason": null
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x01_wechat_transfer.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 95,
+        "total_tokens": 3405,
+        "completion_tokens_details": {
+          "text_tokens": 95
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"transfer_screenshot\",\"confidence\":0.98,\"summary\":\"微信转账500元给张三，备注周末聚餐AA\",\"merchant\":\"张三\",\"paidAt\":\"2026-09-05\",\"paymentChannel\":\"微信支付\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥500.00\",\"items\":[],\"transactions\":[],\"rejectReason\":\"资金转账不属于消费支出，不可记账\"}",
+      "parsed": {
+        "imageType": "transfer_screenshot",
+        "confidence": 0.98,
+        "summary": "微信转账500元给张三，备注周末聚餐AA",
+        "merchant": "张三",
+        "paidAt": "2026-09-05",
+        "paymentChannel": "微信支付",
+        "currency": "CNY",
+        "amountOriginalText": "¥500.00",
+        "items": [],
+        "transactions": [],
+        "rejectReason": "资金转账不属于消费支出，不可记账"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x02_alipay_wealth.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 86,
+        "total_tokens": 3396,
+        "completion_tokens_details": {
+          "text_tokens": 86
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"wealth_screenshot\",\"confidence\":0.98,\"summary\":\"支付宝余额宝页面显示当前余额及收益信息\",\"merchant\":null,\"paidAt\":null,\"paymentChannel\":null,\"currency\":\"CNY\",\"amountOriginalText\":\"¥12,345.67\",\"items\":[],\"transactions\":[],\"rejectReason\":\"该图为理财余额与收益展示页，非消费交易凭证\"}",
+      "parsed": {
+        "imageType": "wealth_screenshot",
+        "confidence": 0.98,
+        "summary": "支付宝余额宝页面显示当前余额及收益信息",
+        "merchant": null,
+        "paidAt": null,
+        "paymentChannel": null,
+        "currency": "CNY",
+        "amountOriginalText": "¥12,345.67",
+        "items": [],
+        "transactions": [],
+        "rejectReason": "该图为理财余额与收益展示页，非消费交易凭证"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x03_chat_records.jpg",
+      "usage": {
+        "prompt_tokens": 3277,
+        "completion_tokens": 68,
+        "total_tokens": 3345,
+        "completion_tokens_details": {
+          "text_tokens": 68
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2477,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"unrelated\",\"confidence\":0.98,\"summary\":\"微信聊天记录截图，内容为约饭对话\",\"merchant\":null,\"paidAt\":null,\"paymentChannel\":null,\"currency\":\"CNY\",\"amountOriginalText\":\"\",\"items\":[],\"transactions\":[],\"rejectReason\":\"聊天对话记录不属于记账凭证\"}",
+      "parsed": {
+        "imageType": "unrelated",
+        "confidence": 0.98,
+        "summary": "微信聊天记录截图，内容为约饭对话",
+        "merchant": null,
+        "paidAt": null,
+        "paymentChannel": null,
+        "currency": "CNY",
+        "amountOriginalText": "",
+        "items": [],
+        "transactions": [],
+        "rejectReason": "聊天对话记录不属于记账凭证"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x04_test_plain.jpg",
+      "usage": {
+        "prompt_tokens": 3302,
+        "completion_tokens": 73,
+        "total_tokens": 3375,
+        "completion_tokens_details": {
+          "text_tokens": 73
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2502,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"unrelated\",\"confidence\":0.98,\"summary\":\"HOLO样张测试图，非账单类图片\",\"merchant\":null,\"paidAt\":null,\"paymentChannel\":null,\"currency\":\"CNY\",\"amountOriginalText\":\"\",\"items\":[],\"transactions\":[],\"rejectReason\":\"图片为测试样张，无任何交易信息\"}",
+      "parsed": {
+        "imageType": "unrelated",
+        "confidence": 0.98,
+        "summary": "HOLO样张测试图，非账单类图片",
+        "merchant": null,
+        "paidAt": null,
+        "paymentChannel": null,
+        "currency": "CNY",
+        "amountOriginalText": "",
+        "items": [],
+        "transactions": [],
+        "rejectReason": "图片为测试样张，无任何交易信息"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x05_shopping_list.jpg",
+      "usage": {
+        "prompt_tokens": 3277,
+        "completion_tokens": 78,
+        "total_tokens": 3355,
+        "completion_tokens_details": {
+          "text_tokens": 78
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2477,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"list_note\",\"confidence\":0.98,\"summary\":\"购物清单：牛奶、鸡蛋、洗衣液、抽纸、香蕉\",\"merchant\":null,\"paidAt\":null,\"paymentChannel\":null,\"currency\":\"CNY\",\"amountOriginalText\":null,\"items\":[],\"transactions\":[],\"rejectReason\":\"属于待办/购物清单，无实际支付记录\"}",
+      "parsed": {
+        "imageType": "list_note",
+        "confidence": 0.98,
+        "summary": "购物清单：牛奶、鸡蛋、洗衣液、抽纸、香蕉",
+        "merchant": null,
+        "paidAt": null,
+        "paymentChannel": null,
+        "currency": "CNY",
+        "amountOriginalText": null,
+        "items": [],
+        "transactions": [],
+        "rejectReason": "属于待办/购物清单，无实际支付记录"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x06_creditcard_repay.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 104,
+        "total_tokens": 3414,
+        "completion_tokens_details": {
+          "text_tokens": 104
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"transfer_screenshot\",\"confidence\":0.98,\"summary\":\"招商银行信用卡还款成功截图，金额¥2,000.00\",\"merchant\":null,\"paidAt\":\"2026-09-04\",\"paymentChannel\":\"6688\",\"currency\":\"CNY\",\"amountOriginalText\":\"¥2,000.00\",\"items\":[],\"transactions\":[],\"rejectReason\":\"属于信用卡还款资金流转，非消费交易，不记账\"}",
+      "parsed": {
+        "imageType": "transfer_screenshot",
+        "confidence": 0.98,
+        "summary": "招商银行信用卡还款成功截图，金额¥2,000.00",
+        "merchant": null,
+        "paidAt": "2026-09-04",
+        "paymentChannel": "6688",
+        "currency": "CNY",
+        "amountOriginalText": "¥2,000.00",
+        "items": [],
+        "transactions": [],
+        "rejectReason": "属于信用卡还款资金流转，非消费交易，不记账"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x07_unpaid_order.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 91,
+        "total_tokens": 3401,
+        "completion_tokens_details": {
+          "text_tokens": 91
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 0
+        }
+      },
+      "raw": "{\"imageType\":\"pending_order\",\"confidence\":0.95,\"summary\":\"拼多多订单详情，状态为待付款\",\"merchant\":\"拼多多\",\"paidAt\":null,\"paymentChannel\":null,\"currency\":\"CNY\",\"amountOriginalText\":\"¥129.00\",\"items\":[{\"name\":\"小米台灯 Pro\",\"amount\":129.00}],\"transactions\":[],\"rejectReason\":\"订单尚未支付，不属于已完成消费交易\"}",
+      "parsed": {
+        "imageType": "pending_order",
+        "confidence": 0.95,
+        "summary": "拼多多订单详情，状态为待付款",
+        "merchant": "拼多多",
+        "paidAt": null,
+        "paymentChannel": null,
+        "currency": "CNY",
+        "amountOriginalText": "¥129.00",
+        "items": [
+          {
+            "name": "小米台灯 Pro",
+            "amount": 129
+          }
+        ],
+        "transactions": [],
+        "rejectReason": "订单尚未支付，不属于已完成消费交易"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "x08_pay_failed.jpg",
+      "usage": {
+        "prompt_tokens": 3310,
+        "completion_tokens": 71,
+        "total_tokens": 3381,
+        "completion_tokens_details": {
+          "text_tokens": 71
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2510,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"unrelated\",\"confidence\":0.95,\"summary\":\"支付宝收银台支付失败截图\",\"merchant\":null,\"paidAt\":null,\"paymentChannel\":null,\"currency\":\"CNY\",\"amountOriginalText\":\"¥45.00\",\"items\":[],\"transactions\":[],\"rejectReason\":\"支付失败，未完成交易\"}",
+      "parsed": {
+        "imageType": "unrelated",
+        "confidence": 0.95,
+        "summary": "支付宝收银台支付失败截图",
+        "merchant": null,
+        "paidAt": null,
+        "paymentChannel": null,
+        "currency": "CNY",
+        "amountOriginalText": "¥45.00",
+        "items": [],
+        "transactions": [],
+        "rejectReason": "支付失败，未完成交易"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    },
+    {
+      "file": "f01_usd_visa.jpg",
+      "usage": {
+        "prompt_tokens": 3298,
+        "completion_tokens": 132,
+        "total_tokens": 3430,
+        "completion_tokens_details": {
+          "text_tokens": 132
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2498,
+          "text_tokens": 800,
+          "cached_tokens": 640
+        }
+      },
+      "raw": "{\"imageType\":\"foreign_currency\",\"confidence\":0.95,\"summary\":\"Whole Foods Market 美元消费小票\",\"merchant\":\"Whole Foods Market\",\"paidAt\":\"2026-09-02\",\"paymentChannel\":\"8821\",\"currency\":\"USD\",\"amountOriginalText\":\"$14.47\",\"items\":[{\"name\":\"Organic Bananas\",\"amount\":3.99},{\"name\":\"Whole Milk 1Gal\",\"amount\":4.49},{\"name\":\"Sourdough Bread\",\"amount\":5.99}],\"transactions\":[],\"rejectReason\":\"外币消费暂不支持记账\"}",
+      "parsed": {
+        "imageType": "foreign_currency",
+        "confidence": 0.95,
+        "summary": "Whole Foods Market 美元消费小票",
+        "merchant": "Whole Foods Market",
+        "paidAt": "2026-09-02",
+        "paymentChannel": "8821",
+        "currency": "USD",
+        "amountOriginalText": "$14.47",
+        "items": [
+          {
+            "name": "Organic Bananas",
+            "amount": 3.99
+          },
+          {
+            "name": "Whole Milk 1Gal",
+            "amount": 4.49
+          },
+          {
+            "name": "Sourdough Bread",
+            "amount": 5.99
+          }
+        ],
+        "transactions": [],
+        "rejectReason": "外币消费暂不支持记账"
+      },
+      "error": null,
+      "checks": {
+        "type": true,
+        "reject": true,
+        "amounts": true,
+        "types": true,
+        "date": true,
+        "merchant": true,
+        "channel": true
+      },
+      "pass": true,
+      "lenient": false
+    }
+  ]
+}

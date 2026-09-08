@@ -1,0 +1,58 @@
+{
+  "model": "qwen-vl-flash",
+  "ranAt": "2026-09-08T16:58:58.054Z",
+  "summary": {
+    "pass": 0,
+    "total": 6
+  },
+  "rows": [
+    {
+      "file": "r01_luckin_wechat.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 404: {\"error\":{\"message\":\"The model `qwen-vl-flash` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_found\"},\"request_id\":\"2fdbcd6d-5db7-9926-9",
+      "pass": false
+    },
+    {
+      "file": "r02_hema_alipay.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 404: {\"error\":{\"message\":\"The model `qwen-vl-flash` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_found\"},\"request_id\":\"03230b02-525e-9b43-9",
+      "pass": false
+    },
+    {
+      "file": "r03_didi_bank.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 404: {\"error\":{\"message\":\"The model `qwen-vl-flash` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_found\"},\"request_id\":\"8b7fdfab-60ee-9425-8",
+      "pass": false
+    },
+    {
+      "file": "r04_family_wechat.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 404: {\"error\":{\"message\":\"The model `qwen-vl-flash` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_found\"},\"request_id\":\"32f80b9f-dde4-9ac6-b",
+      "pass": false
+    },
+    {
+      "file": "r05_haidilao_alipay.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 404: {\"error\":{\"message\":\"The model `qwen-vl-flash` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_found\"},\"request_id\":\"f537f346-0121-95ed-8",
+      "pass": false
+    },
+    {
+      "file": "r06_jd_order.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 404: {\"error\":{\"message\":\"The model `qwen-vl-flash` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_found\"},\"request_id\":\"81ebb188-e142-910a-9",
+      "pass": false
+    }
+  ]
+}

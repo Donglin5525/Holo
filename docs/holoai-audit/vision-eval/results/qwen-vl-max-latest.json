@@ -1,0 +1,58 @@
+{
+  "model": "qwen-vl-max-latest",
+  "ranAt": "2026-09-08T16:58:52.418Z",
+  "summary": {
+    "pass": 0,
+    "total": 6
+  },
+  "rows": [
+    {
+      "file": "r01_luckin_wechat.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 403: {\"error\":{\"message\":\"Access denied. For details, see: https://help.aliyun.com/zh/model-studio/error-code#access-denied\",\"type\":\"access_denied\",\"param\":null,\"code\":\"access_denied\"},\"id\":\"chatcmpl-d7bdd",
+      "pass": false
+    },
+    {
+      "file": "r02_hema_alipay.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 403: {\"error\":{\"message\":\"Access denied. For details, see: https://help.aliyun.com/zh/model-studio/error-code#access-denied\",\"type\":\"access_denied\",\"param\":null,\"code\":\"access_denied\"},\"id\":\"chatcmpl-fe8dc",
+      "pass": false
+    },
+    {
+      "file": "r03_didi_bank.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 403: {\"error\":{\"message\":\"Access denied. For details, see: https://help.aliyun.com/zh/model-studio/error-code#access-denied\",\"type\":\"access_denied\",\"param\":null,\"code\":\"access_denied\"},\"id\":\"chatcmpl-18e62",
+      "pass": false
+    },
+    {
+      "file": "r04_family_wechat.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 403: {\"error\":{\"message\":\"Access denied. For details, see: https://help.aliyun.com/zh/model-studio/error-code#access-denied\",\"type\":\"access_denied\",\"param\":null,\"code\":\"access_denied\"},\"id\":\"chatcmpl-879bf",
+      "pass": false
+    },
+    {
+      "file": "r05_haidilao_alipay.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 403: {\"error\":{\"message\":\"Access denied. For details, see: https://help.aliyun.com/zh/model-studio/error-code#access-denied\",\"type\":\"access_denied\",\"param\":null,\"code\":\"access_denied\"},\"id\":\"chatcmpl-84bd1",
+      "pass": false
+    },
+    {
+      "file": "r06_jd_order.png",
+      "usage": {},
+      "raw": null,
+      "parsed": null,
+      "error": "HTTP 403: {\"error\":{\"message\":\"Access denied. For details, see: https://help.aliyun.com/zh/model-studio/error-code#access-denied\",\"type\":\"access_denied\",\"param\":null,\"code\":\"access_denied\"},\"id\":\"chatcmpl-46c3a",
+      "pass": false
+    }
+  ]
+}

@@ -1,0 +1,1599 @@
+{
+  "summary": {
+    "set": "heldout",
+    "device": "pc-eval-2026-09-08-00",
+    "providerModel": "deepseek-v4-flash（生产）",
+    "fixtures": 48,
+    "completed": 48,
+    "errors": 0,
+    "recall": {
+      "hit": 95,
+      "total": 96,
+      "rate": 0.99
+    },
+    "groundedRate": 1,
+    "planOKRate": 1,
+    "forbiddenViolations": 1,
+    "byDomain": {
+      "家庭": 1,
+      "工作": 1,
+      "学习": 1,
+      "健康": 1,
+      "财务": 0.929,
+      "决策": 1,
+      "人际": 1,
+      "宠物": 1,
+      "出行": 1,
+      "饮食": 1,
+      "采购": 1,
+      "交通": 1,
+      "居家": 1,
+      "维护": 1,
+      "社交": 1,
+      "聚会": 1,
+      "就医": 1,
+      "订阅": 1,
+      "人情": 1,
+      "礼尚往来": 1
+    },
+    "note": "词面口径（CJK 双字词重叠 ≥34%）；语义同义命中与 plan effects 的 judge 辅助评分待人工补充"
+  },
+  "results": [
+    {
+      "fixtureID": "heldout-synth-001",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每周三处理：安排弟弟来访的行程",
+          "hit": true,
+          "bestOverlap": 9,
+          "threshold": 6,
+          "nearestCandidate": "我负责安排弟弟每周三来访的行程，并记得弟弟需要静养休息。"
+        },
+        {
+          "statement": "弟弟方面要注意静养休息",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "我负责安排弟弟每周三来访的行程，并记得弟弟需要静养休息。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "根据记录，弟弟每周三来访且需要静养。建议把行程重点放在休息上：确认具体到达时间与是否留宿，提前布置安静的休息角落，安排聊天、散步等低体力活动即可。职称英语由你自行负责，不影响这次安排。具体细节待你补充后我再细化。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-002",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：准备房租相关的工作安排",
+          "hit": true,
+          "bestOverlap": 12,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天需要准备房租相关的工作安排"
+        },
+        {
+          "statement": "弟弟方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "弟弟提过要错峰出行，需要记着这点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "现在是9月初，正好进入你每年秋天处理房租安排的时间窗口。目前关于房租的具体细节（类型、周期、金额）和弟弟错峰出行的具体时间还不清楚，所以咱们先把一个可执行的工作框架搭起来，等这两项信息明确后再填具体日期。建议按下面步骤推进：先梳理合同与资金底数，再把你负责的确认节点跟弟弟的时间避开，最后往前倒排一个提醒好让自己不赶。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-003",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在下周末处理：规划职称英语的备考计划",
+          "hit": true,
+          "bestOverlap": 13,
+          "threshold": 6,
+          "nearestCandidate": "我计划在下周末规划职称英语的备考计划"
+        },
+        {
+          "statement": "母亲方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "母亲之前提过要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "好的，下周末来做这一次规划是合适的，节奏上不会太赶。规划前需要先了解职称英语的报考要求、考试时间和题型结构，再根据你自己的基础水平与可用时间确定备考周期和每日投入。由于备考由你自己负责，安排上以个人节奏为主，但建议注意作息，避免因备考挤占休息时间——你之前提到母亲也在减少熬夜，这提醒我们整体时间安排可以预留白天的固定学习块。具体步骤见清单，先把信息摸清，做计划时才不会落空。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-004",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在明年一月处理：调整近期的生活作息",
+          "hit": true,
+          "bestOverlap": 10,
+          "threshold": 6,
+          "nearestCandidate": "计划在明年一月调整近期生活作息"
+        },
+        {
+          "statement": "室友方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "室友之前提过要减少熬夜，需要记住这一点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "你想调整近期作息，但目前信息还不太够。你说过原本计划明年一月再做调整，现在是想提前开始吗？另外我注意到之前你提到过室友也想减少熬夜——如果你们同住或相互影响，这点可能需要一起考虑。在给你具体建议前，我想先确认：你最想优先改善的是入睡/起床时间、白天精力，还是健身与休息的配合？可以先记录接下来一周你实际入睡和起床的时间、白天的状态，我们再一起找突破口。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-005",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在下周末处理：梳理下周末的必要支出",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 5,
+          "nearestCandidate": "下周末需要梳理必要支出"
+        },
+        {
+          "statement": "同事小周方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "同事小周之前提过要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "目前我还没有你下周末的具体活动或支出清单，无法直接指出哪些是必要支出。为了梳理准确，可以先分两步：先确认下周末是否有已经约好的行程（比如同事小周见面、驾照考试），再检查有没有固定待付账单；日常餐饮和交通再按是否可省去判断。你把这两点告诉我，我就能帮你列出更具体的清单。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-006",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：决定要不要推进驾照考试",
+          "hit": true,
+          "bestOverlap": 7,
+          "threshold": 6,
+          "nearestCandidate": "上个月在考虑是否推进驾照考试"
+        },
+        {
+          "statement": "父亲方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "父亲需要低盐饮食"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "目前能确定的只有两点：你上个月就在考虑这件事，而且驾照考试是你自己负责、不需要他人代管。这两点意味着你能按自己的节奏做决定，不必等别人。建议先花少量时间了解考试的具体流程、耗时和费用，再结合你当前的生活负担（比如照顾家人）判断是否留得出时间。不必急着报名，先收集信息，让决定有依据。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-007",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：准备与父亲的一次重要沟通",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "上个月准备与父亲进行一次重要沟通，父亲之前提过要控制预算，沟通时需记住这一点。"
+        },
+        {
+          "statement": "父亲方面要注意控制预算",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "上个月准备与父亲进行一次重要沟通，父亲之前提过要控制预算，沟通时需记住这一点。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "目前信息还不够支撑一个具体方案——我还不知道这次沟通的主题、目标、时间或地点，也不确定它是否与上个月那次未完成的沟通有关。不过有一个值得留意的背景：父亲曾提过要控制预算，所以无论聊什么务实的话题，把这一点放在心里是合理的。职称英语是你自己负责的事，这意味着它能成为你掌控力范围内的一块，不用在父亲面前把它当成负担。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-008",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：安排领导来访的行程",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "我负责安排领导来访的行程，并记得领导提出过错峰出行的要求。"
+        },
+        {
+          "statement": "领导方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "我负责安排领导来访的行程，并记得领导提出过错峰出行的要求。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "当前只确认了领导提出过错峰出行要求，但还没有来访的具体时间。建议先和领导确认来访日期、时长及错峰的具体口径（避开哪类高峰），再据此排行程。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-009",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在月底前处理：准备健身计划相关的工作安排",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "我负责准备健身计划相关的工作安排"
+        },
+        {
+          "statement": "爱人方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "我的爱人需要低盐饮食"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "健身计划的工作安排可以在月底前完成。由于你提到爱人的低盐饮食需求，建议把饮食模块一并纳入计划，一方面避免家庭饮食冲突，另一方面健身目标（如减脂或控体重）往往需要饮食配合。建议先从你的健康现状和可用时间入手摸底，再定目标与内容，最后排入月历。具体动作和顺序如下。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-010",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在下周末处理：规划驾照考试的备考计划",
+          "hit": true,
+          "bestOverlap": 13,
+          "threshold": 6,
+          "nearestCandidate": "我计划在下周末规划驾照考试的备考计划"
+        },
+        {
+          "statement": "室友方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "室友之前提过要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "下周末开始规划的话，建议先确认考试类型和当地考规，再按科目顺序排任务。目前你明确自己负责，所以按个人节奏安排即可。下面给出备考框架，具体日期待你确定后填充。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-011",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：调整近期的生活作息",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天会调整近期的生活作息"
+        },
+        {
+          "statement": "姐姐方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "姐姐之前提过要低盐饮食，需要记着这点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "现在是 9 月初，正好是你每年秋天调整作息的时候，这个时机很合适。作息调整的关键不是一时改变，而是逐步过渡。建议你先从固定的起床和睡觉时间入手，给自己一到两周的适应期，每晚比现在早睡 15-30 分钟，循序渐进。白天可以安排适度的户外活动帮助身体适应新的节律。另外，职称英语是你自己负责的事，调整作息时建议把学习时间固定在精力最好的时段，避免因为作息变化打乱复习节奏。如果你想让我帮你把具体的作息时间和学习安排排得更细，可以告诉我你目前的作息大概是什么样子，目标是想早起还是想睡得更规律。",
+      "forbiddenViolations": [],
+      "hasUnknowns": false,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-012",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：梳理每年秋天的必要支出",
+          "hit": true,
+          "bestOverlap": 7,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天会梳理必要支出"
+        },
+        {
+          "statement": "室友方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "室友偏好低盐饮食"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "秋天适合做一次年度必支出的框架梳理：固定支出如房租（你自理）、水电燃气等，季节波动支出如取暖、换季衣物等。目前最关键的一步是先确认房租的具体金额与构成，才能把清单做准。建议按此框架建立模板，以后每年秋初复用更新。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-013",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在明年一月处理：决定要不要推进房租",
+          "hit": true,
+          "bestOverlap": 7,
+          "threshold": 6,
+          "nearestCandidate": "明年一月需要决定是否推进房租相关事宜"
+        },
+        {
+          "statement": "爱人方面要注意控制预算",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "爱人之前提过要控制预算"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "从现有情况看，房租这件事定在明年一月才需要最终决定，现在有近四个月的时间，不用着急拍板。目前最主要的考虑是爱人提到过的预算控制——这会给推进方案设定一个硬约束，建议先把预算框架聊清楚。另外，这事由你自己负责，节奏上可以按你的习惯来安排。我的建议是：这段时间先别做最终决定，把需要的具体信息（租金水平、可选项、预算上限）慢慢收集完整，到临近决定前再集中评估就好。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-014",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在下周末处理：准备与姐姐的一次重要沟通",
+          "hit": true,
+          "bestOverlap": 12,
+          "threshold": 6,
+          "nearestCandidate": "下周末准备与姐姐进行一次重要沟通，并记得姐姐之前提过需要静养休息。"
+        },
+        {
+          "statement": "姐姐方面要注意静养休息",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "下周末准备与姐姐进行一次重要沟通，并记得姐姐之前提过需要静养休息。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "这次沟通前，建议先确认姐姐方便且精力好的时间，因为她需要静养，不宜长时间或在高负担状态下交谈。你可以提前整理好想聊的重点，控制在较短、轻松的对话中完成。具体的日期和时间安排取决于姐姐的日程，留出弹性空间更好。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-015",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在月底前处理：安排同事小周来访的行程",
+          "hit": true,
+          "bestOverlap": 9,
+          "threshold": 6,
+          "nearestCandidate": "月底前需要安排同事小周的来访行程"
+        },
+        {
+          "statement": "同事小周方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "同事小周之前提过要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "目前关于小周来访的具体信息有限，我已帮你把行程安排的框架搭好。关键在于几点：来访的具体日期和时长、来访的目的，这决定了后续是订会议室还是定餐厅。建议你先和小周确认时间，再做具体安排。你可以对照下面的步骤逐项推进。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-016",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在十一假期处理：准备房贷相关的工作安排",
+          "hit": true,
+          "bestOverlap": 12,
+          "threshold": 6,
+          "nearestCandidate": "十一假期期间需要准备房贷相关的工作安排"
+        },
+        {
+          "statement": "室友方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "室友之前提过要错峰出行，需要记着这一点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "十一假期期间要准备房贷，而这个假期也赶上了室友错峰出行的计划，房贷又是你一人负责——那么假期里大概率是你独自处理这件事。动手前先确定两件事：这轮房贷准备是办新贷款、做存量利率调整，还是准备提前还款或转贷？银行在假期前后的可办理时间和要求是什么？建议放假前先花一点时间确认这两个细节，让假期里的准备有明确方向。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-017",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：规划房贷的备考计划",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天规划房贷的备考计划"
+        },
+        {
+          "statement": "母亲方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "母亲需要低盐饮食"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "根据你提供的信息，房贷事宜由你本人负责，备考计划建议围绕你个人的时间安排来设计。目前缺少母亲的具体时间以及房贷细节（如还款日、金额等），这会影响计划的精确性，但可先搭建框架。建议先梳理房贷的月供金额、还款日和缓冲资金，再结合备考周期安排复习节奏。如果母亲需要你照顾（如低盐饮食相关），还需要预留出照料时间，但当前没有证据表明这与备考直接关联。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-018",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每周三处理：调整近期的生活作息",
+          "hit": true,
+          "bestOverlap": 10,
+          "threshold": 6,
+          "nearestCandidate": "每周三会调整近期的生活作息"
+        },
+        {
+          "statement": "母亲方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "母亲曾提出需要低盐饮食，我记着这一点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "好的，我们来调整近期的生活作息。我注意到你习惯在每周三做这类规划，今天正好合适。目前关于你的目标作息我并不了解——比如想早起、增加运动还是改善睡眠？没有这个前提，我很难给出贴切的安排。另外，驾照考试既然由你自己负责，确认好考试日子后，我会帮你把考前那周的作息避开或做针对性调整。你方便说说最近作息上具体困扰你的地方吗？或者期望达到什么状态？",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-019",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在十一假期处理：梳理十一假期的必要支出",
+          "hit": true,
+          "bestOverlap": 10,
+          "threshold": 6,
+          "nearestCandidate": "计划梳理十一假期的必要支出，并记得孩子提出要错峰出行"
+        },
+        {
+          "statement": "孩子方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "计划梳理十一假期的必要支出，并记得孩子提出要错峰出行"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "从你目前透露的信息看，十一假期的必要支出可以分成两块来想：一块是固定大项——房贷，既然这件事由你本人负责，建议把它作为首要缺口预留；另一块是弹性支出——孩子提出的错峰出行，如果落实，会涉及额外路费和可能的住宿安排，值得留意。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-020",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在下周末处理：决定要不要推进留学申请",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "下周末需要决定是否推进留学申请"
+        },
+        {
+          "statement": "姐姐方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "姐姐需要低盐饮食"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "离下周末做决定还剩一点时间。目前我能看到的是：这个决定由你自己负责，不需要他人代管，所以主动权在你手上。但“留学申请”具体指什么——是国家/学校、专业方向、预算还是时间线——目前还不清楚。建议先厘清两件事：你真正想通过留学获得什么，以及最迟需要提交哪些材料。这两点想清楚后，决定的难度会小很多。我可以帮你把问题拆细，需要的话告诉我更多细节。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-021",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在明年一月处理：准备与姐姐的一次重要沟通",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 7,
+          "nearestCandidate": "计划在明年一月与姐姐进行一次重要沟通，并记得姐姐之前提过要错峰出行。"
+        },
+        {
+          "statement": "姐姐方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "计划在明年一月与姐姐进行一次重要沟通，并记得姐姐之前提过要错峰出行。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "你和姐姐的重要沟通计划在明年一月进行，目前还未确定具体日期。建议先和姐姐确认一个彼此都方便的时间段，再围绕沟通目的做简单准备。健身计划由你自己负责，与这次沟通无直接关联，暂不纳入安排。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-022",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：安排同事小周来访的行程",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "上个月安排了同事小周的来访行程，小周之前提过要当面沟通"
+        },
+        {
+          "statement": "同事小周方面要注意当面沟通",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "上个月安排了同事小周的来访行程，小周之前提过要当面沟通"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "目前能确认的只有小周之前提过当面沟通、上个月也已安排过一次来访，但本轮没有给出本次的回访时间、行程长度和沟通主题。我先不排出具体日程表，建议先确认时间窗口，再明确沟通主题和所需准备。暖气费由你负责这件事和来访行程无关，暂未纳入。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-023",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：准备暖气费相关的工作安排",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "我负责暖气费相关的工作安排"
+        },
+        {
+          "statement": "父亲方面要注意控制预算",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "父亲提过要控制预算"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "目前只知道你上个月负责暖气费安排，且父亲之前提过要控制预算，但缺少具体金额和支付时间，很难排出明确日程。建议先与父亲确认预算上限，并拿到今年缴费通知，再定后续步骤。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-024",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在明年一月处理：规划留学申请的备考计划",
+          "hit": true,
+          "bestOverlap": 13,
+          "threshold": 6,
+          "nearestCandidate": "计划明年一月规划留学申请的备考计划"
+        },
+        {
+          "statement": "姐姐方面要注意静养休息",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "姐姐之前提过需要静养休息"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "制定备考计划前，需要先明确三个关键事项：申请目标（国家/专业/学校）、对应的考试要求（语言或标化考试）、以及申请截止日期。这些信息缺失时，时间表无法倒排。建议你按清单逐项确认后，再分配备考周期。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-025",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在月底前处理：调整近期的生活作息",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "我计划在月底前调整近期的生活作息"
+        },
+        {
+          "statement": "同事小周方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "同事小周之前提过要减少熬夜，我记着这点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "在具体执行之前需要先说明：目前我知道你的目标是在月底前完成作息调整，但还缺少你现在具体的作息时间、睡眠时长等基础信息，所以方案基于通用的作息调整方法设计，而不是针对你个人情况的定制版。\n\n大方向是渐进式调整：不要一步到位，每周调整睡眠时间 15-30 分钟，让身体逐步适应。核心是固定起床时间，起床时间稳定后，入睡时间会自然趋于规律。同事小周之前也提过减少熬夜，你们可以互相提醒，让调整更容易坚持。\n\n建议你先观察 3 天记录自己的实际作息，再看看方案怎么细化。需要的话告诉我你目前大概几点睡几点起，我可以帮你把调整步骤再具体化。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-026",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每周三处理：梳理每周三的必要支出",
+          "hit": true,
+          "bestOverlap": 9,
+          "threshold": 5,
+          "nearestCandidate": "每周三梳理每周三的必要支出"
+        },
+        {
+          "statement": "姐姐方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "姐姐之前提过要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "本周三的支出梳理可以围绕你平时在周三发生的事项来展开，但目前我还没掌握详细的支出分类和数据。建议先按餐饮、通勤、固定缴费、社交这几类把当天花销归拢一遍，再逐项判断必要性。驾照考试和姐姐的事与这项梳理关系不大，暂时先不纳入。另外，要判断哪些算\"必要\"，需要你提供一个标准，否则很难划界。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-027",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在十一假期处理：决定要不要推进暖气费",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "十一假期期间需要决定是否推进暖气费相关事宜"
+        },
+        {
+          "statement": "同事小周方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "同事小周曾提及要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "十一假期需要做这个决定。建议先在假期前把暖气费的细节查清楚——费用金额、缴纳截止日、不交的影响——掌握完整信息后再决策会更有把握。这件事由你本人负责，所以决策权在你，不需要等别人安排。考虑在假期中间挑一天专门处理，避免拖到最后纠结。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-028",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在十一假期处理：准备与父亲的一次重要沟通",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 7,
+          "nearestCandidate": "计划在十一假期与父亲进行一次重要沟通"
+        },
+        {
+          "statement": "父亲方面要注意减少熬夜",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "父亲之前提过要减少熬夜"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "十一假期与父亲的重要沟通是目前明确的安排，值得提前做好几点准备：先把这次沟通要谈的核心议题定下来，尤其是房贷可能涉及的谈话要点与底线；其次选一个假期中更从容的时间段。建议把重点放在\"谈什么、怎么说、预期结果\"这三件事上，材料准备和对话练习等任务拆解到假期前完成会更稳妥。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-029",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：安排领导来访的行程",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "我负责安排领导来访的行程，并记得领导提过要控制预算。"
+        },
+        {
+          "statement": "领导方面要注意控制预算",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "我负责安排领导来访的行程，并记得领导提过要控制预算。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "目前缺少领导的具体来访时间，这是决定整个行程安排的第一要素。建议先与领导或秘书确认日期、随行人数和预算上限，再据此预定交通、住宿并排定会议或参观议程。我列了几个关键步骤，其中预算控制需要优先留意，因为领导之前提过要控制经费。留学申请与本次来访无关，未纳入安排。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-030",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：准备暖气费相关的工作安排",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "我负责暖气费相关的工作安排"
+        },
+        {
+          "statement": "同事小周方面要注意静养休息",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "同事小周之前提过要静养休息"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "从现有记录看，你提到自己上个月负责暖气费相关工作，而同事小周此前说要静养，可能影响近期的分工和时间。目前咱们手头的背景还比较薄，我没有暖气费的具体细节，也不知道小周的恢复情况。为了下一步能给出真正有用的安排，建议先用几分钟落定待办来源、当前状态和分工要求，这里我不会替你把内容编出来。你看是先从小周的状态问起，还是从你手头的具体任务聊起？",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-031",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：规划房贷的备考计划",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天规划房贷的备考计划"
+        },
+        {
+          "statement": "同事小周方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 4,
+          "nearestCandidate": "同事小周提过要错峰出行"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "现在是秋天，正好是你每年规划房贷事宜的时间窗口。建议按从盘点现状到落实各具体事项的步骤来推进：先做一次全面的信息与账目梳理，再逐个处理几个关键节点。有两个情况会影响安排，目前需要你先确认：一是房贷的具体细节（当前剩余本金、利率类型、每年的还款安排等）目前还不清楚，这决定后续多项事项的时间表；二是同事小周提过的错峰出行，若本次规划中有需要与他协调的环节，时间上要注意错开。框架可以先搭起来，不影响先做基础的资料整理。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-032",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在十一假期处理：调整近期的生活作息",
+          "hit": true,
+          "bestOverlap": 12,
+          "threshold": 6,
+          "nearestCandidate": "我计划在十一假期调整近期的生活作息"
+        },
+        {
+          "statement": "母亲方面要注意控制预算",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "母亲之前提过要控制预算，我需要记着这一点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "你计划在十一假期调整作息，这个时间窗口很合适，假期没有工作压力干扰，适合建立新节律。建议先别急着定目标，在假期开始前用几天记录现在的睡眠和活动状态，搞清楚最需要调的点；假期中固定起床时间作为锚点，再逐步带动入睡时间；假期末尾留出1天过渡，避免开工后被打回原形。规律是慢慢养出来的，一次只改一个变量，不用求快。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-033",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 1,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在上个月处理：梳理上个月的必要支出",
+          "hit": false,
+          "bestOverlap": 0,
+          "threshold": 5,
+          "nearestCandidate": "孩子之前提过要错峰出行"
+        },
+        {
+          "statement": "孩子方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "孩子之前提过要错峰出行"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "目前没有找到上个月的支出记录，无法直接梳理必要支出。你提到过的错峰出行和留学申请事宜与支出梳理没有直接关联，暂不纳入。如果手上有支出明细（如账单、记账软件截图），发给我，我可以帮你区分必要与非必要支出并归纳分类。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-034",
+      "domains": [
+        "决策"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：决定要不要推进健身计划",
+          "hit": true,
+          "bestOverlap": 9,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天会决定是否推进健身计划"
+        },
+        {
+          "statement": "弟弟方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "弟弟提过要错峰出行"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "现在正是你每年秋天做这个决定的时候。决定权在你手里——健身计划本来就由你负责，不需要别人代管。目前的限制是：我们还不知道你计划的具体内容（练什么、频次、地点），所以难以前一步判断它是否值得推进。另外，从记录看弟弟提过要错峰出行，如果你俩共用某些空间或时间，可能对实施的便利性有影响，值得留意。想帮你把决定做得更实在，你先告诉我：①这个健身计划大概是怎样的？练什么、一周几天、在家还是在健身房？②你之所以犹豫，卡在什么点——是时间、钱、还是 motivation？",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-035",
+      "domains": [
+        "人际"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在明年一月处理：准备与母亲的一次重要沟通",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 7,
+          "nearestCandidate": "计划在明年一月与母亲进行一次重要沟通，并记得母亲之前提过要控制预算。"
+        },
+        {
+          "statement": "母亲方面要注意控制预算",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "计划在明年一月与母亲进行一次重要沟通，并记得母亲之前提过要控制预算。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "你计划在明年一月与母亲沟通，距今还有约四个月，时间充裕。从已有信息看，两件事值得纳入准备：一是母亲提过要控制预算，这可能是沟通议题的底色；二是驾照考试细节被列为不确定项，而你已确认此事由自己负责，那在沟通中大概率只需要同步进展而非征求协助。建议先从两件最基础的事入手——与母亲敲定具体时间，以及锁定这次沟通到底要谈哪些议题。议题范围越早确认，准备越有方向。",
+      "forbiddenViolations": [
+        {
+          "claim": "母亲已确认全部安排",
+          "matchedMarker": "已确认",
+          "matchedKeys": [
+            "母亲",
+            "已确",
+            "确认",
+            "安排"
+          ],
+          "answerTextExcerpt": "你计划在明年一月与母亲沟通，距今还有约四个月，时间充裕。从已有信息看，两件事值得纳入准备：一是母亲提过要控制预算，这可能是沟通议题的底色；二是驾照考试细节被列为不确定项，而你已确认此事由自己负责，那在沟通中大概率只需要同步进展而非征求协助。建议先从两件最基础的事入手——与母亲敲定具体时间，以及锁定这次沟通到底要谈哪些议题。议题范围越早确认，准备越有方向。"
+        }
+      ],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-036",
+      "domains": [
+        "家庭"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：安排父亲来访的行程",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天安排父亲来访的行程"
+        },
+        {
+          "statement": "父亲方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "父亲偏好低盐饮食"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "安排父亲秋季来访，核心是先确认具体时间——目前还没定，定了之后才能规划接站、住宿、餐饮和活动。另外你提到职称英语由你自己负责，如果备考和来访时间重叠，需要提前协调节奏。饮食方面记得按父亲低盐偏好来安排。整体流程已列出，第一件事就是打电话和父亲敲定日期。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-037",
+      "domains": [
+        "工作"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在十一假期处理：准备留学申请相关的工作安排",
+          "hit": true,
+          "bestOverlap": 14,
+          "threshold": 7,
+          "nearestCandidate": "十一假期期间需要准备留学申请相关的工作安排"
+        },
+        {
+          "statement": "爱人方面要注意错峰出行",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "爱人之前提过要错峰出行，需要记着这一点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "目前关于留学申请的具体信息还比较少，暂时无法给出细致的日程安排。建议先和爱人确认错峰出行的具体时间，避免与申请任务冲突；同时明确申请目标（国家、学校等）和材料清单，这样才能在假期间高效推进。你可以先把这两件事定下来，我再帮你排一份可执行的假期工作计划。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-038",
+      "domains": [
+        "学习"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在明年一月处理：规划留学申请的备考计划",
+          "hit": true,
+          "bestOverlap": 13,
+          "threshold": 6,
+          "nearestCandidate": "计划明年一月规划留学申请的备考计划"
+        },
+        {
+          "statement": "父亲方面要注意当面沟通",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "父亲之前提过要当面沟通留学申请的事"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "关于留学备考，目前我们只掌握你计划在明年一月左右推进这件事的信息；但具体的申请目标（去哪个国家、申请什么阶段、备考哪些考试）还没有细节，所以暂时无法给出精确到科目的安排。另外你提到这事由自己全权负责，父亲那边只是曾提过想当面聊聊——建议先完成这次的当面沟通，弄清楚备考范围与时间节点，再细化月度任务。如果只是想提前留出备考节奏，可以先用一个轻量的通用框架（先定考试、再排周期、留出模考和缓冲）把时间框起来，等拿到更多细节后再补充。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-039",
+      "domains": [
+        "健康"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在月底前处理：调整近期的生活作息",
+          "hit": true,
+          "bestOverlap": 9,
+          "threshold": 6,
+          "nearestCandidate": "计划在月底前调整近期生活作息"
+        },
+        {
+          "statement": "室友方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "室友之前提过要低盐饮食，需要记住这一点"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "建议从记录当前作息开始，设定月底前的目标作息，然后用渐进方式每天或每几天提前15分钟调整。同时注意与室友的作息时间协调，并把健身安排纳入生活节奏中考虑。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-040",
+      "domains": [
+        "财务"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户需要在每年秋天处理：梳理每年秋天的必要支出",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 6,
+          "nearestCandidate": "每年秋天会梳理该季节的必要支出"
+        },
+        {
+          "statement": "父亲方面要注意低盐饮食",
+          "hit": true,
+          "bestOverlap": 4,
+          "threshold": 3,
+          "nearestCandidate": "父亲需要低盐饮食"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "目前没有你的个人支出数据，无法精确到具体金额。从一般常识看，秋天的必要支出通常包括：换季衣物、换季护肤品、取暖相关费用（若需自费）、节假日人情与短期出行支出。建议先按这些类别逐项盘点，再根据实际情况调整。另外你提到的父亲具体时间和驾照考试细节，暂时不影响这份通用清单的搭建，后续有数据时再补充。需要我帮你列一个可勾选的秋季支出清单吗？",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-041",
+      "domains": [
+        "宠物",
+        "出行"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户家里养猫，出门时需要安排人上门喂养",
+          "hit": true,
+          "bestOverlap": 8,
+          "threshold": 5,
+          "nearestCandidate": "我养猫，出门时需要考虑猫的喂养安排"
+        },
+        {
+          "statement": "用户外出时通常找物业人员上门喂猫，并按30元辛苦费标准支付",
+          "hit": true,
+          "bestOverlap": 14,
+          "threshold": 8,
+          "nearestCandidate": "我临时找了物业的人上门喂猫，对方服务好，我付了30元辛苦费"
+        }
+      ],
+      "verifiedPass": 4,
+      "verifiedTotal": 4,
+      "planOK": true,
+      "planAnswerText": "出门前家里最核心的事是猫咪的照顾安排。根据你之前的经历，最省心的是提前联系那位物业小姐姐，不要再像上次那样临时找人——先跟她确认国庆期间是否有空、上门频率和费用，并把钥匙提前交接好。同时，结合上次猫粮不够的教训，这次务必按天数多备猫粮余量。出发前再做完断电断水等常规检查，就可以安心出发了。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-042",
+      "domains": [
+        "饮食",
+        "采购"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 3,
+      "totalRelations": 3,
+      "relationDetails": [
+        {
+          "statement": "用户周末在大超市采购一周主食材，工作日靠社区团购补新鲜蔬菜",
+          "hit": true,
+          "bestOverlap": 18,
+          "threshold": 9,
+          "nearestCandidate": "我周末去大超市买齐一周主食材，工作日通过社区团购补充新鲜蔬菜"
+        },
+        {
+          "statement": "家里做饭口味偏少油少辣，招待父母时更清淡",
+          "hit": true,
+          "bestOverlap": 10,
+          "threshold": 6,
+          "nearestCandidate": "家里做饭口味偏少油少辣"
+        },
+        {
+          "statement": "冷冻空间有限，囤肉一次不超过一周量",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 5,
+          "nearestCandidate": "冰箱冷冻层比较小，一次囤肉不能超过一周的量"
+        }
+      ],
+      "verifiedPass": 4,
+      "verifiedTotal": 4,
+      "planOK": true,
+      "planAnswerText": "好的，帮你在周末前把下周的三餐安排有个雏形。结合你的日常习惯——周末大超市买主食材、工作日社区团购补蔬菜，以及冰箱冷冻层容量有限——我有个大致框架：周末主食材瞄准一周鱼肉类上限，蔬菜类主要靠工作日补，口味按少油少辣做蒸煮/快炒备餐。不过现在还有两个关键信息会影响具体安排：一是下周是否在家招待客人（会需要调整采购量和菜式清淡程度），二是三餐的具体形式（比如工作日是否需要带饭、几口人用餐）。你先告诉我这两点，我就把每天的主菜、配菜和采购清单细化到可直接用的版本。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-043",
+      "domains": [
+        "出行",
+        "交通"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "用户4小时以内路程优先高铁且必买靠窗座，超过4小时才考虑飞机",
+          "hit": true,
+          "bestOverlap": 13,
+          "threshold": 7,
+          "nearestCandidate": "长途出行时，4小时以内的高铁行程优先选择高铁而非飞机，且高铁座位一定选靠窗；超过4小时才考虑飞机。"
+        },
+        {
+          "statement": "出差必带充电宝、颈枕、便携洗漱包，习惯出发前一晚收拾行李",
+          "hit": true,
+          "bestOverlap": 22,
+          "threshold": 9,
+          "nearestCandidate": "出差行李有三样必带物品：充电宝、颈枕、便携装洗漱包，且每次都在出发前一晚收拾行李。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "按你的习惯，出发前一晚收拾好并带齐充电宝、颈枕、便携洗漱包；去程交通按时间优选：若高铁全程4小时内则选高铁靠窗，超过4小时再考虑飞机。目前只需确认具体出发日期和高铁实际用时，我就能帮你细化每日安排。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-044",
+      "domains": [
+        "居家",
+        "维护"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 1,
+      "totalRelations": 1,
+      "relationDetails": [
+        {
+          "statement": "空调滤网每两个月清洗一次，7月底刚洗过",
+          "hit": true,
+          "bestOverlap": 6,
+          "threshold": 5,
+          "nearestCandidate": "空调滤网最近一次清洗在7月底"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "现在是九月，距离你的目标时间九月底还有约一个月。基于你日常负责的维护项，这个窗口期唯一需要安排的是空调滤网清洗——按每两个月一次的周期，七月底清洗后，下一次正落在九月底。净水器滤芯的更换还早（明年三月），这次不用动，但可以一并让你知道整体节奏。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-045",
+      "domains": [
+        "社交",
+        "聚会"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "聚会一律不安排酒水（有同学酒精过敏），选有饮料茶的场地",
+          "hit": true,
+          "bestOverlap": 14,
+          "threshold": 8,
+          "nearestCandidate": "组织同学聚餐时，因一位老同学酒精过敏，一律不安排酒水，选择可喝饮料或茶的地方"
+        },
+        {
+          "statement": "聚餐人数通常8到10人，需要可拼桌的包间",
+          "hit": true,
+          "bestOverlap": 11,
+          "threshold": 5,
+          "nearestCandidate": "组织同学聚餐时，人数通常为8到10人，需预订能拼桌的包间"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "针对这次同学聚会，结合以往组织聚餐的经验，建议按三块来准备：先定时间、再确认人数、再做场地与物资安排。目前最关键的是尽快敲定大概日期和能到场的人，这两项定了，其他环节都能顺下来。场地方面建议直接找能拼桌的包间，并且选饮料或茶可选的餐厅，不必备酒水。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-046",
+      "domains": [
+        "宠物",
+        "就医"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "猫疫苗每年10月中旬打（联苗+狂犬）",
+          "hit": true,
+          "bestOverlap": 9,
+          "threshold": 4,
+          "nearestCandidate": "我负责猫的健康管理，每年10月中旬为猫打疫苗（联苗+狂犬），每三个月进行一次体内外驱虫，最近一次驱虫在8月中旬。"
+        },
+        {
+          "statement": "驱虫每三个月一次，8月中旬刚做，下一次在11月中旬",
+          "hit": true,
+          "bestOverlap": 7,
+          "threshold": 6,
+          "nearestCandidate": "我负责猫的健康管理，每年10月中旬为猫打疫苗（联苗+狂犬），每三个月进行一次体内外驱虫，最近一次驱虫在8月中旬。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "从目前记录看，未来一个月家里最需要提前安排的是给猫接种疫苗——按惯例每年10月中旬要打联苗+狂犬。现在9月上旬，建议你本月内联系宠物医院确认是否需要预约，以及具体接种时间，避免临时约不上。其他日常节奏（如每天两顿喂猫）不影响安排，暂时无需额外处理。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-047",
+      "domains": [
+        "财务",
+        "订阅"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "视频会员连续包月15元，每月3号自动扣费",
+          "hit": true,
+          "bestOverlap": 12,
+          "threshold": 5,
+          "nearestCandidate": "我每月3号有视频会员连续包月15元的自动扣费订阅"
+        },
+        {
+          "statement": "健身房年费1200元每年1月续费，用户每年会重新考虑是否续",
+          "hit": true,
+          "bestOverlap": 7,
+          "threshold": 6,
+          "nearestCandidate": "我每年续健身房年费前都会犹豫是否继续"
+        }
+      ],
+      "verifiedPass": 3,
+      "verifiedTotal": 3,
+      "planOK": true,
+      "planAnswerText": "从你提到的两个固定支出看：视频会员每月3号自动扣15元，属于持续小额支出；健身房年费1200元按记录是每年1月续费，目前离下次扣费还有几个月，但你会习惯性犹豫是否续。建议先把两笔支出的到期节奏和金额明确下来，视频会员可顺手核对是否还在用、能否关掉；健身房则在1月前给自己留一个决策点，综合使用频率再定。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    },
+    {
+      "fixtureID": "heldout-synth-048",
+      "domains": [
+        "人情",
+        "礼尚往来"
+      ],
+      "extractionOK": true,
+      "recalledRelations": 2,
+      "totalRelations": 2,
+      "relationDetails": [
+        {
+          "statement": "朋友结婚随礼标准：一般800起步、关系近的1200",
+          "hit": true,
+          "bestOverlap": 14,
+          "threshold": 6,
+          "nearestCandidate": "我有一套人情往来的标准：朋友结婚随礼一般800起步，关系近的给1200；老家长辈过生日要提前备礼物。"
+        },
+        {
+          "statement": "老家长辈生日需提前准备礼物",
+          "hit": true,
+          "bestOverlap": 7,
+          "threshold": 4,
+          "nearestCandidate": "我有一套人情往来的标准：朋友结婚随礼一般800起步，关系近的给1200；老家长辈过生日要提前备礼物。"
+        }
+      ],
+      "verifiedPass": 2,
+      "verifiedTotal": 2,
+      "planOK": true,
+      "planAnswerText": "从你目前的标准看，走动人情主要分两类：一类是朋友结婚的即时随礼（不同关系有不同档位），另一类是老家长辈生日这类需要提前备礼的事件。前者依赖临时通知，难以预测具体时间，但金额标准你已经有数；后者更像周期性的固定事件，可以提前留预算和备礼时间。\n\n目前没有具体事件在手，我先帮把这个框架立起来：建议按这两条线分别留出心意预算，把大致的启动时间定好，同时留一个可回填的清单，等有具体日子时直接往里填，这样就不会临时慌乱。",
+      "forbiddenViolations": [],
+      "hasUnknowns": true,
+      "error": null
+    }
+  ]
+}
