@@ -30,6 +30,7 @@ enum HoloAppStoreScreenshotSeeder {
         case dailyKanban = "daily-kanban"
         case financeStats = "finance-stats"
         case memoryInsight = "memory-insight"
+        case markdownTable = "markdown-table"
     }
 
     /// 拍摄剧本。rhythm 是首发笔记的「稳定节奏」剧本；milestoneAugust 是第二篇
@@ -96,7 +97,11 @@ enum HoloAppStoreScreenshotSeeder {
 
         UserDisplayNameSettings(userDefaults: defaults).saveDisplayName("小满")
         HoloAIDataProcessingConsent.shared.grant()
-        defaults.set(false, forKey: "holo_darkModeEnabled")
+        // 只在首次播种时重置为亮色；已播种的模拟器再启动保留当前明暗设置，
+        // 供表格走查等场景直接以暗色进入。
+        if !defaults.bool(forKey: seededKeyValue(for: requestedStory)) {
+            defaults.set(false, forKey: "holo_darkModeEnabled")
+        }
         // 摆拍不需要首访引导：首页三步导览与长廊欢迎条一律不出现
         OnboardingProgressStore.markSeen(OnboardingProgressStore.homeCoachTourKey)
         OnboardingProgressStore.markSeen(OnboardingProgressStore.memoryGalleryWelcomeKey)
@@ -111,6 +116,10 @@ enum HoloAppStoreScreenshotSeeder {
         let context = CoreDataStack.shared.viewContext
         let story = requestedStory
         do {
+            try seedMarkdownTableConversationIfNeeded(
+                context: context,
+                route: Route(rawValue: environment[routeKey] ?? "")
+            )
             if defaults.bool(forKey: seededKeyValue(for: story)) {
                 try await replaceInsight(
                     in: context,
@@ -234,7 +243,7 @@ enum HoloAppStoreScreenshotSeeder {
                     DeepLinkState.shared.navigate(to: target)
                 }
             }
-        case .aiActions, .aiAnalysis, .aiMemory:
+        case .aiActions, .aiAnalysis, .aiMemory, .markdownTable:
             DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
         case .memoryCalendar, .memoryExtraction:
             DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
@@ -778,6 +787,70 @@ enum HoloAppStoreScreenshotSeeder {
         let calendar = Calendar.current
         let date = calendar.date(from: DateComponents(year: 2026, month: month, day: day))!
         return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date)!
+    }
+
+    /// 表格渲染走查剧本：一条覆盖标准表格、混排、折叠区宽表（横向滚动分支）的 assistant 回复。
+    private static func seedMarkdownTableConversationIfNeeded(
+        context: NSManagedObjectContext,
+        route: Route?
+    ) throws {
+        guard route == .markdownTable else { return }
+        let marker = "用表格帮我看看最近的支出明细"
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "content == %@", marker)
+        guard try context.fetch(request).isEmpty else { return }
+
+        let latestMessageDate = try context.fetch(ChatMessage.fetchRequest())
+            .compactMap(\.timestamp)
+            .max() ?? Date()
+        let messageBase = latestMessageDate.addingTimeInterval(120)
+
+        let queryID = insertMessage(
+            in: context,
+            role: "user",
+            content: marker,
+            timestamp: messageBase
+        )
+        let assistant = ChatMessage(context: context)
+        assistant.id = UUID()
+        assistant.role = "assistant"
+        assistant.content = """
+        这是本周和上周的支出对比：
+
+        | 分类 | 本周 | 上周 | 变化 |
+        | --- | --- | --- | --- |
+        | 餐饮 | 328 元 | 410 元 | **下降 20%** |
+        | 交通 | 96 元 | 88 元 | 基本持平 |
+        | 购物 | 512 元 | 388 元 | 上升 32% |
+
+        整体支出比上周多了 138 元，主要是购物这一笔。
+
+        大额明细如下：
+
+        | 日期 | 项目 | 分类 | 金额 | 账户 | 备注 |
+        | --- | --- | --- | --- | --- | --- |
+        | 9 月 2 日 | 图书礼盒 | 购物 | 299 元 | 招行卡 | 给自己的生日礼物 |
+        | 9 月 4 日 | 午餐拼单 | 餐饮 | 46 元 | 微信 | 和同事拼单 |
+        | 9 月 6 日 | 打车通勤 | 交通 | 38 元 | 支付宝 | 暴雨天 |
+        | 9 月 7 日 | 超市补货 | 购物 | 213 元 | 招行卡 | 米面粮油 |
+
+        接下来可以：
+
+        - 把购物类大额记录核对一遍
+        - 给下周设一个 1200 元的参考线
+
+        详细分析
+        | 周 | 消费重心 |
+        | --- | --- |
+        | 第 1 周 | 外卖和打车 |
+        | 第 2 周 | 超市和家庭采购 |
+        """
+        assistant.timestamp = messageBase.addingTimeInterval(5)
+        assistant.intent = nil
+        assistant.isStreaming = false
+        assistant.parentMessageId = queryID
+        assistant.messageType = ChatMessageType.normal.rawValue
+        try context.save()
     }
 
     private static func seedPersonalizedMemoryConversation(

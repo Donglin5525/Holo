@@ -13,6 +13,7 @@ nonisolated enum AIReadableResponseBlock: Equatable, Sendable {
     case heading(String)
     case unorderedList([String])
     case orderedList([String])
+    case table(header: [String], rows: [[String]])
 }
 
 nonisolated struct AIReadableResponseDocument: Equatable, Sendable {
@@ -80,16 +81,20 @@ nonisolated enum AIReadableResponseParser {
             flushOrderedList()
         }
 
-        for (index, rawLine) in lines.enumerated() {
+        var index = 0
+        while index < lines.count {
+            let rawLine = lines[index]
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
 
             if trimmed.isEmpty {
                 flushAll()
+                index += 1
                 continue
             }
 
             if isCardMarker(trimmed) {
                 flushAll()
+                index += 1
                 continue
             }
 
@@ -97,6 +102,15 @@ nonisolated enum AIReadableResponseParser {
             if isDetailHeading(headingText) {
                 flushAll()
                 isCollectingDetails = true
+                index += 1
+                continue
+            }
+
+            // 表格判定必须在标题判定之前：`| 类型 | 金额 |` 这类短行可能被启发式标题误收。
+            if let table = parseTable(from: index, in: lines) {
+                flushAll()
+                append(.table(header: table.header, rows: table.rows))
+                index = table.nextIndex
                 continue
             }
 
@@ -108,6 +122,7 @@ nonisolated enum AIReadableResponseParser {
             ) {
                 flushAll()
                 append(.heading(headingText))
+                index += 1
                 continue
             }
 
@@ -115,6 +130,7 @@ nonisolated enum AIReadableResponseParser {
                 flushParagraph()
                 flushOrderedList()
                 unorderedItems.append(item)
+                index += 1
                 continue
             }
 
@@ -122,12 +138,14 @@ nonisolated enum AIReadableResponseParser {
                 flushParagraph()
                 flushUnorderedList()
                 orderedItems.append(item)
+                index += 1
                 continue
             }
 
             flushUnorderedList()
             flushOrderedList()
             paragraphLines.append(rawLine.trimmingCharacters(in: .whitespaces))
+            index += 1
         }
 
         flushAll()
@@ -229,6 +247,53 @@ nonisolated enum AIReadableResponseParser {
     private static func containsSentencePunctuation(_ text: String) -> Bool {
         let punctuation = CharacterSet(charactersIn: "。！？!?，,；;")
         return text.rangeOfCharacter(from: punctuation) != nil
+    }
+
+    /// 从 startIndex 起收集连续的竖线行组成表格。
+    /// 标准形态：第二行是 `|---|---|` 分隔行；缺分隔行但连续 ≥2 行竖线开头时兜底按表格处理（首行当表头）。
+    private static func parseTable(
+        from startIndex: Int,
+        in lines: [String]
+    ) -> (header: [String], rows: [[String]], nextIndex: Int)? {
+        var rowLines: [String] = []
+        var cursor = startIndex
+        while cursor < lines.count {
+            let trimmed = lines[cursor].trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("|") else { break }
+            rowLines.append(trimmed)
+            cursor += 1
+        }
+
+        guard rowLines.count >= 2 else { return nil }
+
+        if isTableDivider(rowLines[1]) {
+            let rows = rowLines.dropFirst(2).map { tableCells(from: $0) }
+            return (tableCells(from: rowLines[0]), rows, cursor)
+        }
+
+        return (tableCells(from: rowLines[0]), rowLines.dropFirst().map { tableCells(from: $0) }, cursor)
+    }
+
+    private static func isTableDivider(_ line: String) -> Bool {
+        let compact = line.replacingOccurrences(of: " ", with: "")
+        guard compact.hasPrefix("|"), compact.contains("-") else { return false }
+
+        var inner = compact.dropFirst()
+        if inner.hasSuffix("|") {
+            inner = inner.dropLast()
+        }
+        return inner.allSatisfy { $0 == "|" || $0 == "-" || $0 == ":" }
+    }
+
+    private static func tableCells(from line: String) -> [String] {
+        var text = line.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("|") {
+            text.removeFirst()
+        }
+        if text.hasSuffix("|") {
+            text.removeLast()
+        }
+        return text.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
     private static func unorderedListItem(from line: String) -> String? {

@@ -65,6 +65,9 @@ struct AIReadableResponseView: View {
                     cache(s)
                 case .unorderedList(let items), .orderedList(let items):
                     items.forEach(cache)
+                case .table(let header, let rows):
+                    header.forEach(cache)
+                    rows.forEach { $0.forEach(cache) }
                 }
             }
             return (doc, inline)
@@ -243,6 +246,100 @@ struct AIReadableResponseView: View {
                     }
                 }
             }
+
+        case .table(let header, let rows):
+            tableBlock(header: header, rows: rows)
+        }
+    }
+
+    /// AI 表格：竖线表格的自绘卡片。≤4 列均分占满气泡宽度；更宽时横向滚动兜底。
+    @ViewBuilder
+    private func tableBlock(header: [String], rows: [[String]]) -> some View {
+        let columnCount = max(header.count, rows.map(\.count).max() ?? 0)
+
+        if columnCount > 4 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                tableRows(header: header, rows: rows, columnCount: columnCount, fillsWidth: false)
+            }
+        } else if columnCount > 0 {
+            tableRows(header: header, rows: rows, columnCount: columnCount, fillsWidth: true)
+        }
+    }
+
+    private func tableRows(
+        header: [String],
+        rows: [[String]],
+        columnCount: Int,
+        fillsWidth: Bool
+    ) -> some View {
+        // Grid 让所有行共享列宽：横滚模式下各行动态内容也不会列错位
+        Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+            GridRow {
+                ForEach(0..<columnCount, id: \.self) { column in
+                    tableCell(
+                        column < header.count ? header[column] : "",
+                        isHeader: true,
+                        fillsWidth: fillsWidth
+                    )
+                    .background(Color.holoTextPrimary.opacity(0.045))
+                }
+            }
+
+            tableDividerRow(columnCount: columnCount, color: Color.holoTextPrimary.opacity(0.14))
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                if index > 0 {
+                    tableDividerRow(columnCount: columnCount, color: Color.holoDivider.opacity(0.75))
+                }
+
+                GridRow {
+                    ForEach(0..<columnCount, id: \.self) { column in
+                        tableCell(
+                            column < row.count ? row[column] : "",
+                            isHeader: false,
+                            fillsWidth: fillsWidth
+                        )
+                    }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.5), lineWidth: 0.5)
+        )
+    }
+
+    @ViewBuilder
+    private func tableDividerRow(columnCount: Int, color: Color) -> some View {
+        GridRow {
+            ForEach(0..<columnCount, id: \.self) { _ in
+                Rectangle()
+                    .fill(color)
+                    .frame(height: 0.5)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tableCell(_ text: String, isHeader: Bool, fillsWidth: Bool) -> some View {
+        let content = Text(inlineAttributedString(text))
+            .font(isHeader ? .caption.weight(.semibold) : .caption)
+            .foregroundColor(isHeader ? .holoTextSecondary : .holoTextPrimary)
+            .lineSpacing(3)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+        if fillsWidth {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            // 横滚模式：单元格按内容单行展开决定列宽，再拉伸铺满列轨道，
+            // 让表头背景在列内无缝连续
+            content
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
