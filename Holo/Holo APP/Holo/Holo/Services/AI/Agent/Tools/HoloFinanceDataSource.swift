@@ -45,19 +45,29 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         let end = effectiveRange?.end ?? (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date())
         let start = effectiveRange?.start ?? (calendar.date(byAdding: .day, value: -30, to: end) ?? end)
         guard let transactions = try? await FinanceRepository.shared.getTransactions(from: start, to: end) else { return [] }
+        // 项目名映射一次性取好，避免逐行查库
+        let projectNames = await MainActor.run { () -> [UUID: String] in
+            FinanceProjectRepository.shared.allProjects().reduce(into: [:]) { map, project in
+                map[project.id] = project.name
+            }
+        }
         return transactions.map { tx in
             let text = [tx.note, tx.remark, tx.tags?.joined(separator: " ")].compactMap { $0 }.joined(separator: " ")
+            var fields: [String: HoloQueryValue] = [
+                "date": .date(tx.date),
+                "amount": .number(tx.amount.doubleValue),
+                "type": .text(tx.transactionType == .expense ? "expense" : "income"),
+                "category": .text(tx.category?.name ?? "未分类"),
+                "account": .text(tx.account?.name ?? "未指定账户"),
+                "text": .text(text)
+            ]
+            if let projectId = tx.financeProjectId, let projectName = projectNames[projectId] {
+                fields["project"] = .text(projectName)
+            }
             return HoloQueryRow(
                 id: tx.id.uuidString,
                 occurredAt: tx.date,
-                fields: [
-                    "date": .date(tx.date),
-                    "amount": .number(tx.amount.doubleValue),
-                    "type": .text(tx.transactionType == .expense ? "expense" : "income"),
-                    "category": .text(tx.category?.name ?? "未分类"),
-                    "account": .text(tx.account?.name ?? "未指定账户"),
-                    "text": .text(text)
-                ],
+                fields: fields,
                 excerpt: Self.sampleExcerpt(for: tx)
             )
         }

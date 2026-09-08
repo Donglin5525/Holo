@@ -179,6 +179,7 @@ struct HoloFinanceTool: HoloDataTool {
                 HoloDataField(name: "type", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "expense 或 income", label: "收支方向"),
                 HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易分类", label: "分类"),
                 HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户名称", label: "账户"),
+                HoloDataField(name: "project", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "所属财务项目（如东京旅行），未挂项目的交易无此字段", label: "项目"),
                 HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "备注、说明和标签合并文本", label: "商户备注")
             ],
             sensitivity: .normal,

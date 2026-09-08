@@ -130,6 +130,8 @@ final class FlexibleQueryExecutor {
 
         // 批量加载分类名和父分类名缓存
         let categoryCache = buildCategoryCache(context: context)
+        // 财务项目名缓存（挂靠项目的交易可按项目名检索）
+        let projectCache = buildProjectNameCache(context: context)
 
         // DTO 映射 + 关键词过滤
         let dtos = transactions.compactMap { tx -> FlexibleTransactionDTO? in
@@ -139,6 +141,7 @@ final class FlexibleQueryExecutor {
             if let parentId = categoryObj?.parentId {
                 parentCatName = categoryCache[parentId]
             }
+            let projectName = tx.financeProjectId.flatMap { projectCache[$0] }
 
             return FlexibleTransactionDTO(
                 id: tx.id,
@@ -151,7 +154,8 @@ final class FlexibleQueryExecutor {
                 categoryName: catName,
                 parentCategoryName: parentCatName,
                 aiCandidate: tx.aiCandidate,
-                accountId: tx.account?.id
+                accountId: tx.account?.id,
+                projectName: projectName
             )
         }
 
@@ -171,6 +175,18 @@ final class FlexibleQueryExecutor {
         return cache
     }
 
+    /// 财务项目名缓存（后台 context 直接查，与分类缓存同款做法）
+    private static func buildProjectNameCache(context: NSManagedObjectContext) -> [UUID: String] {
+        let request: NSFetchRequest<FinanceProject> = FinanceProject.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        guard let projects = try? context.fetch(request) else { return [:] }
+        var cache: [UUID: String] = [:]
+        for project in projects {
+            cache[project.id] = project.name
+        }
+        return cache
+    }
+
     // MARK: - Keyword Filter
 
     private static func applyKeywordFilter(
@@ -181,6 +197,7 @@ final class FlexibleQueryExecutor {
         let excludedKeywords = filters.excludedKeywords
         let categoryNames = filters.categoryNames
         let accountNames = filters.accountNames
+        let projectNames = filters.projectNames ?? []
 
         return dtos.filter { dto in
             // 排除词
@@ -194,6 +211,13 @@ final class FlexibleQueryExecutor {
             // 账户名过滤
             if !accountNames.isEmpty {
                 // 账户名匹配需要在 DTO 中有账户名，MVP 先跳过
+            }
+
+            // 项目名精确匹配
+            if !projectNames.isEmpty {
+                let projectMatch = projectNames.contains(where: { dto.projectName == $0 })
+                if projectMatch { return true }
+                if keywords.isEmpty && categoryNames.isEmpty { return false }
             }
 
             // 分类精确匹配
@@ -227,6 +251,8 @@ final class FlexibleQueryExecutor {
             if let cn = dto.categoryName { parts.append(cn) }
             if let pcn = dto.parentCategoryName { parts.append(pcn) }
         }
+        // 项目名始终参与检索（如「东京旅行花了多少」按关键词即可命中）
+        if let pn = dto.projectName { parts.append(pn) }
         parts.append(dto.aiCandidate ?? "")
         return parts.joined(separator: " ")
     }
@@ -459,4 +485,5 @@ struct FlexibleTransactionDTO: Sendable {
     let parentCategoryName: String?
     let aiCandidate: String?
     let accountId: UUID?
+    let projectName: String?
 }

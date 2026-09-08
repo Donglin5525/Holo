@@ -33,6 +33,12 @@ extension AddTransactionSheet {
         return transaction.isDeleted || transaction.managedObjectContext == nil
     }
 
+    /// 编辑时的项目挂靠三态：与原值一致 = 不修改（nil）；不一致 = 改挂 / 解除（.some(id?)）
+    func projectUpdateTriState(for transaction: Transaction) -> UUID?? {
+        let target = selectedProject?.id
+        return transaction.financeProjectId == target ? nil : .some(target)
+    }
+
     /// 保存交易
     func saveTransaction() {
         // 保存前先计算表达式（如果有）
@@ -84,7 +90,8 @@ extension AddTransactionSheet {
                             account: account,
                             startDate: selectedDate,
                             note: note.isEmpty ? nil : note,
-                            remark: remark.isEmpty ? nil : remark
+                            remark: remark.isEmpty ? nil : remark,
+                            financeProject: selectedProject
                         ).first
                     } else if !isInstallment && wasInstallment {
                         // 分期 → 取消分期：删除整组，创建单笔（当前金额作为单笔金额）
@@ -99,7 +106,8 @@ extension AddTransactionSheet {
                             date: selectedDate,
                             note: note.isEmpty ? nil : note,
                             remark: remark.isEmpty ? nil : remark,
-                            tags: nil
+                            tags: nil,
+                            financeProject: selectedProject
                         )
                     } else if isInstallment && wasInstallment {
                         // 分期 → 修改分期参数：原组就地更新，保留交易 ID
@@ -127,6 +135,17 @@ extension AddTransactionSheet {
                             // 缩期时正在编辑的那笔可能已被删除，须用预先捕获的 ID 比对，
                             // 不能在闭包里读已删对象的属性
                             savedTransaction = updated.first(where: { $0.id == editedTransactionID }) ?? updated.first
+
+                            // 项目挂靠变更整组同步（分期组整体同挂一个项目）
+                            let targetId = selectedProject?.id
+                            if transaction.financeProjectId != targetId {
+                                let group = try await repository.getInstallmentGroup(groupId: groupId)
+                                if let project = selectedProject {
+                                    try await FinanceProjectRepository.shared.attach(group, to: project)
+                                } else {
+                                    try await FinanceProjectRepository.shared.detach(group)
+                                }
+                            }
                         }
                     } else {
                         // 普通编辑（无分期变更）
@@ -139,6 +158,7 @@ extension AddTransactionSheet {
                         updates.note = note
                         updates.remark = remark
                         updates.date = selectedDate
+                        updates.financeProjectId = projectUpdateTriState(for: transaction)
 
                         try await repository.updateTransaction(transaction, updates: updates)
                         savedTransaction = transaction
@@ -160,7 +180,8 @@ extension AddTransactionSheet {
                         account: account,
                         startDate: selectedDate,
                         note: note.isEmpty ? nil : note,
-                        remark: remark.isEmpty ? nil : remark
+                        remark: remark.isEmpty ? nil : remark,
+                        financeProject: selectedProject
                     ).first
                 } else {
                     savedTransaction = try await repository.addTransaction(
@@ -171,7 +192,8 @@ extension AddTransactionSheet {
                         date: selectedDate,
                         note: note.isEmpty ? nil : note,
                         remark: remark.isEmpty ? nil : remark,
-                        tags: nil
+                        tags: nil,
+                        financeProject: selectedProject
                     )
                 }
 
@@ -241,7 +263,8 @@ extension AddTransactionSheet {
                         account: account,
                         startDate: selectedDate,
                         note: note.isEmpty ? nil : note,
-                        remark: remark.isEmpty ? nil : remark
+                        remark: remark.isEmpty ? nil : remark,
+                        financeProject: selectedProject
                     ).first
                 } else if !isInstallment && wasInstallment {
                     // 分期 → 取消分期
@@ -256,7 +279,8 @@ extension AddTransactionSheet {
                         date: selectedDate,
                         note: note.isEmpty ? nil : note,
                         remark: remark.isEmpty ? nil : remark,
-                        tags: nil
+                        tags: nil,
+                        financeProject: selectedProject
                     )
                 } else if isInstallment && wasInstallment {
                     // 分期 → 修改分期参数：原组就地更新，保留交易 ID
@@ -283,6 +307,17 @@ extension AddTransactionSheet {
                         )
                         // 缩期时正在编辑的那笔可能已被删除，须用预先捕获的 ID 比对
                         savedTransaction = updated.first(where: { $0.id == editedTransactionID }) ?? updated.first
+
+                        // 项目挂靠变更整组同步（分期组整体同挂一个项目）
+                        let targetId = selectedProject?.id
+                        if transaction.financeProjectId != targetId {
+                            let group = try await repository.getInstallmentGroup(groupId: groupId)
+                            if let project = selectedProject {
+                                try await FinanceProjectRepository.shared.attach(group, to: project)
+                            } else {
+                                try await FinanceProjectRepository.shared.detach(group)
+                            }
+                        }
                     }
                 } else {
                     // 普通编辑（无分期变更）
@@ -295,6 +330,7 @@ extension AddTransactionSheet {
                     updates.note = note
                     updates.remark = remark
                     updates.date = selectedDate
+                    updates.financeProjectId = projectUpdateTriState(for: transaction)
 
                     try await repository.updateTransaction(transaction, updates: updates)
                     savedTransaction = transaction
@@ -316,7 +352,8 @@ extension AddTransactionSheet {
                     account: account,
                     startDate: selectedDate,
                     note: note.isEmpty ? nil : note,
-                    remark: remark.isEmpty ? nil : remark
+                    remark: remark.isEmpty ? nil : remark,
+                    financeProject: selectedProject
                 ).first
             } else {
                 savedTransaction = try await repository.addTransaction(
@@ -327,7 +364,8 @@ extension AddTransactionSheet {
                     date: selectedDate,
                     note: note.isEmpty ? nil : note,
                     remark: remark.isEmpty ? nil : remark,
-                    tags: nil
+                    tags: nil,
+                    financeProject: selectedProject
                 )
             }
 
@@ -404,7 +442,11 @@ extension AddTransactionSheet {
                     date: targetDate,
                     note: note.isEmpty ? nil : note,
                     remark: remark.isEmpty ? nil : remark,
-                    tags: editingTransaction?.tags
+                    tags: editingTransaction?.tags,
+                    // 复制交易沿用原交易的项目挂靠
+                    financeProject: editingTransaction?.financeProjectId.flatMap {
+                        FinanceProjectRepository.shared.findProject(by: $0)
+                    }
                 )
 
                 HapticManager.success()

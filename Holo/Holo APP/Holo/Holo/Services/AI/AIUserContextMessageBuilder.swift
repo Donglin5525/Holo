@@ -124,6 +124,14 @@ enum AIUserContextMessageBuilder {
         - 不得编造金额、日期、任务、习惯、想法或分类。
         """
 
+        // 进行中财务项目清单：供 record_expense 填 projectCandidate（仅显式提及项目名时填）
+        let projectNames = FinanceProjectRepository.shared.activeProjects().map(\.name)
+        if !projectNames.isEmpty {
+            message += "\n\n--- 财务项目（进行中） ---"
+            message += "\n- " + projectNames.joined(separator: "、")
+            message += "\n规则：仅当用户明确提到上述某个项目名时，record_expense 才在 extractedData 里填 projectCandidate（照抄项目名原文）；未提及项目一律不填，不要猜测。"
+        }
+
         // 纪念日/覆盖度/备忘单等注入块由注册表统一供给（含各域专属路由规则）
         for section in AIContextSectionRegistry.sections {
             if let block = section.intentBlock(context), !block.isEmpty {

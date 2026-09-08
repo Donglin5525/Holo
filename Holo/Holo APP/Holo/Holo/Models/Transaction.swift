@@ -45,6 +45,10 @@ public class Transaction: NSManagedObject {
     /// 只有已实际发生的周期流水标为 confirmed；一次性购买不生成流水。
     @NSManaged public var projectPostingState: String?
 
+    /// 财务项目挂靠（聚合视角，如东京旅行）：用户手工归组的轻量引用，
+    /// 与 spendingProjectId 语义无关；nil=未挂靠。
+    @NSManaged public var financeProjectId: UUID?
+
     // 导入追踪：标记由哪次导入产生，用于按批次撤回
     @NSManaged public var importBatchId: UUID?
     /// 导入去重指纹（日期+金额+类型+分类+账户），用于检测重复导入

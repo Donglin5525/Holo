@@ -199,13 +199,24 @@ final class IntentRouter {
             return RouteResult(text: "分类信息异常，请重试")
         }
 
+        // 项目挂靠：模型仅在用户显式提及项目名时回传 projectCandidate（上下文已附进行中清单）
+        let projectCandidate = data["projectCandidate"]
+        let (matchedProject, projectAmbiguous) = FinanceProjectRepository.matchProjectCandidate(
+            projectCandidate,
+            in: FinanceProjectRepository.shared.activeProjects()
+        )
+        if projectCandidate != nil {
+            logger.info("项目挂靠匹配：candidate=\(projectCandidate ?? "nil"), matched=\(matchedProject?.name ?? "nil"), ambiguous=\(projectAmbiguous)")
+        }
+
         let transaction = try await categoryRepo.addTransaction(
             amount: amount,
             type: .expense,
             category: category,
             account: account,
             date: TransactionDateResolver.resolve(from: data),
-            note: note
+            note: note,
+            financeProject: matchedProject
         )
 
         // 分类未匹配时暂存候选，供用户编辑时学习
@@ -238,13 +249,24 @@ final class IntentRouter {
                 accountName: account.name,
                 categoryUnmatched: isUnmatched,
                 unmatchedCategory: unmatchedText
-            ),
+            ) + projectFollowUpText(matched: matchedProject, ambiguous: projectAmbiguous),
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
             categoryUnmatched: isUnmatched,
             matchedPrimaryCategory: matchedNames.primary,
             matchedSubCategory: matchedNames.sub
         )
+    }
+
+    /// 项目挂靠结果的补充说明（挂上/歧义未挂时才追加，未提及项目时为空串）
+    private func projectFollowUpText(matched: FinanceProject?, ambiguous: Bool) -> String {
+        if let project = matched {
+            return "\n" + String(localized: "已计入项目「\(project.name)」")
+        }
+        if ambiguous {
+            return "\n" + String(localized: "提到的项目名对应多个项目，这笔没有自动挂靠，可在账本里手动挂")
+        }
+        return ""
     }
 
     // MARK: - Record Income

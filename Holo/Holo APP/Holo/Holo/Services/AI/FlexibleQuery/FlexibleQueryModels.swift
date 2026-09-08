@@ -110,6 +110,8 @@ nonisolated struct FinanceQueryFilters: Codable, Equatable, Sendable {
     let startDate: String?
     let endDate: String?
     let accountNames: [String]
+    /// 挂靠的财务项目名（如「东京旅行」）；旧版 plan 无此键时为 nil
+    var projectNames: [String]? = nil
     let includeNote: Bool
     let includeRemark: Bool
     let includeTags: Bool

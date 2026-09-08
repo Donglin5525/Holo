@@ -59,7 +59,7 @@ enum RecycleBinModule: String, CaseIterable, Identifiable {
         switch self {
         case .finance:
             // finance 的分档由 FinanceClearScope 决定，这里返回全部；分档时由调用方裁剪
-            return ["Transaction", "Account", "Category", "Budget", "SpendingProject"]
+            return ["Transaction", "Account", "Category", "Budget", "SpendingProject", "FinanceProject"]
         case .thought:
             return ["Thought", "ThoughtTag", "Topic"]
         case .task:
@@ -475,7 +475,7 @@ final class RecycleBinService: ObservableObject {
 
     /// 物理删除全部软删实体名清单（与 SoftDeletable.swift 声明保持一致）
     static let allSoftDeletableEntityNames: [String] = [
-        "Transaction", "Account", "Category", "Budget", "SpendingProject",
+        "Transaction", "Account", "Category", "Budget", "SpendingProject", "FinanceProject",
         "Thought", "ThoughtTag", "Topic",
         "TodoTask", "TodoList", "TodoFolder", "TodoTag",
         "Habit", "HabitRecord",

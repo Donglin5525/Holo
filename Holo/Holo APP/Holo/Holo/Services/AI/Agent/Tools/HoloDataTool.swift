@@ -407,6 +407,7 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额", label: "金额"),
             HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "分类", label: "分类"),
             HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户", label: "账户"),
+            HoloDataField(name: "project", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "所属财务项目（如东京旅行），未挂项目的交易无此字段", label: "项目"),
             HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "商户或备注", label: "商户备注")
         ],
         sensitivity: .normal, maximumRangeDays: 366

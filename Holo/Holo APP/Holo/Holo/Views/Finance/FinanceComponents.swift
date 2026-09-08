@@ -304,6 +304,14 @@ struct TransactionRowView: View {
                                 .lineLimit(1)
                         }
 
+                        // 挂靠的财务项目（如东京旅行）
+                        if let tag = FinanceProjectTagCache.lookup(transaction.financeProjectId) {
+                            Text("\(tag.icon) \(tag.name)")
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                                .lineLimit(1)
+                        }
+
                         // 非默认账户时显示账户名
                         if let account = transaction.account, !account.isDefault {
                             Text(account.name)

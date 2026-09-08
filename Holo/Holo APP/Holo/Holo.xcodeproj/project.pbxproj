@@ -211,6 +211,7 @@
 		F03D65A27A93D49503AC5E87 /* ThoughtRepositoryCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E74F0933584105B92897765 /* ThoughtRepositoryCalendarTests.swift */; };
 		F1121D5A8B37409D81782302 /* HoloAgentPersistenceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08747A667360E9485FB9443 /* HoloAgentPersistenceStoreTests.swift */; };
 		F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */; };
+		F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
 		F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDBA4E276B54BCF52A416D0 /* FlexibleQueryChatCardDataTests.swift */; };
@@ -465,6 +466,7 @@
 		EC3C97A9EBFDA416A105D738 /* CalendarEventProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarEventProviderTests.swift; sourceTree = "<group>"; };
 		F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceBillImportMatrixStandaloneTests.swift; sourceTree = "<group>"; };
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
+		F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceProjectRepositoryTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
 		F215DFCBE8FF4A72EC6B7745 /* HoloAgentPersistenceManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentPersistenceManagerTests.swift; sourceTree = "<group>"; };
@@ -641,6 +643,7 @@
 				6CC172B6E8AE092CE1F54E97 /* DailySenseSnapshotTests.swift */,
 				295E9B51FBEA12EAC64FF25F /* FinanceChartScaleTests.swift */,
 				7CFB70A56A73477EA1897490 /* FinanceReconciliationTests.swift */,
+				F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */,
 				A1B2C3D4E5F60718293A0002 /* CategoryComparisonBuilderTests.swift */,
 				1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */,
 				B6CF638B2243E17102E84F64 /* HabitStatsDisplaySettingsTests.swift */,
@@ -1239,6 +1242,7 @@
 				A98C511454054EFA1E2E362E /* DailySenseSnapshotTests.swift in Sources */,
 				AFDBE0135F44542F3E325C4C /* FinanceChartScaleTests.swift in Sources */,
 				3154C526878042FAA896940A /* FinanceReconciliationTests.swift in Sources */,
+				F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */,
 				A1B2C3D4E5F60718293A0001 /* CategoryComparisonBuilderTests.swift in Sources */,
 				2B2534D13C28FCD8CD5ACF14 /* HabitIconPresetsTests.swift in Sources */,
 				41420F5E967D7933A135A537 /* HabitStatsDisplaySettingsTests.swift in Sources */,

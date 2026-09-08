@@ -13,6 +13,14 @@
 ## [Unreleased]
 
 ### Features
+- **iOS+后端**: 财务「项目」功能一期——把多笔跨分类/跨账户的支出归到一件事上（如东京旅行、装修），方案 docs 下项目规划（2026-09-09）
+  - 数据层：新实体 FinanceProject（名称/emoji图标/颜色/可选时间范围/可选预算/状态 active·completed·archived），Transaction 加 financeProjectId 轻量外键（与固定支出 spendingProjectId 语义无关互不干扰）；FinanceProjectRepository 全套 CRUD+挂靠+聚合；**口径铁律=项目是纯附加维度，挂项目的交易在余额/分类统计/预算中按普通交易参与，项目聚合=已发生+排对账调整+仅支出**；删除项目只解除关联、交易一律不动；16 项单测全绿
+  - 入口：账户页顶部「账户 | 项目」下划线切换条（底部 5 Tab 不变）；项目列表=汇总卡（进行中数/合计已花/合计预算+总进度条）+进行中/已完结/已归档分区；新建/编辑 Sheet（名称/emoji图标库/颜色/时间范围软约束/预算可选）
+  - 详情页：头卡（总支出大字+笔数/日均/预算三指标+预算进度条 绿/橙/红）+分类构成（一级分类归并条形列表，点击下钻筛选交易流）+交易流按日分组；菜单=编辑/新记一笔（预挂项目）/从历史挑一笔补挂（多选批量）/完结/归档/删除（确认文案明示只解除关联）
+  - 记账挂项目：AddTransactionSheet 信息区新增「项目」行（仅支出类型），居中弹窗选择（不挂项目+进行中清单），记忆上次选择（完结自动回落）；保存链路六路径全接（单笔/新建分期/普通编辑三态/转分期/取消分期/分期参数修改整组同步/复制沿用）；交易行副标题显示项目标记（进程内快照缓存防 N+1）
+  - AI 一期全做：dynamic_query 的 finance.transactions 加 project 可过滤/分组维度（两处 schema+行数据带项目名）；flexible query 项目名进关键词全文+projectNames 精确过滤；对话记账挂项目——上下文注入进行中项目清单，后端 intents.json v3 record_expense 加 projectCandidate 槽位（仅显式提及才填，不猜测），iOS 精确/包含匹配+多命中歧义不挂（误挂比漏挂伤害大）
+  - 回收站：FinanceProject 进财务实体清单（模块清空覆盖）；CloudKit 自动同步，**发版前置=CloudKit Production schema 部署（新实体+Transaction 新字段）；后端需发版一次（intents.json v3+flexible_query_planner projectNames 槽位，不带项目表述的记账行为不变）**
+  - 已知观察项：对话分期记账路径暂不挂项目（后续批次）；账单导入映射项目列/收入冲减/云端分析项目归因/智能建议挂项目留二期
 - **iOS**: iPad 适配体检第 2 轮（模拟器 13 寸实拍走查）——首页主视觉放大 + 底部导航限宽 + 长廊通铺根治
   - 首页主视觉（五角形轨道+中央看板球）在 iPad regular 宽度整体放大 1.25 倍，消除「iPhone 尺寸漂在大屏中央」的空旷感；iPhone compact 不变
   - 首页底部浮动导航条（个人/AI/记忆长廊）iPad 上限宽 520pt 居中，不再横跨大屏两端；iPhone 撑满不变

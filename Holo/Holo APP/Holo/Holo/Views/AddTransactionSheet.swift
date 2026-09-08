@@ -29,6 +29,9 @@ struct AddTransactionSheet: View {
     /// 待确认交易预填数据（从待确认卡片进入编辑时使用）
     let pendingPrefill: PendingTransactionPrefill?
 
+    /// 预设挂靠的财务项目（从项目详情「记一笔」进入时使用，nil 表示按上次记忆）
+    let presetFinanceProject: FinanceProject?
+
     /// 保存完成回调（传入本次创建/编辑后的交易，nil 表示删除或多笔分期等场景）
     let onSave: (Transaction?) -> Void
 
@@ -97,6 +100,18 @@ struct AddTransactionSheet: View {
     /// 可用账户列表
     @State var accounts: [Account] = []
 
+    /// 选中的财务项目（nil=不挂项目；仅支出类型可选）
+    @State var selectedProject: FinanceProject?
+
+    /// 项目选择器是否展开
+    @State var showProjectPicker: Bool = false
+
+    /// 进行中的项目清单（选择器选项）
+    @State var financeProjects: [FinanceProject] = []
+
+    /// 记住上次挂靠的项目（完结的项目自动失效回落「不挂」）
+    @AppStorage("lastSelectedFinanceProjectId") var lastSelectedFinanceProjectId: String?
+
     /// 补充备注焦点（用于关闭数字键盘）
     @FocusState var isRemarkFocused: Bool
 
@@ -148,6 +163,7 @@ struct AddTransactionSheet: View {
                 || selectedAccount?.objectID != transaction.account?.objectID
                 || note != (InstallmentNoteSanitizer.clean(transaction.note) ?? "")
                 || !Calendar.current.isDate(selectedDate, inSameDayAs: transaction.date)
+                || selectedProject?.id != transaction.financeProjectId
         } else {
             return amountString != "0" || selectedCategory != nil || !note.isEmpty
         }
@@ -173,10 +189,11 @@ struct AddTransactionSheet: View {
     
     // MARK: - Initialization
     
-    init(editingTransaction: Transaction?, presetDate: Date? = nil, pendingPrefill: PendingTransactionPrefill? = nil, onSave: @escaping (Transaction?) -> Void) {
+    init(editingTransaction: Transaction?, presetDate: Date? = nil, pendingPrefill: PendingTransactionPrefill? = nil, presetFinanceProject: FinanceProject? = nil, onSave: @escaping (Transaction?) -> Void) {
         self.editingTransaction = editingTransaction
         self.presetDate = presetDate
         self.pendingPrefill = pendingPrefill
+        self.presetFinanceProject = presetFinanceProject
         self.onSave = onSave
     }
 
@@ -258,6 +275,7 @@ struct AddTransactionSheet: View {
                 if showAccountPicker { accountPopup }
                 if showDatePicker { datePopup }
                 if showInstallmentSheet { installmentPopup }
+                if showProjectPicker { projectPopup }
             }
             .navigationBarHidden(true)
             .confirmationDialog("确认删除", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -295,11 +313,13 @@ struct AddTransactionSheet: View {
                 }
             } else {
                 loadDefaultAccount()
+                loadDefaultProject()
                 if let preset = presetDate {
                     selectedDate = preset
                 }
             }
             accounts = repository.getAccounts(includeArchived: false)
+            financeProjects = FinanceProjectRepository.shared.activeProjects()
             loadQuickTags(for: selectedCategory)
             startCursorAnimation()
             Task { await loadCategories() }

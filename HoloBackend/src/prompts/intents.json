@@ -1,19 +1,20 @@
 {
-  "version": 2,
-  "updatedAt": "2026-09-07",
-  "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。",
+  "version": 3,
+  "updatedAt": "2026-09-09",
+  "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。 v3（财务项目）：record_expense 增 projectCandidate 槽位——仅在用户明确提到上下文给出的进行中项目名时照抄填写，未提及不填。",
   "intents": [
     {
       "ids": [
         "record_expense"
       ],
-      "summary": "记支出。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（YYYY-MM-DD），可选 normalizedCategoryCandidate/semanticCategoryHint。工资+金额走 record_income。",
+      "summary": "记支出。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（YYYY-MM-DD），可选 normalizedCategoryCandidate/semanticCategoryHint；用户明确提到进行中项目名时填 projectCandidate（照抄项目名，未提及不填）。工资+金额走 record_income。",
       "requiredFields": [
         "amount"
       ],
       "examples": [
         "\"昨天麦当劳35\" → intent: \"record_expense\", extractedData: { amount: \"35\", note: \"麦当劳\", categoryCandidate: \"麦当劳\", transactionDate: \"2026-06-02\", normalizedCategoryCandidate: \"快餐\", semanticCategoryHint: \"餐饮\" }",
-        "\"给爷爷买了两百块的彩票\" → intent: \"record_expense\", extractedData: { amount: \"200\", note: \"给爷爷买彩票\", categoryCandidate: \"给爷爷买彩票\", semanticCategoryHint: \"人情\" }"
+        "\"给爷爷买了两百块的彩票\" → intent: \"record_expense\", extractedData: { amount: \"200\", note: \"给爷爷买彩票\", categoryCandidate: \"给爷爷买彩票\", semanticCategoryHint: \"人情\" }",
+        "\"奶茶22，算装修的\" → intent: \"record_expense\", extractedData: { amount: \"22\", note: \"奶茶\", categoryCandidate: \"奶茶\", normalizedCategoryCandidate: \"饮品\", semanticCategoryHint: \"餐饮\", projectCandidate: \"装修\" }"
       ]
     },
     {

@@ -41,6 +41,14 @@ struct AccountRowItem: Identifiable {
     }
 }
 
+// MARK: - 页面模式
+
+/// 账户页顶部「账户 | 项目」切换（项目 = 跨分类/跨账户聚合支出的观察维度）
+enum AccountPageMode: CaseIterable {
+    case accounts
+    case projects
+}
+
 // MARK: - AccountListView
 
 struct AccountListView: View {
@@ -48,6 +56,7 @@ struct AccountListView: View {
     /// 返回上一级（与其他 Tab 一致的返回交互）
     let onBack: () -> Void
 
+    @State private var pageMode: AccountPageMode = .accounts
     @State private var items: [AccountRowItem] = []
     @State private var archivedItems: [AccountRowItem] = []
     @State private var netWorthData: (assets: Decimal, liabilities: Decimal, netWorth: Decimal) = (0, 0, 0)
@@ -55,6 +64,7 @@ struct AccountListView: View {
     @State private var detailAccount: Account?
     @State private var showDetail = false
     @State private var showAddAccount = false
+    @State private var showAddProject = false
     @State private var editingAccount: Account?
     @State private var adjustingAccount: Account?
 
@@ -63,29 +73,28 @@ struct AccountListView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.md) {
-                    netWorthCard
+            VStack(spacing: 0) {
+                pageSwitcher
 
-                    if items.isEmpty {
-                        emptyStateView
-                    } else {
-                        accountListSection
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: HoloSpacing.md) {
+                        switch pageMode {
+                        case .accounts:
+                            accountsContent
+                        case .projects:
+                            FinanceProjectListView(showAddProject: $showAddProject)
+                        }
                     }
-
-                    if !archivedItems.isEmpty {
-                        archivedSection
-                    }
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.xs)
                 }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.xs)
             }
             // 背景贯穿到导航栏/状态栏后面，避免玻璃导航栏下露出黑底
             .background(Color.holoBackground.ignoresSafeArea())
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: 88)
             }
-            .navigationTitle("账户")
+            .navigationTitle(pageMode == .accounts ? "账户" : "项目")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -101,14 +110,18 @@ struct AccountListView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showAddAccount = true
+                        if pageMode == .accounts {
+                            showAddAccount = true
+                        } else {
+                            showAddProject = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.holoPrimary)
                     }
-                    // 添加账户唯一入口，无障碍标签供读屏与 UI 测试定位
-                    .accessibilityLabel("添加账户")
+                    // 添加入口的无障碍标签供读屏与 UI 测试定位
+                    .accessibilityLabel(pageMode == .accounts ? "添加账户" : "新建项目")
                 }
             }
             .navigationDestination(isPresented: $showDetail) {
@@ -118,6 +131,9 @@ struct AccountListView: View {
             }
             .sheet(isPresented: $showAddAccount) {
                 AddAccountSheet(mode: .create) { _ in loadData() }
+            }
+            .sheet(isPresented: $showAddProject) {
+                AddProjectSheet(mode: .create) { }
             }
             .sheet(item: $editingAccount) { account in
                 AddAccountSheet(mode: .edit(account)) { _ in loadData() }
@@ -142,6 +158,56 @@ struct AccountListView: View {
             .onChange(of: showDetail) { _, showing in
                 if !showing { loadData() }
             }
+        }
+    }
+
+    // MARK: - 页面切换条（账户 | 项目，与分析页下划线 Tab 同款样式）
+
+    private var pageSwitcher: some View {
+        HStack(spacing: 0) {
+            ForEach(AccountPageMode.allCases, id: \.hashValue) { mode in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        pageMode = mode
+                    }
+                } label: {
+                    Text(mode == .accounts ? "账户" : "项目")
+                        .font(.system(size: 14))
+                        .fontWeight(pageMode == mode ? .semibold : .medium)
+                        .foregroundColor(pageMode == mode ? .holoPrimary : .holoTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            VStack {
+                                Spacer()
+                                Rectangle()
+                                    .fill(pageMode == mode ? Color.holoPrimary : Color.clear)
+                                    .frame(height: 2)
+                            }
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(mode == .accounts ? "账户" : "项目")
+            }
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+    }
+
+    // MARK: - 账户侧内容（净资产卡 + 账户列表）
+
+    @ViewBuilder
+    private var accountsContent: some View {
+        netWorthCard
+
+        if items.isEmpty {
+            emptyStateView
+        } else {
+            accountListSection
+        }
+
+        if !archivedItems.isEmpty {
+            archivedSection
         }
     }
 

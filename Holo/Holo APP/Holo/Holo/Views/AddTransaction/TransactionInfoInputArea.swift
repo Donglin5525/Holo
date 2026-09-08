@@ -20,6 +20,13 @@ extension AddTransactionSheet {
 
             Divider().padding(.leading, 44)
 
+            // 项目行（仅支出；点击弹窗选择挂靠的财务项目）
+            if transactionType == .expense {
+                financeProjectRow
+
+                Divider().padding(.leading, 44)
+            }
+
             // 日期行（点击弹窗选择）
             dateRow
 
@@ -63,6 +70,44 @@ extension AddTransactionSheet {
                     Text(selectedAccount?.name ?? String(localized: "默认账户"))
                         .font(.system(size: 15))
                         .foregroundColor(.holoTextPrimary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 项目选择行
+
+    /// 财务项目选择行（点击弹窗；仅支出类型显示）
+    private var financeProjectRow: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                showProjectPicker = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Text(selectedProject?.icon ?? "🗂")
+                    .font(.system(size: 15))
+                    .foregroundColor(selectedProject != nil ? .primary : .secondary)
+                    .frame(width: 24)
+
+                Text("项目")
+                    .font(.system(size: 15))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 36, alignment: .leading)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Text(selectedProject?.name ?? String(localized: "不挂项目"))
+                        .font(.system(size: 15))
+                        .foregroundColor(selectedProject != nil ? .holoTextPrimary : .holoTextSecondary.opacity(0.5))
+                        .lineLimit(1)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.holoTextSecondary.opacity(0.5))
@@ -416,6 +461,107 @@ extension AddTransactionSheet {
                 Button("取消") {
                     withAnimation(.easeOut(duration: 0.2)) {
                         showAccountPicker = false
+                    }
+                }
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+                .padding(.vertical, 14)
+            }
+            .frame(maxWidth: 320)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+        }
+        .transition(.opacity)
+    }
+
+    /// 项目选择弹窗
+    var projectPopup: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showProjectPicker = false
+                    }
+                }
+
+            VStack(spacing: 0) {
+                Text("挂到哪个项目")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // 不挂项目
+                        Button {
+                            selectedProject = nil
+                            lastSelectedFinanceProjectId = nil
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showProjectPicker = false
+                            }
+                        } label: {
+                            HStack {
+                                Text("不挂项目")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.holoTextSecondary)
+                                Spacer()
+                                if selectedProject == nil {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.holoPrimary)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                        }
+                        .buttonStyle(.plain)
+
+                        ForEach(financeProjects, id: \.objectID) { project in
+                            Divider()
+                                .padding(.leading, 16)
+
+                            Button {
+                                selectedProject = project
+                                lastSelectedFinanceProjectId = project.id.uuidString
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    showProjectPicker = false
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Text(project.icon)
+                                        .font(.system(size: 16))
+                                        .frame(width: 24)
+
+                                    Text(project.name)
+                                        .font(.system(size: 15))
+                                        .foregroundColor(.holoTextPrimary)
+                                        .lineLimit(1)
+
+                                    Spacer()
+
+                                    if selectedProject?.objectID == project.objectID {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.holoPrimary)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 11)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxHeight: 280)
+
+                Divider()
+
+                Button("取消") {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showProjectPicker = false
                     }
                 }
                 .font(.system(size: 15, weight: .medium))

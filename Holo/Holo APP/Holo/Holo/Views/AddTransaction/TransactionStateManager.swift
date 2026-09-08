@@ -18,6 +18,9 @@ extension AddTransactionSheet {
         amountString = formatAmount(absoluteAmount)
         selectedCategory = transaction.category
         selectedAccount = transaction.account
+        selectedProject = transaction.financeProjectId.flatMap {
+            FinanceProjectRepository.shared.findProject(by: $0)
+        }
         note = InstallmentNoteSanitizer.clean(transaction.note) ?? ""
         remark = transaction.remark ?? ""
         selectedDate = transaction.date
@@ -41,6 +44,23 @@ extension AddTransactionSheet {
             }
         }
         selectedAccount = FinanceRepository.shared.getDefaultAccountSync()
+    }
+
+    /// 加载默认/上次挂靠的项目（新增模式）
+    /// 优先级：项目详情页预设 > 上次挂靠的项目（须仍为进行中）> 不挂
+    func loadDefaultProject() {
+        if let preset = presetFinanceProject {
+            selectedProject = preset
+            return
+        }
+        if let lastId = lastSelectedFinanceProjectId,
+           let uuid = UUID(uuidString: lastId),
+           let project = FinanceProjectRepository.shared.findProject(by: uuid),
+           project.statusEnum == .active {
+            selectedProject = project
+            return
+        }
+        selectedProject = nil
     }
 
     /// 启动光标闪烁动画

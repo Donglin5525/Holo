@@ -161,6 +161,15 @@ extension CoreDataStack {
         projectPostingState.isOptional = true
         attributes.append(projectPostingState)
 
+        // 财务项目挂靠（聚合视角，如东京旅行）：用户手工归组的轻量引用。
+        // 与 spendingProjectId（固定支出自动流水来源标记）语义无关，互不干扰；
+        // 口径层面该项目字段不参与 occurredPredicate 判定，挂靠交易按普通交易参与统计。
+        let financeProjectId = NSAttributeDescription()
+        financeProjectId.name = "financeProjectId"
+        financeProjectId.attributeType = .UUIDAttributeType
+        financeProjectId.isOptional = true
+        attributes.append(financeProjectId)
+
         // 导入追踪字段（用于去重 + 按批次撤回）
         let importBatchId = NSAttributeDescription()
         importBatchId.name = "importBatchId"
@@ -213,7 +222,7 @@ extension CoreDataStack {
         attributes.append(contentsOf: transactionSoftDelete.attributes)
 
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
-        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef, "deletedAt": transactionSoftDelete.deletedAt, "deletedBatchId": transactionSoftDelete.deletedBatchId])
+        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "financeProjectId": financeProjectId, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef, "deletedAt": transactionSoftDelete.deletedAt, "deletedBatchId": transactionSoftDelete.deletedBatchId])
         
         // MARK: - Category Entity
         let categoryEntity = NSEntityDescription()
@@ -664,7 +673,45 @@ extension CoreDataStack {
             "deletedBatchId": projectSoftDelete.deletedBatchId
         ])
 
-        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity]
+        // MARK: - Finance Project Entity
+        // 财务项目：跨分类/跨账户聚合支出的观察维度（如东京旅行、装修）。
+        // 纯附加维度——挂项目的交易在余额/分类统计/预算中完全按普通交易参与，
+        // 项目自身不生成流水、不参与任何口径判定，只提供项目视角的汇总展示。
+        let financeProjectEntity = NSEntityDescription()
+        financeProjectEntity.name = "FinanceProject"
+        financeProjectEntity.managedObjectClassName = "FinanceProject"
+
+        let financeProjectAttributes: [NSAttributeDescription] = [
+            projectAttribute("id", .UUIDAttributeType, defaultValue: UUID()),
+            projectAttribute("name", .stringAttributeType, defaultValue: ""),
+            // emoji 图标（走 Emoji 图标库统一入口）
+            projectAttribute("icon", .stringAttributeType, defaultValue: "📁"),
+            // hex 颜色
+            projectAttribute("color", .stringAttributeType, defaultValue: "#64748B"),
+            projectAttribute("note", .stringAttributeType, optional: true),
+            // 起止时间是软约束：仅用于展示，不拦截交易归属
+            projectAttribute("startDate", .dateAttributeType, optional: true),
+            projectAttribute("endDate", .dateAttributeType, optional: true),
+            // 预算上限（可选；nil=纯记录不算进度）
+            projectAttribute("budgetAmount", .decimalAttributeType, optional: true),
+            projectAttribute("status", .stringAttributeType, defaultValue: FinanceProjectStatus.active.rawValue),
+            projectAttribute("createdAt", .dateAttributeType, defaultValue: Date()),
+            projectAttribute("updatedAt", .dateAttributeType, defaultValue: Date())
+        ]
+        let financeProjectSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
+        financeProjectEntity.properties = financeProjectAttributes + financeProjectSoftDelete.attributes
+        let financeProjectAttributesById: [String: NSAttributeDescription] = Dictionary(
+            financeProjectAttributes.map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        CoreDataStack.applyIndexes(to: financeProjectEntity, on: [
+            "id": financeProjectAttributesById["id"]!,
+            "status": financeProjectAttributesById["status"]!,
+            "deletedAt": financeProjectSoftDelete.deletedAt,
+            "deletedBatchId": financeProjectSoftDelete.deletedBatchId
+        ])
+
+        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity, financeProjectEntity]
     }
 
 }

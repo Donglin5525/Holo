@@ -161,7 +161,8 @@ class FinanceRepository {
         date: Date = Date(),
         note: String? = nil,
         remark: String? = nil,
-        tags: [String]? = nil
+        tags: [String]? = nil,
+        financeProject: FinanceProject? = nil
     ) async throws -> Transaction {
         try validateTransactionCategory(category)
 
@@ -175,12 +176,13 @@ class FinanceRepository {
         transaction.note = note
         transaction.remark = remark
         transaction.tags = tags
+        transaction.financeProjectId = financeProject?.id
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
         try context.save()
         return transaction
     }
-    
+
     func updateTransaction(_ transaction: Transaction, updates: TransactionUpdates) async throws {
         if let amount = updates.amount { transaction.amount = NSDecimalNumber(decimal: amount) }
         if let cat = updates.category {
@@ -193,6 +195,10 @@ class FinanceRepository {
         if let note = updates.note { transaction.note = note.isEmpty ? nil : note }
         if let remark = updates.remark { transaction.remark = remark.isEmpty ? nil : remark }
         if let tags = updates.tags { transaction.tags = tags }
+        // 项目挂靠三态：外层 nil=不修改；内层 nil=解除挂靠；非 nil=改挂该项目
+        if let financeProjectId = updates.financeProjectId {
+            transaction.financeProjectId = financeProjectId
+        }
         transaction.updatedAt = Date()
         try context.save()
     }
@@ -283,7 +289,8 @@ class FinanceRepository {
         account: Account,
         startDate: Date,
         note: String?,
-        remark: String? = nil
+        remark: String? = nil,
+        financeProject: FinanceProject? = nil
     ) async throws -> [Transaction] {
         try validateTransactionCategory(category)
         guard periods >= 2 else { throw FinanceError.invalidData }
@@ -318,6 +325,7 @@ class FinanceRepository {
             tx.installmentGroupId = groupId
             tx.installmentIndex = Int16(i + 1)
             tx.installmentTotal = Int16(periods)
+            tx.financeProjectId = financeProject?.id
 
             transactions.append(tx)
         }
@@ -590,6 +598,8 @@ struct TransactionUpdates {
     var note: String?
     var remark: String?
     var tags: [String]?
+    /// 项目挂靠三态：外层 nil=不修改；内层 nil=解除挂靠；非 nil=改挂该项目
+    var financeProjectId: UUID??
 }
 
 struct CategoryUpdates {
