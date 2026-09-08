@@ -99,33 +99,38 @@ struct FinanceView: View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
 
-            Group {
-                if let evidenceReviewDeepLink {
-                    FinanceEvidenceReviewView(
-                        link: evidenceReviewDeepLink,
-                        onBack: { close() },
-                        onBackToAI: {
-                            // ZStack 常驻：navigate 触发 HomeView 切换 activeScreen 到 .ai，
-                            // FinanceView 自动隐藏，无需手动 close()。
-                            DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
-                        },
-                        onOpenAnalysis: { link in
-                            selectedTab = .analysis
-                            analysisDeepLink = link
-                            self.evidenceReviewDeepLink = nil
-                        }
-                    )
-                } else {
-                    switch selectedTab {
-                    case .accounts:
-                        AccountListView(onBack: { close() })
-                    case .analysis:
-                        FinanceAnalysisView(
-                            state: analysisState,
-                            selectedTab: $selectedAnalysisTab,
+            // 内容锁宽：子页滚动内容的理想宽度（图表图例 fixedSize 长行等）会经
+            // ScrollView 上泄参与 ZStack 取最大，把整个模块撑到比屏幕宽
+            // （2026-09-08 实测统计分析页 429pt，右缘金额与底部 tab 全被裁），
+            // 必须锁到实际列宽——与长廊双 tab 的撑宽同一病灶同款修法。
+            GeometryReader { geo in
+                Group {
+                    if let evidenceReviewDeepLink {
+                        FinanceEvidenceReviewView(
+                            link: evidenceReviewDeepLink,
                             onBack: { close() },
-                            externalDeepLink: $analysisDeepLink
+                            onBackToAI: {
+                                // ZStack 常驻：navigate 触发 HomeView 切换 activeScreen 到 .ai，
+                                // FinanceView 自动隐藏，无需手动 close()。
+                                DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
+                            },
+                            onOpenAnalysis: { link in
+                                selectedTab = .analysis
+                                analysisDeepLink = link
+                                self.evidenceReviewDeepLink = nil
+                            }
                         )
+                    } else {
+                        switch selectedTab {
+                        case .accounts:
+                            AccountListView(onBack: { close() })
+                        case .analysis:
+                            FinanceAnalysisView(
+                                state: analysisState,
+                                selectedTab: $selectedAnalysisTab,
+                                onBack: { close() },
+                                externalDeepLink: $analysisDeepLink
+                            )
                     case .ledger:
                         FinanceLedgerView(
                             calendarState: calendarState,
@@ -133,14 +138,15 @@ struct FinanceView: View {
                             showAddTransaction: $showAddTransaction,
                             searchTrigger: searchTrigger
                         )
-                    case .spending:
-                        SpendingProjectsView(onBack: { close() })
-                    case .settings:
-                        FinanceSettingsView(onBack: { close() })
+                        case .spending:
+                            SpendingProjectsView(onBack: { close() })
+                        case .settings:
+                            FinanceSettingsView(onBack: { close() })
+                        }
                     }
                 }
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         .task {

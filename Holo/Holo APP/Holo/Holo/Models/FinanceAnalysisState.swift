@@ -170,9 +170,13 @@ class FinanceAnalysisState: ObservableObject {
     }
 
     /// 在用户操作发生的当下就让旧请求失效，避免旧请求抢在新 Task 启动前回写页面。
-    private func scheduleLoad() {
+    /// showsLoading=false 用于后台静默刷新：每条数据变更通知都切加载态的话，
+    /// 整页会随同步节奏反复「内容→转圈→内容」规律闪烁（2026-09-08 真机实报）。
+    private func scheduleLoad(showsLoading: Bool = true) {
         let generation = loadGate.begin()
-        isLoading = true
+        if showsLoading {
+            isLoading = true
+        }
         let (start, end) = currentDateRange
         Task {
             await loadData(generation: generation, start: start, end: end)
@@ -229,9 +233,9 @@ class FinanceAnalysisState: ObservableObject {
         }
     }
 
-    /// 刷新数据（数据变更后调用）
+    /// 刷新数据（数据变更后调用）：静默重载，只在数据变化时原位换新值，不切加载态
     func refresh() {
-        scheduleLoad()
+        scheduleLoad(showsLoading: false)
     }
 
     // MARK: - 下钻操作
