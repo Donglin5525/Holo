@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct FinanceProjectDetailView: View {
 
@@ -25,6 +26,9 @@ struct FinanceProjectDetailView: View {
     @State private var showAddTransaction = false
     @State private var showHistoryPicker = false
     @State private var showDeleteConfirm = false
+    /// 惰性删除（与 SpendingProjectDetailView 同款）：dismiss 动画期间 body 仍会读
+    /// project 的属性，先删库会触发已删对象 fault 崩溃——先记 objectID，onDisappear 再真删
+    @State private var pendingDeletionID: NSManagedObjectID?
     /// 分类下钻筛选（nil=显示全部；点击分类构成行切换）
     @State private var categoryFilter: Category?
 
@@ -104,6 +108,7 @@ struct FinanceProjectDetailView: View {
                         } label: {
                             Label("删除项目", systemImage: "trash")
                         }
+                        .accessibilityIdentifier("projectDetail.delete")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -111,6 +116,7 @@ struct FinanceProjectDetailView: View {
                         .foregroundColor(.holoTextPrimary)
                 }
                 .accessibilityLabel("项目操作菜单")
+                .accessibilityIdentifier("projectDetail.menu")
             }
         }
         .sheet(isPresented: $editingProject) {
@@ -137,14 +143,24 @@ struct FinanceProjectDetailView: View {
             titleVisibility: .visible
         ) {
             Button("只解除关联并删除项目", role: .destructive) {
-                try? projectRepo.deleteProject(project)
+                pendingDeletionID = project.objectID
                 dismiss()
             }
+            .accessibilityIdentifier("projectDetail.deleteConfirm")
             Button("取消", role: .cancel) {}
         } message: {
             Text("该项目下 \(transactions.count) 笔交易会保留，只是不再算进这个项目；项目本身可随时重新创建。")
         }
+        .onDisappear { performPendingDeletion() }
         .onAppear { loadData() }
+    }
+
+    /// 页面完全消失后才执行删除（dismiss 动画期间对象必须还活着）
+    private func performPendingDeletion() {
+        guard let projectID = pendingDeletionID else { return }
+        pendingDeletionID = nil
+        guard let project = try? projectRepo.context.existingObject(with: projectID) as? FinanceProject else { return }
+        try? projectRepo.deleteProject(project)
     }
 
     // MARK: - 头卡

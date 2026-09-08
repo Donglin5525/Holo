@@ -21,6 +21,7 @@
   - AI 一期全做：dynamic_query 的 finance.transactions 加 project 可过滤/分组维度（两处 schema+行数据带项目名）；flexible query 项目名进关键词全文+projectNames 精确过滤；对话记账挂项目——上下文注入进行中项目清单，后端 intents.json v3 record_expense 加 projectCandidate 槽位（仅显式提及才填，不猜测），iOS 精确/包含匹配+多命中歧义不挂（误挂比漏挂伤害大）
   - 回收站：FinanceProject 进财务实体清单（模块清空覆盖）；CloudKit 自动同步，**发版前置=CloudKit Production schema 部署（新实体+Transaction 新字段）；后端需发版一次（intents.json v3+flexible_query_planner projectNames 槽位，不带项目表述的记账行为不变）**
   - 已知观察项：对话分期记账路径暂不挂项目（后续批次）；账单导入映射项目列/收入冲减/云端分析项目归因/智能建议挂项目留二期
+  - 回归自查补丁（发版后自检轮）：项目详情删除改惰性删除（pendingDeletionID 同固定支出详情页——dismiss 动画期间 body 读已删对象会 fault 崩溃）；项目列表挂 financeDataDidChange 兜住惰性删除时序；财务底部 Tab/切换条/表单/菜单/行卡全量补 accessibilityIdentifier（UI 测试定位不受模拟器语言影响）；新增 FinanceProjectWalkthroughUITests（删除不闪退全流程绿；系统右滑返回无法被 XCUITest/idb 合成触发，与账户详情页机制一致留真机）
 - **iOS**: iPad 适配体检第 2 轮（模拟器 13 寸实拍走查）——首页主视觉放大 + 底部导航限宽 + 长廊通铺根治
   - 首页主视觉（五角形轨道+中央看板球）在 iPad regular 宽度整体放大 1.25 倍，消除「iPhone 尺寸漂在大屏中央」的空旷感；iPhone compact 不变
   - 首页底部浮动导航条（个人/AI/记忆长廊）iPad 上限宽 520pt 居中，不再横跨大屏两端；iPhone 撑满不变

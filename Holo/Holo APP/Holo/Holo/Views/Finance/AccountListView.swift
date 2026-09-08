@@ -122,6 +122,7 @@ struct AccountListView: View {
                     }
                     // 添加入口的无障碍标签供读屏与 UI 测试定位
                     .accessibilityLabel(pageMode == .accounts ? "添加账户" : "新建项目")
+                    .accessibilityIdentifier(pageMode == .accounts ? "finance.addAccount" : "finance.addProject")
                 }
             }
             .navigationDestination(isPresented: $showDetail) {
@@ -189,6 +190,7 @@ struct AccountListView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(mode == .accounts ? "账户" : "项目")
+                .accessibilityIdentifier(mode == .accounts ? "finance.tab.accounts" : "finance.tab.projects")
             }
         }
         .padding(.horizontal, HoloSpacing.lg)

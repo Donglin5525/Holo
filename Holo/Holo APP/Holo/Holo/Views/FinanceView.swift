@@ -327,6 +327,8 @@ struct FinanceView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(PlainButtonStyle())
+        // UI 测试定位用 identifier（rawValue 不随语言变化）
+        .accessibilityIdentifier("finance.bottomTab.\(tab.rawValue)")
     }
 }
 

@@ -68,6 +68,7 @@ struct AddProjectSheet: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
                         .disabled(!canSave)
+                        .accessibilityIdentifier("projectSheet.save")
                 }
             }
             .sheet(isPresented: $showIconPicker) {
@@ -107,6 +108,7 @@ struct AddProjectSheet: View {
                 .accessibilityLabel("选择图标")
 
                 TextField("例如：东京旅行、装修", text: $name)
+                    .accessibilityIdentifier("projectSheet.nameField")
                     .font(.holoBody)
                     .padding(HoloSpacing.md)
                     .background(Color.holoCardBackground)

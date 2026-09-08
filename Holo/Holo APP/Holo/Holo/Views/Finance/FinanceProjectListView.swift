@@ -66,6 +66,11 @@ struct FinanceProjectListView: View {
         .onChange(of: showAddProject) { _, showing in
             if !showing { loadData() }
         }
+        // 惰性删除发生在详情页 onDisappear（可能晚于本列表 onAppear），
+        // 靠数据变更通知兜住刷新，避免列表残留已删项目行
+        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+            loadData()
+        }
     }
 
     // MARK: - 汇总卡
@@ -298,6 +303,7 @@ struct FinanceProjectListView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("project.row.\(item.project.name)")
         .contextMenu {
             Button { editingProject = item.project } label: {
                 Label("编辑项目", systemImage: "pencil")
