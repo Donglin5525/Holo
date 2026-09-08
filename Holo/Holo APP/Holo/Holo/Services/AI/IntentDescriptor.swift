@@ -54,6 +54,7 @@ nonisolated enum IntentDescriptorRegistry {
         IntentDescriptor(ids: ["flexible_data_query"], summary: "查一个确定的单值——总金额、次数、最近一笔、距今多久、最大/最小一笔、超过N元、关键词花了多少，以及同一批记录的平均每笔/每次/每顿。需要跨时间折算或统计规律的（频率趋势、日均、单位时间花销）不属于本意图。", examples: []),
         IntentDescriptor(ids: ["query_analysis"], summary: "分析、复盘、趋势、结构、占比、总结，以及需要折算/统计规律的——频率、平均每天/每周花多少、日均、单位时间花销。", examples: ["\"帮我分析最近花销\" → intent: \"query_analysis\", extractedData: { analysisDomain: \"finance\", periodLabel: \"最近\" }", "\"最近状态不好，看看睡眠咋样\" → intent: \"query_analysis\", extractedData: { analysisDomain: \"health\", subDomain: \"sleep\", periodLabel: \"最近\" }"]),
         IntentDescriptor(ids: ["weekly_planning"], summary: "每周生活计划：帮我规划这一周、做个本周计划、下周该专注什么。建立单个目标不是本意图。", examples: ["\"帮我规划这一周\" → intent: \"weekly_planning\", extractedData: {}", "\"下周我该专注什么\" → intent: \"weekly_planning\", extractedData: {}"]),
+        IntentDescriptor(ids: ["contextual_planning"], summary: "个人情境规划（只读）：结合我的情况安排/准备一件具体的事（来访、备考、搬家、必花钱、决策）。单一记账/建任务/查数据不是。", examples: ["\"帮我想想下周末爸妈来怎么安排\" → intent: \"contextual_planning\", mode: \"query\", extractedData: {}"]),
         IntentDescriptor(ids: ["query"], summary: "普通问答或闲聊。", examples: []),
         IntentDescriptor(ids: ["generate_memory_insight"], summary: "记忆回放。", examples: []),
         IntentDescriptor(ids: ["unknown"], summary: "无法判断。", examples: ["\"嗯...\" → intent: \"unknown\", mode: \"unknown\""])

@@ -216,6 +216,13 @@ final class HoloBackendAIProvider: AIProvider {
         try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .weeklyPlanGeneration)
     }
 
+    /// 个人情境规划草案生成：后端注入 personal_context_planning 系统 prompt（JSON 契约），
+    /// prompt 参数已含目标框架与筛选后的情境数据；输出由 iOS 解析层容忍围栏/噪声，
+    /// 不走 jsonObject 模式（推理模型对 response_format 支持不稳，提示词已强约束）。
+    func generateContextPlan(prompt: String, context: UserContext) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .personalContextPlanning)
+    }
+
     /// P2（方案 §5.3）：批量文本 embedding（/v1/ai/embeddings，purpose=thought_embedding）。
     /// 向量仅作客户端语义候选召回输入，不直接决定用户可见结果（V3 教训）。
     /// - Parameter texts: 1-16 条非空文本（每条 ≤2000 字符，由调用方保证）
@@ -407,9 +414,9 @@ final class HoloBackendAIProvider: AIProvider {
     ) -> APIRequest {
         // §8.1：step 三字段仅 agentLoop 携带；其他 purpose 保持兼容不编码
         let includeStep = purpose == .agentLoop ? step : nil
-        // agent_loop 非流式单轮时延实测可达 90s+，60s 默认超时会掐掉长轮次
-        // （客户端超时后上游继续算，重试只能吃 409 等缓存），单独放宽到 180s
-        let timeout: TimeInterval? = purpose == .agentLoop ? 180 : nil
+        // agent_loop / personal_context_planning 非流式单轮时延可达 90s+，60s 默认
+        // 超时会掐掉长轮次（客户端超时后上游继续算，重试只能吃 409 等缓存），放宽到 180s
+        let timeout: TimeInterval? = (purpose == .agentLoop || purpose == .personalContextPlanning) ? 180 : nil
         return APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/chat/completions",
@@ -602,6 +609,7 @@ enum HoloBackendPurpose: String {
     case agentLoop = "agent_loop"
     case healthInsightGeneration = "health_insight_generation"
     case weeklyPlanGeneration = "weekly_plan_generation"
+    case personalContextPlanning = "personal_context_planning"
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
     case billColumnMapping = "bill_column_mapping"
     case billCategorization = "bill_categorization"

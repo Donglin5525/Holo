@@ -1008,10 +1008,15 @@ final class ChatViewModel: ObservableObject {
                             channel: .chat
                         )
                         self.streamingText = markerResult.cleanText
+                        // 空流兜底：后端正常关流但零内容（上游偶发空回复）时落兜底文案，
+                        // 不把空白存成消息（历史缺陷：空白正文+意图标签悬空，用户以为坏机）
+                        let finalContent = markerResult.cleanText.isEmpty
+                            ? String(localized: "抱歉，这次没拿到回复，请再试一次")
+                            : markerResult.cleanText
                         // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
-                            finalContent: markerResult.cleanText,
+                            finalContent: finalContent,
                             intent: processResult.firstIntent?.rawValue,
                             extractedDataJSON: Self.encodeExtractedData(
                                 processResult.firstExtractedData,
