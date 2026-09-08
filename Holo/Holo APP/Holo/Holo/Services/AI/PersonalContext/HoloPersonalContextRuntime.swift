@@ -273,6 +273,105 @@ enum HoloPersonalContextExtractionJob {
             outcome.progress.failedBatches += 1
         }
         logger.error("EXTRACT-DIAG ran=\(outcome.ranBatches) created=\(outcome.progress.createdRecords) suppressed=\(outcome.progress.suppressedCandidates) failed=\(outcome.progress.failedBatches) skip=\(outcome.skippedReason ?? "none")")
+        HoloPersonalContextDiagnostics.recordExtraction(outcome)
         return outcome
+    }
+}
+
+// MARK: - 链路诊断快照
+
+/// 情境链路最近一次状态的本地快照（UserDefaults JSON）：
+/// 供「AI 记忆实验室」展示与走查定位——萃取是否在跑、库里有多少、上次规划检索到多少。
+nonisolated struct HoloPersonalContextDiagnosticsSnapshot: Codable, Equatable, Sendable {
+    var lastExtractionAt: Date?
+    var lastExtractionRanBatches: Int?
+    var lastExtractionCreatedTotal: Int?
+    var lastExtractionSkipReason: String?
+    /// 最近一次规划时的库内情境条数。
+    var lastPlanningContextCount: Int?
+    var lastPlanningAt: Date?
+    var lastPlanningCandidates: Int?
+    var lastPlanningSelected: Int?
+    var lastPlanningCoverage: String?
+    var lastPlanningRawFallbackUsed: Bool?
+    var lastPlanningGateClosed: Bool?
+}
+
+nonisolated enum HoloPersonalContextDiagnostics {
+    static let storageKey = "holo_personal_context_diagnostics_v1"
+
+    static func load(defaults: UserDefaults = .standard) -> HoloPersonalContextDiagnosticsSnapshot {
+        guard let data = defaults.data(forKey: storageKey),
+              let snapshot = try? JSONDecoder().decode(HoloPersonalContextDiagnosticsSnapshot.self, from: data)
+        else { return HoloPersonalContextDiagnosticsSnapshot() }
+        return snapshot
+    }
+
+    static func save(
+        _ mutate: (inout HoloPersonalContextDiagnosticsSnapshot) -> Void,
+        defaults: UserDefaults = .standard
+    ) {
+        var snapshot = load(defaults: defaults)
+        mutate(&snapshot)
+        if let data = try? JSONEncoder().encode(snapshot) {
+            defaults.set(data, forKey: storageKey)
+        }
+    }
+
+    static func recordExtraction(_ outcome: HoloPersonalContextExtractionJob.PassOutcome, defaults: UserDefaults = .standard) {
+        save({ snapshot in
+            snapshot.lastExtractionAt = Date()
+            snapshot.lastExtractionRanBatches = outcome.ranBatches
+            snapshot.lastExtractionCreatedTotal = outcome.progress.createdRecords
+            snapshot.lastExtractionSkipReason = outcome.skippedReason
+        }, defaults: defaults)
+    }
+
+    static func recordPlanningGateClosed(defaults: UserDefaults = .standard) {
+        save({ snapshot in
+            snapshot.lastPlanningAt = Date()
+            snapshot.lastPlanningGateClosed = true
+        }, defaults: defaults)
+    }
+
+    static func recordPlanning(
+        contextCount: Int,
+        candidates: Int,
+        selected: Int,
+        coverage: String,
+        rawFallbackUsed: Bool,
+        defaults: UserDefaults = .standard
+    ) {
+        save({ snapshot in
+            snapshot.lastPlanningAt = Date()
+            snapshot.lastPlanningGateClosed = false
+            snapshot.lastPlanningContextCount = contextCount
+            snapshot.lastPlanningCandidates = candidates
+            snapshot.lastPlanningSelected = selected
+            snapshot.lastPlanningCoverage = coverage
+            snapshot.lastPlanningRawFallbackUsed = rawFallbackUsed
+        }, defaults: defaults)
+    }
+}
+
+// MARK: - 生命周期调度
+
+/// 情境萃取的生命周期调度门面：appLaunch/回前台触发。
+/// 冷启动不走防抖：每天首次打开即补萃取新想法，追平后仅本地对账零 LLM 成本；
+/// 回前台 30 分钟防抖。手动触发（实验室按钮）绕过防抖；闸门由 runPass 内部allowsExtraction把守。
+@MainActor
+enum HoloPersonalContextExtractionScheduler {
+    private static let lastPassAtKey = "holo_personal_context_extraction_last_pass_at_v1"
+    /// 防抖间隔：两次前台萃取之间的最小间隔。
+    static let minimumInterval: TimeInterval = 30 * 60
+
+    static func runPassIfDue(bypassDebounce: Bool = false, packageLimit: Int = 2) async {
+        let defaults = UserDefaults.standard
+        if !bypassDebounce, let last = defaults.object(forKey: lastPassAtKey) as? Date,
+           Date().timeIntervalSince(last) < minimumInterval {
+            return
+        }
+        defaults.set(Date(), forKey: lastPassAtKey)
+        _ = await HoloPersonalContextExtractionJob.runPass(packageLimit: packageLimit)
     }
 }

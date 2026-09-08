@@ -1,0 +1,58 @@
+{
+  "fixtureID": "heldout-synth-041",
+  "domainTags": [
+    "宠物",
+    "出行"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-41-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "去昆明的时候没有找人上门喂猫，从监控里看猫把猫粮都吃完了，错误预估了食量，很临时找了物业的人上门喂猫。来的小姐姐人挺好，喂猫铲屎还额外喂了猫条，最后转了30块钱辛苦费。后续每次出门都考虑让她来帮忙，比起找同事更方便，还不欠人情。",
+      "recordedAt": "2026-09-08T01:40:00+08:00",
+      "revisionDigest": "rev-41-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "国庆节要去日本，帮我规划下出门之前家里要安排的事情",
+    "goalSummary": "出国旅行前的家中事务安排",
+    "referenceTime": "2026-09-08T17:28:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户家里养猫，出门时需要安排人上门喂养",
+      "basisSourceIDs": [
+        "thought-41-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "用户外出时通常找物业人员上门喂猫，并按30元辛苦费标准支付",
+      "basisSourceIDs": [
+        "thought-41-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "国庆期间物业小姐姐是否有空上门"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案必须包含提前预约上门喂猫的安排（含喂养要求与酬劳口径）"
+    }
+  ],
+  "forbiddenClaims": [
+    "已确认物业人员国庆可上门",
+    "已替用户完成预约"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-41-1",
+      "expectedEffect": "喂猫安排从方案消失，不得虚构宠物信息"
+    }
+  ]
+}

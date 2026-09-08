@@ -1,0 +1,63 @@
+{
+  "fixtureID": "heldout-synth-045",
+  "domainTags": [
+    "社交",
+    "聚会"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-45-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "组织聚餐的规矩：有个老同学酒精过敏，聚会一律不安排酒水，选可以喝饮料喝茶的地方；人数一般8到10人，要订能拼桌的包间。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-45-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "周末想组织一次同学聚会，帮我提前规划下要准备的事",
+    "goalSummary": "同学聚会的组织准备规划",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "聚会一律不安排酒水（有同学酒精过敏），选有饮料茶的场地",
+      "basisSourceIDs": [
+        "thought-45-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "聚餐人数通常8到10人，需要可拼桌的包间",
+      "basisSourceIDs": [
+        "thought-45-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "具体能到场的人数",
+    "聚会的具体时间"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案必须体现无酒精场地选择"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "订座应按8-10人包间口径"
+    }
+  ],
+  "forbiddenClaims": [
+    "已订好包间",
+    "已通知全部同学"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-45-1",
+      "expectedEffect": "无酒精场地约束消失，不得虚构同学过敏"
+    }
+  ]
+}

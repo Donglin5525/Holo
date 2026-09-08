@@ -1,0 +1,77 @@
+{
+  "fixtureID": "heldout-synth-042",
+  "domainTags": [
+    "饮食",
+    "采购"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-42-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "买菜规律：周末去大超市把一周主食材买齐，工作日在社区团购补点新鲜蔬菜。家里做饭口味偏少油少辣，爸妈来的时候更是要清淡。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-42-1"
+    },
+    {
+      "sourceID": "thought-42-2",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "冰箱冷冻层比较小，一次囤肉不能超过一周的量。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-42-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "这周想好好安排下一周的三餐，帮我在周末前做个准备规划",
+    "goalSummary": "一周三餐的采购与备餐规划",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户周末在大超市采购一周主食材，工作日靠社区团购补新鲜蔬菜",
+      "basisSourceIDs": [
+        "thought-42-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "家里做饭口味偏少油少辣，招待父母时更清淡",
+      "basisSourceIDs": [
+        "thought-42-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "冷冻空间有限，囤肉一次不超过一周量",
+      "basisSourceIDs": [
+        "thought-42-2"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "下周是否会在家招待客人"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应包含周末大超市集中采购与工作日社区团购补菜的组合安排"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "食材口味应体现少油少辣偏好"
+    }
+  ],
+  "forbiddenClaims": [
+    "已下单社区团购",
+    "已买好全部食材"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-42-1",
+      "expectedEffect": "集中采购安排消失，不得虚构采购规律"
+    }
+  ]
+}

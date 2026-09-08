@@ -1,0 +1,55 @@
+{
+  "fixtureID": "heldout-synth-044",
+  "domainTags": [
+    "居家",
+    "维护"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-44-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "家里例行维护：空调滤网每两个月洗一次，7月底刚洗过一次；净水器滤芯半年一换，明年3月初到期。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-44-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "九月底了，帮我列一下家里需要例行维护的事",
+    "goalSummary": "九月末家中例行维护清单",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "空调滤网每两个月清洗一次，7月底刚洗过",
+      "basisSourceIDs": [
+        "thought-44-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "滤芯的具体型号与购买渠道"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应指出空调滤网已到两月周期、本期该洗"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "净水器滤芯明年3月才到期，本期不应列为待办"
+    }
+  ],
+  "forbiddenClaims": [
+    "已清洗滤网",
+    "已更换滤芯"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-44-1",
+      "expectedEffect": "滤网周期判断消失，不得虚构维护周期"
+    }
+  ]
+}

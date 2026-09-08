@@ -223,11 +223,33 @@ final class HoloBackendAIProvider: AIProvider {
         try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .personalContextPlanning)
     }
 
-    /// P2（方案 §5.3）：批量文本 embedding（/v1/ai/embeddings，purpose=thought_embedding）。
+    /// 个人情境萃取：后端注入 personal_context_extraction 系统 prompt（JSON 契约），
+    /// prompt 已含来源片段与既有候选；解析由 HoloPersonalContextResponseParser 负责。
+    func extractPersonalContext(prompt: String, context: UserContext) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .personalContextExtraction)
+    }
+
+    /// 个人情境核验：后端注入 personal_context_verification 系统 prompt（批量 verdict 契约）。
+    func verifyPersonalContext(prompt: String, context: UserContext) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .personalContextVerification)
+    }
+
+    /// P2（方案 §5.3）：批量文本 embedding（/v1/ai/embeddings）。
     /// 向量仅作客户端语义候选召回输入，不直接决定用户可见结果（V3 教训）。
-    /// - Parameter texts: 1-16 条非空文本（每条 ≤2000 字符，由调用方保证）
+    /// - Parameters:
+    ///   - texts: 1-16 条非空文本（每条 ≤2000 字符，由调用方保证）
+    ///   - purpose: 计费/审计口径；个人情境向量必须用 personal_context_embedding
+    ///     （新原文首次外发走 moderation，不得借用 thought_embedding 的已审核假设）
     /// - Returns: 与 texts 等长、等维的向量数组
-    func embed(texts: [String]) async throws -> [[Double]] {
+    func embed(texts: [String], purpose: String = "thought_embedding") async throws -> [[Double]] {
+        try await embedWithMetadata(texts: texts, purpose: purpose).vectors
+    }
+
+    /// 同 embed，但带回响应的模型标识/版本/维度（个人情境向量缓存键需要）。
+    func embedWithMetadata(
+        texts: [String],
+        purpose: String = "thought_embedding"
+    ) async throws -> HoloBackendEmbeddingsResponse {
         try ensureDataProcessingConsent()
         let request = APIRequest(
             baseURL: baseURL,
@@ -237,13 +259,13 @@ final class HoloBackendAIProvider: AIProvider {
                 "Content-Type": "application/json",
                 "X-Holo-Device-Id": deviceIdProvider()
             ],
-            body: HoloBackendEmbeddingsRequest(purpose: "thought_embedding", texts: texts)
+            body: HoloBackendEmbeddingsRequest(purpose: purpose, texts: texts)
         )
         let completion: APIClient.Response<HoloBackendEmbeddingsResponse> = try await apiClient.sendWithResponse(request)
         guard completion.value.vectors.count == texts.count else {
             throw APIError.serverError("Embedding 数量不匹配")
         }
-        return completion.value.vectors
+        return completion.value
     }
 
     /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）。
@@ -415,8 +437,12 @@ final class HoloBackendAIProvider: AIProvider {
         // §8.1：step 三字段仅 agentLoop 携带；其他 purpose 保持兼容不编码
         let includeStep = purpose == .agentLoop ? step : nil
         // agent_loop / personal_context_planning 非流式单轮时延可达 90s+，60s 默认
-        // 超时会掐掉长轮次（客户端超时后上游继续算，重试只能吃 409 等缓存），放宽到 180s
-        let timeout: TimeInterval? = (purpose == .agentLoop || purpose == .personalContextPlanning) ? 180 : nil
+        // 超时会掐掉长轮次（客户端超时后上游继续算，重试只能吃 409 等缓存），放宽到 180s；
+        // 情境萃取/核验按页批量（50 源/包 ≤12 段），历史补建首跑同样长时延。
+        let longTimeoutPurposes: Set<HoloBackendPurpose> = [
+            .agentLoop, .personalContextPlanning, .personalContextExtraction, .personalContextVerification
+        ]
+        let timeout: TimeInterval? = longTimeoutPurposes.contains(purpose) ? 180 : nil
         return APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/chat/completions",
@@ -610,6 +636,8 @@ enum HoloBackendPurpose: String {
     case healthInsightGeneration = "health_insight_generation"
     case weeklyPlanGeneration = "weekly_plan_generation"
     case personalContextPlanning = "personal_context_planning"
+    case personalContextExtraction = "personal_context_extraction"
+    case personalContextVerification = "personal_context_verification"
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
     case billColumnMapping = "bill_column_mapping"
     case billCategorization = "bill_categorization"

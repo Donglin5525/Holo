@@ -58,6 +58,50 @@ final class PersonalContextWalkthroughUITests: XCTestCase {
         return element.waitForExistence(timeout: timeout)
     }
 
+    /// 通过真实设置 UI 确保两个记忆开关为 ON（simctl defaults 预置在重装后会失效，
+    /// 且 launch 参数是字符串过不了 `as? Bool` 强转——只有真实 UI 翻转最可靠）。
+    func ensureMemorySwitchesOn() {
+        let personalTab = app.buttons.matching(NSPredicate(format: "label == '个人'")).firstMatch
+        if personalTab.waitForExistence(timeout: 6) {
+            personalTab.tap()
+            sleep(2)
+        } else {
+            dumpElements("no-personal-tab")
+            return
+        }
+        let memoryEntry = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '记住的你'")).firstMatch
+        if memoryEntry.waitForExistence(timeout: 6) {
+            memoryEntry.tap()
+            sleep(2)
+        } else {
+            dumpElements("no-memory-entry")
+            return
+        }
+        // 该界面两个记忆开关行（自动形成记忆 / 记忆辅助回答），逐个翻到 ON。
+        let count = app.switches.count
+        print("[DUMP][memory-switches] count=\(count)")
+        for index in 0..<max(count, 0) {
+            let toggle = app.switches.element(boundBy: index)
+            if toggle.exists, toggle.value as? String != "1" {
+                toggle.tap()
+                sleep(1)
+                print("[DUMP][memory-switch] \(index) after=\(toggle.value ?? "nil")")
+            }
+        }
+        check("memory-switches-on", true)
+        // 返回：设置页 → 个人页 → 首页
+        let back = app.buttons.matching(NSPredicate(format: "identifier == 'chevron.left' OR label == '返回'")).firstMatch
+        if back.exists {
+            back.tap()
+            sleep(2)
+        }
+        let home = app.buttons.matching(NSPredicate(format: "label CONTAINS '前往今天'")).firstMatch
+        if home.exists {
+            home.tap()
+            sleep(2)
+        }
+    }
+
     /// 打开 AI 聊天（底部 sparkle tab）；若出现未授权浮层则走真实授权 UI
     func openChat() {
         let aiTab = app.buttons.matching(NSPredicate(format: "identifier == 'sparkles'")).firstMatch
@@ -246,5 +290,79 @@ final class PersonalContextWalkthroughUITests: XCTestCase {
         shoot("s09_no_record_question")
 
         check("walkthrough-complete", true)
+    }
+
+    /// 喂猫场景端到端（2026-09-08 真实案例锁死）：
+    /// 想法记过「上门喂猫」经历 → 冷启动补萃取 → 聊天问「国庆节要去日本，出门前家里安排」→
+    /// 方案卡「查看依据」必须出现喂猫情境（跨域语义召回 + 萃取链路整体回归）。
+    func testCatScenarioPlanning() throws {
+        app.launch()
+        sleep(5)
+        let skip = app.buttons.matching(NSPredicate(format: "label == '跳过引导' OR label CONTAINS '跳过'")).firstMatch
+        if skip.exists {
+            skip.tap()
+            sleep(2)
+        }
+
+        // ============ 第 1 步：造喂猫想法（真实案例文本）============
+        let thoughtEntry = app.buttons.matching(NSPredicate(format: "label == '想法'")).firstMatch
+        if thoughtEntry.waitForExistence(timeout: 6) {
+            thoughtEntry.tap()
+            sleep(2)
+        }
+        let plus = app.buttons.matching(NSPredicate(format: "identifier == 'plus' OR label == '新增想法'")).firstMatch
+        guard plus.waitForExistence(timeout: 6) else {
+            dumpElements("cat-no-plus")
+            check("cat-thought-created", false, "找不到新增想法入口")
+            return
+        }
+        plus.tap()
+        sleep(2)
+        let catText = "去昆明的时候没有找人上门喂猫，从监控里看猫把猫粮都吃完了，错误预估了食量，很临时找了物业的人上门喂猫。来的小姐姐人挺好，喂猫铲屎还额外喂了猫条，最后转了30块钱辛苦费。后续每次出门都让她来帮忙，比起找同事方便，还不欠人情。"
+        var typed = false
+        for view in app.textViews.allElementsBoundByIndex.reversed() {
+            if view.exists && view.isHittable {
+                view.tap()
+                view.typeText(catText)
+                typed = true
+                break
+            }
+        }
+        check("cat-thought-typed", typed)
+        sleep(3)
+        shoot("c01_cat_thought")
+        let back = app.buttons.matching(NSPredicate(format: "identifier == 'chevron.left' OR label == '返回'")).firstMatch
+        if back.exists {
+            back.tap()
+        } else {
+            app.swipeDown()
+        }
+        sleep(2)
+
+        // ============ 第 2 步：翻记忆开关（真实 UI）+ 重启触发冷启动补萃取 ============
+        ensureMemorySwitchesOn()
+        app.terminate()
+        app.launch()
+        sleep(80)
+
+        // ============ 第 3 步：聊天发真实原话，验收方案卡与依据 ============
+        openChat()
+        shoot("c02_chat")
+        let sent = sendChatMessage("国庆节要去日本，帮我规划下出门之前家里要安排的事情")
+        check("cat-question-sent", sent)
+        let cardAppeared = waitForText("结合你的情况", timeout: 170)
+        check("cat-plan-card-appeared", cardAppeared)
+        sleep(2)
+        shoot("c03_plan_card")
+
+        let basis = app.buttons.matching(NSPredicate(format: "label CONTAINS '查看依据'")).firstMatch
+        if basis.waitForExistence(timeout: 5) {
+            basis.tap()
+            sleep(1)
+        }
+        let catMentioned = waitForText("喂猫", timeout: 8) || waitForText("猫粮", timeout: 4)
+        check("cat-basis-mentioned", catMentioned)
+        shoot("c04_basis")
+        check("cat-walkthrough-complete", true)
     }
 }

@@ -1,0 +1,62 @@
+{
+  "fixtureID": "heldout-synth-046",
+  "domainTags": [
+    "宠物",
+    "就医"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-46-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "猫的健康管理：每年10月中旬打疫苗（联苗+狂犬），体内外驱虫每三个月一次，8月中旬刚做过一次驱虫。平时喂食一天两顿。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-46-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "接下来一个月家里有什么要提前安排的事，帮我想想",
+    "goalSummary": "未来一个月的家庭事务前瞻安排",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "猫疫苗每年10月中旬打（联苗+狂犬）",
+      "basisSourceIDs": [
+        "thought-46-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "驱虫每三个月一次，8月中旬刚做，下一次在11月中旬",
+      "basisSourceIDs": [
+        "thought-46-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "疫苗是否需要提前预约"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应包含10月中旬疫苗预约的前置提醒"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "驱虫下一次在11月中旬，本期只提示不需处理"
+    }
+  ],
+  "forbiddenClaims": [
+    "已预约疫苗",
+    "已购买驱虫药"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-46-1",
+      "expectedEffect": "疫苗时间窗消失，不得虚构免疫安排"
+    }
+  ]
+}

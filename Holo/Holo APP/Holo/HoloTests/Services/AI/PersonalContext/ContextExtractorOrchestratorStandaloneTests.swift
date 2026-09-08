@@ -41,6 +41,8 @@ struct ContextExtractorOrchestratorStandaloneTests {
         try await testTombstoneSuppressesResurrection()
         try await testEmptyCandidatesStillRecordsReceipt()
         try await testMergeReusesStableIdentity()
+        try await testMultiPackagePageProcessesAllSources()
+        try await testMidPageFailureRetriesRemainingPackagesOnly()
         print("ContextExtractorOrchestratorStandaloneTests: \(assertionCount) 断言全部通过")
     }
 
@@ -54,10 +56,16 @@ struct ContextExtractorOrchestratorStandaloneTests {
         private(set) var verifyCallCount = 0
         /// 注入失败（竞态模拟）。
         var extractError: Error?
+        /// 指定第 N 次萃取调用抛错（1-based；模拟页内中包失败）。
+        var extractErrorOnCall: (call: Int, error: Error)?
 
         func extract(prompt: String) async throws -> String {
-            if let extractError { throw extractError }
             extractCallCount += 1
+            if let extractError { throw extractError }
+            if let scheduled = extractErrorOnCall, scheduled.call == extractCallCount {
+                extractErrorOnCall = nil
+                throw scheduled.error
+            }
             guard !extractResponses.isEmpty else { return "{\"candidates\":[],\"counterEvidence\":[]}" }
             return extractResponses.removeFirst()
         }
@@ -142,9 +150,14 @@ struct ContextExtractorOrchestratorStandaloneTests {
         )
     }
 
-    static func extractionRaw(ref: String = "c1", statement: String = "父亲被要求低盐", quote: String = "低盐") -> String {
+    static func extractionRaw(
+        ref: String = "c1",
+        statement: String = "父亲被要求低盐",
+        quote: String = "低盐",
+        sourceID: String = "thought-1"
+    ) -> String {
         """
-        {"candidates":[{"candidateRef":"\(ref)","statement":"\(statement)","relationText":"\(statement)","subjects":[{"label":"父亲","scope":"person"}],"facets":[{"kind":"constraint"}],"epistemicStatus":"declared","basis":[{"sourceID":"thought-1","quote":"\(quote)","revision":"rev-1","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
+        {"candidates":[{"candidateRef":"\(ref)","statement":"\(statement)","relationText":"\(statement)","subjects":[{"label":"父亲","scope":"person"}],"facets":[{"kind":"constraint"}],"epistemicStatus":"declared","basis":[{"sourceID":"\(sourceID)","quote":"\(quote)","revision":"rev-1","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
         """
     }
 
@@ -395,6 +408,67 @@ struct ContextExtractorOrchestratorStandaloneTests {
         expect(merged.recordVersion == existingRecord.recordVersion + 1, "版本推进")
         expect(merged.personalContext?.v1?.contextID == "existing-ctx", "contextID 复用")
         expect(merged.personalContext?.v1?.basis.count == 2, "证据追加（旧1+新1）")
+    }
+
+    // MARK: 页内多包（2026-09-08 根治：原实现一页只处理首包即推游标）
+
+    /// 30 条来源切段超过一包预算（12 段/包）→ 页内 3 包全部处理，30 条全部计入进度。
+    /// 来源 ID 零补位：内存分页按 sourceID 字典序，保证包边界可预期（01-12/13-24/25-30）。
+    static func testMultiPackagePageProcessesAllSources() async throws {
+        let sources = (1...30).map { index in
+            source(id: String(format: "thought-%02d", index), text: "医生说要低盐饮食，要注意。（第\(index)条）")
+        }
+        let (extractor, llm, writer) = makeExtractor(sources: sources)
+        // 三包各给不同命题（同命题会被身份归并去重，create 计数不涨）。
+        llm.extractResponses = [
+            extractionRaw(ref: "p1", statement: "父亲被要求低盐饮食", sourceID: "thought-01"),
+            extractionRaw(ref: "p2", statement: "母亲需要定期监测血糖", sourceID: "thought-13"),
+            extractionRaw(ref: "p3", statement: "家中空调滤网需每月清洗", sourceID: "thought-25"),
+        ]
+        llm.verifyResponses = [
+            "{\"verdicts\":[{\"candidateRef\":\"p1\",\"verdict\":\"supported\"}]}",
+            "{\"verdicts\":[{\"candidateRef\":\"p2\",\"verdict\":\"supported\"}]}",
+            "{\"verdicts\":[{\"candidateRef\":\"p3\",\"verdict\":\"supported\"}]}",
+        ]
+
+        let outcome = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_000))
+
+        expect(llm.extractCallCount == 3, "页内 3 包各调一次萃取（实际 \(llm.extractCallCount)）")
+        expect(llm.verifyCallCount == 3, "页内 3 包各调一次核验")
+        expect(outcome.createdRecords == 3, "每包各建一条（实际 \(outcome.createdRecords)）")
+        expect(writer.records.count == 3, "落库 3 条")
+        expect(writer.cursor?.progress.scannedSources == 30, "整页 30 条计入扫描（实际 \(writer.cursor?.progress.scannedSources ?? -1)）")
+        expect(writer.cursor?.sourceCursor == nil, "全部处理完游标清空")
+    }
+
+    /// 页内第 2 包失败：抛错、游标不推进；已成功包按 receipt 幂等，重试只补余下包。
+    static func testMidPageFailureRetriesRemainingPackagesOnly() async throws {
+        let sources = (1...30).map { index in
+            source(id: String(format: "thought-%02d", index), text: "医生说要低盐饮食，要注意。（第\(index)条）")
+        }
+        let (extractor, llm, writer) = makeExtractor(sources: sources)
+        llm.extractResponses = [extractionRaw(ref: "p1", sourceID: "thought-01")]
+        llm.verifyResponses = ["{\"verdicts\":[{\"candidateRef\":\"p1\",\"verdict\":\"supported\"}]}"]
+        llm.extractErrorOnCall = (call: 2, error: HoloPersonalContextResponseParser.ParseError.notJSON)
+
+        do {
+            _ = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_000))
+            expect(false, "中包失败应抛错")
+        } catch {
+            expect(true, "中包失败抛错")
+        }
+        let callsAfterFirstRun = llm.extractCallCount
+        expect(callsAfterFirstRun == 2, "首跑调 2 次（包1成功+包2失败，实际 \(callsAfterFirstRun)）")
+        expect(writer.records.count == 1, "包 1 记录已落库")
+        expect(writer.cursor == nil, "失败不推进游标")
+
+        // 重试：包 1 receipt 命中不再调 LLM，包 2/3 补跑后整页推进。
+        let outcome = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_200))
+        expect(llm.extractCallCount == 4, "重试只补 2 包（3+4，实际 \(llm.extractCallCount)）")
+        expect(writer.records.count == 1, "不重复落库")
+        expect(writer.cursor?.sourceCursor == nil, "重试成功后游标清空")
+        expect(writer.cursor?.progress.scannedSources == 30, "整页 30 条计入扫描（实际 \(writer.cursor?.progress.scannedSources ?? -1)）")
+        expect(outcome.createdRecords == 0, "重试零新建")
     }
 }
 

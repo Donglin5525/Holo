@@ -218,7 +218,8 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         var hasMore = false
     }
 
-    /// 跑一批。成功时记录+receipt 原子落库后推进游标；失败时不推进（下次重试）。
+    /// 跑一批：读一页来源，页内切段逐包（萃取→核验→归并→落库）全部成功后推进整页游标；
+    /// 任一包失败即抛出、游标不动（下次重试，已成功包按 receipt 幂等跳过）。
     /// - Parameter now: 注入时钟。
     func runOneBatch(now: Date) async throws -> BatchOutcome {
         var cursor = try await writer.loadCursor() ?? HoloContextExtractionCursorState()
@@ -240,158 +241,158 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             return BatchOutcome()
         }
 
-        let packageBatchKey = Self.batchKey(
-            sources: page,
-            extractorVersion: cursor.extractorVersion,
-            policyVersion: cursor.admissionPolicyVersion
-        )
-
-        // 幂等：重复请求复用已保存结果，不再调 LLM。
-        if try await writer.hasSuccessfulBatch(batchKey: packageBatchKey) {
-            cursor.sourceCursor = nextCursor
-            cursor.progress.processedRevisions += page.count
-            try await writer.saveCursor(cursor)
-            return BatchOutcome(hasMore: nextCursor != nil)
-        }
-
-        // 切段组包（一个包；剩余段留给下一批——同页多包由调用方循环）。
+        // 切段：一页来源可产生超过一包预算的段，必须页内逐包全部处理；
+        // 只处理首包就推进整页游标会把页内其余来源静默跳过。
         var allSegments: [HoloContextSegment] = []
         var sourcesByID: [String: HoloContextSourceSnapshot] = [:]
         for source in page {
             sourcesByID[source.sourceID] = source
             allSegments.append(contentsOf: HoloContextSegmenter.segments(for: source))
         }
-        let (package, _) = HoloContextSegmenter.packageSegments(allSegments)
-        guard !package.isEmpty else {
-            cursor.sourceCursor = nextCursor
-            try await writer.saveCursor(cursor)
-            return BatchOutcome(hasMore: nextCursor != nil)
-        }
 
-        // 萃取调用。
-        let existingRecords = try await writer.existingContextRecords()
-        let existingCandidates = existingRecords.compactMap(\.personalContext?.v1)
-        let extractionRaw = try await llm.extract(
-            prompt: HoloPersonalContextPromptBuilder.extractionPrompt(
-                packageSegments: package,
-                sourcesByID: sourcesByID,
-                existingCandidates: existingCandidates
+        var outcome = BatchOutcome()
+        outcome.hasMore = nextCursor != nil
+        var remaining = allSegments
+        while !remaining.isEmpty {
+            let (package, remainder) = HoloContextSegmenter.packageSegments(remaining)
+            guard !package.isEmpty else { break }
+            remaining = remainder
+
+            // 本包批次键：身份 = 包内来源修订 + 版本，重试幂等粒度为包。
+            let packageSourceIDs = Set(package.map(\.sourceID))
+            let packageSources = page.filter { packageSourceIDs.contains($0.sourceID) }
+            let packageBatchKey = Self.batchKey(
+                sources: packageSources,
+                extractorVersion: cursor.extractorVersion,
+                policyVersion: cursor.admissionPolicyVersion
             )
-        )
-        let response = try HoloPersonalContextResponseParser.parseExtraction(extractionRaw)
 
-        // 结构校验。
-        let (validCandidates, findings) = HoloPersonalContextValidator.validate(
-            response: response,
-            packageSources: page
-        )
-        // DEBUG 诊断（仅本地调试构建；不含用户原文，只含数量与候选 ref）
-        #if DEBUG
-        ExtractionDebugLog.error?.log("EXTRACT-DIAG rawLen=\(extractionRaw.count) candidates=\(response.candidates.count) valid=\(validCandidates.count) findings=\(findings.map { "\($0.candidateRef):\($0.code.rawValue)" }.joined(separator: ","))")
-        ExtractionDebugLog.error?.log("EXTRACT-DIAG RAW: \(extractionRaw.prefix(1200))")
-        #endif
-        guard !validCandidates.isEmpty else {
-            // 无候选：本包完成，receipt 空批也落（避免重复 LLM）。
-            try await writer.write(records: [], batchKey: packageBatchKey)
-            cursor.sourceCursor = nextCursor
-            cursor.progress.processedRevisions += page.count
-            try await writer.saveCursor(cursor)
-            return BatchOutcome(hasMore: nextCursor != nil)
-        }
-
-        // 语义核验（批量，候选上限保护——超出部分按缺 verdict 处理进待确认）。
-        let toVerify = Array(validCandidates.prefix(Self.candidatesPerPackageLimit))
-        let verifyRaw = try await llm.verify(
-            prompt: HoloPersonalContextPromptBuilder.verificationPrompt(
-                candidates: toVerify,
-                sourcesByID: sourcesByID
-            )
-        )
-        let verdicts = try HoloContextVerificationParser.parse(verifyRaw)
-
-        // 归并。
-        var decisions = HoloContextReconciler.reconcile(
-            candidates: validCandidates,
-            verdicts: verdicts,
-            existingRecords: existingRecords,
-            packageSources: page,
-            now: now
-        )
-
-        // 墓碑 suppression：换 contextID 重生拦截。
-        let tombstones = try await writer.activeTombstones()
-        var suppressed = 0
-        var kept: [HoloContextReconcileDecision] = []
-        for decision in decisions {
-            if let payload = decision.payload,
-               tombstones.contains(where: { tombstone in
-                   HoloSemanticTombstoneMatcher.contextSuppressionMatches(tombstone: tombstone, payload: payload)
-               }) {
-                suppressed += 1
+            // 幂等：重复请求复用已保存结果，不再调 LLM。
+            if try await writer.hasSuccessfulBatch(batchKey: packageBatchKey) {
                 continue
             }
-            kept.append(decision)
-        }
-        decisions = kept
 
-        // 竞态复查①：用户控制代际变化 → 拒绝过期批次。
-        let generationNow = try await writer.currentGeneration()
-        guard generationNow == generationAtStart else {
-            throw ExtractionError.generationChanged
-        }
-        // 竞态复查②：来源修订变化 → 拒绝过期批次，重新排队。
-        let revisionsNow = try await writer.currentSourceRevisions(
-            sourceIDs: page.map(\.sourceID)
-        )
-        for source in page {
-            if let current = revisionsNow[source.sourceID], current != source.revisionDigest {
-                throw ExtractionError.sourceRevisionChanged(sourceID: source.sourceID)
+            var batchRecords: [HoloMemoryRecord] = []
+
+            // 萃取调用（每包重读既有记录：同页先处理包的产出参与后续包归并）。
+            let existingRecords = try await writer.existingContextRecords()
+            let existingCandidates = existingRecords.compactMap(\.personalContext?.v1)
+            let extractionRaw = try await llm.extract(
+                prompt: HoloPersonalContextPromptBuilder.extractionPrompt(
+                    packageSegments: package,
+                    sourcesByID: sourcesByID,
+                    existingCandidates: existingCandidates
+                )
+            )
+            let response = try HoloPersonalContextResponseParser.parseExtraction(extractionRaw)
+
+            // 结构校验。
+            let (validCandidates, findings) = HoloPersonalContextValidator.validate(
+                response: response,
+                packageSources: packageSources
+            )
+            // DEBUG 诊断（仅本地调试构建；不含用户原文，只含数量与候选 ref）
+            #if DEBUG
+            ExtractionDebugLog.error?.log("EXTRACT-DIAG rawLen=\(extractionRaw.count) candidates=\(response.candidates.count) valid=\(validCandidates.count) findings=\(findings.map { "\($0.candidateRef):\($0.code.rawValue)" }.joined(separator: ","))")
+            ExtractionDebugLog.error?.log("EXTRACT-DIAG RAW: \(extractionRaw.prefix(1200))")
+            #endif
+            guard !validCandidates.isEmpty else {
+                // 无候选：本包完成，receipt 空批也落（避免重复 LLM）。
+                try await writer.write(records: [], batchKey: packageBatchKey)
+                continue
             }
-        }
 
-        // 记录构造 + 落库（先落库再推游标）。
-        var records: [HoloMemoryRecord] = []
-        var outcome = BatchOutcome()
-        for decision in decisions {
-            switch decision.action {
-            case .discard:
-                outcome.discarded += 1
-            case .mergeIntoExisting:
-                outcome.mergedRecords += 1
-                // 合并的记录更新由 writer 应用（附加证据、复用 contextID）。
+            // 语义核验（批量，候选上限保护——超出部分按缺 verdict 处理进待确认）。
+            let toVerify = Array(validCandidates.prefix(Self.candidatesPerPackageLimit))
+            let verifyRaw = try await llm.verify(
+                prompt: HoloPersonalContextPromptBuilder.verificationPrompt(
+                    candidates: toVerify,
+                    sourcesByID: sourcesByID
+                )
+            )
+            let verdicts = try HoloContextVerificationParser.parse(verifyRaw)
+
+            // 归并。
+            var decisions = HoloContextReconciler.reconcile(
+                candidates: validCandidates,
+                verdicts: verdicts,
+                existingRecords: existingRecords,
+                packageSources: packageSources,
+                now: now
+            )
+
+            // 墓碑 suppression：换 contextID 重生拦截。
+            let tombstones = try await writer.activeTombstones()
+            var suppressed = 0
+            var kept: [HoloContextReconcileDecision] = []
+            for decision in decisions {
                 if let payload = decision.payload,
-                   let target = existingRecords.first(where: { $0.id == decision.targetRecordID }) {
-                    records.append(Self.mergedRecord(from: target, appending: payload, now: now))
+                   tombstones.contains(where: { tombstone in
+                       HoloSemanticTombstoneMatcher.contextSuppressionMatches(tombstone: tombstone, payload: payload)
+                   }) {
+                    suppressed += 1
+                    continue
                 }
-            case .create:
-                guard let payload = decision.payload,
-                      let claimKind = decision.claimKind,
-                      let record = Self.newRecord(
-                        payload: payload,
-                        claimKind: claimKind,
-                        sensitivity: decision.sensitivity,
-                        packageSources: page,
-                        now: now
-                      ) else { continue }
-                records.append(record)
-                outcome.createdRecords += 1
+                kept.append(decision)
             }
-        }
-        try await writer.write(records: records, batchKey: packageBatchKey)
+            decisions = kept
 
-        // 游标推进（成功落库后）。
+            // 竞态复查①：用户控制代际变化 → 拒绝过期批次。
+            let generationNow = try await writer.currentGeneration()
+            guard generationNow == generationAtStart else {
+                throw ExtractionError.generationChanged
+            }
+            // 竞态复查②：包内来源修订变化 → 拒绝过期批次，重新排队。
+            let revisionsNow = try await writer.currentSourceRevisions(
+                sourceIDs: packageSources.map(\.sourceID)
+            )
+            for source in packageSources {
+                if let current = revisionsNow[source.sourceID], current != source.revisionDigest {
+                    throw ExtractionError.sourceRevisionChanged(sourceID: source.sourceID)
+                }
+            }
+
+            // 记录构造 + 落库（批内先落库再统一推游标）。
+            for decision in decisions {
+                switch decision.action {
+                case .discard:
+                    outcome.discarded += 1
+                case .mergeIntoExisting:
+                    outcome.mergedRecords += 1
+                    // 合并的记录更新由 writer 应用（附加证据、复用 contextID）。
+                    if let payload = decision.payload,
+                       let target = existingRecords.first(where: { $0.id == decision.targetRecordID }) {
+                        batchRecords.append(Self.mergedRecord(from: target, appending: payload, now: now))
+                    }
+                case .create:
+                    guard let payload = decision.payload,
+                          let claimKind = decision.claimKind,
+                          let record = Self.newRecord(
+                            payload: payload,
+                            claimKind: claimKind,
+                            sensitivity: decision.sensitivity,
+                            packageSources: page,
+                            now: now
+                          ) else { continue }
+                    batchRecords.append(record)
+                    outcome.createdRecords += 1
+                }
+            }
+            try await writer.write(records: batchRecords, batchKey: packageBatchKey)
+            outcome.suppressed += suppressed
+        }
+
+        // 游标推进（页内全部包成功后才推进；任何包失败在上方抛出，游标不动下次续跑）。
         cursor.sourceCursor = nextCursor
         cursor.progress.scannedSources += page.count
         cursor.progress.processedRevisions += page.count
-        cursor.progress.suppressedCandidates += suppressed
+        cursor.progress.suppressedCandidates += outcome.suppressed
         cursor.progress.discardedCandidates += outcome.discarded
         cursor.progress.mergedCandidates += outcome.mergedRecords
         cursor.progress.createdRecords += outcome.createdRecords
         cursor.watermark = now
         try await writer.saveCursor(cursor)
 
-        outcome.suppressed = suppressed
-        outcome.hasMore = nextCursor != nil
         return outcome
     }
 

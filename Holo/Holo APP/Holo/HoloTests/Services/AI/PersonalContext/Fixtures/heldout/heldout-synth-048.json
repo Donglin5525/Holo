@@ -1,0 +1,62 @@
+{
+  "fixtureID": "heldout-synth-048",
+  "domainTags": [
+    "人情",
+    "礼尚往来"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-48-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "人情往来的标准：朋友结婚随礼一般800起步，关系近的给1200；老家长辈过生日要提前备礼物，去年10月给姥姥备过一次。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-48-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "接下来要走动的人情往来帮我提前规划一下",
+    "goalSummary": "人情往来的预算与准备规划",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "朋友结婚随礼标准：一般800起步、关系近的1200",
+      "basisSourceIDs": [
+        "thought-48-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "老家长辈生日需提前准备礼物",
+      "basisSourceIDs": [
+        "thought-48-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "近期具体有哪些婚宴或生日"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应体现按关系远近的随礼标准口径"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "长辈生日礼物应提前准备"
+    }
+  ],
+  "forbiddenClaims": [
+    "已备好礼物",
+    "已转出随礼"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-48-1",
+      "expectedEffect": "随礼标准消失，不得虚构人情预算"
+    }
+  ]
+}

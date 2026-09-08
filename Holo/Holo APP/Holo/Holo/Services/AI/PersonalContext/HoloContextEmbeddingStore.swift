@@ -202,4 +202,38 @@ nonisolated struct HoloContextEmbeddingStore: Sendable {
         guard lhsNorm > 0, rhsNorm > 0 else { return nil }
         return dot / (lhsNorm.squareRoot() * rhsNorm.squareRoot())
     }
+
+    // MARK: 多查询向量排序（纯逻辑）
+
+    /// 候选与多查询向量取最大余弦，低于阈值的剔除；返回 id → 分数（降序截断 limit）。
+    /// 同分按 id 升序保证确定性；非法向量（维度不符/非有限/零范数）不参与。
+    static func rank(
+        candidateVectors: [(id: String, vector: [Double])],
+        queryVectors: [[Double]],
+        threshold: Double,
+        limit: Int
+    ) -> [String: Double] {
+        guard !queryVectors.isEmpty, limit > 0 else { return [:] }
+        var scored: [(id: String, score: Double)] = []
+        for candidate in candidateVectors {
+            var best = Double.nan
+            for query in queryVectors {
+                if let cosine = cosineSimilarity(candidate.vector, query), cosine.isFinite,
+                   best.isNaN || cosine > best {
+                    best = cosine
+                }
+            }
+            guard let score = best.isFinite ? best : Optional<Double>.none, score >= threshold else { continue }
+            scored.append((candidate.id, score))
+        }
+        scored.sort { lhs, rhs in
+            if lhs.score == rhs.score { return lhs.id < rhs.id }
+            return lhs.score > rhs.score
+        }
+        var result: [String: Double] = [:]
+        for entry in scored.prefix(limit) {
+            result[entry.id] = entry.score
+        }
+        return result
+    }
 }

@@ -204,6 +204,10 @@ struct HoloApp: App {
                 await HoloMemorySettings.shared.reconcileWithRepository()
                 if !simulatorMemoryValidationActive {
                     await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+                    // 通用个人情境萃取：启动补建历史想法（内部闸，冷启动不防抖）。
+                    if !appStoreScreenshotModeActive {
+                        Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }
+                    }
                 }
 
                 // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
@@ -308,6 +312,8 @@ struct HoloApp: App {
                         await HoloMemoryObservationScheduler.shared.lightweightCheck(
                             trigger: .becameActive
                         )
+                        // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
+                        Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
                     }
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
                         HoloBackgroundContinuationManager.shared.appWillEnterForeground()

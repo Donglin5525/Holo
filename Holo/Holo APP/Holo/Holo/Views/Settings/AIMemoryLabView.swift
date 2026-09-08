@@ -52,11 +52,14 @@ struct AIMemoryLabView: View {
         pendingConfirmationCount: 0,
         hasUnreadMigrationSummary: false
     )
+    @State private var contextDiagnostics = HoloPersonalContextDiagnosticsSnapshot()
+    @State private var isRunningContextExtraction = false
 
     var body: some View {
         List {
             operatingModeSection
             domainOverviewSection
+            personalContextSection
             toolsSection
             recentTraceSection
         }
@@ -125,6 +128,61 @@ struct AIMemoryLabView: View {
             Text("领域状态")
         } footer: {
             Text("进入领域后可检查最近一次真实阶段回执和当前仓库快照；只有上方“运行一次真实观察”会发起请求。")
+        }
+    }
+
+    private var personalContextSection: some View {
+        Section {
+            LabeledContent("情境库条目", value: "\(contextRecordCount) 条")
+            LabeledContent(
+                "最近萃取",
+                value: contextDiagnostics.lastExtractionAt?
+                    .formatted(.relative(presentation: .numeric)) ?? "未运行"
+            )
+            if let skip = contextDiagnostics.lastExtractionSkipReason {
+                LabeledContent("萃取跳过原因", value: skip)
+            }
+            LabeledContent(
+                "萃取累计新建",
+                value: contextDiagnostics.lastExtractionCreatedTotal.map { "\($0) 条" } ?? "—"
+            )
+            LabeledContent(
+                "最近规划",
+                value: contextDiagnostics.lastPlanningAt?
+                    .formatted(.relative(presentation: .numeric)) ?? "未运行"
+            )
+            if contextDiagnostics.lastPlanningGateClosed == true {
+                LabeledContent("规划闸门", value: "已关闭（回退普通聊天）")
+            } else if let selected = contextDiagnostics.lastPlanningSelected {
+                LabeledContent(
+                    "最近规划检索",
+                    value: "候选 \(contextDiagnostics.lastPlanningCandidates ?? 0) / 选取 \(selected) · \(contextDiagnostics.lastPlanningCoverage ?? "—")"
+                )
+            }
+
+            Button {
+                Task { await runContextExtraction() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isRunningContextExtraction {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "sparkles.rectangle.stack")
+                    }
+                    Text(isRunningContextExtraction ? "情境萃取运行中…" : "跑一轮情境萃取")
+                }
+            }
+            .disabled(isRunningContextExtraction)
+
+            Button {
+                Task { await clearContextEmbeddings() }
+            } label: {
+                Label("清空情境向量缓存（查询时自动重建）", systemImage: "arrow.triangle.2.circlepath.circle")
+            }
+        } header: {
+            Text("情境链路（想法→萃取→规划）")
+        } footer: {
+            Text("排障顺序：库内条目为 0 = 萃取没跑；有条目但规划选取为 0 = 检索没命中。")
         }
     }
 
@@ -243,6 +301,11 @@ struct AIMemoryLabView: View {
 
     private var archivedCount: Int { records.filter { $0.state == .archived }.count }
 
+    /// 情境库条目：含 personalContext 载荷的记忆记录（规划的候选来源）。
+    private var contextRecordCount: Int {
+        records.filter { $0.personalContext != nil }.count
+    }
+
     private func schedulerTarget(
         _ scope: AIMemoryLabScope
     ) -> HoloMemorySchedulerDebugTargetSnapshot? {
@@ -276,10 +339,32 @@ struct AIMemoryLabView: View {
             scheduler = await loadedScheduler
             traces = await loadedTraces
             inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
+            contextDiagnostics = HoloPersonalContextDiagnostics.load()
         } catch {
             errorMessage = String(localized: "诊断数据读取失败：\(error.localizedDescription)")
         }
         isLoading = false
+    }
+
+    @MainActor
+    private func runContextExtraction() async {
+        isRunningContextExtraction = true
+        operationResult = nil
+        let outcome = await HoloPersonalContextExtractionJob.runPass(packageLimit: 2)
+        if let skip = outcome.skippedReason {
+            operationResult = "萃取未运行：\(skip)"
+        } else {
+            operationResult = "成功：本轮 \(outcome.ranBatches) 包，累计新建 \(outcome.progress.createdRecords) 条"
+        }
+        await refresh()
+        isRunningContextExtraction = false
+    }
+
+    @MainActor
+    private func clearContextEmbeddings() async {
+        let store = HoloContextEmbeddingStore(persistence: HoloContextEmbeddingFilePersistence())
+        try? await store.invalidateAll()
+        operationResult = "成功：情境向量缓存已清空，下次规划查询时自动重建"
     }
 
     @MainActor

@@ -1,0 +1,71 @@
+{
+  "fixtureID": "heldout-synth-043",
+  "domainTags": [
+    "出行",
+    "交通"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-43-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "长途出行的习惯：4小时以内的高铁都选高铁不坐飞机，高铁一定买靠窗。超过4小时才考虑飞机。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-43-1"
+    },
+    {
+      "sourceID": "thought-43-2",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "出差行李有三样必带：充电宝、颈枕、便携装洗漱包，每次都是出发前一晚收拾。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-43-2"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "下个月要去武汉出差两天，帮我规划下出发前的准备",
+    "goalSummary": "武汉出差的行前准备规划",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户4小时以内路程优先高铁且必买靠窗座，超过4小时才考虑飞机",
+      "basisSourceIDs": [
+        "thought-43-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "出差必带充电宝、颈枕、便携洗漱包，习惯出发前一晚收拾行李",
+      "basisSourceIDs": [
+        "thought-43-2"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "具体出发日期",
+    "去程交通方式是高铁还是飞机待定（取决于用时）"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应包含按路程时长选择高铁优先的交通决策口径"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "行前准备应含三件必带品与前一晚收行李"
+    }
+  ],
+  "forbiddenClaims": [
+    "已预订高铁票",
+    "已订好酒店"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-43-1",
+      "expectedEffect": "交通偏好决策消失，不得虚构交通习惯"
+    }
+  ]
+}

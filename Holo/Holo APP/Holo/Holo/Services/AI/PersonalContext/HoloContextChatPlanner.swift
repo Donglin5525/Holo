@@ -33,6 +33,60 @@ enum HoloContextChatPlanner {
         case generationUnavailable
     }
 
+    /// 情境库条数回传盒（recordsProvider 在协调器内部异步执行，诊断用）。
+    private final class ContextCountBox: @unchecked Sendable {
+        var value = 0
+    }
+
+    /// 统一构建规划协调器：语义检索（检索闸开时）+ 想法原文兜底（rawFallback 闸开时）。
+    private static func makeCoordinator(
+        aiProvider: any AIProvider,
+        controls: HoloPersonalContextControlSnapshot,
+        repository: any HoloMemoryRepository,
+        persistence: HoloPlanningMemoryRunPersistence,
+        contextCountOut: ContextCountBox
+    ) -> HoloContextPlanningCoordinator {
+        let loadContextRecords: @Sendable () async throws -> [HoloMemoryRecord] = {
+            // 候选记录来自本机情境库（personalContext 载荷）。
+            let records = (try? await repository.query(.all)) ?? []
+            let contexts = records.filter { $0.personalContext != nil }
+            contextCountOut.value = contexts.count
+            logger.error("PLAN-DIAG records=\(records.count) contexts=\(contexts.count)")
+            return contexts
+        }
+        // 语义检索：任何失败由检索服务降级词法（degraded），不阻塞规划。
+        let semanticProvider: (any HoloContextSemanticSearchProviding)? = controls.allowsRetrieval
+            ? HoloContextSemanticSearchProvider(
+                embedding: HoloBackendAIProvider(),
+                recordsProvider: loadContextRecords,
+                accessGenerationProvider: {
+                    let control = (try? await repository.loadControlState())?
+                        .userDecisionVersion ?? 0
+                    return Int(clamping: control)
+                }
+            )
+            : nil
+        // 原文兜底依附检索闸（闸规则见 HoloPersonalContextControls）。
+        let rawFallback: (any HoloContextRawFallbackProviding)? = controls.allowsRawFallback
+            ? HoloContextThoughtRawFallbackProvider(repository: ThoughtRepository())
+            : nil
+        return HoloContextPlanningCoordinator(
+            generator: HoloContextPlanProviderAdapter(provider: aiProvider),
+            retrieval: HoloContextRetrievalService(semanticProvider: semanticProvider),
+            persistence: persistence,
+            rawFallback: rawFallback,
+            recordsProvider: loadContextRecords,
+            controlSnapshotProvider: {
+                let control = try await repository.loadControlState()
+                return HoloContextAccessGuard(
+                    userDecisionVersion: control.userDecisionVersion,
+                    learningBaselineAt: control.learningBaselineAt,
+                    controls: controls
+                )
+            }
+        )
+    }
+
     /// 从聊天请求生成情境方案草案（只读，不写业务事项）。
     /// - Parameters:
     ///   - utterance: 用户本轮原话。
@@ -55,6 +109,7 @@ enum HoloContextChatPlanner {
         )
         guard controls.allowsPlanningInjection else {
             logger.error("PLAN-DIAG gate closed")
+            HoloPersonalContextDiagnostics.recordPlanningGateClosed()
             throw PlannerError.gateClosed
         }
 
@@ -70,25 +125,13 @@ enum HoloContextChatPlanner {
         )
 
         let persistence = HoloPlanningMemoryRunPersistence()
-        let coordinator = HoloContextPlanningCoordinator(
-            generator: HoloContextPlanProviderAdapter(provider: aiProvider),
-            retrieval: HoloContextRetrievalService(semanticProvider: nil),
+        let contextCountBox = ContextCountBox()
+        let coordinator = Self.makeCoordinator(
+            aiProvider: aiProvider,
+            controls: controls,
+            repository: repository,
             persistence: persistence,
-            recordsProvider: {
-                // 候选记录来自本机情境库（personalContext 载荷）。
-                let records = (try? await repository.query(.all)) ?? []
-                let contexts = records.filter { $0.personalContext != nil }
-                logger.error("PLAN-DIAG records=\(records.count) contexts=\(contexts.count)")
-                return contexts
-            },
-            controlSnapshotProvider: {
-                let control = try await repository.loadControlState()
-                return HoloContextAccessGuard(
-                    userDecisionVersion: control.userDecisionVersion,
-                    learningBaselineAt: control.learningBaselineAt,
-                    controls: controls
-                )
-            }
+            contextCountOut: contextCountBox
         )
 
         let outcome = try await coordinator.start(
@@ -96,6 +139,13 @@ enum HoloContextChatPlanner {
             parentMessageID: parentMessageID
         )
         logger.error("PLAN-DIAG start ok: run=\(outcome.run.runID) draftItems=\(outcome.draft.items.count) answerLen=\(outcome.draft.answerText.count) entries=\(outcome.retrievalResult.entries.count) selected=\(outcome.retrievalResult.selected.count) coverage=\(outcome.retrievalResult.semanticCoverage.rawValue)")
+        HoloPersonalContextDiagnostics.recordPlanning(
+            contextCount: contextCountBox.value,
+            candidates: outcome.retrievalResult.entries.count,
+            selected: outcome.retrievalResult.selected.count,
+            coverage: outcome.retrievalResult.semanticCoverage.rawValue,
+            rawFallbackUsed: outcome.rawFallbackUsed
+        )
         return PlanOutcome(
             draft: outcome.draft,
             runID: outcome.run.runID,
@@ -159,24 +209,21 @@ enum HoloContextChatPlanner {
             goalSummary: utterance,
             referenceTime: Date()
         )
-        let coordinator = HoloContextPlanningCoordinator(
-            generator: HoloContextPlanProviderAdapter(provider: aiProvider),
-            retrieval: HoloContextRetrievalService(semanticProvider: nil),
+        let coordinator = Self.makeCoordinator(
+            aiProvider: aiProvider,
+            controls: controls,
+            repository: repository,
             persistence: persistence,
-            recordsProvider: {
-                let records = (try? await repository.query(.all)) ?? []
-                return records.filter { $0.personalContext != nil }
-            },
-            controlSnapshotProvider: {
-                let control = try await repository.loadControlState()
-                return HoloContextAccessGuard(
-                    userDecisionVersion: control.userDecisionVersion,
-                    learningBaselineAt: control.learningBaselineAt,
-                    controls: controls
-                )
-            }
+            contextCountOut: ContextCountBox()
         )
         let outcome = try await coordinator.followUp(run: run, updatedFrame: updated)
+        HoloPersonalContextDiagnostics.recordPlanning(
+            contextCount: outcome.retrievalResult.entries.count,
+            candidates: outcome.retrievalResult.entries.count,
+            selected: outcome.retrievalResult.selected.count,
+            coverage: outcome.retrievalResult.semanticCoverage.rawValue,
+            rawFallbackUsed: outcome.rawFallbackUsed
+        )
         return PlanOutcome(
             draft: outcome.draft,
             runID: outcome.run.runID,

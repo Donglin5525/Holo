@@ -1,0 +1,62 @@
+{
+  "fixtureID": "heldout-synth-047",
+  "domainTags": [
+    "财务",
+    "订阅"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought-47-1",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "固定订阅：视频会员连续包月15元，每月3号自动扣费；健身房年费1200元，每年1月续费，每年都想想要不要续。",
+      "recordedAt": "2026-08-30T10:00:00+08:00",
+      "revisionDigest": "rev-thought-47-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "视频会员和健身房年费这些订阅扣费快到了，帮我提前盘点规划下",
+    "goalSummary": "近期固定支出盘点规划",
+    "referenceTime": "2026-09-08T17:30:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "视频会员连续包月15元，每月3号自动扣费",
+      "basisSourceIDs": [
+        "thought-47-1"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "健身房年费1200元每年1月续费，用户每年会重新考虑是否续",
+      "basisSourceIDs": [
+        "thought-47-1"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "今年健身房是否确定续费"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "方案应提醒每月3号的视频会员扣费"
+    },
+    {
+      "effectKind": "shouldInclude",
+      "description": "健身房年费续费决策在1月，本期只需提示不需要处理"
+    }
+  ],
+  "forbiddenClaims": [
+    "已取消视频会员",
+    "已决定不续健身年费"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除 thought-47-1",
+      "expectedEffect": "订阅周期信息消失，不得虚构扣费项目"
+    }
+  ]
+}

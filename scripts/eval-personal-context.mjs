@@ -114,9 +114,11 @@ async function evaluateFixture(fixture) {
     extractionOK: false,
     recalledRelations: 0,
     totalRelations: fixture.expectedSupportedRelations.length,
+    relationDetails: [],
     verifiedPass: 0,
     verifiedTotal: 0,
     planOK: false,
+    planAnswerText: null,
     forbiddenViolations: [],
     hasUnknowns: false,
     error: null,
@@ -139,9 +141,28 @@ async function evaluateFixture(fixture) {
     const extraction = extractJSON(extractionRaw);
     const candidates = extraction.candidates ?? [];
     result.extractionOK = Array.isArray(candidates);
-    // 召回评分（词面口径）
+    // 召回评分（词面口径）＋逐条明细（漏召可 adjudicate）
     for (const relation of fixture.expectedSupportedRelations) {
-      if (relationHit(relation.statement, candidates)) result.recalledRelations += 1;
+      const wantKeys = contentKeys(relation.statement);
+      let hit = false;
+      let best = null;
+      for (const candidate of candidates) {
+        const got = tokenize(`${candidate.statement ?? ""} ${candidate.relationText ?? ""}`);
+        const overlap = wantKeys.filter((k) => got.has(k)).length;
+        const threshold = Math.max(3, Math.ceil(wantKeys.length * 0.3));
+        if (!best || overlap > best.overlap) {
+          best = { overlap, threshold, candidate: candidate.statement };
+        }
+        if (overlap >= threshold) hit = true;
+      }
+      result.relationDetails.push({
+        statement: relation.statement,
+        hit,
+        bestOverlap: best?.overlap ?? 0,
+        threshold: best?.threshold ?? 0,
+        nearestCandidate: best?.candidate ?? null,
+      });
+      if (hit) result.recalledRelations += 1;
     }
 
     // 2) verification（有候选才调）
@@ -195,16 +216,26 @@ async function evaluateFixture(fixture) {
     const planRaw = await callPurpose("personal_context_planning", JSON.stringify(planInput));
     const plan = extractJSON(planRaw);
     result.planOK = typeof plan.answerText === "string" && plan.answerText.length > 0;
+    result.planAnswerText = typeof plan.answerText === "string" ? plan.answerText.slice(0, 600) : null;
     result.hasUnknowns = Array.isArray(plan.unknowns) && plan.unknowns.length > 0;
     // 红线（词面口径 v2）：断言动词短语（已确认/已预订/…）与该禁断言的专有内容词
     // 同时出现才算命中——单纯复述历史事实（如「上次红包 600」）不算伪造断言。
-    const ASSERTIVE_MARKERS = ["已确认", "已经确认", "已预订", "已经预订", "已报名", "已经报名", "已安排妥当", "已恢复正常", "已设置", "每年固定", "固定"];
+    // 注意：裸「固定」不作为断言标记（描述周期性支出/规律≠替用户拍板）。
+    const ASSERTIVE_MARKERS = ["已确认", "已经确认", "已预订", "已经预订", "已报名", "已经报名", "已安排妥当", "已恢复正常", "已设置", "每年固定"];
     const planText = JSON.stringify(plan);
     for (const claim of fixture.forbiddenClaims) {
       const keys = contentKeys(claim);
-      const hasAssertive = ASSERTIVE_MARKERS.some((m) => planText.includes(m));
-      const hasSpecific = keys.filter((k) => planText.includes(k)).length >= Math.max(1, Math.floor(keys.length * 0.6));
-      if (hasAssertive && hasSpecific) result.forbiddenViolations.push(claim);
+      const matchedMarker = ASSERTIVE_MARKERS.find((m) => planText.includes(m)) ?? null;
+      const matchedKeys = keys.filter((k) => planText.includes(k));
+      const hasSpecific = matchedKeys.length >= Math.max(1, Math.floor(keys.length * 0.6));
+      if (matchedMarker && hasSpecific) {
+        result.forbiddenViolations.push({
+          claim,
+          matchedMarker,
+          matchedKeys,
+          answerTextExcerpt: (plan.answerText ?? "").slice(0, 300),
+        });
+      }
     }
   } catch (error) {
     result.error = String(error.message ?? error);
@@ -216,8 +247,12 @@ async function main() {
   const args = process.argv.slice(2);
   const set = args.includes("--set") ? args[args.indexOf("--set") + 1] : "dev";
   const sample = args.includes("--sample") ? Number(args[args.indexOf("--sample") + 1]) : null;
-  const fixtures = loadFixtures(set, sample);
-  console.log(`评测 ${set} 集 ${fixtures.length} 组（起始 device=${DEVICE}）`);
+  // --only <fixtureID[,fixtureID...]>：只跑指定组（新题先验/定点复跑，跳过断点续跑的整集扫描）。
+  const onlyArg = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
+  const onlyIDs = onlyArg ? new Set(onlyArg.split(",").map((s) => s.trim())) : null;
+  let fixtures = loadFixtures(set, sample);
+  if (onlyIDs) fixtures = fixtures.filter((f) => onlyIDs.has(f.fixtureID));
+  console.log(`评测 ${set} 集 ${fixtures.length} 组（起始 device=${DEVICE}${onlyIDs ? "，only 过滤" : ""}）`);
 
   // 断点续跑：读取上次结果，跳过已成功（无 error）的组。
   const stamp = new Date().toISOString().slice(0, 10);

@@ -38,6 +38,8 @@ struct ContextRetrievalStandaloneTests {
         try await testRetrievalHybridMergeAndShares()
         try await testRetrievalDegradedLexicalFallback()
         try await testRetrievalOccurrenceAndContradiction()
+        try await testRetrievalCrossDomainSemanticScenario()
+        try await testEmbeddingRankMultiQueryAndThreshold()
         print("ContextRetrievalStandaloneTests: \(assertionCount) 断言全部通过")
     }
 
@@ -413,5 +415,84 @@ struct ContextRetrievalStandaloneTests {
         let heating = result.entries.first { $0.recordID == "r-heating" }
         expect(heating?.currentOccurrenceStatus == .done, "本周期完成状态进入条目（不当未做）")
         expect(result.contradictions["r-heating"] == ["r-refund"], "反证记录被标注")
+    }
+
+    // MARK: 跨域场景锁（2026-09-08 真实案例）
+
+    /// 场景锁：想法记录过「上门喂猫」经历，用户问「国庆出门前家里安排」——
+    /// 字面几乎无重叠的跨域情境必须靠语义信号进入选取（S2 场景，产品化方案 §2）。
+    static func testRetrievalCrossDomainSemanticScenario() async throws {
+        let now = date("2026-09-08")
+        let utterance = "国庆节要去日本，帮我规划下出门之前家里要安排的事情"
+        let catalog = [
+            candidate(
+                recordID: "r-cat",
+                statement: "家里有猫，离家时需要安排专人上门喂养，通常找物业工作人员并付酬劳",
+                temporal: HoloContextTemporalV1(kind: .ongoing, originalExpression: "每次出门")
+            ),
+            candidate(
+                recordID: "r-weather",
+                statement: "关注台风季的航班延误风险"
+            ),
+        ]
+        // 语义提供方返回跨域候选（向量检索在运行时的职责，此处锁定检索层的合并逻辑）。
+        let service = HoloContextRetrievalService(
+            semanticProvider: FakeSemantic(scores: ["r-cat": 0.62])
+        )
+        let result = await service.retrieve(
+            frame: frame(utterance: utterance),
+            catalog: catalog,
+            calendar: calendar,
+            now: now
+        )
+        expect(result.semanticCoverage == .full, "语义可用不降级")
+        expect(result.selected.contains { $0.recordID == "r-cat" }, "喂猫情境必须进入生成选取")
+        expect(result.selected.first?.recordID == "r-cat", "喂猫情境排首位（语义分+时间信号）")
+    }
+
+    // MARK: 向量排序规则
+
+    static func testEmbeddingRankMultiQueryAndThreshold() async throws {
+        // 多查询取最大：候选 B 与查询 2 更近。
+        let ranked = HoloContextEmbeddingStore.rank(
+            candidateVectors: [
+                (id: "a", vector: [1, 0, 0]),
+                (id: "b", vector: [0, 1, 0]),
+            ],
+            queryVectors: [[1, 0, 0], [0, 1, 0]],
+            threshold: 0.5,
+            limit: 10
+        )
+        expect(ranked["a"] != nil && ranked["b"] != nil, "两候选均过阈值")
+        expect(abs((ranked["b"] ?? 0) - 1.0) < 0.0001, "候选 B 取到与查询 2 的满分")
+
+        // 阈值过滤 + limit 截断（同分按 id 升序保证确定性）。
+        let filtered = HoloContextEmbeddingStore.rank(
+            candidateVectors: [
+                (id: "x2", vector: [1, 0]),
+                (id: "x1", vector: [1, 0]),
+                (id: "low", vector: [0.9, 0.1]),
+            ],
+            queryVectors: [[1, 0]],
+            threshold: 0.95,
+            limit: 1
+        )
+        expect(Array(filtered.keys) == ["x1"], "同分 id 升序截断（实际 \(filtered.keys.sorted())）")
+
+        // 非法向量不参与：NaN/零范数被剔除。
+        let invalid = HoloContextEmbeddingStore.rank(
+            candidateVectors: [
+                (id: "nan", vector: [Double.nan, 1]),
+                (id: "zero", vector: [0, 0]),
+                (id: "ok", vector: [1, 0]),
+            ],
+            queryVectors: [[1, 0]],
+            threshold: 0.5,
+            limit: 10
+        )
+        expect(Array(invalid.keys) == ["ok"], "非法向量被剔除（实际 \(invalid.keys.sorted())）")
+
+        // 空查询/零 limit 安全返回。
+        expect(HoloContextEmbeddingStore.rank(candidateVectors: [], queryVectors: [], threshold: 0.5, limit: 5).isEmpty, "空查询返回空")
     }
 }
