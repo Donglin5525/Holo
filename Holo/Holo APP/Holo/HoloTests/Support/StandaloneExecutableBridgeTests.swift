@@ -138,11 +138,6 @@ func test_027_HoloHealthToolTests() async throws {
     try await HoloHealthToolTests.main()
 }
 
-func test_028_HoloInsightCriticTests() async throws {
-    // 来源：Services/AI/Agent/HoloInsightCriticTests.swift
-    HoloInsightCriticTests.main()
-}
-
 func test_029_HoloInsightToolTests() async throws {
     // 来源：Services/AI/Agent/HoloInsightToolTests.swift
     try await HoloInsightToolTests.main()
@@ -271,11 +266,6 @@ func test_053_HoloMemoryContextEnvelopeStandaloneTests() async throws {
 func test_054_HoloMemoryFeedbackStandaloneTests() async throws {
     // 来源：Services/AI/HoloMemoryFeedbackStandaloneTests.swift
     try await HoloMemoryFeedbackStandaloneTests.main()
-}
-
-func test_055_HoloMemoryForgettingStandaloneTests() async throws {
-    // 来源：Services/AI/HoloMemoryForgettingStandaloneTests.swift
-    try await HoloMemoryForgettingStandaloneTests.main()
 }
 
 func test_056_HoloMemoryIdentityStandaloneTests() async throws {

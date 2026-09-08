@@ -21,8 +21,8 @@ expect(taskList.contains(".fixedSize(horizontal: true, vertical: false)"), "任�
 expect(filterChip.contains(".fixedSize(horizontal: true, vertical: false)"), "共享筛选胶囊缺少横向固定内容宽度契约")
 
 let dynamicHorizontalChipSources = [
-    "Holo/Holo APP/Holo/Holo/Components/QuickTagBar.swift",
     "Holo/Holo APP/Holo/Holo/Views/AddTransaction/TransactionCategoryGrid.swift",
+    "Holo/Holo APP/Holo/Holo/Components/QuickTagBar.swift",
     "Holo/Holo APP/Holo/Holo/Views/Chat/QuickActionBar.swift",
     "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtCardView.swift",
     "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtDetailView.swift",

@@ -57,14 +57,14 @@
 
 | 编号 | 级 | 对象 | 行数 | 状态 |
 |---|---|---|---|---|
-| R0-30 | P1 | 旧记账簇：Views/AddTransactionView.swift + Views/AddTransaction/ 5 文件（生产用 AddTransactionSheet；1cc30301b 又曾往死文件加项目挂靠 UI 146 行仍不可达） | 2,117 | 待删→R2 |
-| R0-31 | P1 | 任务旧组件簇：ChecklistView/RepeatPicker/RepeatRuleView/AddFolderSheet/EditFolderSheet/PriorityPicker | 1,407 | 待删→R2 |
-| R0-32 | P1 | AI 记忆旧簇：HoloMemoryObserverService/HoloLongTermMemoryCandidateObserver/HoloMemorySnapshotBuilder/HoloEpisodicMemoryDetailView/HoloMemoryCandidateCard | 901 | 待删→R2 |
-| R0-33 | P1 | MockAIProvider | 547 | 待删→R2 |
-| R0-34 | P1 | 散件：ReferenceSelectorView/CategoryMatchEditor/PromptEditorViewModel/ChatScrollBehavior/HabitQuickCheckInView/GalleryScrollView/HoloAgentFallbackComposer/OverBudgetStripes | 1,197 | 待删→R2 |
-| R0-35 | P2 | ThoughtShareCard.swift **文件是活的**（ThoughtShareSheet 在用），仅内部旧类型 ThoughtShareCard/ThoughtShareCardPhoto/PolaroidPhoto/HoloDashedDivider 可删 | ~360 | 待删→R2（勿整文件删） |
-| R0-36 | P2 | 仅测试引用 6 处：TransactionCategoryGrid/HoloMemoryForgettingService/HoloMemoryAnchorRegistry/HoloWidgetModels/HoloInsightCritic/ChatScrollBehavior（连带删对应测试） | ~860 | 待删→R2 |
-| R0-37 | P2 | 集合文件内死类型 12 个（ScheduleSectionCard/ScheduleRowCard/RoundedCorner/DateDivider/RecentDayCoverView/MemoryStatsSummaryView/HoloAgentResultCard/HealthMetricCard/HabitCalendarHeatmap/AnalysisChatCard/TimeRangeSelector/ShimmerModifier/HealthStatusChip/CategoryLegendRow） | ~500-800 | 待删→R2 |
+| R0-30 | ~~P1~~ | **误判豁免**：AddTransaction「旧记账簇」实为活代码——6 文件是 AddTransactionSheet 的扩展实现（typeTabBar/categoryGrid/infoInputArea 等在用），「新旧互不引用」系误读，**不得删除**；仅 AddTransactionView.swift（342 行）确认死、已删 | 342 | 已删→R2 |
+| R0-31 | P1 | 任务旧组件簇：ChecklistView/RepeatPicker/RepeatRuleView/AddFolderSheet/EditFolderSheet/PriorityPicker | 1,407 | 已删→R2 |
+| R0-32 | P1 | AI 记忆旧簇：逐类型精修——服务类/视图删除，内部活类型（DomainMemoryLLMClient/ObserverExecutor/RunInput/memoryInsightDidGenerate 通知名等）保留并按活内容重命名文件 | ~400 | 已删→R2 |
+| R0-33 | P1 | MockAIProvider | 547 | 已删→R2 |
+| R0-34 | P1 | 散件：ReferenceSelectorView/CategoryMatchEditor/PromptEditorViewModel/HabitQuickCheckInView/HoloAgentFallbackComposer（ChatScrollBehavior/OverBudgetStripes/GalleryScrollView 内含活类型恢复保留） | ~650 | 已删→R2 |
+| R0-35 | ~~P2~~ | **误判豁免**：ThoughtShareCard.swift 全文件基本是活的（ThoughtShareSheet+ThoughtShareCard 导出渲染+PolaroidPhoto 在用）；仅 HoloDashedDivider 曾判死，后证实被活卡引用而恢复 | 0 | 豁免（误判） |
+| R0-36 | P2 | 仅测试引用 4 处：HoloMemoryForgettingService(测试+pbxproj 手术)/HoloInsightCritic(同)/ChatScrollBehavior(测试同删)——HoloWidgetModels/HoloMemoryAnchorRegistry 复核为活或收益不足，豁免 | ~500 | 已删→R2 |
+| R0-37 | P2 | 集合文件死类型（逐项复核后确认）：RoundedCorner+HoloRectCorner+SummaryCard+DateDivider；ScheduleSectionCard/ScheduleRowCard/EmptyStateView/AnalysisChatCard(实为 AnalysisSummaryChatCard)/TimeRangeLabel 等复核为活 | ~200 | 已删→R2 |
 
 ### D. 冗余（→ 第 3 轮）
 
