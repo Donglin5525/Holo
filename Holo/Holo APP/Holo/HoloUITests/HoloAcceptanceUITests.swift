@@ -161,4 +161,45 @@ final class HoloListDarkMode: XCTestCase {
         }
         shoot("D2_list_scrolled")
     }
+    // MARK: - 手势回归（2026-09-08 右滑返回体检）
+
+    /// 模块根页（SwipeBackModifier 常驻层）与二级页（holoEdgeSwipeBack 全屏 cover）
+    /// 两条右滑返回通道的回归：从屏幕左缘右滑，页面必须关闭。
+    func testEdgeSwipeBackRegression() throws {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.004, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5))
+
+        // 记忆长廊：模块根页
+        let gallery = app.buttons["记忆长廊"].firstMatch
+        XCTAssertTrue(gallery.waitForExistence(timeout: 10), "首页长廊入口不存在")
+        gallery.tap()
+        let weekChip = app.buttons["周"].firstMatch
+        XCTAssertTrue(weekChip.waitForExistence(timeout: 8), "长廊未打开")
+        // 档位条行尾「今天」必须完整落在屏内（右缘截断回归锚点）
+        let today = app.buttons["今天"].firstMatch
+        if today.waitForExistence(timeout: 3) {
+            XCTAssertLessThanOrEqual(today.frame.maxX, app.frame.maxX, "「今天」按钮被屏幕右缘截断")
+        }
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertFalse(weekChip.waitForExistence(timeout: 4), "长廊右滑未关闭")
+        _ = app.buttons["记忆长廊"].firstMatch.waitForExistence(timeout: 5)
+
+        // 财务账本 → 搜索页：fullScreenCover 二级页
+        let finance = app.buttons["财务"].firstMatch
+        XCTAssertTrue(finance.waitForExistence(timeout: 10), "首页财务入口不存在")
+        finance.tap()
+        sleep(2)
+        let searchBtn = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'magnifyingglass' OR identifier CONTAINS 'magnifyingglass'")
+        ).firstMatch
+        guard searchBtn.waitForExistence(timeout: 5) else {
+            throw XCTSkip("财务搜索按钮无 AX 标识，跳过")
+        }
+        searchBtn.tap()
+        sleep(1)
+        XCTAssertFalse(searchBtn.isHittable, "搜索页未打开（账本仍可点）")
+        start.press(forDuration: 0.05, thenDragTo: end)
+        sleep(1)
+        XCTAssertTrue(searchBtn.isHittable, "财务搜索页右滑未关闭")
+    }
 }

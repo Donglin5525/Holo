@@ -28,6 +28,9 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         let controller = UIViewController()
+        let host = EdgeSwipeHitView()
+        host.gestureEnabled = isEnabled
+        controller.view = host
         controller.view.backgroundColor = .clear
         controller.view.isUserInteractionEnabled = true
 
@@ -46,6 +49,25 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UIViewController, context: Context) {
         context.coordinator.onBack = onBack
         context.coordinator.gesture?.isEnabled = isEnabled
+        (controller.view as? EdgeSwipeHitView)?.gestureEnabled = isEnabled
+    }
+
+    /// 只接管左缘 20pt 的触摸，其余点位一律返回 nil 穿透到下层内容。
+    /// iOS 26 上 SwiftUI 不再把 hit 触达 background 层（挂 background 时识别器
+    /// 收不到任何触摸，右滑整个失效），必须挂 overlay 并自己做点位过滤。
+    final class EdgeSwipeHitView: UIView {
+        var gestureEnabled = true
+        private let edgeWidth: CGFloat = 20
+
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            guard gestureEnabled,
+                  point.x < edgeWidth,
+                  isUserInteractionEnabled,
+                  !isHidden,
+                  alpha > 0.01
+            else { return nil }
+            return super.hitTest(point, with: event)
+        }
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
@@ -93,7 +115,8 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
 extension View {
     /// 全屏页边缘右滑返回。挂在使用 fullScreenCover 呈现的页面根部。
     /// isEnabled=false 时不识别（多形态页面 push 形态让位给系统返回）。
+    /// 挂载必须是 overlay 而非 background：background 在内容层之后，触摸到不了识别器。
     func holoEdgeSwipeBack(isEnabled: Bool = true, action: @escaping () -> Void) -> some View {
-        background(EdgeSwipeBackRepresentable(onBack: action, isEnabled: isEnabled))
+        overlay(EdgeSwipeBackRepresentable(onBack: action, isEnabled: isEnabled))
     }
 }

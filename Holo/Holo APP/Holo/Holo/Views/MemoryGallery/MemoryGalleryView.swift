@@ -155,17 +155,24 @@ struct MemoryGalleryView: View {
     /// 两 tab 常驻：隐藏而非销毁。若用 switch 切换，CalendarRootView 的
     /// @StateObject 会随切走释放、切回重建，触发 ±60 天全量重载 —— 切换动画同帧
     /// 跑四模块取数 + 泳道重建，即此前「洞察切回日历肉眼可见卡顿」的根因。
+    /// 两 tab 必须用 GeometryReader 锁定到实际列宽：ZStack 取子项理想宽度的最大值，
+    /// 隐藏 tab 的单行不换行文案（章节头/统计行）会以完整理想宽参与取最大，
+    /// 把整个容器撑到比屏幕宽（2026-09-08 实测 426pt，右缘的「今天」「全部」全被挤出屏）。
     private var tabContent: some View {
-        ZStack {
-            calendarTab
-                .opacity(selectedTab == .calendar ? 1 : 0)
-                .allowsHitTesting(selectedTab == .calendar)
-                .accessibilityHidden(selectedTab != .calendar)
+        GeometryReader { geo in
+            ZStack {
+                calendarTab
+                    .frame(width: geo.size.width)
+                    .opacity(selectedTab == .calendar ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .calendar)
+                    .accessibilityHidden(selectedTab != .calendar)
 
-            insightTab
-                .opacity(selectedTab == .insight ? 1 : 0)
-                .allowsHitTesting(selectedTab == .insight)
-                .accessibilityHidden(selectedTab != .insight)
+                insightTab
+                    .frame(width: geo.size.width)
+                    .opacity(selectedTab == .insight ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .insight)
+                    .accessibilityHidden(selectedTab != .insight)
+            }
         }
     }
 
