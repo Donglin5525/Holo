@@ -40,7 +40,7 @@ class BudgetRepository {
 
     private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "BudgetRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "BudgetRepository")
 
     private init() {}
 

@@ -149,7 +149,7 @@ actor HoloAgentEventStore: HoloAgentEventRecording {
     private let store: HoloAgentJSONStore<HoloAgentTelemetryEvent>
     private let maxCount: Int
     private let retentionInterval: TimeInterval
-    private let logger = Logger(subsystem: "com.holo.app", category: "AgentObservability")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AgentObservability")
 
     init(directory: URL? = nil, maxCount: Int = 1_000, retentionDays: Int = 14) {
         if let directory {

@@ -336,7 +336,7 @@ extension AddTransactionSheet {
             await loadRecentCategories()
             cleanStaleCategoryRefs()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "CategoryGrid")
+            Logger(subsystem: HoloLog.subsystem, category: "CategoryGrid")
                 .error("加载分类失败：\(error.localizedDescription)")
         }
     }

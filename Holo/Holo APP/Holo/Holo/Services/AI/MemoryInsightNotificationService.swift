@@ -71,7 +71,7 @@ final class MemoryInsightNotificationService {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightNotification")
+                let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightNotification")
                 logger.error("安排周提醒失败：\(error.localizedDescription)")
             }
         }
@@ -114,7 +114,7 @@ final class MemoryInsightNotificationService {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightNotification")
+                let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightNotification")
                 logger.error("安排月提醒失败：\(error.localizedDescription)")
             }
         }

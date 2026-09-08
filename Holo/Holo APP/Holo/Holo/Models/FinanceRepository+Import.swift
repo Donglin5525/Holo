@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 import os.log
 
-private let financeImportLogger = Logger(subsystem: "com.holo.app", category: "FinanceImport")
+private let financeImportLogger = Logger(subsystem: HoloLog.subsystem, category: "FinanceImport")
 
 extension FinanceRepository {
 

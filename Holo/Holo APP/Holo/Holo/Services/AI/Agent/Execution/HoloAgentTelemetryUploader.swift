@@ -17,7 +17,7 @@ final class HoloAgentTelemetryUploader {
 
     static let shared = HoloAgentTelemetryUploader()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AgentTelemetry")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AgentTelemetry")
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String

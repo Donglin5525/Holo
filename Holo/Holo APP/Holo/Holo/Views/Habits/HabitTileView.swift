@@ -16,7 +16,7 @@ import os.log
 
 struct HabitTileView: View {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HabitTileView")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HabitTileView")
 
     // MARK: - 输入
 

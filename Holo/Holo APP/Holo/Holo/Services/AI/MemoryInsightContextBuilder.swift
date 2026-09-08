@@ -48,7 +48,7 @@ struct MemoryInsightContextBuilder {
         self.dataContext = dataContext ?? CoreDataStack.shared.viewContext
     }
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightContextBuilder")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightContextBuilder")
 
     // MARK: - Token Budgets
 

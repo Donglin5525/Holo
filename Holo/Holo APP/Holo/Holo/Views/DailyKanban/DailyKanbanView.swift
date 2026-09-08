@@ -250,7 +250,7 @@ struct DailyKanbanView: View {
             editingHabit = nil
             HapticManager.light()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("记录数值失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "UI").error("记录数值失败: \(error.localizedDescription)")
         }
     }
 }

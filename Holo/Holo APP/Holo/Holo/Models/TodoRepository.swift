@@ -25,7 +25,7 @@ extension Notification.Name {
 @MainActor
 class TodoRepository: ObservableObject {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "TodoRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "TodoRepository")
 
     // MARK: - Singleton
 
@@ -709,7 +709,7 @@ class TodoRepository: ObservableObject {
         do {
             return try context.fetch(request)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TodoRepository").error("加载已归档任务失败：\(error)")
+            Logger(subsystem: HoloLog.subsystem, category: "TodoRepository").error("加载已归档任务失败：\(error)")
             return []
         }
     }

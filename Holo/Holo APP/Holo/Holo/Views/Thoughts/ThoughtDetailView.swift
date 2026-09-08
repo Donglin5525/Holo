@@ -15,7 +15,7 @@ import os.log
 /// 想法详情视图
 struct ThoughtDetailView: View {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtDetailView")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtDetailView")
 
     // MARK: - Properties
 

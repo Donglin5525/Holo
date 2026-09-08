@@ -10,7 +10,7 @@ import os.log
 
 /// 旧长期记忆文件的实例化实现。实例隔离让迁移和并发回归测试不会触碰用户真实数据。
 final class HoloLongTermMemoryFileStore: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.holo.app", category: "LongTermMemoryStore")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "LongTermMemoryStore")
     private let fileManager: FileManager
     private let storeURL: URL
     private let backupURL: URL

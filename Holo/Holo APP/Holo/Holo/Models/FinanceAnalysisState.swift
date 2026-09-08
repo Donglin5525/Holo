@@ -16,7 +16,7 @@ import os.log
 @MainActor
 class FinanceAnalysisState: ObservableObject {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "FinanceAnalysisState")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "FinanceAnalysisState")
 
     // MARK: - 发布属性
 

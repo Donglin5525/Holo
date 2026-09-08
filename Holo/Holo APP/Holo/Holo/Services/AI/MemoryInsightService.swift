@@ -20,7 +20,7 @@ final class MemoryInsightService {
         HoloAIFeatureFlags.agentMemoryGalleryEnabled
     }
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightService")
     private let repository = MemoryInsightRepository()
     private let contextBuilder = MemoryInsightContextBuilder()
 

@@ -45,7 +45,7 @@ class TodoNotificationService: NSObject, ObservableObject {
 
     // MARK: - Properties
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "TodoNotification")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "TodoNotification")
 
     // MARK: - Initialization
 

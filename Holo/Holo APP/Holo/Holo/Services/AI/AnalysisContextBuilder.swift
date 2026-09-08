@@ -11,7 +11,7 @@ import os.log
 
 struct AnalysisContextBuilder {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "AnalysisContextBuilder")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "AnalysisContextBuilder")
 
     /// 构建分析上下文
     @MainActor

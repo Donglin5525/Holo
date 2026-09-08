@@ -94,7 +94,7 @@ extension TodoRepository {
         )
 
         guard let tasks = try? context.fetch(request) else {
-            Logger(subsystem: "com.holo.app", category: "TodoRepository")
+            Logger(subsystem: HoloLog.subsystem, category: "TodoRepository")
                 .error("获取完成趋势失败")
             return []
         }
@@ -208,7 +208,7 @@ extension TodoRepository {
         do {
             return try context.count(for: request)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TodoRepository")
+            Logger(subsystem: HoloLog.subsystem, category: "TodoRepository")
                 .error("获取任务统计失败: \(error.localizedDescription)")
             return 0
         }

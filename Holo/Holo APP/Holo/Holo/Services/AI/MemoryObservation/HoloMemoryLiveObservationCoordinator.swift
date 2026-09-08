@@ -147,7 +147,7 @@ nonisolated struct HoloMemoryLiveObservationRunSummary: Equatable, Sendable {
 actor HoloMemoryLiveObservationCoordinator {
     static let shared = HoloMemoryLiveObservationCoordinator()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "LiveMemoryObservation")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "LiveMemoryObservation")
     private let defaults = UserDefaults.standard
     private let signalDigestKey = "holo_memory_live_signalDigests_v1"
     private let fusionOccurrenceKey = "holo_memory_live_fusionOccurrences_v1"

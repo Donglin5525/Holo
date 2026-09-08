@@ -10,7 +10,7 @@ import os.log
 
 struct FinanceLedgerView: View {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "FinanceLedgerView")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "FinanceLedgerView")
 
     // MARK: - Properties
 

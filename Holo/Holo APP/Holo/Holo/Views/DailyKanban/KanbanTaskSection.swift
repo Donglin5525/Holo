@@ -363,7 +363,7 @@ struct KanbanTaskSection: View {
                 try todoRepo.uncompleteTask(task)
                 HapticManager.medium()
             } catch {
-                Logger(subsystem: "com.holo.app", category: "UI").error("取消完成失败: \(error.localizedDescription)")
+                Logger(subsystem: HoloLog.subsystem, category: "UI").error("取消完成失败: \(error.localizedDescription)")
             }
         } else if pendingCompletionTaskId == task.id {
             // 撤回窗口内再点完成圈 → 撤回完成（与任务列表一致）
@@ -388,7 +388,7 @@ struct KanbanTaskSection: View {
             try todoRepo.planTask(task, for: Date())
             HapticManager.light()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("加入今日失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "UI").error("加入今日失败: \(error.localizedDescription)")
         }
     }
 

@@ -12,7 +12,7 @@ import os.log
 final class InsightPreferenceProfileService {
     static let shared = InsightPreferenceProfileService()
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "InsightPreferenceProfile")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "InsightPreferenceProfile")
 
     private let fileURL: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

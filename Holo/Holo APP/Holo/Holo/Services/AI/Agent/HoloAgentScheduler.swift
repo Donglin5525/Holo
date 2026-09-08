@@ -26,7 +26,7 @@ actor HoloAgentScheduler {
     private var continuedClient: (any HoloContinuedProcessingClient)?
     /// Phase 7 无敏感结构化事件；测试默认 no-op，生产 shared 显式注入持久化仓库。
     private let eventRecorder: any HoloAgentEventRecording
-    private let logger = Logger(subsystem: "com.holo.app", category: "AgentScheduler")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AgentScheduler")
 
     /// 执行注册表（§6.1）：jobID → 执行 Task。同一 jobID 任意时刻最多一个。
     private var activeTasks: [String: Task<HoloAgentJob, Error>] = [:]

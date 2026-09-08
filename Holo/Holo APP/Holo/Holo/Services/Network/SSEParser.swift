@@ -11,7 +11,7 @@ import os
 
 nonisolated struct SSEParser {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "SSEParser")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "SSEParser")
 
     /// 解析单行 SSE 数据
     /// - Parameter line: 一行 SSE 文本

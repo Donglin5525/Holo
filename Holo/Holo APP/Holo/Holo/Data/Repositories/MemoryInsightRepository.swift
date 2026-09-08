@@ -13,7 +13,7 @@ import os.log
 /// 记忆洞察数据仓储
 final class MemoryInsightRepository {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightRepository")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightRepository")
 
     private let context: NSManagedObjectContext
 

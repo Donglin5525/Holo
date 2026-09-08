@@ -20,7 +20,7 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
     // MARK: - Properties
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtOrgQueue")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtOrgQueue")
     let service: ThoughtOrganizationService
 
     /// 状态写入口（默认主上下文；测试注入内存仓储）

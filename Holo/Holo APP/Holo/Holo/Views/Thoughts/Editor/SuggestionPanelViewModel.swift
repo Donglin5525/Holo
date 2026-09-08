@@ -55,7 +55,7 @@ final class SuggestionPanelViewModel: ObservableObject {
     }
 
     private let repository = ThoughtRepository()
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtSuggestion")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtSuggestion")
     private var searchTask: Task<Void, Never>?
     private var searchGeneration = 0
     private static let debounce: Duration = .milliseconds(150)

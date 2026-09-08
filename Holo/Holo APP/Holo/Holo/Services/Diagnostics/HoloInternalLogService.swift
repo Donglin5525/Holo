@@ -3,7 +3,7 @@ import Combine
 import Foundation
 import OSLog
 
-private let internalLogLogger = Logger(subsystem: "com.holo.app", category: "HoloInternalLog")
+private let internalLogLogger = Logger(subsystem: HoloLog.subsystem, category: "HoloInternalLog")
 
 @MainActor
 final class HoloInternalLogService: ObservableObject {

@@ -9,7 +9,7 @@ import SwiftUI
 import CoreData
 import os
 
-private let logger = Logger(subsystem: "com.holo.app", category: "TransactionSaveHandler")
+private let logger = Logger(subsystem: HoloLog.subsystem, category: "TransactionSaveHandler")
 
 // MARK: - Save / Delete / Copy
 

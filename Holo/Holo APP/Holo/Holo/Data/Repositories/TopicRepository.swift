@@ -15,7 +15,7 @@ import OSLog
 final class TopicRepository {
 
     private let context: NSManagedObjectContext
-    private let logger = Logger(subsystem: "com.holo.app", category: "TopicRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "TopicRepository")
 
     private static let visibleStatusValues = [
         Topic.TopicStatus.active.rawValue,

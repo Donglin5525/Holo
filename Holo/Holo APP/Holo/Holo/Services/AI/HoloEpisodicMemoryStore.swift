@@ -11,7 +11,7 @@ import OSLog
 final class HoloEpisodicMemoryStore: @unchecked Sendable {
     static let shared = HoloEpisodicMemoryStore()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "EpisodicMemoryStore")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "EpisodicMemoryStore")
     private let fileManager: FileManager
     private let storeURL: URL
     private let backupURL: URL

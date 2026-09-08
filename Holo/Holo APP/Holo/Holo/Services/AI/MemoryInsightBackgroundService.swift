@@ -15,7 +15,7 @@ final class MemoryInsightBackgroundService {
 
     static let shared = MemoryInsightBackgroundService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightBackground")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightBackground")
 
     private let taskIdentifier = "com.holo.app.memoryInsightRefresh"
     private let retryWeekKey = "holo.weeklyObservation.retry.week"

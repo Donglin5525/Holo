@@ -11,7 +11,7 @@ import os.log
 
 enum MemoryCandidateSemanticMapper {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryCandidateMapper")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryCandidateMapper")
 
     // 允许输出 memoryCandidate 的卡片类型
     private static let eligibleCardTypes: Set<MemoryInsightCardType> = [

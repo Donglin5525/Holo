@@ -29,7 +29,7 @@ final class AccountDataDeletionService {
 
     static let shared = AccountDataDeletionService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AccountDataDeletionService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AccountDataDeletionService")
 
     private init() {}
 

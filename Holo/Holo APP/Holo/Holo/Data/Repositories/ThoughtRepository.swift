@@ -27,7 +27,7 @@ class ThoughtRepository {
     // MARK: - Properties
 
     private(set) var context: NSManagedObjectContext
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtRepository")
 
     // MARK: - UserDefaults Keys
 

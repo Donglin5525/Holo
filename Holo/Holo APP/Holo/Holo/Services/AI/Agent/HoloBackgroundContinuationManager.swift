@@ -14,6 +14,7 @@
 
 import UIKit
 import Foundation
+import os
 import Network
 
 @MainActor
@@ -81,6 +82,8 @@ final class HoloBackgroundTaskLease {
 /// 生命周期转发器（Phase 5 收缩后）：只把场景事件转给 Scheduler 与恢复链。
 @MainActor
 final class HoloBackgroundContinuationManager {
+
+    private static let agentLogger = Logger(subsystem: HoloLog.subsystem, category: "AgentContinuation")
 
     private let runtime: HoloLocalAgentRuntime
     private let scheduler: HoloAgentScheduler
@@ -192,7 +195,7 @@ final class HoloBackgroundContinuationManager {
                 do {
                     _ = try await scheduler.reconcileContinuedProcessingRequests()
                 } catch {
-                    NSLog("[Agent] 启动 continued 请求清理失败（不阻塞启动）: \(String(describing: error))")
+                    Self.agentLogger.error("[Agent] 启动 continued 请求清理失败（不阻塞启动）: \(String(describing: error), privacy: .public)")
                 }
                 do {
                     let report = try await reconciler.reconcile()
@@ -201,10 +204,10 @@ final class HoloBackgroundContinuationManager {
                             name: .resultReconciled,
                             errorCode: "STARTUP_CONSISTENCY_REPAIR"
                         ))
-                        NSLog("[Agent] 启动一致性修复完成: \(report)")
+                        Self.agentLogger.notice("[Agent] 启动一致性修复完成: \(String(describing: report), privacy: .public)")
                     }
                 } catch {
-                    NSLog("[Agent] 启动一致性修复失败（不阻塞启动）: \(String(describing: error))")
+                    Self.agentLogger.error("[Agent] 启动一致性修复失败（不阻塞启动）: \(String(describing: error), privacy: .public)")
                 }
             }
             guard !Task.isCancelled else { return }
@@ -220,13 +223,13 @@ final class HoloBackgroundContinuationManager {
                     toolDescriptions: toolDescriptions
                 )
             } catch {
-                NSLog("[Agent] 恢复未完成 job 失败: \(String(describing: error))")
+                Self.agentLogger.error("[Agent] 恢复未完成 job 失败: \(String(describing: error), privacy: .public)")
             }
             _ = await HoloAgentAnalysisService().syncRecoverableChatMessages()
             do {
                 _ = try await scheduler.cleanupTerminalJobs()
             } catch {
-                NSLog("[Agent] 终态 job 清理失败: \(String(describing: error))")
+                Self.agentLogger.error("[Agent] 终态 job 清理失败: \(String(describing: error), privacy: .public)")
             }
             // 恢复哨兵（2026-08-30 锁屏事故）：恢复链触发 ≠ 任务真的动起来——
             // 事故里解锁后 10+ 分钟没有任何请求，界面却显示「自动进行中」。
@@ -271,7 +274,7 @@ final class HoloBackgroundContinuationManager {
                 errorCode: "RESUME_STALLED"
             ))
             didMarkStalled = true
-            NSLog("[Agent] 恢复哨兵：job 恢复未兑现，已切换如实文案 jobID=\(stalled.id)")
+            Self.agentLogger.notice("[Agent] 恢复哨兵：job 恢复未兑现，已切换如实文案 jobID=\(stalled.id, privacy: .public)")
         }
         if didMarkStalled {
             _ = await HoloAgentAnalysisService().syncRecoverableChatMessages()

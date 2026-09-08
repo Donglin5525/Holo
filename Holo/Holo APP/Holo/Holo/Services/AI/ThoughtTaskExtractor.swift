@@ -41,7 +41,7 @@ struct ThoughtTaskExtractionResult: Equatable {
 @MainActor
 final class ThoughtTaskExtractor {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtTaskExtractor")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtTaskExtractor")
     private let aiProvider: HoloBackendAIProvider
 
     init(aiProvider: HoloBackendAIProvider? = nil) {

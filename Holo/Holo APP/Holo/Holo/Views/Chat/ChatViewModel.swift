@@ -52,7 +52,7 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Private
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ChatViewModel")
     /// 首屏只装载足够覆盖约 3～5 屏的内容，降低复杂卡片首次布局的尖峰。
     private let initialHistoryLimit = 24
     /// 输入草稿持久化 key（退出界面再回来恢复未发送的文字）
@@ -2711,7 +2711,7 @@ final class ChatViewModel: ObservableObject {
             let encoded = try JSONEncoder().encode(payload)
             return String(data: encoded, encoding: .utf8)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+            Logger(subsystem: HoloLog.subsystem, category: "ChatViewModel")
                 .error("编码 extractedData 失败：\(error.localizedDescription)")
             return nil
         }
@@ -2724,7 +2724,7 @@ final class ChatViewModel: ObservableObject {
             let encoded = try JSONEncoder().encode(batch)
             return String(data: encoded, encoding: .utf8)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+            Logger(subsystem: HoloLog.subsystem, category: "ChatViewModel")
                 .error("编码 parsedBatch 失败：\(error.localizedDescription)")
             return nil
         }
@@ -2737,7 +2737,7 @@ final class ChatViewModel: ObservableObject {
             let encoded = try JSONEncoder().encode(batch)
             return String(data: encoded, encoding: .utf8)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+            Logger(subsystem: HoloLog.subsystem, category: "ChatViewModel")
                 .error("编码 executionBatch 失败：\(error.localizedDescription)")
             return nil
         }
@@ -2755,7 +2755,7 @@ final class ChatViewModel: ObservableObject {
             let encoded = try encoder.encode(context)
             return String(data: encoded, encoding: .utf8)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+            Logger(subsystem: HoloLog.subsystem, category: "ChatViewModel")
                 .error("编码 analysisContext 失败：\(error.localizedDescription)")
             return nil
         }

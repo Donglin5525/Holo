@@ -21,7 +21,7 @@ struct InsightDebugEntry: Codable, Identifiable {
 final class MemoryInsightDebugLogService {
     static let shared = MemoryInsightDebugLogService()
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightDebugLog")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightDebugLog")
 
     private let maxEntries = 50
     private let fileURL: URL = {

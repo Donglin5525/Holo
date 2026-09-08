@@ -37,7 +37,7 @@ enum ArchiveTab: String, CaseIterable {
 /// 归档管理页面
 struct ArchiveManagementView: View {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ArchiveManagementView")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ArchiveManagementView")
 
     // MARK: - Properties
 

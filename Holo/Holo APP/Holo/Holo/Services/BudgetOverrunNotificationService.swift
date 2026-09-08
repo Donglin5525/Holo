@@ -23,7 +23,7 @@ final class BudgetOverrunNotificationService {
     /// 每日全局 1 条的上次发送日（yyyy-MM-dd）
     private static let lastGlobalDayKey = "holo.budgetOverrun.lastGlobalDay"
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "BudgetOverrunNotify")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "BudgetOverrunNotify")
 
     private var cancellables = Set<AnyCancellable>()
 

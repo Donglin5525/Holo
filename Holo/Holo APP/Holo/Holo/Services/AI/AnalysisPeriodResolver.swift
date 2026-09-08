@@ -23,7 +23,7 @@ struct ResolvedAnalysisRequest: Equatable {
 
 struct AnalysisPeriodResolver {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "AnalysisPeriodResolver")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "AnalysisPeriodResolver")
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")

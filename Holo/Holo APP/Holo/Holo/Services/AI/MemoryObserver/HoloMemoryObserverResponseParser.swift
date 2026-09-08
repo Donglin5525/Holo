@@ -37,7 +37,7 @@ struct WeakenedEntry: Codable {
 
 enum HoloMemoryObserverResponseParser {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryObserverParser")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryObserverParser")
 
     /// 解析 Observer LLM 输出
     /// - Returns: 解析成功返回 output，失败返回 nil（不 throw，失败兜底）

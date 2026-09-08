@@ -43,7 +43,7 @@ struct CalendarEventProvider {
     let todoRepo: TodoRepository
     let thoughtRepo: ThoughtRepository
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "CalendarEventProvider")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "CalendarEventProvider")
 
     /// 单模块的分项结果（直接带 state，不用 Result 避免 String→Error 协议限制）
     struct Partial {

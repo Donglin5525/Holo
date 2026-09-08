@@ -25,7 +25,7 @@ enum CalendarExpandState {
 @MainActor
 class CalendarState: ObservableObject {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "CalendarState")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "CalendarState")
 
     // MARK: - 对外发布属性
     

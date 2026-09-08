@@ -10,7 +10,7 @@ import Combine
 import Foundation
 import OSLog
 
-private let authLogger = Logger(subsystem: "com.holo.app", category: "AppleSignInAuthService")
+private let authLogger = Logger(subsystem: HoloLog.subsystem, category: "AppleSignInAuthService")
 
 enum HoloAuthStatus: Equatable {
     case signedOut

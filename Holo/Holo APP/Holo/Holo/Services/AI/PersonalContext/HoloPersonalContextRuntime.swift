@@ -213,7 +213,7 @@ struct HoloPersonalContextProviderLLM: HoloPersonalContextLLMCalling {
 @MainActor
 enum HoloPersonalContextExtractionJob {
     private static let logger = Logger(
-        subsystem: "com.holo.app",
+        subsystem: HoloLog.subsystem,
         category: "PersonalContextExtraction"
     )
 

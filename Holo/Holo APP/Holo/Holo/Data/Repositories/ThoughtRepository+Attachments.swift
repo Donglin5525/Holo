@@ -11,7 +11,7 @@ import os.log
 
 extension ThoughtRepository {
 
-    private static let thoughtAttachmentLogger = Logger(subsystem: "com.holo.app", category: "ThoughtRepository+Attachments")
+    private static let thoughtAttachmentLogger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtRepository+Attachments")
 
     // MARK: - 添加附件
 

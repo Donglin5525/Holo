@@ -15,7 +15,7 @@ import os.log
 
 /// 简易日志工具
 private enum ThoughtLog {
-    private static let logger = Logger(subsystem: "com.holo.app", category: "ThoughtEditor")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtEditor")
     static func error(_ message: String, _ error: String) {
         logger.error("\(message): \(error)")
     }

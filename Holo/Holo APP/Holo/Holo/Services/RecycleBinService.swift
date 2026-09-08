@@ -145,7 +145,7 @@ final class RecycleBinService: ObservableObject {
 
     static let shared = RecycleBinService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "RecycleBin")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "RecycleBin")
 
     /// 回收站批次列表（按删除时间倒序）
     @Published private(set) var batches: [RecycleBinBatchInfo] = []

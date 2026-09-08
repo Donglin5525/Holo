@@ -24,7 +24,7 @@ nonisolated enum AttachmentFileManager {
         let thumbnailData: Data
     }
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "AttachmentFileManager")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "AttachmentFileManager")
 
     // MARK: - 目录结构
 

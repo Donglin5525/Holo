@@ -26,7 +26,7 @@ final class BillDueReminderScheduler {
     /// 通知标识前缀（identifier 形如 holo.billDue.{projectId}），重排前按前缀清旧
     private static let identifierPrefix = "holo.billDue."
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "BillDueReminder")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "BillDueReminder")
 
     private var cancellables = Set<AnyCancellable>()
 

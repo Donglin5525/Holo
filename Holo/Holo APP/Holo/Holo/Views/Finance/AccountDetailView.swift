@@ -1000,11 +1000,7 @@ struct AccountDetailView: View {
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
+        NumberFormatter.currency.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
     }
 
     /// 同年分组标题：「8月22日 星期六」

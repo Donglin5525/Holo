@@ -90,7 +90,7 @@ final class HoloFeedbackService {
 
     static let shared = HoloFeedbackService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HoloFeedback")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloFeedback")
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String

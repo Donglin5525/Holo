@@ -27,7 +27,7 @@ enum DrawerNode: Hashable {
 /// 想法列表视图
 struct ThoughtListView: View {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtListView")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtListView")
 
     // MARK: - Properties
 
@@ -1208,7 +1208,7 @@ struct ThoughtListView: View {
             loadThoughts()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("归档/恢复想法失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "ThoughtListView").error("归档/恢复想法失败: \(error.localizedDescription)")
             HoloToastCenter.shared.show(String(localized: "操作失败，请重试"), type: .error)
         }
     }
@@ -1224,7 +1224,7 @@ struct ThoughtListView: View {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             loadThoughts()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("删除想法失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "ThoughtListView").error("删除想法失败: \(error.localizedDescription)")
         }
     }
 

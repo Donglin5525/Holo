@@ -15,7 +15,7 @@ struct CategoryManagementView: View {
 
     @Environment(\.dismiss) var dismiss
     private let repository = FinanceRepository.shared
-    private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryManagement")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "CategoryManagement")
     
     @State private var transactionType: TransactionType = .expense
     @State private var topLevelCategories: [Category] = []
@@ -496,7 +496,7 @@ struct CategoryManagementView: View {
 struct AddCategorySheet: View {
     @Environment(\.dismiss) var dismiss
     private let repository = FinanceRepository.shared
-    private static let logger = Logger(subsystem: "com.holo.app", category: "AddCategorySheet")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "AddCategorySheet")
 
     let parentId: UUID?
     let type: TransactionType
@@ -615,7 +615,7 @@ struct AddCategorySheet: View {
 struct EditCategorySheet: View {
     @Environment(\.dismiss) var dismiss
     private let repository = FinanceRepository.shared
-    private static let logger = Logger(subsystem: "com.holo.app", category: "EditCategorySheet")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "EditCategorySheet")
 
     let category: Category
     let onSave: () -> Void

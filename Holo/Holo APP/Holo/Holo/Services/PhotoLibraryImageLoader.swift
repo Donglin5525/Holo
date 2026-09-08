@@ -23,7 +23,7 @@ import os.log
 
 nonisolated enum PhotoLibraryImageLoader {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "PhotoLibraryImageLoader")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "PhotoLibraryImageLoader")
 
     // MARK: - 加载
 

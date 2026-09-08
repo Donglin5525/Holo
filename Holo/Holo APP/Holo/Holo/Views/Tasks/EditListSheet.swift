@@ -18,7 +18,7 @@ struct EditListSheet: View {
     @State private var selectedFolderId: UUID? = nil
     @State private var showDismissAlert: Bool = false
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "EditListSheet")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "EditListSheet")
 
     // 预设颜色
     private let colors = [

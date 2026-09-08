@@ -21,7 +21,7 @@ struct TaskPostponeSnapshot {
 extension TodoRepository {
 
     private static let postponeLogger = Logger(
-        subsystem: "com.holo.app", category: "TodoRepository.Postpone"
+        subsystem: HoloLog.subsystem, category: "TodoRepository.Postpone"
     )
 
     /// 延期单个任务到面板选项的落点；返回撤回快照

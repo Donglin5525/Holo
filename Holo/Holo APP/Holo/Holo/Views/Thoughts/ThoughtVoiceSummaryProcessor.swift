@@ -16,7 +16,7 @@ protocol VoiceTranscriptPostProcessing: Sendable {
 @MainActor
 final class ThoughtVoiceSummaryProcessor: VoiceTranscriptPostProcessing {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtVoiceSummaryProcessor")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtVoiceSummaryProcessor")
     private let aiProvider: HoloBackendAIProvider
     private let promptManager: PromptManager
 

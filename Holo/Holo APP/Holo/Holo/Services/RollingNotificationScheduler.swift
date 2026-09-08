@@ -26,7 +26,7 @@ class RollingNotificationScheduler {
         dataChangeNotifications: [Notification.Name] = []
     ) {
         self.identifierPrefix = identifierPrefix
-        self.logger = Logger(subsystem: "com.holo.app", category: loggerCategory)
+        self.logger = Logger(subsystem: HoloLog.subsystem, category: loggerCategory)
 
         for name in dataChangeNotifications {
             NotificationCenter.default.publisher(for: name)

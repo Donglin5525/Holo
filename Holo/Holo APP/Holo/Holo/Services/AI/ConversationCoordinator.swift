@@ -34,7 +34,7 @@ struct ConversationProcessResult {
 @MainActor
 final class ConversationCoordinator {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ConversationCoordinator")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ConversationCoordinator")
     private let intentRouter: IntentRouting
 
     init(intentRouter: IntentRouting? = nil) {

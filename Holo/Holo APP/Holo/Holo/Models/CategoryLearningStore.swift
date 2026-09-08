@@ -18,7 +18,7 @@ nonisolated final class CategoryLearningStore {
 
     static let shared = CategoryLearningStore()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "CategoryLearningStore")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "CategoryLearningStore")
 
     private let lock = NSLock()
     /// 精确映射缓存：与历史 UserDefaults 结构一致（key: type|primary|candidate → value: primary|sub）

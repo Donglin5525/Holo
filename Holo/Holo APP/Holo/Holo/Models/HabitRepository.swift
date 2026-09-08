@@ -25,7 +25,7 @@ extension Notification.Name {
 @MainActor
 class HabitRepository: ObservableObject {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HabitRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HabitRepository")
 
     // MARK: - Singleton
 

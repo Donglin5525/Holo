@@ -16,7 +16,7 @@ final class UserPreferenceRepository {
 
     static let shared = UserPreferenceRepository()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "UserPreference")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "UserPreference")
 
     /// 昵称在同步表里的键
     static let displayNameKey = "userDisplayName"

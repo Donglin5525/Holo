@@ -19,7 +19,7 @@ final class HoloCloudPushTokenService {
 
     static let shared = HoloCloudPushTokenService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "CloudAnalysis")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "CloudAnalysis")
     private let client: HoloCloudAnalysisClient
     private var lastReportedToken: String?
     private static let reportedTokenKey = "holo.cloudAnalysis.lastReportedPushToken"

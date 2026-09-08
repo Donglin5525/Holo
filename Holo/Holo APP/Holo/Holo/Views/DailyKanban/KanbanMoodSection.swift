@@ -122,7 +122,7 @@ struct KanbanMoodSection: View {
             }
             HapticManager.success()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("保存今日记录失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "UI").error("保存今日记录失败: \(error.localizedDescription)")
             HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
         }
     }

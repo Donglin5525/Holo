@@ -77,7 +77,7 @@ struct TaskCardView: View {
         return Color(hex: list.color ?? "#007AFF")
     }
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "TaskCardView")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "TaskCardView")
 
     /// 显示完成态（task 已完成 或 正在完成中）
     private var showsCompleted: Bool {

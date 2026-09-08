@@ -20,7 +20,7 @@ import os.log
 /// - 记录每个字段的解析置信度
 enum HoloProfileSnapshotBuilder {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "ProfileSnapshotBuilder")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "ProfileSnapshotBuilder")
 
     // MARK: - Section 名称映射
 

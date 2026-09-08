@@ -21,7 +21,7 @@ struct HabitPrefillDraft: Identifiable {
 /// 新增习惯表单
 struct AddHabitSheet: View {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AddHabitSheet")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AddHabitSheet")
 
     // MARK: - Properties
 

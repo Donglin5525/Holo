@@ -12,7 +12,7 @@ import os.log
 
 actor HoloLocalAgentRuntime {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AgentRuntime")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AgentRuntime")
 
     /// 模块内可访问：HoloBackgroundContinuationManager 装配 ConsistencyReconciler 时需要（§5.4）。
     let persistence: HoloAgentPersistenceManager

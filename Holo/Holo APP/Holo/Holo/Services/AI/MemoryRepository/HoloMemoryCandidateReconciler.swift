@@ -15,7 +15,7 @@ struct HoloMemoryCandidateReconcileResult: Equatable, Sendable {
 }
 
 enum HoloMemoryCandidateReconciler {
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryCandidateReconciler")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryCandidateReconciler")
     private static let defaultsKey = "holo_memory_candidate_reconcile_policy_version"
 
     /// 策略版本升级后重评估存量待确认记忆；返回 nil 表示当前版本已执行过。

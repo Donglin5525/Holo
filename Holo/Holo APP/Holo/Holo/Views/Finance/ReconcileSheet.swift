@@ -280,10 +280,6 @@ struct ReconcileSheet: View {
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? "¥0.00"
+        NumberFormatter.currency.string(from: NSDecimalNumber(decimal: amount)) ?? "¥0.00"
     }
 }

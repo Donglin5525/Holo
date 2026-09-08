@@ -11,7 +11,7 @@ import os.log
 
 struct HealthAnalysisContextBuilder {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HealthAnalysisCtx")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HealthAnalysisCtx")
 
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter()

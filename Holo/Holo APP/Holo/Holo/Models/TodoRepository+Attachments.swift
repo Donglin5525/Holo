@@ -11,7 +11,7 @@ import os.log
 
 extension TodoRepository {
 
-    private static let attachmentLogger = Logger(subsystem: "com.holo.app", category: "TodoRepository+Attachments")
+    private static let attachmentLogger = Logger(subsystem: HoloLog.subsystem, category: "TodoRepository+Attachments")
 
     // MARK: - 添加附件
 

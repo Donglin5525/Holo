@@ -11,7 +11,7 @@ import os.log
 
 struct HabitAnalysisContextBuilder {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HabitAnalysisCtx")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HabitAnalysisCtx")
 
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter()

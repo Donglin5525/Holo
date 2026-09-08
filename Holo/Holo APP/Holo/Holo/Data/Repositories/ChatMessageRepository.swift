@@ -19,7 +19,7 @@ final class ChatMessageRepository: ObservableObject {
     @Published private(set) var messages: [ChatMessageViewData] = []
     @Published private(set) var hasEarlierSessions: Bool = false
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ChatMessageRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ChatMessageRepository")
     private var liveMessageCache: [UUID: ChatMessage] = [:]
     private var oldestLoadedTimestamp: Date?
     private let sessionGap: TimeInterval = 4 * 60 * 60 // 4 小时会话边界

@@ -13,7 +13,7 @@ nonisolated final class APIClient {
 
     static let shared = APIClient()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "APIClient")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "APIClient")
     private let urlSession: URLSession
     private let maxRetries = 3
     /// STEP_IN_PROGRESS 退避序列：入参为第几次重试（1 起），默认指数 2^n 秒。

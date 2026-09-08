@@ -148,7 +148,7 @@ struct TaskDetailView: View {
     @State private var attachmentsRevision = 0
     @State private var pendingCameraImageData: Data?
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "TaskDetailView")
 
     // MARK: - Init
 
@@ -1487,7 +1487,7 @@ struct TaskDetailView: View {
             }
             HapticManager.medium()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TaskDetailView").error("延期失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "TaskDetailView").error("延期失败: \(error.localizedDescription)")
         }
     }
 

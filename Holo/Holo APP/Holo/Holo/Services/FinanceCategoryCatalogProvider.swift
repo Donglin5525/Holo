@@ -12,7 +12,7 @@ import os.log
 final class FinanceCategoryCatalogProvider {
     static let shared = FinanceCategoryCatalogProvider()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "FinanceCategoryCatalogProvider")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "FinanceCategoryCatalogProvider")
     private let baseURL: String
     private let apiClient: APIClient
     private let cache: FinanceCategoryCatalogCache

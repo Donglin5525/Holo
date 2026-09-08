@@ -69,7 +69,7 @@ final class HoloCloudAnalysisClient {
         }
     }
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "CloudAnalysis")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "CloudAnalysis")
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String

@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 import OSLog
 
-private let sensitiveMigrationLogger = Logger(subsystem: "com.holo.app", category: "SensitiveDebugMigration")
+private let sensitiveMigrationLogger = Logger(subsystem: HoloLog.subsystem, category: "SensitiveDebugMigration")
 
 enum SensitiveDebugDataMigration {
     private static let completionKey = "holo.migration.sensitiveDebugData.v1"

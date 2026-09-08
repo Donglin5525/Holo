@@ -16,7 +16,7 @@ import os.log
 @MainActor
 enum ThoughtSemanticCandidateEngine {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "ThoughtSemanticCandidates")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtSemanticCandidates")
 
     /// 邻居想法认可标签的注入上限（prompt 语义候选 ≤8 个）
     static let maxNeighborTags = 8

@@ -14,7 +14,7 @@ import os.log
 @MainActor
 final class OpenAICompatibleProvider: AIProvider {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "OpenAICompatibleProvider")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "OpenAICompatibleProvider")
     private let config: AIProviderConfig
     private let apiClient: APIClient
     private(set) var lastCallLog: LLMCallLog?

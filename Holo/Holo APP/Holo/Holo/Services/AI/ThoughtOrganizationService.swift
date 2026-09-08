@@ -14,7 +14,7 @@ final class ThoughtOrganizationService {
 
     // MARK: - Properties
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtOrganization")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ThoughtOrganization")
     private let aiProvider: HoloBackendAIProvider
 
     // MARK: - Rejected Tags 偏好索引

@@ -31,7 +31,7 @@ final class HoloContentReportService {
 
     static let shared = HoloContentReportService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HoloContentReport")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloContentReport")
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String

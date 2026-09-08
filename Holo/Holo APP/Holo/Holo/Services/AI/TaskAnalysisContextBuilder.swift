@@ -12,7 +12,7 @@ import os.log
 
 struct TaskAnalysisContextBuilder {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "TaskAnalysisCtx")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "TaskAnalysisCtx")
 
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter()

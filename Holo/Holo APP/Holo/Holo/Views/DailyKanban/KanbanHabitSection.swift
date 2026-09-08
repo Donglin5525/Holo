@@ -329,7 +329,7 @@ struct KanbanHabitSection: View {
                 HapticManager.taskCompletion()
             }
         } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("打卡失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "UI").error("打卡失败: \(error.localizedDescription)")
             HoloToastCenter.shared.show(String(localized: "打卡失败，请重试"), type: .error)
         }
     }
@@ -340,7 +340,7 @@ struct KanbanHabitSection: View {
             todayValues[habit.id] = habitRepo.getTodayValue(for: habit)
             HapticManager.light()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("计数失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "UI").error("计数失败: \(error.localizedDescription)")
             HoloToastCenter.shared.show(String(localized: "计数失败，请重试"), type: .error)
         }
     }
@@ -360,7 +360,7 @@ struct KanbanHabitSection: View {
             }
             HapticManager.light()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("撤销失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "UI").error("撤销失败: \(error.localizedDescription)")
             HoloToastCenter.shared.show(String(localized: "撤销失败，请重试"), type: .error)
         }
     }

@@ -31,7 +31,7 @@ final class HoloProfileService: ObservableObject {
 
     var hasProfile: Bool { !profileContent.isEmpty }
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HoloProfileService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloProfileService")
     private var fileURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory

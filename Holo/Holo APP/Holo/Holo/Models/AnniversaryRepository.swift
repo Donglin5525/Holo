@@ -29,7 +29,7 @@ extension Notification.Name {
 @MainActor
 class AnniversaryRepository {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AnniversaryRepository")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AnniversaryRepository")
 
     // MARK: - Singleton
 

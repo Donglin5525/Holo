@@ -1138,7 +1138,7 @@ struct TaskListView: View {
                                 try repository.toggleTaskCompletion(task)
                                 HapticManager.medium()
                             } catch {
-                                Logger(subsystem: "com.holo.app", category: "TaskListView").error("取消完成失败: \(error.localizedDescription)")
+                                Logger(subsystem: HoloLog.subsystem, category: "TaskListView").error("取消完成失败: \(error.localizedDescription)")
                             }
                         } else if pendingCompletionTaskId == task.id {
                             // 撤回窗口内再点完成圈/反勾子项 → 撤回完成
@@ -1208,7 +1208,7 @@ struct TaskListView: View {
                 snapshots: [snapshot]
             )
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TaskListView").error("延期失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "TaskListView").error("延期失败: \(error.localizedDescription)")
         }
     }
 
@@ -1223,7 +1223,7 @@ struct TaskListView: View {
                 snapshots: snapshots
             )
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TaskListView").error("批量延期失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "TaskListView").error("批量延期失败: \(error.localizedDescription)")
         }
     }
 
@@ -1351,7 +1351,7 @@ struct TaskListView: View {
                 revealedTaskId = nil
             }
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TaskListView").error("归档任务失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "TaskListView").error("归档任务失败: \(error.localizedDescription)")
         }
     }
 
@@ -1363,7 +1363,7 @@ struct TaskListView: View {
                 revealedTaskId = nil
             }
         } catch {
-            Logger(subsystem: "com.holo.app", category: "TaskListView").error("删除任务失败: \(error.localizedDescription)")
+            Logger(subsystem: HoloLog.subsystem, category: "TaskListView").error("删除任务失败: \(error.localizedDescription)")
         }
     }
 

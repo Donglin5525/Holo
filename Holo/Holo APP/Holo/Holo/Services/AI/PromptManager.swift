@@ -15,7 +15,7 @@ final class PromptManager {
 
     static let shared = PromptManager()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "PromptManager")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "PromptManager")
     private var rawTemplateCache: [PromptType: String] = [:]
 
     private init() {}

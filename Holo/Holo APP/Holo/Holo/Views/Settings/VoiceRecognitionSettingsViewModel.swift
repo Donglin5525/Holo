@@ -23,7 +23,7 @@ final class VoiceRecognitionSettingsViewModel: ObservableObject {
     @Published var isConfigured = false
     @Published var isLoading = true
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "VoiceRecognitionSettings")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "VoiceRecognitionSettings")
 
     enum TestResult {
         case success(String)

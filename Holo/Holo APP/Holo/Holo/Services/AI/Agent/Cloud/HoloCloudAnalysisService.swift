@@ -18,7 +18,7 @@ final class HoloCloudAnalysisService {
 
     static let shared = HoloCloudAnalysisService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "CloudAnalysis")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "CloudAnalysis")
     private let client: HoloCloudAnalysisClient
     private let analysisService: HoloAgentAnalysisService
     private let repository: ChatMessageRepository

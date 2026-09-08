@@ -73,7 +73,7 @@ extension ChatMessage {
             do {
                 result = try JSONDecoder().decode([String: String].self, from: data)
             } catch {
-                Logger(subsystem: "com.holo.app", category: "ChatMessage")
+                Logger(subsystem: HoloLog.subsystem, category: "ChatMessage")
                     .error("解析 extractedDataJSON 失败：\(error.localizedDescription)")
                 result = nil
             }
@@ -101,7 +101,7 @@ extension ChatMessage {
             do {
                 result = try JSONDecoder().decode(AIParseBatch.self, from: data)
             } catch {
-                Logger(subsystem: "com.holo.app", category: "ChatMessage")
+                Logger(subsystem: HoloLog.subsystem, category: "ChatMessage")
                     .error("解析 parsedBatchJSON 失败：\(error.localizedDescription)")
                 result = nil
             }
@@ -124,7 +124,7 @@ extension ChatMessage {
             do {
                 result = try JSONDecoder().decode(AIExecutionBatch.self, from: data)
             } catch {
-                Logger(subsystem: "com.holo.app", category: "ChatMessage")
+                Logger(subsystem: HoloLog.subsystem, category: "ChatMessage")
                     .error("解析 executionBatchJSON 失败：\(error.localizedDescription)")
                 result = nil
             }

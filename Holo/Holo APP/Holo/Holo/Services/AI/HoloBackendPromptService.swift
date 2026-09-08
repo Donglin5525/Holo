@@ -20,7 +20,7 @@ final class HoloBackendPromptService {
 
     static let shared = HoloBackendPromptService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HoloBackendPromptService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloBackendPromptService")
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String

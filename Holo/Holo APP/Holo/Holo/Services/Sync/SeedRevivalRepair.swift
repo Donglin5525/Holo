@@ -23,7 +23,7 @@ enum SeedRevivalRepair {
     /// 未编辑判定容差：种子行创建时 createdAt 与 updatedAt 几乎同刻
     private static let freshEditTolerance: TimeInterval = 60
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "SeedRevivalRepair")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "SeedRevivalRepair")
 
     /// 种子函数真正创建了默认数据时记录时刻；多次种子取最早，
     /// 保证所有种子行的 createdAt 都不早于该时刻（铁证判定不误伤）

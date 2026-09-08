@@ -11,7 +11,7 @@ import CoreData
 import os.log
 
 struct DailySenseStateBuilder {
-    private static let logger = Logger(subsystem: "com.holo.app", category: "DailySenseStateBuilder")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "DailySenseStateBuilder")
 
     /// 生成今日状态快照
     static func buildToday() async -> DailySenseSnapshot? {

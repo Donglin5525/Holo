@@ -29,7 +29,7 @@ struct TaskSplitResult: Equatable {
 @MainActor
 final class TaskTextSplitter {
     private let provider: AIProvider
-    private let logger = Logger(subsystem: "com.holo.app", category: "TaskTextSplitter")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "TaskTextSplitter")
 
     init(provider: AIProvider) {
         self.provider = provider

@@ -33,7 +33,7 @@ enum MemoryInsightParseFailure: LocalizedError, Equatable {
 /// 解析 AI 返回的洞察 JSON
 enum MemoryInsightResponseParser {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightResponseParser")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryInsightResponseParser")
 
     // MARK: - Parse
 

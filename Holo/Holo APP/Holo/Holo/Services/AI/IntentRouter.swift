@@ -14,7 +14,7 @@ final class IntentRouter {
 
     static let shared = IntentRouter()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "IntentRouter")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "IntentRouter")
 
     private init() {}
 

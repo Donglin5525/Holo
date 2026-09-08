@@ -51,7 +51,7 @@ final class ThoughtTagConvergenceJob: ObservableObject {
     private let topicRepository: TopicRepository
     private let rejectionRepository: ConvergenceRejectionRepository
     private let jobStore: ThoughtTagConvergenceJobStore
-    private let logger = Logger(subsystem: "com.holo.app", category: "ConvergenceJob")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ConvergenceJob")
 
     // MARK: - 重试配置（参考 ThoughtOrganizationQueue：指数退避 5s→30s→120s）
 

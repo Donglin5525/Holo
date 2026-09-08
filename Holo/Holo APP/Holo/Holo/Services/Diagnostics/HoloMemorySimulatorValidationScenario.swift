@@ -275,7 +275,7 @@ nonisolated enum HoloMemorySimulatorValidationFixtureError: Error, Equatable {
 @MainActor
 enum HoloMemorySimulatorValidationScenario {
     private static let logger = Logger(
-        subsystem: "com.holo.app",
+        subsystem: HoloLog.subsystem,
         category: "MemorySimulatorValidation"
     )
 

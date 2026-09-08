@@ -11,7 +11,7 @@ import os.log
 final class HoloLifePatternService {
     static let shared = HoloLifePatternService()
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "HoloLifePattern")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloLifePattern")
     private let minEvidenceCount = 2
 
     private let fileURL: URL = {

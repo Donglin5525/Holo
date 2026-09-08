@@ -11,7 +11,7 @@ import os.log
 @MainActor
 final class HoloBackendAIProvider: AIProvider {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HoloBackendAIProvider")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloBackendAIProvider")
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String

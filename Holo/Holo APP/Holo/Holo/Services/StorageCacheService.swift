@@ -20,7 +20,7 @@ final class StorageCacheService: ObservableObject {
     @Published var isCalculating = false
     @Published var isClearing = false
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "StorageCacheService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "StorageCacheService")
 
     var formattedSize: String {
         Self.formatBytes(cacheSize)
@@ -103,7 +103,7 @@ final class StorageCacheService: ObservableObject {
                         }
                     }
                 } catch {
-                    Logger(subsystem: "com.holo.app", category: "StorageCacheService")
+                    Logger(subsystem: HoloLog.subsystem, category: "StorageCacheService")
                         .error("计算调试字段大小失败: \(error.localizedDescription)")
                 }
             }
@@ -178,10 +178,10 @@ final class StorageCacheService: ObservableObject {
                     message.setValue(nil, forKey: "analysisContextJSON")
                 }
                 try context.save()
-                Logger(subsystem: "com.holo.app", category: "StorageCacheService")
+                Logger(subsystem: HoloLog.subsystem, category: "StorageCacheService")
                     .info("已清理 \(results.count) 条消息的调试字段")
             } catch {
-                Logger(subsystem: "com.holo.app", category: "StorageCacheService")
+                Logger(subsystem: HoloLog.subsystem, category: "StorageCacheService")
                     .error("清理调试字段失败: \(error.localizedDescription)")
             }
         }

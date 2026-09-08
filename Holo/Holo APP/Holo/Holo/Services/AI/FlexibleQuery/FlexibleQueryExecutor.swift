@@ -13,7 +13,7 @@ import os.log
 // MARK: - Executor
 
 final class FlexibleQueryExecutor {
-    private let logger = Logger(subsystem: "com.holo.app", category: "FlexibleQueryExecutor")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "FlexibleQueryExecutor")
 
     /// 执行 Query Plan，返回结构化结果
     func execute(_ plan: FlexibleQueryPlan) async throws -> FlexibleQueryResult {

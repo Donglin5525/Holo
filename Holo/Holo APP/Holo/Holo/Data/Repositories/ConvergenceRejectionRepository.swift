@@ -19,7 +19,7 @@ final class ConvergenceRejectionRepository {
     nonisolated static let defaultExpiryDays = 90
 
     private let context: NSManagedObjectContext
-    private let logger = Logger(subsystem: "com.holo.app", category: "ConvergenceRejectionRepo")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "ConvergenceRejectionRepo")
 
     init(context: NSManagedObjectContext = CoreDataStack.shared.viewContext) {
         self.context = context

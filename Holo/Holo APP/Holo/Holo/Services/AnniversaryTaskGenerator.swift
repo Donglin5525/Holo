@@ -19,7 +19,7 @@ final class AnniversaryTaskGenerator {
 
     static let shared = AnniversaryTaskGenerator()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AnniversaryTaskGen")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AnniversaryTaskGen")
 
     private init() {}
 

@@ -50,7 +50,7 @@ class HomeScheduleService: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var refreshTimer: Timer?
-    private let logger = Logger(subsystem: "com.holo.app", category: "HomeScheduleService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "HomeScheduleService")
 
     /// 延迟访问 TodoRepository（避免 init 时触发 Core Data I/O）
     private var repository: TodoRepository { TodoRepository.shared }

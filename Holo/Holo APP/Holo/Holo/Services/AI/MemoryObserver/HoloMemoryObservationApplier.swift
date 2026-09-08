@@ -57,7 +57,7 @@ struct ApplyResult {
 
 final class HoloMemoryObservationApplier {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "MemoryApplier")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryApplier")
     private let store = HoloEpisodicMemoryStore.shared
 
     /// 应用一次观察结果

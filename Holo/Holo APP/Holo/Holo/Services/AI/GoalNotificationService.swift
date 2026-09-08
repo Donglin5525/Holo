@@ -22,7 +22,7 @@ final class GoalNotificationService {
         NotificationCenter.default.post(name: .goalDataDidChange, object: nil)
     }
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "GoalNotification")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "GoalNotification")
 
     /// 通知 identifier 前缀：重排时按前缀清理全部待发目标通知
     private static let identifierPrefix = "holo-goal-risk-"

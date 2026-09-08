@@ -113,7 +113,7 @@ nonisolated enum MerchantAggregatePlanResolver {
 // MARK: - Planner
 
 final class FlexibleQueryPlanner {
-    private let logger = Logger(subsystem: "com.holo.app", category: "FlexibleQueryPlanner")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "FlexibleQueryPlanner")
     private let provider: AIProvider
 
     init(provider: AIProvider) {

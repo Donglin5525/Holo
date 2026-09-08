@@ -289,7 +289,7 @@ enum HoloAgentChatStatusPresenter {
 @MainActor
 final class HoloAgentAnalysisService {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AgentAnalysis")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AgentAnalysis")
     private let runtime: HoloLocalAgentRuntime
     private let scheduler: HoloAgentScheduler
 

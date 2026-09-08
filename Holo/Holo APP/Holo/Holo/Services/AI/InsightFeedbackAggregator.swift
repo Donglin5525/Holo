@@ -13,7 +13,7 @@ import os.log
 final class InsightFeedbackAggregator {
     static let shared = InsightFeedbackAggregator()
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "InsightFeedbackAggregator")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "InsightFeedbackAggregator")
 
     /// 弱信号过期天数
     private let weakSignalExpiryDays = 30

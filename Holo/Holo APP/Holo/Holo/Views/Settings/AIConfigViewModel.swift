@@ -26,7 +26,7 @@ final class AIConfigViewModel: ObservableObject {
     @Published var isConfigured = false
     @Published var isLoading = true
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "AIConfigViewModel")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "AIConfigViewModel")
 
     enum TestResult {
         case success(String)

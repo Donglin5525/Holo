@@ -18,7 +18,7 @@ import OSLog
 @MainActor
 enum HoloContextChatPlanner {
     private static let logger = Logger(
-        subsystem: "com.holo.app",
+        subsystem: HoloLog.subsystem,
         category: "PersonalContextPlanner"
     )
 

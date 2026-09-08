@@ -3,7 +3,7 @@ import Combine
 import Foundation
 import OSLog
 
-private let internalAccessLogger = Logger(subsystem: "com.holo.app", category: "HoloInternalAccess")
+private let internalAccessLogger = Logger(subsystem: HoloLog.subsystem, category: "HoloInternalAccess")
 
 @MainActor
 protocol HoloBackendSessionStoring {

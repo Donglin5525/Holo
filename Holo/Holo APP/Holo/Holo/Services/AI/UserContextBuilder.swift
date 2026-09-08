@@ -14,7 +14,7 @@ final class UserContextBuilder {
 
     static let shared = UserContextBuilder()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "UserContextBuilder")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "UserContextBuilder")
 
     private init() {}
 

@@ -28,7 +28,7 @@ final class EffectiveRecordDayService: ObservableObject {
 
     private static let cacheKey = "holo.weeklyObservation.effectiveRecordDay.v1"
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "EffectiveRecordDayService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "EffectiveRecordDayService")
     private var cancellables = Set<AnyCancellable>()
 
     private init() {}

@@ -19,7 +19,7 @@ import os.log
 /// 支持两级匹配：精确匹配 → 归纳模式匹配
 enum CategoryLearnedMapping {
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryLearnedMapping")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "CategoryLearnedMapping")
 
     /// 存储键：type|primary|candidate  →  目标: primaryCategory|subCategory
     /// （历史 UserDefaults key，现仅用于存量迁移读取）

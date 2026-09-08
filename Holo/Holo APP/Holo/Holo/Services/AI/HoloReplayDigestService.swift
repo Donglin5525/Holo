@@ -83,7 +83,7 @@ private struct ReplayDigestAIOutput: Codable {
 final class HoloReplayDigestService {
     static let shared = HoloReplayDigestService()
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "HoloReplayDigest")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloReplayDigest")
 
     /// 回填触发阈值：历史回放少于该数不回填（远期摘要价值不足）
     private static let backfillThreshold = 4
@@ -583,7 +583,7 @@ private struct ConsolidateRequest: Encodable {
 /// 监听 .memoryInsightDidGenerate，异步触发累计摘要 consolidate。
 /// - Important: 必须在 App 启动时调用 `startObserving()` 注册（参照 HoloWidgetSnapshotService）。
 enum HoloReplayDigestObserver {
-    private static let logger = Logger(subsystem: "com.holo.app", category: "HoloReplayDigestObserver")
+    private static let logger = Logger(subsystem: HoloLog.subsystem, category: "HoloReplayDigestObserver")
     private static var observer: NSObjectProtocol?
 
     static func startObserving() {

@@ -15,7 +15,7 @@ final class KeychainService {
 
     static let shared = KeychainService()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "KeychainService")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "KeychainService")
 
     private init() {}
 

@@ -12,7 +12,7 @@ import OSLog
 final class HoloMemoryRuntime {
     static let shared = HoloMemoryRuntime()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "MemoryRuntime")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "MemoryRuntime")
     private var cachedRepository: CoreDataHoloMemoryRepository?
 
     func repository() async throws -> CoreDataHoloMemoryRepository {

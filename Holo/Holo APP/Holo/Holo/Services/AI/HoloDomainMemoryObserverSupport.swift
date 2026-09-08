@@ -54,7 +54,7 @@ struct HoloDomainMemoryObserverExecutor {
     private let client: any HoloDomainMemoryLLMClient
     private let storeProvider: StoreProvider
     private let accessProvider: AccessProvider
-    private let logger = Logger(subsystem: "com.holo.app", category: "DomainMemoryObserver")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "DomainMemoryObserver")
 
     init(
         client: any HoloDomainMemoryLLMClient,

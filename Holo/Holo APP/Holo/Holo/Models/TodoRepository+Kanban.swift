@@ -10,7 +10,7 @@ import os.log
 
 extension TodoRepository {
 
-    private static let kanbanLogger = Logger(subsystem: "com.holo.app", category: "TodoRepository+Kanban")
+    private static let kanbanLogger = Logger(subsystem: HoloLog.subsystem, category: "TodoRepository+Kanban")
 
     // MARK: - 看板查询
 

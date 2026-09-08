@@ -14,7 +14,7 @@ import os.log
 final class HoloPeriodReplayCoordinator {
     static let shared = HoloPeriodReplayCoordinator()
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "PeriodReplay")
+    private let logger = Logger(subsystem: HoloLog.subsystem, category: "PeriodReplay")
     private let repository = ChatMessageRepository.shared
     private let maxAttempts = 3
     private let networkMonitor = NWPathMonitor()
