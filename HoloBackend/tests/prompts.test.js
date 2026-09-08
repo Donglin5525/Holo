@@ -141,9 +141,10 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   );
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  // 红线 5950（v30 新增 contextual_planning 意图后上调；v28 时为 5750）：v28 新增 3 意图后为 ~5679；v29 时间后置治理新增 [HOLO_INTENT_TIME_V29]
+  // 红线 6200（v30 新增 contextual_planning 意图后上调；v28 时为 5750）：v28 新增 3 意图后为 ~5679；v29 时间后置治理新增 [HOLO_INTENT_TIME_V29]
   // 语境段后为 ~5729（红线 5710→5750），结构变更允许重划红线并升版本。
-  assert.ok(prompt.content.length < 5950, `prompt 长度 ${prompt.content.length} 超过 5950`);
+  // 1cc30301b 财务项目一期补项目路由后为 ~6141（红线 5950→6200，当时漏调、发版闸门补记）。
+  assert.ok(prompt.content.length < 6200, `prompt 长度 ${prompt.content.length} 超过 6200`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红
