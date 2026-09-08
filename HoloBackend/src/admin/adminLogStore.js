@@ -46,6 +46,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   'personal_context_verification',
   'personal_context_request',
   'personal_context_planning',
+  // 截图识别（2026-09-09 方案 §5.1）：请求含用户图片本体，识别完即弃，
+  // 日志只留元数据（图片字节数/图型/置信度），任何情况下不落图片与正文。
+  'vision_extraction',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */
@@ -59,6 +62,8 @@ const METADATA_RESPONSE_KEYS = new Set([
   'stage', 'outcome', 'anchorCount', 'assignmentCount', 'catalogSize',
   'finishReason', 'idempotencyHit', 'status', 'runId', 'stepId',
   'labels', 'riskLevel',
+  // 截图识别理解单的观测元数据（图型/置信度/交易笔数，无用户内容）
+  'imageType', 'confidence', 'transactionCount',
 ]);
 
 function pickWhitelist(value, allowedKeys) {

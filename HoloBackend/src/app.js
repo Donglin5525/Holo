@@ -45,6 +45,7 @@ import { createContentModerationService } from "./moderation/contentModerationSe
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
+import { extractJsonContent, normalizeUnderstanding } from "./vision/understandingContract.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -1144,6 +1145,145 @@ export function createApp(overrides = {}) {
   // 图片以 base64 数组随 JSON 提交，解码校验 JPEG 魔数后写文件系统（见 feedbackStore）。
   const FEEDBACK_CATEGORIES = new Set(["suggestion", "issue", "other"]);
   const FEEDBACK_CONTACT_TYPES = new Set(["wechat", "qq", "email", "phone"]);
+  // ===== 截图识别记账（docs/plans/2026-09-09-screenshot-receipt-billing-plan.md §5）=====
+  // 独立视觉端点：不放开 /v1/ai/chat/completions 的纯文本校验（30 个 purpose 共用的门），
+  // 校验/限流/日志/「图片即弃」全部在本端点闭环。
+  // 隐私契约：图片只在内存中转传视觉模型，识别完即弃——不落盘（与 feedback 相反），
+  // vision_extraction 在 adminLogStore metadata_only 强制清单，日志只有元数据。
+  // 额度契约（2026-09-09 拍板 3）：不占会员池，独立限流桶 20/天兜量；
+  // 上线后测算真实成本再定额度策略（vision-extraction-cost-review-pending）。
+  app.post("/v1/ai/vision/extract", async (context) => {
+    let logId = null;
+    let logFinished = false;
+    const finishLog = (payload) => {
+      if (logId && !logFinished) {
+        logFinished = true;
+        adminLogStore.finishAiCall(logId, payload);
+      }
+    };
+    try {
+      const route = config.routes.vision_extraction;
+      if (!route) {
+        throw new GatewayError("SERVICE_DISABLED", "Vision extraction is not configured", 503);
+      }
+      const provider = providers.get(route.provider);
+      if (!provider) {
+        throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
+      }
+
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+      const caption = typeof request.text === "string" ? request.text.trim().slice(0, 500) : "";
+      if (typeof request.image !== "string" || request.image.length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "image (base64 JPEG) is required", 400);
+      }
+      const imageBuffer = Buffer.from(request.image, "base64");
+      if (imageBuffer.length < 4 || imageBuffer[0] !== 0xff || imageBuffer[1] !== 0xd8) {
+        throw new GatewayError("INVALID_REQUEST", "image must be JPEG data", 400);
+      }
+      if (imageBuffer.length > config.limits.visionMaxImageBytes) {
+        throw new GatewayError("IMAGE_TOO_LARGE", "image exceeds size limit", 413);
+      }
+
+      const requestLimits = resolveChatRequestLimits(config, route);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "vision_extraction",
+        minuteLimit: requestLimits.perMinute,
+        dailyLimit: requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      // 随图文字过文本审核；图片本体不审核（moderation 只支持文本），
+      // 由理解单图型护栏 + 客户端确认卡人工闸门兜底（方案 §5.1 已披露）。
+      if (caption) {
+        const moderationResult = await contentModeration.moderate(caption);
+        if (!moderationResult.passed) {
+          throw new GatewayError("CONTENT_BLOCKED", "Caption failed content moderation", 400);
+        }
+      }
+
+      const userMessage = {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: caption
+              ? `请看图输出「图片理解单」。用户随图附言：「${caption}」`
+              : "请看图输出「图片理解单」。用户没有附言。",
+          },
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${request.image}` } },
+        ],
+      };
+      const serverPrompt = injectServerPrompt("vision_extraction", [userMessage]);
+
+      logId = captureAiCallLogs
+        ? adminLogStore.startAiCall({
+            deviceId,
+            purpose: "vision_extraction",
+            provider: route.provider,
+            model: route.model,
+            promptType: serverPrompt.promptType,
+            promptVersion: serverPrompt.promptVersion,
+            stream: false,
+            // metadata_only purpose：只允许白名单元数据（图片字节数在 imageBytes，
+            // 但白名单没有该键会被剥掉——内容任何情况下不进日志）。
+            request: {
+              stage: "vision_extraction",
+              messageCount: 1,
+              messageRoles: ["user"],
+              contentLength: caption.length,
+              responseFormat: null,
+            },
+          })
+        : null;
+      if (logId) {
+        context.header("X-Holo-Request-Id", logId);
+      }
+
+      const result = await provider.complete({
+        purpose: "vision_extraction",
+        messages: serverPrompt.messages,
+        stream: false,
+        model: route.model,
+        temperature: route.temperature,
+        maxTokens: route.maxTokens,
+        clientSignal: context.req.raw.signal,
+      });
+      const content = result?.choices?.[0]?.message?.content ?? "";
+
+      let understanding;
+      let guards;
+      try {
+        ({ understanding, guards } = normalizeUnderstanding(extractJsonContent(content)));
+      } catch (error) {
+        finishLog({ status: "error", error: serializeError(error) });
+        throw new GatewayError(
+          "UPSTREAM_INVALID_RESPONSE",
+          "Vision model returned unparseable output",
+          502,
+        );
+      }
+      finishLog({
+        status: "success",
+        response: {
+          stage: "vision_extraction",
+          outcome: understanding.imageType,
+          imageType: understanding.imageType,
+          confidence: understanding.confidence,
+          transactionCount: understanding.transactions.length,
+        },
+        usage: result?.usage ?? null,
+      });
+      return context.json({ ok: true, understanding, guards });
+    } catch (error) {
+      finishLog({ status: "error", error: serializeError(error) });
+      return createErrorResponse(context, error);
+    }
+  });
+
   app.post("/v1/feedback", async (context) => {
     try {
       const deviceId = getDeviceId(context, config);
@@ -1826,6 +1966,9 @@ function quotaTypeForPurpose(purpose) {
   // 请求准备与方案生成是用户交互路径，归 chat 池（客户端另有每 run 生成次数预算）。
   if (purpose === "personal_context_extraction" || purpose === "personal_context_verification") return null;
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
+  // 截图识别（2026-09-09 拍板 3）：视觉抽取先不占会员池，独立限流桶 20/天兜量；
+  // 上线后测算真实成本再定额度策略（遗留提醒已立项）。
+  if (purpose === "vision_extraction") return null;
   return null;
 }
 

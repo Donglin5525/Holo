@@ -41,6 +41,11 @@ const DEFAULT_CONFIG = {
     feedbackRequestsPerDay: Number(process.env.HOLO_FEEDBACK_REQUESTS_PER_DAY ?? 5),
     // 单张反馈图片解码后上限（App 端压缩承诺 ≤1MB，留余量），最多 3 张由路由校验。
     feedbackMaxImageBytes: Number(process.env.HOLO_FEEDBACK_MAX_IMAGE_BYTES ?? 1536 * 1024),
+    // 截图识别记账（2026-09-09 方案 §5）：单张图片上限与反馈对齐；识别不占会员池，
+    // 独立限流桶 20/天兜量（拍板 3：上线后测算成本再定额度策略）。
+    visionMaxImageBytes: Number(process.env.HOLO_VISION_MAX_IMAGE_BYTES ?? 1536 * 1024),
+    visionRequestsPerMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
+    visionRequestsPerDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),
     // Agent 遥测批量上报：低频（前台化/冷却时 diff 上报），单批 ≤100 条由路由校验。
     agentTelemetryUploadsPerMinute: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_MINUTE ?? 10),
     agentTelemetryUploadsPerDay: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_DAY ?? 500),
@@ -364,6 +369,19 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_DAY ?? 300),
       },
     },
+    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型默认 qwen3-vl-plus
+    //（M0 五轮评测选型，docs/holoai-audit/vision-eval/README.md），env 可换模型不动代码；
+    // qwen 通道复用 DashScope key（生产 QWEN_API_KEY 缺省时回退 DASHSCOPE_API_KEY）。
+    vision_extraction: {
+      provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "qwen",
+      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "qwen3-vl-plus",
+      temperature: Number(process.env.HOLO_VISION_EXTRACTION_TEMPERATURE ?? 0),
+      maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 1500),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
+        perDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),
+      },
+    },
     agent_loop: {
       provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
@@ -391,7 +409,9 @@ const DEFAULT_CONFIG = {
     qwen: {
       type: "openai-compatible",
       baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      apiKey: process.env.QWEN_API_KEY,
+      // QWEN_BASE_URL 默认就是 DashScope 兼容模式，生产只配了 DASHSCOPE_API_KEY（ASR 在用），
+      // 缺 QWEN_API_KEY 时回退同一把钥匙，视觉模型无需新增密钥配置。
+      apiKey: process.env.QWEN_API_KEY ?? process.env.DASHSCOPE_API_KEY,
     },
     moonshot: {
       type: "openai-compatible",

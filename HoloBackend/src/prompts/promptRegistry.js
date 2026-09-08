@@ -33,6 +33,10 @@ const PROMPT_VERSIONS = {
   personal_context_verification: 1,
   personal_context_request: 1,
   personal_context_planning: 1,
+  // 截图识别记账（2026-09-09 方案 §5）：视觉抽取理解单。内容与
+  // scripts/eval-vision-extraction.mjs 的 PROMPT 常量同源（M0 五轮评测 24/24 定稿），
+  // 外币少样本示例是精度关键，改 prompt 前先跑评测。
+  vision_extraction: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
