@@ -117,6 +117,7 @@ extension AddTransactionSheet {
             .padding(.vertical, 13)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("transactionSheet.projectRow")
     }
 
     // MARK: - 日期选择行
@@ -552,6 +553,7 @@ extension AddTransactionSheet {
                                 .padding(.vertical, 11)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("projectPopup.option.\(project.name)")
                         }
                     }
                 }

@@ -209,6 +209,7 @@ struct AddProjectSheet: View {
                 TextField("0.00", text: $budgetText)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .keyboardType(.decimalPad)
+                    .accessibilityIdentifier("projectSheet.budgetField")
             }
             .padding(HoloSpacing.md)
             .background(Color.holoCardBackground)

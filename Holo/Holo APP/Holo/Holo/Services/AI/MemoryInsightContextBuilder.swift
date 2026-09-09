@@ -428,7 +428,7 @@ struct MemoryInsightContextBuilder {
 
             let topLevelCategories = try await financeRepo.getTopLevelCategories(by: .expense)
             let topLevelNameMap = Dictionary(
-                uniqueKeysWithValues: topLevelCategories.map { ($0.id, $0.name) }
+                topLevelCategories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }
             )
             let dayCount = max(Calendar.current.dateComponents([.day], from: start, to: endDate).day ?? 1, 1)
             semanticSummary = Self.buildFinanceSemanticSummary(

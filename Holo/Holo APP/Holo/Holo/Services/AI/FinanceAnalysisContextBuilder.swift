@@ -54,7 +54,7 @@ struct FinanceAnalysisContextBuilder {
             )
             let topLevelCategories = try await repo.getTopLevelCategories(by: .expense)
             let topLevelNameMap = Dictionary(
-                uniqueKeysWithValues: topLevelCategories.map { ($0.id, $0.name) }
+                topLevelCategories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }
             )
             let topCategories = categoryAggregations.prefix(5).map { agg in
                 FinanceCategoryItem(
@@ -451,7 +451,7 @@ struct FinanceAnalysisContextBuilder {
         guard !comparisonExpenses.isEmpty else { return [] }
 
         let topLevelNameMap = Dictionary(
-            uniqueKeysWithValues: topLevelCategories.map { ($0.id, $0.name) }
+            topLevelCategories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }
         )
 
         var compCategoryMap: [String: Decimal] = [:]

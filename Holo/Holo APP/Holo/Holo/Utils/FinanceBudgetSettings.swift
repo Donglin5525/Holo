@@ -59,9 +59,9 @@ final class FinanceBudgetSettings: ObservableObject {
     // MARK: - Storage
 
     private func persist() {
-        let raw = Dictionary(uniqueKeysWithValues: enabledAtByAccount.map {
+        let raw = Dictionary(enabledAtByAccount.map {
             ($0.key.uuidString, $0.value.timeIntervalSince1970)
-        })
+        }, uniquingKeysWith: { _, second in second })
         if let data = try? JSONEncoder().encode(raw) {
             UserDefaults.standard.set(data, forKey: Self.enabledAtByAccountKey)
             // 同步上行 iCloud：开关时间同时是结转起算点，影响预算数字，卸载即丢不可接受
@@ -107,9 +107,11 @@ final class FinanceBudgetSettings: ObservableObject {
               let raw = try? JSONDecoder().decode([String: TimeInterval].self, from: data) else {
             return [:]
         }
-        return Dictionary(uniqueKeysWithValues: raw.compactMap { uuidString, interval in
+        // JSON 键大小写敏感而 UUID(uuidString:) 解析不敏感——库里可能存在同一 UUID 的
+        // 两种字符串形式（iCloud 恢复/跨版本写入），uniqueKeysWithValues 会直接 fatal
+        return Dictionary(raw.compactMap { uuidString, interval -> (UUID, Date)? in
             guard let uuid = UUID(uuidString: uuidString) else { return nil }
             return (uuid, Date(timeIntervalSince1970: interval))
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }
 }

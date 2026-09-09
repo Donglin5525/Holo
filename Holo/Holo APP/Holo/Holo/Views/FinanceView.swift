@@ -262,6 +262,7 @@ struct FinanceView: View {
                 .shadow(color: Color.holoPrimary.opacity(0.4), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("finance.fab.addTransaction")
         .padding(.trailing, 20)
         // 吸底 Tab 栏在位时抬高避开（88pt）；顶部切换条形态（v2 expanded）贴底即可
         .padding(.bottom, isExpandedWidth ? 24 : 104)

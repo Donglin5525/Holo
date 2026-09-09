@@ -562,7 +562,8 @@ extension HabitRepository {
         let visibleIds = (visibleHabitIds?.isEmpty ?? true) ? activeHabits.map(\.id) : visibleHabitIds!
         let visible = Set(visibleIds)
         let filtered = activeHabits.filter { visible.contains($0.id) }
-        let order = Dictionary(uniqueKeysWithValues: (orderedHabitIds ?? []).enumerated().map { ($1, $0) })
+        // 顺序数据来自用户设置/iCloud 同步，可能出现重复 id——uniqueKeysWithValues 会直接 fatal
+        let order = Dictionary((orderedHabitIds ?? []).enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
         return filtered.sorted { (order[$0.id] ?? .max) < (order[$1.id] ?? .max) }
     }
 

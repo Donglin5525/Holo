@@ -60,6 +60,7 @@ struct KeypadButton: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(KeypadButtonStyle(pressedTint: pressedTint))
+        .accessibilityIdentifier(key == "✓" ? "transactionSheet.keypadConfirm" : "keypad.\(key)")
     }
 
     /// 根据按键类型返回背景颜色
