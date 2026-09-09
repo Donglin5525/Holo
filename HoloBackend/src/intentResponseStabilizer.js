@@ -16,6 +16,17 @@ const EXTERNAL_SUBJECT_PATTERN = /天气|股市|公司|项目|产品|订单|网�
 const OWN_EXTERNAL_SUBJECT_PATTERN = /(?:我的|我们(?:的)?)(?:公司|项目|产品|订单|网络|服务器|接口|app|应用)/i;
 const EXECUTION_PATTERN = /记(?:一笔|账|下来)|帮我记录|请记录|记录(?:一笔|一下|心情|体重)|创建(?:任务|待办)|新建(?:任务|待办)|提醒我|打卡(?!情况|状态|记录|趋势)|签到(?!情况|状态|记录|趋势)|(?:完成|删除|修改|更新)(?:这个|该|我的)?任务/;
 
+// 个人情境规划（contextual_planning）确定性分流：只认语义结构组合，不维护
+// 「日本、旅行」等目的地/领域词表（实施方案 §5.4）。命中需同时满足：
+//   ① 用户表达一个未来事件/目标/决策（FUTURE_EVENT_PATTERN）；
+//   ② 请求准备、规划、安排、注意事项、清单、避免遗漏或拆解（PLANNING_REQUEST_PATTERN）；
+//   ③ 不是明确单项写操作（EXECUTION_PATTERN 全局拦 + PLANNING_BLOCK_PATTERN 二次拦）。
+// 其余输入不进规划分支，继续交给 LLM Router。
+const PLANNING_REQUEST_PATTERN = /准备|筹备|规划|安排|清单|注意事项|要带什么|需要做什么|要做些什么|列一下|列一列|列下|梳理|拆解|别遗漏|不要遗漏|怕遗漏|准备什么|准备哪些/;
+const FUTURE_EVENT_PATTERN = /要去|打算去|计划去|准备去|要开始|打算开始|计划开始|要[出搬回开考参办]|要提前|打算|计划|即将|就要|快要|下[周月天年]|下个月|下礼拜|后天|明天|过[几两三四五]天|月底|年底|国庆|春节|五一|十一|周[一二三四五六日末]前|[0-9一二三四五六七八九十]+\s*月\s*[0-9一二三四五六七八九十]+\s*[日号]?|出发前|出发之前|行前|考前|术前|上线前|搬迁前|搬家前|回家前|出门前|开始前/;
+// 「创建/新建/添加……任务|待办|提醒|日程」是单项写操作，即使句中带准备类词也不进规划。
+const PLANNING_BLOCK_PATTERN = /(?:创建|新建|添加|建个|建一个|加个)[^，。]{0,15}(?:任务|待办|提醒|日程)/;
+
 /**
  * 对“基于 Holo 个人数据总结近期状态”这类高置信查询做确定性分流。
  * 这里只覆盖语义边界明确的窄集合；其余输入继续交给 LLM Router。
@@ -26,6 +37,31 @@ export function resolveDeterministicIntent(input) {
 
   const hasSelfReference = SELF_PATTERN.test(text);
   if (EXECUTION_PATTERN.test(text)) return null;
+
+  // 规划分支：放在 OWN_EXTERNAL/第三方排除之前——「我的项目上线前」「孩子考前」
+  // 这类以用户为执行主体的家庭/工作准备是正例；单项写操作已被上面拦掉。
+  if (
+    PLANNING_REQUEST_PATTERN.test(text) &&
+    FUTURE_EVENT_PATTERN.test(text) &&
+    !PLANNING_BLOCK_PATTERN.test(text)
+  ) {
+    return {
+      mode: "query",
+      items: [
+        {
+          id: "1",
+          intent: "contextual_planning",
+          confidence: 0.99,
+          routeSource: "deterministic",
+          routeReasonCode: "EVENT_PREPARATION_PLAN",
+          extractedData: {},
+        },
+      ],
+      needsClarification: false,
+      clarificationQuestion: null,
+    };
+  }
+
   if (OWN_EXTERNAL_SUBJECT_PATTERN.test(text)) return null;
   if (!hasSelfReference && ASSISTANT_OR_THIRD_PARTY_PATTERN.test(text)) return null;
   if (!hasSelfReference && EXTERNAL_SUBJECT_PATTERN.test(text)) return null;
@@ -59,6 +95,8 @@ export function resolveDeterministicIntent(input) {
         id: "1",
         intent: "query_analysis",
         confidence: 0.99,
+        routeSource: "deterministic",
+        routeReasonCode: "SELF_RECENT_STATUS_QUERY",
         extractedData,
       },
     ],

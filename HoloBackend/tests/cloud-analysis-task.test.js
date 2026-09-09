@@ -234,3 +234,74 @@ test("start 端点：taskType 白名单校验与落库", async () => {
   const { taskId: defId } = await def.json();
   assert.equal(store.get(defId).task_type, "deep_analysis");
 });
+// —— 阶段推进（context_plan 阶段流，2026-09-09 方案 §5.3）——
+
+test("updateStage：revision 单调递增；行不存在返回 false", () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
+  const task = store.create({ deviceId: "d1", question: "q", taskType: "context_plan" });
+
+  assert.ok(store.updateStage(task.id, { stage: "cloudPlanning" }));
+  assert.ok(store.updateStage(task.id, { stage: "draftReady" }));
+  const row = store.get(task.id);
+  assert.equal(row.stage, "draftReady");
+  assert.equal(row.stage_revision, 2);
+  assert.ok(row.updated_at_ms > 0);
+
+  assert.equal(store.updateStage("no-such-task", { stage: "failed" }), false);
+});
+
+test("create：阶段列初始为 null、revision 0（非 context_plan 任务不受阶段语义影响）", () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
+  const task = store.create({ deviceId: "d1", question: "q", taskType: "deep_analysis" });
+  const row = store.get(task.id);
+  assert.equal(row.stage, null);
+  assert.equal(row.stage_revision, 0);
+});
+
+// —— context_plan 路由契约（2026-09-09 方案 §5.3）：白名单放行 + GET 返回阶段 ——
+
+test("context_plan：start 白名单放行；快照上传后 GET 返回 stage/stageRevision", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
+  const app = createTestApp({ database, cloudAnalysisTaskStore: store });
+
+  const start = await app.request("/v1/ai/agent/cloud/start", {
+    method: "POST",
+    headers: headers("device-plan"),
+    body: JSON.stringify({ question: "要去日本旅行，要提前做什么准备", taskType: "context_plan" }),
+  });
+  assert.equal(start.status, 200, "context_plan 必须在任务类型白名单内");
+  const startBody = await start.json();
+
+  await app.request(`/v1/ai/agent/cloud/${startBody.taskId}/snapshot`, {
+    method: "PUT",
+    headers: headers("device-plan"),
+    body: JSON.stringify({ prompt: "规划请求全文" }),
+  });
+
+  // 执行器是 no-op：手动推进阶段后，GET 必须把阶段快照带给轮询兜底通道
+  store.updateStage(startBody.taskId, { stage: "cloudPlanning" });
+  const poll = await app.request(`/v1/ai/agent/cloud/${startBody.taskId}`, {
+    headers: headers("device-plan"),
+  });
+  assert.equal(poll.status, 200);
+  const pollBody = await poll.json();
+  assert.equal(pollBody.stage, "cloudPlanning");
+  assert.ok(pollBody.stageRevision >= 1);
+  assert.ok(pollBody.stageUpdatedAt > 0);
+});
+
+test("context_plan：未知任务类型仍然拒绝（白名单没有放水）", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
+  const app = createTestApp({ database, cloudAnalysisTaskStore: store });
+
+  const start = await app.request("/v1/ai/agent/cloud/start", {
+    method: "POST",
+    headers: headers("device-x"),
+    body: JSON.stringify({ question: "q", taskType: "context_plan_v2" }),
+  });
+  assert.equal(start.status, 400);
+});

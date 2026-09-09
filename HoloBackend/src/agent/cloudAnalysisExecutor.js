@@ -28,6 +28,9 @@ export function createCloudAnalysisExecutor({
   // 回放摘要归纳使用的 replayDigest 路由（2026-09-05 摘要云端化）；
   // 缺省回落 insight 路由再回落 agent_loop 路由
   digestRoute = null,
+  // 个人情境规划（context_plan）单轮生成路由（2026-09-09 方案 §5.3）：
+  // 与端点层 personal_context_planning 同一模型档位/温度/思考档；缺省回落 agent_loop 路由
+  contextPlanRoute = null,
   providerRetries = MAX_PROVIDER_RETRIES,
   maxRounds = MAX_LLM_ROUNDS,
   pushNotifier = null,
@@ -262,6 +265,105 @@ export function createCloudAnalysisExecutor({
   }
 
   /**
+   * 个人情境规划（context_plan）：单轮生成（2026-09-09 一致性与可信交互方案 §5.3）。
+   * - 素材 = iOS 检索后组装的 planPrompt 全文（复用快照密文列；即焚语义与深度分析一致）
+   * - 生成走 personal_context_planning 服务端提示词与路由（与端点层同步调用同一模板、
+   *   同一模型档位；结构校验仍以 iOS 端 HoloContextPlanDraftParser/Validator 为真相源）
+   * - 额度消耗 chat 池（与同步路径同一池）：预订-提交，失败自动释放
+   * - 阶段推进写 stage 列（cloudPlanning→draftReady/failed），revision 服务端单调
+   */
+  async function runContextPlan(taskId, task) {
+    // 快照列是 JSON 对象（上传路由强制），prompt 在 .prompt 字段
+    let prompt = "";
+    if (typeof task.snapshot === "string") {
+      try {
+        prompt = String(JSON.parse(task.snapshot)?.prompt ?? "").trim();
+      } catch {
+        prompt = task.snapshot.trim();
+      }
+    }
+    if (!prompt) {
+      taskStore.fail({ id: taskId, reason: "规划请求缺失或为空" });
+      taskStore.updateStage(taskId, { stage: "failed" });
+      return "failed";
+    }
+    if (!taskStore.transition(taskId, "running")) {
+      return taskStore.get(taskId)?.status ?? "conflict";
+    }
+    taskStore.updateStage(taskId, { stage: "cloudPlanning" });
+
+    let reservation = null;
+    if (quotaLedger && entitlementResolver) {
+      const entitlement = entitlementResolver.resolve(task.device_id);
+      const attempt = quotaLedger.reserve({
+        subjectId: entitlement.usageSubjectId,
+        tier: entitlement.tier,
+        quotaType: "chat",
+        actionId: `cloud-context-plan-${taskId}`,
+      });
+      if (!attempt.allowed) {
+        taskStore.fail({ id: taskId, reason: attempt.userMessage ?? "AI 额度已用完" });
+        taskStore.updateStage(taskId, { stage: "failed" });
+        return "failed";
+      }
+      reservation = attempt;
+    }
+
+    try {
+      // 取消检查点：取消即整行删除，行已不存在就不再调用模型
+      if (!taskStore.get(taskId)) {
+        if (reservation) quotaLedger.release(reservation);
+        log(`规划任务已取消（行已删除），停止执行 taskId=${taskId}`);
+        return "cancelled";
+      }
+      const systemPrompted = injectServerPrompt("personal_context_planning", [
+        { role: "user", content: prompt },
+      ]);
+      const response = await callProvider(
+        [
+          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "user", content: prompt },
+        ],
+        contextPlanRoute ?? route,
+        { taskId, deviceId: task.device_id, purpose: "cloud_context_plan", round: 1 },
+      );
+      const content = response?.choices?.[0]?.message?.content ?? "";
+      if (!content.trim()) {
+        throw new Error("规划生成为空输出");
+      }
+      const result = {
+        kind: "context_plan",
+        output: content,
+        completedAt: new Date().toISOString(),
+        engine: "cloud-m2-context-plan",
+      };
+      const completed = taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      if (!completed) {
+        // 行已在执行中被取消/删除：结果无处落地，不提交额度、不发推送
+        if (reservation) quotaLedger.release(reservation);
+        log(`规划任务已取消（落库未生效）taskId=${taskId}`);
+        return "cancelled";
+      }
+      taskStore.updateStage(taskId, { stage: "draftReady" });
+      if (reservation) quotaLedger.commit(reservation);
+      pushTaskCompleted(task.device_id, { title: "个性化方案已就绪", body: "回到 Holo 查看你的专属方案" });
+      log(`规划任务完成 taskId=${taskId} chars=${content.length}`);
+      return "completed";
+    } catch (error) {
+      if (reservation) quotaLedger.release(reservation);
+      const reason = `云端规划生成失败：${error?.message ?? error}`;
+      try {
+        taskStore.fail({ id: taskId, reason });
+        taskStore.updateStage(taskId, { stage: "failed" });
+      } catch (failError) {
+        log(`fail 落库也失败 taskId=${taskId}: ${failError?.message ?? failError}`);
+      }
+      log(`规划任务失败 taskId=${taskId}: ${error?.message ?? error}`);
+      return "failed";
+    }
+  }
+
+  /**
    * 回放摘要归纳（replay_digest）：单轮生成（2026-09-05 摘要云端化）。
    * - 素材 = iOS 组装的 ConsolidateRequest JSON（旧累计摘要+本期回放要点），
    *   复用快照密文列，即焚语义与深度分析完全一致
@@ -345,6 +447,9 @@ export function createCloudAnalysisExecutor({
       }
       if (task.task_type === "replay_digest") {
         return await runReplayDigest(taskId, task);
+      }
+      if (task.task_type === "context_plan") {
+        return await runContextPlan(taskId, task);
       }
       let snapshot;
       try {

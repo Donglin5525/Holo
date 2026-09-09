@@ -697,3 +697,98 @@ test("deep_analysis：完成落库前被取消→cancelled，不提交额度、�
   assert.equal(quota.calls.commit, 0);
   assert.equal(quota.calls.release, 1);
 });
+
+// —— 个人情境规划（context_plan）单轮生成（2026-09-09 方案 §5.3）——
+
+test("context_plan：快照prompt→单轮生成→complete+阶段draftReady+chat池额度提交", async () => {
+  const planJSON = JSON.stringify({
+    goalSummary: "日本旅行准备",
+    answerText: "出发前需要办签证、订机票。",
+    items: [{ itemID: "i1", title: "核对护照有效期", kind: "task", basis: "generalKnowledge", sourceRefs: [], preconditions: [], relativeTiming: null, selected: false }],
+    unknowns: [], dependencyEdges: [], usedContextRefs: [], planEffects: [],
+    coverage: { readSources: [], missingScopes: [], externalFactsVerified: false },
+  });
+  const provider = makeProvider([planJSON]);
+  const pushes = [];
+  const quota = makeQuotaLedger();
+  const { store, executor } = makeExecutor(provider, {
+    contextPlanRoute: { provider: "fake", model: "planner-m", temperature: 0.3, maxTokens: 8000 },
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async (deviceId, payload) => pushes.push({ deviceId, payload }) },
+  });
+
+  const task = store.create({ deviceId: "device-plan", question: "要去日本旅行，要提前做什么准备", taskType: "context_plan" });
+  store.attachSnapshot({ id: task.id, snapshot: "规划prompt全文（iOS 检索后组装）" });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.kind, "context_plan");
+  assert.equal(result.output, planJSON);
+
+  // 阶段：cloudPlanning → draftReady，revision 服务端单调
+  const row = store.get(task.id);
+  assert.equal(row.stage, "draftReady");
+  assert.ok(row.stage_revision >= 2, `阶段推进至少两次，实际 ${row.stage_revision}`);
+
+  // 额度：chat 池提交且未释放
+  assert.equal(quota.calls.commit, 1);
+  assert.equal(quota.calls.release, 0);
+  // 完成推送
+  assert.equal(pushes.length, 1);
+  assert.equal(pushes[0].payload.title, "个性化方案已就绪");
+  // 完成即焚仍适用（问题与快照密文销毁）
+  assert.ok(store.isDataDestroyed(task.id));
+
+  // 模型调用：系统提示词为 personal_context_planning（含「个人情境规划器」标识），user=prompt 全文
+  assert.equal(provider.calls.length, 1);
+  assert.ok(provider.calls[0].messages[0].content.includes("个人情境规划器"), "必须走规划服务端提示词");
+  assert.equal(provider.calls[0].messages[1].content, "规划prompt全文（iOS 检索后组装）");
+});
+
+test("context_plan：额度不足→failed+阶段failed（不调模型、不写draftReady）", async () => {
+  const provider = makeProvider([]);
+  const quota = makeQuotaLedger({ allowed: false });
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+  });
+  const task = store.create({ deviceId: "d", question: "搬家准备", taskType: "context_plan" });
+  store.attachSnapshot({ id: task.id, snapshot: "prompt" });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(provider.calls.length, 0, "额度不足不得调用模型");
+  const row = store.get(task.id);
+  assert.equal(row.stage, "failed");
+  assert.ok(row.stage_revision >= 1);
+});
+
+test("context_plan：生成失败→额度释放+阶段failed+即焚", async () => {
+  const provider = makeProvider(["   "]); // 空白输出 → 抛错
+  const quota = makeQuotaLedger();
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+  });
+  const task = store.create({ deviceId: "d", question: "考试准备", taskType: "context_plan" });
+  store.attachSnapshot({ id: task.id, snapshot: "prompt" });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(quota.calls.commit, 0);
+  assert.equal(quota.calls.release, 1, "失败必须释放预订");
+  const row = store.get(task.id);
+  assert.equal(row.stage, "failed");
+  assert.ok(store.isDataDestroyed(task.id));
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("云端规划生成失败"));
+});
+
+test("context_plan：快照为空白→failed（不调模型、阶段failed）", async () => {
+  const provider = makeProvider([]);
+  const { store, executor } = makeExecutor(provider, {});
+  const task = store.create({ deviceId: "d", question: "词", taskType: "context_plan" });
+  store.attachSnapshot({ id: task.id, snapshot: "   " }); // 空白 prompt → 防御拒绝
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(provider.calls.length, 0);
+  assert.equal(store.get(task.id).stage, "failed");
+});

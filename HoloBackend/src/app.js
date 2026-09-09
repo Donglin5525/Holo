@@ -251,6 +251,7 @@ export function createApp(overrides = {}) {
         route: config.routes.agent_loop,
         insightRoute: config.routes.insight ?? null,
         digestRoute: config.routes.replayDigest ?? null,
+        contextPlanRoute: config.routes.personal_context_planning ?? null,
         pushNotifier: analysisPushNotifier,
         quotaLedger: quotaActionLedgerStore,
         entitlementResolver,
@@ -1367,24 +1368,35 @@ export function createApp(overrides = {}) {
         throw new GatewayError("INVALID_REQUEST", "question must be 1-2000 chars", 400);
       }
       // 任务类型白名单：deep_analysis=多轮 Agent 循环；period_replay=周期回放单轮生成；
-      // replay_digest=回放摘要归纳（后台静默维护，2026-09-05 云端化）
+      // replay_digest=回放摘要归纳（后台静默维护，2026-09-05 云端化）；
+      // context_plan=个人情境规划单轮生成（2026-09-09 方案 §5.3）
       const taskType = typeof request.taskType === "string" ? request.taskType : "deep_analysis";
-      if (!["deep_analysis", "period_replay", "replay_digest"].includes(taskType)) {
+      if (!["deep_analysis", "period_replay", "replay_digest", "context_plan"].includes(taskType)) {
         throw new GatewayError("INVALID_REQUEST", `Unsupported taskType: ${taskType}`, 400);
       }
 
       // 限流分桶：摘要归纳起始沿用 direct replayDigest 的独立桶（历史回填批处理
-      // 不挤占用户可视的深度分析/回放启动额度）
+      // 不挤占用户可视的深度分析/回放启动额度）；context_plan 与端点层规划路由同一
+      // 限流口径（10/分、60/天），不挤占深度分析启动额度
       const isDigestStart = taskType === "replay_digest";
+      const isContextPlanStart = taskType === "context_plan";
       const usage = usageStore.consume({
         deviceId,
-        purpose: isDigestStart ? "cloud_replay_digest_start" : "cloud_analysis_start",
+        purpose: isDigestStart
+          ? "cloud_replay_digest_start"
+          : isContextPlanStart
+            ? "cloud_context_plan_start"
+            : "cloud_analysis_start",
         minuteLimit: isDigestStart
           ? config.routes.replayDigest.requestLimits.perMinute
-          : config.limits.cloudAnalysisStartsPerMinute,
+          : isContextPlanStart
+            ? config.limits.cloudContextPlanStartsPerMinute
+            : config.limits.cloudAnalysisStartsPerMinute,
         dailyLimit: isDigestStart
           ? config.routes.replayDigest.requestLimits.perDay
-          : config.limits.cloudAnalysisStartsPerDay,
+          : isContextPlanStart
+            ? config.limits.cloudContextPlanStartsPerDay
+            : config.limits.cloudAnalysisStartsPerDay,
       });
       if (!usage.allowed) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
@@ -1447,6 +1459,12 @@ export function createApp(overrides = {}) {
       }
       context.header("Cache-Control", "no-store");
       const body = { status: task.status };
+      // context_plan 阶段流（§5.3.6）：SSE 断线/重进/冷启动的轮询兜底同一快照
+      if (task.stage) {
+        body.stage = task.stage;
+        body.stageRevision = task.stage_revision ?? 0;
+        body.stageUpdatedAt = task.updated_at_ms ?? null;
+      }
       if (task.status === "completed" && task.result) {
         // 领取不删（R1）：删除权交给客户端落地后的 ack——响应在网络回程丢失时
         // 结果不丢，冷启动恢复轮询可再次领取；未 ack 由 7 天过期兜底。

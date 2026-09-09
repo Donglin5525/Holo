@@ -90,3 +90,80 @@ test("确定性结果生成兼容 Chat Completions 的 JSON 响应", () => {
   assert.equal(parsed.items[0].intent, "query_analysis");
   assert.equal(parsed.needsClarification, false);
 });
+
+test("为未来事件做准备的规划问法确定性路由到 contextual_planning（录屏原句 100 次一致）", () => {
+  const cases = [
+    // 录屏原句（2026-09-09 23:23 录屏暴露的同句路由漂移）
+    "要去日本旅行，要提前做什么准备",
+    // 同义表达覆盖：旅行/搬家/考试/就医/项目发布/重要决策（实施方案 §12.1）
+    "下个月要搬家了，帮我整理一份搬家前的准备清单",
+    "我下周要去云南玩，出发前要做什么准备",
+    "九月底要去成都出差，帮我规划一下出发前的安排",
+    "下周六要考驾照科目三，帮我安排下考前要准备的事",
+    "过两天要去医院做体检，需要提前准备什么",
+    "我负责的项目下周要上线了，帮我梳理下上线前还要做哪些事",
+    "家里老人下个月要做手术，帮我列一下术前要准备的注意事项",
+    "春节要回老家，帮我提前规划下回家前要安排的事情",
+    "下周一开始要给孩子断奶，帮我准备下需要的东西和步骤",
+    "我打算月底开始跑步减肥，帮我规划下开始前要做哪些准备",
+    "朋友下周日结婚我要去当伴郎，需要提前准备什么",
+    "下周要在年会上做汇报演讲，帮我规划下要准备的内容",
+    "十一要带爸妈去自驾游，出发前要我准备哪些东西",
+    "我下个月要搬进新办公室，帮我列一下搬迁前要安排的事",
+    "后天要去办护照，我需要提前准备什么材料",
+    "下周家里要来客人，帮我提前规划下要准备的事",
+    "我准备下个月开始学车，帮我梳理下报名前要做的事",
+    "年底要办婚礼了，帮我规划下提前半年就要开始的准备事项",
+    "下周要去国外留学，行前要做什么准备",
+    "我月底要第一次独自带娃出门，帮我列下出门前要准备的东西",
+  ];
+
+  for (const input of cases) {
+    const results = Array.from({ length: 100 }, () => resolveDeterministicIntent(input));
+    for (const result of results) {
+      assert.equal(result?.mode, "query", input);
+      assert.equal(result?.needsClarification, false, input);
+      assert.equal(result?.items?.[0]?.intent, "contextual_planning", input);
+      assert.equal(result?.items?.[0]?.routeSource, "deterministic", input);
+      assert.equal(result?.items?.[0]?.routeReasonCode, "EVENT_PREPARATION_PLAN", input);
+    }
+    assert.equal(new Set(results.map((result) => JSON.stringify(result))).size, 1, input);
+  }
+});
+
+test("单项写操作、数据明细查询、纯外部事实与无准备请求的陈述不被规划规则接管", () => {
+  const cases = [
+    // 单项写操作（明确落在写链路）
+    "帮我创建一个去日本旅行的待办",
+    "记一笔机票 3000 元",
+    "帮我记录一下明天要给妈妈打电话",
+    "创建任务：周三下午取护照",
+    // 已指定数据明细查询
+    "查一下我上个月在日本花了多少钱",
+    // 纯外部事实
+    "日本现在几点",
+    "今天天气怎么样",
+    "日本签证需要哪些材料",
+    // 未来事件但没有准备/规划请求——留给模型路由判断
+    "我要去日本旅行",
+    "国庆我打算宅在家里",
+  ];
+
+  for (const input of cases) {
+    assert.equal(resolveDeterministicIntent(input), null, input);
+  }
+});
+
+test("规划规则不抢已有状态查询规则（近期状态问法仍归 query_analysis）", () => {
+  const cases = [
+    "我最近状态怎么样",
+    "最近财务状态怎么样",
+    "我最近睡眠怎么样",
+  ];
+
+  for (const input of cases) {
+    const result = resolveDeterministicIntent(input);
+    assert.equal(result?.items?.[0]?.intent, "query_analysis", input);
+    assert.notEqual(result?.items?.[0]?.intent, "contextual_planning", input);
+  }
+});

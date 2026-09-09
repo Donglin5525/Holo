@@ -52,6 +52,9 @@ const DEFAULT_CONFIG = {
     // 云端异步分析（二期）：创建与快照上传限流；额度池接入在 M2 执行器上线时统一接线。
     cloudAnalysisStartsPerMinute: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_MINUTE ?? 6),
     cloudAnalysisStartsPerDay: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_DAY ?? 30),
+    // context_plan 云端任务启动限流（与端点层 personal_context_planning 同口径）
+    cloudContextPlanStartsPerMinute: Number(process.env.HOLO_CLOUD_CONTEXT_PLAN_STARTS_PER_MINUTE ?? 10),
+    cloudContextPlanStartsPerDay: Number(process.env.HOLO_CLOUD_CONTEXT_PLAN_STARTS_PER_DAY ?? 60),
     cloudAnalysisSnapshotMaxBytes: Number(process.env.HOLO_CLOUD_ANALYSIS_SNAPSHOT_MAX_BYTES ?? 2 * 1024 * 1024),
     // 推送令牌上报：启动/令牌轮换时一次，正常用户远低于此额度。
     deviceTokenReportsPerMinute: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_MINUTE ?? 10),

@@ -68,6 +68,13 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
         completed_at_ms = CASE WHEN ? IN ('completed','failed') THEN ? ELSE completed_at_ms END
     WHERE id = ?
   `);
+  // 阶段推进（context_plan 阶段流）：stage 用客户端同词表（uploadingContext/
+  // cloudPlanning/draftReady/failed），revision 服务端单调递增；只存计数器不存正文。
+  const updateStageStmt = db.prepare(`
+    UPDATE agent_cloud_analysis_tasks
+    SET stage = ?, stage_revision = stage_revision + 1, updated_at_ms = ?
+    WHERE id = ?
+  `);
   const attachResultStmt = db.prepare(`
     UPDATE agent_cloud_analysis_tasks
     SET result_ciphertext = ?, status = 'completed', completed_at_ms = ?
@@ -175,6 +182,12 @@ export function createCloudAnalysisTaskStore(db, { encryptionKey } = {}) {
 
     transition(id, status, now = Date.now()) {
       const result = transitionStmt.run(status, status, now, status, now, id);
+      return result.changes === 1;
+    },
+
+    /** 阶段推进：revision 服务端单调 +1；行不存在（已取消/过期）返回 false。 */
+    updateStage(id, { stage, now = Date.now() }) {
+      const result = updateStageStmt.run(stage, now, id);
       return result.changes === 1;
     },
 

@@ -352,6 +352,15 @@ const MIGRATIONS = [
       ALTER TABLE ai_call_logs ADD COLUMN reasoning_tokens INTEGER;
     `,
   },
+  {
+    id: 20,
+    description: '云端任务阶段列（context_plan 阶段流：stage/stage_revision/updated_at_ms 均为非敏感计数器，禁止存用户正文；2026-09-09 个人情境规划一致性与可信交互实施方案 §5.3）',
+    up: `
+      ALTER TABLE agent_cloud_analysis_tasks ADD COLUMN stage TEXT;
+      ALTER TABLE agent_cloud_analysis_tasks ADD COLUMN stage_revision INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE agent_cloud_analysis_tasks ADD COLUMN updated_at_ms INTEGER;
+    `,
+  },
 ];
 
 function computeChecksum(sql) {
