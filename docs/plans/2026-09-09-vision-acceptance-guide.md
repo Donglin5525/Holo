@@ -39,15 +39,16 @@
 6. **场景 D 防重**：同一张小票发两次 → 第二次应在确认前提示「可能已记过」。
 7. 顺手看：聊天历史里自己发的图有缩略图；识别中点停止按钮能取消。
 
-## 四、模型决策备忘录（东林拍板用）
+## 四、模型决策备忘录
 
-| 选项 | 评测成绩 | 单次消耗 | 结论 |
+**当前生产已切 DeepSeek（2026-09-09 东林拍板）：deepseek-v4-flash-vision-exp**，走独立钥匙通道（deepseek-vision provider，与主聊天 DeepSeek 钥匙隔离）；maxTokens 已放宽 4000 防推理吃满上限空回复。烟雾+复测全过。
+
+| 模型 | 24 张评测 | 单均 tokens | 特点 |
 |---|---|---|---|
-| **qwen3-vl-plus（当前默认）** | 五轮 23-24/24，资金流转拦截全轮次零失手 | ~3.2k tokens/张 | **推荐**：安全项全对 |
-| qwen3-vl-flash（普惠档） | 21-22/24，外币拒识/退款方向各栽过，跨轮不稳 | 相近 | 不推荐：省不了多少钱，安全项不稳 |
-| glm-4v-plus（智谱） | 未测（本地无智谱 key） | — | 想对比：在 .env 配 ZHIPU_API_KEY 后 `--models zhipu` 跑评测 |
+| **deepseek-v4-flash-vision-exp（在用）** | 22-23/24，拦截 4/4 | **~1100（约通义 1/3）** | 推理模型偶发慢（5-24s）；换回随时改 env |
+| qwen3-vl-plus（原默认） | 23-24/24，拦截 4/4 | ~3240 | 质量略稳、稍贵稍稳速 |
 
-**换模型操作**：ECS `deploy/.env.production` 加/改一行 `HOLO_VISION_EXTRACTION_MODEL=模型名`（供应商不同还要配 `HOLO_VISION_EXTRACTION_PROVIDER` 与对应 key），`bash HoloBackend/deploy/deploy.sh` 重启即生效。评测随时可复跑：`node scripts/eval-vision-extraction.mjs`。
+两档安全红线（转账/外币拦截）都是满分，日常小票识别都在水准上——**差异主要在成本与偶发延迟**，DeepSeek 是通义三分之一的价格。想切回：ECS `.env.production` 改 `HOLO_VISION_EXTRACTION_PROVIDER=qwen`（或删掉该行走默认）+ 删 `HOLO_VISION_EXTRACTION_MODEL`，重启即生效。
 
 **成本口径**（拍板 3 遗留提醒已立项）：上线后按 ai_call_logs 按 purpose=vision_extraction 聚合实测，主动向东林汇报再定额度策略。当前每设备每天上限 20 次（防滥用桶），不占会员额度。
 
