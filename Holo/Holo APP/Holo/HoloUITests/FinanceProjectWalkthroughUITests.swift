@@ -76,6 +76,48 @@ final class FinanceProjectWalkthroughUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "删除流程中 App 进程存活")
     }
 
+    func test_createProjectWithBudget_editAndDetailFlow() throws {
+        navigateToProjectList()
+        let name = "全流程\(Int(Date().timeIntervalSince1970) % 100000)"
+
+        // 新建：名称 + 预算 3000
+        button(matchingIdentifier: "finance.addProject").firstMatch.tap()
+        let nameField = app.textFields["projectSheet.nameField"].firstMatch
+        _ = nameField.waitForExistence(timeout: 8)
+        nameField.tap()
+        nameField.typeText(name)
+        let budgetField = app.textFields["projectSheet.budgetField"].firstMatch
+        budgetField.tap()
+        budgetField.typeText("3000")
+        button(matchingIdentifier: "projectSheet.save").firstMatch.tap()
+
+        // 列表出现行 → 进详情
+        let row = button(matchingIdentifier: "project.row.\(name)")
+        _ = row.waitForExistence(timeout: 8)
+        XCTAssertTrue(row.exists, "保存后列表应出现新项目")
+        row.tap()
+        _ = button(matchingIdentifier: "projectDetail.menu").waitForExistence(timeout: 8)
+
+        // 详情头卡应显示预算 3000（千分位格式兼容）
+        let budgetText = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS '3,000' OR label CONTAINS '3000'")
+        ).firstMatch
+        XCTAssertTrue(budgetText.waitForExistence(timeout: 8), "详情应显示预算金额")
+
+        // 编辑：表单打开且回填原预算 → 保存 → 详情正常（改值落库逻辑由单测锁定）
+        button(matchingIdentifier: "projectDetail.menu").tap()
+        let editItem = button(matchingIdentifier: "projectDetail.edit")
+        _ = editItem.waitForExistence(timeout: 8)
+        editItem.tap()
+        let editBudget = app.textFields["projectSheet.budgetField"].firstMatch
+        _ = editBudget.waitForExistence(timeout: 8)
+        let budgetValue = editBudget.value as? String ?? ""
+        XCTAssertTrue(budgetValue.contains("3000"), "编辑表单应回填原预算，实际：\(budgetValue)")
+        button(matchingIdentifier: "projectSheet.save").firstMatch.tap()
+        _ = button(matchingIdentifier: "projectDetail.menu").waitForExistence(timeout: 8)
+        XCTAssertEqual(app.state, .runningForeground, "编辑保存后 App 进程存活")
+    }
+
     func test_swipeBackFromProjectDetail_returnsToList() throws {
         // 系统 interactivePop 手势对 XCUITest/idb 合成事件均不响应（idb 对照实验：
         // 成熟页面 AccountDetailView 同样点不动；代码层亦无 interactivePop 禁用，

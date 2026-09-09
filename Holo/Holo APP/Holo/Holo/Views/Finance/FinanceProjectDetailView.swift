@@ -71,6 +71,7 @@ struct FinanceProjectDetailView: View {
                         Button { editingProject = true } label: {
                             Label("编辑项目", systemImage: "pencil")
                         }
+                        .accessibilityIdentifier("projectDetail.edit")
                         if project.statusEnum == .active {
                             Button {
                                 try? projectRepo.updateStatus(project, status: .completed)
