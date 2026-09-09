@@ -79,32 +79,42 @@ struct HoloVisionGuard: Decodable {
 
 enum HoloVisionImagePipeline {
 
-    /// 上行标准：长边 2000 像素 + 循环降质 ≤1MB，重绘剥离 EXIF/GPS（隐私红线：不上传位置元数据）。
+    /// 上行标准：长边 2000 像素起步 + 循环降质 ≤1MB，重绘剥离 EXIF/GPS（隐私红线：不上传位置元数据）。
     /// 不复用 AttachmentFileManager.compressImage：它按「点」降采样，在 scale 3 屏上
     /// 实际像素是 3 倍（单测实锤 7200px），视觉 token 随像素走；这里显式在像素空间处理。
-    static func compressedJPEG(from rawData: Data) -> Data? {
+    /// 逐级降尺寸兜底（2000→1400→980→686px）：极端图在低质量档仍超 1MB 时缩尺寸重来，
+    /// 保证产出 ≤ 服务端 1.5MB 上限。aggressive=true 是服务端 413 后的二次尝试（1200px 起步）。
+    static func compressedJPEG(from rawData: Data, aggressive: Bool = false) -> Data? {
         guard let source = UIImage(data: rawData) else { return nil }
-
         let pixelWidth = source.size.width * source.scale
         let pixelHeight = source.size.height * source.scale
         let longestPixel = max(pixelWidth, pixelHeight)
-        let maxDimension: CGFloat = 2000
-        let ratio = min(1, maxDimension / longestPixel)
-        let targetSize = CGSize(width: pixelWidth * ratio, height: pixelHeight * ratio)
 
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let downsampled = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
-            source.draw(in: CGRect(origin: .zero, size: targetSize))
+        var maxDimension: CGFloat = aggressive ? 1200 : 2000
+        var best: Data?
+        for _ in 0..<4 {
+            let ratio = min(1, maxDimension / longestPixel)
+            let targetSize = CGSize(width: pixelWidth * ratio, height: pixelHeight * ratio)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let downsampled = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+                source.draw(in: CGRect(origin: .zero, size: targetSize))
+            }
+            var quality: CGFloat = aggressive ? 0.6 : 0.75
+            var data = downsampled.jpegData(compressionQuality: quality)
+            while let current = data, current.count > FeedbackImageCompressor.maxBytes, quality > 0.3 {
+                quality -= 0.15
+                data = downsampled.jpegData(compressionQuality: quality)
+            }
+            if let data, data.count <= FeedbackImageCompressor.maxBytes {
+                return data
+            }
+            if let data, best == nil || data.count < best!.count {
+                best = data
+            }
+            maxDimension *= 0.7
         }
-
-        var quality: CGFloat = 0.75
-        var output = downsampled.jpegData(compressionQuality: quality)
-        while let current = output, current.count > FeedbackImageCompressor.maxBytes, quality > 0.3 {
-            quality -= 0.15
-            output = downsampled.jpegData(compressionQuality: quality)
-        }
-        return output
+        return best
     }
 }
 
@@ -164,9 +174,25 @@ final class HoloVisionExtractionService {
 
     private let apiClient = APIClient.shared
 
-    /// 上传识别。调用方已压缩好的 JPEG 直接传；rawData 也可（内部走压缩管线）。
+    /// 上传识别。调用方传原始图数据（内部走压缩管线）。
+    /// 服务端 413（图片超限）时自动压得更小重试一次——用户只需看到结果，不该看到体积报错。
     func extract(rawImageData: Data, caption: String?) async throws -> ExtractionOutcome {
-        guard let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData) else {
+        do {
+            return try await runExtraction(rawImageData: rawImageData, caption: caption, aggressive: false)
+        } catch let error as APIError {
+            guard case .httpError(let statusCode, _) = error, statusCode == 413 else {
+                throw error
+            }
+            do {
+                return try await runExtraction(rawImageData: rawImageData, caption: caption, aggressive: true)
+            } catch APIError.httpError(413, _) {
+                throw VisionError(userMessage: String(localized: "这张图太大了，处理不了。换一张小一点的试试。"))
+            }
+        }
+    }
+
+    private func runExtraction(rawImageData: Data, caption: String?, aggressive: Bool) async throws -> ExtractionOutcome {
+        guard let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData, aggressive: aggressive) else {
             throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
         }
 
