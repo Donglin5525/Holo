@@ -55,6 +55,12 @@ const MODELS = {
     key: env.ZHIPU_API_KEY,
     model: arg('--model-zhipu', 'glm-4v-plus'),
   },
+  deepseek: {
+    label: 'DeepSeek v4 视觉',
+    baseURL: env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+    key: process.env.DEEPSEEK_API_KEY_EVAL || env.DEEPSEEK_API_KEY,
+    model: arg('--model-deepseek', 'deepseek-v4-flash-vision-exp'),
+  },
 };
 
 // ---------- 理解单抽取 prompt ----------

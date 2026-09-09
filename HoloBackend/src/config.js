@@ -376,7 +376,9 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "qwen",
       model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "qwen3-vl-plus",
       temperature: Number(process.env.HOLO_VISION_EXTRACTION_TEMPERATURE ?? 0),
-      maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 1500),
+      // 4000：deepseek-v4-flash-vision-exp 是推理模型（评测实测会先思考再出 JSON），
+      // 1500 时推理偶发吃满上限导致 content 空回复（f01 空回复实锤），放宽保输出。
+      maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 4000),
       requestLimits: {
         perMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
         perDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),
