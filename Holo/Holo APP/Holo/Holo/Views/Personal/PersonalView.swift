@@ -176,27 +176,15 @@ struct PersonalView: View {
                         HoloPlusEmblem(size: 58, tier: entitlementState.isPlusActive ? .plus : .free)
 
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: HoloSpacing.xs) {
-                                // 图文必须与真实档位一致：免费用户看到「免费版」，
-                                // 不能让卡片读起来像已经开通了 Plus
-                                // 标题是 title 级大字，与徽章同行时 HStack 的 Spacer 会挤压
-                                // Text 触发折行；固定单行宽度后剩余空间全部让给 Spacer。
-                                Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
-                                    .font(.holoTitle)
-                                    .foregroundColor(HoloPlusTheme.accentText)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-
-                                if entitlementState.isPlusActive {
-                                    Text("已生效")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(HoloPlusTheme.badgeText)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(HoloPlusTheme.badgeBg)
-                                        .clipShape(Capsule())
-                                }
-                            }
+                            // 图文必须与真实档位一致：免费用户看到「免费版」，
+                            // 不能让卡片读起来像已经开通了 Plus
+                            // 标题是 title 级大字、随系统字号放大，固定单行宽度
+                            // 防止被 HStack 的 Spacer 挤压折行。
+                            Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
+                                .font(.holoTitle)
+                                .foregroundColor(HoloPlusTheme.accentText)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
 
                             Text(
                                 entitlementState.isPlusActive
@@ -237,6 +225,21 @@ struct PersonalView: View {
                     }
                 }
                 .padding(HoloSpacing.lg)
+
+                // 「已生效」角标独立放右上角，不与标题抢一行：
+                // 系统大字号档位下标题放大后曾把同行徽章挤到文字无法渲染、
+                // 只剩底色空壳（竖条）。fixedSize 保证角标自身永不被压缩。
+                if entitlementState.isPlusActive {
+                    Text("已生效")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(HoloPlusTheme.badgeText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(HoloPlusTheme.badgeBg)
+                        .clipShape(Capsule())
+                        .fixedSize()
+                        .padding(HoloSpacing.md)
+                }
             }
             .frame(maxWidth: .infinity)
             .overlay(
