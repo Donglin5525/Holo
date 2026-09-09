@@ -13,6 +13,8 @@ import PhotosUI
 struct ChatInputView: View {
 
     @ObservedObject var viewModel: ChatViewModel
+    /// 点击输入框代表回到当前对话；由父视图在键盘出现前立即回到最新消息。
+    let onInputActivated: () -> Void
     let onVoiceInputTap: () -> Void
     /// 选图完成（已加载原始数据）；附言取发送时的输入框文字
     var onImagePicked: ((Data) -> Void)?
@@ -31,11 +33,13 @@ struct ChatInputView: View {
 
     init(
         viewModel: ChatViewModel,
+        onInputActivated: @escaping () -> Void = {},
         onVoiceInputTap: @escaping () -> Void = {},
         onImagePicked: ((Data) -> Void)? = nil,
         onImagePickFailed: ((String) -> Void)? = nil
     ) {
         self.viewModel = viewModel
+        self.onInputActivated = onInputActivated
         self.onVoiceInputTap = onVoiceInputTap
         self.onImagePicked = onImagePicked
         self.onImagePickFailed = onImagePickFailed
@@ -96,6 +100,11 @@ struct ChatInputView: View {
                     .padding(.vertical, 10)
                     .background(Color.holoCardBackground)
                     .cornerRadius(20)
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            onInputActivated()
+                        }
+                    )
                     .onSubmit {
                         // 流式中发送按钮已切换为停止键；回车不允许并发发送第二条消息
                         guard !viewModel.isStreaming else { return }

@@ -195,6 +195,29 @@ nonisolated enum ChatScrollGeometry {
         maximumOffsetY - currentOffsetY <= threshold
     }
 
+    /// 视口高度开始变化时，必须用「变化前」的几何判断用户是否原本贴底。
+    /// 如果改用变化后的 bounds，键盘刚出现就会让 maxY 瞬间增大，原本贴底的
+    /// 用户会被误判成正在浏览历史，列表因此停在旧位置。
+    static func wasPinnedBeforeViewportResize(
+        currentOffsetY: CGFloat,
+        contentHeight: CGFloat,
+        previousViewportHeight: CGFloat,
+        topInset: CGFloat,
+        bottomInset: CGFloat,
+        threshold: CGFloat
+    ) -> Bool {
+        isPinnedToBottom(
+            currentOffsetY: currentOffsetY,
+            maximumOffsetY: maximumOffsetY(
+                contentHeight: contentHeight,
+                viewportHeight: previousViewportHeight,
+                topInset: topInset,
+                bottomInset: bottomInset
+            ),
+            threshold: threshold
+        )
+    }
+
     /// 回底动画只覆盖较短距离。长距离若继续使用 UIScrollView 默认动画，
     /// LazyVStack 会在沿途持续补布局并改变 contentSize，导致动画反复追逐新终点。
     static func shouldAnimateJumpToBottom(

@@ -640,6 +640,9 @@ struct ChatView: View {
             // 输入栏
             ChatInputView(
                 viewModel: viewModel,
+                onInputActivated: {
+                    returnToLatestForInput()
+                },
                 onVoiceInputTap: {
                     activeSheet = .voiceInput
                 },
@@ -686,8 +689,11 @@ struct ChatView: View {
 
     private var messageList: some View {
         ScrollViewReader { proxy in
+        GeometryReader { viewport in
         ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 12) {
+            // 当前会话首批最多 50 条、历史每次只增 16 条。这里用确定高度的 VStack，
+            // 避免 LazyVStack 在复杂卡片离屏后用估算高度占位，出现录屏中的大片空白和跳动。
+            VStack(spacing: 12) {
                 if viewModel.hasLoadedMessages
                     && (viewModel.hasEarlierSessions
                         || viewModel.isLoadingEarlierSession
@@ -736,9 +742,8 @@ struct ChatView: View {
                         onPeriodReplayExpansionChanged: { message, isExpanded in
                             // 收起方向：内容变短可能让偏移越过新边界，交给底层 UIScrollView 校正。
                             guard !isExpanded else {
-                                // 展开方向：内容只增不减，偏移天然合法，但 defaultScrollAnchor(.bottom)
-                                // 会让视口按旧几何对位，落进 LazyVStack 尚未物化的区域，表现为整屏空白。
-                                // 被点击的卡片必然已物化，scrollTo 重锚定即可强制滚动视图回到真实内容上。
+                                // 展开方向：内容只增不减，偏移天然合法；把被点击卡片柔和带回可视区，
+                                // 避免展开后的长内容把操作入口瞬间推离屏幕。
                                 Task { @MainActor in
                                     await Task.yield()
                                     withAnimation(.easeInOut(duration: 0.22)) {
@@ -846,8 +851,10 @@ struct ChatView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-            // 返回最下方按钮出现时，底部留出避让空间，最后一张卡片不被按钮胶囊盖住。
-            .padding(.bottom, scrollController.viewport.showsJumpToLatest ? 64 : 12)
+            .padding(.bottom, 12)
+            // 短对话贴近输入栏；长对话由 UIScrollView 的真实 contentSize 决定位置。
+            // 不再使用 defaultScrollAnchor，避免它与手动 offset 同时重排内容。
+            .frame(minHeight: viewport.size.height, alignment: .bottom)
             .background(alignment: .topLeading) {
                 ChatScrollViewBridge(controller: scrollController)
                     .frame(width: 1, height: 1)
@@ -855,7 +862,6 @@ struct ChatView: View {
                     .frame(width: 1, height: 1)
             }
         }
-        .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         .overlay(alignment: .bottomTrailing) {
             if scrollController.viewport.showsJumpToLatest {
@@ -893,6 +899,7 @@ struct ChatView: View {
             if scrollController.viewport.isNearBottom {
                 scrollController.scrollToBottom(animated: false)
             }
+        }
         }
         }
     }
@@ -1164,6 +1171,14 @@ struct ChatView: View {
 
     // MARK: - Keyboard Avoidance
 
+    /// 与成熟 IM 一致：点击输入区即表示继续最新对话。长距离直接到达，短距离柔和过渡；
+    /// 后续键盘 frame 变化会继续延长贴底窗口，不会停在半途。
+    private func returnToLatestForInput() {
+        pendingNewMessageCount = 0
+        hasUnseenStreamingUpdate = false
+        scrollController.scrollToBottom(animated: true, pinDuration: 0.6)
+    }
+
     /// 根据键盘目标 frame 计算其遮挡内容区的高度，并跟随键盘动画曲线更新。
     private func updateKeyboardOverlap(_ note: Notification) {
         guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
@@ -1190,6 +1205,16 @@ struct ChatView: View {
         case .easeOut: animation = .easeOut(duration: duration)
         case .linear: animation = .linear(duration: duration)
         default: animation = .easeInOut(duration: duration)
+        }
+        let isKeyboardAppearing = overlap > keyboardOverlap + 1
+        if isKeyboardAppearing {
+            pendingNewMessageCount = 0
+            hasUnseenStreamingUpdate = false
+            // padding 改变会连续触发多帧 bounds/contentSize 更新；贴底窗口覆盖完整键盘动画。
+            scrollController.scrollToBottom(
+                animated: false,
+                pinDuration: max(0.45, duration + 0.18)
+            )
         }
         withAnimation(animation) {
             keyboardOverlap = overlap

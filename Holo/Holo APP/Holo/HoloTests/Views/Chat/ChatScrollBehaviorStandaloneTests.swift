@@ -17,6 +17,7 @@ struct ChatScrollBehaviorStandaloneTests {
         testHistoryLoadGateOnlyTriggersOncePerTopVisit()
         testHistoryLoadGateDoesNotTriggerWithoutUserGesture()
         testScrollGeometryPreservesViewportAndHandlesShortContent()
+        testViewportResizeUsesPreviousGeometryToPreserveBottom()
         testInitialPresentationWaitsForScreenTransition()
         testHistoryPageResultDistinguishesFailure()
         testOffsetSettlingFinishesAfterConsecutiveStableFrames()
@@ -200,6 +201,31 @@ struct ChatScrollBehaviorStandaloneTests {
                 screenTransitionDuration: -1
             ) == ChatInitialPresentationPolicy.transitionSafetyMargin,
             "异常的负转场时长应收敛为安全余量"
+        )
+    }
+
+    private static func testViewportResizeUsesPreviousGeometryToPreserveBottom() {
+        expect(
+            ChatScrollGeometry.wasPinnedBeforeViewportResize(
+                currentOffsetY: 1_220,
+                contentHeight: 1_900,
+                previousViewportHeight: 700,
+                topInset: 0,
+                bottomInset: 20,
+                threshold: 72
+            ),
+            "键盘出现前贴底的用户必须继续贴底"
+        )
+        expect(
+            !ChatScrollGeometry.wasPinnedBeforeViewportResize(
+                currentOffsetY: 900,
+                contentHeight: 1_900,
+                previousViewportHeight: 700,
+                topInset: 0,
+                bottomInset: 20,
+                threshold: 72
+            ),
+            "正在浏览历史的用户不能因视口变化被强制抢回底部"
         )
     }
 

@@ -121,7 +121,7 @@ private final class ChatScrollThumbView: UIView {
         super.init(frame: .zero)
         backgroundColor = UIColor(Color.holoTextSecondary).withAlphaComponent(0.35)
         layer.cornerRadius = thumbWidth / 2
-        layer.zPosition = 1000   // 确保盖在 LazyVStack 内容之上
+        layer.zPosition = 1000   // 确保盖在聊天内容之上
         alpha = 0
         isUserInteractionEnabled = false
     }

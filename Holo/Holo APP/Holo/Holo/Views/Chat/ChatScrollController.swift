@@ -4,7 +4,7 @@
 //
 //  成熟 IM 风格的 UIScrollView 协调层：
 //  - prepend 历史消息时按真实 contentSize 增量保持像素位置
-//  - 仅在用户原本位于底部时跟随流式内容增长
+//  - 仅在用户原本位于底部时跟随流式内容增长和键盘几何变化
 //  - 为任意距离提供可靠的回到底部能力
 //  - 内容缩短、键盘变化后把偏移限制在合法范围
 //
@@ -83,7 +83,10 @@ final class ChatScrollController: ObservableObject {
             options: [.old, .new]
         ) { [weak self] scrollView, change in
             guard change.oldValue?.size != change.newValue?.size else { return }
-            self?.handleViewportSizeChange(in: scrollView)
+            self?.handleViewportSizeChange(
+                in: scrollView,
+                previousBounds: change.oldValue ?? scrollView.bounds
+            )
         }
 
         if isBottomPinActive {
@@ -134,11 +137,14 @@ final class ChatScrollController: ObservableObject {
         schedulePrependFinish(after: 0.4)
     }
 
-    func scrollToBottom(animated: Bool) {
+    func scrollToBottom(
+        animated: Bool,
+        pinDuration: TimeInterval = 0.45
+    ) {
         isBottomPinActive = true
         bottomPinUsesAnimation = animated
         guard let scrollView else { return }
-        scheduleBottomPinFinish(after: 0.45)
+        scheduleBottomPinFinish(after: pinDuration)
         pinToCurrentBottomIfNeeded(in: scrollView, initialAnimation: animated)
     }
 
@@ -158,7 +164,7 @@ final class ChatScrollController: ObservableObject {
 
     /// 内容大幅收缩（卡片收起、消息删除）后开启逐帧稳定校验窗口。
     /// 一次性钳制会被 isAdjustingOffset 重入保护丢事件，也可能早于
-    /// defaultScrollAnchor 的框架级再定位；只有逐帧核对最终不变量能兜住。
+    /// SwiftUI 内容完成最终布局；只有逐帧核对最终不变量能兜住。
     func beginOffsetSettling() {
         settlingPolicy = ChatOffsetSettlingPolicy()
         guard settleDisplayLink == nil else { return }
@@ -253,11 +259,25 @@ final class ChatScrollController: ObservableObject {
         updateViewport(in: scrollView)
     }
 
-    private func handleViewportSizeChange(in scrollView: UIScrollView) {
+    private func handleViewportSizeChange(
+        in scrollView: UIScrollView,
+        previousBounds: CGRect
+    ) {
         guard !isAdjustingOffset else { return }
 
-        // 键盘出现/消失导致可视高度变化：底部用户继续贴底，历史浏览用户保持原位置。
-        if viewport.isNearBottom,
+        let inset = scrollView.adjustedContentInset
+        let wasPinnedBeforeResize = ChatScrollGeometry.wasPinnedBeforeViewportResize(
+            currentOffsetY: scrollView.contentOffset.y,
+            contentHeight: scrollView.contentSize.height,
+            previousViewportHeight: previousBounds.height,
+            topInset: inset.top,
+            bottomInset: inset.bottom,
+            threshold: bottomFollowDistance
+        )
+
+        // 键盘出现/消失导致可视高度变化：必须依据旧几何判断是否贴底。
+        // isBottomPinActive 覆盖「用户刚点输入框」场景，让整个键盘动画都追随真实底部。
+        if (wasPinnedBeforeResize || isBottomPinActive),
            !scrollView.isTracking,
            !scrollView.isDragging {
             setOffset(
