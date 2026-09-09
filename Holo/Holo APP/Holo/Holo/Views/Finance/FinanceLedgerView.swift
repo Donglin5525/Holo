@@ -75,6 +75,9 @@ struct FinanceLedgerView: View {
     @State private var operationMessage: OperationMessage?
 
     // --- 日期滑动切换：状态在 DaySwipeContainer 内（隔离每帧重算） ---
+    /// 实时手势状态（引用类型）：账单行点击回调执行时同步读取，
+    /// 不依赖 SwiftUI 重渲染——快速轻扫时 allowsHitTesting 的重绘滞后一帧
+    @State private var daySwipeState = DaySwipeGestureState()
 
     // --- 月历展开：连续高度控制 ---
 
@@ -147,7 +150,7 @@ struct FinanceLedgerView: View {
 
             // 交易列表（支持左右滑动切换日期）：滑动状态隔离在子容器，
             // 避免每帧拖动重算整页 body（头部/汇总卡/列表陪跑，行多时跟手性下降）
-            DaySwipeContainer(onDayChange: { forward in
+            DaySwipeContainer(state: daySwipeState, onDayChange: { forward in
                 if let newDate = Calendar.current.date(
                     byAdding: .day,
                     value: forward ? 1 : -1,
@@ -468,7 +471,8 @@ struct FinanceLedgerView: View {
             LazyVStack(spacing: 0) {
                 ForEach(Array(calendarState.selectedDayTransactions.enumerated()), id: \.element) { index, tx in
                     TransactionRowView(transaction: tx) {
-                        // 滑动切换日期中的点击已被容器 allowsHitTesting 整体拦截
+                        // 容器 allowsHitTesting 在快速轻扫时会滞后一帧，执行时再查实时手势状态兜底
+                        guard !daySwipeState.isSwiping else { return }
                         editingTransaction = tx
                     }
                     .contextMenu {
@@ -659,7 +663,13 @@ private struct OperationMessage: Equatable {
 /// 日切换滑动容器：把手势状态（偏移量/滑动中标记）隔离在子视图，
 /// 拖动期间的每帧写入只失效本容器，不再重算整页 body
 /// （账单页头部、汇总卡、列表此前都跟着每帧陪跑，行多时横滑跟手性下降）。
+///
+/// `state` 是父视图持有的引用对象：isSwiping 的 @State 写入要等重绘才对
+/// allowsHitTesting 生效，快速轻扫（下探-横移-抬起挤在同一两帧）时点击回调
+/// 会抢在重绘前执行，所以点击方必须同步读 `state.isSwiping` 兜底。
 private struct DaySwipeContainer<Content: View>: View {
+    /// 实时滑动标记（供账单行点击回调同步读取）
+    let state: DaySwipeGestureState
     /// 提交切换回调：forward = 左滑切到后一天
     let onDayChange: (Bool) -> Void
     @ViewBuilder let content: () -> Content
@@ -679,19 +689,20 @@ private struct DaySwipeContainer<Content: View>: View {
                         switch gestureLock.update(translation: value.translation) {
                         case .horizontal:
                             isSwiping = true
+                            state.isSwiping = true
                             offset = value.translation.width * 0.3
                         case .vertical:
-                            isSwiping = false
+                            endSwipe()
                             offset = 0
                         case .undecided:
                             break
                         }
                     }
                     .onEnded { value in
+                        defer { gestureLock.reset() }
                         guard gestureLock.axis == .horizontal else {
-                            isSwiping = false
+                            endSwipe()
                             offset = 0
-                            gestureLock.reset()
                             return
                         }
 
@@ -702,11 +713,16 @@ private struct DaySwipeContainer<Content: View>: View {
                             performDaySwipe(forward: false)
                         } else {
                             withAnimation(.spring(response: 0.3)) { offset = 0 }
+                            endSwipe()
                             isSwiping = false
                         }
-                        gestureLock.reset()
                     }
             )
+    }
+
+    /// 滑动收尾：清实时标记（渲染用的 isSwiping 由各自分支按需复位）
+    private func endSwipe() {
+        state.isSwiping = false
     }
 
     /// 执行日期切换动画
@@ -732,6 +748,13 @@ private struct DaySwipeContainer<Content: View>: View {
             }
 
             isSwiping = false
+            state.isSwiping = false
         }
     }
+}
+
+/// 日滑动的实时手势标记：引用类型，跨视图共享同一份布尔值，
+/// 点击回调执行时同步读取，不等 SwiftUI 重绘
+final class DaySwipeGestureState {
+    var isSwiping = false
 }
