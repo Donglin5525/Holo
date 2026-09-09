@@ -80,15 +80,15 @@ Holo - 生活记录与AI助手
 
 ### 宣传文本
 
-记账、待办、习惯、笔记和健康状态放在一个地方。Holo 用日历和 AI 整理帮你看清每天发生了什么，也看见长期变化。
+你的人生数据库：记账、待办、习惯、笔记和健康状态放在一个地方。Holo 用日历和 AI 整理帮你看清每天发生了什么，也看见长期变化。
 
 ### 简短描述
 
-Holo 是一款生活记录和个人管理工具，把记账、待办、习惯、笔记、日历复盘和健康状态放在一起，并用 AI 帮你整理线索、回看变化。
+Holo 是你的人生数据库——一款生活记录和个人管理工具，把记账、待办、习惯、笔记、日历复盘和健康状态放在一起，并用 AI 帮你整理线索、回看变化。
 
 ### 完整描述
 
-每天都有很多事发生：花了多少钱、完成了什么、习惯有没有坚持、身体状态怎么样、脑子里冒出了哪些想法。Holo 帮你把这些零散记录放在一个清晰的生活工作台里。
+每天都有很多事发生：花了多少钱、完成了什么、习惯有没有坚持、身体状态怎么样、脑子里冒出了哪些想法。Holo 帮你把这些零散记录放在一个清晰的生活工作台里——你的人生数据库。
 
 你可以用 Holo 记账、管理待办、追踪习惯、记录笔记和灵感，也可以通过 Apple Health 授权查看步数、睡眠、站立和运动时长。Holo 会用日历和记忆长廊帮你复盘每天的变化，而不是让记录散落在不同 App 里。
 
@@ -341,15 +341,15 @@ Calendar, notes, health & AI
 
 **宣传文本（170 字符内）：**
 
-Budget, to-dos, habits, notes and health in one place. Holo uses your calendar and AI to help you see what happened each day — and how life shifts over time.
+Your life database. Budget, to-dos, habits, notes and health in one place. Holo uses your calendar and AI to help you see each day — and how life shifts over time.
 
 **简短描述：**
 
-Holo is a life journal and personal manager. Track expenses, to-dos, habits, notes, calendar reviews and health stats together — with AI that helps you connect the dots and see long-term change.
+Holo is your life database — a life journal and personal manager. Track expenses, to-dos, habits, notes, calendar reviews and health stats together — with AI that helps you connect the dots and see long-term change.
 
 **完整描述：**
 
-A lot happens every day: what you spent, what you finished, whether your habits held up, how you slept, and the ideas that crossed your mind. Holo puts those scattered records into one clear life dashboard.
+A lot happens every day: what you spent, what you finished, whether your habits held up, how you slept, and the ideas that crossed your mind. Holo puts those scattered records into one clear life dashboard — your life database.
 
 Use Holo to track expenses, manage to-dos, build habits, and capture notes and ideas. With Apple Health permission, view steps, sleep, stand hours and workouts. Holo's calendar and Memory Gallery help you review each day instead of losing records across different apps.
 
@@ -391,15 +391,15 @@ Holo - 記帳待辦習慣助手
 
 **宣傳文本：**
 
-記帳、待辦、習慣、筆記和健康狀態放在一個地方。Holo 用行事曆和 AI 整理幫你看清每天發生了什麼，也看見長期變化。
+你的人生資料庫：記帳、待辦、習慣、筆記和健康狀態放在一個地方。Holo 用行事曆和 AI 整理幫你看清每天發生了什麼，也看見長期變化。
 
 **簡短描述：**
 
-Holo 是一款生活記錄和個人管理工具，把記帳、待辦、習慣、筆記、行事曆回顧和健康狀態放在一起，並用 AI 幫你整理線索、回看變化。
+Holo 是你的人生資料庫——一款生活記錄和個人管理工具，把記帳、待辦、習慣、筆記、行事曆回顧和健康狀態放在一起，並用 AI 幫你整理線索、回看變化。
 
 **完整描述：**
 
-每天都有很多事發生：花了多少錢、完成了什麼、習慣有沒有堅持、身體狀態怎麼樣、腦中冒出了哪些想法。Holo 幫你把這些零散記錄放在一個清晰的生活工作台裡。
+每天都有很多事發生：花了多少錢、完成了什麼、習慣有沒有堅持、身體狀態怎麼樣、腦中冒出了哪些想法。Holo 幫你把這些零散記錄放在一個清晰的生活工作台裡——你的人生資料庫。
 
 你可以用 Holo 記帳、管理待辦、追蹤習慣、記錄筆記和靈感，也可以透過 Apple Health 授權查看步數、睡眠、站立和運動時長。Holo 會用行事曆和記憶長廊幫你回顧每天的變化，而不是讓記錄散落在不同 App 裡。
 

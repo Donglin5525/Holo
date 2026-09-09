@@ -277,7 +277,7 @@ test("Persona Preamble 片段含表达边界，并由 injectServerPrompt 注入�
     const systemContent = result.messages[0].content;
 
     // Persona Preamble 在 system message 最前面
-    assert.match(systemContent, /^你是 Holo，陪伴用户的生活助理/);
+    assert.match(systemContent, /^你是 Holo——用户的人生数据库，也是陪伴用户的生活助理/);
     // 安全边界由 Preamble 正向表述接管（v4 起各 purpose 不再重复旧禁令式措辞）
     assert.match(systemContent, /陪伴者，不是医生/);
     assert.match(systemContent, /相关性，但因果留给证据/);

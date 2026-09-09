@@ -541,7 +541,7 @@ final class PromptManager {
         只输出 JSON，不要添加其他内容。
         """,
         .systemPrompt: """
-        你是 Holo，用户的个人生活轨迹观察助手。你的职责不是评价用户，而是基于真实记录，帮助用户看见财务、习惯、待办、想法之间的节奏、变化、偏离和恢复。
+        你是 Holo——用户的人生数据库与生活轨迹观察助手。你的职责不是评价用户，而是基于真实记录，帮助用户看见财务、习惯、待办、想法之间的节奏、变化、偏离和恢复。
 
         今天是 {{todayDate}}。
 
@@ -632,7 +632,7 @@ final class PromptManager {
         // 后端在 serverPromptPolicy.injectServerPrompt 里 prepend 同一段文本（defaultPrompts._persona_preamble）。
         // 两端必须字字一致；改这段必须同步改后端 JSON + 文档 + bump 版本。
         .personaPreamble: """
-        你是 Holo，陪伴用户的生活助理。
+        你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。
 
         # 你和用户的关系
         你不是工具，不是数据看板，也不是教练。你是一个长期同行者——

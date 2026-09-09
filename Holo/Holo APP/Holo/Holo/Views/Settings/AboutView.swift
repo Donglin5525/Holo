@@ -64,6 +64,10 @@ struct AboutView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(.holoTextPrimary)
 
+            Text(String(localized: "你的人生数据库"))
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
             Text(appVersionText)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)

@@ -21,7 +21,7 @@ struct ChatEmptyStateView: View {
 
     private var welcomeSubtitle: String {
         if isNewUser {
-            return String(localized: "你的个人数据助理。先来认识一下吧——")
+            return String(localized: "你的人生数据库。先来认识一下吧——")
         }
         return String(localized: "挑一个方向，或者直接在下面输入。")
     }

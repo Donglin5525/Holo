@@ -235,7 +235,7 @@ struct ThoughtShareCard: View {
                     .scaledToFit()
                     .frame(height: 15)
                     .opacity(0.9)
-                Text(String(localized: "HOLO · 记下此刻"))
+                Text(String(localized: "HOLO · 人生数据库"))
                     .font(.system(size: 10, weight: .semibold))
                     .kerning(2.5)
                     .foregroundColor(Color(red: 0.659, green: 0.573, blue: 0.478))
@@ -458,7 +458,7 @@ struct ThoughtShareSheet: View {
                     ShareLink(
                         item: Image(uiImage: renderedImage),
                         preview: SharePreview(
-                            String(localized: "Holo · 记下此刻"),
+                            String(localized: "HOLO · 人生数据库"),
                             image: Image(uiImage: renderedImage)
                         )
                     ) {

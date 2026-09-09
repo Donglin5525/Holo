@@ -1,4 +1,4 @@
-# HOLO - 个人数据资产 + AI 规划 iOS 应用
+# HOLO · 人生数据库 — 个人数据资产 + AI 规划 iOS 应用
 
 **技术栈**：SwiftUI, Swift 5+, MVVM, Core Data
 **核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 ✅ | 观点 📋 | AI 对话 ✅

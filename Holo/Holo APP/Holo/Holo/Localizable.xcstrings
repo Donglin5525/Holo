@@ -6857,34 +6857,18 @@
         }
       }
     },
-    "Holo · 记下此刻" : {
+    "HOLO · 人生数据库" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Holo · 记下此刻"
+            "value" : "HOLO · Your Life Database"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Holo · 記下此刻"
-          }
-        }
-      }
-    },
-    "HOLO · 记下此刻" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HOLO · 记下此刻"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HOLO · 記下此刻"
+            "value" : "HOLO · 人生資料庫"
           }
         }
       }
@@ -13009,34 +12993,50 @@
         }
       }
     },
-    "你的个人数据助理。先来认识一下吧——" : {
+    "你的人生数据库" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your personal data assistant. Let's get acquainted—"
+            "value" : "Your life database"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的個人資料助理。先來認識一下吧——"
+            "value" : "你的人生資料庫"
           }
         }
       }
     },
-    "你的个人数据助理。帮你记录生活、安排事情，并慢慢看见自己的变化。" : {
+    "你的人生数据库。先来认识一下吧——" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your personal data assistant. It helps you log life, organize things, and gradually see your own changes."
+            "value" : "Your life database. Let's get acquainted—"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的個人資料助理。幫你記錄生活、安排事情，並慢慢看見自己的變化。"
+            "value" : "你的人生資料庫。先來認識一下吧——"
+          }
+        }
+      }
+    },
+    "你的人生数据库。帮你记下生活、安排事情，并慢慢看见自己的变化。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your life database. It helps you capture your days, organize things, and gradually see your own changes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的人生資料庫。幫你記下生活、安排事情，並慢慢看見自己的變化。"
           }
         }
       }

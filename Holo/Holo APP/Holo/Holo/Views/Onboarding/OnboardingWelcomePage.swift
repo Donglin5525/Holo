@@ -28,7 +28,7 @@ struct OnboardingWelcomePage: View {
                         .font(.holoTitle)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("你的个人数据助理。帮你记录生活、安排事情，并慢慢看见自己的变化。")
+                    Text("你的人生数据库。帮你记下生活、安排事情，并慢慢看见自己的变化。")
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)

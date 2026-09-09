@@ -108,8 +108,9 @@ function Hero() {
     <section className="hero-section" id="top">
       <div className="hero-copy">
         <p className="eyebrow">HoloAI · 个人数据资产与陪伴式规划</p>
-        <h1>让每天的记录，长成一个真正懂你的 AI。</h1>
+        <h1>Holo · 你的人生数据库</h1>
         <p className="hero-text">
+          让每天的记录，长成一个真正懂你的 AI。
           Holo 将记账、待办、习惯、想法和健康汇入同一个个人上下文。
           首页的 HoloAI 球体会吸收你的日常信号，生成今日建议、长期洞察和可以继续对话的记忆陪伴。
         </p>
@@ -354,7 +355,7 @@ function Footer() {
           </a>
         ))}
       </div>
-      <p>个人数据资产、HoloAI 规划与记忆陪伴。示例页面文案不构成医疗、财务或法律建议。</p>
+      <p>你的人生数据库——个人数据资产、HoloAI 规划与记忆陪伴。示例页面文案不构成医疗、财务或法律建议。</p>
     </footer>
   )
 }

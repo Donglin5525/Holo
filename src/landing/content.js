@@ -53,7 +53,7 @@ export const coreSections = [
   {
     id: 'holoai',
     title: 'HoloAI',
-    label: '个人上下文中枢',
+    label: '你的人生数据库',
     description: 'HoloAI 读取五大模块形成的个人上下文，把自然语言记录、结构化数据和长期模式合并成今日简报、跨模块洞察和下一步建议。',
     bullets: ['自然语言记录', '结构化解析', '跨模块分析', '今日简报'],
   },
