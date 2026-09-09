@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 数据与账号删除</title>
+<style>
+:root { --orange:#F46D38; --bg:#FBFAF8; --text:#1C1917; --muted:#57534E; --border:#E7E5E4; --card:#fff; --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','PingFang SC','Noto Sans SC',system-ui,sans-serif; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.75; }
+a { color: var(--orange); text-decoration: none; }
+.nav { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: rgba(251,250,248,.92); position: sticky; top: 0; backdrop-filter: blur(16px); }
+.brand { font-weight: 800; color: var(--orange); font-size: 20px; }
+.nav-links { display: flex; gap: 20px; font-size: 14px; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 64px 24px 88px; }
+.label { color: var(--orange); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
+h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.12; letter-spacing: -.03em; margin-bottom: 18px; }
+.lead { color: var(--muted); font-size: 18px; margin-bottom: 28px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 28px; margin: 18px 0; box-shadow: 0 14px 42px rgba(28,25,23,.04); }
+h2 { font-size: 22px; margin-bottom: 12px; }
+p, li { color: var(--muted); font-size: 15px; }
+ol, ul { padding-left: 20px; display: grid; gap: 8px; }
+	.footer { border-top: 1px solid var(--border); padding-top: 24px; color: #78716C; font-size: 14px; }
+	.beian { margin-top: 8px; font-size: 13px; }
+@media (max-width: 640px) { .nav { padding: 0 20px; } .nav-links { gap: 12px; font-size: 13px; } .wrap { padding-top: 44px; } .card { padding: 22px; } }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="index.html">Holo</a>
+  <div class="nav-links">
+    <a href="privacy.html">隐私政策</a>
+    <a href="support.html">支持</a>
+  </div>
+</nav>
+<main class="wrap">
+  <div class="label">Data Deletion</div>
+  <h1>数据与账号删除</h1>
+  <p class="lead">你可以随时删除 Holo 中的记录，也可以请求删除账号和关联的 Holo 数据。</p>
+
+  <section class="card">
+    <h2>在 App 内删除账号与数据</h2>
+    <ol>
+      <li>打开 Holo App。</li>
+      <li>进入“设置”。</li>
+      <li>进入“诊断与数据管理”。</li>
+      <li>选择“删除账号与 Holo 数据”。</li>
+      <li>按照页面提示确认删除请求。</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2>通过邮件请求删除</h2>
+    <p>如果你无法进入 App，可以发送邮件至 <a href="mailto:holoappservice@gmail.com">holoappservice@gmail.com</a>。请使用与你的 Holo 账号相关的邮箱或 Apple ID 转发邮箱联系我们，以便我们验证请求。</p>
+  </section>
+
+  <section class="card">
+    <h2>删除范围</h2>
+    <ul>
+      <li>账号相关会话和身份标识。</li>
+      <li>记账、待办、习惯、想法和健康模块中由 Holo 保存的数据。</li>
+      <li>HoloAI 相关的用户上下文和记录摘要。</li>
+    </ul>
+    <p>部分本地数据、iCloud 数据或系统级 HealthKit 授权也可能需要你在设备设置或 iCloud 中手动管理。</p>
+  </section>
+
+  <section class="card">
+    <h2>处理时间</h2>
+    <p>收到并验证请求后，我们会尽快处理删除请求。某些备份、日志或安全记录可能会在合理期限内保留，用于安全、审计或法律合规目的。</p>
+  </section>
+
+	  <div class="footer">
+	    <div>© 2026 Holo. All rights reserved.</div>
+	    <div class="beian"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026075484号-1</a></div>
+	  </div>
+</main>
+</body>
+</html>

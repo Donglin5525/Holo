@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 用户支持</title>
+<style>
+:root { --orange:#F46D38; --bg:#FBFAF8; --text:#1C1917; --muted:#57534E; --border:#E7E5E4; --card:#fff; --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','PingFang SC','Noto Sans SC',system-ui,sans-serif; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.75; }
+a { color: var(--orange); text-decoration: none; }
+.nav { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: rgba(251,250,248,.92); position: sticky; top: 0; backdrop-filter: blur(16px); }
+.brand { font-weight: 800; color: var(--orange); font-size: 20px; }
+.nav-links { display: flex; gap: 20px; font-size: 14px; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 64px 24px 88px; }
+.label { color: var(--orange); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
+h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.12; letter-spacing: -.03em; margin-bottom: 18px; }
+.lead { color: var(--muted); font-size: 18px; margin-bottom: 28px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 28px; margin: 18px 0; box-shadow: 0 14px 42px rgba(28,25,23,.04); }
+h2 { font-size: 22px; margin-bottom: 12px; }
+p, li { color: var(--muted); font-size: 15px; }
+ul { padding-left: 20px; display: grid; gap: 8px; }
+	.footer { border-top: 1px solid var(--border); padding-top: 24px; color: #78716C; font-size: 14px; }
+	.beian { margin-top: 8px; font-size: 13px; }
+@media (max-width: 640px) { .nav { padding: 0 20px; } .nav-links { gap: 12px; font-size: 13px; } .wrap { padding-top: 44px; } .card { padding: 22px; } }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="index.html">Holo</a>
+  <div class="nav-links">
+    <a href="privacy.html">隐私政策</a>
+    <a href="data-deletion.html">数据删除</a>
+  </div>
+</nav>
+<main class="wrap">
+  <div class="label">Support</div>
+  <h1>Holo 用户支持</h1>
+  <p class="lead">如果你在使用 Holo 时遇到问题，可以通过邮件联系我们。我们会尽力协助你处理账号、同步、数据、HealthKit 和 HoloAI 相关问题。</p>
+
+  <section class="card">
+    <h2>联系邮箱</h2>
+    <p>请发送邮件至 <a href="mailto:holoappservice@gmail.com">holoappservice@gmail.com</a>。为了更快定位问题，你可以在邮件中包含设备型号、iOS 版本、App 版本和问题截图。</p>
+  </section>
+
+  <section class="card">
+    <h2>常见支持范围</h2>
+    <ul>
+      <li>账号登录、退出和账号删除。</li>
+      <li>iCloud/CloudKit 同步问题。</li>
+      <li>记账、待办、习惯、想法和健康模块使用问题。</li>
+      <li>HealthKit 授权和健康数据读取问题。</li>
+      <li>HoloAI 解析、总结或建议相关问题。</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>数据与隐私</h2>
+    <p>隐私政策请查看 <a href="privacy.html">privacy.html</a>。如果你希望删除账号和 Holo 数据，请查看 <a href="data-deletion.html">data-deletion.html</a>。</p>
+  </section>
+
+	  <div class="footer">
+	    <div>© 2026 Holo. All rights reserved.</div>
+	    <div class="beian"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026075484号-1</a></div>
+	  </div>
+</main>
+</body>
+</html>
