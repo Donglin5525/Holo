@@ -30,7 +30,7 @@ struct HealthInsightVerifier {
     ]
 
     func verify(_ parsed: HealthInsightParsedInsights, evidence: [HealthInsightEvidence]) -> HealthInsightParsedInsights {
-        let domainById = Dictionary(uniqueKeysWithValues: evidence.map { ($0.id, $0.domain) })
+        let domainById = Dictionary(evidence.map { ($0.id, $0.domain) }, uniquingKeysWith: { first, _ in first })
 
         let core = parsed.coreInsight.flatMap { verifyCore($0, domainById: domainById) }
         let loops = parsed.lifestyleLoops.compactMap { verifyLoop($0, domainById: domainById) }

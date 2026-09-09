@@ -51,8 +51,11 @@ nonisolated enum HoloContextReconciler {
         packageSources: [HoloContextSourceSnapshot],
         now: Date
     ) -> [HoloContextReconcileDecision] {
-        let verdictByRef = Dictionary(uniqueKeysWithValues: verdicts.map { ($0.candidateRef, $0) })
-        let sourcesByID = Dictionary(uniqueKeysWithValues: packageSources.map { ($0.sourceID, $0) })
+        // 来源/verdict 均来自外部管道（iCloud 同步可能产生重复来源 ID、模型可能重复输出
+        // 同一候选 ref）——uniqueKeysWithValues 遇重复键直接 fatal，改容重复取首条
+        // （与 HoloContextSourceIndex「首次出现保留」语义一致）。
+        let verdictByRef = Dictionary(verdicts.map { ($0.candidateRef, $0) }, uniquingKeysWith: { first, _ in first })
+        let sourcesByID = Dictionary(packageSources.map { ($0.sourceID, $0) }, uniquingKeysWith: { first, _ in first })
 
         return candidates.map { candidate in
             let ref = candidate.candidateRef
