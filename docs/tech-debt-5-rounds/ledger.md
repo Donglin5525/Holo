@@ -113,3 +113,20 @@ print 仅 2 处且在 DEBUG 内；debugPrint 0；try!×1、as!×6、fatalError×
   - R0-10 ⏸️ 豁免：看板为固定 8 分区仪表盘，外层 Lazy 无收益；任务行惰性化在带背景裁切卡片内会出现「背景随滚动渐进生长」视觉变化，违反零功能变化红线；行成本已由 R0-3 降低
   - R0-17 ⏸️ 豁免：洞察页为编辑式固定版面，精选故事有 prefix 限量，非长列表
   - 验证：独立派生数据目录编译（/tmp/holo-techdebt-dd，避免与并行会话构建锁互踩）；全量测试门禁与 R1b 一并在工作区安静后补跑。
+
+## 收尾状态（2026-09-09 06:00 · 东林要工作，技术优化挂起交接）
+
+### 已完成轮次
+- R0 分拣+基线 ✓ | R1a 卡顿8处 ✓ | R1b streak/高光批量化 ✓ | R2 净删5830行 ✓ | R3 冗余收敛 ✓（各自独立 commit）
+- R4 结构治理 ✓（本轮 commit）：ChatViewModel 3220→1419 行主文件+3个扩展文件（AgentResume/PendingConfirmations/CapabilityTap，括号配平脚本切割）；Repository 19 文件归位 Data/Repositories；跨文件引用的 private 成员放宽 24 处（拆分必要代价，internal）；**MarkdownTextView 拆分豁免**（内含嵌套类型与条件编译，机械拆分风险>收益，留专项）
+- R5 部分交付 ✓：SwiftLint 0.65.1 已装 + .swiftlint.yml 配置（警告级，未接构建相位）；编译警告基线 142 条存档 baseline-warnings-20260909.txt（以 actor-isolation 类为主，属「系统级勿局部修」范畴）
+
+### 挂起清单（续跑时按序执行）
+1. R4 全量测试门禁未跑（收尾时东林要工作，增量编译 BUILD SUCCEEDED 后挂起）：跑 `xcodebuild test -only-testing:HoloTests`，基线=931 tests/9 failures（CategoryDefaultIcon 7 + ChatCardData 2 为存量红，非本工作引入）
+2. R5 全量回归 + UI 走查 + 前后对比报告
+3. tech-debt-20260909 分支合并回 1.0.3（合并时主工作区在途改动已由东林处理）
+4. 真机验收交东林（重点：习惯统计页/长廊/任务列表/财务统计的手感对比）
+
+### 环境交接
+- 工作树：/tmp/holo-techdebt-wt（分支 tech-debt-20260909，已推送远端；机器重启会丢工作树，分支和提交在远端安全）
+- 独立派生数据：/tmp/holo-techdebt-dd（可删，重编译自动重建）

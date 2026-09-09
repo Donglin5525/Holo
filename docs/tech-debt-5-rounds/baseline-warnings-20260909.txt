@@ -1,0 +1,142 @@
+Holo/Data/Repositories/ChatMessageRepository.swift:1471:30: warning: call to main actor-isolated static method 'makeArchiveDTO(id:timestamp:messageType:agentResultJSON:extractedDataJSON:content:favoritedAt:)' in a synchronous nonisolated context
+Holo/Data/Repositories/ChatMessageRepository.swift:1547:30: warning: call to main actor-isolated static method 'makeArchiveDTO(id:timestamp:messageType:agentResultJSON:extractedDataJSON:content:favoritedAt:)' in a synchronous nonisolated context
+Holo/Data/Repositories/ChatMessageRepository.swift:1598:37: warning: call to main actor-isolated static method 'makeArchiveDTO(id:timestamp:messageType:agentResultJSON:extractedDataJSON:content:favoritedAt:)' in a synchronous nonisolated context
+Holo/Data/Repositories/ChatMessageRepository.swift:1807:36: warning: call to main actor-isolated static method 'archiveSearchHit(messageType:agentResultJSON:content:keyword:)' in a synchronous nonisolated context
+Holo/Data/Repositories/ChatMessageRepository.swift:1813:37: warning: call to main actor-isolated static method 'makeArchiveDTO(id:timestamp:messageType:agentResultJSON:extractedDataJSON:content:favoritedAt:)' in a synchronous nonisolated context
+Holo/Models/AI/ChatCardData.swift:492:40: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Models/AI/ChatCardData.swift:500:39: warning: call to main actor-isolated static method 'parse(_:referenceDate:)' in a synchronous nonisolated context
+Holo/Models/AI/HoloPersonalContextModels.swift:754:39: warning: call to main actor-isolated initializer 'init(from:)' in a synchronous nonisolated context
+Holo/Models/AI/HoloPersonalContextModels.swift:755:49: warning: main actor-isolated conformance of 'HoloContextJSONValue' to 'Encodable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode
+Holo/Models/Account+CoreDataProperties.swift:75:22: warning: result of call to 'resolveSeedLanguage(hasExistingSeedData:)' is unused
+Holo/Models/Account.swift:95:31: warning: conformance of 'Account' to protocol 'Sendable' is already unavailable
+Holo/Models/Budget.swift:47:30: warning: conformance of 'Budget' to protocol 'Sendable' is already unavailable
+Holo/Models/Category+CoreDataProperties.swift:524:22: warning: result of call to 'resolveSeedLanguage(hasExistingSeedData:)' is unused
+Holo/Models/Category.swift:64:32: warning: conformance of 'Category' to protocol 'Sendable' is already unavailable
+Holo/Models/CategoryLearningStore.swift:121:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:172:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:190:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:214:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:21:52: warning: main actor-isolated static property 'subsystem' can not be referenced from a nonisolated context
+Holo/Models/CategoryLearningStore.swift:241:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:260:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:298:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:29:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'NSManagedObjectContext', consider removing it
+Holo/Models/CategoryLearningStore.swift:358:17: warning: capture of 'defaults' with non-Sendable type 'UserDefaults' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:382:27: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:430:32: warning: call to main actor-isolated class method 'fetchRequest()' in a synchronous nonisolated context
+Holo/Models/CategoryLearningStore.swift:55:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/CategoryLearningStore.swift:81:23: warning: capture of 'self' with non-Sendable type 'CategoryLearningStore?' in a '@Sendable' closure
+Holo/Models/ChatMessage.swift:13:54: warning: conformance of 'ChatMessage' to protocol 'Sendable' is already unavailable
+Holo/Models/CheckItem+CoreDataClass.swift:12:46: warning: conformance of 'CheckItem' to protocol 'Sendable' is already unavailable
+Holo/Models/CoreDataStack.swift:141:51: warning: call to main actor-isolated static method 'createScheduleEntities()' in a synchronous nonisolated context
+Holo/Models/CoreDataStack.swift:202:19: warning: result of call to 'migratePersistentStore(_:to:options:type:)' is unused
+Holo/Models/FinanceProject.swift:68:38: warning: conformance of 'FinanceProject' to protocol 'Sendable' is already unavailable
+Holo/Models/HabitRepository.swift:86:17: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode
+Holo/Models/TodoRepository.swift:620:33: warning: left side of nil coalescing operator '??' has non-optional type 'String', so the right side is never used
+Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisService.swift:207:43: warning: no calls to throwing functions occur within 'try' expression
+Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisService.swift:70:46: warning: main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+Holo/Services/AI/Agent/Execution/HoloAgentTelemetryUploader.swift:20:52: warning: main actor-isolated static property 'subsystem' can not be referenced from a nonisolated context
+Holo/Services/AI/Agent/HoloAgentObservability.swift:152:52: warning: main actor-isolated static property 'subsystem' can not be referenced on a nonisolated actor instance
+Holo/Services/AI/Agent/HoloAgentScheduler.swift:29:52: warning: main actor-isolated static property 'subsystem' can not be referenced on a nonisolated actor instance
+Holo/Services/AI/Agent/HoloLocalAgentRuntime.swift:15:52: warning: main actor-isolated static property 'subsystem' can not be referenced on a nonisolated actor instance
+Holo/Services/AI/Agent/Tools/HoloScheduleDataSource.swift:15:15: warning: no 'async' operations occur within 'await' expression
+Holo/Services/AI/Agent/Tools/HoloScheduleTool.swift:93:53: warning: main actor-isolated property 'durationMinutes' can not be referenced from a nonisolated context
+Holo/Services/AI/GoalNotificationService.swift:198:22: warning: main actor-isolated static property 'logger' can not be referenced from a Sendable closure
+Holo/Services/AI/HoloBackendAIProvider.swift:773:13: warning: variable 'query' was never mutated; consider changing to 'let' constant
+Holo/Services/AI/Insight/HoloPeriodReplayCoordinator.swift:268:39: warning: no calls to throwing functions occur within 'try' expression
+Holo/Services/AI/MemoryObservation/HoloMemoryLiveObservationCoordinator.swift:150:52: warning: main actor-isolated static property 'subsystem' can not be referenced on a nonisolated actor instance
+Holo/Services/AI/PersonalContext/HoloContextChatPlanner.swift:53:29: warning: main actor-isolated property 'value' can not be mutated from a Sendable closure
+Holo/Services/AI/PersonalContext/HoloContextChatPlanner.swift:54:13: warning: main actor-isolated static property 'logger' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloContextPlanExecutionAdapter.swift:83:38: warning: main actor-isolated property 'allowsPlanningInjection' can not be referenced from a nonisolated autoclosure
+Holo/Services/AI/PersonalContext/HoloContextPlanningCoordinator.swift:148:80: warning: main actor-isolated property 'allowsPlanningInjection' can not be referenced from a nonisolated context
+Holo/Services/AI/PersonalContext/HoloContextPlanningCoordinator.swift:150:38: warning: main actor-isolated property 'allowsPlanningInjection' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloContextPlanningCoordinator.swift:267:35: warning: main actor-isolated property 'allowsPlanningInjection' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloContextSemanticSearchRuntime.swift:249:40: warning: main actor-isolated static property 'sourceLimit' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloContextSemanticSearchRuntime.swift:255:49: warning: main actor-isolated instance method 'fetchById' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextExtractor.swift:364:86: warning: main actor-isolated property 'targetRecordID' can not be referenced from a nonisolated context
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:111:48: warning: call to main actor-isolated initializer 'init(context:)' in a synchronous nonisolated context
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:157:26: warning: expression is 'async' but is not marked with 'await'; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:157:26: warning: non-Sendable type 'UserDefaults' of property 'defaults' cannot exit main actor-isolated context; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:163:9: warning: expression is 'async' but is not marked with 'await'; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:163:9: warning: non-Sendable type 'UserDefaults' of property 'defaults' cannot exit main actor-isolated context; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:179:55: warning: main actor-isolated instance method 'fetchById' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift:66:39: warning: main actor-isolated instance method 'fetchContextCandidates(afterUpdatedAt:afterID:limit:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextValidator.swift:126:50: warning: main actor-isolated conformance of 'HoloContextJSONValue' to 'Encodable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode
+Holo/Services/AI/PersonalContext/HoloPersonalContextValidator.swift:138:50: warning: main actor-isolated conformance of 'HoloContextJSONValue' to 'Encodable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode
+Holo/Services/AI/ThoughtIndexDTOs.swift:107:32: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Services/AI/ThoughtIndexDTOs.swift:94:28: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Services/AI/ThoughtIndexDTOs.swift:94:46: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Services/AI/ThoughtOrganizationQueue.swift:72:41: warning: call to main actor-isolated initializer 'init(context:)' in a synchronous nonisolated context
+Holo/Services/AttachmentFileManager.swift:27:59: warning: main actor-isolated static property 'subsystem' can not be referenced from a nonisolated context
+Holo/Services/BillImport/BillArchiveExtractor.swift:39:29: warning: 'init(url:accessMode:preferredEncoding:)' is deprecated: Please use the throwing initializer.
+Holo/Services/BillImport/BillDuplicateDetector.swift:83:17: warning: variable 'unresolvedRows' was never mutated; consider changing to 'let' constant
+Holo/Services/BillImport/BillExcelReader.swift:133:30: warning: 'sheetData' is deprecated: renamed to 'data'
+Holo/Services/BillImport/BillExcelReader.swift:47:32: warning: call to main actor-isolated static method 'escapeCSVField' in a synchronous nonisolated context
+Holo/Services/BillImport/BillExcelReader.swift:57:26: warning: no calls to throwing functions occur within 'try' expression
+Holo/Services/BillImport/BillExcelReader.swift:73:34: warning: 'sheetData' is deprecated: renamed to 'data'
+Holo/Services/Migrations/SensitiveDebugDataMigration.swift:14:13: warning: variable 'query' was never mutated; consider changing to 'let' constant
+Holo/Services/Network/APIClient.swift:16:52: warning: main actor-isolated static property 'subsystem' can not be referenced from a nonisolated context
+Holo/Services/Network/SSEParser.swift:14:59: warning: main actor-isolated static property 'subsystem' can not be referenced from a nonisolated context
+Holo/Services/PhotoLibraryImageLoader.swift:26:59: warning: main actor-isolated static property 'subsystem' can not be referenced from a nonisolated context
+Holo/Services/RecycleBinService.swift:644:21: warning: call to main actor-isolated static method 'markAllDeleted(entityName:batchId:at:context:)' in a synchronous nonisolated context
+Holo/Services/RecycleBinService.swift:666:37: warning: capture of 'predicate' with non-Sendable type 'NSPredicate' in a '@Sendable' closure
+Holo/Services/Schedule/ScheduleStore.swift:127:19: warning: value 'store' was defined but never used; consider replacing with boolean test
+Holo/Services/Schedule/ScheduleStore.swift:166:19: warning: value 'store' was defined but never used; consider replacing with boolean test
+Holo/Services/Schedule/ScheduleStore.swift:179:19: warning: value 'store' was defined but never used; consider replacing with boolean test
+Holo/Services/Schedule/ScheduleStore.swift:294:65: warning: capture 'calendar' was never used
+Holo/Services/Schedule/ScheduleStore.swift:297:36: warning: converting function value of type '@MainActor @Sendable (EKEvent) -> ScheduleItem' to '(EKEvent) -> ScheduleItem' loses global actor 'MainActor'; this is an error in the Swift 6 language mode
+Holo/Services/Schedule/ScheduleStore.swift:322:17: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode
+Holo/Services/Schedule/ScheduleStore.swift:82:27: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode
+Holo/Services/Schedule/ScheduleSyncEngine.swift:39:34: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode
+Holo/Services/Schedule/ScheduleSyncEngine.swift:45:34: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode
+Holo/Services/Sync/ICloudSyncStatusService.swift:195:13: warning: no 'async' operations occur within 'await' expression
+Holo/Services/Thoughts/ThoughtTagIndexProjection.swift:155:47: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Services/Thoughts/ThoughtTagIndexProjection.swift:170:47: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Services/Thoughts/ThoughtTagIndexProjection.swift:241:45: warning: main actor-isolated property 'displayName' can not be referenced from a nonisolated context
+Holo/Services/Widgets/HoloWidgetSnapshotService.swift:332:34: warning: left side of nil coalescing operator '??' has non-optional type 'Date', so the right side is never used
+Holo/Services/Widgets/HoloWidgetSnapshotService.swift:332:67: warning: left side of nil coalescing operator '??' has non-optional type 'Date', so the right side is never used
+Holo/Services/Widgets/HoloWidgetSnapshotService.swift:55:23: warning: call to main actor-isolated instance method 'refreshHabitSnapshot(date:)' in a synchronous nonisolated context
+Holo/Services/Widgets/HoloWidgetSnapshotService.swift:65:23: warning: call to main actor-isolated instance method 'refreshTodoSnapshot(date:)' in a synchronous nonisolated context
+Holo/Services/Widgets/HoloWidgetSnapshotService.swift:75:23: warning: call to main actor-isolated instance method 'refreshGoalSnapshot(date:)' in a synchronous nonisolated context
+Holo/Services/Widgets/HoloWidgetSnapshotService.swift:85:23: warning: call to main actor-isolated instance method 'refreshAnniversarySnapshot(date:)' in a synchronous nonisolated context
+Holo/Views/AddTransaction/TransactionSaveHandler.swift:144:41: warning: no 'async' operations occur within 'await' expression
+Holo/Views/AddTransaction/TransactionSaveHandler.swift:146:41: warning: no 'async' operations occur within 'await' expression
+Holo/Views/AddTransaction/TransactionSaveHandler.swift:316:37: warning: no 'async' operations occur within 'await' expression
+Holo/Views/AddTransaction/TransactionSaveHandler.swift:318:37: warning: no 'async' operations occur within 'await' expression
+Holo/Views/Finance/ReconcileSheet.swift:141:108: warning: 'appendInterpolation' is deprecated: Localized string interpolation produces an unlocalized, debug description for this type of value. Use a type supported by LocalizedStringKey.StringInterpolation or initialize a LocalizedStringResource instead with an interpolated value that conforms to CustomLocalizedStringResourceConvertible.
+Holo/Views/Finance/ReconcileSheet.swift:141:144: warning: 'appendInterpolation' is deprecated: Localized string interpolation produces an unlocalized, debug description for this type of value. Use a type supported by LocalizedStringKey.StringInterpolation or initialize a LocalizedStringResource instead with an interpolated value that conforms to CustomLocalizedStringResourceConvertible.
+Holo/Views/Finance/ReconcileSheet.swift:141:56: warning: 'appendInterpolation' is deprecated: Localized string interpolation produces an unlocalized, debug description for this type of value. Use a type supported by LocalizedStringKey.StringInterpolation or initialize a LocalizedStringResource instead with an interpolated value that conforms to CustomLocalizedStringResourceConvertible.
+Holo/Views/HomeView.swift:508:21: warning: using '_' to ignore the result of a Void-returning function is redundant
+Holo/Views/HomeView.swift:515:21: warning: using '_' to ignore the result of a Void-returning function is redundant
+Holo/Views/HomeView.swift:522:21: warning: using '_' to ignore the result of a Void-returning function is redundant
+Holo/Views/MemoryGallery/HoloMemoryEvidenceRouter.swift:57:20: warning: no calls to throwing functions occur within 'try' expression
+Holo/Views/Settings/FeedbackSheet.swift:308:13: warning: no 'async' operations occur within 'await' expression
+Holo/Views/Settings/ScheduleSettingsSection.swift:118:9: warning: switch must be exhaustive
+Holo/Views/Tasks/TaskDetailView.swift:1284:13: warning: no 'async' operations occur within 'await' expression
+Holo/Views/Tasks/TaskImagePicker.swift:118:13: warning: no 'async' operations occur within 'await' expression
+Holo/Views/Thoughts/ThoughtCardView.swift:170:32: warning: value 'onDelete' was defined but never used; consider replacing with boolean test
+HoloTests/Models/FinanceProjectRepositoryTests.swift:26:9: warning: no calls to throwing functions occur within 'try' expression
+HoloTests/Models/FinanceReconciliationTests.swift:29:9: warning: no calls to throwing functions occur within 'try' expression
+HoloTests/Services/AI/Agent/Evals/HoloAgentEvalRunner.swift:277:19: warning: main actor-isolated property 'rejectedClaims' can not be referenced from a nonisolated context
+HoloTests/Services/AI/Agent/HoloAnswerCrossDomainStandaloneTests.swift:483:50: warning: call to main actor-isolated static method 'makeRange' in a synchronous nonisolated context
+HoloTests/Services/AI/Agent/HoloAnswerCrossDomainStandaloneTests.swift:525:50: warning: call to main actor-isolated static method 'makeRange' in a synchronous nonisolated context
+HoloTests/Services/AI/Agent/HoloConversationToolTests.swift:98:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloCrossDomainToolTests.swift:135:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloFeedbackToolTests.swift:136:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloFinanceToolTests.swift:431:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloHealthToolTests.swift:370:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloInsightToolTests.swift:87:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloMemoryToolTests.swift:113:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/Agent/HoloThoughtReferenceToolTests.swift:109:9: warning: 'try' must precede 'await'
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:105:24: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:113:26: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:114:25: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:115:32: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:119:25: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:88:24: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemoryFeedbackStandaloneTests.swift:96:26: warning: no 'async' operations occur within 'await' expression
+HoloTests/Services/AI/HoloMemorySettingsStandaloneTests.swift:89:18: warning: 'memoryInsightExtractionEnabled' is deprecated: 请使用 automaticMemoryEnabled
+HoloTests/Services/AI/ThoughtRepositoryAITagBucketTests.swift:95:64: warning: conditional downcast from 'ThoughtTagAssignment?' to 'ThoughtTagAssignment' does nothing
+HoloTests/Services/Calendar/CalendarEventProviderTests.swift:25:9: warning: no calls to throwing functions occur within 'try' expression
+HoloTests/Services/Calendar/ThoughtRepositoryCalendarTests.swift:155:35: warning: result of call to 'create(in:fileName:thumbnailFileName:thought:order:sourceType:imageData:thumbnailData:)' is unused
+HoloTests/Services/Speech/VoiceInputViewModelTests.swift:332:52: warning: conformance of 'FakeSpeechRecognitionProvider' to protocol 'StreamingSpeechRecognitionProvider' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode

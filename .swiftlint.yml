@@ -1,0 +1,33 @@
+# SwiftLint 配置（技术体检 R5 引入）
+# 定位：仅警告级提示，未接入构建相位（不卡编译）；运行 `swiftlint` 手动检查
+# 原则：只开低成本高信号的规则，大文件治理用行数上限提示（不阻断）
+
+included:
+  - Holo/Holo APP/Holo/Holo
+  - Holo/Holo APP/Holo/HoloWidgets
+
+line_length:
+  warning: 200
+  error: 400
+
+type_body_length:
+  warning: 400
+  error: 800
+
+file_length:
+  warning: 2000   # 超过即提示拆分（当前存量：MarkdownTextView 3579 / HoloLocalAgentRuntime 2579 等）
+  error: 4000
+
+function_body_length:
+  warning: 80
+  error: 200
+
+identifier_name:
+  min_length: 2
+  max_length: 60
+
+disabled_rules:
+  - trailing_whitespace
+  - trailing_comma
+  - multiple_closures_with_trailing_closure
+  - todo   # TODO 走台账管理
