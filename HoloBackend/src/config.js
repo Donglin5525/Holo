@@ -379,6 +379,9 @@ const DEFAULT_CONFIG = {
       // 4000：deepseek-v4-flash-vision-exp 是推理模型（评测实测会先思考再出 JSON），
       // 1500 时推理偶发吃满上限导致 content 空回复（f01 空回复实锤），放宽保输出。
       maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 4000),
+      // 思考档位默认不发（模型默认）；生产配 none——单步感知任务不需要多步推理
+      // （同 intent §reasoning-off 先例，实测关思考快 2-3 倍质量不掉）。env 可调档。
+      reasoningEffort: process.env.HOLO_VISION_EXTRACTION_REASONING_EFFORT,
       requestLimits: {
         perMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
         perDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),

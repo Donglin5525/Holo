@@ -60,6 +60,7 @@ const MODELS = {
     baseURL: env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
     key: process.env.DEEPSEEK_API_KEY_EVAL || env.DEEPSEEK_API_KEY,
     model: arg('--model-deepseek', 'deepseek-v4-flash-vision-exp'),
+    reasoningEffort: arg('--reasoning-effort'),
   },
 };
 
@@ -124,6 +125,7 @@ async function callVision(cfg, b64) {
         model: cfg.model,
         temperature: 0,
         max_tokens: 1500,
+        ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}),
         messages: [{
           role: 'user',
           content: [
