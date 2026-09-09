@@ -6,6 +6,12 @@
 > 历史勘误：此前记载「8-25（build 21）部署过一次 Production」不实——当日实查 Production 曾为空
 > （仅系统 Users 类型），即线上用户同步静默失败的根因；已随本次部署一并修复。
 >
+> ✅ **2026-09-10 增量部署完成（财务「项目」功能批次）**：Record Types 6 项变更全部上线 Production——
+> 新增实体 `CD_FinanceProject`（17 字段+28 索引）；`CD_Transaction` 加 `financeProjectId`；
+> 另含并行批次字段（CD_Anniversary/CD_ChatMessage/CD_ThoughtTag/CD_ThoughtTagAssignment 各加字段）。
+> 弹窗清单核对 0 个 Delete（5 Modify+1 Create+6 组索引 Create+3 安全角色）。已在 Console 的
+> Production Record Types 页复核 CD_FinanceProject 与 CD_Transaction(28 fields) 就位。
+>
 > ⚠️ **遗留待补（非阻塞）**：`CD_CategoryInductionRuleEntity`（分类归纳规则）与 `CD_RecycleBinBatch`
 > （回收站批次）两个类型因设备上从未产生过对应数据、schema 未注册，**不在本次部署中**。
 > 影响仅这两类小数据暂不跨设备同步，本机功能正常。补法：任一设备（优先 iPhone，有存量数据）
