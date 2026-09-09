@@ -84,7 +84,12 @@ final class ICloudSyncStatusService: ObservableObject {
     /// 最近一次真实同步事件的描述；nil = 本机还没发生过任何同步事件。
     /// 不要在打开设置页时回写账号态默认文案——那会把真实进度冲掉，制造「同步没在跑」的假象。
     @Published private(set) var lastEventDescription: String?
+    /// 当前未解除的同步错误。失败即写入并持久化（重启不丢），
+    /// 只有 export（本机→iCloud）事件成功结束才清除——下载成功不代表积压数据传了上去。
     @Published private(set) var lastErrorMessage: String?
+    @Published private(set) var lastErrorTime: Date?
+    @Published private(set) var lastErrorIsQuota = false
+    @Published private(set) var errorHistory: [SyncErrorRecord] = []
     @Published private(set) var lastSyncTime: Date?
     @Published private(set) var lastStatusCheckTime: Date?
     @Published private(set) var lastManualSyncRequestTime: Date?
@@ -95,15 +100,25 @@ final class ICloudSyncStatusService: ObservableObject {
         return CKContainer(identifier: CloudKitRuntimeAvailability.containerIdentifier)
     }()
     private var observer: NSObjectProtocol?
+    private let defaults: UserDefaults
     private let lastSyncTimeKey = "iCloudSyncStatusService.lastSyncTime"
     private let lastStatusCheckTimeKey = "iCloudSyncStatusService.lastStatusCheckTime"
     private let lastManualSyncRequestTimeKey = "iCloudSyncStatusService.lastManualSyncRequestTime"
+    private let lastEventDescriptionKey = "iCloudSyncStatusService.lastEventDescription"
+    private let lastErrorMessageKey = "iCloudSyncStatusService.lastErrorMessage"
+    private let lastErrorTimeKey = "iCloudSyncStatusService.lastErrorTime"
+    private let lastErrorIsQuotaKey = "iCloudSyncStatusService.lastErrorIsQuota"
 
-    private init() {
-        let defaults = UserDefaults.standard
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         lastSyncTime = defaults.object(forKey: lastSyncTimeKey) as? Date
         lastStatusCheckTime = defaults.object(forKey: lastStatusCheckTimeKey) as? Date
         lastManualSyncRequestTime = defaults.object(forKey: lastManualSyncRequestTimeKey) as? Date
+        lastEventDescription = defaults.string(forKey: lastEventDescriptionKey)
+        lastErrorMessage = defaults.string(forKey: lastErrorMessageKey)
+        lastErrorTime = defaults.object(forKey: lastErrorTimeKey) as? Date
+        lastErrorIsQuota = defaults.bool(forKey: lastErrorIsQuotaKey)
+        errorHistory = SyncErrorLog.load(from: defaults)
 
         observer = NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
@@ -157,13 +172,13 @@ final class ICloudSyncStatusService: ObservableObject {
             do {
                 let requestedAt = try await writeSyncProbe()
                 lastManualSyncRequestTime = requestedAt
-                UserDefaults.standard.set(requestedAt, forKey: lastManualSyncRequestTimeKey)
+                defaults.set(requestedAt, forKey: lastManualSyncRequestTimeKey)
                 // 即时反馈只承认「已递交」；真实结果等探针上传事件落地后再报
                 refreshToast = String(localized: "已递交同步请求，结果稍后显示在这里")
                 beginProbeFeedbackWait()
             } catch {
-                lastErrorMessage = error.localizedDescription
-                lastEventDescription = String(localized: "同步请求失败")
+                setSyncError(message: error.localizedDescription, isQuota: false)
+                setDescription(String(localized: "同步请求失败"))
                 refreshToast = String(localized: "同步请求失败")
                 logger.error("写入 iCloud 同步探针失败：\(error.localizedDescription)")
             }
@@ -224,6 +239,12 @@ final class ICloudSyncStatusService: ObservableObject {
     }
 
     var syncStatusDetailText: String {
+        // 有未解除的同步错误时，失败时间优先于一切「最近同步」表述，
+        // 避免上传一直失败、副文案却停留在很久前的成功时间上
+        if let lastErrorTime {
+            return String(localized: "最近同步失败：") + formatTime(lastErrorTime)
+        }
+
         if let lastSyncTime {
             if let lastManualSyncRequestTime, lastManualSyncRequestTime > lastSyncTime {
                 return String(localized: "最近请求同步：") + formatTime(lastManualSyncRequestTime)
@@ -247,73 +268,167 @@ final class ICloudSyncStatusService: ObservableObject {
                 as? NSPersistentCloudKitContainer.Event else {
             return
         }
+        processCloudKitEvent(type: event.type, endDate: event.endDate, error: event.error)
+    }
 
-        isSyncing = event.endDate == nil
-        switch event.type {
-        case .setup:
-            lastEventDescription = isSyncing ? String(localized: "正在准备 iCloud 同步") : String(localized: "iCloud 同步已准备")
-        case .import:
-            lastEventDescription = isSyncing ? String(localized: "正在接收 iCloud 数据") : String(localized: "已接收 iCloud 数据")
-        case .export:
-            lastEventDescription = isSyncing ? String(localized: "正在上传本机数据") : String(localized: "已上传本机数据")
-        @unknown default:
-            lastEventDescription = String(localized: "iCloud 同步状态已更新")
+    /// 事件 → 状态的唯一决策入口（单测直接调这里）。
+    /// 铁律：事件以错误结束时，不写「已上传」类成功文案、不刷新最近同步时间——
+    /// 否则会出现「iCloud 满、上传全失败、界面却报同步成功」的假象。
+    func processCloudKitEvent(
+        type: NSPersistentCloudKitContainer.EventType,
+        endDate: Date?,
+        error: Error?
+    ) {
+        let isFinished = endDate != nil
+        isSyncing = !isFinished
+
+        // 进行中的事件只更新进度文案，不动任何结论性状态
+        if !isFinished {
+            switch type {
+            case .setup: setDescription(String(localized: "正在准备 iCloud 同步"))
+            case .import: setDescription(String(localized: "正在接收 iCloud 数据"))
+            case .export: setDescription(String(localized: "正在上传本机数据"))
+            @unknown default: setDescription(String(localized: "iCloud 同步状态已更新"))
+            }
+            return
         }
 
-        if !isSyncing {
-            let syncTime = event.endDate ?? Date()
-            lastSyncTime = syncTime
-            UserDefaults.standard.set(syncTime, forKey: lastSyncTimeKey)
+        if let error {
+            handleEventFailure(type: type, error: error)
+        } else {
+            handleEventSuccess(type: type)
+        }
+    }
 
-            // 手动同步的探针上传落地了，报真实结果
-            if pendingProbeFeedback, event.type == .export {
-                pendingProbeFeedback = false
-                probeFeedbackTimeoutTask?.cancel()
-                probeFeedbackTimeoutTask = nil
-                if event.error == nil {
-                    refreshToast = String(localized: "同步完成：本机数据已上传 iCloud")
-                }
-            }
+    private func handleEventSuccess(type: NSPersistentCloudKitContainer.EventType) {
+        let syncTime = Date()
+        lastSyncTime = syncTime
+        defaults.set(syncTime, forKey: lastSyncTimeKey)
+
+        switch type {
+        case .setup: setDescription(String(localized: "iCloud 同步已准备"))
+        case .import: setDescription(String(localized: "已接收 iCloud 数据"))
+        case .export: setDescription(String(localized: "已上传本机数据"))
+        @unknown default: setDescription(String(localized: "iCloud 同步状态已更新"))
         }
 
-        if let error = event.error {
-            // 「操作被取消」= 同步进行到一半被切后台/锁屏/断网中断，系统会自动重试，
-            // 属正常现象，不进「最近错误」吓用户
-            if (error as? CKError)?.code == .operationCancelled {
-                logger.info("iCloud 同步事件被系统取消（自动重试）：\(error.localizedDescription)")
-            } else {
-                lastErrorMessage = error.localizedDescription
-                logger.error("iCloud 同步事件错误：\(error.localizedDescription)")
-            }
-        } else if !isSyncing {
-            // 事件成功完成即清除旧错误：「最近错误」只反映最近一次结果
-            lastErrorMessage = nil
+        // 只有「本机数据成功上传」才能解除同步错误：
+        // 下载成功只说明云端→本机方向通了，不代表本机积压的数据传了上去
+        if type == .export, lastErrorMessage != nil {
+            clearSyncError()
+        }
+
+        // 手动同步的探针上传落地了，报真实结果
+        if pendingProbeFeedback, type == .export {
+            finishProbeFeedback(timedOut: false)
+            refreshToast = String(localized: "同步完成：本机数据已上传 iCloud")
+        }
+    }
+
+    private func handleEventFailure(type: NSPersistentCloudKitContainer.EventType, error: Error) {
+        let kind = CloudKitSyncErrorAnalyzer.classify(error)
+
+        // 「操作被取消」= 同步进行到一半被切后台/锁屏/断网中断，系统会自动重试，
+        // 属正常现象：不进错误状态，也不算一次失败结论；探针这趟不算数，继续等下一趟
+        if kind == .operationCancelled {
+            logger.info("iCloud 同步事件被系统取消（自动重试）：\(error.localizedDescription)")
+            setDescription(String(localized: "同步被系统中断，稍后自动重试"))
+            return
+        }
+
+        let isQuota = kind == .quotaExceeded
+        let direction = directionName(type)
+        let ckErrorCode = CloudKitSyncErrorAnalyzer.deepestCKErrorCode(error)
+
+        // 如实记录：诊断流水 + 当前错误（持久化，重启不丢）
+        let record = SyncErrorRecord(
+            date: Date(),
+            direction: direction,
+            ckErrorCode: ckErrorCode,
+            message: error.localizedDescription
+        )
+        errorHistory = SyncErrorLog.append(record, to: defaults)
+        setSyncError(
+            message: isQuota
+                ? String(localized: "iCloud 空间已满，本机数据未上传")
+                : error.localizedDescription,
+            isQuota: isQuota,
+            date: record.date
+        )
+        logger.error("iCloud 同步事件失败 [\(direction)] ckErrorCode=\(ckErrorCode.map(String.init) ?? "nil")：\(error.localizedDescription)")
+
+        // 失败结论：不写 lastSyncTime、不写「已…」成功文案
+        switch type {
+        case .setup: setDescription(String(localized: "iCloud 同步准备失败"))
+        case .import: setDescription(String(localized: "接收 iCloud 数据失败"))
+        case .export: setDescription(String(localized: "本机数据上传失败"))
+        @unknown default: setDescription(String(localized: "iCloud 同步失败"))
+        }
+
+        // 手动同步的探针失败落地：立即报真实原因，不让用户干等超时兜底
+        if pendingProbeFeedback, type == .export {
+            finishProbeFeedback(timedOut: false)
+            refreshToast = isQuota
+                ? String(localized: "同步失败：iCloud 空间已满，请清理 iCloud 存储空间后重试")
+                : String(localized: "同步失败：") + error.localizedDescription
+        }
+    }
+
+    private func setDescription(_ text: String) {
+        lastEventDescription = text
+        defaults.set(text, forKey: lastEventDescriptionKey)
+    }
+
+    private func setSyncError(message: String, isQuota: Bool, date: Date = Date()) {
+        lastErrorMessage = message
+        lastErrorTime = date
+        lastErrorIsQuota = isQuota
+        defaults.set(message, forKey: lastErrorMessageKey)
+        defaults.set(date, forKey: lastErrorTimeKey)
+        defaults.set(isQuota, forKey: lastErrorIsQuotaKey)
+    }
+
+    private func clearSyncError() {
+        lastErrorMessage = nil
+        lastErrorTime = nil
+        lastErrorIsQuota = false
+        defaults.removeObject(forKey: lastErrorMessageKey)
+        defaults.removeObject(forKey: lastErrorTimeKey)
+        defaults.removeObject(forKey: lastErrorIsQuotaKey)
+    }
+
+    private func directionName(_ type: NSPersistentCloudKitContainer.EventType) -> String {
+        switch type {
+        case .setup: return "setup"
+        case .import: return "import"
+        case .export: return "export"
+        @unknown default: return "unknown"
         }
     }
 
     private func updateAccountStatus() async {
         guard let container else {
             accountStatus = .couldNotDetermine
-            lastErrorMessage = String(localized: "当前签名未启用 iCloud CloudKit，同步功能暂不可用")
-            lastEventDescription = String(localized: "iCloud 同步未启用")
+            // 签名未启用 CloudKit（模拟器/开发签名）是能力缺失而非同步失败：
+            // 状态行表达即可，不进「最近错误」吓用户
+            setDescription(String(localized: "iCloud 同步未启用"))
             let checkedAt = Date()
             lastStatusCheckTime = checkedAt
-            UserDefaults.standard.set(checkedAt, forKey: lastStatusCheckTimeKey)
+            defaults.set(checkedAt, forKey: lastStatusCheckTimeKey)
             return
         }
 
         do {
             accountStatus = try await container.accountStatus()
-            lastErrorMessage = nil
+            // 账号可查 ≠ 同步已恢复：上次的上传错误保留到 export 真正成功为止
         } catch {
             accountStatus = .couldNotDetermine
-            lastErrorMessage = error.localizedDescription
             logger.error("iCloud 账号状态检查失败：\(error.localizedDescription)")
         }
 
         let checkedAt = Date()
         lastStatusCheckTime = checkedAt
-        UserDefaults.standard.set(checkedAt, forKey: lastStatusCheckTimeKey)
+        defaults.set(checkedAt, forKey: lastStatusCheckTimeKey)
     }
 
     private func writeSyncProbe() async throws -> Date {
@@ -359,7 +474,8 @@ final class ICloudSyncStatusService: ObservableObject {
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
+    /// 诊断页与设置页共用的统一时间格式
+    func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"

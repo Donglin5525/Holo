@@ -34269,9 +34269,7 @@
         }
       }
     },
-    "支付宝" : {
-
-    },
+    "支付宝" : {},
     "支付宝 → 我的 → 账单" : {
       "localizations" : {
         "en" : {
@@ -57964,9 +57962,7 @@
         }
       }
     },
-    "这张图太大了，处理不了。换一张小一点的试试。" : {
-
-    },
+    "这张图太大了，处理不了。换一张小一点的试试。" : {},
     "这张图我不太看得清金额，不敢替你记。重新拍一张清楚的，或者手动记一笔？" : {
       "localizations" : {
         "en" : {
@@ -62241,6 +62237,422 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設帳戶"
+          }
+        }
+      }
+    },
+    "同步被系统中断，稍后自动重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync interrupted by the system, will retry automatically"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步被系統中斷，稍後自動重試"
+          }
+        }
+      }
+    },
+    "本机数据上传失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to upload device data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機資料上傳失敗"
+          }
+        }
+      }
+    },
+    "接收 iCloud 数据失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to download iCloud data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接收 iCloud 資料失敗"
+          }
+        }
+      }
+    },
+    "iCloud 同步准备失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to prepare iCloud sync"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同步準備失敗"
+          }
+        }
+      }
+    },
+    "iCloud 同步失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud sync failed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同步失敗"
+          }
+        }
+      }
+    },
+    "iCloud 空间已满，本机数据未上传" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud storage is full, device data not uploaded"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 空間已滿，本機資料未上傳"
+          }
+        }
+      }
+    },
+    "同步失败：iCloud 空间已满，请清理 iCloud 存储空间后重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync failed: iCloud storage is full. Free up space and try again"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步失敗：iCloud 空間已滿，請清理 iCloud 儲存空間後重試"
+          }
+        }
+      }
+    },
+    "同步失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync failed: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步失敗："
+          }
+        }
+      }
+    },
+    "最近同步失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last failed sync: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近同步失敗："
+          }
+        }
+      }
+    },
+    "如何恢复上传" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Resume Uploading"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如何恢復上傳"
+          }
+        }
+      }
+    },
+    "数据已安全保存在本机。请前往 系统设置 → 顶部你的名字 → iCloud → 管理账户存储 清理空间；清理完成后系统会自动恢复上传，无需手动操作。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your data is safe on this device. Go to Settings → your name → iCloud → Manage Account Storage to free up space; uploading resumes automatically afterward."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料已安全保存在本機。請前往 系統設定 → 頂部你的名字 → iCloud → 管理帳戶儲存 清理空間；清理完成後系統會自動恢復上傳，無需手動操作。"
+          }
+        }
+      }
+    },
+    "同步诊断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Diagnostics"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步診斷"
+          }
+        }
+      }
+    },
+    "查看同步状态与最近的错误记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View sync status and recent errors"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢視同步狀態與最近的錯誤記錄"
+          }
+        }
+      }
+    },
+    "当前状态" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Status"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前狀態"
+          }
+        }
+      }
+    },
+    "CloudKit 同步能力" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CloudKit Sync Capability"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CloudKit 同步能力"
+          }
+        }
+      }
+    },
+    "已启用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已啟用"
+          }
+        }
+      }
+    },
+    "未启用（当前构建不含 iCloud 同步）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled (this build has no iCloud sync)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未啟用（目前建置不含 iCloud 同步）"
+          }
+        }
+      }
+    },
+    "最近同步成功" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Successful Sync"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近同步成功"
+          }
+        }
+      }
+    },
+    "最近同步失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Failed Sync"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近同步失敗"
+          }
+        }
+      }
+    },
+    "当前错误" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Error"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前錯誤"
+          }
+        }
+      }
+    },
+    "错误记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error Log"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤記錄"
+          }
+        }
+      }
+    },
+    "暂无同步错误记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sync errors recorded"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無同步錯誤記錄"
+          }
+        }
+      }
+    },
+    "错误记录仅保存在本机，用于排查同步问题，最多保留最近 20 条。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error records are stored only on this device for troubleshooting, keeping the latest 20."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤記錄僅保存在本機，用於排查同步問題，最多保留最近 20 條。"
+          }
+        }
+      }
+    },
+    "上传" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳"
+          }
+        }
+      }
+    },
+    "下载" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載"
+          }
+        }
+      }
+    },
+    "准备" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setup"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "準備"
           }
         }
       }

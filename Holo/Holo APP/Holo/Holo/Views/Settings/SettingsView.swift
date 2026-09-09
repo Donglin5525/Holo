@@ -530,6 +530,7 @@ struct SettingsView: View {
     // MARK: - iCloud 同步
 
     @State private var iCloudRefreshToast: String?
+    @State private var showSyncDiagnostics = false
 
     private var iCloudSyncSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -678,6 +679,40 @@ struct SettingsView: View {
                     .padding(.vertical, 12)
                 }
 
+                // iCloud 空间已满的专属指引：这是唯一「重试解决不了、必须用户动手清理」的错误，
+                // 苹果没有公开 API 查剩余空间，只能在出错后如实告知出路
+                if iCloudSyncStatus.lastErrorIsQuota, iCloudSyncStatus.lastErrorMessage != nil {
+                    Divider()
+                        .padding(.leading, 56)
+
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(Color.orange.opacity(0.12))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "icloud.and.arrow.up")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.orange)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("如何恢复上传")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text("数据已安全保存在本机。请前往 系统设置 → 顶部你的名字 → iCloud → 管理账户存储 清理空间；清理完成后系统会自动恢复上传，无需手动操作。")
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                }
+
                 Divider()
                     .padding(.leading, 56)
 
@@ -729,9 +764,54 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+
+                Divider()
+                    .padding(.leading, 56)
+
+                // 同步诊断：状态摘要 + 最近错误流水，用户报障排查用
+                Button {
+                    showSyncDiagnostics = true
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(Color.holoPrimary.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "doc.text.magnifyingglass")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("同步诊断")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text("查看同步状态与最近的错误记录")
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
             }
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .sheet(isPresented: $showSyncDiagnostics) {
+                NavigationStack {
+                    SyncDiagnosticsView()
+                }
+            }
             // 手动同步的真实结果异步到达（探针上传事件落地或超时），转发到按钮下的提示位
             .onReceive(iCloudSyncStatus.$refreshToast) { toast in
                 guard let toast else { return }

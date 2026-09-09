@@ -96,6 +96,9 @@
 		7A11E5C2A4B90817D3F2E601 /* HoloAgentTimeSemanticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */; };
 		7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8D2A1F9E3B4760B2D8F1A3 /* HoloDeterministicAnswerComposerStandaloneTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
+		7A5C2EA02B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */; };
+		7A5D3E022B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D3E012B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift */; };
+		7A5D3E042B7F5C8DAE2B3501 /* SyncErrorLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D3E032B7F5C8DAE2B3501 /* SyncErrorLog.swift */; };
 		7A9EB0466A1CC5121E0D4658 /* HoloThoughtToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */; };
 		7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */; };
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };
@@ -438,6 +441,9 @@
 		76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryOrphanCleanupTests.swift; sourceTree = "<group>"; };
 		77B02553D193169B1FC31AE3 /* HoloEpisodicMemoryStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloEpisodicMemoryStoreTests.swift; sourceTree = "<group>"; };
 		7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudKitRuntimeAvailabilityTests.swift; sourceTree = "<group>"; };
+		7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ICloudSyncStatusServiceTests.swift; sourceTree = "<group>"; };
+		7A5D3E012B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudKitSyncErrorAnalyzer.swift; path = Holo/Services/Sync/CloudKitSyncErrorAnalyzer.swift; sourceTree = "<group>"; };
+		7A5D3E032B7F5C8DAE2B3501 /* SyncErrorLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncErrorLog.swift; path = Holo/Services/Sync/SyncErrorLog.swift; sourceTree = "<group>"; };
 		7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnniversaryDaysCalculationTests.swift; sourceTree = "<group>"; };
 		7CFB70A56A73477EA1897490 /* FinanceReconciliationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceReconciliationTests.swift; sourceTree = "<group>"; };
 		7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionDateResolverTests.swift; sourceTree = "<group>"; };
@@ -870,6 +876,8 @@
 				A1C000000000000000000041 /* ICloudSyncStatusService.swift */,
 				A1C000000000000000000043 /* HabitRepository.swift */,
 				A1C000000000000000000045 /* CloudImportRelay.swift */,
+				7A5D3E012B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift */,
+				7A5D3E032B7F5C8DAE2B3501 /* SyncErrorLog.swift */,
 				A1C000000000000000000047 /* HabitStatsDisplaySettings.swift */,
 				A1D100000000000000000001 /* HabitRetroactiveQuota.swift */,
 				A1C000000000000000000051 /* DesignSystem.swift */,
@@ -1212,6 +1220,7 @@
 				C07E22030000000000000001 /* Calendar */,
 				8044812C2C9B2F327A4958D4 /* Speech */,
 				7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */,
+				7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */,
 				5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */,
 				9B2D7AA58BC923A555CD61A8 /* Auth */,
 				77B2CF789BD2C65DA383892E /* Diagnostics */,
@@ -1452,6 +1461,7 @@
 				A27D00030000000000000001 /* Network/APIClientStreamingRecoveryTests.swift in Sources */,
 				754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */,
 				7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */,
+				7A5C2EA02B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift in Sources */,
 				5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B5D /* HoloAgentSchedulerTests.swift in Sources */,
 				B1C2D3E4F5A6C0DEBEEF0002 /* HoloAgentAnalysisReconcileTests.swift in Sources */,
@@ -1636,6 +1646,8 @@
 				A1C000000000000000000042 /* ICloudSyncStatusService.swift in Sources */,
 				A1C000000000000000000044 /* HabitRepository.swift in Sources */,
 				A1C000000000000000000046 /* CloudImportRelay.swift in Sources */,
+				7A5D3E022B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift in Sources */,
+				7A5D3E042B7F5C8DAE2B3501 /* SyncErrorLog.swift in Sources */,
 				A1D100000000000000000002 /* HabitRetroactiveQuota.swift in Sources */,
 				A1C000000000000000000048 /* HabitStatsDisplaySettings.swift in Sources */,
 				A1C000000000000000000052 /* DesignSystem.swift in Sources */,
