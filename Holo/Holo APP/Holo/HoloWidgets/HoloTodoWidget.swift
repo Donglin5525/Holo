@@ -5,6 +5,7 @@
 //  今日待办 · 招牌视觉「极简清单 + 完成进度」
 //
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -157,17 +158,21 @@ private struct HoloTodoWidgetView: View {
 
     private func todoRow(_ item: HoloWidgetTodoItem) -> some View {
         HStack(spacing: 9) {
-            ZStack {
-                if item.isCompleted {
-                    Circle().fill(greenTint)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: family == .systemLarge ? 9 : 8, weight: .heavy))
-                        .foregroundStyle(Color.white)
-                } else {
-                    Circle().strokeBorder(trackTint, lineWidth: 1.7)
+            Button(intent: HoloTodoToggleIntent(taskID: item.id.uuidString)) {
+                ZStack {
+                    if item.isCompleted {
+                        Circle().fill(greenTint)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: family == .systemLarge ? 9 : 8, weight: .heavy))
+                            .foregroundStyle(Color.white)
+                    } else {
+                        Circle().strokeBorder(trackTint, lineWidth: 1.7)
+                    }
                 }
+                .frame(width: family == .systemLarge ? 21 : 19, height: family == .systemLarge ? 21 : 19)
+                .contentShape(Rectangle())
             }
-            .frame(width: family == .systemLarge ? 21 : 19, height: family == .systemLarge ? 21 : 19)
+            .buttonStyle(.plain)
 
             Text(item.title)
                 .font(.system(size: family == .systemLarge ? 14 : 13, weight: item.isCompleted ? .medium : .semibold))

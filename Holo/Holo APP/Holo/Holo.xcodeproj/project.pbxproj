@@ -138,6 +138,86 @@
 		A1B2C3D4E5F60718293A0C02 /* TaskCompletionCascadeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0C01 /* TaskCompletionCascadeTests.swift */; };
 		A1B2C3D4E5F60718293A4C01 /* HoloFixedToolSemanticStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4C02 /* HoloFixedToolSemanticStandaloneTests.swift */; };
 		A1B2C3D4E5F60718293A4C03 /* HoloAnswerCrossDomainStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4C04 /* HoloAnswerCrossDomainStandaloneTests.swift */; };
+		A1C000000000000000000002 /* TodoCompletionCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000001 /* TodoCompletionCore.swift */; };
+		A1C000000000000000000004 /* HoloWidgetHabitTodoSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000003 /* HoloWidgetHabitTodoSnapshot.swift */; };
+		A1C000000000000000000008 /* CoreDataStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000007 /* CoreDataStack.swift */; };
+		A1C000000000000000000042 /* ICloudSyncStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000041 /* ICloudSyncStatusService.swift */; };
+		A1C000000000000000000044 /* HabitRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000043 /* HabitRepository.swift */; };
+		A1C000000000000000000046 /* CloudImportRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000045 /* CloudImportRelay.swift */; };
+		A1C000000000000000000048 /* HabitStatsDisplaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000047 /* HabitStatsDisplaySettings.swift */; };
+		A1C000000000000000000052 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000051 /* DesignSystem.swift */; };
+		A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000001 /* HoloWidgetIntents.swift */; };
+		A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */; };
+		A1D01D00000000000000000006 /* CoreDataStack+CategoryLearningEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */; };
+		A1D01D00000000000000000008 /* CoreDataStack+ChatEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */; };
+		A1D01D0000000000000000000A /* CoreDataStack+FinanceEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */; };
+		A1D01D0000000000000000000C /* CoreDataStack+GoalEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000000B /* CoreDataStack+GoalEntities.swift */; };
+		A1D01D0000000000000000000E /* CoreDataStack+HabitEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000000D /* CoreDataStack+HabitEntities.swift */; };
+		A1D01D00000000000000000010 /* CoreDataStack+HoloMemoryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000000F /* CoreDataStack+HoloMemoryEntities.swift */; };
+		A1D01D00000000000000000012 /* CoreDataStack+LifePlanEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000011 /* CoreDataStack+LifePlanEntities.swift */; };
+		A1D01D00000000000000000014 /* CoreDataStack+RecycleBinEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000013 /* CoreDataStack+RecycleBinEntities.swift */; };
+		A1D01D00000000000000000016 /* CoreDataStack+ScheduleEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000015 /* CoreDataStack+ScheduleEntities.swift */; };
+		A1D01D00000000000000000018 /* CoreDataStack+SyncEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000017 /* CoreDataStack+SyncEntities.swift */; };
+		A1D01D0000000000000000001A /* CoreDataStack+ThoughtEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000019 /* CoreDataStack+ThoughtEntities.swift */; };
+		A1D01D0000000000000000001C /* CoreDataStack+TodoEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000001B /* CoreDataStack+TodoEntities.swift */; };
+		A1D01D00000000000000000022 /* AccountType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000021 /* AccountType.swift */; };
+		A1D01D0000000000000000002E /* BudgetPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000002D /* BudgetPeriod.swift */; };
+		A1D01D00000000000000000036 /* CategoryComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000035 /* CategoryComparison.swift */; };
+		A1D01D00000000000000000038 /* CategoryLearningEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000037 /* CategoryLearningEntities.swift */; };
+		A1D01D0000000000000000003E /* CheckItem+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000003D /* CheckItem+CoreDataClass.swift */; };
+		A1D01D00000000000000000040 /* CheckItem+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000003F /* CheckItem+CoreDataProperties.swift */; };
+		A1D01D0000000000000000004C /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000004B /* Habit.swift */; };
+		A1D01D0000000000000000004E /* Habit+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000004D /* Habit+CoreDataProperties.swift */; };
+		A1D01D00000000000000000050 /* HabitType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000004F /* HabitType.swift */; };
+		A1D01D00000000000000000052 /* HabitNumericAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000051 /* HabitNumericAggregation.swift */; };
+		A1D01D00000000000000000054 /* HabitRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000053 /* HabitRecord.swift */; };
+		A1D01D00000000000000000056 /* HabitRecord+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000055 /* HabitRecord+CoreDataProperties.swift */; };
+		A1D01D0000000000000000006C /* RepeatRule+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000006B /* RepeatRule+CoreDataClass.swift */; };
+		A1D01D0000000000000000006E /* RepeatRule+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000006D /* RepeatRule+CoreDataProperties.swift */; };
+		A1D01D00000000000000000072 /* TaskAttachment+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000071 /* TaskAttachment+CoreDataClass.swift */; };
+		A1D01D00000000000000000074 /* TaskAttachment+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000073 /* TaskAttachment+CoreDataProperties.swift */; };
+		A1D01D00000000000000000084 /* TodoFolder+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000083 /* TodoFolder+CoreDataClass.swift */; };
+		A1D01D00000000000000000086 /* TodoFolder+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000085 /* TodoFolder+CoreDataProperties.swift */; };
+		A1D01D00000000000000000088 /* TodoList+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000087 /* TodoList+CoreDataClass.swift */; };
+		A1D01D0000000000000000008A /* TodoList+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000089 /* TodoList+CoreDataProperties.swift */; };
+		A1D01D0000000000000000008C /* TodoTag+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000008B /* TodoTag+CoreDataClass.swift */; };
+		A1D01D0000000000000000008E /* TodoTag+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000008D /* TodoTag+CoreDataProperties.swift */; };
+		A1D01D00000000000000000090 /* TodoTask+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000008F /* TodoTask+CoreDataClass.swift */; };
+		A1D01D00000000000000000092 /* TodoTask+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000091 /* TodoTask+CoreDataProperties.swift */; };
+		A1D01D00000000000000000094 /* TodoTaskDatePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000093 /* TodoTaskDatePolicy.swift */; };
+		A1D01D00000000000000000096 /* TodoTaskModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000095 /* TodoTaskModels.swift */; };
+		A1D01D00000000000000000098 /* TodoTaskPriority.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000097 /* TodoTaskPriority.swift */; };
+		A1D01D000000000000000000A0 /* TransactionType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000009F /* TransactionType.swift */; };
+		A1D01D000000000000000000A4 /* Weekday.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D000000000000000000A3 /* Weekday.swift */; };
+		A1D01D10000000000000000011 /* ChineseLunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000010 /* ChineseLunarCalendar.swift */; };
+		A1D01D10000000000000000013 /* PersistencePreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000012 /* PersistencePreviewSupport.swift */; };
+		A1D01D10000000000000000015 /* CalendarHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000014 /* CalendarHelpers.swift */; };
+		A1D01D10000000000000000021 /* Goal+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000020 /* Goal+CoreDataClass.swift */; };
+		A1D01D10000000000000000023 /* Goal+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000022 /* Goal+CoreDataProperties.swift */; };
+		A1D01D10000000000000000025 /* GoalMetricLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000024 /* GoalMetricLog.swift */; };
+		A1D01D10000000000000000027 /* GoalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000026 /* GoalModels.swift */; };
+		A1D01D10000000000000000029 /* Thought+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000028 /* Thought+CoreDataClass.swift */; };
+		A1D01D1000000000000000002B /* ThoughtAttachment+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D1000000000000000002A /* ThoughtAttachment+CoreDataClass.swift */; };
+		A1D01D1000000000000000002D /* ThoughtAttachment+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D1000000000000000002C /* ThoughtAttachment+CoreDataProperties.swift */; };
+		A1D01D1000000000000000002F /* ThoughtReference+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D1000000000000000002E /* ThoughtReference+CoreDataClass.swift */; };
+		A1D01D10000000000000000031 /* ThoughtTag+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000030 /* ThoughtTag+CoreDataClass.swift */; };
+		A1D01D10000000000000000033 /* ThoughtTagAssignment+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000032 /* ThoughtTagAssignment+CoreDataClass.swift */; };
+		A1D01D10000000000000000035 /* ThoughtTagConvergenceRejection+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000034 /* ThoughtTagConvergenceRejection+CoreDataClass.swift */; };
+		A1D01D10000000000000000037 /* Topic+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000036 /* Topic+CoreDataClass.swift */; };
+		A1D01D10000000000000000039 /* RecycleBinBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000038 /* RecycleBinBatch.swift */; };
+		A1D01D10000000000000000051 /* CoreDataStack+UserPreferenceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000050 /* CoreDataStack+UserPreferenceEntity.swift */; };
+		A1D01D10000000000000000053 /* CoreDataStack+MemoryInsightEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000052 /* CoreDataStack+MemoryInsightEntity.swift */; };
+		A1D01D10000000000000000055 /* CoreDataStack+MemoryInsightFeedbackEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000054 /* CoreDataStack+MemoryInsightFeedbackEntity.swift */; };
+		A1D01D10000000000000000057 /* HoloEntitlementState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000056 /* HoloEntitlementState.swift */; };
+		A1D100000000000000000002 /* HabitRetroactiveQuota.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000001 /* HabitRetroactiveQuota.swift */; };
+		A1D100000000000000000004 /* NumberFormatter+Currency.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000003 /* NumberFormatter+Currency.swift */; };
+		A1D100000000000000000012 /* SoftDeletableCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000011 /* SoftDeletableCore.swift */; };
+		A1D100000000000000000016 /* HoloMemoryManagedObjects.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000015 /* HoloMemoryManagedObjects.swift */; };
+		A1D100000000000000000018 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000017 /* Color+Hex.swift */; };
+		A1D10000000000000000001A /* FinanceProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000019 /* FinanceProject.swift */; };
+		A1D100000000000000000042 /* Anniversary+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000041 /* Anniversary+CoreDataClass.swift */; };
+		A1D100000000000000000044 /* Anniversary+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000043 /* Anniversary+CoreDataProperties.swift */; };
+		A1D100000000000000000046 /* HoloSubscriptionProducts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D100000000000000000045 /* HoloSubscriptionProducts.swift */; };
 		A26088648B150C6E6E2F6D3C /* HoloMemoryCandidateReconcilerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3C3058ABC126953D79D465 /* HoloMemoryCandidateReconcilerStandaloneTests.swift */; };
 		A27D00010000000000000001 /* HoloPeriodReplayJobTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */; };
 		A27D00030000000000000001 /* Network/APIClientStreamingRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27D00040000000000000001 /* Network/APIClientStreamingRecoveryTests.swift */; };
@@ -150,7 +230,6 @@
 		AA11BB22CC33DD44EE55FF01 /* HoloMemoryEvidenceRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */; };
 		AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */; };
 		AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */; };
-		F1AC00000000000000000FC4 /* FinanceProjectWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */; };
 		AA11BB22CC33DD44EE880002 /* PersonalContextWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE880001 /* PersonalContextWalkthroughUITests.swift */; };
 		AA55E9C10D42F1B3A7E8C901 /* FullScreenCoverEdgeSwipeBackAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA55E9C10D42F1B3A7E8C902 /* FullScreenCoverEdgeSwipeBackAuditTests.swift */; };
 		AA6574CF2BCFA8397B9DF954 /* HoloMemoryRepositoryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8EDADC5C4B9CC6914DC480 /* HoloMemoryRepositoryIntegrationTests.swift */; };
@@ -214,9 +293,11 @@
 		F1121D5A8B37409D81782302 /* HoloAgentPersistenceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08747A667360E9485FB9443 /* HoloAgentPersistenceStoreTests.swift */; };
 		F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */; };
 		F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */; };
+		F1AC00000000000000000FC4 /* FinanceProjectWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
 		F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDBA4E276B54BCF52A416D0 /* FlexibleQueryChatCardDataTests.swift */; };
+		F1FA0A000000000000000001 /* VisionStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FA0A000000000000000002 /* VisionStandaloneTests.swift */; };
 		F40EF4AD4070679E31983D42 /* HoloAgentAnswerPresentationStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29C92BC6D47B3DA2EB9D7F56 /* HoloAgentAnswerPresentationStandaloneTests.swift */; };
 		F56401A963F00CC2E5CF683A /* UserDisplayNameSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */; };
 		F5846726F7A37ECB5DBB5049 /* ThoughtOrganizationBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B5A27F34F962AF28839320 /* ThoughtOrganizationBatchTests.swift */; };
@@ -406,6 +487,86 @@
 		A1B2C3D4E5F60718293A0C01 /* TaskCompletionCascadeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskCompletionCascadeTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4C02 /* HoloFixedToolSemanticStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloFixedToolSemanticStandaloneTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4C04 /* HoloAnswerCrossDomainStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAnswerCrossDomainStandaloneTests.swift; sourceTree = "<group>"; };
+		A1C000000000000000000001 /* TodoCompletionCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoCompletionCore.swift; path = Holo/Models/TodoCompletionCore.swift; sourceTree = "<group>"; };
+		A1C000000000000000000003 /* HoloWidgetHabitTodoSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloWidgetHabitTodoSnapshot.swift; path = Holo/Services/Widgets/HoloWidgetHabitTodoSnapshot.swift; sourceTree = "<group>"; };
+		A1C000000000000000000007 /* CoreDataStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreDataStack.swift; path = Holo/Models/CoreDataStack.swift; sourceTree = "<group>"; };
+		A1C000000000000000000041 /* ICloudSyncStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ICloudSyncStatusService.swift; path = Holo/Services/Sync/ICloudSyncStatusService.swift; sourceTree = "<group>"; };
+		A1C000000000000000000043 /* HabitRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitRepository.swift; path = Holo/Models/HabitRepository.swift; sourceTree = "<group>"; };
+		A1C000000000000000000045 /* CloudImportRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudImportRelay.swift; path = Holo/Services/Sync/CloudImportRelay.swift; sourceTree = "<group>"; };
+		A1C000000000000000000047 /* HabitStatsDisplaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitStatsDisplaySettings.swift; path = Holo/Models/HabitStatsDisplaySettings.swift; sourceTree = "<group>"; };
+		A1C000000000000000000051 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DesignSystem.swift; path = Holo/Utils/DesignSystem.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000001 /* HoloWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloWidgetIntents.swift; path = HoloWidgets/HoloWidgetIntents.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+AnniversaryEntities.swift"; path = "Holo/Models/CoreDataStack+AnniversaryEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+CategoryLearningEntities.swift"; path = "Holo/Models/CoreDataStack+CategoryLearningEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+ChatEntities.swift"; path = "Holo/Models/CoreDataStack+ChatEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+FinanceEntities.swift"; path = "Holo/Models/CoreDataStack+FinanceEntities.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000000B /* CoreDataStack+GoalEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+GoalEntities.swift"; path = "Holo/Models/CoreDataStack+GoalEntities.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000000D /* CoreDataStack+HabitEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+HabitEntities.swift"; path = "Holo/Models/CoreDataStack+HabitEntities.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000000F /* CoreDataStack+HoloMemoryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+HoloMemoryEntities.swift"; path = "Holo/Models/CoreDataStack+HoloMemoryEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000011 /* CoreDataStack+LifePlanEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+LifePlanEntities.swift"; path = "Holo/Models/CoreDataStack+LifePlanEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000013 /* CoreDataStack+RecycleBinEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+RecycleBinEntities.swift"; path = "Holo/Models/CoreDataStack+RecycleBinEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000015 /* CoreDataStack+ScheduleEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+ScheduleEntities.swift"; path = "Holo/Models/CoreDataStack+ScheduleEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000017 /* CoreDataStack+SyncEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+SyncEntities.swift"; path = "Holo/Models/CoreDataStack+SyncEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000019 /* CoreDataStack+ThoughtEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+ThoughtEntities.swift"; path = "Holo/Models/CoreDataStack+ThoughtEntities.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000001B /* CoreDataStack+TodoEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+TodoEntities.swift"; path = "Holo/Models/CoreDataStack+TodoEntities.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000021 /* AccountType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AccountType.swift; path = Holo/Models/AccountType.swift; sourceTree = "<group>"; };
+		A1D01D0000000000000000002D /* BudgetPeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BudgetPeriod.swift; path = Holo/Models/BudgetPeriod.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000035 /* CategoryComparison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CategoryComparison.swift; path = Holo/Models/CategoryComparison.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000037 /* CategoryLearningEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CategoryLearningEntities.swift; path = Holo/Models/CategoryLearningEntities.swift; sourceTree = "<group>"; };
+		A1D01D0000000000000000003D /* CheckItem+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CheckItem+CoreDataClass.swift"; path = "Holo/Models/CheckItem+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000003F /* CheckItem+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CheckItem+CoreDataProperties.swift"; path = "Holo/Models/CheckItem+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000004B /* Habit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Habit.swift; path = Holo/Models/Habit.swift; sourceTree = "<group>"; };
+		A1D01D0000000000000000004D /* Habit+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Habit+CoreDataProperties.swift"; path = "Holo/Models/Habit+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000004F /* HabitType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitType.swift; path = Holo/Models/HabitType.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000051 /* HabitNumericAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitNumericAggregation.swift; path = Holo/Models/HabitNumericAggregation.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000053 /* HabitRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitRecord.swift; path = Holo/Models/HabitRecord.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000055 /* HabitRecord+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HabitRecord+CoreDataProperties.swift"; path = "Holo/Models/HabitRecord+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000006B /* RepeatRule+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RepeatRule+CoreDataClass.swift"; path = "Holo/Models/RepeatRule+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000006D /* RepeatRule+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RepeatRule+CoreDataProperties.swift"; path = "Holo/Models/RepeatRule+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000071 /* TaskAttachment+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TaskAttachment+CoreDataClass.swift"; path = "Holo/Models/TaskAttachment+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000073 /* TaskAttachment+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TaskAttachment+CoreDataProperties.swift"; path = "Holo/Models/TaskAttachment+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000083 /* TodoFolder+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoFolder+CoreDataClass.swift"; path = "Holo/Models/TodoFolder+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000085 /* TodoFolder+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoFolder+CoreDataProperties.swift"; path = "Holo/Models/TodoFolder+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000087 /* TodoList+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoList+CoreDataClass.swift"; path = "Holo/Models/TodoList+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000089 /* TodoList+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoList+CoreDataProperties.swift"; path = "Holo/Models/TodoList+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000008B /* TodoTag+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoTag+CoreDataClass.swift"; path = "Holo/Models/TodoTag+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000008D /* TodoTag+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoTag+CoreDataProperties.swift"; path = "Holo/Models/TodoTag+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D0000000000000000008F /* TodoTask+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoTask+CoreDataClass.swift"; path = "Holo/Models/TodoTask+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000091 /* TodoTask+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TodoTask+CoreDataProperties.swift"; path = "Holo/Models/TodoTask+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D00000000000000000093 /* TodoTaskDatePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoTaskDatePolicy.swift; path = Holo/Models/TodoTaskDatePolicy.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000095 /* TodoTaskModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoTaskModels.swift; path = Holo/Models/TodoTaskModels.swift; sourceTree = "<group>"; };
+		A1D01D00000000000000000097 /* TodoTaskPriority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoTaskPriority.swift; path = Holo/Models/TodoTaskPriority.swift; sourceTree = "<group>"; };
+		A1D01D0000000000000000009F /* TransactionType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TransactionType.swift; path = Holo/Models/TransactionType.swift; sourceTree = "<group>"; };
+		A1D01D000000000000000000A3 /* Weekday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Weekday.swift; path = Holo/Models/Weekday.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000010 /* ChineseLunarCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChineseLunarCalendar.swift; path = Holo/Utils/ChineseLunarCalendar.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000012 /* PersistencePreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PersistencePreviewSupport.swift; path = Holo/Utils/PersistencePreviewSupport.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000014 /* CalendarHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CalendarHelpers.swift; path = Holo/Utils/CalendarHelpers.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000020 /* Goal+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Goal+CoreDataClass.swift"; path = "Holo/Models/Goal+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000022 /* Goal+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Goal+CoreDataProperties.swift"; path = "Holo/Models/Goal+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000024 /* GoalMetricLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GoalMetricLog.swift; path = Holo/Models/GoalMetricLog.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000026 /* GoalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GoalModels.swift; path = Holo/Models/GoalModels.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000028 /* Thought+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Thought+CoreDataClass.swift"; path = "Holo/Models/Thought+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D1000000000000000002A /* ThoughtAttachment+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtAttachment+CoreDataClass.swift"; path = "Holo/Models/ThoughtAttachment+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D1000000000000000002C /* ThoughtAttachment+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtAttachment+CoreDataProperties.swift"; path = "Holo/Models/ThoughtAttachment+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D01D1000000000000000002E /* ThoughtReference+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtReference+CoreDataClass.swift"; path = "Holo/Models/ThoughtReference+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000030 /* ThoughtTag+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtTag+CoreDataClass.swift"; path = "Holo/Models/ThoughtTag+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000032 /* ThoughtTagAssignment+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtTagAssignment+CoreDataClass.swift"; path = "Holo/Models/ThoughtTagAssignment+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000034 /* ThoughtTagConvergenceRejection+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtTagConvergenceRejection+CoreDataClass.swift"; path = "Holo/Models/ThoughtTagConvergenceRejection+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000036 /* Topic+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Topic+CoreDataClass.swift"; path = "Holo/Models/Topic+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000038 /* RecycleBinBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecycleBinBatch.swift; path = Holo/Models/RecycleBinBatch.swift; sourceTree = "<group>"; };
+		A1D01D10000000000000000050 /* CoreDataStack+UserPreferenceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+UserPreferenceEntity.swift"; path = "Holo/Models/CoreDataStack+UserPreferenceEntity.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000052 /* CoreDataStack+MemoryInsightEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+MemoryInsightEntity.swift"; path = "Holo/Models/CoreDataStack+MemoryInsightEntity.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000054 /* CoreDataStack+MemoryInsightFeedbackEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+MemoryInsightFeedbackEntity.swift"; path = "Holo/Models/CoreDataStack+MemoryInsightFeedbackEntity.swift"; sourceTree = "<group>"; };
+		A1D01D10000000000000000056 /* HoloEntitlementState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloEntitlementState.swift; path = Holo/Services/Subscription/HoloEntitlementState.swift; sourceTree = "<group>"; };
+		A1D100000000000000000001 /* HabitRetroactiveQuota.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitRetroactiveQuota.swift; path = Holo/Models/HabitRetroactiveQuota.swift; sourceTree = "<group>"; };
+		A1D100000000000000000003 /* NumberFormatter+Currency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NumberFormatter+Currency.swift"; path = "Holo/Utils/NumberFormatter+Currency.swift"; sourceTree = "<group>"; };
+		A1D100000000000000000011 /* SoftDeletableCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SoftDeletableCore.swift; path = Holo/Models/SoftDeletableCore.swift; sourceTree = "<group>"; };
+		A1D100000000000000000015 /* HoloMemoryManagedObjects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloMemoryManagedObjects.swift; path = Holo/Models/HoloMemoryManagedObjects.swift; sourceTree = "<group>"; };
+		A1D100000000000000000017 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Color+Hex.swift"; path = "Holo/Utils/Color+Hex.swift"; sourceTree = "<group>"; };
+		A1D100000000000000000019 /* FinanceProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FinanceProject.swift; path = Holo/Models/FinanceProject.swift; sourceTree = "<group>"; };
+		A1D100000000000000000041 /* Anniversary+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Anniversary+CoreDataClass.swift"; path = "Holo/Models/Anniversary+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D100000000000000000043 /* Anniversary+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Anniversary+CoreDataProperties.swift"; path = "Holo/Models/Anniversary+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A1D100000000000000000045 /* HoloSubscriptionProducts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloSubscriptionProducts.swift; path = Holo/Services/Subscription/HoloSubscriptionProducts.swift; sourceTree = "<group>"; };
 		A27082593A477421E9C4EE6B /* CalendarHeatmapDarkModeStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarHeatmapDarkModeStandaloneTests.swift; sourceTree = "<group>"; };
 		A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloPeriodReplayJobTests.swift; sourceTree = "<group>"; };
 		A27D00040000000000000001 /* Network/APIClientStreamingRecoveryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Network/APIClientStreamingRecoveryTests.swift; sourceTree = "<group>"; };
@@ -423,7 +584,6 @@
 		AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryEvidenceRoutingTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitStatsFloatUITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtImageSourceSheetUITests.swift; sourceTree = "<group>"; };
-		F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceProjectWalkthroughUITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE880001 /* PersonalContextWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalContextWalkthroughUITests.swift; sourceTree = "<group>"; };
 		AA55E9C10D42F1B3A7E8C902 /* FullScreenCoverEdgeSwipeBackAuditTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FullScreenCoverEdgeSwipeBackAuditTests.swift; sourceTree = "<group>"; };
 		ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloThoughtToolTests.swift; sourceTree = "<group>"; };
@@ -471,8 +631,10 @@
 		F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceBillImportMatrixStandaloneTests.swift; sourceTree = "<group>"; };
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceProjectRepositoryTests.swift; sourceTree = "<group>"; };
+		F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceProjectWalkthroughUITests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
+		F1FA0A000000000000000002 /* VisionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionStandaloneTests.swift; sourceTree = "<group>"; };
 		F215DFCBE8FF4A72EC6B7745 /* HoloAgentPersistenceManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentPersistenceManagerTests.swift; sourceTree = "<group>"; };
 		F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloExpressionDecisionEngineTests.swift; sourceTree = "<group>"; };
 		F7172AA6F8A3B20680429BDE /* HoloAgentInputSnapshotStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentInputSnapshotStandaloneTests.swift; sourceTree = "<group>"; };
@@ -554,6 +716,7 @@
 				9B397200946247EE53DCAA42 /* TopicRepositoryTests.swift */,
 				C3F5AB37CC0954BEE8974939 /* TopicServiceTests.swift */,
 				FCD82FD43AAF6B2667E5AD52 /* AIUserContextMessageBuilderStandaloneTests.swift */,
+				F1FA0A000000000000000002 /* VisionStandaloneTests.swift */,
 				9DC6696B2DCA973283DCF537 /* CategoryCandidateResolverStandaloneTests.swift */,
 				6C88C107340F8CF79EB696A3 /* HoloAIUserErrorMapperStandaloneTests.swift */,
 				0A5D83E33ACABE38F2A79B79 /* HoloCrossDomainFusionStandaloneTests.swift */,
@@ -701,6 +864,86 @@
 			children = (
 				A10000000000000000000005 /* HoloWidgetModels.swift */,
 				A10000000000000000000006 /* HoloWidgetSnapshotStore.swift */,
+				A1C000000000000000000001 /* TodoCompletionCore.swift */,
+				A1C000000000000000000003 /* HoloWidgetHabitTodoSnapshot.swift */,
+				A1C000000000000000000007 /* CoreDataStack.swift */,
+				A1C000000000000000000041 /* ICloudSyncStatusService.swift */,
+				A1C000000000000000000043 /* HabitRepository.swift */,
+				A1C000000000000000000045 /* CloudImportRelay.swift */,
+				A1C000000000000000000047 /* HabitStatsDisplaySettings.swift */,
+				A1D100000000000000000001 /* HabitRetroactiveQuota.swift */,
+				A1C000000000000000000051 /* DesignSystem.swift */,
+				A1D01D00000000000000000001 /* HoloWidgetIntents.swift */,
+				A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */,
+				A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */,
+				A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */,
+				A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */,
+				A1D01D0000000000000000000B /* CoreDataStack+GoalEntities.swift */,
+				A1D01D0000000000000000000D /* CoreDataStack+HabitEntities.swift */,
+				A1D01D0000000000000000000F /* CoreDataStack+HoloMemoryEntities.swift */,
+				A1D01D00000000000000000011 /* CoreDataStack+LifePlanEntities.swift */,
+				A1D01D00000000000000000013 /* CoreDataStack+RecycleBinEntities.swift */,
+				A1D01D00000000000000000015 /* CoreDataStack+ScheduleEntities.swift */,
+				A1D01D00000000000000000017 /* CoreDataStack+SyncEntities.swift */,
+				A1D01D00000000000000000019 /* CoreDataStack+ThoughtEntities.swift */,
+				A1D01D0000000000000000001B /* CoreDataStack+TodoEntities.swift */,
+				A1D01D00000000000000000021 /* AccountType.swift */,
+				A1D01D0000000000000000002D /* BudgetPeriod.swift */,
+				A1D01D00000000000000000035 /* CategoryComparison.swift */,
+				A1D01D00000000000000000037 /* CategoryLearningEntities.swift */,
+				A1D01D0000000000000000003D /* CheckItem+CoreDataClass.swift */,
+				A1D01D0000000000000000003F /* CheckItem+CoreDataProperties.swift */,
+				A1D01D0000000000000000004B /* Habit.swift */,
+				A1D01D0000000000000000004D /* Habit+CoreDataProperties.swift */,
+				A1D01D0000000000000000004F /* HabitType.swift */,
+				A1D01D00000000000000000051 /* HabitNumericAggregation.swift */,
+				A1D01D00000000000000000053 /* HabitRecord.swift */,
+				A1D01D00000000000000000055 /* HabitRecord+CoreDataProperties.swift */,
+				A1D01D0000000000000000006B /* RepeatRule+CoreDataClass.swift */,
+				A1D01D0000000000000000006D /* RepeatRule+CoreDataProperties.swift */,
+				A1D01D00000000000000000071 /* TaskAttachment+CoreDataClass.swift */,
+				A1D01D00000000000000000073 /* TaskAttachment+CoreDataProperties.swift */,
+				A1D01D00000000000000000083 /* TodoFolder+CoreDataClass.swift */,
+				A1D01D00000000000000000085 /* TodoFolder+CoreDataProperties.swift */,
+				A1D01D00000000000000000087 /* TodoList+CoreDataClass.swift */,
+				A1D01D00000000000000000089 /* TodoList+CoreDataProperties.swift */,
+				A1D01D0000000000000000008B /* TodoTag+CoreDataClass.swift */,
+				A1D01D0000000000000000008D /* TodoTag+CoreDataProperties.swift */,
+				A1D01D0000000000000000008F /* TodoTask+CoreDataClass.swift */,
+				A1D01D00000000000000000091 /* TodoTask+CoreDataProperties.swift */,
+				A1D01D00000000000000000093 /* TodoTaskDatePolicy.swift */,
+				A1D01D00000000000000000095 /* TodoTaskModels.swift */,
+				A1D01D00000000000000000097 /* TodoTaskPriority.swift */,
+				A1D01D0000000000000000009F /* TransactionType.swift */,
+				A1D01D000000000000000000A3 /* Weekday.swift */,
+				A1D01D10000000000000000010 /* ChineseLunarCalendar.swift */,
+				A1D100000000000000000011 /* SoftDeletableCore.swift */,
+				A1D100000000000000000015 /* HoloMemoryManagedObjects.swift */,
+				A1D01D10000000000000000012 /* PersistencePreviewSupport.swift */,
+				A1D01D10000000000000000014 /* CalendarHelpers.swift */,
+				A1D01D10000000000000000020 /* Goal+CoreDataClass.swift */,
+				A1D01D10000000000000000022 /* Goal+CoreDataProperties.swift */,
+				A1D01D10000000000000000024 /* GoalMetricLog.swift */,
+				A1D01D10000000000000000026 /* GoalModels.swift */,
+				A1D01D10000000000000000028 /* Thought+CoreDataClass.swift */,
+				A1D01D1000000000000000002A /* ThoughtAttachment+CoreDataClass.swift */,
+				A1D01D1000000000000000002C /* ThoughtAttachment+CoreDataProperties.swift */,
+				A1D01D1000000000000000002E /* ThoughtReference+CoreDataClass.swift */,
+				A1D01D10000000000000000030 /* ThoughtTag+CoreDataClass.swift */,
+				A1D01D10000000000000000032 /* ThoughtTagAssignment+CoreDataClass.swift */,
+				A1D01D10000000000000000034 /* ThoughtTagConvergenceRejection+CoreDataClass.swift */,
+				A1D100000000000000000017 /* Color+Hex.swift */,
+				A1D100000000000000000019 /* FinanceProject.swift */,
+				A1D01D10000000000000000036 /* Topic+CoreDataClass.swift */,
+				A1D01D10000000000000000038 /* RecycleBinBatch.swift */,
+				A1D01D10000000000000000050 /* CoreDataStack+UserPreferenceEntity.swift */,
+				A1D01D10000000000000000052 /* CoreDataStack+MemoryInsightEntity.swift */,
+				A1D100000000000000000045 /* HoloSubscriptionProducts.swift */,
+				A1D01D10000000000000000054 /* CoreDataStack+MemoryInsightFeedbackEntity.swift */,
+				A1D01D10000000000000000056 /* HoloEntitlementState.swift */,
+				A1D100000000000000000041 /* Anniversary+CoreDataClass.swift */,
+				A1D100000000000000000043 /* Anniversary+CoreDataProperties.swift */,
+				A1D100000000000000000003 /* NumberFormatter+Currency.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -1291,6 +1534,7 @@
 				EE2C665A7F36D918331F7E0E /* ImportCategoryPlannerStandaloneTests.swift in Sources */,
 				E6E13FA916D361969B44678F /* InstallmentNoteSanitizerStandaloneTests.swift in Sources */,
 				45280B2121824FEFC0E7022D /* AIUserContextMessageBuilderStandaloneTests.swift in Sources */,
+				F1FA0A000000000000000001 /* VisionStandaloneTests.swift in Sources */,
 				F40EF4AD4070679E31983D42 /* HoloAgentAnswerPresentationStandaloneTests.swift in Sources */,
 				C3B396F1371E49388FFE1755 /* HoloMetricSemanticStandaloneTests.swift in Sources */,
 				7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */,
@@ -1386,6 +1630,86 @@
 				A1000000000000000000001B /* HoloTodoWidget.swift in Sources */,
 				A1000000000000000000001D /* HoloGoalWidget.swift in Sources */,
 				A1000000000000000000001F /* HoloAnniversaryWidget.swift in Sources */,
+				A1C000000000000000000002 /* TodoCompletionCore.swift in Sources */,
+				A1C000000000000000000004 /* HoloWidgetHabitTodoSnapshot.swift in Sources */,
+				A1C000000000000000000008 /* CoreDataStack.swift in Sources */,
+				A1C000000000000000000042 /* ICloudSyncStatusService.swift in Sources */,
+				A1C000000000000000000044 /* HabitRepository.swift in Sources */,
+				A1C000000000000000000046 /* CloudImportRelay.swift in Sources */,
+				A1D100000000000000000002 /* HabitRetroactiveQuota.swift in Sources */,
+				A1C000000000000000000048 /* HabitStatsDisplaySettings.swift in Sources */,
+				A1C000000000000000000052 /* DesignSystem.swift in Sources */,
+				A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */,
+				A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */,
+				A1D01D00000000000000000006 /* CoreDataStack+CategoryLearningEntities.swift in Sources */,
+				A1D01D00000000000000000008 /* CoreDataStack+ChatEntities.swift in Sources */,
+				A1D01D0000000000000000000A /* CoreDataStack+FinanceEntities.swift in Sources */,
+				A1D01D0000000000000000000C /* CoreDataStack+GoalEntities.swift in Sources */,
+				A1D01D0000000000000000000E /* CoreDataStack+HabitEntities.swift in Sources */,
+				A1D01D00000000000000000010 /* CoreDataStack+HoloMemoryEntities.swift in Sources */,
+				A1D01D00000000000000000012 /* CoreDataStack+LifePlanEntities.swift in Sources */,
+				A1D01D00000000000000000014 /* CoreDataStack+RecycleBinEntities.swift in Sources */,
+				A1D01D00000000000000000016 /* CoreDataStack+ScheduleEntities.swift in Sources */,
+				A1D01D00000000000000000018 /* CoreDataStack+SyncEntities.swift in Sources */,
+				A1D01D0000000000000000001A /* CoreDataStack+ThoughtEntities.swift in Sources */,
+				A1D01D0000000000000000001C /* CoreDataStack+TodoEntities.swift in Sources */,
+				A1D01D00000000000000000022 /* AccountType.swift in Sources */,
+				A1D01D0000000000000000002E /* BudgetPeriod.swift in Sources */,
+				A1D01D00000000000000000036 /* CategoryComparison.swift in Sources */,
+				A1D01D00000000000000000038 /* CategoryLearningEntities.swift in Sources */,
+				A1D01D0000000000000000003E /* CheckItem+CoreDataClass.swift in Sources */,
+				A1D01D00000000000000000040 /* CheckItem+CoreDataProperties.swift in Sources */,
+				A1D01D0000000000000000004C /* Habit.swift in Sources */,
+				A1D01D0000000000000000004E /* Habit+CoreDataProperties.swift in Sources */,
+				A1D01D00000000000000000050 /* HabitType.swift in Sources */,
+				A1D01D00000000000000000052 /* HabitNumericAggregation.swift in Sources */,
+				A1D01D00000000000000000054 /* HabitRecord.swift in Sources */,
+				A1D01D00000000000000000056 /* HabitRecord+CoreDataProperties.swift in Sources */,
+				A1D01D0000000000000000006C /* RepeatRule+CoreDataClass.swift in Sources */,
+				A1D01D0000000000000000006E /* RepeatRule+CoreDataProperties.swift in Sources */,
+				A1D01D00000000000000000072 /* TaskAttachment+CoreDataClass.swift in Sources */,
+				A1D01D00000000000000000074 /* TaskAttachment+CoreDataProperties.swift in Sources */,
+				A1D01D00000000000000000084 /* TodoFolder+CoreDataClass.swift in Sources */,
+				A1D01D00000000000000000086 /* TodoFolder+CoreDataProperties.swift in Sources */,
+				A1D01D00000000000000000088 /* TodoList+CoreDataClass.swift in Sources */,
+				A1D01D0000000000000000008A /* TodoList+CoreDataProperties.swift in Sources */,
+				A1D01D0000000000000000008C /* TodoTag+CoreDataClass.swift in Sources */,
+				A1D01D0000000000000000008E /* TodoTag+CoreDataProperties.swift in Sources */,
+				A1D01D00000000000000000090 /* TodoTask+CoreDataClass.swift in Sources */,
+				A1D01D00000000000000000092 /* TodoTask+CoreDataProperties.swift in Sources */,
+				A1D01D00000000000000000094 /* TodoTaskDatePolicy.swift in Sources */,
+				A1D01D00000000000000000096 /* TodoTaskModels.swift in Sources */,
+				A1D01D00000000000000000098 /* TodoTaskPriority.swift in Sources */,
+				A1D01D000000000000000000A0 /* TransactionType.swift in Sources */,
+				A1D01D000000000000000000A4 /* Weekday.swift in Sources */,
+				A1D100000000000000000012 /* SoftDeletableCore.swift in Sources */,
+				A1D100000000000000000016 /* HoloMemoryManagedObjects.swift in Sources */,
+				A1D01D10000000000000000011 /* ChineseLunarCalendar.swift in Sources */,
+				A1D01D10000000000000000013 /* PersistencePreviewSupport.swift in Sources */,
+				A1D01D10000000000000000015 /* CalendarHelpers.swift in Sources */,
+				A1D01D10000000000000000021 /* Goal+CoreDataClass.swift in Sources */,
+				A1D01D10000000000000000023 /* Goal+CoreDataProperties.swift in Sources */,
+				A1D01D10000000000000000025 /* GoalMetricLog.swift in Sources */,
+				A1D01D10000000000000000027 /* GoalModels.swift in Sources */,
+				A1D01D10000000000000000029 /* Thought+CoreDataClass.swift in Sources */,
+				A1D01D1000000000000000002B /* ThoughtAttachment+CoreDataClass.swift in Sources */,
+				A1D01D1000000000000000002D /* ThoughtAttachment+CoreDataProperties.swift in Sources */,
+				A1D01D1000000000000000002F /* ThoughtReference+CoreDataClass.swift in Sources */,
+				A1D01D10000000000000000031 /* ThoughtTag+CoreDataClass.swift in Sources */,
+				A1D01D10000000000000000033 /* ThoughtTagAssignment+CoreDataClass.swift in Sources */,
+				A1D100000000000000000018 /* Color+Hex.swift in Sources */,
+				A1D10000000000000000001A /* FinanceProject.swift in Sources */,
+				A1D01D10000000000000000035 /* ThoughtTagConvergenceRejection+CoreDataClass.swift in Sources */,
+				A1D01D10000000000000000037 /* Topic+CoreDataClass.swift in Sources */,
+				A1D01D10000000000000000039 /* RecycleBinBatch.swift in Sources */,
+				A1D01D10000000000000000051 /* CoreDataStack+UserPreferenceEntity.swift in Sources */,
+				A1D100000000000000000046 /* HoloSubscriptionProducts.swift in Sources */,
+				A1D01D10000000000000000053 /* CoreDataStack+MemoryInsightEntity.swift in Sources */,
+				A1D01D10000000000000000055 /* CoreDataStack+MemoryInsightFeedbackEntity.swift in Sources */,
+				A1D01D10000000000000000057 /* HoloEntitlementState.swift in Sources */,
+				A1D100000000000000000042 /* Anniversary+CoreDataClass.swift in Sources */,
+				A1D100000000000000000044 /* Anniversary+CoreDataProperties.swift in Sources */,
+				A1D100000000000000000004 /* NumberFormatter+Currency.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1730,6 +2054,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.2;
+				OTHER_SWIFT_FLAGS = "-DHOLO_APP_EXTENSION";
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo.HoloWidgets;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app.widgets";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1762,6 +2087,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.2;
+				OTHER_SWIFT_FLAGS = "-DHOLO_APP_EXTENSION";
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo.HoloWidgets;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app.widgets";
 				PRODUCT_NAME = "$(TARGET_NAME)";

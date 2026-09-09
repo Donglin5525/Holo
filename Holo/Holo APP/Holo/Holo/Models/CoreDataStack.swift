@@ -188,18 +188,19 @@ nonisolated class CoreDataStack {
         }
     }
 
-    /// 用独立协调器把旧库整体搬到新址（SQLite 标准搬迁，含 schema 升级与一致性拷贝）
+    /// 搬迁整个 SQLite 存储，保留 CloudKit 映射及记录身份。
+    /// migratePersistentStore 会重建对象身份，导致云端原记录再次导入形成副本。
     nonisolated static func migrateStore(at oldURL: URL, to newURL: URL, model: NSManagedObjectModel) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: newURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-
-        let options: [AnyHashable: Any] = [
-            NSMigratePersistentStoresAutomaticallyOption: true,
-            NSInferMappingModelAutomaticallyOption: true
-        ]
         let mover = NSPersistentStoreCoordinator(managedObjectModel: model)
-        let legacyStore = try mover.addPersistentStore(type: .sqlite, at: oldURL)
-        try mover.migratePersistentStore(legacyStore, to: newURL, options: options, type: .sqlite)
+        try mover.replacePersistentStore(
+            at: newURL,
+            destinationOptions: nil,
+            withPersistentStoreFrom: oldURL,
+            sourceOptions: [NSReadOnlyPersistentStoreOption: true],
+            type: .sqlite
+        )
     }
 
     /// 主上下文（用于 UI 操作）

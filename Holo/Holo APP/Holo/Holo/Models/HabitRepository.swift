@@ -44,14 +44,21 @@ class HabitRepository: ObservableObject {
     
     // MARK: - Initialization
     
-    private init() {}
+    private init() { observesRemoteChanges = true }
 
     /// 注入自定义 context（测试用 in-memory；生产仍走 shared 单例）
     /// 与 Finance/Todo/Thought 等其他 Repository 保持一致的注入入口，
-    /// 用于在不污染单例的前提下跑隔离测试
-    init(context: NSManagedObjectContext) {
+    /// 用于在不污染单例的前提下跑隔离测试。
+    /// observesRemoteChanges 传 false 供小组件扩展进程使用：远程变更判定需要
+    /// 比对主 App 共享 viewContext，而触碰它会在扩展进程内把 App 容器建出来。
+    init(context: NSManagedObjectContext, observesRemoteChanges: Bool = true) {
+        // lazy 属性须在全部存储属性初始化后再赋值，顺序不能颠倒
+        self.observesRemoteChanges = observesRemoteChanges
         self.context = context
     }
+
+    /// 是否监听共享库远程变更（仅主 App 进程为 true）
+    private let observesRemoteChanges: Bool
 
     /// Repository 的资源都由 ARC/Core Data 自行释放，无需切回主执行器做析构。
     /// 显式使用 nonisolated 可避开旧系统兼容析构 thunk 在 XCTest 宿主中的重复释放崩溃。
@@ -74,8 +81,10 @@ class HabitRepository: ObservableObject {
     private var remoteChangeDebounce: Task<Void, Never>?
 
     private func registerRemoteChangeRefreshIfNeeded() {
-        // 测试注入的独立 context 不挂共享 coordinator，避免污染测试进程
-        guard remoteChangeObserver == nil,
+        // 测试注入的独立 context 不挂共享 coordinator，避免污染测试进程；
+        // 小组件进程（observesRemoteChanges=false）同理，且不得触碰共享 viewContext
+        guard observesRemoteChanges,
+              remoteChangeObserver == nil,
               context === CoreDataStack.shared.viewContext else { return }
         remoteChangeObserver = NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
@@ -110,11 +119,34 @@ class HabitRepository: ObservableObject {
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         
         do {
-            activeHabits = try context.fetch(request)
+            activeHabits = Self.deduplicatingCopies(try context.fetch(request))
         } catch {
             logger.error("加载习惯失败: \(error)")
             activeHabits = []
         }
+    }
+
+    /// 同 id 副本只保留物理行号最小的一行（迁移事故的云端全量副本行号更大），
+    /// 保持 fetch 的 sortOrder 排序。磁贴墙等列表以习惯 id 为身份键，
+    /// 重复 id 会让 SwiftUI 渲染错乱（磁贴丢失/错位）；修复器合并完成前读路径必须先免疫。
+    static func deduplicatingCopies(_ rows: [Habit]) -> [Habit] {
+        var survivorById: [UUID: Habit] = [:]
+        for row in rows {
+            guard let existing = survivorById[row.id] else {
+                survivorById[row.id] = row
+                continue
+            }
+            if physicalRowNumber(row) < physicalRowNumber(existing) {
+                survivorById[row.id] = row
+            }
+        }
+        guard survivorById.count != rows.count else { return rows }
+        return rows.filter { survivorById[$0.id] === $0 }
+    }
+
+    /// 物理行号取自 objectID（即 SQLite Z_PK，落库后跨启动稳定）
+    private static func physicalRowNumber(_ row: NSManagedObject) -> Int {
+        Int(row.objectID.uriRepresentation().lastPathComponent) ?? Int.max
     }
     
     // MARK: - Habit CRUD

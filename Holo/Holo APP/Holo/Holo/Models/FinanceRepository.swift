@@ -8,6 +8,7 @@
 
 import Foundation
 import CoreData
+import CloudKit
 import BackgroundTasks
 
 /// 记账功能数据仓库
@@ -45,6 +46,7 @@ class FinanceRepository {
         migrateFixedExpenseSemantics()
         migrateCardToCreditCard()
         migrateLegacyReconciliationAdjustments()
+        scheduleDuplicateScan(force: true)
         registerCloudRestoreRepairIfNeeded()
     }
 
@@ -71,11 +73,88 @@ class FinanceRepository {
         cloudRepairDebounce = Task {
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
-            SeedRevivalRepair.repairIfNeeded(context: FinanceRepository.shared.context)
-            // 云端导入可能带来新账单/账户（新设备首启导入晚于首载）：广播刷新让
-            // 账本/分析页重查，否则财务列表会停在空态。仓库无内存缓存，视图本就
-            // 靠该通知重查，广播是唯一需要的动作。
-            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            FinanceRepository.shared.scheduleDuplicateScanOnMain(force: false)
+        }
+    }
+
+    // MARK: - 同步副本修复（后台执行）
+
+    /// 副本合并的全量扫描较重（六实体全表 + 重复组逐行查同步身份），
+    /// 重装后 iCloud 回导期间 remote change 通知可能每几秒一批，
+    /// 在 viewContext（主线程）同步跑会把 UI 反复锤死。主线程绝不同步执行扫描：
+    /// 这里只做调度，实际扫描（含误种清理）全部在后台 context 跑完，
+    /// 删除落库后由 automaticallyMergesChangesFromParent 自动合并回主上下文。
+    private static let minScanInterval: TimeInterval = 60
+    private static var lastScanAt: Date?
+    /// 后台扫描启动时刻。宽限期内视为「正在跑」挡住新轮；超期视为僵死
+    /// （如 SQLite 长锁等待），放行新一轮——避免一次卡住永久停摆清不动数据。
+    private static var scanStartedAt: Date?
+    private static let scanStuckGrace: TimeInterval = 300
+
+    /// 调度一轮副本修复（任意线程可调）。force 跳过节流，仅启动首扫使用。
+    private func scheduleDuplicateScan(force: Bool = false) {
+        Task { @MainActor in
+            FinanceRepository.shared.scheduleDuplicateScanOnMain(force: force)
+        }
+    }
+
+    /// 节流 + 防重入 + 起后台任务；状态只在主线程读写，无需加锁。
+    @MainActor
+    private func scheduleDuplicateScanOnMain(force: Bool) {
+        let now = Date()
+        if !force {
+            if let started = Self.scanStartedAt, now.timeIntervalSince(started) < Self.scanStuckGrace { return }
+            if let last = Self.lastScanAt, now.timeIntervalSince(last) < Self.minScanInterval { return }
+        }
+        Self.lastScanAt = now
+        Self.scanStartedAt = now
+        let container = CoreDataStack.shared.persistentContainer
+        container.performBackgroundTask { bgContext in
+            self.runRepairPass(on: bgContext)
+            Task { @MainActor in
+                Self.scanStartedAt = nil
+            }
+        }
+    }
+
+    /// 后台 context 队列内执行：先清误种默认行，再合并同步副本（财务+习惯两域）。
+    /// 全程不触碰 viewContext；有删除时回主线程广播刷新。
+    /// 每轮结果无条件进日志（节流下每分钟最多一行）：真机上「清不动」时
+    /// 靠它区分「没在跑 / 全组等同步身份 / 全组内容冲突」三种卡点。
+    nonisolated private func runRepairPass(on bgContext: NSManagedObjectContext) {
+        SeedRevivalRepair.repairIfNeeded(context: bgContext)
+        guard let cloudContainer = CoreDataStack.shared.persistentContainer as? NSPersistentCloudKitContainer else { return }
+        do {
+            let result = try FinanceDuplicateRepair.repair(in: bgContext) { objectID in
+                cloudContainer.recordID(for: objectID)?.recordName
+            }
+            NSLog("财务同步副本修复：移除 %d，改挂 %d，冲突保留 %d，等同步身份 %d",
+                  result.removed, result.remapped, result.conflictingGroups, result.deferredGroups)
+            if result.removed > 0 {
+                // 云端导入可能带来新账单/账户（新设备首启导入晚于首载）：广播刷新让
+                // 账本/分析页重查，否则财务列表会停在空态。仓库无内存缓存，视图本就
+                // 靠该通知重查，广播是唯一需要的动作。
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
+            }
+        } catch {
+            NSLog("财务同步副本修复未保存：%@", error.localizedDescription)
+        }
+        do {
+            let habitResult = try HabitDuplicateRepair.repair(in: bgContext) { objectID in
+                cloudContainer.recordID(for: objectID)?.recordName
+            }
+            NSLog("习惯同步副本修复：移除 %d，记录改挂 %d，记录副本删 %d，冲突保留 %d，等同步身份 %d",
+                  habitResult.removed, habitResult.remapped, habitResult.removedRecords,
+                  habitResult.conflictingGroups, habitResult.deferredGroups)
+            if habitResult.removed > 0 {
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
+                }
+            }
+        } catch {
+            NSLog("习惯同步副本修复未保存：%@", error.localizedDescription)
         }
     }
 
@@ -656,6 +735,11 @@ enum AccountError: LocalizedError {
 
 // MARK: - 长期成本项目
 
+extension SpendingProject: SoftDeletable {
+    @NSManaged var deletedAt: Date?
+    @NSManaged var deletedBatchId: UUID?
+}
+
 @objc(SpendingProject)
 public class SpendingProject: NSManagedObject {
     @NSManaged public var id: UUID
@@ -979,6 +1063,8 @@ final class SpendingProjectBackgroundService {
     private init() {}
 
     func registerBackgroundTask() {
+        // BGTaskScheduler 的注册/提交接口仅限主 App 进程调用（小组件扩展 target 下编译不可用）
+        #if !HOLO_APP_EXTENSION
         BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
             Task { @MainActor in
                 guard let refreshTask = task as? BGAppRefreshTask else { return }
@@ -991,9 +1077,11 @@ final class SpendingProjectBackgroundService {
                 self.scheduleNextTask()
             }
         }
+        #endif
     }
 
     func scheduleNextTask() {
+        #if !HOLO_APP_EXTENSION
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
 
         let nextDate = SpendingProjectRepository.shared.allProjects()
@@ -1006,5 +1094,13 @@ final class SpendingProjectBackgroundService {
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         request.earliestBeginDate = max(Date().addingTimeInterval(60), nextDate)
         try? BGTaskScheduler.shared.submit(request)
+        #endif
     }
+}
+
+// MARK: - Notification Name
+
+extension Notification.Name {
+    /// 财务数据发生变化时发送此通知，账本列表监听后刷新
+    static let financeDataDidChange = Notification.Name("financeDataDidChange")
 }

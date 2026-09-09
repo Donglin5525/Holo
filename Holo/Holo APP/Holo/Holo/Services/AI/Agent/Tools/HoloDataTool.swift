@@ -135,6 +135,10 @@ nonisolated enum HoloDynamicFilterOperator: String, Codable, Sendable {
     case equal, notEqual, greaterThan, greaterThanOrEqual, lessThan, lessThanOrEqual, contains, oneOf
 }
 nonisolated struct HoloDynamicFilter: Codable, Equatable, Sendable {
+    /// _search 虚拟字段：跨字段关键词检索，匹配行内全部文本字段（分类/备注/标签等）。
+    /// 提示词 v19 起引导模型使用；此前两端引擎均未实现、云端静默判空
+    /// （2026-09-09 猫砂补货误报根因），现与云端引擎同语义落地。
+    static let searchFieldName = "_search"
     var field: String
     var operation: HoloDynamicFilterOperator
     var value: HoloQueryValue
@@ -626,6 +630,11 @@ nonisolated enum HoloDynamicQueryValidator {
         }
         let fields = Dictionary(uniqueKeysWithValues: schema.fields.map { ($0.name, $0) })
         for filter in plan.filters {
+            guard filter.field != HoloDynamicFilter.searchFieldName else {
+                // _search 虚拟字段不在目录注册，仅限 contains（跨字段关键词检索唯一用法）
+                guard filter.operation == .contains else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(filter.field) }
+                continue
+            }
             guard let field = fields[filter.field] else { throw HoloDynamicQueryValidationError.unknownField(filter.field) }
             guard field.filterable else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(filter.field) }
         }
@@ -652,6 +661,10 @@ nonisolated enum HoloDynamicQueryValidator {
         }
         for aggregation in plan.aggregations {
             for filter in aggregation.filters {
+                guard filter.field != HoloDynamicFilter.searchFieldName else {
+                    guard filter.operation == .contains else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(filter.field) }
+                    continue
+                }
                 guard let field = fields[filter.field] else { throw HoloDynamicQueryValidationError.unknownField(filter.field) }
                 guard field.filterable else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(filter.field) }
             }
@@ -1312,6 +1325,12 @@ nonisolated enum HoloDynamicQueryEngine {
 
     private static func matches(_ row: HoloQueryRow, filters: [HoloDynamicFilter]) -> Bool {
         filters.allSatisfy { filter in
+            if filter.field == HoloDynamicFilter.searchFieldName {
+                // _search：行内全部文本字段拼接后做关键词包含（与云端引擎同语义）
+                guard filter.operation == .contains, case .text(let needle) = filter.value else { return false }
+                let haystack = row.fields.values.compactMap { $0.textValue }.joined(separator: " ")
+                return haystack.localizedCaseInsensitiveContains(needle)
+            }
             guard let actual = row.fields[filter.field] else { return false }
             switch (actual, filter.value, filter.operation) {
             case (.number(let lhs), .number(let rhs), .equal): return lhs == rhs

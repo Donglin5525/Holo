@@ -506,7 +506,7 @@ private struct HoloFinanceView: View {
                 VStack(alignment: .leading, spacing: 9) {
                     financeKVRow(String(localized: "支出"), entry.value.monthExpense.currencyText, tint: expenseTint)
                     financeKVRow(String(localized: "收入"), "+\(entry.value.monthIncome.currencyText)", tint: incomeTint)
-                    if let remaining = remainingBudgetText {
+                    if let remaining = remainingBudgetAmountText {
                         financeKVRow(String(localized: "预算剩余"), remaining, tint: textPrimary)
                     }
                     financeKVRow(
@@ -573,10 +573,12 @@ private struct HoloFinanceView: View {
             Text(title)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(textSecondary)
+                .lineLimit(1)
             Spacer()
             Text(value)
                 .font(.system(size: 13.5, weight: .heavy))
                 .foregroundStyle(tint)
+                .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
     }
@@ -593,6 +595,12 @@ private struct HoloFinanceView: View {
         guard let budget = entry.value.monthBudget, budget > 0 else { return nil }
         let remaining = max(0, budget - entry.value.monthExpense)
         return String(localized: "预算 \(budget.currencyText) · 还剩 \(remaining.currencyText)")
+    }
+
+    /// 大号明细行用的纯金额版（左侧标签已是「预算剩余」，值里不再重复前缀）
+    private var remainingBudgetAmountText: String? {
+        guard let budget = entry.value.monthBudget, budget > 0 else { return nil }
+        return max(0, budget - entry.value.monthExpense).currencyText
     }
 
     private var statusText: String {
@@ -667,9 +675,9 @@ private struct HoloThoughtMemoryProvider: TimelineProvider {
             thoughtId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             createdAt: Date(),
             tags: [String(localized: "产品灵感"), String(localized: "自我观察")],
-            excerpt: String(localized: "桌面上不默认展示原文，回到 App 里再看。"),
+            excerpt: String(localized: "把脑子里转的念头先记下来，晚一点再回看"),
             sourceHint: String(localized: "来自一次夜间记录"),
-            showsOriginalExcerpt: false
+            showsOriginalExcerpt: true
         )
     }
 }
@@ -761,10 +769,14 @@ private struct HoloThoughtMemoryView: View {
             tagRow
 
             HStack {
-                Text("原文已收好 · 隐私不出 App")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(textSecondary)
-                Spacer()
+                if !entry.value.showsOriginalExcerpt {
+                    Text("原文已收好 · 隐私不出 App")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(textSecondary)
+                    Spacer()
+                } else {
+                    Spacer()
+                }
                 Text("回到那天 →")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(quoteTint)

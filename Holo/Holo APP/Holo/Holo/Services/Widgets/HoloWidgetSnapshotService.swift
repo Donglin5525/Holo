@@ -269,97 +269,13 @@ final class HoloWidgetSnapshotService {
     func refreshHabitSnapshot(date: Date = Date()) {
         let repository = HabitRepository.shared
         repository.setup()
-
-        let progress = repository.getTodayCheckInProgress()
-        let weekPatterns = repository.getWeekCompletionPatterns()
-
-        var longestStreakText = ""
-        var longestStreak = 0
-        let items = repository.getActiveHabits().prefix(5).map { habit -> HoloWidgetHabitItem in
-            let streak = repository.calculateStreakInfo(for: habit)
-            if streak.value > longestStreak {
-                longestStreak = streak.value
-                longestStreakText = streak.displayText
-            }
-            // 数值型「今日有记录即算完成」与 getTodayCheckInProgress 口径一致
-            let isCompleted = habit.isCheckInType
-                ? repository.isTodayCompleted(for: habit)
-                : repository.getTodayValue(for: habit) != nil
-            return HoloWidgetHabitItem(
-                id: habit.id,
-                name: habit.name,
-                icon: habit.icon,
-                streakText: streak.value > 0 ? streak.displayText : "",
-                isCompletedToday: isCompleted,
-                weekPattern: weekPatterns[habit.id] ?? []
-            )
-        }
-
-        let snapshot = HoloWidgetHabitSnapshot(
-            completedToday: progress.completed,
-            totalToday: progress.total,
-            longestStreakText: longestStreakText,
-            habits: Array(items),
-            updatedAt: date
-        )
-        try? store.writeHabit(snapshot)
-        WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.habit.rawValue)
+        HoloWidgetHabitTodoSnapshotWriter.refreshHabitSnapshot(repository: repository, store: store, date: date)
     }
 
     // MARK: - 今日待办
 
     func refreshTodoSnapshot(date: Date = Date()) {
-        let repository = TodoRepository.shared
-        repository.setup()
-
-        // 与任务页「今日」筛选同口径：今天到期 + 逾期未完成。
-        // 两个列表存在交集（今天到期且已逾期），按 id 去重，避免组件出现重复行。
-        var seen = Set<UUID>()
-        var pending = (repository.getTodayTasks() + repository.getOverdueTasks()).filter {
-            seen.insert($0.id).inserted
-        }
-        pending.sort { lhs, rhs in
-            if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
-            let lhsDue = lhs.dueDate ?? .distantFuture
-            let rhsDue = rhs.dueDate ?? .distantFuture
-            if lhsDue != rhsDue { return lhsDue < rhsDue }
-            return lhs.title < rhs.title
-        }
-
-        // 末尾带一条今日已完成的划线样本，桌面能看到「今天推进了什么」
-        let completedToday = repository.activeTasks
-            .filter { $0.completed && $0.isDueToday }
-            .max { ($0.updatedAt ?? .distantPast) < ($1.updatedAt ?? .distantPast) }
-
-        var items = pending.prefix(5).map { task in
-            HoloWidgetTodoItem(
-                id: task.id,
-                title: task.title,
-                isCompleted: false,
-                priority: Int(task.priority),
-                isOverdue: task.isOverdue
-            )
-        }
-        if let completedToday {
-            items.append(HoloWidgetTodoItem(
-                id: completedToday.id,
-                title: completedToday.title,
-                isCompleted: true,
-                priority: Int(completedToday.priority),
-                isOverdue: false
-            ))
-        }
-
-        let progress = repository.getTodayTaskProgress()
-        let snapshot = HoloWidgetTodoSnapshot(
-            completedToday: progress.completed,
-            totalToday: progress.total,
-            items: items,
-            dateText: Self.shortDateText(date),
-            updatedAt: date
-        )
-        try? store.writeTodo(snapshot)
-        WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.todo.rawValue)
+        HoloWidgetHabitTodoSnapshotWriter.refreshTodoSnapshot(context: CoreDataStack.shared.viewContext, store: store, date: date)
     }
 
     // MARK: - 目标进度
@@ -487,8 +403,15 @@ final class HoloWidgetSnapshotService {
 enum HoloWidgetPrivacySettings {
     static let thoughtExcerptKey = "holoWidgetShowsThoughtExcerpt"
 
+    /// 默认在桌面小组件显示想法原文；用户显式关闭过才隐藏
     static var showsThoughtExcerpt: Bool {
-        UserDefaults.standard.bool(forKey: thoughtExcerptKey)
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: thoughtExcerptKey) != nil else { return true }
+        return defaults.bool(forKey: thoughtExcerptKey)
+    }
+
+    static func setShowsThoughtExcerpt(_ visible: Bool) {
+        UserDefaults.standard.set(visible, forKey: thoughtExcerptKey)
     }
 }
 

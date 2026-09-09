@@ -1168,6 +1168,17 @@ struct SettingsView: View {
 
                     appLockGraceRow
                 }
+
+                Divider()
+                    .padding(.leading, 56)
+
+                insightToggleRow(
+                    icon: "text.quote",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "桌面小组件显示想法原文"),
+                    subtitle: String(localized: "关闭后「想法随机漫步」小组件只显示来源提示，不显示内容"),
+                    isOn: thoughtExcerptBinding
+                )
             }
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
@@ -1184,6 +1195,19 @@ struct SettingsView: View {
             return String(localized: "开启后打开 App 需面容 ID 或手机密码验证")
         }
         return String(localized: "已开启 · \(appLockSettings.graceStyle.subtitle)")
+    }
+
+    /// 切换后立即重写想法快照并刷新小组件；当日选取是确定性的，内容不会跳变
+    private var thoughtExcerptBinding: Binding<Bool> {
+        Binding(
+            get: { HoloWidgetPrivacySettings.showsThoughtExcerpt },
+            set: { visible in
+                HoloWidgetPrivacySettings.setShowsThoughtExcerpt(visible)
+                Task { @MainActor in
+                    HoloWidgetSnapshotService.shared.refreshThoughtMemorySnapshot()
+                }
+            }
+        )
     }
 
     /// 开启前先预检设备、再现场验证一次，成功才落开关；取消验证则弹回

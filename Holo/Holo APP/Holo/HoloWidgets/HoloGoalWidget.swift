@@ -69,76 +69,81 @@ private struct HoloGoalWidgetView: View {
         .holoWidgetBackground(colorScheme: colorScheme)
     }
 
-    // MARK: Small · 弧形仪表 + 大数字
+    // MARK: Small · 标题+弧+金额为固定节奏的视觉组，整体垂直居中
 
     private func goalSmall(_ goal: HoloWidgetGoalItem) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
             Text("目标 · \(goal.title)")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .padding(.bottom, 9)
 
             if let progress = goal.progress {
-                Text(goal.percentText ?? "\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: 27, weight: .heavy))
-                    .foregroundStyle(primaryTint)
-                    .minimumScaleFactor(0.6)
-                    .padding(.top, 4)
+                // 270° 弧底部有缺口（端点高于圆的几何底）：
+                // 布局框 60 顶对齐贴合视觉高度，端点落在框内，金额紧随其后
+                ZStack {
+                    gauge(goal, side: 66, lineWidth: 7)
+                    Text(goal.percentText ?? "\(Int((progress * 100).rounded()))%")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(primaryTint)
+                        .minimumScaleFactor(0.7)
+                }
+                .frame(width: 66, height: 60, alignment: .top)
+
                 if let currentTarget = currentTargetText(goal) {
                     Text(currentTarget)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(textSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                 }
             } else {
-                // 过程型：无数字进度，展示说明行
-                Text("行动中")
-                    .font(.system(size: 22, weight: .heavy))
-                    .foregroundStyle(primaryTint)
-                    .padding(.top, 6)
+                // 过程型：无数字进度，中间展示图标 + 「行动中」
+                VStack(spacing: 5) {
+                    HoloWidgetIconText.icon(goal.icon, size: 22)
+                    Text("行动中")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(primaryTint)
+                }
                 if let kindText = goal.kindText {
                     Text(kindText)
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(textSecondary)
                         .lineLimit(2)
-                        .padding(.top, 4)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 6)
                 }
             }
 
             Spacer(minLength: 0)
-
-            // 小号空间装不下预测文案（硬塞必然截断），只在中号展示；
-            // 圆环必须小于占位框，否则会向上溢出叠印金额行
-            HStack(alignment: .bottom) {
-                Spacer(minLength: 0)
-                gauge(goal, side: 46, lineWidth: 6)
-                    .frame(width: 54, height: 48, alignment: .bottomTrailing)
-            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(15)
     }
 
     // MARK: Medium · 里程碑弧 + 三行账
 
     private func goalMedium(_ goal: HoloWidgetGoalItem) -> some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            ZStack(alignment: .bottom) {
-                gauge(goal, side: 116, lineWidth: 9)
-                    .frame(width: 126, height: 88)
+        HStack(alignment: .center, spacing: 14) {
+            // 弧 100 视觉尺寸在 84 高的布局框中居中溢出（上下各 8），
+            // 框中心即弧圆心：百分比直接 ZStack 居中
+            ZStack {
+                gauge(goal, side: 100, lineWidth: 8.5)
+                    .frame(width: 110, height: 84)
                 if let progress = goal.progress {
                     Text(goal.percentText ?? "\(Int((progress * 100).rounded()))%")
-                        .font(.system(size: 19, weight: .heavy))
+                        .font(.system(size: 18, weight: .heavy))
                         .foregroundStyle(primaryTint)
-                        .padding(.bottom, 10)
                 } else {
                     HoloWidgetIconText.icon(goal.icon, size: 20)
-                        .padding(.bottom, 12)
                 }
             }
-            .frame(width: 126)
+            .frame(width: 110)
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
@@ -153,7 +158,7 @@ private struct HoloGoalWidgetView: View {
                 if goal.progress != nil {
                     VStack(alignment: .leading, spacing: 7) {
                         if let current = goal.currentText {
-                            kvRow(String(localized: "已推进"), current, tint: textPrimary)
+                            kvRow(String(localized: "现有"), current, tint: textPrimary)
                         }
                         if let target = goal.targetText {
                             kvRow(String(localized: "目标"), target, tint: textPrimary)

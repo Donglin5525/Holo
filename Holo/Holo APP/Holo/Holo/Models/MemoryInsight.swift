@@ -96,3 +96,10 @@ public class MemoryInsight: NSManagedObject {
         return now >= periodStart && now <= periodEnd
     }
 }
+
+// MARK: - 软删除（自 SoftDeletable.swift 挪入，与类同域）
+extension MemoryInsight: SoftDeletable {
+    @NSManaged var deletedAt: Date?
+    @NSManaged var deletedBatchId: UUID?
+}
+

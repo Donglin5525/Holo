@@ -5,6 +5,7 @@
 //  今日习惯 · 招牌视觉「今日圆环 + 节奏点阵」
 //
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -239,17 +240,21 @@ private struct HoloHabitWidgetView: View {
                     .lineLimit(1)
             }
 
-            ZStack {
-                if habit.isCompletedToday {
-                    Circle().fill(primaryTint)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 8.5, weight: .heavy))
-                        .foregroundStyle(Color.white)
-                } else {
-                    Circle().strokeBorder(trackTint, lineWidth: 1.6)
+            Button(intent: HoloHabitToggleIntent(habitID: habit.id.uuidString)) {
+                ZStack {
+                    if habit.isCompletedToday {
+                        Circle().fill(primaryTint)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8.5, weight: .heavy))
+                            .foregroundStyle(Color.white)
+                    } else {
+                        Circle().strokeBorder(trackTint, lineWidth: 1.6)
+                    }
                 }
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
             }
-            .frame(width: 18, height: 18)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)

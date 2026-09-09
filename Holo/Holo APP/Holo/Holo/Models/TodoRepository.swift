@@ -132,21 +132,7 @@ class TodoRepository: ObservableObject {
 
     /// 加载活跃任务列表
     func loadActiveTasks() {
-        let request = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "deletedAt == nil AND archived == NO"
-        )
-        request.sortDescriptors = [
-            NSSortDescriptor(key: "completed", ascending: true),
-            NSSortDescriptor(key: "createdAt", ascending: false)
-        ]
-
-        do {
-            activeTasks = try context.fetch(request)
-        } catch {
-            logger.error("加载任务失败：\(error)")
-            activeTasks = []
-        }
+        activeTasks = TodoCompletionCore.fetchActiveTasks(in: context)
     }
 
     /// 加载回收站中的任务
@@ -446,34 +432,21 @@ class TodoRepository: ObservableObject {
     /// 切换任务完成状态
     @discardableResult
     func toggleTaskCompletion(_ task: TodoTask) throws -> Bool {
-        task.completed.toggle()
-        if task.completed {
-            task.completedAt = Date()
-            checkOffAllItems(of: task)
-        } else {
-            task.completedAt = nil
-        }
-        task.updatedAt = Date()
-        try context.save()
+        let becameCompleted = try TodoCompletionCore.toggle(task, in: context)
         loadActiveTasks()
         notifyDataChange()
 
-        if task.completed {
+        if becameCompleted {
             TodoNotificationService.shared.removeReminders(for: task)
         } else {
             rescheduleRemindersIfNeeded(for: task)
         }
-        return task.completed
+        return becameCompleted
     }
 
     /// 完成任务
     func completeTask(_ task: TodoTask) throws {
-        task.completed = true
-        task.completedAt = Date()
-        task.updatedAt = Date()
-        checkOffAllItems(of: task)
-
-        try context.save()
+        try TodoCompletionCore.complete(task, in: context)
         loadActiveTasks()
         notifyDataChange()
 
@@ -482,11 +455,7 @@ class TodoRepository: ObservableObject {
 
     /// 取消完成任务
     func uncompleteTask(_ task: TodoTask) throws {
-        task.completed = false
-        task.completedAt = nil
-        task.updatedAt = Date()
-
-        try context.save()
+        try TodoCompletionCore.uncomplete(task, in: context)
         loadActiveTasks()
         notifyDataChange()
 
@@ -551,67 +520,16 @@ class TodoRepository: ObservableObject {
     /// - Returns: 是否生成了下一个任务实例
     @discardableResult
     func completeRepeatingTask(_ task: TodoTask) throws -> Bool {
-        guard let rule = task.repeatRule else {
-            // 非重复任务，直接完成
-            task.completed = true
-            task.completedAt = Date()
-            task.updatedAt = Date()
-            checkOffAllItems(of: task)
-            try context.save()
-            loadActiveTasks()
-            notifyDataChange()
-
-            TodoNotificationService.shared.removeReminders(for: task)
-            return false
-        }
-
-        // 计算下一个到期日期
-        let fromDate = task.dueDate ?? Date()
-        guard let nextDate = rule.nextDueDate(from: fromDate) else {
-            // 已达到结束条件，直接完成（不再生成新任务）
-            task.completed = true
-            task.completedAt = Date()
-            task.updatedAt = Date()
-            checkOffAllItems(of: task)
-            try context.save()
-            loadActiveTasks()
-            notifyDataChange()
-
-            TodoNotificationService.shared.removeReminders(for: task)
-            return false
-        }
-
-        // 创建下一个任务实例
-        let nextTask = TodoTask.create(
-            in: context,
-            title: task.title,
-            list: task.list,
-            priority: task.taskPriority,
-            dueDate: nextDate,
-            isAllDay: task.isAllDay,
-            reminders: task.remindersSet
-        )
-
-        // 关联相同的重复规则
-        nextTask.repeatRule = rule
-
-        // 完成当前任务
-        task.completed = true
-        task.completedAt = Date()
-        task.updatedAt = Date()
-        checkOffAllItems(of: task)
-
-        // 解除当前任务与重复规则的关系（保留规则给下一个任务）
-        task.repeatRule = nil
-
-        try context.save()
+        let nextTask = try TodoCompletionCore.completeRepeating(task, in: context)
         loadActiveTasks()
         notifyDataChange()
 
         // 取消当前任务的通知，为新任务调度通知
         TodoNotificationService.shared.removeReminders(for: task)
-        rescheduleRemindersIfNeeded(for: nextTask)
-        return true
+        if let nextTask {
+            rescheduleRemindersIfNeeded(for: nextTask)
+        }
+        return nextTask != nil
     }
 
     /// 软删除任务（进入回收站）
@@ -900,39 +818,12 @@ class TodoRepository: ObservableObject {
 
     /// 获取今天的任务
     func getTodayTasks() -> [TodoTask] {
-        let today = Calendar.current.startOfDay(for: Date())
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return []
-        }
-
-        let request = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate >= %@ AND dueDate < %@",
-            today as NSDate,
-            tomorrow as NSDate
-        )
-        return (try? context.fetch(request)) ?? []
+        TodoCompletionCore.getTodayTasks(in: context)
     }
 
     /// 获取已过期的任务
     func getOverdueTasks() -> [TodoTask] {
-        let now = Date()
-
-        let request = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate < %@",
-            now as NSDate
-        )
-        // Core Data 只能按存储的原始日期筛选；全天任务存的是当天 00:00，
-        // 因此这里必须再按统一的有效截止时间过滤，避免今天的全天任务被误判为过期。
-        return (try? context.fetch(request))?.filter {
-            TodoTaskDatePolicy.isOverdue(
-                dueDate: $0.dueDate,
-                isAllDay: $0.isAllDay,
-                completed: $0.completed,
-                now: now
-            )
-        } ?? []
+        TodoCompletionCore.getOverdueTasks(in: context)
     }
 
     /// 获取指定优先级的任务

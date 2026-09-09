@@ -47,6 +47,8 @@ struct HoloFinanceToolTests {
         try await test动态查询同时计算十天总额和自然日日均()
         try await test事件型财务数据不把记录天数误判为覆盖不足()
         try test动态查询找出环比增长最高分类()
+        try await test动态查询search虚拟字段跨字段命中备注()
+        try test动态查询search虚拟字段仅限contains且未知字段仍拒绝()
         print("HoloFinanceToolTests passed")
     }
 
@@ -157,6 +159,64 @@ struct HoloFinanceToolTests {
         expect(output.metrics.count == 1, "排序后只返回最高增长指标")
         expect(output.metrics.first?.comparison == "餐饮", "餐饮环比 50% 应高于交通")
         expect(output.metrics.first?.value == 0.5, "餐饮环比应为 0.5")
+    }
+
+    /// _search 虚拟字段：提示词 v19 教模型使用，2026-09-09 起两端引擎真正实现。
+    /// 回归锚点：猫砂备注在 text 字段、分类不含关键词，_search 必须命中（云端曾静默判空）。
+    private static func test动态查询search虚拟字段跨字段命中备注() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let day = calendar.date(from: DateComponents(year: 2026, month: 7, day: 21))!
+        let rows = [
+            HoloQueryRow(id: "cat-1", occurredAt: day,
+                         fields: ["date": .date(day), "amount": .number(72), "type": .text("expense"),
+                                  "category": .text("生活用品"), "account": .text("现金"), "text": .text("猫砂")],
+                         excerpt: "7月21日 生活用品 猫砂 -¥72"),
+            HoloQueryRow(id: "other-1", occurredAt: day,
+                         fields: ["date": .date(day), "amount": .number(18), "type": .text("expense"),
+                                  "category": .text("餐饮"), "account": .text("微信"), "text": .text("包子豆浆")],
+                         excerpt: "7月21日 餐饮 包子豆浆 -¥18"),
+        ]
+        let plan = HoloDynamicQueryPlan(
+            source: "finance.transactions",
+            filters: [HoloDynamicFilter(field: HoloDynamicFilter.searchFieldName, operation: .contains, value: .text("猫砂"))],
+            aggregations: [HoloDynamicAggregation(id: "replenish_count", operation: .count, field: nil)]
+        )
+        let output = try HoloDynamicQueryEngine.execute(plan: plan, catalog: HoloFinanceTool.dynamicCatalog, currentRows: rows, baselineRows: [])
+        expect(output.metrics.contains { $0.metricKey.contains("replenish_count") && $0.value == 1 }, "_search 必须命中备注里的猫砂且只命中 1 笔")
+    }
+
+    /// 校验器口径：_search 只放行 contains；拼错的字段名继续拒绝（ loud 失败让模型换路）。
+    private static func test动态查询search虚拟字段仅限contains且未知字段仍拒绝() {
+        func assertThrows(_ message: String, _ body: () throws -> Void) {
+            do { try body(); expect(false, message) } catch { /* 预期抛错 */ }
+        }
+        assertThrows("_search 仅允许 contains，equal 必须被拒绝") {
+            let plan = HoloDynamicQueryPlan(
+                source: "finance.transactions",
+                filters: [HoloDynamicFilter(field: HoloDynamicFilter.searchFieldName, operation: .equal, value: .text("猫砂"))],
+                aggregations: []
+            )
+            try HoloDynamicQueryValidator.validate(plan, catalog: HoloFinanceTool.dynamicCatalog)
+        }
+        assertThrows("目录外字段 note 必须继续抛 unknownField") {
+            let plan = HoloDynamicQueryPlan(
+                source: "finance.transactions",
+                filters: [HoloDynamicFilter(field: "note", operation: .contains, value: .text("猫砂"))],
+                aggregations: []
+            )
+            try HoloDynamicQueryValidator.validate(plan, catalog: HoloFinanceTool.dynamicCatalog)
+        }
+        // 正路确认：contains + 已声明字段不受影响
+        do {
+            let ok = HoloDynamicQueryPlan(
+                source: "finance.transactions",
+                filters: [HoloDynamicFilter(field: "text", operation: .contains, value: .text("猫砂"))],
+                aggregations: []
+            )
+            try HoloDynamicQueryValidator.validate(ok, catalog: HoloFinanceTool.dynamicCatalog)
+        } catch {
+            expect(false, "已声明字段 contains 不应被拒绝：\(error.localizedDescription)")
+        }
     }
 
     private static func makeRequest(query: String, parameters: [String: String] = [:]) -> HoloToolRequest {

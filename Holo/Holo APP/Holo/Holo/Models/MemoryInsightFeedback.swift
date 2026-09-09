@@ -26,3 +26,10 @@ public class MemoryInsightFeedback: NSManagedObject {
     @NSManaged public var consumedAt: Date?
 }
 
+
+// MARK: - 软删除（自 SoftDeletable.swift 挪入，与类同域）
+extension MemoryInsightFeedback: SoftDeletable {
+    @NSManaged var deletedAt: Date?
+    @NSManaged var deletedBatchId: UUID?
+}
+

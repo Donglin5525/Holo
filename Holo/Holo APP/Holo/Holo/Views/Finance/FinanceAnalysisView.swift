@@ -5,6 +5,7 @@
 //  财务分析视图
 //
 
+import Combine
 import SwiftUI
 
 struct FinanceAnalysisView: View {

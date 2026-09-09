@@ -100,13 +100,6 @@ struct RoundedCorner: Shape {
     }
 }
 
-// MARK: - Notification Name
-
-extension Notification.Name {
-    /// 财务数据发生变化时发送此通知，账本列表监听后刷新
-    static let financeDataDidChange = Notification.Name("financeDataDidChange")
-}
-
 // MARK: - Finance Ledger View（集成周视图 + 月历 + 弹窗月历 + 按日筛选）
 
 /// 账本列表视图（集成日历组件）

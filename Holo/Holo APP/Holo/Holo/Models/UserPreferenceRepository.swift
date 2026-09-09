@@ -26,6 +26,10 @@ final class UserPreferenceRepository {
     private var remoteChangeObserver: NSObjectProtocol?
     private var isReady = false
 
+    /// 远端变更防抖：iCloud 重装回导期间 remote change 每秒数批，
+    /// 无防抖会让主线程高频空转两轮 fetch（与其他仓库一致的治理）。
+    private var adoptDebounce: Task<Void, Never>?
+
     private init() {}
 
     /// 延迟初始化：注册云同步变更监听 + 修复重复行 + 首轮采纳
@@ -42,13 +46,23 @@ final class UserPreferenceRepository {
             queue: nil
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.adoptCloudValues()
-                self?.adoptCloudBackedSettings()
+                self?.scheduleAdoptFromCloud()
             }
         }
 
         adoptCloudValues()
         adoptCloudBackedSettings()
+    }
+
+    /// 防抖后统一采纳云端值；本地保存也会发 remote change，防抖同时抑制这类空转。
+    private func scheduleAdoptFromCloud() {
+        adoptDebounce?.cancel()
+        adoptDebounce = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.adoptCloudValues()
+            self?.adoptCloudBackedSettings()
+        }
     }
 
     // MARK: - 读写
