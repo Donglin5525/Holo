@@ -41,12 +41,13 @@
 
 ## 四、模型决策备忘录
 
-**当前生产已切 DeepSeek（2026-09-09 东林拍板）：deepseek-v4-flash-vision-exp**，走独立钥匙通道（deepseek-vision provider，与主聊天 DeepSeek 钥匙隔离）；maxTokens 已放宽 4000 防推理吃满上限空回复。烟雾+复测全过。
+**当前生产已切 DeepSeek（2026-09-09 东林拍板）：deepseek-v4-flash-vision-exp**，走独立钥匙通道（deepseek-vision provider，与主聊天 DeepSeek 钥匙隔离）；**思考模式已关**（REASONING_EFFORT=none，东林拍板「识别不需要思考」——实测关后快 2-3 倍且质量反升）；maxTokens 4000 兜底。烟雾+复测全过。
 
-| 模型 | 24 张评测 | 单均 tokens | 特点 |
+| 模型/档位 | 24 张评测 | 单均 tokens | 特点 |
 |---|---|---|---|
-| **deepseek-v4-flash-vision-exp（在用）** | 22-23/24，拦截 4/4 | **~1100（约通义 1/3）** | 推理模型偶发慢（5-24s）；换回随时改 env |
-| qwen3-vl-plus（原默认） | 23-24/24，拦截 4/4 | ~3240 | 质量略稳、稍贵稍稳速 |
+| **deepseek-v4-flash-vision-exp·关思考（在用）** | **24/24 满分**，拦截 4/4 | **~1000（通义 1/3）** | 典型 3-6s；偶发慢=并发撞 5 次/分限流桶排队，单用户无感 |
+| deepseek 同款·开思考 | 22-23/24 + 一次空回复 | ~1100+思考开销 | 已弃用 |
+| qwen3-vl-plus（原默认） | 23-24/24，拦截 4/4 | ~3240 | 备选；env 一行切回 |
 
 两档安全红线（转账/外币拦截）都是满分，日常小票识别都在水准上——**差异主要在成本与偶发延迟**，DeepSeek 是通义三分之一的价格。想切回：ECS `.env.production` 改 `HOLO_VISION_EXTRACTION_PROVIDER=qwen`（或删掉该行走默认）+ 删 `HOLO_VISION_EXTRACTION_MODEL`，重启即生效。
 
