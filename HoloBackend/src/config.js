@@ -406,6 +406,13 @@ const DEFAULT_CONFIG = {
       baseURL: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
       apiKey: process.env.DEEPSEEK_API_KEY,
     },
+    // 截图识别专用 DeepSeek 通道（2026-09-09 东林拍板换 deepseek-v4-flash-vision-exp）：
+    // 钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验模型与主聊天通道互相牵连。
+    "deepseek-vision": {
+      type: "openai-compatible",
+      baseURL: process.env.DEEPSEEK_VISION_BASE_URL ?? process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
+      apiKey: process.env.DEEPSEEK_VISION_API_KEY ?? process.env.DEEPSEEK_API_KEY,
+    },
     qwen: {
       type: "openai-compatible",
       baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
