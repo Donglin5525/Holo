@@ -79,15 +79,30 @@ struct HoloVisionGuard: Decodable {
 
 enum HoloVisionImagePipeline {
 
-    /// 上行标准：与反馈截图一致——降采样最长边 2400 + 循环降质 ≤1MB，
-    /// 重绘剥离 EXIF/GPS（隐私红线：不上传位置元数据）。
+    /// 上行标准：长边 2000 像素 + 循环降质 ≤1MB，重绘剥离 EXIF/GPS（隐私红线：不上传位置元数据）。
+    /// 不复用 AttachmentFileManager.compressImage：它按「点」降采样，在 scale 3 屏上
+    /// 实际像素是 3 倍（单测实锤 7200px），视觉 token 随像素走；这里显式在像素空间处理。
     static func compressedJPEG(from rawData: Data) -> Data? {
-        guard UIImage(data: rawData) != nil else { return nil }
+        guard let source = UIImage(data: rawData) else { return nil }
+
+        let pixelWidth = source.size.width * source.scale
+        let pixelHeight = source.size.height * source.scale
+        let longestPixel = max(pixelWidth, pixelHeight)
+        let maxDimension: CGFloat = 2000
+        let ratio = min(1, maxDimension / longestPixel)
+        let targetSize = CGSize(width: pixelWidth * ratio, height: pixelHeight * ratio)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let downsampled = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+
         var quality: CGFloat = 0.75
-        var output = AttachmentFileManager.compressImage(UIImage(data: rawData)!, maxDimension: 2400, quality: quality)
+        var output = downsampled.jpegData(compressionQuality: quality)
         while let current = output, current.count > FeedbackImageCompressor.maxBytes, quality > 0.3 {
             quality -= 0.15
-            output = AttachmentFileManager.compressImage(UIImage(data: rawData)!, maxDimension: 2400, quality: quality)
+            output = downsampled.jpegData(compressionQuality: quality)
         }
         return output
     }
@@ -279,17 +294,22 @@ final class HoloVisionExtractionService {
     }
 
     // MARK: 防重软检测（拍板 9：只提示不阻断，借鉴 BillDuplicateDetector 口径）
+    //
+    // 窗口按「创建时间」而非交易日期：用户连拍同一张旧小票时，两笔的交易日期
+    // 都是票面旧日期，按日期比对会漏报；「最近创建 + 金额/方向相同」才是
+    // 「你可能刚记过这笔」的真实语义。
 
     private func duplicateHints(for understanding: HoloVisionUnderstanding) async -> [String] {
         let calendar = Calendar.current
         let now = Date()
-        guard let from = calendar.date(byAdding: .day, value: -2, to: now) else { return [] }
-        let recent = (try? await FinanceRepository.shared.getTransactions(from: from, to: now)) ?? []
+        guard let createdAfter = calendar.date(byAdding: .day, value: -2, to: now) else { return [] }
+        let all = (try? await FinanceRepository.shared.getAllTransactions()) ?? []
+        let recentlyCreated = all.filter { $0.createdAt >= createdAfter }
 
         var hints: [String] = []
         for transaction in understanding.transactions.prefix(3) {
             let amount = Decimal(transaction.amount)
-            let hit = recent.first { existing in
+            let hit = recentlyCreated.first { existing in
                 guard existing.isReconciliationAdjustment == false else { return false }
                 let existingAmount = existing.amount.decimalValue
                 let sameDirection = (transaction.isIncome && existing.type == "income")

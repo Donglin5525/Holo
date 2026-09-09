@@ -33,8 +33,9 @@ final class VisionStandaloneTests: XCTestCase {
         let compressed = try XCTUnwrap(HoloVisionImagePipeline.compressedJPEG(from: rawData))
         XCTAssertLessThanOrEqual(compressed.count, FeedbackImageCompressor.maxBytes, "压缩后必须 ≤1MB 上行承诺")
         XCTAssertNotNil(UIImage(data: compressed), "压缩产物必须可解码")
-        let longestSide = max(UIImage(data: compressed)!.size.width, UIImage(data: compressed)!.size.height) * UIImage(data: compressed)!.scale
-        XCTAssertLessThanOrEqual(longestSide, 2401, "最长边降采样到 2400")
+        let decoded = UIImage(data: compressed)!
+        let longestSide = max(decoded.size.width, decoded.size.height) * decoded.scale
+        XCTAssertLessThanOrEqual(longestSide, 2001, "最长边按像素降采样到 2000（scale 不放大）")
     }
 
     // MARK: - 缩略图存储

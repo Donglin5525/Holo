@@ -24,7 +24,7 @@ struct ChatInputView: View {
 
     @State private var showImageSourceDialog = false
     @State private var showPhotoPicker = false
-    @State private var pickedItem: PhotosPickerItem?
+    @State private var pickedItems: [PhotosPickerItem] = []
     @State private var showCamera = false
     @State private var pendingCameraData: Data?
     @State private var isLoadingPick = false
@@ -179,7 +179,7 @@ struct ChatInputView: View {
         }
         .photosPicker(
             isPresented: $showPhotoPicker,
-            selection: $pickedItem,
+            selection: $pickedItems,
             maxSelectionCount: 1,
             matching: .images,
             photoLibrary: .shared()
@@ -202,9 +202,9 @@ struct ChatInputView: View {
             )
             .ignoresSafeArea()
         }
-        .onChange(of: pickedItem) { _, newItem in
-            guard let newItem else { return }
-            pickedItem = nil
+        .onChange(of: pickedItems) { _, newItems in
+            guard let newItem = newItems.last else { return }
+            pickedItems = []
             loadAndForward(item: newItem)
         }
     }
