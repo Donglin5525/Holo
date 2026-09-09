@@ -33,6 +33,7 @@ struct ContextExtractorOrchestratorStandaloneTests {
     }
 
     static func main() async throws {
+        try await testDuplicateSourceBatch()
         try await testHappyPathCreatesRecordsAndAdvancesCursor()
         try await testBatchIdempotencySkipsLLMOnReplay()
         try await testLLMFailureDoesNotAdvanceCursor()
@@ -166,13 +167,30 @@ struct ContextExtractorOrchestratorStandaloneTests {
     ) -> (extractor: HoloPersonalContextExtractor, llm: FakeLLM, writer: FakeWriter) {
         let llm = FakeLLM()
         let writer = FakeWriter()
-        writer.seedRevisions(from: sources)
+        writer.seedRevisions(from: HoloContextSourceIndex(sources).sources)
         let paging = HoloContextInMemorySourcePaging(sources: sources)
         let extractor = HoloPersonalContextExtractor(paging: paging, llm: llm, writer: writer)
         return (extractor, llm, writer)
     }
 
     // MARK: 用例
+
+    static func testDuplicateSourceBatch() async throws {
+        let original = source()
+        let (extractor, llm, writer) = makeExtractor(sources: [original, original])
+        _ = try await extractor.runOneBatch(now: Date())
+        expect(llm.extractCallCount == 1 && writer.successfulBatchKeys.count == 1, "相同来源只处理一批")
+        var conflict = original
+        conflict.plainText = "冲突内容"
+        let (blocked, blockedLLM, blockedWriter) = makeExtractor(sources: [original, conflict])
+        do {
+            _ = try await blocked.runOneBatch(now: Date())
+            expect(false, "冲突必须以可捕获错误退出")
+        } catch HoloPersonalContextExtractor.ExtractionError.conflictingSources {
+            expect(blockedLLM.extractCallCount == 0, "冲突不浪费模型调用")
+            expect(blockedWriter.cursor == nil && blockedWriter.successfulBatchKeys.isEmpty, "冲突不推进游标或写成功凭据")
+        }
+    }
 
     /// 正常路径：萃取→核验→落库→游标推进；记录 candidate 默认+载荷可读。
     static func testHappyPathCreatesRecordsAndAdvancesCursor() async throws {

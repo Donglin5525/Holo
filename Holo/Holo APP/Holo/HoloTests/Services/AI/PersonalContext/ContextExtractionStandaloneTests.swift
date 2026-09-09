@@ -40,6 +40,7 @@ struct ContextExtractionStandaloneTests {
         testPlainTextNormalizer()
         try testResponseParserFencedJSON()
         try testResponseParserNoisyPrefix()
+        testDuplicateSources()
         testValidatorRules()
         testValidatorCounterEvidence()
         try testReconcilerVerdictMatrix()
@@ -198,6 +199,24 @@ struct ContextExtractionStandaloneTests {
     }
 
     // MARK: 结构校验
+
+    static func testDuplicateSources() {
+        let source = snapshot(text: "医生说要低盐饮食，要注意。")
+        let response = HoloContextExtractionResponse(candidates: [candidate(ref: "ok", statement: "父亲被要求低盐")])
+        let identical = HoloPersonalContextValidator.validate(response: response, packageSources: [source, source])
+        expect(identical.valid.count == 1, "完全重复来源不崩溃且正常核验")
+        expect(HoloContextSourceIndex([source, source]).sources.count == 1, "重复来源只切段一次")
+        var conflict = source
+        conflict.plainText = "不同正文"
+        for sources in [[source, conflict, source], [conflict, source, source]] {
+            let index = HoloContextSourceIndex(sources)
+            expect(index.sources.isEmpty, "冲突不能被后续重复覆盖，且与顺序无关")
+            let result = HoloPersonalContextValidator.validate(response: response, packageSources: sources)
+            expect(result.valid.isEmpty && result.findings.first?.code == .conflictingSource, "冲突来源明确拒绝")
+            let evidence = HoloContextCounterEvidenceDTO(candidateRef: "ok", basis: [HoloContextExtractionBasisDTO(sourceID: source.sourceID, quote: nil, revision: nil)])
+            expect(HoloPersonalContextValidator.validateCounterEvidence([evidence], candidateRefs: ["ok"], packageSources: sources).isEmpty, "反证也不能选取冲突来源")
+        }
+    }
 
     static func testValidatorRules() {
         let source = snapshot(text: "医生说要低盐饮食，要注意。")

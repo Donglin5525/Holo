@@ -282,6 +282,7 @@ nonisolated enum HoloPersonalContextValidator {
             case emptyStatement
             case statementTooLong
             case missingBasis
+            case conflictingSource
             case unknownSource
             case revisionMismatch
             case quoteNotFound
@@ -301,7 +302,8 @@ nonisolated enum HoloPersonalContextValidator {
         response: HoloContextExtractionResponse,
         packageSources: [HoloContextSourceSnapshot]
     ) -> (valid: [HoloContextExtractionCandidateDTO], findings: [Finding]) {
-        let sourcesByID = Dictionary(uniqueKeysWithValues: packageSources.map { ($0.sourceID, $0) })
+        let sourceIndex = HoloContextSourceIndex(packageSources)
+        let sourcesByID = sourceIndex.byID
         var valid: [HoloContextExtractionCandidateDTO] = []
         var findings: [Finding] = []
 
@@ -332,6 +334,11 @@ nonisolated enum HoloPersonalContextValidator {
 
             var basisValid = true
             for basis in candidate.basis {
+                if sourceIndex.conflictingIDs.contains(basis.sourceID) {
+                    findings.append(Finding(code: .conflictingSource, candidateRef: ref, detail: "来源存在冲突修订"))
+                    basisValid = false
+                    break
+                }
                 guard let source = sourcesByID[basis.sourceID] else {
                     findings.append(Finding(code: .unknownSource, candidateRef: ref, detail: "来源不在输入包: \(basis.sourceID)"))
                     basisValid = false
@@ -365,10 +372,12 @@ nonisolated enum HoloPersonalContextValidator {
         candidateRefs: Set<String>,
         packageSources: [HoloContextSourceSnapshot]
     ) -> [HoloContextCounterEvidenceDTO] {
-        counterEvidence.filter { evidence in
+        let sourcesByID = HoloContextSourceIndex(packageSources).byID
+        return counterEvidence.filter { evidence in
             guard candidateRefs.contains(evidence.candidateRef) else { return false }
             return evidence.basis.contains { basis in
-                guard let source = packageSources.first(where: { $0.sourceID == basis.sourceID }) else { return false }
+                guard let source = sourcesByID[basis.sourceID] else { return false }
+                guard basis.revision == nil || basis.revision == "" || basis.revision == source.revisionDigest else { return false }
                 guard let quote = basis.quote, !quote.isEmpty else { return true }
                 return source.plainText.contains(quote)
             }

@@ -14,6 +14,26 @@
 
 import Foundation
 
+// 同一来源只有完全相同的快照可以折叠；冲突不能靠数组顺序选出事实。
+nonisolated struct HoloContextSourceIndex {
+    var sources: [HoloContextSourceSnapshot] = []
+    var byID: [String: HoloContextSourceSnapshot] = [:]
+    var conflictingIDs: Set<String> = []
+
+    init(_ snapshots: [HoloContextSourceSnapshot]) {
+        for snapshot in snapshots {
+            if let previous = byID[snapshot.sourceID], previous != snapshot {
+                conflictingIDs.insert(snapshot.sourceID)
+            } else if byID[snapshot.sourceID] == nil {
+                sources.append(snapshot)
+                byID[snapshot.sourceID] = snapshot
+            }
+        }
+        sources.removeAll { conflictingIDs.contains($0.sourceID) }
+        for id in conflictingIDs { byID.removeValue(forKey: id) }
+    }
+}
+
 // MARK: - 长文切分
 
 nonisolated struct HoloContextSegment: Equatable, Sendable {

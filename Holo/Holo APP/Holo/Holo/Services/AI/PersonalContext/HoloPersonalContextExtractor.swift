@@ -208,6 +208,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         case sourceRevisionChanged(sourceID: String)
         /// 页读取后源被修改（对账不通过）。
         case stalePackage
+        case conflictingSources
     }
 
     struct BatchOutcome: Equatable, Sendable {
@@ -226,11 +227,15 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         let generationAtStart = try await writer.currentGeneration()
 
         // 组包：一页来源 → 全部切段 → 取一个包。
-        let (page, nextCursor) = try await paging.fetchContextSourcePage(
+        let (rawPage, nextCursor) = try await paging.fetchContextSourcePage(
             after: cursor.sourceCursor,
             limit: Self.pageSize,
             baseline: generationAtStart.learningBaselineAt
         )
+        let sourceIndex = HoloContextSourceIndex(rawPage)
+        // 冲突页保留游标，等待来源修复后重试；不请求模型、不错误标记已处理。
+        guard sourceIndex.conflictingIDs.isEmpty else { throw ExtractionError.conflictingSources }
+        let page = sourceIndex.sources
         guard !page.isEmpty else {
             // 全量追平：清游标从头对账（新修改由 watermark 语义进入下一轮）。
             if nextCursor == nil && cursor.sourceCursor != nil {
