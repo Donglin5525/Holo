@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import CoreData
 import os.log
 import UIKit
 
@@ -150,7 +151,7 @@ final class HoloVisionExtractionService {
 
     /// 上传识别。调用方已压缩好的 JPEG 直接传；rawData 也可（内部走压缩管线）。
     func extract(rawImageData: Data, caption: String?) async throws -> ExtractionOutcome {
-        guard let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawData) else {
+        guard let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData) else {
             throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
         }
 
@@ -263,14 +264,14 @@ final class HoloVisionExtractionService {
 
         // 尾号优先：支付通道是 4 位数字时按账户名含尾号匹配
         if let tail = channel.firstMatch(of: /\d{4}/)?.output {
-            if let hit = accounts.first(where: { $0.name?.contains(String(tail)) == true }) {
+            if let hit = accounts.first(where: { $0.name.contains(String(tail)) == true }) {
                 return hit
             }
         }
         // 通道名关键词：账户名含「微信」「支付宝」「现金」等
         let keywords = [String(localized: "微信"), String(localized: "支付宝"), String(localized: "现金")]
         for keyword in keywords where channel.contains(keyword) {
-            if let hit = accounts.first(where: { $0.name?.contains(keyword) == true }) {
+            if let hit = accounts.first(where: { $0.name.contains(keyword) == true }) {
                 return hit
             }
         }
@@ -283,20 +284,20 @@ final class HoloVisionExtractionService {
         let calendar = Calendar.current
         let now = Date()
         guard let from = calendar.date(byAdding: .day, value: -2, to: now) else { return [] }
-        let recent = (try? FinanceRepository.shared.getTransactions(from: from, to: now)) ?? []
+        let recent = (try? await FinanceRepository.shared.getTransactions(from: from, to: now)) ?? []
 
         var hints: [String] = []
         for transaction in understanding.transactions.prefix(3) {
             let amount = Decimal(transaction.amount)
             let hit = recent.first { existing in
                 guard existing.isReconciliationAdjustment == false else { return false }
-                let existingAmount = existing.amount?.decimalValue ?? 0
+                let existingAmount = existing.amount.decimalValue
                 let sameDirection = (transaction.isIncome && existing.type == "income")
                     || (!transaction.isIncome && existing.type == "expense")
                 return abs(existingAmount - amount) < Decimal(string: "0.005")! && sameDirection
             }
             if let hit {
-                let dayText = hit.date.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .none) } ?? ""
+                let dayText = DateFormatter.localizedString(from: hit.date, dateStyle: .short, timeStyle: .none)
                 hints.append(String(localized: "提醒：这笔可能已经记过（\(dayText) ¥\(formatAmount(transaction.amount))），确认前请留意，避免重复。"))
             }
         }
