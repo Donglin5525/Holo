@@ -1,0 +1,258 @@
+name: Release JavaScript
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build_native:
+    name: Build Native Package, ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            os: ubuntu-24.04
+            cc: gcc-14
+            cxx: g++-14
+            node-gyp-args: ""
+          - platform: linux-arm64
+            os: ubuntu-24.04
+            cc: aarch64-linux-gnu-gcc-14
+            cxx: aarch64-linux-gnu-g++-14
+            node-gyp-args: "--arch=arm64"
+          - platform: darwin-arm64
+            os: macos-15
+            cc: clang
+            cxx: clang++
+            node-gyp-args: ""
+          - platform: darwin-x64
+            os: macos-15
+            cc: clang
+            cxx: clang++
+            node-gyp-args: "--arch=x64"
+          - platform: win32-x64
+            os: windows-2025
+            cc: cl.exe
+            cxx: cl.exe
+            node-gyp-args: ""
+          - platform: win32-arm64
+            os: windows-2025
+            cc: cl.exe
+            cxx: cl.exe
+            node-gyp-args: "--arch=arm64"
+    runs-on: ${{ matrix.os }}
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install System Dependencies on Ubuntu
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
+          sudo apt install -y gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Set Up MSVC ARM64 Cross-Compiler
+        if: matrix.platform == 'win32-arm64'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -property installationPath
+          $vcvars = "$vsPath\VC\Auxiliary\Build\vcvarsall.bat"
+          cmd /c "`"$vcvars`" amd64_arm64 >NUL 2>&1 && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') {
+              $name = $matches[1]; $value = $matches[2]
+              if ([System.Environment]::GetEnvironmentVariable($name) -ne $value) {
+                "$name=$value" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+              }
+            }
+          }
+
+      - name: Install Node.js Dependencies
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 10
+          timeout_minutes: 180
+          command: npm install --ignore-scripts
+
+      - name: Run ISA Probes
+        run: node probes/probe.js
+
+      - name: Build Native Module
+        run: npx node-gyp rebuild ${{ matrix.node-gyp-args }}
+
+      - name: Copy Binary to Platform Package
+        shell: bash
+        run: cp build/Release/numkong.node javascript/@numkong-${{ matrix.platform }}/numkong.node
+
+      - name: Upload Platform Package
+        uses: actions/upload-artifact@v7
+        with:
+          name: numkong-${{ matrix.platform }}
+          path: javascript/@numkong-${{ matrix.platform }}/
+          retention-days: 1
+
+  build_wasm:
+    name: Build WASM Bundle
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+      - name: Install Emscripten
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 180
+          command: |
+            rm -rf ~/emsdk
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Build WASM
+        run: |
+          source ~/emsdk/emsdk_env.sh
+          cmake -B build_wasm \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNK_BUILD_SHARED=ON
+          cmake --build build_wasm --config Release
+      - name: Build JavaScript and Assemble WASM Bundle
+        run: |
+          npm install --ignore-scripts
+          npm run build-js
+          mkdir -p wasm
+          cp build_wasm/numkong.js wasm/numkong-emscripten.js
+          npx esbuild javascript/dist/esm/numkong-browser.js \
+            --bundle --format=esm --platform=browser --target=es2022 \
+            --outfile=wasm/numkong.js
+          cp build_wasm/numkong.wasm wasm/
+          cp javascript/dist/esm/numkong-browser.d.ts wasm/numkong.d.ts
+      - name: Upload WASM Bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-bundle
+          path: wasm
+          retention-days: 1
+          overwrite: true
+
+  publish_platform_packages:
+    name: Publish Platform Package, ${{ matrix.platform }}
+    needs: [build_native]
+    if: always()
+    runs-on: ubuntu-24.04
+    environment:
+      name: npm-numkong
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-x64, linux-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download Platform Artifact
+        id: download
+        uses: actions/download-artifact@v8
+        with:
+          name: numkong-${{ matrix.platform }}
+          path: javascript/@numkong-${{ matrix.platform }}/
+        continue-on-error: true
+
+      - name: Publish @numkong/${{ matrix.platform }}
+        if: steps.download.outcome == 'success'
+        working-directory: javascript/@numkong-${{ matrix.platform }}
+        run: npm publish --provenance --access public
+
+  publish_main:
+    name: Publish Main Package to NPM
+    needs: [publish_platform_packages, build_wasm]
+    if: always()
+    runs-on: ubuntu-24.04
+    environment:
+      name: npm-numkong
+      url: https://www.npmjs.com/package/numkong
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # npm versions are immutable: shipping without the advertised
+      # `numkong/wasm` subpath would strand this version permanently.
+      - name: Require WASM Bundle
+        if: needs.build_wasm.result != 'success'
+        run: |
+          echo "::error title=WASM bundle missing::build_wasm result is '${{ needs.build_wasm.result }}'. The main npm package cannot ship without wasm/, which its exports map advertises. Re-run build_wasm, then re-run this workflow."
+          exit 1
+
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+
+      - name: Set Up Node.js Environment
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download WASM Bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm-bundle
+          path: wasm
+
+      - name: Install Node.js Dependencies
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 10
+          timeout_minutes: 180
+          command: npm install --ignore-scripts
+
+      - name: Probe ISA Capabilities
+        run: node probes/probe.js
+
+      - name: Build Native Addon
+        run: npx node-gyp rebuild
+
+      - name: Build JavaScript from TypeScript
+        run: npm run build-js
+
+      - name: Run Tests
+        run: npm run test
+
+      - name: Publish to NPM
+        run: npm publish --provenance --access public

@@ -1,0 +1,19 @@
+name: Release Rust
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish_rust:
+    name: Publish Rust Crate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+      - name: Set Up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Publish Rust Crate to Registry
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

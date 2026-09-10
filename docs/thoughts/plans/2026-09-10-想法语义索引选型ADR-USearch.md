@@ -64,8 +64,8 @@ V3 需要一个**纯本机、不进 CloudKit**的向量索引，支撑：
 ### 4.3 spike 过程中发现的工具链事实（Phase 2 必读）
 
 1. **xcodebuild 对 NumKong（USearch 依赖）的 header-only C target 有链接 bug**：xcodebuild 为 `CNumKong`（path=include，无源文件）生成不存在的 `CNumKong.o` 链接产物——**任何链接 USearch 的可执行/test target 在 xcodebuild 下必挂**（库 target 不做最终链接所以能编）。SwiftPM 原生构建无此问题。
-   - **含义：USearch 接入主工程时，若主 App target 走 xcodebuild 构建（必然），将踩同一个坑**。缓解路径（Phase 2 验证）：a) 升级 NumKong/USearch 版本观察修复；b) 给 NumKong 打补丁本地化（Vendor 化加一个空 .c）；c) 不可行则触发 fallback 决策。**这是本 ADR 最大的未决风险**。
-2. 模拟器跑 SPM 无 XCTest 测试需 SwiftPM destination 文件（完整字段：version=1/sdk/target/toolchain-bin-dir/extra-*-flags），且 XCTest Swift overlay 装不上——性能验证改用可执行 target + `simctl spawn` 直跑，验证有效且更快。
+   - **✅ 已解决（2026-09-10，东林拍板「最安全方式」）**：USearch 2.26.2 + NumKong 7.8.2 已 Vendor 化进主工程 `Vendor/`（照 CoreXLSX/ZIPFoundation/XMLCoder 既有惯例）；USearch 的 Package.swift 将 NumKong 改为本地路径依赖；NumKong 加 `include/numkong_vendor_compat.c`（仅注释的空源文件）让 CNumKong 产生真实编译产物。**验证闭环**：vendored 包下 xcodebuild 链接 spike-runner 模拟器 BUILD SUCCEEDED（CNumKong.o 真实产出）+ 真机 arm64 Release BUILD SUCCEEDED + 模拟器功能回归（见 §4.1 复跑）。补丁删除即回上游行为；细节见 `Vendor/README.md`。
+2. 模拟器跑 SPM 无 XCTest 测试需 SwiftPM destination 文件（完整字段：version=1/sdk/target/toolchain-bin-dir/extra-*-flags），且 XCTest Swift overlay 装不上——性能验证改用可执行 target + `simctl spawn` 直跑，验证有效且更快。（验证工程位置：仓库根 `.spike/usearch-spike`，不入库。）
 3. xcodebuild 对 SPM 包的自动 scheme 名不稳定（usearch-spike-Package ↔ usearch-spike，随 manifest 变化刷新）。
 
 ## 5. 风险与限制
@@ -83,9 +83,9 @@ V3 需要一个**纯本机、不进 CloudKit**的向量索引，支撑：
 - 真机 arm64 + Release 工具链完整编译通过；
 - 持久化（save/load/view）、tombstone 删除、损坏恢复、actor 并发模型全部验证可行。
 
-**条件（Phase 2 进入前必须解决/决策）**：
+**条件（更新于 2026-09-10 风险解除后）**：
 
-1. **xcodebuild×NumKong header-only 链接 bug**（§4.3-1）是主工程集成的一号风险——主 App target 必须 xcodebuild 构建，必须先验证缓解路径（升级依赖 / NumKong 补丁 Vendor 化 / fallback）。
+1. ~~xcodebuild×NumKong 链接 bug~~ **已解决**：Vendor 化 + 空源文件补丁（§4.3-1），模拟器/真机架构 xcodebuild 链接验证均通过。Phase 2 只剩把 Vendor/USearch 以 `XCLocalSwiftPackageReference` 挂进主工程 pbxproj（照 ZIPFoundation 既有四处锚点模式）。
 2. 真机实测数据（性能门禁的最终裁定口径）由东林配合补齐；模拟器数字不得写入生产门禁报告。
 3. 正式接入必须以协议 `LocalSemanticIndex` 封装（方案 §8.1），USearch 是默认实现而非硬依赖，fallback（Float16+Accelerate flat）保留在协议层后面。
 

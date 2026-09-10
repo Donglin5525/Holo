@@ -1,0 +1,103 @@
+# Ignore all files without an extension
+
+# Temporary files
+.DS_Store
+*.fbin
+*.ibin
+datasets
+bin
+*.usearch
+.cache
+
+# C++ builds
+/build
+/build_release
+/build_debug
+/build_relwithdebinfo
+/build_profile
+/build_artifacts
+/build*
+_deps
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
+
+# Profiling with GProf and `perf` on Linux
+gmon.out
+perf.data
+
+# Python SDK
+__pycache__
+*.egg-info
+dist/
+wheelhouse/
+venv/
+uv.lock
+
+# JS SDK
+node_modules/
+javascript/dist/
+prebuilds/
+package-lock.json
+
+# Wasm
+wasi-sdk-*
+
+# Rust SDK
+Cargo.lock
+target/
+
+# Java SDK
+.gradle
+*.class
+
+# ObjC and Swift SDKs
+.build
+.swiftpm
+Package.resolved
+
+# Golang SDK
+golang/usearch.h
+
+# C# SDK
+csharp/**/[Bb]in/
+csharp/**/[Oo]bj/
+csharp/lib
+csharp/packages
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Allow golang go.mod
+!go.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+

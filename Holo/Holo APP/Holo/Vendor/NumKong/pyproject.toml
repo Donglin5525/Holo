@@ -1,0 +1,244 @@
+# This file configures wheels compilation for `cibuildwheel` for NumKong CPython bindings.
+# On a good day it will produce:
+#   - `manylinux` and `musllinux` vectorized wheels for Linux on x86_64, aarch64, riscv64;
+#   - `manylinux` and `musllinux` wheels for Linux on i686, ppc64le, s390x;
+#   - `macos` wheels for x86_64, arm64;
+#   - `windows` wheels for AMD64, ARM64;
+#   - `pyodide` wheels for wasm32.
+#   * for Python 3.10 to 3.14, plus free-threading 3.14.
+#   * running thousands of fuzzy tests on each wheel.
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=42"]
+
+[tool.pyright]
+extraPaths = ["test"]
+stubPath = "python"
+
+[tool.pytest.ini_options]
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+filterwarnings = ["error"]
+minversion = "6.0"
+xfail_strict = true
+
+[tool.cibuildwheel]
+build-verbosity = 0
+test-requires = ["pytest", "pytest-repeat", "pytest-randomly", "tabulate"]
+
+# Assuming NumPy and SciPy aren't available precompiled for some platforms,
+# we will end up compiling them from source on emulated hardware...
+# To avoid that use `--only-binary=:all:` to only fetch precompiled wheels.
+# For better compatibility, we use (&&) to chain commands instead of (;).
+test-command = """
+    python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
+    python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
+    python -m pip install ml_dtypes --only-binary=:all: || (echo "Failed to install ml_dtypes" && exit 0) &&
+    python -X faulthandler -c "import numkong; print(numkong.get_capabilities())" &&
+    PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
+"""
+
+# Every CI job narrows this with `CIBW_ARCHS`; the full set stays for local runs.
+# https://cibuildwheel.readthedocs.io/en/stable/options/#archs
+archs = ["all"]
+
+# https://cibuildwheel.readthedocs.io/en/stable/options/#enable
+enable = [] # no PyPy and no free-threading 3.13; 3.14t is on by default
+# Alpine's clang 20 can't see RVV intrinsics behind the per-function `target("arch=+v")` the
+# kernels use; clang 21 can, so the manylinux leg builds and the musllinux one doesn't.
+skip = ["*-musllinux_riscv64"] # we also don't use any SIMD on: ["*s390x*", "*ppc64le*"]
+
+# Forwarded from the job environment; `NK_IN_QEMU` shrinks the fuzzing dimensions on emulated runners.
+environment-pass = [
+  "NK_IN_QEMU",
+  "NK_SEED",
+  "NK_FILTER",
+  "NK_BUDGET_SECS",
+  "NK_REPETITIONS",
+  "NK_DENSE_DIMENSIONS",
+  "NK_CURVED_DIMENSIONS",
+  "NK_SPARSE_DIMENSIONS",
+  "NK_MESH_POINTS",
+  "NK_MATRIX_HEIGHT",
+  "NK_MATRIX_WIDTH",
+  "NK_MATRIX_DEPTH",
+  "NK_MAX_COORD_ANGLE",
+  "NK_RANDOM_DISTRIBUTION",
+  "NK_TEST_ASSERT",
+  "NK_TEST_VERBOSE",
+]
+
+# Lock the glibc floor for the popular architectures. These match cibuildwheel's current defaults,
+# so a future default bump moves neither the floor nor the wheel tags without an edit here.
+# You can keep track of the most recent images on Quay:
+# - for `manylinux`: https://quay.io/search?q=manylinux
+# - for `musllinux`: https://quay.io/search?q=musllinux
+manylinux-aarch64-image = "manylinux_2_28"
+manylinux-x86_64-image = "manylinux_2_28"
+musllinux-aarch64-image = "musllinux_1_2"
+musllinux-x86_64-image = "musllinux_1_2"
+# The riscv64 images `cibuildwheel` pins carry `patchelf` 0.17, which corrupts the extension
+# while rewriting its RPATH — the entry point lands below `.text` and the import dies with
+# SIGILL. Dated tags keep the glibc 2.39 floor and only move `patchelf` to 0.19; the named
+# `manylinux_2_39` resolves back to the broken pin. Upgrading `patchelf` at repair works, uglier.
+manylinux-riscv64-image = "quay.io/pypa/manylinux_2_39_riscv64:2026.09.01-1"
+musllinux-riscv64-image = "quay.io/pypa/musllinux_1_2_riscv64:2026.09.01-1"
+
+[tool.cibuildwheel.environment]
+NK_BUILD_PARALLEL = "2"
+
+[tool.cibuildwheel.linux]
+before-build = ["rm -rf {project}/build"]
+repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
+# On CentOS we have to use `yum`, and `extras` fails to download on Arm instances.
+before-all = [
+  "yum update -y --disablerepo=extras --setopt=install_weak_deps=0 && yum install -y --disablerepo=extras glibc-devel wget python3-devel",
+]
+
+# Pin the platform tag on manylinux_2_28 architectures to avoid verbose
+# triple-tagged filenames (e.g., manylinux2014.manylinux_2_17.manylinux_2_28).
+[[tool.cibuildwheel.overrides]]
+repair-wheel-command = "auditwheel repair --plat manylinux_2_28_x86_64 --only-plat -w {dest_dir} {wheel}"
+select = "*-manylinux*_x86_64"
+
+[[tool.cibuildwheel.overrides]]
+repair-wheel-command = "auditwheel repair --plat manylinux_2_28_aarch64 --only-plat -w {dest_dir} {wheel}"
+select = "*-manylinux*_aarch64"
+
+# With `musl` builds, we obviously don't need the `glibc` and can't use `yum`.
+# This may also be handy for using custom dependencies for different Python versions:
+# https://cibuildwheel.readthedocs.io/en/stable/options/#overrides
+[[tool.cibuildwheel.overrides]]
+before-all = "apk add --update wget python3-dev"
+select = "*-musllinux*"
+
+[tool.cibuildwheel.macos]
+# No `before-all`: nothing outside libSystem to link, so `delocate` bundles nothing.
+before-build = ["rm -rf {project}/build"]
+repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
+
+[tool.cibuildwheel.windows]
+before-build = ["rd /s /q {project}\\build || echo Done"]
+# cibuildwheel 4 defaults this to `delvewheel`; we link only system DLLs.
+repair-wheel-command = ""
+
+
+# Windows-based OSes and PowerShell don't support the logical operators
+# In PowerShell we could write something like:
+#   python -m pip install numpy; if ($LASTEXITCODE -ne 0) { echo "Failed to install NumPy... Nothing can stop me, I'm all the way up!" }
+# but its safer to use the CMD syntax
+[[tool.cibuildwheel.overrides]]
+select = "*win*"
+test-command = """
+    cmd /c "python -m pip install numpy --only-binary=:all: & if errorlevel 1 echo Failed to install NumPy... Nothing can stop me, I'm all the way up! &
+    python -m pip install scipy --only-binary=:all: & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
+    python -m pip install ml_dtypes --only-binary=:all: & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
+    python -X faulthandler -c "import numkong; print(numkong.get_capabilities())" &
+    set PYTHONMALLOC=debug && pytest {project}/test/ -s -x -Wd"
+"""
+
+# These environment variables allow setup.py to detect the target architecture
+# during cross-compilation (e.g., building ARM64 wheels on x64 host).
+# The NK_TARGET_* variables override platform.machine() detection.
+
+# x86-64 builds
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_X8664_ = "1"
+inherit.environment = "append"
+select = "*-win_amd64"
+
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_X8664_ = "1"
+inherit.environment = "append"
+select = "*-manylinux*_x86_64"
+
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_X8664_ = "1"
+inherit.environment = "append"
+select = "*-musllinux*_x86_64"
+
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_X8664_ = "1"
+inherit.environment = "append"
+select = "*-macos*_x86_64"
+
+# ARM64 builds
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
+select = "*-win_arm64"
+
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
+select = "*-manylinux*_aarch64"
+
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
+select = "*-musllinux*_aarch64"
+
+[[tool.cibuildwheel.overrides]]
+environment.NK_TARGET_ARM64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
+select = "*-macos*_arm64"
+
+# RISC-V builds: the images' GCC 14 ignores `#pragma GCC target`, which is how the RVV kernels
+# opt in, so GCC wheels would carry none. Clang honours its own pragma.
+[[tool.cibuildwheel.overrides]]
+before-all = "dnf install -y glibc-devel wget python3-devel clang lld"
+environment.CC = "clang"
+environment.CXX = "clang++"
+environment.LDFLAGS = "-fuse-ld=lld"
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_RISCV64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
+select = "*-manylinux*_riscv64"
+
+# Pyodide / Emscripten WASM builds
+# The Pyodide venv creates Python-script entry points (like `pytest`) that can't
+# be executed directly as shell commands, so we must use `python -m pytest`.
+# Also, `ml_dtypes` has no Pyodide wheel, so we skip it.
+[[tool.cibuildwheel.overrides]]
+before-build = ["rm -rf {project}/build"]
+select = "*-pyodide*"
+test-command = """
+    python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
+    python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
+    python -X faulthandler -c "import numkong; print(numkong.get_capabilities())" &&
+    PYTHONMALLOC=debug python -m pytest {project}/test/ -s -x -Wd
+"""
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = [
+  "E712", # == True/False: intentional for testing scalar __bool__ return values
+  "E731", # lambda assignments: clearer for one-liner baselines
+  "B905", # zip-without-strict: not safety-critical in test code
+  "SIM105", # contextlib.suppress: explicit try/except is clearer here
+  "B028", # stacklevel in warnings.warn: not important in test code
+  "RUF002", # ambiguous unicode in docstrings: intentional math symbols
+  "RUF003", # ambiguous unicode in comments: intentional math symbols
+  "RUF043", # pytest.raises regex patterns: the metacharacters are intentional
+]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"test/*" = ["E501", "F811"]
+
+# Configuration options for the Black formatter:
+# https://black.readthedocs.io/en/latest/usage_and_configuration/the_basics.html#where-black-looks-for-the-file
+[tool.black]
+line-length = 120 # Set line length to the same value as in `.clang-format` for modern wide screens
+target-version = ['py310', 'py314']

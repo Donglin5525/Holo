@@ -17,6 +17,7 @@
   - 基线盘点：HEAD 现状与方案核对基本一致 + 6 处偏差修正（PromptManager 仅 DEBUG 编译、embeddings 生产默认 mock 需 env 开真模型、限流真实数字 500/日 vs 120/日 等，详见实施日志）；测试基线全绿（后端 organize 28 + embeddings 6、iOS 想法模块子集 73）
   - USearch 2.26.2 本地向量索引选型 spike：iOS 模拟器 15/15 门禁全过（50k/100k warm 检索 p95 1.9ms vs 门禁 150-300ms、冷载首查 1.7ms vs 800ms、recall@20 0.988、持久化/删除/损坏恢复/actor 并发全验证）+ 真机 arm64 Release 无签名编译通过；已知风险=xcodebuild 对 NumKong header-only target 的 CNumKong.o 链接 bug（主工程集成前必须解决，ADR §4.3 三条缓解路径）；真机实测待补
   - 评测框架：schema + 42 条合成开发样本（13 类场景全覆盖，含注入/脱敏/编辑失效/新簇哨兵）；质量门禁须以真实样本为准（60+60 待东林渠道，Phase 3 前置）
+  - 链接障碍根治（东林拍板最安全方式）：USearch 2.26.2 + NumKong 7.8.2 Vendor 化进工程 Vendor 目录（照 ZIPFoundation 既有惯例），NumKong 加空源文件补丁让 Xcode 构建系统可链接（上游 delta 共 3 处、可逆）；xcodebuild 模拟器/真机架构 Release 链接验证 + 功能回归 15/15 全过；主工程挂载留 Phase 2
 - **iOS+后端**: 截图识别记账一期——聊天里发小票/支付截图，AI 认账出确认卡，确认落账（方案 docs/plans/2026-09-09-screenshot-receipt-billing-plan.md，九点拍板全落地）
   - 后端：新独立端点 /v1/ai/vision/extract（purpose=vision_extraction，qwen3-vl-plus 经 M0 五轮评测选型）——不占会员额度（拍板 3，上线后测算成本再定），设备 20 次/天防滥用桶；图片即弃不落盘、日志仅元数据（metadata_only 强制）；理解单契约带确定性护栏：金额原文命中外币符号强制拒识（评测实证模型会伪造逐字抄录字段）、不可记账图型强制清空交易；已发版生产，烟雾测试四场景全过（小票全字段对/美元拒识/转账拦截/多品小票）
   - iOS：聊天输入栏图片按钮（拍照/相册）→ 识别中气泡（可取消）→ 复用 TransactionChatCard 确认流；拒识文案按图型八分（转账/还款/理财/清单/外币/未支付/无关/低置信<0.45）；一张图多笔逐笔出卡；微信/支付宝/尾号自动匹配既有账户（确认后归位，匹配不到落默认账户）；防重软提示（±2 天同额只提示不阻断）；聊天缩略图确定性路径落盘（不进 Core Data，免 CloudKit schema 前置）；三语词表 24 条
