@@ -3,7 +3,8 @@
 //  Holo
 //
 //  云端异步分析（二期 M2b）——设备侧编排：快照聚合 → 建任务 → 上传 →
-//  轮询领取 → 结果落消息；任一环节失败自动回落本地轨道（用户无感）。
+//  轮询领取 → 结果落消息。云端独占语义（2026-09-11 拍板）：深度分析
+//  不再回落本地——云端失败/超时/不可用一律落诚实失败卡，由用户决定重试。
 //  - 锁屏/离开 App：轮询随进程挂起暂停，云端继续执行；回前台恢复轮询
 //    （HoloApp scenePhase 钩子调 resumePolling）。结果云端密文等 7 天。
 //  - 隐私文案：首次云端分析需用户确认（ChatView sheet），确认后不再打扰；
@@ -13,6 +14,25 @@
 import Foundation
 import os.log
 
+/// 云端轨道尝试结果（云端独占语义）：失败不回落本地，成功与失败都由云端轨道终局落卡。
+nonisolated enum HoloCloudAttemptOutcome: Equatable, Sendable {
+    /// 已终局：成功落分析卡，或失败落诚实失败卡
+    case handled
+    /// 用户点了停止
+    case userCancelled
+    /// 云端不可用：调用方落不可用说明卡
+    case unavailable(HoloCloudUnavailableReason)
+}
+
+nonisolated enum HoloCloudUnavailableReason: Equatable, Sendable {
+    /// 功能开关关闭（调试覆盖项，默认开启）
+    case featureDisabled
+    /// 未完成 v2 隐私确认
+    case needsConsent
+    /// 已有云端任务在途（单任务位）
+    case busy
+}
+
 @MainActor
 final class HoloCloudAnalysisService {
 
@@ -20,7 +40,6 @@ final class HoloCloudAnalysisService {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "CloudAnalysis")
     private let client: HoloCloudAnalysisClient
-    private let analysisService: HoloAgentAnalysisService
     private let repository: ChatMessageRepository
 
     /// 云端任务上下文：消息、问题、任务类型（deep_analysis=多轮分析 /
@@ -66,14 +85,9 @@ final class HoloCloudAnalysisService {
 
     init(
         client: HoloCloudAnalysisClient? = nil,
-        analysisService: HoloAgentAnalysisService? = nil,
         repository: ChatMessageRepository = .shared
     ) {
         self.client = client ?? HoloCloudAnalysisClient()
-        self.analysisService = analysisService ?? HoloAgentAnalysisService(
-            runtime: HoloLocalAgentRuntime.shared,
-            scheduler: HoloAgentScheduler.shared
-        )
         self.repository = repository
     }
 
@@ -135,14 +149,14 @@ final class HoloCloudAnalysisService {
     }
 
     /// 云端轨道入口（ChatViewModel 在本地 runAnalysis 之前调用）。
-    /// - Returns: true = 云端轨道已完整接管（成功落卡或已回落本地跑完）；
-    ///   false = 云端不可用/未启用/未确认，调用方走本地轨道。
-    func attempt(question: String, sourceMessageID: UUID) async -> Bool {
-        guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return false }
-        guard Self.privacyConsented else { return false }
+    /// - Returns: handled = 云端轨道已终局（成功落卡或失败落诚实失败卡，不再回落本地）；
+    ///   userCancelled = 用户点停止；unavailable = 云端不可用，调用方落不可用说明。
+    func attempt(question: String, sourceMessageID: UUID) async -> HoloCloudAttemptOutcome {
+        guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return .unavailable(.featureDisabled) }
+        guard Self.privacyConsented else { return .unavailable(.needsConsent) }
         guard activeTasks.isEmpty else {
-            // 同一时间只承载一个云端任务：并发请求直接回落本地，不排队积压
-            return false
+            // 同一时间只承载一个云端任务；云端独占语义下不排队、也不回落本地
+            return .unavailable(.busy)
         }
 
         repository.updateAgentMessageProgress(sourceMessageID, status: HoloAgentChatStatus(
@@ -170,14 +184,17 @@ final class HoloCloudAnalysisService {
             }
             logger.info("云端任务已提交 taskId=\(started.taskId, privacy: .public) type=deep_analysis")
             await poll(taskId: started.taskId, context: context)
-            return true
+            return .handled
         } catch is CancellationError {
             await cancelActiveIfNeeded()
-            return false
+            return .userCancelled
         } catch {
-            logger.error("云端轨道失败回落本地：\(String(describing: error), privacy: .public)")
-            await fallbackToLocal(question: question, sourceMessageID: sourceMessageID)
-            return true
+            logger.error("云端轨道启动失败：\(String(describing: error), privacy: .public)")
+            markDeepAnalysisFailed(
+                sourceMessageID: sourceMessageID,
+                summary: "云端分析启动失败，本次数据未成功上云、云端无任何留存；重新提问即可重试。"
+            )
+            return .handled
         }
     }
 
@@ -263,8 +280,12 @@ final class HoloCloudAnalysisService {
                         try? await client.ackResult(taskId: taskId)
                         return
                     }
-                    // completed 但无结果（已领取过的重复轮询或异常态）：回落本地重跑
-                    break
+                    // completed 但无结果（结果已失效或被领取）：如实落败，不再挂到超时
+                    markDeepAnalysisFailed(
+                        sourceMessageID: context.messageID,
+                        summary: "云端结果已失效。重新提问即可重试。"
+                    )
+                    return
                 case "failed", "cancelled", "expired":
                     logger.log("云端任务终态=\(status.status, privacy: .public) type=\(context.taskType, privacy: .public)")
                     if context.taskType == "period_replay" {
@@ -275,7 +296,10 @@ final class HoloCloudAnalysisService {
                         periodReplayFallbackHandler?(context.messageID)
                         return
                     }
-                    await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
+                    let reason = status.failureReason?.isEmpty == false
+                        ? "云端分析未能完成：\(status.failureReason!)。重新提问即可重试。"
+                        : "云端分析未能完成。重新提问即可重试。"
+                    markDeepAnalysisFailed(sourceMessageID: context.messageID, summary: reason)
                     return
                 default:
                     if context.taskType == "period_replay" {
@@ -295,14 +319,17 @@ final class HoloCloudAnalysisService {
                 }
             } catch let error as APIError {
                 // 任务行已被 7 天过期清理（服务端整行删除返回 404）：结果不可再领取，
-                // 无限重试没有意义，立即回落本地重跑
+                // 无限重试没有意义，如实落败
                 if case .httpError(let statusCode, _) = error, statusCode == 404 {
-                    logger.log("云端任务已过期清理，立即回落本地 taskId=\(taskId, privacy: .public)")
+                    logger.log("云端任务已过期清理 taskId=\(taskId, privacy: .public)")
                     activeTasks[taskId] = nil
                     if context.taskType == "period_replay" {
                         periodReplayFallbackHandler?(context.messageID)
                     } else {
-                        await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
+                        markDeepAnalysisFailed(
+                            sourceMessageID: context.messageID,
+                            summary: "云端任务已过期（结果最多保留 7 天）。重新提问即可重试。"
+                        )
                     }
                     return
                 }
@@ -315,12 +342,15 @@ final class HoloCloudAnalysisService {
             }
             try? await Task.sleep(for: .seconds(Self.pollInterval))
         }
-        logger.log("云端任务超时回落本地 taskId=\(taskId, privacy: .public)")
+        logger.log("云端任务等待超时 taskId=\(taskId, privacy: .public)")
         try? await client.cancel(taskId: taskId)
         if context.taskType == "period_replay" {
             periodReplayFallbackHandler?(context.messageID)
         } else {
-            await fallbackToLocal(question: context.question, sourceMessageID: context.messageID)
+            markDeepAnalysisFailed(
+                sourceMessageID: context.messageID,
+                summary: "等待云端分析超时（15 分钟）。重新提问即可重试。"
+            )
         }
     }
 
@@ -414,8 +444,29 @@ final class HoloCloudAnalysisService {
         logger.info("云端结果已落地 claims=\(claims.count, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
     }
 
-    private func fallbackToLocal(question: String, sourceMessageID: UUID) async {
-        repository.updateAgentMessageProgress(sourceMessageID, status: HoloAgentChatStatusPresenter.resumingStatus())
-        _ = await analysisService.runAnalysis(question: question, sourceMessageID: sourceMessageID)
+    /// 云端独占语义的诚实终局：把深度分析消息落为可辨识的失败卡（与本地
+    /// analysisFailed 卡同构），不再回落本地轨道（2026-09-11 拍板）。
+    private func markDeepAnalysisFailed(sourceMessageID: UUID, summary: String) {
+        let title = "云端深度分析未完成"
+        let rendered = HoloRenderedAgentResult(
+            title: title,
+            summary: summary,
+            sections: [],
+            evidenceReferences: [],
+            failure: .analysisFailed
+        )
+        let agentResultJSON = (try? JSONEncoder().encode(rendered))
+            .flatMap { String(data: $0, encoding: .utf8) }
+        repository.finalizeMessage(
+            sourceMessageID,
+            finalContent: [title, summary].joined(separator: "\n"),
+            intent: "query_analysis",
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            analysisContextJSON: nil,
+            rawLogJSON: nil,
+            agentResultJSON: agentResultJSON
+        )
     }
 }
