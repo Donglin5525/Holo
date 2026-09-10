@@ -7,7 +7,9 @@
 //  的 datasets 协议对齐：{version, generatedAt, datasets:{name:{fields,rows}}}）。
 //  - 取数复用 HoloDefaultCrossDomainDataSource 的统一分发（与本地 Agent 工具同一条路，
 //    语义零漂移）；字段定义直接引用各工具的静态 catalog，不另维护一份。
-//  - 合规边界（设计稿 2026-08-30）：健康域不进快照——涉健康的分析走本地轨道。
+//  - 合规边界（2026-09-10 东林拍板方案 B，取代 2026-08-30 设计稿的「健康域不进快照」）：
+//    健康域以日聚合摘要进快照，沿用 v2 隐私同意与快照即焚通道；涉健康的问题不再
+//    依赖本地轨道（本地分析多轮工具调用易失败，云端一次上送更可靠）。
 //  - 体积控制：默认近 180 天窗口 + 单数据集行数上限，超出按时间倒序截断，
 //    适配后端 2MB 快照限制。
 //
@@ -53,7 +55,9 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
     static let defaultHistoryDays = 180
     static let maxRowsPerDataset = 2_000
 
-    /// 进快照的数据目录：引用各工具静态定义（字段不脱节）。健康域按二期合规决策排除。
+    /// 进快照的数据目录：引用各工具静态定义（字段不脱节）。
+    /// 健康域自 2026-09-10 起纳入（东林拍板方案 B）：沿用 v2 隐私同意（健康与活动摘要），
+    /// 走快照密文 + 完成即焚通道；仅日聚合行，不含分钟级原始样本。
     static var snapshotCatalogs: [HoloDataCatalog] {
         [
             HoloFinanceTool.dynamicCatalog,
@@ -66,6 +70,7 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             HoloAgentDynamicCatalogs.anniversary,
             HoloAgentDynamicCatalogs.insight,
             HoloAgentDynamicCatalogs.profile,
+            HoloHealthTool.dynamicCatalog,
         ]
     }
 

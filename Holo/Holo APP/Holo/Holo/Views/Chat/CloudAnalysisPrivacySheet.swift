@@ -26,12 +26,12 @@ struct CloudAnalysisPrivacySheet: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 Label {
-                    Text("为了让你锁屏、离开 App 后分析和回放也能完成，Holo 会把本次所需的数据（如任务、账目、习惯、想法记录）**加密上传到云端**完成处理。")
+                    Text("为了让你锁屏、离开 App 后分析和回放也能完成，Holo 会把本次所需的数据（如任务、账目、习惯、想法、健康摘要）**加密上传到云端**完成处理。")
                 } icon: {
                     Image(systemName: "icloud.and.arrow.up").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
                 }
                 Label {
-                    Text("生成周期回放时，上传的数据会**包含健康与活动摘要**（如睡眠、步数），让回放能覆盖你的生活全貌。")
+                    Text("深度分析与周期回放上传的数据都会**包含健康与活动摘要**（如睡眠、步数的每日汇总，不含原始明细），让分析和回放能覆盖你的生活全貌。")
                 } icon: {
                     Image(systemName: "heart.fill").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
                 }
@@ -59,14 +59,14 @@ struct CloudAnalysisPrivacySheet: View {
             .font(.system(size: 14))
             .foregroundColor(.holoTextPrimary)
 
-            Text("本次仍按原方式在本机进行，确认后从下一次分析或回放开始启用云端模式。")
+            Text("确认后，这次分析就会在云端进行。")
                 .font(.system(size: 12))
                 .foregroundColor(.holoTextSecondary)
 
             Button {
                 onConfirm()
             } label: {
-                Text("知道了，下次开始用云端分析")
+                Text("知道了，开始云端分析")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
