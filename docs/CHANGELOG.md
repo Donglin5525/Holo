@@ -13,6 +13,10 @@
 ## [Unreleased]
 
 ### Features
+- **iOS+后端**: 既有主题语义关联第一批（语义图谱 V3 Phase 3，shadow 模式零 UI 变化）
+  - 后端新端点 /v1/thoughts/semantic-relate：目标想法×≤3 候选主题离散判断（same_thread/related/none/insufficient+逐字证据 rangeUTF16）；契约硬拒绝模型自造 Topic、伪造证据与数值置信度；purpose=thought_semantic_relate_v1 进 metadata-only 白名单（日志无正文哨兵测试锁定）；独立预算（¥0.10/日）与限流（20/分·200/日）不占对话额度；隐私闸门同整理口径（未核实 503）；13 项新测试+全量 379/379 绿；**待发版**（发版时与 embeddings 生产开关一起确认）
+  - iOS embed 执行器：队列→脱敏（复用 V2 策略）→后端 embeddings→L2 归一化→SQLite 真身+索引原子落库；纯图 textUnavailable 合法完成；指数退避/协议终态；本地 mock 后端端到端实证（12 条想法真实落库 13 条向量）
+  - 端到端冒烟抓出并修复单测漏网 bug（prompt 注入返回对象误当 messages 传）
 - **iOS**: 本机语义索引与变更队列落地（语义图谱 V3 Phase 2）——SQLite 真身+双索引实现+统一事件源
   - 本机语义库 ThoughtSemanticStore（Application Support/ThoughtSemanticV3/，不进 CloudKit）：六表 schema 一次到位（向量 Float16 真身/可恢复任务队列/manifest/centroid·candidate·cluster 预留），错误只存 code
   - 索引双实现过同一协议：USearch HNSW（已挂主工程，Vendor 化+NumKong 补丁在真实工程验证）+ Float16+Accelerate 分块扫描 fallback（50k warm 检索 p95 43ms，门禁 150ms；USearch 为 1.9ms）；索引皆可丢弃可重建，真身唯一

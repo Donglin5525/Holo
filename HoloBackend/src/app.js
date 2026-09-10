@@ -44,6 +44,8 @@ import { createApnsSender } from "./push/apnsSender.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
+import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
+import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
 import { extractJsonContent, normalizeUnderstanding } from "./vision/understandingContract.js";
 
@@ -288,6 +290,15 @@ export function createApp(overrides = {}) {
     config.thoughtOrganizeBudgetStore ?? createThoughtOrganizeBudgetStore(database.db);
   thoughtOrganizeBudgetStore.recoverStale();
   const thoughtOrganizeService = createThoughtOrganizeService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
+  // 想法语义关联 V3（方案 §16.2）：预算挂靠整理记账类（operationId 维度幂等），上限独立
+  const thoughtSemanticRelateService = createThoughtSemanticRelateService({
     config,
     providers,
     adminLogStore,
@@ -985,6 +996,57 @@ export function createApp(overrides = {}) {
 
       const body = await readJson(context);
       const result = await thoughtOrganizeService.organize({
+        deviceId,
+        subjectId: entitlement.usageSubjectId,
+        body,
+        clientSignal: context.req.raw.signal,
+      });
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 想法语义关联 V3（2026-09-10 方案 §16.2）：目标想法 × ≤3 候选主题的离散关系判断。
+  // 隐私闸门与整理端点同口径：供应商留存未核实时不向真实供应商发送数据。
+  app.post("/v1/thoughts/semantic-relate", async (context) => {
+    try {
+      if (!config.thoughtSemanticRelate?.enabled) {
+        throw new GatewayError("THOUGHT_SEMANTIC_DISABLED", "Thought semantic relate is disabled", 503);
+      }
+      const relateRoute = config.routes.thought_semantic_relate_v1;
+      const usesMockProvider = relateRoute?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtSemanticRelate.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!relateRoute) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Semantic relate route is not configured", 503);
+      }
+
+      const contentLength = Number(context.req.header("content-length") ?? 0);
+      if (contentLength > RELATE_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${RELATE_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+
+      const deviceId = getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_semantic_relate",
+        minuteLimit: config.thoughtSemanticRelate.requestLimits.perMinute,
+        dailyLimit: config.thoughtSemanticRelate.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const body = await readJson(context);
+      const result = await thoughtSemanticRelateService.relate({
         deviceId,
         subjectId: entitlement.usageSubjectId,
         body,

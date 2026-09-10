@@ -344,6 +344,15 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_ORG_B_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_ORG_B_MAX_TOKENS ?? 600),
     },
+    // 想法语义关联 V3（docs/thoughts/plans/2026-09-10-Holo想法本地语义图谱V3-完整实施方案-GLM.md §16.2）：
+    // 目标想法 + ≤3 候选主题的最小上下文离散判断（same_thread/related/none/insufficient + 逐字证据）。
+    thought_semantic_relate_v1: {
+      provider: process.env.HOLO_THOUGHT_SEMANTIC_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_SEMANTIC_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_SEMANTIC_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 512),
+    },
     category_pattern_induction: {
       provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
@@ -509,6 +518,24 @@ const DEFAULT_CONFIG = {
       perDay: Number(process.env.HOLO_THOUGHT_ORG_REQUESTS_PER_DAY ?? 500),
     },
   },
+  // 想法语义关联 V3：独立预算/限流（不占对话与整理额度，方案 §21）
+  thoughtSemanticRelate: {
+    enabled: process.env.HOLO_THOUGHT_SEMANTIC_ENABLED !== "false",
+    privacyVerified: process.env.HOLO_THOUGHT_SEMANTIC_PRIVACY_VERIFIED === "true",
+    deadlineMs: Number(process.env.HOLO_THOUGHT_SEMANTIC_DEADLINE_MS ?? 30_000),
+    budgets: {
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_DAILY_MAX_CNY ?? 0.10),
+      moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_MODERATION_CNY ?? 0.0005),
+    },
+    pricing: {
+      inputPerMillionCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_OUTPUT_PRICE ?? 9),
+    },
+    requestLimits: {
+      perMinute: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_MINUTE ?? 20),
+      perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 200),
+    },
+  },
 };
 
 function csv(value) {
@@ -563,6 +590,22 @@ export function loadConfig(overrides = {}) {
     moderation: {
       ...DEFAULT_CONFIG.moderation,
       ...overrides.moderation,
+    },
+    thoughtSemanticRelate: {
+      ...DEFAULT_CONFIG.thoughtSemanticRelate,
+      ...overrides.thoughtSemanticRelate,
+      budgets: {
+        ...DEFAULT_CONFIG.thoughtSemanticRelate.budgets,
+        ...(overrides.thoughtSemanticRelate?.budgets ?? {}),
+      },
+      pricing: {
+        ...DEFAULT_CONFIG.thoughtSemanticRelate.pricing,
+        ...(overrides.thoughtSemanticRelate?.pricing ?? {}),
+      },
+      requestLimits: {
+        ...DEFAULT_CONFIG.thoughtSemanticRelate.requestLimits,
+        ...(overrides.thoughtSemanticRelate?.requestLimits ?? {}),
+      },
     },
     thoughtOrganize: {
       ...DEFAULT_CONFIG.thoughtOrganize,

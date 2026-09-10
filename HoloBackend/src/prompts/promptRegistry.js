@@ -21,6 +21,7 @@ const PROMPT_VERSIONS = {
   thought_task_extraction: 2,        // v2: 注入今天日期，输出对象数组（title+dueDate/dueTime/priority 预填，向后兼容旧客户端只读 title）
   thought_tag_convergence: 2,
   // 想法自动整理 V2（2026-09-05 方案 §5）：A 提取概念 / R 目录筛选 / B 词表对齐
+  thought_semantic_relate_v1: 1,   // v1: 目标想法×候选主题离散判断（same_thread/related/none/insufficient + 逐字证据，无置信度）
   thought_organize_a: 1,
   thought_organize_r: 1,
   thought_organize_b: 1,

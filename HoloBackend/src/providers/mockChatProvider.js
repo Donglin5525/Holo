@@ -29,6 +29,9 @@ export function createMockChatProvider() {
       if (request.purpose === "thought_organize_b") {
         return mockThoughtOrganizeBCompletion(request);
       }
+      if (request.purpose === "thought_semantic_relate_v1") {
+        return mockThoughtSemanticRelateCompletion(request);
+      }
 
       return {
         id: "mock-chat-completion",
@@ -73,6 +76,40 @@ export function createMockChatProvider() {
 function lastUserMessage(messages) {
   const message = messages.findLast((item) => item.role === "user");
   return message?.content ?? "";
+}
+
+/**
+ * 想法语义关联 V3 确定性 mock（开发/测试联调，无真实语义）：
+ * 规则=候选标题与目标正文有 ≥2 个公共字符判 same_thread（quote 取正文前 8 字），
+ * 否则 none；输出严格满足契约（逐字 quote + rangeUTF16 对齐）。
+ */
+function mockThoughtSemanticRelateCompletion(request) {
+  let payload = null;
+  try {
+    payload = JSON.parse(lastUserMessage(request.messages));
+  } catch {
+    payload = null;
+  }
+  const target = payload?.target;
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+  const decisions = candidates.map((candidate) => {
+    const shared = [...candidate.title].filter((ch) => target?.text?.includes(ch));
+    if (target?.text && shared.length >= 2) {
+      const quote = target.text.slice(0, Math.min(8, target.text.length));
+      return {
+        candidateRef: candidate.ref,
+        relation: "same_thread",
+        quote,
+        rangeUTF16: [0, quote.length],
+      };
+    }
+    return { candidateRef: candidate.ref, relation: "none", quote: null, rangeUTF16: null };
+  });
+  return {
+    id: "mock-relate",
+    choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ decisions }) }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 80, completion_tokens: 40, total_tokens: 120 },
+  };
 }
 
 /**

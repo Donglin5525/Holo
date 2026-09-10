@@ -62,6 +62,23 @@ actor ThoughtSemanticPipeline {
             ThoughtSemanticChangeFeed.shared.start()
         }
         logger.info("语义管线就绪")
+
+        // 队列节拍（§13.3）：flag off 时空转长睡眠；shadow/on 时每 30s 处理一小批
+        startQueueHeartbeat()
+    }
+
+    private func startQueueHeartbeat() {
+        guard let store, let index else { return }
+        Task {
+            while true {
+                let flag = await MainActor.run { ThoughtSemanticFeatureFlags.index }
+                if flag != .off {
+                    await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
+                }
+                let interval: UInt64 = flag == .off ? 300 : 30
+                try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
+            }
+        }
     }
 
     /// 从 SQLite 真身重建索引（索引可丢弃，真身不可丢——方案 §8.2）。

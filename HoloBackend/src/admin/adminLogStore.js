@@ -49,6 +49,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // 截图识别（2026-09-09 方案 §5.1）：请求含用户图片本体，识别完即弃，
   // 日志只留元数据（图片字节数/图型/置信度），任何情况下不落图片与正文。
   'vision_extraction',
+  // 想法语义关联 V3（2026-09-10 方案 §16.2）：请求含用户想法正文与主题代表片段，
+  // 响应含逐字证据——一律 metadata_only，正文与证据不落任何日志/缓存/错误。
+  'thought_semantic_relate_v1',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */

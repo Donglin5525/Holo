@@ -32,6 +32,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   thought_organize_a: "thought_organize_a",
   thought_organize_r: "thought_organize_r",
   thought_organize_b: "thought_organize_b",
+  thought_semantic_relate_v1: "thought_semantic_relate_v1",
   category_pattern_induction: "category_pattern_induction",
   bill_column_mapping: "bill_column_mapping",
   bill_categorization: "bill_categorization",
