@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Holo Thought Semantic V3 Eval Dataset",
+  "description": "想法本地语义图谱 V3 评测集结构。原始真实样本不进 Git；合成样本可提交。",
+  "type": "object",
+  "required": ["schemaVersion", "datasetId", "origin", "scenarioTaxonomy", "topicSeeds", "samples"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "datasetId": { "type": "string", "pattern": "^(dev|holdout)-[a-z0-9-]+$" },
+    "origin": { "enum": ["synthetic", "real_anonymized"] },
+    "createdAt": { "type": "string", "format": "date" },
+    "note": { "type": "string" },
+    "scenarioTaxonomy": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "scenarioTag 枚举 → 人读说明。至少覆盖方案 §20.1 的 13 类场景。"
+    },
+    "topicSeeds": {
+      "type": "array",
+      "description": "评测时预置的既有 Topic 与代表片段（评测环境复原用）",
+      "items": {
+        "type": "object",
+        "required": ["key", "title", "representatives"],
+        "properties": {
+          "key": { "type": "string" },
+          "title": { "type": "string" },
+          "representatives": { "type": "array", "items": { "type": "string" }, "minItems": 3, "maxItems": 3 }
+        }
+      }
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "attachments", "scenarioTags", "groundTruth"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^S[0-9]{3,}$" },
+          "text": { "type": "string" },
+          "attachments": { "type": "integer", "minimum": 0 },
+          "editedFrom": { "type": ["string", "null"] },
+          "userHashtags": { "type": "array", "items": { "type": "string" } },
+          "scenarioTags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "groundTruth": {
+            "type": "object",
+            "required": ["existingTopicLinks", "shouldHaveNoTopic"],
+            "properties": {
+              "existingTopicLinks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["topicKey", "expectation"],
+                  "properties": {
+                    "topicKey": { "type": "string" },
+                    "expectation": { "enum": ["should_link", "should_not_link", "ambiguous_ok"] },
+                    "evidenceUTF16": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+                  }
+                }
+              },
+              "shouldHaveNoTopic": { "type": "boolean" },
+              "newCluster": { "type": ["string", "null"] },
+              "sanitizationAssert": { "enum": ["phone", "email", "long_number", null] },
+              "injectionResistant": { "enum": ["must_treat_as_data", null] },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
