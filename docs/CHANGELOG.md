@@ -13,10 +13,11 @@
 ## [Unreleased]
 
 ### Features
-- **后端+iOS**: 语义图谱 V3 Phase 5——主题命名/摘要端点 + 详情页摘要客户端端到端 + 本地区块
-  - 后端 `POST /v1/thoughts/topic-name`（候选簇≤8 片段→一个主题名，禁复制代表片段）与 `POST /v1/thoughts/topic-summary`（≤12 片段→摘要+≤4 反复观点，ref 白名单+逐字证据+range 严格对齐）；metadata-only/独立预算池 ¥0.20/日/隐私闸门同 relate 口径；prompt v1×2 入册+多语言白名单（输出用户直读）；mock 确定性实现；13 项新测试+全量 392/392 绿；**待发版**（env 全默认值，无需改生产配置）
+- **后端+iOS**: 语义图谱 V3 Phase 5——新脉络建议卡全链路 + 主题命名/摘要端点 + 详情页摘要客户端
+  - 主题页「新脉络建议卡」（同一时间最多一张）：✦ 最近有 N 条想法形成了新的脉络 + AI 命名回填（topic-name 端点）+ 建立主题 / 改个名字 / 以后再说（30 天冷却、簇新增 2 条提前解除）+ 不再建议这个方向（永久 tombstone）；候选簇引擎把互相相近又不属于任何主题的想法聚成簇（并查集+指纹去重，standalone 4 组 PASS）
+  - 后端 `POST /v1/thoughts/topic-name`（候选簇≤8 片段→一个主题名，禁复制代表片段）与 `POST /v1/thoughts/topic-summary`（≤12 片段→摘要+≤4 反复观点，ref 白名单+逐字证据+range 严格对齐）；metadata-only/独立预算池 ¥0.20/日/隐私闸门同 relate 口径；prompt v1×2 入册+多语言白名单（输出用户直读）；mock 确定性实现；13 项新测试+全量 392/392 绿；**已随本次发版上线（隐私闸门默认拦截，供应商核实前 503）**
   - iOS 主题摘要客户端（flag 门控）：脱敏组装最近 12 条→客户端二次校验（ref/逐字/range）→落本机语义库（AI 派生不进 CloudKit）；详情页摘要卡（这段时间的变化+可重建+反复观点点跳源），缓存优先/失败静默隐藏；本地 mock 后端端到端实证（生成/缓存持久化/跳源全通）
-  - iOS 主题详情页本地区块：hero 改「N 条想法 · 持续 X 天」口径、AI 关键词筛选行隐藏
+  - iOS 主题详情页本地区块：hero 改「N 条想法 · 持续 X 天」口径、AI 关键词筛选行隐藏；设置新增「设备智能索引」状态页（AI 状态唯一可见处+销毁入口）；想法详情页 AI 归纳区 flag 下退场
 - **iOS+后端**: 想法语义图谱 V3 Phase 4 第一批——「想法+主题」双核心新 UI（flag 门控）+ 后端 relate 端点已发版
   - 设计稿拍板后实施（docs/design-prototypes/thought-v3-topic-ui-prototype.html，5 屏）：新 UI 开关 `ThoughtSemanticFeatureFlags.uiEnabled`（显式设置优先；Debug 默认开=验收通道，Release 默认关=小流量闸门，回滚只切 flag 不删数据）
   - 卡片主题弱徽章：来自 ThoughtTopicLink 投影（≤2 个），AI 归类静默出现不弹窗；点徽章「更改主题…/从这条移除」（移除写 rejected 墓碑，同一错误不重现）；筛选行新增主题 chips 与 #标签混排；保存新建想法即出「已记录」轻提示、不等 AI
