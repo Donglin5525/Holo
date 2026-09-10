@@ -138,7 +138,8 @@ struct ThoughtEditorView: View {
                     // 内容编辑区（含光标吸附候选浮层）
                     contentSection
                     // AI 归类区域（只读回显）
-                    if !aiAssignments.isEmpty {
+                    // V3 新 UI：AI 建议标签确认不进主路径（§4.1 删除清单），主题徽章由列表卡片承载
+                    if !ThoughtSemanticFeatureFlags.uiEnabled, !aiAssignments.isEmpty {
                         aiTagsSection
                     }
                 }
