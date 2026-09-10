@@ -463,6 +463,52 @@ extension CoreDataStack {
         topicUpdatedAt.defaultValue = Date()
         topicAttributes.append(topicUpdatedAt)
 
+        // MARK: 语义图谱 V3（2026-09-10 方案 §7.2）
+
+        // 标题来源：user/ai/legacy；用户命名后 AI 不可自动覆盖
+        let topicTitleSource = NSAttributeDescription()
+        topicTitleSource.name = "titleSource"
+        topicTitleSource.attributeType = .stringAttributeType
+        topicTitleSource.isOptional = false
+        topicTitleSource.defaultValue = "legacy"
+        topicAttributes.append(topicTitleSource)
+
+        // 新 Topic 候选簇指纹（排序后的代表 Thought ID + engineVersion），
+        // 多设备识别重复候选用；不作为自动合并依据
+        let topicOriginFingerprint = NSAttributeDescription()
+        topicOriginFingerprint.name = "originClusterFingerprint"
+        topicOriginFingerprint.attributeType = .stringAttributeType
+        topicOriginFingerprint.isOptional = true
+        topicAttributes.append(topicOriginFingerprint)
+
+        // AI 可重建摘要的版本与依据（摘要失败只隐藏摘要区，不影响主题本身）
+        let topicSummaryVersion = NSAttributeDescription()
+        topicSummaryVersion.name = "summaryVersion"
+        topicSummaryVersion.attributeType = .integer16AttributeType
+        topicSummaryVersion.isOptional = false
+        topicSummaryVersion.defaultValue = 0
+        topicAttributes.append(topicSummaryVersion)
+
+        let topicSummaryBasisRevision = NSAttributeDescription()
+        topicSummaryBasisRevision.name = "summaryBasisRevision"
+        topicSummaryBasisRevision.attributeType = .stringAttributeType
+        topicSummaryBasisRevision.isOptional = true
+        topicAttributes.append(topicSummaryBasisRevision)
+
+        let topicSummaryUpdatedAt = NSAttributeDescription()
+        topicSummaryUpdatedAt.name = "summaryUpdatedAt"
+        topicSummaryUpdatedAt.attributeType = .dateAttributeType
+        topicSummaryUpdatedAt.isOptional = true
+        topicAttributes.append(topicSummaryUpdatedAt)
+
+        // 标题、成员或用户决定变化时递增；AI 侧据此失效摘要与 verifier 上下文
+        let topicRevision = NSAttributeDescription()
+        topicRevision.name = "topicRevision"
+        topicRevision.attributeType = .integer64AttributeType
+        topicRevision.isOptional = false
+        topicRevision.defaultValue = 0
+        topicAttributes.append(topicRevision)
+
         // MARK: - Thought Relationships
 
         // Thought ↔ ThoughtTag（多对多）
@@ -628,6 +674,136 @@ extension CoreDataStack {
         topicMergedToRelation.inverseRelationship = topicMergedFromRelation
         topicMergedFromRelation.inverseRelationship = topicMergedToRelation
 
+        // MARK: - ThoughtTopicLink Entity
+        // 语义图谱 V3 - 想法-主题显式关系（方案 §7.1）
+        // id 由投影层按 (thoughtID, topicID) 确定性生成，防多设备重复 pair；
+        // 默认值仅为护栏，写入一律走 ThoughtTopicLinkProjection。
+        let thoughtTopicLinkEntity = NSEntityDescription()
+        thoughtTopicLinkEntity.name = "ThoughtTopicLink"
+        thoughtTopicLinkEntity.managedObjectClassName = "ThoughtTopicLink"
+
+        var thoughtTopicLinkAttributes: [NSAttributeDescription] = []
+
+        let ttlId = NSAttributeDescription()
+        ttlId.name = "id"
+        ttlId.attributeType = .UUIDAttributeType
+        ttlId.isOptional = false
+        ttlId.defaultValue = UUID()
+        thoughtTopicLinkAttributes.append(ttlId)
+
+        let ttlSource = NSAttributeDescription()
+        ttlSource.name = "source"
+        ttlSource.attributeType = .stringAttributeType
+        ttlSource.isOptional = false
+        ttlSource.defaultValue = "legacy/unknown"
+        thoughtTopicLinkAttributes.append(ttlSource)
+
+        let ttlState = NSAttributeDescription()
+        ttlState.name = "state"
+        ttlState.attributeType = .stringAttributeType
+        ttlState.isOptional = false
+        ttlState.defaultValue = "active"
+        thoughtTopicLinkAttributes.append(ttlState)
+
+        let ttlVisibility = NSAttributeDescription()
+        ttlVisibility.name = "visibility"
+        ttlVisibility.attributeType = .stringAttributeType
+        ttlVisibility.isOptional = false
+        ttlVisibility.defaultValue = "internal"
+        thoughtTopicLinkAttributes.append(ttlVisibility)
+
+        let ttlBasisTextHash = NSAttributeDescription()
+        ttlBasisTextHash.name = "basisTextHash"
+        ttlBasisTextHash.attributeType = .stringAttributeType
+        ttlBasisTextHash.isOptional = true
+        thoughtTopicLinkAttributes.append(ttlBasisTextHash)
+
+        let ttlEngineVersion = NSAttributeDescription()
+        ttlEngineVersion.name = "engineVersion"
+        ttlEngineVersion.attributeType = .stringAttributeType
+        ttlEngineVersion.isOptional = true
+        thoughtTopicLinkAttributes.append(ttlEngineVersion)
+
+        let ttlDecisionTier = NSAttributeDescription()
+        ttlDecisionTier.name = "decisionTier"
+        ttlDecisionTier.attributeType = .stringAttributeType
+        ttlDecisionTier.isOptional = true
+        thoughtTopicLinkAttributes.append(ttlDecisionTier)
+
+        let ttlEvidenceRange = NSAttributeDescription()
+        ttlEvidenceRange.name = "evidenceRange"
+        ttlEvidenceRange.attributeType = .stringAttributeType
+        ttlEvidenceRange.isOptional = true
+        thoughtTopicLinkAttributes.append(ttlEvidenceRange)
+
+        let ttlConsentGeneration = NSAttributeDescription()
+        ttlConsentGeneration.name = "consentGeneration"
+        ttlConsentGeneration.attributeType = .integer64AttributeType
+        ttlConsentGeneration.isOptional = false
+        ttlConsentGeneration.defaultValue = 0
+        thoughtTopicLinkAttributes.append(ttlConsentGeneration)
+
+        let ttlCreatedAt = NSAttributeDescription()
+        ttlCreatedAt.name = "createdAt"
+        ttlCreatedAt.attributeType = .dateAttributeType
+        ttlCreatedAt.isOptional = false
+        ttlCreatedAt.defaultValue = Date()
+        thoughtTopicLinkAttributes.append(ttlCreatedAt)
+
+        let ttlUpdatedAt = NSAttributeDescription()
+        ttlUpdatedAt.name = "updatedAt"
+        ttlUpdatedAt.attributeType = .dateAttributeType
+        ttlUpdatedAt.isOptional = false
+        ttlUpdatedAt.defaultValue = Date()
+        thoughtTopicLinkAttributes.append(ttlUpdatedAt)
+
+        let ttlRejectedAt = NSAttributeDescription()
+        ttlRejectedAt.name = "rejectedAt"
+        ttlRejectedAt.attributeType = .dateAttributeType
+        ttlRejectedAt.isOptional = true
+        thoughtTopicLinkAttributes.append(ttlRejectedAt)
+
+        // MARK: 语义图谱 V3：ThoughtTopicLink 关系（方案 §7.1）
+        // 删除规则：想法/主题永久删除时关系行随之删除（cascade）；
+        // link 侧 nullify，避免单向删除反向传播。
+        let thoughtTopicLinksRelation = NSRelationshipDescription()
+        thoughtTopicLinksRelation.name = "topicLinks"
+        thoughtTopicLinksRelation.destinationEntity = thoughtTopicLinkEntity
+        thoughtTopicLinksRelation.minCount = 0
+        thoughtTopicLinksRelation.maxCount = 0
+        thoughtTopicLinksRelation.deleteRule = .cascadeDeleteRule
+        thoughtTopicLinksRelation.isOptional = true
+
+        let linkThoughtRelation = NSRelationshipDescription()
+        linkThoughtRelation.name = "thought"
+        linkThoughtRelation.destinationEntity = thoughtEntity
+        linkThoughtRelation.minCount = 0
+        linkThoughtRelation.maxCount = 1
+        linkThoughtRelation.deleteRule = .nullifyDeleteRule
+        linkThoughtRelation.isOptional = true
+
+        thoughtTopicLinksRelation.inverseRelationship = linkThoughtRelation
+        linkThoughtRelation.inverseRelationship = thoughtTopicLinksRelation
+
+        let topicTopicLinksRelation = NSRelationshipDescription()
+        topicTopicLinksRelation.name = "topicLinks"
+        topicTopicLinksRelation.destinationEntity = thoughtTopicLinkEntity
+        topicTopicLinksRelation.minCount = 0
+        topicTopicLinksRelation.maxCount = 0
+        topicTopicLinksRelation.deleteRule = .cascadeDeleteRule
+        topicTopicLinksRelation.isOptional = true
+
+        let linkTopicRelation = NSRelationshipDescription()
+        linkTopicRelation.name = "topic"
+        linkTopicRelation.destinationEntity = topicEntity
+        linkTopicRelation.minCount = 0
+        linkTopicRelation.maxCount = 1
+        linkTopicRelation.deleteRule = .nullifyDeleteRule
+        linkTopicRelation.isOptional = true
+
+        topicTopicLinksRelation.inverseRelationship = linkTopicRelation
+        linkTopicRelation.inverseRelationship = topicTopicLinksRelation
+
         // MARK: - ThoughtAttachment Entity
         // 想法模块 - 图片附件实体
         let thoughtAttachmentEntity = NSEntityDescription()
@@ -729,7 +905,8 @@ extension CoreDataStack {
             thoughtReferencedByRelation,
             thoughtAssignmentsRelation,
             thoughtTopicsRelation,
-            thoughtAttachmentsRelation
+            thoughtAttachmentsRelation,
+            thoughtTopicLinksRelation
         ]
         CoreDataStack.applyIndexes(to: thoughtEntity, on: ["id": thoughtId, "deletedAt": thoughtSoftDelete.deletedAt, "deletedBatchId": thoughtSoftDelete.deletedBatchId])
         thoughtTagEntity.properties = thoughtTagAttributes + [
@@ -752,9 +929,15 @@ extension CoreDataStack {
             topicThoughtsRelation,
             topicAssociatedTagsRelation,
             topicMergedToRelation,
-            topicMergedFromRelation
+            topicMergedFromRelation,
+            topicTopicLinksRelation
         ]
         CoreDataStack.applyIndexes(to: topicEntity, on: ["id": topicId, "deletedAt": topicSoftDelete.deletedAt, "deletedBatchId": topicSoftDelete.deletedBatchId])
+        thoughtTopicLinkEntity.properties = thoughtTopicLinkAttributes + [
+            linkThoughtRelation,
+            linkTopicRelation
+        ]
+        CoreDataStack.applyIndexes(to: thoughtTopicLinkEntity, on: ["id": ttlId, "state": ttlState, "source": ttlSource])
         thoughtAttachmentEntity.properties = thoughtAttachmentAttributes + [
             attachmentThoughtRelation
         ]
@@ -819,7 +1002,7 @@ extension CoreDataStack {
         convergenceRejectionEntity.properties = convergenceRejectionAttributes
         CoreDataStack.applyIndexes(to: convergenceRejectionEntity, on: ["id": crId, "suggestionKey": crKey])
 
-        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity, thoughtAttachmentEntity, convergenceRejectionEntity]
+        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity, thoughtAttachmentEntity, convergenceRejectionEntity, thoughtTopicLinkEntity]
     }
 
 }

@@ -66,6 +66,9 @@ struct HoloApp: App {
         // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
         CategoryLearnedMapping.migrateOldFormatKeys()
 
+        // V3 Phase 1：存量想法-主题关系一次性回填 ThoughtTopicLink（幂等，后台执行）
+        ThoughtTopicLinkBackfillBootstrap.performIfNeeded()
+
         // 分类学习装配：缓存 hydrate + UserDefaults 存量迁移至 CloudKit 同步实体（幂等）
         Task { await CategoryLearningStore.shared.bootstrap() }
 

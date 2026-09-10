@@ -28,12 +28,25 @@ class Topic: NSManagedObject {
     @NSManaged var createdAt: Date
     @NSManaged var updatedAt: Date
 
+    // MARK: 语义图谱 V3（方案 §7.2）
+
+    /// user/ai/legacy；用户命名后 AI 不可自动覆盖
+    @NSManaged var titleSource: String
+    /// 候选簇指纹（多设备识别重复候选；不作自动合并依据）
+    @NSManaged var originClusterFingerprint: String?
+    @NSManaged var summaryVersion: Int16
+    @NSManaged var summaryBasisRevision: String?
+    @NSManaged var summaryUpdatedAt: Date?
+    /// 标题、成员或用户决定变化时递增
+    @NSManaged var topicRevision: Int64
+
     // MARK: - Relationships
 
     @NSManaged var thoughts: NSSet?
     @NSManaged var associatedTags: NSSet?
     @NSManaged var mergedToTopic: Topic?
     @NSManaged var mergedFromTopics: NSSet?
+    @NSManaged var topicLinks: NSSet?
 }
 
 // MARK: - Core Data Generated Accessors

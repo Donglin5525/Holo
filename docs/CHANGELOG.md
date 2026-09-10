@@ -13,6 +13,10 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 想法-主题显式关系落地（语义图谱 V3 Phase 1）——ThoughtTopicLink 实体+投影层+双写迁移
+  - 新实体 ThoughtTopicLink（Private CloudKit）：来源（user/manual、ai/v3、legacy/*）/状态（active、rejected 墓碑、superseded）/可见性/正文版本 hash/决策分层/授权代数全字段；id 按 (thoughtID,topicID) 确定性生成防多设备重复 pair；Topic 补 titleSource/topicRevision 等 V3 字段
+  - 投影层：同 pair 裁决优先级（用户决定 > 拒绝墓碑 > AI > legacy）；存量裸关系保守回填（宁 legacy 不伪造用户决定）；shadow 对账器（旧关系 vs 新投影，差异=0 门禁）；启动一次性幂等迁移
+  - 双写钩子 ×6（assign/remove/AI 分类/合并/启用分类），旧 UI 读路径零改动；standalone 测试 8 场景全绿 + 想法模块回归 73/73 绿；CloudKit Development schema 待真机验证
 - **iOS**: 想法本地语义图谱 V3 开工——Phase 0 基线与技术验证完成（主方案 docs/thoughts/plans/2026-09-10-Holo想法本地语义图谱V3-完整实施方案-GLM.md；产品方向=只保留 Thought+Topic 双核心，AI 产出的标签/向量/关系全部转为内部索引不再冒充用户标签）
   - 基线盘点：HEAD 现状与方案核对基本一致 + 6 处偏差修正（PromptManager 仅 DEBUG 编译、embeddings 生产默认 mock 需 env 开真模型、限流真实数字 500/日 vs 120/日 等，详见实施日志）；测试基线全绿（后端 organize 28 + embeddings 6、iOS 想法模块子集 73）
   - USearch 2.26.2 本地向量索引选型 spike：iOS 模拟器 15/15 门禁全过（50k/100k warm 检索 p95 1.9ms vs 门禁 150-300ms、冷载首查 1.7ms vs 800ms、recall@20 0.988、持久化/删除/损坏恢复/actor 并发全验证）+ 真机 arm64 Release 无签名编译通过；已知风险=xcodebuild 对 NumKong header-only target 的 CNumKong.o 链接 bug（主工程集成前必须解决，ADR §4.3 三条缓解路径）；真机实测待补

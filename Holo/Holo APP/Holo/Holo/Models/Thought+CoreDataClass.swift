@@ -51,7 +51,8 @@ class Thought: NSManagedObject {
     @NSManaged var references: NSSet?
     @NSManaged var referencedBy: NSSet?
     @NSManaged var tagAssignments: NSSet?          // ThoughtTagAssignment 中间实体
-    @NSManaged var topics: NSSet?                   // Topic 多对多
+    @NSManaged var topics: NSSet?                   // Topic 多对多（迁移期保留双写，V3 长期事实源是 topicLinks）
+    @NSManaged var topicLinks: NSSet?               // ThoughtTopicLink 显式关系（语义图谱 V3）
     @NSManaged var attachments: NSSet?              // ThoughtAttachment 附件
     @NSManaged var createdTasks: NSSet?             // 由本想法转换而来的任务（to-many）
 }

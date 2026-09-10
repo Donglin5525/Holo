@@ -173,6 +173,7 @@ final class TopicRepository {
                 where other.id != topic.id && other.isClassificationTopic {
                     other.removeThoughts(thought)
                     other.updatedAt = Date()
+                    ThoughtTopicLinkProjection.recordManualRemove(thought: thought, topic: other)
                 }
             }
         }
@@ -281,6 +282,7 @@ final class TopicRepository {
         if let dupTags = duplicate.associatedTags as? Set<ThoughtTag> {
             keeper.addAssociatedTags(dupTags)
         }
+        ThoughtTopicLinkProjection.recordMerge(into: keeper, from: duplicate)
         // 同步去重时不能因为抓取顺序丢掉用户已启用的 classification 状态。
         if keeper.isClassificationTopic || duplicate.isClassificationTopic {
             keeper.status = Topic.TopicStatus.classification.rawValue
@@ -397,10 +399,12 @@ final class TopicRepository {
             where existing.isClassificationTopic && existing.id != topic.id {
                 existing.removeThoughts(thought)
                 existing.updatedAt = Date()
+                ThoughtTopicLinkProjection.recordManualRemove(thought: thought, topic: existing)
             }
         }
         topic.addThoughts(thought)
         topic.updatedAt = Date()
+        ThoughtTopicLinkProjection.recordManualAdd(thought: thought, topic: topic)
         if topic.isClassificationTopic {
             thought.topicConfidence = 1.0
             thought.topicAssignmentReason = nil
@@ -414,6 +418,7 @@ final class TopicRepository {
         guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
         topic.removeThoughts(thought)
         topic.updatedAt = Date()
+        ThoughtTopicLinkProjection.recordManualRemove(thought: thought, topic: topic)
         thought.topicConfidence = 0
         thought.topicAssignmentReason = nil
         try context.save()
@@ -447,6 +452,7 @@ final class TopicRepository {
         for oldTopic in (thought.topics as? Set<Topic>) ?? [] where oldTopic.isClassificationTopic {
             oldTopic.removeThoughts(thought)
             oldTopic.updatedAt = Date()
+            ThoughtTopicLinkProjection.recordSuperseded(thought: thought, topic: oldTopic)
         }
 
         guard let topicTitle,
@@ -462,6 +468,7 @@ final class TopicRepository {
         topic.addThoughts(thought)
         thought.topicConfidence = min(max(confidence, 0), 1)
         thought.topicAssignmentReason = reason
+        ThoughtTopicLinkProjection.recordLegacyAIAssignment(thought: thought, topic: topic)
         for path in tagPaths where ThoughtThemeConstraint.isTag(path, underTopic: topic.title) {
             topic.addAssociatedTags(try getOrCreateTag(name: path))
         }
