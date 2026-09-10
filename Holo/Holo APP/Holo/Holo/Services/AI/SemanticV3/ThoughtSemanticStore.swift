@@ -55,6 +55,16 @@ actor ThoughtSemanticStore {
         var lastErrorCode: String?
     }
 
+    /// 主题摘要行（AI 派生，只存本机；basisRevision=生成时的 topicRevision）
+    struct TopicSummaryRecord: Codable, Equatable {
+        var topicID: UUID
+        var modelVersion: String
+        var basisRevision: Int64
+        var summary: String
+        var viewpointsJSON: String   // [{ref: thoughtUUIDString, quote, range:[a,b]}]
+        var updatedAt: Date
+    }
+
     struct Manifest: Codable, Equatable {
         var schemaVersion: Int
         var activeModelVersion: String
@@ -212,6 +222,45 @@ actor ThoughtSemanticStore {
     func tombstoneItem(thoughtID: UUID) throws {
         try bindExec("UPDATE semantic_item SET state='tombstoned', updated_at=?2 WHERE thought_id=?1",
                      .uuid(thoughtID), .date(Date()))
+    }
+
+    // MARK: - topic_summary（主题摘要，方案 §4.5；AI 派生只存本机）
+
+    /// 保存/覆盖主题摘要。viewpointsJSON 是已编码的观点数组（ref=想法 UUID 字符串）。
+    func saveTopicSummary(topicID: UUID,
+                          modelVersion: String,
+                          basisRevision: Int64,
+                          summary: String,
+                          viewpointsJSON: String) throws {
+        try bindExec("""
+            INSERT INTO topic_summary(topic_id, model_version, basis_revision, summary, viewpoints_json, updated_at)
+            VALUES(?1,?2,?3,?4,?5,?6)
+            ON CONFLICT(topic_id) DO UPDATE SET model_version=?2, basis_revision=?3,
+                summary=?4, viewpoints_json=?5, updated_at=?6
+            """,
+            .uuid(topicID), .text(modelVersion), .int64(basisRevision), .text(summary),
+            .text(viewpointsJSON), .date(Date()))
+    }
+
+    func loadTopicSummary(topicID: UUID) throws -> TopicSummaryRecord? {
+        let stmt = try prepare("""
+            SELECT model_version, basis_revision, summary, viewpoints_json, updated_at
+            FROM topic_summary WHERE topic_id=?1
+            """, .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return TopicSummaryRecord(
+            topicID: topicID,
+            modelVersion: String(cString: sqlite3_column_text(stmt, 0)),
+            basisRevision: sqlite3_column_int64(stmt, 1),
+            summary: String(cString: sqlite3_column_text(stmt, 2)),
+            viewpointsJSON: String(cString: sqlite3_column_text(stmt, 3)),
+            updatedAt: dateCol(stmt, 4) ?? Date())
+    }
+
+    /// 成员变化使摘要失效（basisRevision 落后）时由调用方判断；此处仅提供按删除清理。
+    func deleteTopicSummary(topicID: UUID) throws {
+        try bindExec("DELETE FROM topic_summary WHERE topic_id=?1", .uuid(topicID))
     }
 
     func item(thoughtID: UUID) throws -> SemanticItem? {
@@ -431,6 +480,16 @@ actor ThoughtSemanticStore {
                 first_seen_at REAL NOT NULL,
                 last_seen_at REAL NOT NULL,
                 dismissed_until REAL)
+            """)
+        // Phase 5：主题摘要（AI 派生，不进 CloudKit；随销毁入口整体清除）
+        try exec("""
+            CREATE TABLE IF NOT EXISTS topic_summary(
+                topic_id BLOB PRIMARY KEY,
+                model_version TEXT NOT NULL,
+                basis_revision INTEGER NOT NULL DEFAULT 0,
+                summary TEXT NOT NULL,
+                viewpoints_json TEXT NOT NULL DEFAULT '[]',
+                updated_at REAL NOT NULL)
             """)
         let m = try manifest()
         guard m.schemaVersion <= Self.schemaVersion else {

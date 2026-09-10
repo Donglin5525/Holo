@@ -37,6 +37,12 @@ struct TopicDetailView: View {
     @State private var showTagDeleteConfirm = false
     @State private var actionNotice: String? = nil
 
+    /// V3 主题摘要（§4.5）：AI 派生只存本机语义库；失败静默隐藏，不影响列表
+    @State private var summaryContent: ThoughtTopicSummaryContent? = nil
+    @State private var summaryBasisRevision: Int64 = 0
+    @State private var summaryRefreshing = false
+    @State private var summaryFailedOnce = false
+
     /// 主题色（按主题在知识树中的稳定标识取色板色）
     private var themeColor: Color {
         Color.topicPalette(for: topic?.title ?? "")
@@ -78,6 +84,10 @@ struct TopicDetailView: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if let topic {
                         heroSection(topic)
+                        // V3 新 UI：AI 摘要卡（生成失败/离线静默隐藏，§4.5）
+                        if ThoughtSemanticFeatureFlags.uiEnabled {
+                            topicSummarySection(topic)
+                        }
                         // V3 新 UI：关键词是 AI 标签派生，退为内部索引（摘要/观点区随 Phase 5 摘要端点接入）
                         if !ThoughtSemanticFeatureFlags.uiEnabled {
                             keywordRow
@@ -181,6 +191,138 @@ struct TopicDetailView: View {
         guard topic != nil else { return }
         thoughts = (try? topicRepository.fetchThoughts(byTopic: topicId)) ?? []
         tagBuckets = (try? thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)) ?? []
+        if ThoughtSemanticFeatureFlags.uiEnabled, let topic {
+            await loadSummaryIfEligible(for: topic)
+        }
+    }
+
+    // MARK: - V3 主题摘要（§4.5；AI 派生只存本机语义库）
+
+    /// 缓存优先：有缓存先展示（成员变化=过期也先显示旧值+可重建，不自动烧配额）；
+    /// 完全无缓存才自动生成一次；失败过则本会话静默（下次进页再试）。
+    @MainActor
+    private func loadSummaryIfEligible(for topic: Topic) async {
+        guard thoughts.count >= 2, let store = await ThoughtSemanticPipeline.shared.store else { return }
+        summaryFailedOnce = false
+        if let cached = try? await store.loadTopicSummary(topicID: topicId) {
+            summaryContent = Self.decodeSummary(cached)
+            summaryBasisRevision = cached.basisRevision
+            return
+        }
+        guard summaryContent == nil else { return }
+        await refreshSummary(topic)
+    }
+
+    @MainActor
+    private func refreshSummary(_ topic: Topic) async {
+        guard !summaryRefreshing, let store = await ThoughtSemanticPipeline.shared.store else { return }
+        summaryRefreshing = true
+        defer { summaryRefreshing = false }
+        do {
+            let content = try await ThoughtTopicSummaryClient.refreshSummary(
+                topicID: topicId,
+                title: topic.title ?? "",
+                thoughts: thoughts,
+                basisRevision: topic.topicRevision,
+                provider: HoloBackendAIProvider(),
+                store: store)
+            withAnimation {
+                summaryContent = content
+                summaryBasisRevision = topic.topicRevision
+            }
+        } catch {
+            // 离线/503 隐私闸门/契约失败同口径：静默隐藏摘要区（§4.5 只隐藏不影响其他）
+            summaryFailedOnce = true
+        }
+    }
+
+    private static func decodeSummary(_ record: ThoughtSemanticStore.TopicSummaryRecord) -> ThoughtTopicSummaryContent? {
+        guard let data = record.viewpointsJSON.data(using: .utf8),
+              let viewpoints = try? JSONDecoder().decode([ThoughtTopicSummaryContent.Viewpoint].self, from: data)
+        else { return nil }
+        return .init(summary: record.summary, viewpoints: viewpoints)
+    }
+
+    /// 摘要卡：摘要 + 可重建 + 反复提到的观点（点跳来源想法）
+    @ViewBuilder
+    private func topicSummarySection(_ topic: Topic) -> some View {
+        if let content = summaryContent {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                HStack(spacing: 6) {
+                    Text("这段时间的变化")
+                        .font(.holoLabel)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Button {
+                        Task { await refreshSummary(topic) }
+                    } label: {
+                        HStack(spacing: 3) {
+                            if summaryRefreshing {
+                                ProgressView().scaleEffect(0.55)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 9.5, weight: .semibold))
+                            }
+                            Text("AI 摘要 · 可重建")
+                                .font(.system(size: 10.5, weight: .medium))
+                        }
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.holoTextSecondary.opacity(0.08))
+                        .cornerRadius(HoloRadius.sm)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(summaryRefreshing)
+                    .accessibilityLabel(String(localized: "重建 AI 摘要"))
+                }
+
+                Text(content.summary)
+                    .font(.system(size: 14.5))
+                    .foregroundColor(.holoTextPrimary.opacity(0.85))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !content.viewpoints.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("你反复提到的")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .padding(.bottom, 4)
+                        ForEach(content.viewpoints, id: \.thoughtID) { viewpoint in
+                            Button {
+                                selectedThoughtId = viewpoint.thoughtID
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(Color.holoPrimary)
+                                        .frame(width: 5, height: 5)
+                                    Text(viewpoint.quote)
+                                        .font(.system(size: 13.5))
+                                        .foregroundColor(.holoTextPrimary)
+                                        .lineLimit(2)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                                }
+                                .padding(.vertical, 7)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(String(localized: "查看来源想法"))
+                        }
+                    }
+                }
+            }
+            .padding(HoloSpacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .fill(Color.holoCardBackground)
+            )
+        }
     }
 
     // MARK: - Hero
