@@ -105,6 +105,12 @@ struct ThoughtDetailView: View {
                             contentSection
                         }
 
+                        // V3 新 UI：用户标签行——行内标签正文全量高亮可见，
+                        // 此处补「不在正文」的手动标签，保证自己的标签永远找得到
+                        if thought != nil, ThoughtSemanticFeatureFlags.uiEnabled {
+                            userTagsSection
+                        }
+
                         // AI 归纳（三区合一：主题 + 标签 + 理由放一个区块——
                         // 它们本来就是同一次 AI 调用的产出，不再让用户自己拼图）
                         // V3 新 UI：AI 归纳链路退出主路径（主题徽章纠错走列表卡片）
@@ -270,6 +276,47 @@ struct ThoughtDetailView: View {
         // 全屏详情形态（showsDismissButton=true）补边缘右滑返回；编辑器导航栈形态保留系统返回。
         // 条件挂载：holoEdgeSwipeBack 无让位逻辑，与系统手势并存会双重 pop。
         .holoEdgeSwipeBack(isEnabled: showsDismissButton) { dismiss() }
+    }
+
+    // MARK: - V3 用户标签行
+
+    /// 只展示「不在正文行内」的认可标签（行内的正文已全量高亮，不重复）；
+    /// 点击与正文 token 同通道跳列表筛选。手动标签在此永远找得到。
+    @ViewBuilder
+    private var userTagsSection: some View {
+        let inlineKeys = Set(InlineTagDetector.extractTags(from: thought?.content ?? "")
+            .map { ThoughtTagNormalizer.key($0) })
+        let extraTags = (thought?.recognizedTagNames ?? []).filter {
+            !inlineKeys.contains(ThoughtTagNormalizer.key($0))
+        }
+        if !extraTags.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(extraTags, id: \.self) { tagName in
+                        if let tag = thought?.tagArray.first(where: {
+                            ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(tagName)
+                        }) {
+                            Button {
+                                NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: tag.name)
+                                dismiss()
+                            } label: {
+                                Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(tag.tagColor)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 5)
+                                    .background(tag.tagColor.opacity(0.12))
+                                    .cornerRadius(HoloRadius.sm)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(String(localized: "按标签 \(tag.name) 筛选"))
+                        }
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+        }
     }
 
     // MARK: - 数据加载
