@@ -55,7 +55,16 @@ class TodoRepository: ObservableObject {
         let request = TodoList.fetchRequest()
         request.predicate = NSPredicate(format: "folder == nil AND archived == NO AND deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
+    /// 全部活跃清单（收件箱 + 各文件夹下），同 id 副本只留一行。
+    /// 筛选菜单、清单选择器等列表场景统一走这里：各视图自行 unfiledLists +
+    /// flatMap listsArray 拼接会把同 id 副本行拼出重复项（2026-09-10 任务筛选菜单实锤）。
+    func allActiveLists() -> [TodoList] {
+        var lists = unfiledLists
+        lists.append(contentsOf: folders.flatMap { $0.listsArray })
+        return DuplicateRowFilter.deduplicatingCopies(lists)
     }
 
     // MARK: - Properties
@@ -123,7 +132,7 @@ class TodoRepository: ObservableObject {
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
 
         do {
-            folders = try context.fetch(request)
+            folders = DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
             logger.error("加载文件夹失败：\(error)")
             folders = []
@@ -132,7 +141,7 @@ class TodoRepository: ObservableObject {
 
     /// 加载活跃任务列表
     func loadActiveTasks() {
-        activeTasks = TodoCompletionCore.fetchActiveTasks(in: context)
+        activeTasks = DuplicateRowFilter.deduplicatingCopies(TodoCompletionCore.fetchActiveTasks(in: context))
     }
 
     /// 加载回收站中的任务
@@ -142,7 +151,7 @@ class TodoRepository: ObservableObject {
         request.sortDescriptors = [NSSortDescriptor(key: "deletedAt", ascending: false)]
 
         do {
-            trashedTasks = try context.fetch(request)
+            trashedTasks = DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
             logger.error("加载回收站失败：\(error)")
             trashedTasks = []
@@ -625,7 +634,7 @@ class TodoRepository: ObservableObject {
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
 
         do {
-            return try context.fetch(request)
+            return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
             Logger(subsystem: "com.holo.app", category: "TodoRepository").error("加载已归档任务失败：\(error)")
             return []
@@ -639,9 +648,9 @@ class TodoRepository: ObservableObject {
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
 
         do {
-            return try context.fetch(request)
+            return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
-            logger.error("加载已归档清单失败：\(error)")
+            logger.error("加载归档清单失败：\(error)")
             return []
         }
     }
@@ -813,17 +822,17 @@ class TodoRepository: ObservableObject {
             NSSortDescriptor(key: "completed", ascending: true),
             NSSortDescriptor(key: "priority", ascending: false)
         ]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 获取今天的任务
     func getTodayTasks() -> [TodoTask] {
-        TodoCompletionCore.getTodayTasks(in: context)
+        DuplicateRowFilter.deduplicatingCopies(TodoCompletionCore.getTodayTasks(in: context))
     }
 
     /// 获取已过期的任务
     func getOverdueTasks() -> [TodoTask] {
-        TodoCompletionCore.getOverdueTasks(in: context)
+        DuplicateRowFilter.deduplicatingCopies(TodoCompletionCore.getOverdueTasks(in: context))
     }
 
     /// 获取指定优先级的任务
@@ -833,7 +842,7 @@ class TodoRepository: ObservableObject {
             format: "deletedAt == nil AND archived == NO AND priority == %@",
             NSNumber(value: priority.rawValue)
         )
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 搜索任务（按标题、描述、清单名）
@@ -848,7 +857,7 @@ class TodoRepository: ObservableObject {
             NSSortDescriptor(key: "priority", ascending: false),
             NSSortDescriptor(key: "updatedAt", ascending: false)
         ]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 获取回收站中的任务
@@ -856,7 +865,7 @@ class TodoRepository: ObservableObject {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(format: "deletedFlag == YES")
         request.sortDescriptors = [NSSortDescriptor(key: "deletedAt", ascending: false)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 清空回收站（永久删除所有已删除任务）

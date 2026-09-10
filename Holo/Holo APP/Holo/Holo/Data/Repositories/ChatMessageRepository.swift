@@ -56,6 +56,18 @@ final class ChatMessageRepository: ObservableObject {
 
     // MARK: - Load
 
+    /// 同 id 消息字典行去重（CloudKit 副本行），保留首个。
+    /// 字典结果类型拿不到 objectID/物理行号；fetch 均按时间倒序，首个即最新的一行。
+    private static func uniqueById(_ rows: [[String: Any]]) -> [[String: Any]] {
+        var seen = Set<UUID>()
+        return rows.filter { row in
+            guard let id = row["id"] as? UUID else { return true }
+            if seen.contains(id) { return false }
+            seen.insert(id)
+            return true
+        }
+    }
+
     /// 加载消息（按时间排序，限制最近 200 条）
     func loadMessages() {
         let request = ChatMessage.fetchRequest()
@@ -64,7 +76,7 @@ final class ChatMessageRepository: ObservableObject {
         request.fetchLimit = 200
 
         do {
-            let fetched = try context.fetch(request)
+            let fetched = DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
             // CloudKit 同步理论上可产生同 id 双行；重复时保留后者（时间戳排序中更靠前=更新的）
             liveMessageCache = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { _, rhs in rhs })
             messages = fetched.reversed().map(ChatMessageViewData.init)
@@ -107,9 +119,12 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
-                    return try context.fetch(request)
-                        .reversed()
-                        .compactMap { ChatMessageViewData(dictionary: $0 as? [String: Any] ?? [:]) }
+                    return Self.uniqueById(
+                        try context.fetch(request)
+                            .reversed()
+                            .compactMap { $0 as? [String: Any] }
+                    )
+                    .compactMap { ChatMessageViewData(dictionary: $0) }
                 }
             }.value
         } catch {
@@ -154,9 +169,12 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
-                    return try context.fetch(request)
-                        .reversed()
-                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
+                    return Self.uniqueById(
+                        try context.fetch(request)
+                            .reversed()
+                            .compactMap { $0 as? [String: Any] }
+                    )
+                    .compactMap { ChatMessageViewData(lightweightDictionary: $0) }
                 }
             }.value
         } catch {
@@ -191,19 +209,20 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit + 1
 
-                    let rows = try context.fetch(request)
+                    let rows = Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
                     var sessionRows: [[String: Any]] = []
                     var prevTimestamp: Date?
                     var hitGap = false
 
                     for row in rows {
-                        guard let dict = row as? [String: Any],
-                              let ts = dict["timestamp"] as? Date else { continue }
+                        guard let ts = row["timestamp"] as? Date else { continue }
                         if let prev = prevTimestamp, prev.timeIntervalSince(ts) > self.sessionGap {
                             hitGap = true
                             break
                         }
-                        sessionRows.append(dict)
+                        sessionRows.append(row)
                         prevTimestamp = ts
                     }
                     // 取满 limit+1 条且未被 gap 截断，说明还有更早消息；否则 hasEarlier 以是否触及 gap 为准
@@ -262,7 +281,8 @@ final class ChatMessageRepository: ObservableObject {
                     request.fetchLimit = fetchBatch
 
                     let rows = try context.fetch(request)
-                    return rows.compactMap { $0["id"] as? UUID }
+                    var seenIds = Set<UUID>()
+                    return rows.compactMap { $0["id"] as? UUID }.filter { seenIds.insert($0).inserted }
                 }
             }.value
 
@@ -288,8 +308,10 @@ final class ChatMessageRepository: ObservableObject {
                     ])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
 
-                    return try context.fetch(request)
-                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
+                    return Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
+                    .compactMap { ChatMessageViewData(lightweightDictionary: $0) }
                 }
             }.value
 
@@ -352,7 +374,7 @@ final class ChatMessageRepository: ObservableObject {
                 return try await context.perform {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                     request.resultType = .dictionaryResultType
-                    request.propertiesToFetch = ["role", "content", "isStreaming"]
+                    request.propertiesToFetch = ["id", "role", "content", "isStreaming"]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
                         NSPredicate(format: "role IN %@ AND isStreaming == NO", ["user", "assistant"]),
                         NSPredicate(format: "deletedAt == nil")
@@ -360,7 +382,9 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
-                    let dicts = try context.fetch(request)
+                    let dicts = Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
                     return dicts.reversed().compactMap { dict -> ChatMessageDTO? in
                         guard let role = dict["role"] as? String,
                               let content = dict["content"] as? String,
@@ -473,7 +497,7 @@ final class ChatMessageRepository: ObservableObject {
         )
         request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
 
-        let messages = (try? context.fetch(request)) ?? []
+        let messages = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
         return messages.compactMap { message in
             guard let job = HoloPeriodReplayJob(json: message.extractedDataJSON),
                   job.state.isRecoverable else {
@@ -535,7 +559,7 @@ final class ChatMessageRepository: ObservableObject {
             format: "isStreaming == YES AND intent == %@ AND analysisContextJSON == nil",
             AIIntent.queryAnalysis.rawValue
         )
-        let matches = (try? context.fetch(request)) ?? []
+        let matches = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
         return matches.map { ($0.id, $0.timestamp) }
     }
 
@@ -1466,7 +1490,9 @@ final class ChatMessageRepository: ObservableObject {
                     request.fetchLimit = limit
                     request.fetchOffset = offset
 
-                    let dicts = try context.fetch(request)
+                    let dicts = Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
                     return dicts.compactMap { dict -> ReportArchiveDTO? in
                         Self.makeArchiveDTO(
                             id: dict["id"] as? UUID,
@@ -1542,7 +1568,9 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "favoritedAt", ascending: false)]
                     request.fetchLimit = 200
 
-                    let dicts = try context.fetch(request)
+                    let dicts = Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
                     return dicts.compactMap { dict -> ReportArchiveDTO? in
                         Self.makeArchiveDTO(
                             id: dict["id"] as? UUID,
@@ -1587,7 +1615,9 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = 50
 
-                    let dicts = try context.fetch(request)
+                    let dicts = Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
                     return dicts.compactMap { dict -> ReportArchiveDTO? in
                         guard let json = dict["agentResultJSON"] as? String,
                               let data = json.data(using: .utf8),
@@ -1802,7 +1832,9 @@ final class ChatMessageRepository: ObservableObject {
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = 50
 
-                    let dicts = try context.fetch(request)
+                    let dicts = Self.uniqueById(
+                        (try context.fetch(request) as NSArray).compactMap { $0 as? [String: Any] }
+                    )
                     return dicts.compactMap { dict -> ReportArchiveDTO? in
                         guard Self.archiveSearchHit(
                             messageType: dict["messageType"] as? String,

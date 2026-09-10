@@ -19,7 +19,7 @@ extension FinanceRepository {
             NSSortDescriptor(key: "type", ascending: true),
             NSSortDescriptor(key: "sortOrder", ascending: true)
         ]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
     
     func getCategories(by type: TransactionType) async throws -> [Category] {
@@ -29,7 +29,7 @@ extension FinanceRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
     
     /// 获取一级分类（parentId == nil）
@@ -40,7 +40,7 @@ extension FinanceRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
     
     /// 获取指定父分类下的二级子分类
@@ -51,7 +51,7 @@ extension FinanceRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
     
     @discardableResult
@@ -117,7 +117,7 @@ extension FinanceRepository {
             FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
         ])
         
-        let transactions = try context.fetch(request)
+        let transactions = DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         
         // 统计每个分类的使用次数（仅统计二级子分类）
         var frequencyMap: [NSManagedObjectID: Int] = [:]

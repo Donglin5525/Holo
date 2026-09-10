@@ -55,7 +55,7 @@ final class GoalRepository: ObservableObject {
             NSSortDescriptor(key: "status", ascending: true),
             NSSortDescriptor(key: "updatedAt", ascending: false)
         ]
-        goals = (try? context.fetch(request)) ?? []
+        goals = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     func activeGoalsForAI(limit: Int) -> [Goal] {
@@ -66,7 +66,7 @@ final class GoalRepository: ObservableObject {
         )
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
         request.fetchLimit = limit
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 获取指定时间段内完成的目标数量（AI 分析用）
@@ -94,7 +94,7 @@ final class GoalRepository: ObservableObject {
         let request = Goal.fetchRequest()
         request.predicate = NSPredicate(format: "status == %@ AND deletedAt == nil", GoalStatus.active.rawValue)
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     @discardableResult
@@ -357,7 +357,7 @@ extension GoalRepository {
         let request = GoalMetricLog.fetchRequest()
         request.predicate = NSPredicate(format: "goalId == %@ AND deletedAt == nil", goal.id as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 最新一条记录（达标型当前水平用）

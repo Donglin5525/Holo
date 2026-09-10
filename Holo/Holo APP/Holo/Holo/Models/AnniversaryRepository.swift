@@ -126,7 +126,7 @@ class AnniversaryRepository {
             NSSortDescriptor(key: "isPinned", ascending: false),   // 置顶在前
             NSSortDescriptor(key: "date", ascending: true)          // 按日期
         ]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 按 ID 获取单个纪念日

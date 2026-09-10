@@ -1897,10 +1897,7 @@ struct TaskDetailView: View {
 
     /// 所有清单（包括没有文件夹的）
     private var allLists: [TodoList] {
-        var lists = repository.folders.flatMap { $0.listsArray }
-        let unfiledLists = repository.unfiledLists
-        lists.insert(contentsOf: unfiledLists, at: 0)
-        return lists
+        repository.allActiveLists()
     }
 
     // MARK: - 清单查找

@@ -405,10 +405,7 @@ private struct ThoughtTaskListPickerSheet: View {
     let onSelect: (TodoList?) -> Void
 
     private var allLists: [TodoList] {
-        let repository = TodoRepository.shared
-        var lists = repository.folders.flatMap { $0.listsArray }
-        lists.insert(contentsOf: repository.unfiledLists, at: 0)
-        return lists
+        TodoRepository.shared.allActiveLists()
     }
 
     var body: some View {

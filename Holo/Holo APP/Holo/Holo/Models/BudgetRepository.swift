@@ -48,7 +48,7 @@ class BudgetRepository {
 
     /// 获取指定账户的所有预算
     func getBudgets(forAccount accountId: UUID) -> [Budget] {
-        Budget.fetchForAccount(accountId, in: context)
+        DuplicateRowFilter.deduplicatingCopies(Budget.fetchForAccount(accountId, in: context))
     }
 
     /// 获取指定账户的总预算
@@ -167,7 +167,7 @@ class BudgetRepository {
 
     /// 获取指定账户的所有分类预算
     func getCategoryBudgets(forAccount accountId: UUID) -> [Budget] {
-        Budget.fetchCategoryBudgets(forAccount: accountId, in: context)
+        DuplicateRowFilter.deduplicatingCopies(Budget.fetchCategoryBudgets(forAccount: accountId, in: context))
     }
 
     // MARK: - Budget Status Computation
@@ -249,7 +249,7 @@ class BudgetRepository {
             ])
         }
 
-        let transactions = (try? context.fetch(request)) ?? []
+        let transactions = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
         return transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
     }
 

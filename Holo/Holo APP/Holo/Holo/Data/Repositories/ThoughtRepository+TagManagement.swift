@@ -121,7 +121,7 @@ extension ThoughtRepository {
 
         // 收集整棵子树（自身 + 以 oldKey/ 为前缀的路径），按深度升序
         let request = ThoughtTag.fetchRequest()
-        let subtree = try context.fetch(request)
+        let subtree = try DuplicateRowFilter.deduplicatingCopies(context.fetch(request))
             .filter {
                 let key = ThoughtTagNormalizer.key($0.name)
                 return key == oldKey || key.hasPrefix(oldKey + "/")
@@ -155,7 +155,8 @@ extension ThoughtRepository {
     /// 按归一化 key 查标签（标签量小，内存匹配即可，与 getOrCreateTag 同模式）
     private func fetchTagByKey(_ key: String) throws -> ThoughtTag? {
         let request = ThoughtTag.fetchRequest()
-        return try context.fetch(request).first { ThoughtTagNormalizer.key($0.name) == key }
+        return try DuplicateRowFilter.deduplicatingCopies(context.fetch(request))
+            .first { ThoughtTagNormalizer.key($0.name) == key }
     }
 
     /// 合并标签：把 source 的 thoughts/assignments/Topic 关联迁移到 target，删除 source

@@ -85,10 +85,11 @@ extension TodoRepository {
                 .error("获取完成趋势失败")
             return []
         }
+        let uniqueTasks = DuplicateRowFilter.deduplicatingCopies(tasks)
 
         let calendar = Calendar.current
         var grouped: [Date: Int] = [:]
-        for task in tasks {
+        for task in uniqueTasks {
             guard let completedAt = task.completedAt else { continue }
             let day = calendar.startOfDay(for: completedAt)
             grouped[day, default: 0] += 1
@@ -110,7 +111,7 @@ extension TodoRepository {
             end as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: "completedAt", ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 通用：按指定日期字段取任务实体（半开区间，支持 completedAt/dueDate）
@@ -124,7 +125,7 @@ extension TodoRepository {
             field, start as NSDate, field, end as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: field, ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 指定时间范围内的完成统计

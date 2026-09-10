@@ -156,6 +156,35 @@ class FinanceRepository {
         } catch {
             NSLog("习惯同步副本修复未保存：%@", error.localizedDescription)
         }
+        do {
+            // 全实体通用引擎：任务/洞察/纪念日/目标/聊天等其余全部 UUID 主键域的存量副本
+            // 都在这里清（2026-09-10 任务筛选菜单重复项实锤后收口）。财务/习惯/想法三域
+            // 由上面的手写修复器先行处理，引擎对它们只兜底空转。
+            let globalResult = try GlobalDuplicateRepair.repair(in: bgContext) { objectID in
+                cloudContainer.recordID(for: objectID)?.recordName
+            }
+            if !globalResult.removedByEntity.isEmpty {
+                NSLog("全局同步副本修复：移除 %@，挂子行改挂 %d，共享目标并回 %d，冲突保留 %d，等同步身份 %d",
+                      globalResult.removedByEntity.map { "\($0.key) \($0.value)" }.joined(separator: "、"),
+                      globalResult.reattachedChildren, globalResult.reattachedShared,
+                      globalResult.conflictingGroups, globalResult.deferredGroups)
+            } else {
+                NSLog("全局同步副本修复：移除 0，冲突保留 %d，等同步身份 %d",
+                      globalResult.conflictingGroups, globalResult.deferredGroups)
+            }
+            if globalResult.removed > 0 {
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
+                    NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                    NotificationCenter.default.post(name: .anniversaryDataDidChange, object: nil)
+                    NotificationCenter.default.post(name: .goalDataDidChange, object: nil)
+                }
+            }
+        } catch {
+            NSLog("全局同步副本修复未保存：%@", error.localizedDescription)
+        }
     }
 
     // MARK: - 信用卡类型迁移
@@ -343,7 +372,7 @@ class FinanceRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
     
     func getTransactions(for month: Date) async throws -> [Transaction] {
@@ -637,7 +666,7 @@ class FinanceRepository {
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(format: "installmentGroupId == %@", groupId as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "installmentIndex", ascending: true)]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 删除整个分期组
@@ -663,7 +692,7 @@ class FinanceRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = limit
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 }
 
@@ -835,7 +864,7 @@ final class SpendingProjectRepository {
         let request = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
         request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     @discardableResult

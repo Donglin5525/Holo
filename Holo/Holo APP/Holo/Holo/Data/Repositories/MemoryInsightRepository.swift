@@ -109,7 +109,7 @@ final class MemoryInsightRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
 
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     // MARK: - Save Generating
@@ -274,12 +274,14 @@ final class MemoryInsightRepository {
 
     /// 查询未消费的反馈
     func fetchUnconsumedFeedback() -> [MemoryInsightFeedback] {
-        MemoryInsightFeedback.fetchUnconsumed(in: context)
+        DuplicateRowFilter.deduplicatingCopies(MemoryInsightFeedback.fetchUnconsumed(in: context))
     }
 
     /// 查询指定洞察的反馈
     func fetchFeedback(for insightId: UUID) -> [MemoryInsightFeedback] {
-        MemoryInsightFeedback.fetchForInsight(insightId: insightId, in: context)
+        DuplicateRowFilter.deduplicatingCopies(
+            MemoryInsightFeedback.fetchForInsight(insightId: insightId, in: context)
+        )
     }
 
     /// 标记反馈为已消费
@@ -378,7 +380,7 @@ final class MemoryInsightRepository {
 
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
         request.fetchLimit = limit
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 获取最近 N 期 ready 回放，**跨所有周期类型**，自然排除本期（periodStart < currentStart）。
@@ -399,7 +401,7 @@ final class MemoryInsightRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: false)]
         request.fetchLimit = limit
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 获取所有 ready 历史回放，**跨所有周期类型**，按 periodStart 升序。
@@ -414,6 +416,6 @@ final class MemoryInsightRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 }

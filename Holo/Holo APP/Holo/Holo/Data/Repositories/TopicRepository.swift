@@ -90,7 +90,7 @@ final class TopicRepository {
         )
         let topics = try context.fetch(request)
         let key = Self.normalizedKey(title: title)
-        return topics.first { Self.normalizedKey(title: $0.title) == key }
+        return DuplicateRowFilter.deduplicatingCopies(topics).first { Self.normalizedKey(title: $0.title) == key }
     }
 
     /// 所有可展示主题（含用户启用的 classification），按 thoughtCount 降序
@@ -101,7 +101,7 @@ final class TopicRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         let topics = try context.fetch(request)
-        return topics.sorted { thoughtCount(of: $0) > thoughtCount(of: $1) }
+        return DuplicateRowFilter.deduplicatingCopies(topics).sorted { thoughtCount(of: $0) > thoughtCount(of: $1) }
     }
 
     /// 用户明确启用、允许进入 AI 单选约束池的主题。
@@ -115,7 +115,7 @@ final class TopicRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         let topics = try context.fetch(request)
-        return topics.sorted {
+        return DuplicateRowFilter.deduplicatingCopies(topics).sorted {
             if thoughtCount(of: $0) == thoughtCount(of: $1) { return $0.title < $1.title }
             return thoughtCount(of: $0) > thoughtCount(of: $1)
         }

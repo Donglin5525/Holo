@@ -38,7 +38,7 @@ extension TodoRepository {
 
         do {
             let tasks = try context.fetch(request)
-            return tasks.filter { $0.deletedAt == nil && !$0.archived }
+            return DuplicateRowFilter.deduplicatingCopies(tasks.filter { $0.deletedAt == nil && !$0.archived })
         } catch {
             Self.kanbanLogger.error("获取今日看板任务失败: \(error.localizedDescription)")
             return []
@@ -66,7 +66,7 @@ extension TodoRepository {
         ]
 
         do {
-            return try context.fetch(request)
+            return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
             Self.kanbanLogger.error("获取今日到期任务失败: \(error.localizedDescription)")
             return []
@@ -96,7 +96,7 @@ extension TodoRepository {
         request.fetchLimit = limit
 
         do {
-            return try context.fetch(request)
+            return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
             Self.kanbanLogger.error("获取近期待办失败: \(error.localizedDescription)")
             return []
@@ -121,7 +121,7 @@ extension TodoRepository {
         request.fetchLimit = limit
 
         do {
-            return try context.fetch(request)
+            return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
         } catch {
             Self.kanbanLogger.error("获取无截止日任务失败: \(error.localizedDescription)")
             return []
@@ -160,8 +160,9 @@ extension TodoRepository {
             startOfDay as NSDate,
             tomorrow as NSDate
         )
-        let goalTasks = (try? context.fetch(taskRequest))?
-            .filter { $0.deletedAt == nil && !$0.archived } ?? []
+        let goalTasks = DuplicateRowFilter.deduplicatingCopies(
+            (try? context.fetch(taskRequest))?.filter { $0.deletedAt == nil && !$0.archived } ?? []
+        )
         let taskGoalIds = Set(goalTasks.compactMap { $0.goal?.id })
 
         // 习惯部分（复用 HabitRepository 的今日完成判定）

@@ -19,7 +19,7 @@ extension FinanceRepository {
             NSSortDescriptor(key: "isDefault", ascending: false),
             NSSortDescriptor(key: "sortOrder", ascending: true)
         ]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 获取账户列表（可选是否包含归档）
@@ -37,7 +37,7 @@ extension FinanceRepository {
             NSSortDescriptor(key: "isDefault", ascending: false),
             NSSortDescriptor(key: "sortOrder", ascending: true)
         ]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     func getDefaultAccount() async throws -> Account? {
@@ -460,7 +460,7 @@ extension FinanceRepository {
 
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 获取账户最近一笔交易的日期

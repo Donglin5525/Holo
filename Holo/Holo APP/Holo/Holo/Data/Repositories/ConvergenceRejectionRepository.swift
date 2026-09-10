@@ -100,7 +100,7 @@ final class ConvergenceRejectionRepository {
         let request = ThoughtTagConvergenceRejection.fetchRequest()
         request.predicate = NSPredicate(format: "expiresAt > %@", Date() as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "rejectedAt", ascending: false)]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 清理过期拒绝记录（可选维护）

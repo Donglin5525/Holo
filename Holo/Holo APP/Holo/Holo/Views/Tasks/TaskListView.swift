@@ -148,9 +148,7 @@ struct TaskListView: View {
 
     /// 所有清单（包括没有文件夹的）
     private var allLists: [TodoList] {
-        var lists = repository.unfiledLists
-        lists.append(contentsOf: repository.folders.flatMap { $0.listsArray })
-        return lists
+        repository.allActiveLists()
     }
 
     /// 选中的任务（用于 sheet 展示）

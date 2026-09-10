@@ -242,7 +242,7 @@ struct ArchiveManagementView: View {
     private var listsContentView: some View {
         VStack(spacing: 16) {
             // 统计信息
-            let activeListsCount = repository.folders.reduce(into: 0) { $0 += $1.listsArray.filter { !$0.archived }.count }
+            let activeListsCount = repository.allActiveLists().filter { !$0.archived }.count
             statsHeaderView(
                 activeCount: activeListsCount,
                 archivedCount: archivedLists.count,

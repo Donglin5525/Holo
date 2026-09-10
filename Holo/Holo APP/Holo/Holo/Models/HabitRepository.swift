@@ -130,18 +130,29 @@ class HabitRepository: ObservableObject {
     /// 保持 fetch 的 sortOrder 排序。磁贴墙等列表以习惯 id 为身份键，
     /// 重复 id 会让 SwiftUI 渲染错乱（磁贴丢失/错位）；修复器合并完成前读路径必须先免疫。
     static func deduplicatingCopies(_ rows: [Habit]) -> [Habit] {
-        var survivorById: [UUID: Habit] = [:]
+        deduplicatingRows(rows)
+    }
+
+    /// 上式的泛型版本，供打卡记录（HabitRecord）等同 id 重复会双计/错乱的子行使用。
+    /// 本文件编译进小组件 target，算法自带实现，不引用主 App target 的 DuplicateRowFilter。
+    static func deduplicatingRows<T: NSManagedObject>(_ rows: [T]) -> [T] {
+        guard rows.count > 1 else { return rows }
+        var survivorById: [UUID: T] = [:]
         for row in rows {
-            guard let existing = survivorById[row.id] else {
-                survivorById[row.id] = row
-                continue
-            }
-            if physicalRowNumber(row) < physicalRowNumber(existing) {
-                survivorById[row.id] = row
+            guard let id = row.value(forKey: "id") as? UUID else { continue }
+            if let existing = survivorById[id] {
+                if physicalRowNumber(row) < physicalRowNumber(existing) {
+                    survivorById[id] = row
+                }
+            } else {
+                survivorById[id] = row
             }
         }
         guard survivorById.count != rows.count else { return rows }
-        return rows.filter { survivorById[$0.id] === $0 }
+        return rows.filter { row in
+            guard let id = row.value(forKey: "id") as? UUID else { return true }
+            return survivorById[id] === row
+        }
     }
 
     /// 物理行号取自 objectID（即 SQLite Z_PK，落库后跨启动稳定）
@@ -628,13 +639,13 @@ class HabitRepository: ObservableObject {
         )
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
 
-        return (try? context.fetch(request)) ?? []
+        return Self.deduplicatingRows((try? context.fetch(request)) ?? [])
     }
-    
+
     /// 获取指定日期范围的记录
     func getRecords(for habit: Habit, in range: ClosedRange<Date>?) -> [HabitRecord] {
         let request = HabitRecord.fetchRequest()
-        
+
         if let range = range {
             request.predicate = NSPredicate(
                 format: "habitId == %@ AND date >= %@ AND date <= %@ AND deletedAt == nil",
@@ -645,10 +656,10 @@ class HabitRepository: ObservableObject {
         } else {
             request.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habit.id as CVarArg)
         }
-        
+
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        
-        return (try? context.fetch(request)) ?? []
+
+        return Self.deduplicatingRows((try? context.fetch(request)) ?? [])
     }
     
     /// 获取所有记录（按时间倒序）
@@ -758,14 +769,14 @@ class HabitRepository: ObservableObject {
             end as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return Self.deduplicatingRows((try? context.fetch(request)) ?? [])
     }
 
     /// 获取所有未归档习惯（用于日历聚合建 habitMap 反查 record.habitId → Habit）
     func getActiveHabits() -> [Habit] {
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
-        return (try? context.fetch(request)) ?? []
+        return Self.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
     
     // MARK: - Statistics

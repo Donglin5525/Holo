@@ -58,7 +58,7 @@ extension FinanceRepository {
         // 调用方逐笔读分类与账户；不预取会触发每笔一次的关系惰性加载（N+1 查询），
         // 百余笔交易的区间查询会在主线程额外多出几百次小查询。
         request.relationshipKeyPathsForPrefetching = ["category", "account"]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 获取指定时间范围内的统计交易——收支统计口径，排除对账调整流水
@@ -73,7 +73,7 @@ extension FinanceRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
         request.relationshipKeyPathsForPrefetching = ["category", "account"]
-        return try context.fetch(request)
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 获取某月的统计交易（getStatisticsTransactions(from:to:) 的自然月便捷版）

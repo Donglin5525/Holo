@@ -227,7 +227,7 @@ final class LifePlanRepository: ObservableObject {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: false)]
-        return ((try? context.fetch(request)) ?? []).map(buildSnapshot)
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? []).map(buildSnapshot)
     }
 
     /// 长廊统计：总计划数 / 平均每计划接受行动卡数
@@ -483,27 +483,27 @@ final class LifePlanRepository: ObservableObject {
             format: "periodStart == %@ AND status == %@",
             periodStart as NSDate, status
         )
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     private func fetchPriorityMOs(planID: UUID) -> [PlanPriorityMO] {
         let request = NSFetchRequest<PlanPriorityMO>(entityName: "PlanPriorityMO")
         request.predicate = NSPredicate(format: "planID == %@", planID as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "priorityRank", ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     private func fetchActionMOs(planID: UUID) -> [PlanActionMO] {
         let request = NSFetchRequest<PlanActionMO>(entityName: "PlanActionMO")
         request.predicate = NSPredicate(format: "planID == %@", planID as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     private func fetchFeedbacks(planID: UUID) -> [PlanFeedbackMO] {
         let request = NSFetchRequest<PlanFeedbackMO>(entityName: "PlanFeedbackMO")
         request.predicate = NSPredicate(format: "planID == %@", planID as CVarArg)
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     private func buildSnapshot(_ plan: LifePlanMO) -> LifePlanSnapshot {

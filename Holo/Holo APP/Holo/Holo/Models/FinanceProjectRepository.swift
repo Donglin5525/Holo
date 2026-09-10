@@ -36,7 +36,7 @@ final class FinanceProjectRepository {
         let request = FinanceProject.fetchRequest()
         request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 进行中项目（记账表单选择器、AI 挂靠候选都用这份清单）
@@ -148,7 +148,7 @@ final class FinanceProjectRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.relationshipKeyPathsForPrefetching = ["category", "account"]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 项目支出交易（统计口径：已发生 + 排对账调整 + 仅支出）
@@ -162,7 +162,7 @@ final class FinanceProjectRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         request.relationshipKeyPathsForPrefetching = ["category"]
-        return (try? context.fetch(request)) ?? []
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
     /// 批量挂靠到项目（从历史挑交易补挂；已有项目归属的交易会被改挂到新项目）
