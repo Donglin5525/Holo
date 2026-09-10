@@ -2009,7 +2009,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -2064,7 +2064,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -2097,7 +2097,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				OTHER_SWIFT_FLAGS = "-DHOLO_APP_EXTENSION";
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo.HoloWidgets;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app.widgets";
@@ -2130,7 +2130,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				OTHER_SWIFT_FLAGS = "-DHOLO_APP_EXTENSION";
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo.HoloWidgets;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app.widgets";
