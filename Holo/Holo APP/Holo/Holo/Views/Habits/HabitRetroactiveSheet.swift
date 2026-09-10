@@ -71,14 +71,19 @@ struct HabitRetroactiveSheet: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isPickerMode {
-                    pickerContent
-                } else {
-                    confirmContent
+            // 内容（尤其补记的整月日历）天然高于 medium 半屏，必须可滚动，
+            // 否则 VStack 溢出绘制会把 chips 顶进导航栏造成重叠
+            ScrollView {
+                Group {
+                    if isPickerMode {
+                        pickerContent
+                    } else {
+                        confirmContent
+                    }
                 }
+                .padding(HoloSpacing.lg)
+                .frame(maxWidth: .infinity)
             }
-            .padding(HoloSpacing.lg)
             .background(Color.holoBackground)
             .navigationTitle(mode == .backfill ? String(localized: "补记记录") : String(localized: "补签打卡"))
             .navigationBarTitleDisplayMode(.inline)
@@ -97,7 +102,8 @@ struct HabitRetroactiveSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // 补记以整月日历为主角，medium 半屏放不下，直接全屏；补签列表短，半屏起步可上拉
+        .presentationDetents(mode == .backfill ? [.large] : [.medium, .large])
         .onAppear {
             if mode == .sign {
                 eligibleDays = HabitRepository.shared.retroactiveEligibleDays(for: habit)
