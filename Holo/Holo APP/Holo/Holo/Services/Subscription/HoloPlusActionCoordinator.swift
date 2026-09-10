@@ -48,7 +48,6 @@ enum HoloPlusGateContext: Equatable {
     case financeInstallment
     case billingCycle
     case budget
-    case advancedStatistics
     case desktopWidget
     case asrQuota
     case asrDuration
@@ -71,8 +70,6 @@ enum HoloPlusGateContext: Equatable {
             return String(localized: "升级 Holo Plus，使用周期账单")
         case .budget:
             return String(localized: "升级 Holo Plus，使用预算管理")
-        case .advancedStatistics:
-            return String(localized: "升级 Holo Plus，解锁跨月类别对比")
         case .desktopWidget:
             return String(localized: "升级 Holo Plus，解锁桌面小组件")
         case .asrQuota:

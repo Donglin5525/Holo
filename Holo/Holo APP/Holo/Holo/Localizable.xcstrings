@@ -18734,22 +18734,6 @@
         }
       }
     },
-    "升级 Holo Plus，解锁跨月类别对比" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Upgrade to Holo Plus to unlock cross-month category comparison"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "升級 Holo Plus，解鎖跨月類別對比"
-          }
-        }
-      }
-    },
     "升级解锁 2 倍 AI 额度与全部小组件" : {
       "localizations" : {
         "en" : {
