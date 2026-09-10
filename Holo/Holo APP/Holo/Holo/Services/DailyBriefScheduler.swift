@@ -22,6 +22,8 @@ final class DailyBriefScheduler: RollingNotificationScheduler {
     /// 旧「每日提醒」迁移标记：与 enabledKey 分开，区分「迁移后主动关掉」与「从未开启」
     private static let migratedKey = "holo.dailyBrief.migrated"
     private static let legacyDailyReminderId = "holo-daily-reminder"
+    /// 存量 0 点纠正标记：早报曾漏注册默认时间，开启时未改时间的设备把 0:00 存进了设置
+    private static let midnightFixKey = "holo.dailyBrief.midnightFix.applied"
 
     private static let rollingDays = 7
     private static let identifierPrefix = "holo-daily-brief-"
@@ -61,6 +63,11 @@ final class DailyBriefScheduler: RollingNotificationScheduler {
     }
 
     private init() {
+        // 时间必须注册默认值：UserDefaults 整数缺省为 0，不注册会把早报排到午夜 0 点
+        UserDefaults.standard.register(defaults: [
+            Self.hourKey: 8,
+            Self.minuteKey: 30,
+        ])
         super.init(
             identifierPrefix: Self.identifierPrefix,
             loggerCategory: "DailyBrief",
@@ -70,6 +77,20 @@ final class DailyBriefScheduler: RollingNotificationScheduler {
 
     override func onAppActivity() async {
         await migrateLegacyDailyReminderIfNeeded()
+        fixLegacyMidnightTimeIfNeeded()
+    }
+
+    /// 存量 0:00 一次性纠正为 8:30；纠正后 handleAppActivity 的 reschedule 会按新时间重排待发通知。
+    /// 没存过时间的设备读注册默认值 8:30，不会进这个分支。
+    private func fixLegacyMidnightTimeIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.midnightFixKey) else { return }
+        defaults.set(true, forKey: Self.midnightFixKey)
+        guard defaults.integer(forKey: Self.hourKey) == 0,
+              defaults.integer(forKey: Self.minuteKey) == 0 else { return }
+        defaults.set(8, forKey: Self.hourKey)
+        defaults.set(30, forKey: Self.minuteKey)
+        logger.info("早报时间存量 0:00 已纠正为 8:30")
     }
 
     override func makeRequests(now: Date) -> [UNNotificationRequest] {
