@@ -131,14 +131,31 @@ enum VisionImageStore {
         return base.appendingPathComponent("ChatVisionImages", isDirectory: true)
     }
 
+    /// 存在性缓存（含否定结果）：气泡每次重画都会探测一次，不缓存的话每次全页
+    /// 重算都被放大成对每条用户消息的磁盘 stat。文件在进程内只增不删、消息文本
+    /// 不可变，正反结果都可长期保留；save() 落盘后直接翻正，缓存与磁盘保持一致。
+    /// NSCache 自带线程安全，内存压力逐出后最多退回一次磁盘探测。
+    private static let existenceCache: NSCache<NSUUID, NSNumber> = {
+        let cache = NSCache<NSUUID, NSNumber>()
+        cache.countLimit = 500
+        return cache
+    }()
+
     static func save(_ jpegData: Data, messageID: UUID) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try? jpegData.write(to: url(for: messageID))
+        existenceCache.setObject(NSNumber(value: true), forKey: messageID as NSUUID)
     }
 
     static func thumbnailURL(for messageID: UUID) -> URL? {
+        let key = messageID as NSUUID
+        if let cached = existenceCache.object(forKey: key) {
+            return cached.boolValue ? url(for: messageID) : nil
+        }
         let url = url(for: messageID)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        let exists = FileManager.default.fileExists(atPath: url.path)
+        existenceCache.setObject(NSNumber(value: exists), forKey: key)
+        return exists ? url : nil
     }
 
     private static func url(for messageID: UUID) -> URL {

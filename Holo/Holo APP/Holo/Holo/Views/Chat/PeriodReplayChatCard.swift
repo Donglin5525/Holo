@@ -328,13 +328,26 @@ struct PeriodReplayChatCard: View {
     }
 
     /// 生成结果会携带 warning/critical 等内部严重级别；用户只需要看到事实本身。
+    /// 正则清洗结果按原文缓存：洞察卡一屏多张、每张十几个文本段，全页重算时
+    /// 逐段重跑正则会滚雪球；清洗是纯函数，同一原文结果恒定。
+    private static let displayTextCache: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 1000
+        return cache
+    }()
+
     private func displayText(_ text: String) -> String {
-        text
+        if let cached = Self.displayTextCache.object(forKey: text as NSString) {
+            return cached as String
+        }
+        let cleaned = text
             .replacingOccurrences(
                 of: #"\s*[\(\[（【]?\s*(?:warning|waring|critical)\s*[\)\]）】]?"#,
                 with: "",
                 options: [.regularExpression, .caseInsensitive]
             )
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.displayTextCache.setObject(cleaned as NSString, forKey: text as NSString)
+        return cleaned
     }
 }
