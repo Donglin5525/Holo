@@ -469,4 +469,8 @@ func test_095_HealthSleepTimelineBuilderTests() async throws {
     // 来源：Models/HealthSleepTimelineBuilderTests.swift
     HealthSleepTimelineBuilderTests.main()
 }
+func test_096_ThoughtDuplicateRepairStandaloneTests() async throws {
+    // 来源：Services/Sync/ThoughtDuplicateRepairStandaloneTests.swift
+    try ThoughtDuplicateRepairStandaloneTests.main()
+}
 }

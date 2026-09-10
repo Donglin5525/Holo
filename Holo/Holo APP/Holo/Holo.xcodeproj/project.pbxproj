@@ -262,6 +262,7 @@
 		BE0D5A692EF70168491166D9 /* HoloSemanticMemoryIdentityStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D3B35A5CE16EA3527FFDFD1 /* HoloSemanticMemoryIdentityStandaloneTests.swift */; };
 		BE20105F70C8E7B0F404ADE1 /* CategoryIconCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C1A2077BA368A85BEC6D7F /* CategoryIconCatalogTests.swift */; };
 		BE6A8BBEA553E7E47B0CDC70 /* ThoughtClusterEngineStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C711026222AF3DCEBFFFABD3 /* ThoughtClusterEngineStandaloneTests.swift */; };
+		FA10D3C0D4E5F60718296001 /* ThoughtDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */; };
 		C07E22010000000000000001 /* HabitRepositoryCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07E22020000000000000001 /* HabitRepositoryCalendarTests.swift */; };
 		C10066D146B0666E6097FD5B /* HoloAgentJSONStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A8CA5AB2CCAC6491B22D88 /* HoloAgentJSONStoreTests.swift */; };
 		C10D0000A1B1C1D1E1F1AA02 /* HoloCloudAnalysisQAUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D0000A1B1C1D1E1F1AA01 /* HoloCloudAnalysisQAUITests.swift */; };
@@ -629,6 +630,7 @@
 		C4A1E5A77000000000000003 /* HoloAgentAnswerObservabilityStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentAnswerObservabilityStandaloneTests.swift; sourceTree = "<group>"; };
 		C4EA782F629EDACAFC493BF6 /* HoloInternalLogStoreStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloInternalLogStoreStandaloneTests.swift; sourceTree = "<group>"; };
 		C711026222AF3DCEBFFFABD3 /* ThoughtClusterEngineStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtClusterEngineStandaloneTests.swift; sourceTree = "<group>"; };
+		FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtDuplicateRepairStandaloneTests.swift; sourceTree = "<group>"; };
 		C73A204FCCB356339D64EA75 /* HoloAgentTimeSemanticResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentTimeSemanticResolverTests.swift; sourceTree = "<group>"; };
 		C85D7467443244A581F85CE6 /* HoloAgentEvalModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentEvalModels.swift; sourceTree = "<group>"; };
 		C8F5DD88C8E720D0DE219D78 /* HoloProfileToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloProfileToolTests.swift; sourceTree = "<group>"; };
@@ -876,6 +878,14 @@
 				C711026222AF3DCEBFFFABD3 /* ThoughtClusterEngineStandaloneTests.swift */,
 			);
 			path = Thoughts;
+			sourceTree = "<group>";
+		};
+		FA10D3C0D4E5F60718296003 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */,
+			);
+			path = Sync;
 			sourceTree = "<group>";
 		};
 		496F9B482FDEEF2B00142294 /* Recovered References */ = {
@@ -1226,6 +1236,7 @@
 		E4EF083CEA4F1BA693FB84AE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				FA10D3C0D4E5F60718296003 /* Sync */,
 				2A7C5E9130B4D6F81C0A5562 /* Schedule */,
 				5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */,
 				01FEFE4BD64B0BA4926A551E /* AI */,
@@ -1629,6 +1640,7 @@
 				AE65461EFB381455650E9DEF /* ThoughtTagConvergenceJobStoreStandaloneTests.swift in Sources */,
 				D1BEE1E6F714E068F4F7D45E /* ThoughtThemeConstraintStandaloneTests.swift in Sources */,
 				BE6A8BBEA553E7E47B0CDC70 /* ThoughtClusterEngineStandaloneTests.swift in Sources */,
+				FA10D3C0D4E5F60718296001 /* ThoughtDuplicateRepairStandaloneTests.swift in Sources */,
 				26B152FAA3EEB2466A8BA0C0 /* HoloAuthSessionStandaloneTests.swift in Sources */,
 				E12265AAC6E4FD5D4B105216 /* HoloInternalAccessStandaloneTests.swift in Sources */,
 				8D813545EFDA9FBE711AE9AE /* CalendarHeatmapDarkModeStandaloneTests.swift in Sources */,
@@ -1966,7 +1978,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Holo/Holo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -2021,7 +2033,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Holo/HoloRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -2075,7 +2087,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = HoloWidgets/HoloWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HoloWidgets/Info.plist;
@@ -2108,7 +2120,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = HoloWidgets/HoloWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HoloWidgets/Info.plist;
@@ -2140,7 +2152,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -2159,7 +2171,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;

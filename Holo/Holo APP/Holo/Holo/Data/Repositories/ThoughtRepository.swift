@@ -41,6 +41,31 @@ class ThoughtRepository {
         self.context = context
     }
 
+    // MARK: - 同步副本免疫
+
+    /// 同 id 副本只保留物理行号最小的一行（迁移事故的云端全量副本行号更大），
+    /// 保持 fetch 排序。列表/统计以 id 为身份键，重复行会双份展示、双份计数；
+    /// 修复器合并完成前读路径必须先免疫（与 HabitRepository.deduplicatingCopies 同范式）。
+    static func deduplicatingCopies(_ rows: [Thought]) -> [Thought] {
+        var survivorById: [UUID: Thought] = [:]
+        for row in rows {
+            guard let existing = survivorById[row.id] else {
+                survivorById[row.id] = row
+                continue
+            }
+            if physicalRowNumber(row) < physicalRowNumber(existing) {
+                survivorById[row.id] = row
+            }
+        }
+        guard survivorById.count != rows.count else { return rows }
+        return rows.filter { survivorById[$0.id] === $0 }
+    }
+
+    /// 物理行号取自 objectID（即 SQLite Z_PK，落库后跨启动稳定）
+    private static func physicalRowNumber(_ row: NSManagedObject) -> Int {
+        Int(row.objectID.uriRepresentation().lastPathComponent) ?? Int.max
+    }
+
     // MARK: - Fetch Operations
 
     /// 获取所有想法
@@ -75,7 +100,7 @@ class ThoughtRepository {
         }
         request.fetchOffset = offset
 
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 获取指定时间范围内的想法实体（半开区间 [start, end)，按 createdAt）
@@ -91,7 +116,7 @@ class ThoughtRepository {
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
         // 日历等调用方逐条读话题；不预取会触发每条一次的关系惰性加载。
         request.relationshipKeyPathsForPrefetching = ["topics"]
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 根据 ID 获取想法
@@ -100,16 +125,15 @@ class ThoughtRepository {
     func fetchById(_ id: UUID) throws -> Thought? {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", id as CVarArg)
-        request.fetchLimit = 1
-        return try context.fetch(request).first
+        // 同 id 副本时与列表去重同口径（最小物理行号），避免编辑/删除落在列表未展示的副本上
+        return Self.deduplicatingCopies(try context.fetch(request)).first
     }
 
     /// 根据 ID 获取想法（不过滤软删除/归档，用于内部操作）
     func fetchByIdInternal(_ id: UUID) throws -> Thought? {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        request.fetchLimit = 1
-        return try context.fetch(request).first
+        return Self.deduplicatingCopies(try context.fetch(request)).first
     }
 
     /// 根据标签获取想法
@@ -121,7 +145,7 @@ class ThoughtRepository {
         let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [tagPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 根据心情获取想法
@@ -133,7 +157,7 @@ class ThoughtRepository {
         let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [moodPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 搜索想法
@@ -168,7 +192,7 @@ class ThoughtRepository {
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
 
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     // MARK: - Create Operations
@@ -428,13 +452,12 @@ class ThoughtRepository {
     // MARK: - Archive Operations
 
     /// 归档想法
-    /// - Parameter id: 想法 ID
+    /// - Parameter id: UUID
     func archive(_ id: UUID) throws {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
-        request.fetchLimit = 1
 
-        guard let thought = try context.fetch(request).first else {
+        guard let thought = try context.fetch(request).min(by: { Self.physicalRowNumber($0) < Self.physicalRowNumber($1) }) else {
             throw ThoughtError.notFound
         }
 
@@ -445,13 +468,12 @@ class ThoughtRepository {
     }
 
     /// 取消归档想法
-    /// - Parameter id: 想法 ID
+    /// - Parameter id: UUID
     func unarchive(_ id: UUID) throws {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
-        request.fetchLimit = 1
 
-        guard let thought = try context.fetch(request).first else {
+        guard let thought = try context.fetch(request).min(by: { Self.physicalRowNumber($0) < Self.physicalRowNumber($1) }) else {
             throw ThoughtError.notFound
         }
 
@@ -467,7 +489,7 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == YES")
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     // MARK: - Reference Operations
@@ -875,7 +897,7 @@ class ThoughtRepository {
         let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request).filter { thought in
+        let matches = try context.fetch(request).filter { thought in
             let assignments = thought.tagAssignments as? Set<ThoughtTagAssignment> ?? []
             return assignments.contains { assignment in
                 guard assignment.rejectedAt == nil,
@@ -887,6 +909,7 @@ class ThoughtRepository {
                 return ThoughtTagNormalizer.sharesIdentity(name, tagName)
             }
         }
+        return Self.deduplicatingCopies(matches)
     }
 
     /// 未归类观点：没有进入任何“用户启用的分类主题”。
@@ -902,7 +925,7 @@ class ThoughtRepository {
             andPredicateWithSubpredicates: [deletePredicate, classificationPredicate]
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     // MARK: - 待确认池（知识树 v1：低置信主题归属集中确认）
@@ -929,7 +952,7 @@ class ThoughtRepository {
             deletePredicate, organizedPredicate, classificationPredicate, confidencePredicate
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return Self.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 用户确认当前主题归属正确（待确认池「放这里」）
@@ -1011,7 +1034,7 @@ class ThoughtRepository {
 
         // 主题发现只观察当前分类维度下仍未归类的想法，避免历史 Topic 反复参与聚类。
         // 条件必须在 fetchLimit 前由持久层过滤，否则最近的已分类数据会挤掉真正候选。
-        let thoughts = try context.fetch(request)
+        let thoughts = Self.deduplicatingCopies(try context.fetch(request))
         return thoughts.compactMap { thought in
             let assignments = thought.tagAssignments as? Set<ThoughtTagAssignment> ?? []
             let tags = assignments
@@ -1073,7 +1096,7 @@ class ThoughtRepository {
         do {
             let request = Thought.fetchRequest()
             // 包括软删除/归档的，确保数据完整
-            let allThoughts = try context.fetch(request)
+            let allThoughts = Self.deduplicatingCopies(try context.fetch(request))
             var totalAssignments = 0
 
             for thought in allThoughts {
@@ -1282,7 +1305,7 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         request.predicate = basePredicate(from: start, to: end)
 
-        guard let thoughts = try? context.fetch(request) else { return [:] }
+        guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)) else { return [:] }
 
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "zh_CN")
@@ -1301,7 +1324,7 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         request.predicate = basePredicate(from: start, to: end)
 
-        guard let thoughts = try? context.fetch(request) else {
+        guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)) else {
             logger.error("获取心情分布失败")
             return [:]
         }
@@ -1320,7 +1343,7 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         request.predicate = basePredicate(from: start, to: end)
 
-        guard let thoughts = try? context.fetch(request), !thoughts.isEmpty else { return [] }
+        guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)), !thoughts.isEmpty else { return [] }
 
         var tagCounts: [ThoughtTag: Int] = [:]
         for thought in thoughts {
@@ -1345,7 +1368,7 @@ class ThoughtRepository {
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         request.fetchLimit = limit
 
-        guard let thoughts = try? context.fetch(request) else { return [] }
+        guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)) else { return [] }
 
         return thoughts.compactMap { thought in
             if thought.content.isEmpty { return nil }

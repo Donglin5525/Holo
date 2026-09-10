@@ -157,6 +157,21 @@ class FinanceRepository {
             NSLog("习惯同步副本修复未保存：%@", error.localizedDescription)
         }
         do {
+            let thoughtResult = try ThoughtDuplicateRepair.repair(in: bgContext) { objectID in
+                cloudContainer.recordID(for: objectID)?.recordName
+            }
+            NSLog("想法同步副本修复：移除 %d，标签主题并回 %d，挂子行改挂 %d，冲突保留 %d，等同步身份 %d",
+                  thoughtResult.removed, thoughtResult.reattachedTags, thoughtResult.reattachedChildren,
+                  thoughtResult.conflictingGroups, thoughtResult.deferredGroups)
+            if thoughtResult.removed > 0 {
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                }
+            }
+        } catch {
+            NSLog("想法同步副本修复未保存：%@", error.localizedDescription)
+        }
+        do {
             // 全实体通用引擎：任务/洞察/纪念日/目标/聊天等其余全部 UUID 主键域的存量副本
             // 都在这里清（2026-09-10 任务筛选菜单重复项实锤后收口）。财务/习惯/想法三域
             // 由上面的手写修复器先行处理，引擎对它们只兜底空转。

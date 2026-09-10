@@ -368,7 +368,7 @@ final class TopicRepository {
             : NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return ThoughtRepository.deduplicatingCopies(try context.fetch(request))
     }
 
     /// 在某 Topic 范围内搜索
@@ -379,7 +379,7 @@ final class TopicRepository {
         let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, searchPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return ThoughtRepository.deduplicatingCopies(try context.fetch(request))
     }
 
     // MARK: - 手动移入/移出（P1.5.6）
