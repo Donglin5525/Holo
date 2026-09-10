@@ -62,13 +62,26 @@ struct TopicDetailView: View {
         }
     }
 
+    /// V3 新 UI：主题持续时间（最早→最晚想法的自然日跨度，单日=1 天）
+    private var topicDurationText: String {
+        let dates = thoughts.compactMap(\.createdAt)
+        guard let earliest = dates.min(), let latest = dates.max() else {
+            return String(localized: "持续 1 天")
+        }
+        let days = (Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0) + 1
+        return String(localized: "持续 \(max(1, days)) 天")
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if let topic {
                         heroSection(topic)
-                        keywordRow
+                        // V3 新 UI：关键词是 AI 标签派生，退为内部索引（摘要/观点区随 Phase 5 摘要端点接入）
+                        if !ThoughtSemanticFeatureFlags.uiEnabled {
+                            keywordRow
+                        }
                         thoughtListSection
                     } else {
                         missingTopicView
@@ -187,9 +200,16 @@ struct TopicDetailView: View {
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)
-                Text("\(thoughts.count) 条想法 · \(topicBuckets.count) 个关键词")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                // V3 新 UI：想法数 + 持续时间（§4.5）；旧 UI 保持「关键词」口径
+                if ThoughtSemanticFeatureFlags.uiEnabled {
+                    Text("\(thoughts.count) 条想法 · \(topicDurationText)")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                } else {
+                    Text("\(thoughts.count) 条想法 · \(topicBuckets.count) 个关键词")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
             }
             Spacer(minLength: 0)
         }

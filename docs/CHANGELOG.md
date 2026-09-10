@@ -13,6 +13,9 @@
 ## [Unreleased]
 
 ### Features
+- **后端+iOS**: 语义图谱 V3 Phase 5 前置——主题命名/摘要端点 + 详情页本地区块
+  - 后端 `POST /v1/thoughts/topic-name`（候选簇≤8 片段→一个主题名，禁复制代表片段）与 `POST /v1/thoughts/topic-summary`（≤12 片段→摘要+≤4 反复观点，ref 白名单+逐字证据+range 严格对齐）；metadata-only/独立预算池 ¥0.20/日/隐私闸门同 relate 口径；prompt v1×2 入册+多语言白名单（输出用户直读）；mock 确定性实现；13 项新测试+全量 392/392 绿；**待发版**（env 全默认值，无需改生产配置）
+  - iOS 主题详情页第一批（flag 门控）：hero 改「N 条想法 · 持续 X 天」口径、AI 关键词筛选行隐藏；摘要/反复观点/时间脉络区待摘要端点发版后接入
 - **iOS+后端**: 想法语义图谱 V3 Phase 4 第一批——「想法+主题」双核心新 UI（flag 门控）+ 后端 relate 端点已发版
   - 设计稿拍板后实施（docs/design-prototypes/thought-v3-topic-ui-prototype.html，5 屏）：新 UI 开关 `ThoughtSemanticFeatureFlags.uiEnabled`（显式设置优先；Debug 默认开=验收通道，Release 默认关=小流量闸门，回滚只切 flag 不删数据）
   - 卡片主题弱徽章：来自 ThoughtTopicLink 投影（≤2 个），AI 归类静默出现不弹窗；点徽章「更改主题…/从这条移除」（移除写 rejected 墓碑，同一错误不重现）；筛选行新增主题 chips 与 #标签混排；保存新建想法即出「已记录」轻提示、不等 AI
