@@ -15,7 +15,9 @@ struct ThoughtDuplicateRepairStandaloneTests {
     /// 合并时副本的同 id 挂子行随级联删（与保留项同 id 同内容），独有挂子行改挂（否则级联陪葬），
     /// 副本独有的标签/主题并回保留项（nullify 脱离前抢救），任务只保链接不删行。
     static func thoughtScenario() throws {
-        let model = makeThoughtModel()
+        // 复用进程共享模型：自建 NSManagedObjectModel 实例会在测试进程里留下第二个
+        // 同名实体模型，全量跑时污染后续测试的 Core Data 绑定（134020 型号配置不兼容）。
+        let model = CoreDataTestSupport.sharedModel
         guard let thoughtEntity = model.entities.first(where: { $0.name == "Thought" }),
               let tagEntity = model.entities.first(where: { $0.name == "ThoughtTag" }),
               let topicEntity = model.entities.first(where: { $0.name == "Topic" }),
