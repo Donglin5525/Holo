@@ -65,6 +65,18 @@ actor ThoughtSemanticStore {
         var updatedAt: Date
     }
 
+    /// 候选簇行（新脉络建议，方案 §4.4；state: suggested/ready/snoozed/converted/rejected）
+    struct ClusterRecord: Codable, Equatable {
+        var id: String
+        var fingerprint: String
+        var memberIDs: [UUID]
+        var state: String
+        var cohesion: Float
+        var firstSeenAt: Date
+        var lastSeenAt: Date
+        var dismissedUntil: Date?
+    }
+
     struct Manifest: Codable, Equatable {
         var schemaVersion: Int
         var activeModelVersion: String
@@ -261,6 +273,66 @@ actor ThoughtSemanticStore {
     /// 成员变化使摘要失效（basisRevision 落后）时由调用方判断；此处仅提供按删除清理。
     func deleteTopicSummary(topicID: UUID) throws {
         try bindExec("DELETE FROM topic_summary WHERE topic_id=?1", .uuid(topicID))
+    }
+
+    // MARK: - candidate_cluster（新脉络建议，方案 §4.4；AI 派生只存本机）
+
+    /// 幂等落库一簇。dismissedUntil 传 nil 表示清除冷却。
+    func upsertCluster(id: String,
+                       fingerprint: String,
+                       memberIDs: [UUID],
+                       state: String,
+                       cohesion: Float,
+                       dismissedUntil: Date?) throws {
+        let membersJSON = (try? JSONEncoder().encode(memberIDs)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let now = Date()
+        try bindExec("""
+            INSERT INTO candidate_cluster(id, fingerprint, centroid_key, member_ids, state,
+                                         cohesion, first_seen_at, last_seen_at, dismissed_until)
+            VALUES(?1,?2,NULL,?3,?4,?5,?6,?6,?7)
+            ON CONFLICT(fingerprint) DO UPDATE SET member_ids=?3, state=?4, cohesion=?5,
+                last_seen_at=?6, dismissed_until=?7
+            """,
+            .text(id), .text(fingerprint), .text(membersJSON), .text(state),
+            .double(Double(cohesion)), .date(now), .date(dismissedUntil))
+    }
+
+    private func clusterRow(_ stmt: OpaquePointer) -> ClusterRecord? {
+        guard let idData = sqlite3_column_text(stmt, 0) else { return nil }
+        guard let fpData = sqlite3_column_text(stmt, 1) else { return nil }
+        guard let membersData = sqlite3_column_text(stmt, 2) else { return nil }
+        let members = (try? JSONDecoder().decode([UUID].self, from: Data(String(cString: membersData).utf8))) ?? []
+        return ClusterRecord(
+            id: String(cString: idData),
+            fingerprint: String(cString: fpData),
+            memberIDs: members,
+            state: sqlite3_column_text(stmt, 3).map { String(cString: $0) } ?? "ready",
+            cohesion: Float(sqlite3_column_double(stmt, 4)),
+            firstSeenAt: dateCol(stmt, 5) ?? Date(),
+            lastSeenAt: dateCol(stmt, 6) ?? Date(),
+            dismissedUntil: dateCol(stmt, 7))
+    }
+
+    func loadCluster(byFingerprint fingerprint: String) throws -> ClusterRecord? {
+        let stmt = try prepare("""
+            SELECT id, fingerprint, member_ids, state, cohesion, first_seen_at, last_seen_at, dismissed_until
+            FROM candidate_cluster WHERE fingerprint=?1
+            """, .text(fingerprint))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return clusterRow(stmt)
+    }
+
+    /// 当前建议簇（state='suggested'，取内聚度最高一条）。
+    func loadSuggestedCluster() throws -> ClusterRecord? {
+        let stmt = try prepare("""
+            SELECT id, fingerprint, member_ids, state, cohesion, first_seen_at, last_seen_at, dismissed_until
+            FROM candidate_cluster WHERE state='suggested'
+            ORDER BY cohesion DESC, last_seen_at DESC LIMIT 1
+            """)
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return clusterRow(stmt)
     }
 
     func item(thoughtID: UUID) throws -> SemanticItem? {
@@ -510,6 +582,7 @@ actor ThoughtSemanticStore {
         case text(String?)
         case int(Int64)
         case int64(Int64)
+        case double(Double)
         case date(Date?)
         case blob(Data)
     }
@@ -543,6 +616,8 @@ actor ThoughtSemanticStore {
             if let s { sqlite3_bind_text(stmt, idx, s, -1, SQLITE_TRANSIENT_DESTRUCTOR) } else { sqlite3_bind_null(stmt, idx) }
         case .int(let v), .int64(let v):
             sqlite3_bind_int64(stmt, idx, v)
+        case .double(let d):
+            sqlite3_bind_double(stmt, idx, d)
         case .date(let d):
             if let d { sqlite3_bind_double(stmt, idx, d.timeIntervalSince1970) } else { sqlite3_bind_null(stmt, idx) }
         case .blob(let data):
