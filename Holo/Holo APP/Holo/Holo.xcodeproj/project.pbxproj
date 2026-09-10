@@ -58,6 +58,7 @@
 		4894B94385421E97896FB4AC /* HoloCrossDomainToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16D449DAF8D191541526E586 /* HoloCrossDomainToolTests.swift */; };
 		490F7DBD3033647500155EB1 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000002 /* CoreXLSX */; };
 		490F7DBE3033647500155EB1 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000004 /* ZIPFoundation */; };
+		490F7DBF3033647500155EB1 /* USearch in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000006 /* USearch */; };
 		4B6A953DB90277DC3F7E13F1 /* HoloMemoryAccessPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9072B04A04CEFFDFC02564 /* HoloMemoryAccessPolicyStandaloneTests.swift */; };
 		4D19A0A328F74F68A72C9E57 /* HoloAgentEvalRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49A92723E7D4B2892C4D8BF /* HoloAgentEvalRunner.swift */; };
 		4FA341DFA8EA75735380FEE3 /* EffectiveRecordDayStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3D728A02350F1B7FE3B608 /* EffectiveRecordDayStandaloneTests.swift */; };
@@ -665,6 +666,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				490F7DBE3033647500155EB1 /* ZIPFoundation in Frameworks */,
+				490F7DBF3033647500155EB1 /* USearch in Frameworks */,
 				490F7DBD3033647500155EB1 /* CoreXLSX in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1282,6 +1284,7 @@
 			packageProductDependencies = (
 				B1000000000000000000002 /* CoreXLSX */,
 				B1000000000000000000004 /* ZIPFoundation */,
+				B1000000000000000000006 /* USearch */,
 			);
 			productName = Holo;
 			productReference = 49E199F42F54389E0070AE1B /* Holo.app */;
@@ -1372,6 +1375,7 @@
 			packageReferences = (
 				B1000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/CoreXLSX" */,
 				B1000000000000000000003 /* XCLocalSwiftPackageReference "Vendor/ZIPFoundation" */,
+				B1000000000000000000005 /* XCLocalSwiftPackageReference "Vendor/USearch" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 49E199F52F54389E0070AE1B /* Products */;
@@ -2213,6 +2217,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/ZIPFoundation;
 		};
+		B1000000000000000000005 /* XCLocalSwiftPackageReference "Vendor/USearch" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/USearch;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -2223,6 +2231,10 @@
 		B1000000000000000000004 /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ZIPFoundation;
+		};
+		B1000000000000000000006 /* USearch */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = USearch;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

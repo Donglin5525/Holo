@@ -69,6 +69,11 @@ struct HoloApp: App {
         // V3 Phase 1：存量想法-主题关系一次性回填 ThoughtTopicLink（幂等，后台执行）
         ThoughtTopicLinkBackfillBootstrap.performIfNeeded()
 
+        // V3 Phase 2：本机语义索引冷启动装配（幂等；默认 flag off 不产生网络行为）
+        Task.detached(priority: .utility) {
+            await ThoughtSemanticPipeline.shared.bootstrap()
+        }
+
         // 分类学习装配：缓存 hydrate + UserDefaults 存量迁移至 CloudKit 同步实体（幂等）
         Task { await CategoryLearningStore.shared.bootstrap() }
 

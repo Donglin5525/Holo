@@ -13,6 +13,11 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 本机语义索引与变更队列落地（语义图谱 V3 Phase 2）——SQLite 真身+双索引实现+统一事件源
+  - 本机语义库 ThoughtSemanticStore（Application Support/ThoughtSemanticV3/，不进 CloudKit）：六表 schema 一次到位（向量 Float16 真身/可恢复任务队列/manifest/centroid·candidate·cluster 预留），错误只存 code
+  - 索引双实现过同一协议：USearch HNSW（已挂主工程，Vendor 化+NumKong 补丁在真实工程验证）+ Float16+Accelerate 分块扫描 fallback（50k warm 检索 p95 43ms，门禁 150ms；USearch 为 1.9ms）；索引皆可丢弃可重建，真身唯一
+  - 统一 change feed：Core Data 保存通知+CloudKit 远端变更→去重入队；软删 tombstone/撤权 cancelAll+授权代数/销毁入口；模拟器冒烟抓出并修复 3 路并发对账竞态重复入队
+  - 旧 JSON 向量迁移（5000 条上限库→SQLite）模拟器真机数据验证：迁移/索引重建/幂等全链通；standalone 5 组全绿+回归 73/73；flag 全 off 零网络行为
 - **iOS**: 想法-主题显式关系落地（语义图谱 V3 Phase 1）——ThoughtTopicLink 实体+投影层+双写迁移
   - 新实体 ThoughtTopicLink（Private CloudKit）：来源（user/manual、ai/v3、legacy/*）/状态（active、rejected 墓碑、superseded）/可见性/正文版本 hash/决策分层/授权代数全字段；id 按 (thoughtID,topicID) 确定性生成防多设备重复 pair；Topic 补 titleSource/topicRevision 等 V3 字段
   - 投影层：同 pair 裁决优先级（用户决定 > 拒绝墓碑 > AI > legacy）；存量裸关系保守回填（宁 legacy 不伪造用户决定）；shadow 对账器（旧关系 vs 新投影，差异=0 门禁）；启动一次性幂等迁移
