@@ -730,9 +730,8 @@ private struct HoloThoughtMemoryView: View {
                 .foregroundStyle(textSecondary)
                 .padding(.top, 7)
 
-            Spacer(minLength: 0)
-
             tagRow
+                .padding(.top, 10)
         }
         .padding(16)
     }
@@ -764,9 +763,10 @@ private struct HoloThoughtMemoryView: View {
                 .foregroundStyle(textSecondary)
                 .padding(.top, 12)
 
-            Spacer(minLength: 0)
-
             tagRow
+                .padding(.top, 12)
+
+            Spacer(minLength: 0)
 
             HStack {
                 if !entry.value.showsOriginalExcerpt {
