@@ -163,7 +163,8 @@ final class ChatMessageRepository: ObservableObject {
                         "insightResultJSON",
                         "messageType",
                         "executionBatchJSON",
-                        "rawLogJSON"
+                        "rawLogJSON",
+                        "contextPlanRunJSON"
                     ]
                     request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
@@ -203,7 +204,8 @@ final class ChatMessageRepository: ObservableObject {
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
                         "messageType", "analysisContextJSON", "agentResultJSON",
-                        "insightResultJSON", "executionBatchJSON", "rawLogJSON"
+                        "insightResultJSON", "executionBatchJSON", "rawLogJSON",
+                        "contextPlanRunJSON"
                     ]
                     request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
@@ -300,7 +302,8 @@ final class ChatMessageRepository: ObservableObject {
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
                         "messageType", "analysisContextJSON", "agentResultJSON",
-                        "insightResultJSON", "executionBatchJSON", "rawLogJSON"
+                        "insightResultJSON", "executionBatchJSON", "rawLogJSON",
+                        "contextPlanRunJSON"
                     ]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
                         NSPredicate(format: "id IN %@", sessionIds),
@@ -609,6 +612,7 @@ final class ChatMessageRepository: ObservableObject {
         agentResultJSON: String? = nil,
         insightResultJSON: String? = nil,
         contextPlanJSON: String? = nil,
+        contextPlanRunJSON: String? = nil,
         messageType: ChatMessageType? = nil
     ) {
         guard let message = messageForUpdate(messageId) else { return }
@@ -626,6 +630,7 @@ final class ChatMessageRepository: ObservableObject {
         message.agentResultJSON = agentResultJSON
         message.insightResultJSON = insightResultJSON
         message.contextPlanJSON = contextPlanJSON
+        message.contextPlanRunJSON = contextPlanRunJSON
         if let messageType {
             message.messageType = messageType.rawValue
         }
@@ -684,11 +689,34 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.agentResult = decodedAgentResult
             snapshot.insightResult = decodedInsightResult
             snapshot.contextPlanJSON = contextPlanJSON
+            snapshot.contextPlanRunJSON = contextPlanRunJSON
             if let messageType {
                 snapshot.messageType = messageType
             }
             // finalizeMessage 已收到并解析完整元数据，当前快照可立即渲染结构化卡片。
             snapshot.metadataState = .loaded
+        }
+    }
+
+    /// 规划运行状态的原子单字段写入（实施方案 §6.3：每次真实状态迁移原子落盘）。
+    /// 运行卡的阶段推进只走这里，不与 finalizeMessage 抢整条消息的写权。
+    func updateContextPlanRun(
+        _ messageId: UUID,
+        runJSON: String?,
+        messageType: ChatMessageType? = nil
+    ) {
+        guard let message = messageForUpdate(messageId) else { return }
+        message.contextPlanRunJSON = runJSON
+        if let messageType {
+            message.messageType = messageType.rawValue
+        }
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            snapshot.contextPlanRunJSON = runJSON
+            if let messageType {
+                snapshot.messageType = messageType
+            }
         }
     }
 
@@ -1141,11 +1169,9 @@ final class ChatMessageRepository: ObservableObject {
         }
         guard !toLoad.isEmpty else { return }
 
-        // 先标记为 .loading 防止重复触发
-        for id in toLoad {
-            updateSnapshot(id) { snapshot in
-                snapshot.metadataState = .loading
-            }
+        // 先标记为 .loading 防止重复触发（批量改完只发布一次）
+        updateSnapshots(toLoad) { snapshot in
+            snapshot.metadataState = .loading
         }
 
         // 后台批量查询重 JSON 字段
@@ -1182,27 +1208,30 @@ final class ChatMessageRepository: ObservableObject {
                 }
             }.value
 
-            // 回到主线程更新 snapshot
-            for (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult, insightResult) in decoded {
-                updateSnapshot(id) { snapshot in
-                    snapshot.enrichMetadata(
-                        parsedBatch: parsedBatch,
-                        executionBatch: executionBatch,
-                        analysisContext: analysisContext,
-                        rawLog: rawLog,
-                        agentResult: agentResult,
-                        insightResult: insightResult
-                    )
-                }
+            // 回到主线程批量回填：全部改完后只发布一次（逐条发布=K 次全页重算）。
+            // 必须 uniquingKeysWith 容重复：聊天表经 iCloud 同步与跨版本写入天然可能
+            // 出现同 id 多行（5b0c0d6b1 实锤过 uniqueKeysWithValues 重复键 fatal 崩溃）。
+            let decodedByID = Dictionary(
+                decoded.map { ($0.0, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            updateSnapshots(Array(decodedByID.keys)) { snapshot in
+                guard let payload = decodedByID[snapshot.id] else { return }
+                snapshot.enrichMetadata(
+                    parsedBatch: payload.1,
+                    executionBatch: payload.2,
+                    analysisContext: payload.3,
+                    rawLog: payload.4,
+                    agentResult: payload.5,
+                    insightResult: payload.6
+                )
             }
         } catch {
             logger.error("批量加载元数据失败：\(error.localizedDescription)")
-            // 失败时恢复为 unloaded，允许重试
-            for id in toLoad {
-                updateSnapshot(id) { snapshot in
-                    if snapshot.metadataState == .loading {
-                        snapshot.metadataState = .unloaded
-                    }
+            // 失败时恢复为 unloaded，允许重试（批量改完只发布一次）
+            updateSnapshots(toLoad) { snapshot in
+                if snapshot.metadataState == .loading {
+                    snapshot.metadataState = .unloaded
                 }
             }
         }
@@ -1404,6 +1433,27 @@ final class ChatMessageRepository: ObservableObject {
         snapshot.refreshDerivedState()
         var updatedMessages = messages
         updatedMessages[index] = snapshot
+        publishMessages(updatedMessages)
+    }
+
+    /// 批量更新多条消息快照，全部改完后只发布一次。
+    ///
+    /// 每次发布都会让聊天页（订阅 @Published messages）整体重算一次，逐条发布会让
+    /// 「滚动加载一批元数据」变成连续 K 次全页重算挤在同一瞬间，表现为滚动顿挫。
+    /// 批量场景必须走这里，不要在循环里逐条调 updateSnapshot。
+    private func updateSnapshots(_ ids: [UUID], mutate: (inout ChatMessageViewData) -> Void) {
+        guard !ids.isEmpty else { return }
+        var updatedMessages = messages
+        var didChange = false
+        for id in ids {
+            guard let index = updatedMessages.firstIndex(where: { $0.id == id }) else { continue }
+            var snapshot = updatedMessages[index]
+            mutate(&snapshot)
+            snapshot.refreshDerivedState()
+            updatedMessages[index] = snapshot
+            didChange = true
+        }
+        guard didChange else { return }
         publishMessages(updatedMessages)
     }
 

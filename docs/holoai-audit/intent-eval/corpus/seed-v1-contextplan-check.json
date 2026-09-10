@@ -1,6 +1,6 @@
 {
   "version": "seed-v1-cp-check",
-  "note": "contextual_planning 样本专项检查（生产）",
+  "note": "contextual_planning 样本专项检查（生产）。反例（单项写操作/明细查询/纯外部事实/无准备请求陈述）固定在 HoloBackend/tests/intent-response-stabilizer.test.js，因为可接受结果不是单一意图白名单。",
   "samples": [
     {
       "id": "cp01",
@@ -81,6 +81,174 @@
         "contextual_planning"
       ],
       "note": "个人情境规划：居家维护"
+    },
+    {
+      "id": "cp11",
+      "text": "要去日本旅行，要提前做什么准备",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：2026-09-09 录屏原句（同句曾一次规划一次普通回答，路由漂移实锤样本）"
+    },
+    {
+      "id": "cp12",
+      "text": "下个月要搬家了，帮我整理一份搬家前的准备清单",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：搬家清单（2026-09-09 稳定层同义批）"
+    },
+    {
+      "id": "cp13",
+      "text": "我下周要去云南玩，出发前要做什么准备",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：旅行准备"
+    },
+    {
+      "id": "cp14",
+      "text": "九月底要去成都出差，帮我规划一下出发前的安排",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：出差准备"
+    },
+    {
+      "id": "cp15",
+      "text": "下周六要考驾照科目三，帮我安排下考前要准备的事",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：考试准备"
+    },
+    {
+      "id": "cp16",
+      "text": "过两天要去医院做体检，需要提前准备什么",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：就医准备"
+    },
+    {
+      "id": "cp17",
+      "text": "我负责的项目下周要上线了，帮我梳理下上线前还要做哪些事",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：项目发布（自有项目须在 OWN_EXTERNAL 排除前命中规划）"
+    },
+    {
+      "id": "cp18",
+      "text": "家里老人下个月要做手术，帮我列一下术前要准备的注意事项",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：家人就医（第三方主体但用户是执行人）"
+    },
+    {
+      "id": "cp19",
+      "text": "春节要回老家，帮我提前规划下回家前要安排的事情",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：返乡准备"
+    },
+    {
+      "id": "cp20",
+      "text": "下周一开始要给孩子断奶，帮我准备下需要的东西和步骤",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：育儿准备"
+    },
+    {
+      "id": "cp21",
+      "text": "我打算月底开始跑步减肥，帮我规划下开始前要做哪些准备",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：目标启动"
+    },
+    {
+      "id": "cp22",
+      "text": "朋友下周日结婚我要去当伴郎，需要提前准备什么",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：婚礼角色准备"
+    },
+    {
+      "id": "cp23",
+      "text": "下周要在年会上做汇报演讲，帮我规划下要准备的内容",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：重要演讲"
+    },
+    {
+      "id": "cp24",
+      "text": "十一要带爸妈去自驾游，出发前要我准备哪些东西",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：家庭出行"
+    },
+    {
+      "id": "cp25",
+      "text": "我下个月要搬进新办公室，帮我列一下搬迁前要安排的事",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：办公室搬迁"
+    },
+    {
+      "id": "cp26",
+      "text": "后天要去办护照，我需要提前准备什么材料",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：证件办理"
+    },
+    {
+      "id": "cp27",
+      "text": "下周家里要来客人，帮我提前规划下要准备的事",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：待客准备"
+    },
+    {
+      "id": "cp28",
+      "text": "我准备下个月开始学车，帮我梳理下报名前要做的事",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：学车启动（「下个月」需独立词条，2026-09-09 实测修过）"
+    },
+    {
+      "id": "cp29",
+      "text": "年底要办婚礼了，帮我规划下提前半年就要开始的准备事项",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：长周期筹备"
+    },
+    {
+      "id": "cp30",
+      "text": "下周要去国外留学，行前要做什么准备",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：留学行前"
+    },
+    {
+      "id": "cp31",
+      "text": "我月底要第一次独自带娃出门，帮我列下出门前要准备的东西",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "个人情境规划：独自带娃出门"
     }
   ]
 }

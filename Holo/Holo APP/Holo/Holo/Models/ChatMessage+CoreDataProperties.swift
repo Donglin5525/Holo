@@ -34,6 +34,7 @@ extension ChatMessage {
     @NSManaged var agentResultJSON: String?  // Agent 深度分析结果 JSON（HoloRenderedAgentResult）
     @NSManaged var insightResultJSON: String?  // 周期回放洞察结果 JSON（MemoryInsightPayload）
     @NSManaged var contextPlanJSON: String?  // 通用个人情境方案草案 JSON（HoloContextPlanDraft）
+    @NSManaged var contextPlanRunJSON: String?  // 规划运行信封 JSON（HoloContextPlanRunEnvelope）；运行态持久化
     @NSManaged var favoritedAt: Date?  // 报告收藏时间；nil = 未收藏
 
     // MARK: - Computed Properties

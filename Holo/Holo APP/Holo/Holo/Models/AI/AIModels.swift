@@ -193,6 +193,10 @@ nonisolated struct AIParseItem: Codable, Identifiable, Equatable {
     let confidence: Double
     let extractedData: [String: String]?
     let responseText: String?
+    /// 路由来源（2026-09-09 方案 §5.4）：deterministic=后端稳定层 / model=模型分类。
+    /// 旧后端不下发，解码兼容为 nil。
+    let routeSource: String?
+    let routeReasonCode: String?
 
     var isHighConfidence: Bool {
         confidence >= ParsedResult.highConfidenceThreshold
@@ -203,13 +207,17 @@ nonisolated struct AIParseItem: Codable, Identifiable, Equatable {
         intent: AIIntent,
         confidence: Double,
         extractedData: [String: String]? = nil,
-        responseText: String? = nil
+        responseText: String? = nil,
+        routeSource: String? = nil,
+        routeReasonCode: String? = nil
     ) {
         self.id = id
         self.intent = intent
         self.confidence = confidence
         self.extractedData = extractedData
         self.responseText = responseText
+        self.routeSource = routeSource
+        self.routeReasonCode = routeReasonCode
     }
 
     init(from decoder: Decoder) throws {
@@ -218,6 +226,8 @@ nonisolated struct AIParseItem: Codable, Identifiable, Equatable {
         intent = try container.decode(AIIntent.self, forKey: .intent)
         confidence = try container.decode(Double.self, forKey: .confidence)
         responseText = try container.decodeIfPresent(String.self, forKey: .responseText)
+        routeSource = try container.decodeIfPresent(String.self, forKey: .routeSource)
+        routeReasonCode = try container.decodeIfPresent(String.self, forKey: .routeReasonCode)
 
         if let rawDict = try? container.decodeIfPresent([String: String?].self, forKey: .extractedData) {
             extractedData = rawDict.compactMapValues { $0 }

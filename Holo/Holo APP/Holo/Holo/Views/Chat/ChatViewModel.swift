@@ -23,9 +23,18 @@ final class ChatViewModel: ObservableObject {
         }
     }
     @Published var isStreaming: Bool = false
+    /// 云端异步规划的轮询任务表（messageID → Task）：运行卡停止按钮可精准取消。
+    private var cloudPlanningPollTasks: [UUID: Task<Void, Never>] = [:]
 
     /// 云端分析首次启用前的隐私说明 sheet（只出现一次，确认后下次发起生效）
     @Published var showCloudPrivacySheet = false
+    /// 云端独占轨道：隐私确认弹窗挂起中的深度分析（确认后续跑上云，关闭则落不可用卡）
+    struct CloudPendingAnalysis {
+        let messageID: UUID
+        let question: String
+        let intent: String?
+    }
+    private var pendingCloudAnalysis: CloudPendingAnalysis?
     /// 是否存在仍在等待/执行中的 AI 消息（消息级 streaming）。
     /// Agent 深度分析等待网络/系统资源期间，全局输入锁（isStreaming）已解锁、
     /// 但停止键必须保持可见（cancelStreaming 取消等待任务并定稿消息）。
@@ -226,6 +235,97 @@ final class ChatViewModel: ObservableObject {
         HoloBackgroundContinuationManager.shared.resumePausedJobsForChatAppearance()
     }
 
+    // MARK: - 云端独占深度分析（2026-09-11 拍板：不再回落本地）
+
+    /// 深度分析只走云端。返回 true = 本条消息已由云端轨道终局
+    /// （成功落卡 / 失败落诚实卡 / 不可用落说明卡 / 挂起等隐私确认）；
+    /// 返回 false = 用户点了停止，调用方走取消检查。
+    @MainActor
+    private func runCloudOnlyAnalysis(question: String, aiMessageId: UUID, intent: String?) async -> Bool {
+        if !HoloCloudAnalysisService.privacyConsented {
+            // 首次使用：弹隐私说明并把本次分析挂起；确认后续跑上云，关闭则落不可用卡
+            pendingCloudAnalysis = CloudPendingAnalysis(messageID: aiMessageId, question: question, intent: intent)
+            showCloudPrivacySheet = true
+            return true
+        }
+        // 云端轨道启动即请求通知授权+注册 APNs（「分析完成」推送）；
+        // 权限拒绝/注册失败不影响分析本身（打开 App 照常领取结果）
+        HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+        switch await HoloCloudAnalysisService.shared.attempt(question: question, sourceMessageID: aiMessageId) {
+        case .handled:
+            return true
+        case .userCancelled:
+            return false
+        case .unavailable(let reason):
+            let detail: String
+            switch reason {
+            case .busy:
+                detail = "已有一个云端分析在进行中，等它完成后再发起。"
+            case .featureDisabled:
+                detail = "云端分析功能未开启。"
+            case .needsConsent:
+                detail = "深度分析需要先确认云端隐私说明。"
+            }
+            finalizeDeepAnalysisUnavailableCard(aiMessageId, intent: intent, detail: detail)
+            return true
+        }
+    }
+
+    /// 隐私说明点「知道了」：登记同意并把挂起中的分析真正送上云端。
+    @MainActor
+    func confirmCloudPrivacyAndContinue() {
+        showCloudPrivacySheet = false
+        HoloCloudAnalysisService.markPrivacyConsented()
+        guard let pending = pendingCloudAnalysis else { return }
+        pendingCloudAnalysis = nil
+        Task { [weak self] in
+            guard let self else { return }
+            let finished = await self.runCloudOnlyAnalysis(
+                question: pending.question,
+                aiMessageId: pending.messageID,
+                intent: pending.intent
+            )
+            if finished {
+                self.concludeStreamingSession(aiMessageId: pending.messageID)
+            }
+        }
+    }
+
+    /// 隐私说明未确认就关闭：诚实落「未开启」卡，不再像旧版那样悄悄转本地。
+    @MainActor
+    func abandonPendingCloudAnalysis() {
+        guard let pending = pendingCloudAnalysis else { return }
+        pendingCloudAnalysis = nil
+        finalizeDeepAnalysisUnavailableCard(
+            pending.messageID,
+            intent: pending.intent,
+            detail: "深度分析需要开启云端模式。重新发起时会再次询问。"
+        )
+    }
+
+    @MainActor
+    private func finalizeDeepAnalysisUnavailableCard(_ aiMessageId: UUID, intent: String?, detail: String) {
+        let title = "这次没有开始云端分析"
+        let rendered = HoloRenderedAgentResult(
+            title: title,
+            summary: detail,
+            sections: [],
+            evidenceReferences: [],
+            failure: .analysisFailed
+        )
+        chatRepo?.finalizeMessage(
+            aiMessageId,
+            finalContent: [title, detail].joined(separator: "\n"),
+            intent: intent,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            analysisContextJSON: nil,
+            rawLogJSON: nil,
+            agentResultJSON: Self.encodeAgentResult(rendered)
+        )
+    }
+
     private func bootstrapChatRepositoryIfNeeded() {
         guard chatRepo == nil, repositoryBootstrapTask == nil else { return }
 
@@ -239,6 +339,7 @@ final class ChatViewModel: ObservableObject {
             // 极端情况（崩溃恢复有孤儿 streaming）首屏可能短暂显示占位，随后自动收敛。
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
             self.hasLoadedMessages = true
+            self.reconcileInterruptedPlanningRuns()
             self.syncHasEarlierSessions()
             // 消息加载完成后刷新能力入口（此时 isTrulyEmptyConversation 可靠）
             self.refreshCapabilities()
@@ -758,6 +859,40 @@ final class ChatViewModel: ObservableObject {
                 let continuation = resolvedContinuation?.relation == .executeFromResult
                     ? nil
                     : resolvedContinuation
+                // 规划运行态（§6.2）：首个进度事件把占位消息升级为 .contextPlan 运行卡，
+                // 阶段迁移经 RunController 守卫（revision 单调 + 终态锁）后原子落盘；
+                // 退出重进按持久化信封渲染同一张卡，不再依赖全局 isStreaming 推断。
+                let planningRunBox = HoloContextPlanRunBox()
+                let progressPersist: (UUID, String?) -> Void = { messageID, runJSON in
+                    Task { @MainActor in
+                        // 终态保护：取消/失败/完成后，排队中的旧阶段写不再覆盖（§5.1）。
+                        if let current = self.messages.first(where: { $0.id == messageID }),
+                           let currentEnvelope = HoloContextPlanRunController.decode(current.contextPlanRunJSON),
+                           currentEnvelope.stage.isTerminal {
+                            return
+                        }
+                        self.chatRepo?.updateContextPlanRun(messageID, runJSON: runJSON, messageType: .contextPlan)
+                    }
+                }
+                let planningProgressHandler: (HoloContextPlanStage, HoloContextPlanRouteSource?, String?) -> Void = { stage, source, reason in
+                    // 协调器回调来自非隔离上下文：切回主线程操作状态与仓库。
+                    Task { @MainActor in
+                        if let run = planningRunBox.value {
+                            run.advance(to: stage, routeSource: source, routeReasonCode: reason)
+                        } else {
+                            let envelope = HoloContextPlanRunEnvelope(
+                                runID: aiMessageId.uuidString,
+                                assistantMessageID: aiMessageId,
+                                stage: stage,
+                                routeSource: source,
+                                routeReasonCode: reason
+                            )
+                            let run = HoloContextPlanRunController(envelope: envelope, persist: progressPersist)
+                            planningRunBox.set(run)
+                            progressPersist(aiMessageId, HoloContextPlanRunController.encode(envelope))
+                        }
+                    }
+                }
                 let processResult: ConversationProcessResult
                 if continuation != nil {
                     processResult = ConversationProcessResult(
@@ -800,10 +935,31 @@ final class ChatViewModel: ObservableObject {
                         text: text,
                         userContext: userContext,
                         provider: self.provider,
-                        activePlanningRunID: activePlanningRunID
+                        activePlanningRunID: activePlanningRunID,
+                        planningProgress: planningProgressHandler,
+                        contextPlanCloudAsync: HoloContextChatPlanner.isCloudAsyncEnabled
                     )
                 }
                 try Task.checkCancellation()
+
+                // 云端异步规划已启动（§5.3）：流式会话立即收尾（输入不锁死），
+                // 轮询/领取/ack 由独立任务接管；运行卡按真实阶段推进。
+                if let cloudStart = processResult.contextPlanCloudStart {
+                    planningRunBox.value?.advance(to: .uploadingContext, cloudTaskID: cloudStart.cloudTaskID)
+                    planningRunBox.value?.advance(to: .cloudPlanning)
+                    let runController = planningRunBox.value
+                    let pollTask = Task { [weak self] in
+                        guard let self else { return }
+                        await self.pollCloudPlanningRun(
+                            cloudStart,
+                            aiMessageId: aiMessageId,
+                            runController: runController
+                        )
+                    }
+                    cloudPlanningPollTasks[aiMessageId] = pollTask
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                    return
+                }
 
                 // 个人情境规划产出：草案卡消息（只读，不写业务事项；保存走卡片按钮）
                 if let planOutcome = processResult.contextPlanOutcome {
@@ -811,6 +967,9 @@ final class ChatViewModel: ObservableObject {
                     encoder.dateEncodingStrategy = .iso8601
                     let draftJSON = (try? encoder.encode(planOutcome.draft))
                         .flatMap { String(data: $0, encoding: .utf8) }
+                    // 运行卡终态：换真实 runID + draftReady；同一消息原位转方案卡（§6.2）。
+                    planningRunBox.value?.completeDraft(finalRunID: planOutcome.runID)
+                    let finalRunJSON = planningRunBox.value.flatMap { HoloContextPlanRunController.encode($0.envelope) }
                     self.chatRepo?.finalizeMessage(
                         aiMessageId,
                         finalContent: planOutcome.draft.answerText,
@@ -821,6 +980,27 @@ final class ChatViewModel: ObservableObject {
                         analysisContextJSON: nil,
                         rawLogJSON: nil,
                         contextPlanJSON: draftJSON,
+                        contextPlanRunJSON: finalRunJSON,
+                        messageType: .contextPlan
+                    )
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                    return
+                }
+
+                // 规划已路由但失败：显式降级定稿（实施方案 §5.4），绝不静默续走普通流式
+                // 回答伪装成「没触发过规划」。运行卡同步落失败终态，普通文本承载交代文案。
+                if let planningFailure = processResult.contextPlanningFailure {
+                    planningRunBox.value?.fail(code: planningFailure.code)
+                    let failedRunJSON = planningRunBox.value.flatMap { HoloContextPlanRunController.encode($0.envelope) }
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: planningFailure.userMessage,
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        rawLogJSON: nil,
+                        contextPlanRunJSON: failedRunJSON,
                         messageType: .contextPlan
                     )
                     self.concludeStreamingSession(aiMessageId: aiMessageId)
@@ -897,30 +1077,22 @@ final class ChatViewModel: ObservableObject {
                             await self.analysisService.refreshLiveProgress(sourceMessageID: aiMessageId)
                         }
                     }
-                    // 云端异步轨道（二期 M2b）：flag 开启且已确认隐私文案时优先上云，
-                    // 失败自动回落本地（attempt 内闭环）；周计划快照仍走本地轨道。
-                    // 首次（未确认）只弹说明 sheet，本次仍走本地，下次生效。
-                    if !isWeeklyPlanning, continuation == nil,
-                       HoloAIFeatureFlags.cloudDeepAnalysisEnabled {
-                        if !HoloCloudAnalysisService.privacyConsented {
-                            self.showCloudPrivacySheet = true
-                        } else {
-                            // 云端轨道启动即请求通知授权+注册 APNs（「分析完成」推送）；
-                            // 权限拒绝/注册失败不影响分析本身（打开 App 照常领取结果）
-                            HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
-                            let cloudHandled = await HoloCloudAnalysisService.shared.attempt(
-                                question: text,
-                                sourceMessageID: aiMessageId
-                            )
-                            if cloudHandled {
-                                progressPoller.cancel()
-                                self.concludeStreamingSession(aiMessageId: aiMessageId)
-                                return
-                            }
-                            // 云端轨道因用户点「停止」而退出（attempt 返回 false）：
-                            // 取消语义到此为止，不得再启动本地全量分析（结果不展示但额度照烧）
-                            try Task.checkCancellation()
+                    // 云端独占轨道（2026-09-11 拍板）：深度分析只走云端，失败落诚实卡片
+                    // 不再回落本地；周计划与续跑仍走本地轨道（下方 runAnalysis）。
+                    if !isWeeklyPlanning, continuation == nil {
+                        let cloudFinished = await self.runCloudOnlyAnalysis(
+                            question: text,
+                            aiMessageId: aiMessageId,
+                            intent: processResult.firstIntent?.rawValue
+                        )
+                        if cloudFinished {
+                            progressPoller.cancel()
+                            self.concludeStreamingSession(aiMessageId: aiMessageId)
+                            return
                         }
+                        // 云端轨道因用户点「停止」而退出：取消语义到此为止，
+                        // 不得再启动本地全量分析（结果不展示但额度照烧）
+                        try Task.checkCancellation()
                     }
                     let rendered = await self.analysisService.runAnalysis(
                         question: isWeeklyPlanning
@@ -1418,13 +1590,36 @@ final class ChatViewModel: ObservableObject {
         streamingStatusHint = nil
         activeStreamingMessageID = nil
         if let cancelledMessageID {
-            // 打 .userCancelled 持久标记：重新进入页面做 Agent 状态同步时，
-            // 看到此标记不再把消息重新点亮成「还在分析中」，切断取消与同步的竞态。
-            chatRepo?.finishStreaming(
-                cancelledMessageID,
-                finalContent: String(localized: "已停止生成"),
-                messageType: .userCancelled
-            )
+            // 规划运行取消（§6.3）：先落终态信封再定稿，运行卡显示「已停止」；
+            // 迟到结果被终态锁与终态写保护拒绝，不会复活卡片。
+            let cancelledView = messages.first(where: { $0.id == cancelledMessageID })
+            if cancelledView?.messageType == .contextPlan,
+               cancelledView?.contextPlanJSON == nil,
+               var envelope = HoloContextPlanRunController.decode(cancelledView?.contextPlanRunJSON),
+               !envelope.stage.isTerminal {
+                envelope.stage = .cancelled
+                envelope.stageRevision += 1
+                envelope.updatedAt = Date()
+                envelope.canResume = false
+                chatRepo?.updateContextPlanRun(
+                    cancelledMessageID,
+                    runJSON: HoloContextPlanRunController.encode(envelope),
+                    messageType: .contextPlan
+                )
+                chatRepo?.finishStreaming(
+                    cancelledMessageID,
+                    finalContent: String(localized: "已停止本次规划"),
+                    messageType: .contextPlan
+                )
+            } else {
+                // 打 .userCancelled 持久标记：重新进入页面做 Agent 状态同步时，
+                // 看到此标记不再把消息重新点亮成「还在分析中」，切断取消与同步的竞态。
+                chatRepo?.finishStreaming(
+                    cancelledMessageID,
+                    finalContent: String(localized: "已停止生成"),
+                    messageType: .userCancelled
+                )
+            }
         }
         // 兜底：页面重进后 currentTask/activeStreamingMessageID 已丢失（旧 VM 已销毁，
         // 其 watchdog 因 weak self 一并失效），残留 streaming 消息既停不掉也无人收尾。
@@ -1489,7 +1684,30 @@ final class ChatViewModel: ObservableObject {
                 finalContent = partialContent + String(localized: "\n\n---\n⚠️ AI 响应超时，以上为已接收的部分内容")
             }
 
-            self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
+            // 规划运行卡超时：同步落失败终态信封，运行卡不永久转圈（§6.3）。
+            if let viewData = self.messages.first(where: { $0.id == aiMessageId }),
+               viewData.messageType == .contextPlan,
+               viewData.contextPlanJSON == nil,
+               var envelope = HoloContextPlanRunController.decode(viewData.contextPlanRunJSON),
+               !envelope.stage.isTerminal {
+                envelope.stage = .failed
+                envelope.stageRevision += 1
+                envelope.updatedAt = Date()
+                envelope.failureCode = "PLANNING_TIMEOUT"
+                envelope.canResume = false
+                self.chatRepo?.finalizeMessage(
+                    aiMessageId,
+                    finalContent: finalContent,
+                    intent: nil,
+                    extractedDataJSON: nil,
+                    parsedBatchJSON: nil,
+                    executionBatchJSON: nil,
+                    contextPlanRunJSON: HoloContextPlanRunController.encode(envelope),
+                    messageType: .contextPlan
+                )
+            } else {
+                self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
+            }
             self.isStreaming = false
             self.streamingText = ""
             self.streamingStatusHint = nil
@@ -2914,6 +3132,189 @@ final class ChatViewModel: ObservableObject {
         // resolve 只会落 arranged/declined；无记录 = 仍在续接态
         guard ContextPlanUserDefaultsReceipts().loadResolution(runID: runID) == nil else { return nil }
         return runID
+    }
+
+    /// 重进/冷启动对账（实施方案 §6.3）：无存活任务的未终态规划运行落明确失败，
+    /// 不残留永久三个点。只在消息装载后跑一次（活跃运行由登记表豁免）。
+    private func reconcileInterruptedPlanningRuns() {
+        let interruptedIDs = HoloContextPlanRunController.interruptedRunIDs(from: messages)
+        guard !interruptedIDs.isEmpty else { return }
+        for messageID in interruptedIDs {
+            let previous = messages
+                .first(where: { $0.id == messageID })
+                .flatMap { HoloContextPlanRunController.decode($0.contextPlanRunJSON) }
+            let envelope = HoloContextPlanRunController.interruptedEnvelope(for: messageID, previous: previous)
+            chatRepo?.finalizeMessage(
+                messageID,
+                finalContent: String(localized: "这次个性化规划没有完成（App 中途退出）。这条回答不是个性化方案，重新发送刚才的话即可再试。"),
+                intent: nil,
+                extractedDataJSON: nil,
+                parsedBatchJSON: nil,
+                executionBatchJSON: nil,
+                contextPlanRunJSON: HoloContextPlanRunController.encode(envelope),
+                messageType: .contextPlan
+            )
+        }
+    }
+
+    /// 运行卡停止按钮（§6.3）：只允许停当前活跃的规划运行；非活跃卡由对账判死。
+    func cancelPlanningRun(_ messageID: UUID) {
+        // 云端异步运行：精准取消轮询任务 + DELETE 云端任务 + 落取消终态信封。
+        if let pollTask = cloudPlanningPollTasks[messageID] {
+            pollTask.cancel()
+            cloudPlanningPollTasks[messageID] = nil
+            if let view = messages.first(where: { $0.id == messageID }),
+               var envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON),
+               !envelope.stage.isTerminal {
+                envelope.stage = .cancelled
+                envelope.stageRevision += 1
+                envelope.updatedAt = Date()
+                envelope.canResume = false
+                chatRepo?.updateContextPlanRun(
+                    messageID,
+                    runJSON: HoloContextPlanRunController.encode(envelope),
+                    messageType: .contextPlan
+                )
+                chatRepo?.finishStreaming(
+                    messageID,
+                    finalContent: String(localized: "已停止本次规划"),
+                    messageType: .contextPlan
+                )
+                let cloudTaskID = envelope.cloudTaskID
+                Task { [client = HoloCloudAnalysisClient()] in
+                    if let cloudTaskID {
+                        try? await client.cancel(taskId: cloudTaskID)
+                    }
+                }
+            }
+            return
+        }
+        guard activeStreamingMessageID == messageID else { return }
+        cancelStreaming()
+    }
+
+    /// 云端规划任务轮询（§5.3/§6.3）：真实阶段推进、结果领取-落盘-ack 严格排序、
+    /// 网络瞬断续轮、终态一律落盘。只在轮询任务内执行（MainActor）。
+    private func pollCloudPlanningRun(
+        _ start: HoloContextChatPlanner.CloudPlanStart,
+        aiMessageId: UUID,
+        runController: HoloContextPlanRunController?
+    ) async {
+        let client = HoloCloudAnalysisClient()
+        var consecutiveFailures = 0
+        // 2s 节奏 × 90 次 = 3 分钟上限：云端任务超时兜底（不永久转圈）
+        for _ in 0..<90 {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if Task.isCancelled { return }
+            do {
+                let status = try await client.fetchStatus(taskId: start.cloudTaskID)
+                consecutiveFailures = 0
+                switch status.status {
+                case "completed":
+                    let output = status.result?.output ?? ""
+                    guard !output.isEmpty else {
+                        finishCloudRunAsFailed(
+                            aiMessageId: aiMessageId,
+                            runController: runController,
+                            code: "PLANNING_CLOUD_EMPTY_OUTPUT",
+                            copy: String(localized: "这次的个性化规划没有完成：云端返回了空结果。这条回答不是个性化方案，可以重新发送再试一次。")
+                        )
+                        cloudPlanningPollTasks[aiMessageId] = nil
+                        return
+                    }
+                    // 领取 → 本机解析+校验+落库 → ack（严格排序；ack 丢失可重复领取）
+                    let outcome = try await HoloContextChatPlanner.deliverCloudPlan(start, output: output)
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .iso8601
+                    let draftJSON = (try? encoder.encode(outcome.draft))
+                        .flatMap { String(data: $0, encoding: .utf8) }
+                    runController?.completeDraft(finalRunID: outcome.runID)
+                    let finalRunJSON = runController.flatMap { HoloContextPlanRunController.encode($0.envelope) }
+                    chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: outcome.draft.answerText,
+                        intent: AIIntent.contextualPlanning.rawValue,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
+                        contextPlanJSON: draftJSON,
+                        contextPlanRunJSON: finalRunJSON,
+                        messageType: .contextPlan
+                    )
+                    try? await client.ackResult(taskId: start.cloudTaskID)
+                    cloudPlanningPollTasks[aiMessageId] = nil
+                    return
+                case "failed":
+                    let reason = status.failureReason ?? ""
+                    finishCloudRunAsFailed(
+                        aiMessageId: aiMessageId,
+                        runController: runController,
+                        code: "PLANNING_CLOUD_FAILED",
+                        copy: String(localized: "这次的个性化规划没有完成（云端生成失败）。这条回答不是个性化方案，可以重新发送再试一次。")
+                    )
+                    logger.error("云端规划任务失败：task=\(start.cloudTaskID) reason=\(reason)")
+                    cloudPlanningPollTasks[aiMessageId] = nil
+                    return
+                case "cancelled", "expired":
+                    finishCloudRunAsFailed(
+                        aiMessageId: aiMessageId,
+                        runController: runController,
+                        code: "PLANNING_CLOUD_TASK_GONE",
+                        copy: String(localized: "这次的个性化规划已失效。这条回答不是个性化方案，重新发送刚才的话即可再试。")
+                    )
+                    cloudPlanningPollTasks[aiMessageId] = nil
+                    return
+                default: // uploading/queued/running：真实阶段推进（幂等，终态锁兜底）
+                    runController?.advance(to: .cloudPlanning, cloudTaskID: start.cloudTaskID)
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                consecutiveFailures += 1
+                if consecutiveFailures >= 5 {
+                    finishCloudRunAsFailed(
+                        aiMessageId: aiMessageId,
+                        runController: runController,
+                        code: "PLANNING_CLOUD_UNREACHABLE",
+                        copy: String(localized: "这次个性化规划没有完成：网络暂时不可用。这条回答不是个性化方案，网络恢复后重新发送即可再试。")
+                    )
+                    cloudPlanningPollTasks[aiMessageId] = nil
+                    return
+                }
+            }
+        }
+        // 轮询超上限：云端任务可能仍在跑但不再等待——落明确失败，可重发
+        finishCloudRunAsFailed(
+            aiMessageId: aiMessageId,
+            runController: runController,
+            code: "PLANNING_POLL_TIMEOUT",
+            copy: String(localized: "这次个性化规划等待超时。这条回答不是个性化方案，可以重新发送再试一次。")
+        )
+        cloudPlanningPollTasks[aiMessageId] = nil
+    }
+
+    /// 云端运行失败终态的统一落盘（信封失败终态 + 消息定稿为运行卡失败态）。
+    private func finishCloudRunAsFailed(
+        aiMessageId: UUID,
+        runController: HoloContextPlanRunController?,
+        code: String,
+        copy: String
+    ) {
+        runController?.fail(code: code)
+        let failedRunJSON = runController.flatMap { HoloContextPlanRunController.encode($0.envelope) }
+        chatRepo?.finalizeMessage(
+            aiMessageId,
+            finalContent: copy,
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: failedRunJSON,
+            messageType: .contextPlan
+        )
     }
 
     private struct ContextPlanRunIDEnvelope: Decodable {

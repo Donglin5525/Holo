@@ -31,7 +31,7 @@ PC_MODELS="$APP/Models/AI/HoloPersonalContextModels.swift"
 PC_RECORD_DEPS="$APP/Models/AI/HoloMemoryRecord.swift,$APP/Models/AI/HoloLongTermMemoryModels.swift,$APP/Models/AI/HoloShortTermMemoryModels.swift,$APP/Models/AI/HoloMemoryEvidence.swift,$APP/Services/AI/MemoryCore/HoloMemoryIdentity.swift"
 
 PC_EXTRACT_DEPS="$APP/Services/AI/PersonalContext/HoloContextSourceReader.swift,$APP/Services/AI/PersonalContext/HoloPersonalContextValidator.swift,$APP/Services/AI/PersonalContext/HoloContextReconciler.swift,$APP/Services/AI/PersonalContext/HoloPersonalContextExtractor.swift"
-PC_RETRIEVAL_DEPS="$APP/Models/AI/HoloContextPlanningModels.swift,$APP/Services/AI/PersonalContext/HoloContextTemporalResolver.swift,$APP/Services/AI/PersonalContext/HoloContextEmbeddingStore.swift,$APP/Services/AI/PersonalContext/HoloContextRetrievalService.swift"
+PC_RETRIEVAL_DEPS="$APP/Models/AI/HoloContextPlanningModels.swift,$APP/Services/AI/PersonalContext/HoloContextTemporalResolver.swift,$APP/Services/AI/PersonalContext/HoloContextEmbeddingStore.swift,$APP/Services/AI/PersonalContext/HoloContextRetrievalService.swift,$APP/Services/AI/PersonalContext/HoloContextSourceReader.swift"
 PC_PLAN_DEPS="$APP/Services/AI/PersonalContext/HoloContextPlanValidator.swift,$APP/Services/AI/PersonalContext/HoloContextPlanningCoordinator.swift,$PC_EXTRACT_DEPS,$APP/Services/AI/MemoryRepository/HoloMemoryRepository.swift,$APP/Services/AI/MemoryCore/HoloSemanticTombstoneMatcher.swift"
 
 SUITES=(
@@ -82,6 +82,18 @@ for entry in "${SUITES[@]}"; do
     deps+=("$dep")
   done
   (( skip_suite )) && continue
+
+  # 套件依赖组合可能经变量嵌套重复同一文件（swiftc 对重复文件名报错），去重保序
+  # （bash 3.2 兼容：不用 mapfile/关联数组）
+  seen_list=","
+  uniq_deps=()
+  for d in "${deps[@]}"; do
+    case "$seen_list" in
+      *",$d,"*) ;;
+      *) seen_list="$seen_list$d,"; uniq_deps+=("$d") ;;
+    esac
+  done
+  deps=("${uniq_deps[@]}")
 
   echo "==> [$name] swiftc 编译（依赖 ${#deps[@]} 个源文件）"
   if ! swiftc -D HOLO_MEMORY_STANDALONE -module-cache-path "$CACHE" \

@@ -96,12 +96,14 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
     func start(
         frame: HoloPlanningRequestFrame,
         parentMessageID: String? = nil,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil,
         now: Date = Date()
     ) async throws -> Outcome {
         try await runFlow(
             frame: frame,
             parentMessageID: parentMessageID,
             existingRun: nil,
+            onStage: onStage,
             now: now
         )
     }
@@ -110,6 +112,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
     func followUp(
         run: HoloPlanningRun,
         updatedFrame: HoloPlanningRequestFrame,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil,
         now: Date = Date()
     ) async throws -> Outcome {
         guard run.state != .cancelled else { throw PlanningError.staleRun }
@@ -122,6 +125,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             frame: updatedFrame,
             parentMessageID: revised.parentMessageID,
             existingRun: revised,
+            onStage: onStage,
             now: now
         )
     }
@@ -134,12 +138,161 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         try await persistence.saveRun(run)
     }
 
+    // MARK: 云端准备（context_plan 云异步，2026-09-09 方案 §5.3）
+
+    /// 云端规划的准备产物：iOS 只做允许的本地检索与 prompt 组装，生成移交给云端任务。
+    nonisolated struct PreparedPlanPrompt: @unchecked Sendable {
+        let run: HoloPlanningRun
+        let prompt: String
+        let retrievalResult: HoloContextRetrievalResult
+        let fallbackSegments: [HoloContextSegment]
+        let rawFallbackUsed: Bool
+        /// contextID → 来源域（证据引用回源跳转用）。
+        let domainMap: [String: String]
+    }
+
+    /// 闸检查 + 检索 + 原文兜底 + prompt 组装（runFlow 的 0-2 步），不触发生成。
+    /// run 落库为 generating 态：云端生成期间追问/取消的 staleRun 守卫照常生效。
+    func preparePrompt(
+        frame: HoloPlanningRequestFrame,
+        parentMessageID: String? = nil,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil,
+        now: Date = Date()
+    ) async throws -> PreparedPlanPrompt {
+        // 0) 控制闸（与 runFlow 同口径）
+        let guardSnapshot = try await controlSnapshotProvider()
+        guard guardSnapshot.controls.allowsPlanningInjection else {
+            throw PlanningError.gateClosed
+        }
+
+        var run = HoloPlanningRun(
+            parentMessageID: parentMessageID,
+            frame: frame,
+            accessGuard: guardSnapshot,
+            createdAt: now,
+            updatedAt: now
+        )
+        run.state = .retrieving
+        run.updatedAt = now
+        try await persistence.saveRun(run)
+        onStage?(.retrieving)
+
+        // 1) 政策筛选 + 混合检索。
+        let records = try await recordsProvider()
+        let policy = HoloContextAccessPolicy.selectAdviceCandidates(records: records)
+        let retrievalResult = await retrieval.retrieve(
+            frame: frame,
+            catalog: policy.selected,
+            calendar: calendar,
+            now: now
+        )
+
+        // 2) 一次原文补查（缺口重要时；预算 1，与 runFlow 同口径）。
+        var fallbackSegments: [HoloContextSegment] = []
+        var rawFallbackUsed = false
+        if run.rawFallbacksUsed < Self.rawFallbackBudget,
+           let rawFallback,
+           retrievalResult.selected.count < 2 || retrievalResult.semanticCoverage == .degraded {
+            let segments = (try? await rawFallback.rawSegments(for: retrievalResult, frame: frame)) ?? []
+            let budgeted = Array(segments.prefix(HoloContextRetrievalService.rawFallbackSegmentLimit))
+            var used = 0
+            for segment in budgeted {
+                used += segment.text.utf16.count
+                if used > HoloContextRetrievalService.rawFallbackCharacterLimit { break }
+                fallbackSegments.append(segment)
+            }
+            rawFallbackUsed = !fallbackSegments.isEmpty
+            run.rawFallbacksUsed += rawFallbackUsed ? 1 : 0
+        }
+
+        // 生成在云端进行：本地 run 置 generating，结构校验仍在本机（真相源不外移）。
+        run.state = .generating
+        run.updatedAt = now
+        try await persistence.saveRun(run)
+        onStage?(.generating)
+
+        let prompt = Self.planPrompt(
+            frame: frame,
+            selected: retrievalResult.selected,
+            fallbackSegments: fallbackSegments,
+            semanticCoverage: retrievalResult.semanticCoverage
+        )
+        return PreparedPlanPrompt(
+            run: run,
+            prompt: prompt,
+            retrievalResult: retrievalResult,
+            fallbackSegments: fallbackSegments,
+            rawFallbackUsed: rawFallbackUsed,
+            domainMap: Self.contextDomainMap(from: records)
+        )
+    }
+
+    /// 云端回传产物的本机解析+校验+落库（与 runFlow 第 3-5 步同一真相源）。
+    /// 校验不可交付 → run 置 failed 并抛 undeliverableAfterRepair。
+    func deliverCloudOutput(
+        _ prepared: PreparedPlanPrompt,
+        output: String,
+        now: Date = Date()
+    ) async throws -> Outcome {
+        var run = prepared.run
+        do {
+            let parsed = try HoloContextPlanDraftParser.parse(
+                output,
+                runID: run.runID,
+                draftRevision: run.draftRevision + 1
+            )
+            let (sanitized, findings) = HoloContextPlanValidator.validate(
+                draft: parsed,
+                availableContexts: prepared.retrievalResult.selected
+            )
+            guard HoloContextPlanValidator.isDeliverable(findings: findings) else {
+                throw PlanningError.undeliverableAfterRepair
+            }
+            // 落库前代际复查（与 runFlow 第 4 步同口径）。
+            let finalGuard = try await controlSnapshotProvider()
+            guard finalGuard.userDecisionVersion == run.accessGuard.userDecisionVersion,
+                  finalGuard.learningBaselineAt == run.accessGuard.learningBaselineAt,
+                  finalGuard.controls.allowsPlanningInjection
+            else {
+                throw PlanningError.generationChanged
+            }
+
+            var draft = sanitized
+            run.state = .draftReady
+            run.draftRevision = draft.draftRevision
+            run.updatedAt = now
+            try await persistence.saveRun(run)
+            draft.coverage.readSources = Array(Set(draft.coverage.readSources))
+            draft.basisEntries = Self.basisEntries(for: draft, from: prepared.retrievalResult.selected)
+            draft.evidenceRefs = Self.evidenceRefs(
+                for: draft,
+                from: prepared.retrievalResult.selected,
+                domainMap: prepared.domainMap
+            )
+            try await persistence.saveDraft(draft)
+            return Outcome(
+                run: run,
+                draft: draft,
+                retrievalResult: prepared.retrievalResult,
+                rawFallbackUsed: prepared.rawFallbackUsed,
+                repaired: false
+            )
+        } catch {
+            // staleRun/generationChanged 之外的结构性失败 → run 终态化
+            run.state = .failed
+            run.updatedAt = now
+            try? await persistence.saveRun(run)
+            throw error
+        }
+    }
+
     // MARK: 内部流程
 
     private func runFlow(
         frame: HoloPlanningRequestFrame,
         parentMessageID: String?,
         existingRun: HoloPlanningRun?,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil,
         now: Date
     ) async throws -> Outcome {
         // 0) 控制闸（检索+注入都必须可用；retrieval 开 injection 关是 shadow 计数，
@@ -162,6 +315,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         run.state = .retrieving
         run.updatedAt = now
         try await persistence.saveRun(run)
+        onStage?(.retrieving)
 
         // 1) 政策筛选 + 混合检索。
         let records = try await recordsProvider()
@@ -195,6 +349,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         run.state = .generating
         run.updatedAt = now
         try await persistence.saveRun(run)
+        onStage?(.generating)
 
         var lastFindings: [HoloContextPlanValidator.Finding] = []
         var deliverable: HoloContextPlanDraft?
@@ -277,9 +432,15 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         run.draftRevision = draft.draftRevision
         run.updatedAt = now
         try await persistence.saveRun(run)
+        onStage?(.draftReady)
         draft.coverage.readSources = Array(Set(draft.coverage.readSources))
         // 依据快照回填（P0：依据区展示本机命题原文，非模型复述；随草案固化）。
         draft.basisEntries = Self.basisEntries(for: draft, from: retrievalResult.selected)
+        draft.evidenceRefs = Self.evidenceRefs(
+            for: draft,
+            from: retrievalResult.selected,
+            domainMap: Self.contextDomainMap(from: records)
+        )
         try await persistence.saveDraft(draft)
         _ = lastFindings
         return Outcome(
@@ -307,6 +468,47 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
                     statement: entry.payload.statement,
                     epistemicStatus: entry.payload.epistemicStatus.rawValue,
                     occurrenceStatus: entry.currentOccurrenceStatus?.rawValue
+                )
+            }
+    }
+
+    /// contextID → 来源域 映射（从记忆记录反查；证据引用回源跳转用）。
+    static func contextDomainMap(from records: [HoloMemoryRecord]) -> [String: String] {
+        var map: [String: String] = [:]
+        for record in records {
+            guard let payload = record.personalContext?.v1 else { continue }
+            if let domain = record.primaryDomain?.rawValue {
+                map[payload.contextID] = domain
+            }
+        }
+        return map
+    }
+
+    /// 类型化证据引用（§7.1）：与依据快照同源（本机检索命中条目），补来源坐标
+    /// 供卡片「你的记录」行回源跳转。来源实体存在性由打开时解析，不在此校验。
+    /// 域不可考（不在映射内）或来源 ID 缺失的条目不生成引用（诚实不可跳）。
+    static func evidenceRefs(
+        for draft: HoloContextPlanDraft,
+        from entries: [HoloContextCatalogEntry],
+        domainMap: [String: String]
+    ) -> [HoloContextEvidenceRef] {
+        let used = Set(draft.usedContextRefs)
+        return entries
+            .filter { used.contains($0.payload.contextID) }
+            .compactMap { entry -> HoloContextEvidenceRef? in
+                guard let domain = domainMap[entry.payload.contextID],
+                      let sourceID = entry.payload.basis.first?.sourceID,
+                      !sourceID.isEmpty
+                else { return nil }
+                return HoloContextEvidenceRef(
+                    id: entry.payload.contextID,
+                    contextID: entry.payload.contextID,
+                    contextVersionID: entry.versionID,
+                    sourceDomain: domain,
+                    sourceEntityID: sourceID,
+                    excerpt: entry.payload.statement,
+                    epistemicStatus: entry.payload.epistemicStatus.rawValue,
+                    sourceCreatedAt: nil
                 )
             }
     }

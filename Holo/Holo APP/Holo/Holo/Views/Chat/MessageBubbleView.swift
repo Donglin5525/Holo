@@ -58,6 +58,8 @@ struct MessageBubbleView: View {
     var lifePlanUndoPlanID: UUID? = nil
     var onLifePlanOpenReview: ((LifePlanSnapshot) -> Void)? = nil
     var onLifePlanUndo: ((LifePlanSnapshot) -> Void)? = nil
+    /// 规划运行卡停止按钮（实施方案 §6.3：取消具体 run，不是取消全局流式）。
+    var onPlanningRunCancel: ((ChatMessageViewData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -244,6 +246,14 @@ struct MessageBubbleView: View {
                             }
                             return receipts
                         }
+                    )
+                } else if let runEnvelope = message.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:)) {
+                    // 运行态卡（§6.2）：草案未落时按持久化 run 信封渲染真实阶段；
+                    // 退出重进/冷启动读同一信封，不再是空白消息或三个点。
+                    ContextPlanRunStatusView(
+                        envelope: runEnvelope,
+                        failureMessage: runEnvelope.stage == .failed ? message.content : nil,
+                        onStop: runEnvelope.stage.isTerminal ? nil : { onPlanningRunCancel?(message) }
                     )
                 } else {
                     bubbleContent

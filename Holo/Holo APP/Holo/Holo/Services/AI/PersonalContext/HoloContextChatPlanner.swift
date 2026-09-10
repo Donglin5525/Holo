@@ -95,7 +95,8 @@ enum HoloContextChatPlanner {
     static func plan(
         utterance: String,
         parentMessageID: String?,
-        provider: (any AIProvider)? = nil
+        provider: (any AIProvider)? = nil,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil
     ) async throws -> PlanOutcome {
         let aiProvider = provider ?? HoloBackendAIProvider()
 
@@ -136,7 +137,8 @@ enum HoloContextChatPlanner {
 
         let outcome = try await coordinator.start(
             frame: frame,
-            parentMessageID: parentMessageID
+            parentMessageID: parentMessageID,
+            onStage: onStage
         )
         logger.error("PLAN-DIAG start ok: run=\(outcome.run.runID) draftItems=\(outcome.draft.items.count) answerLen=\(outcome.draft.answerText.count) entries=\(outcome.retrievalResult.entries.count) selected=\(outcome.retrievalResult.selected.count) coverage=\(outcome.retrievalResult.semanticCoverage.rawValue)")
         HoloPersonalContextDiagnostics.recordPlanning(
@@ -183,7 +185,8 @@ enum HoloContextChatPlanner {
     static func followUp(
         runID: String,
         utterance: String,
-        provider: (any AIProvider)? = nil
+        provider: (any AIProvider)? = nil,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil
     ) async throws -> PlanOutcome {
         let aiProvider = provider ?? HoloBackendAIProvider()
         let controls = HoloPersonalContextControls.resolve(
@@ -202,7 +205,7 @@ enum HoloContextChatPlanner {
         let persistence = HoloPlanningMemoryRunPersistence()
         guard let run = try await persistence.loadRun(runID: runID) else {
             // 运行不可恢复（如重启后内存态丢失）：按新一轮处理。
-            return try await plan(utterance: utterance, parentMessageID: nil, provider: aiProvider)
+            return try await plan(utterance: utterance, parentMessageID: nil, provider: aiProvider, onStage: onStage)
         }
         let updated = HoloPlanningRequestFrame(
             utterance: utterance,
@@ -216,9 +219,124 @@ enum HoloContextChatPlanner {
             persistence: persistence,
             contextCountOut: ContextCountBox()
         )
-        let outcome = try await coordinator.followUp(run: run, updatedFrame: updated)
+        let outcome = try await coordinator.followUp(run: run, updatedFrame: updated, onStage: onStage)
         HoloPersonalContextDiagnostics.recordPlanning(
             contextCount: outcome.retrievalResult.entries.count,
+            candidates: outcome.retrievalResult.entries.count,
+            selected: outcome.retrievalResult.selected.count,
+            coverage: outcome.retrievalResult.semanticCoverage.rawValue,
+            rawFallbackUsed: outcome.rawFallbackUsed
+        )
+        return PlanOutcome(
+            draft: outcome.draft,
+            runID: outcome.run.runID,
+            semanticCoverage: outcome.retrievalResult.semanticCoverage
+        )
+    }
+
+    /// 云端异步规划灰度（§14.2）：内部账号先启用，观察指标后再放开生产。
+    static var isCloudAsyncEnabled: Bool {
+        HoloMemoryRolloutProductPolicy.current.isInternalAccount
+    }
+
+    /// 云端规划启动产物：云端任务 ID + 本机保留的检索产物（交付校验要用）。
+    struct CloudPlanStart {
+        let cloudTaskID: String
+        let preparation: HoloContextPlanningCoordinator.PreparedPlanPrompt
+        let utterance: String
+    }
+
+    /// 云端异步路径第一步：闸检查+本地检索+prompt 组装，创建云端 context_plan 任务
+    /// 并上传 prompt 快照（即焚语义由服务端任务底座保证）。生成不在本机。
+    static func startCloudPlan(
+        utterance: String,
+        parentMessageID: String?,
+        provider: (any AIProvider)? = nil,
+        onStage: ((HoloPlanningRunState) -> Void)? = nil,
+        client: HoloCloudAnalysisClient? = nil
+    ) async throws -> CloudPlanStart {
+        let aiProvider = provider ?? HoloBackendAIProvider()
+        let controls = HoloPersonalContextControls.resolve(
+            defaults: .standard,
+            isInternalAccount: HoloMemoryRolloutProductPolicy.current.isInternalAccount,
+            automaticMemoryEnabled: HoloMemorySettings.shared.automaticMemoryEnabled,
+            memoryAssistedAnsweringEnabled: HoloMemorySettings.shared.memoryAssistedAnsweringEnabled,
+            aiDataProcessingConsentGranted: HoloAIDataProcessingConsent.shared.isGranted
+        )
+        guard controls.allowsPlanningInjection else {
+            logger.error("PLAN-DIAG cloud gate closed")
+            HoloPersonalContextDiagnostics.recordPlanningGateClosed()
+            throw PlannerError.gateClosed
+        }
+        guard let repository = try? await HoloMemoryRuntime.shared.repository() else {
+            logger.error("PLAN-DIAG cloud repository unavailable")
+            throw PlannerError.generationUnavailable
+        }
+        let persistence = HoloPlanningMemoryRunPersistence()
+        let coordinator = Self.makeCoordinator(
+            aiProvider: aiProvider,
+            controls: controls,
+            repository: repository,
+            persistence: persistence,
+            contextCountOut: ContextCountBox()
+        )
+        let frame = HoloPlanningRequestFrame(
+            utterance: utterance,
+            goalSummary: utterance,
+            referenceTime: Date()
+        )
+        let preparation = try await coordinator.preparePrompt(
+            frame: frame,
+            parentMessageID: parentMessageID,
+            onStage: onStage
+        )
+
+        let cloudClient: HoloCloudAnalysisClient
+        if let client {
+            cloudClient = client
+        } else {
+            cloudClient = await HoloCloudAnalysisClient()
+        }
+        let start = try await cloudClient.start(question: utterance, taskType: "context_plan")
+        let snapshot = try JSONSerialization.data(
+            withJSONObject: ["prompt": preparation.prompt],
+            options: []
+        )
+        try await cloudClient.uploadSnapshot(taskId: start.taskId, snapshotJSON: snapshot)
+        logger.error("PLAN-DIAG cloud task started: \(start.taskId) promptChars=\(preparation.prompt.count)")
+        return CloudPlanStart(cloudTaskID: start.taskId, preparation: preparation, utterance: utterance)
+    }
+
+    /// 云端异步路径第二步：领取云端产物 → 本机解析+校验+落库（真相源不外移）。
+    static func deliverCloudPlan(
+        _ start: CloudPlanStart,
+        output: String,
+        provider: (any AIProvider)? = nil
+    ) async throws -> PlanOutcome {
+        let aiProvider = provider ?? HoloBackendAIProvider()
+        let controls = HoloPersonalContextControls.resolve(
+            defaults: .standard,
+            isInternalAccount: HoloMemoryRolloutProductPolicy.current.isInternalAccount,
+            automaticMemoryEnabled: HoloMemorySettings.shared.automaticMemoryEnabled,
+            memoryAssistedAnsweringEnabled: HoloMemorySettings.shared.memoryAssistedAnsweringEnabled,
+            aiDataProcessingConsentGranted: HoloAIDataProcessingConsent.shared.isGranted
+        )
+        guard controls.allowsPlanningInjection else {
+            throw PlannerError.gateClosed
+        }
+        guard let repository = try? await HoloMemoryRuntime.shared.repository() else {
+            throw PlannerError.generationUnavailable
+        }
+        let coordinator = Self.makeCoordinator(
+            aiProvider: aiProvider,
+            controls: controls,
+            repository: repository,
+            persistence: HoloPlanningMemoryRunPersistence(),
+            contextCountOut: ContextCountBox()
+        )
+        let outcome = try await coordinator.deliverCloudOutput(start.preparation, output: output)
+        HoloPersonalContextDiagnostics.recordPlanning(
+            contextCount: 0,
             candidates: outcome.retrievalResult.entries.count,
             selected: outcome.retrievalResult.selected.count,
             coverage: outcome.retrievalResult.semanticCoverage.rawValue,

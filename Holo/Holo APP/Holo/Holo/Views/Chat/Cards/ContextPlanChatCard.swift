@@ -28,6 +28,8 @@ struct ContextPlanChatCard: View {
     @State private var showBasis = false
     @State private var saveState: SaveState = .idle
     @State private var duplicates: [String] = []
+    /// 证据回源失败（原记录已删除/域不可达）的统一交代（§7.2：不跳空页面）。
+    @State private var showEvidenceUnavailable = false
     // §10 纠正三选项：「已安排好/本次不用」收起本次草案；「情况变了」走 followUp 重生成。
     @State private var resolvedState: ResolvedState = .active
     @State private var followUpText = ""
@@ -76,6 +78,14 @@ struct ContextPlanChatCard: View {
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .onAppear { loadDraft() }
+        .alert(
+            String(localized: "原记录已删除或当前不可访问"),
+            isPresented: $showEvidenceUnavailable
+        ) {
+            Button(String(localized: "知道了"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "这条记录可能已被删除，或当前版本无法打开它。"))
+        }
     }
 
     // MARK: - 区块
@@ -198,15 +208,44 @@ struct ContextPlanChatCard: View {
                         .foregroundStyle(.secondary)
                 }
                 if isTask {
-                    DatePicker(
-                        String(localized: "定个日期（可选）"),
-                        selection: Binding(
-                            get: { confirmedDates[item.itemID] ?? Date() },
-                            set: { confirmedDates[item.itemID] = $0 }
-                        ),
-                        displayedComponents: .date
-                    )
-                    .font(.caption2)
+                    // 日期三态（§8.1）：未设置就显示「设置日期」，绝不默认今天；
+                    // 建议值只进选择器，用户确认后 confirmedDates 才有值、保存才带日期。
+                    if confirmedDates[item.itemID] != nil {
+                        HStack(spacing: 8) {
+                            DatePicker(
+                                String(localized: "日期"),
+                                selection: Binding(
+                                    get: { confirmedDates[item.itemID] ?? Date() },
+                                    set: { confirmedDates[item.itemID] = $0 }
+                                ),
+                                displayedComponents: .date
+                            )
+                            .font(.caption2)
+                            Button {
+                                confirmedDates[item.itemID] = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("移除日期"))
+                        }
+                    } else {
+                        Button {
+                            confirmedDates[item.itemID] = Date()
+                        } label: {
+                            Label(String(localized: "设置日期"), systemImage: "calendar.badge.plus")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    // 默认未勾选的待提示原因（§8.2：依赖项默认不选并说明）。
+                    if !selected.contains(item.itemID) && !item.preconditions.isEmpty {
+                        Text(String(localized: "确认 \(item.preconditions.joined(separator: "、")) 后可加入"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -262,6 +301,17 @@ struct ContextPlanChatCard: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
+                                // 来源坐标（§7.2）：可回源的行给「查看来源」入口
+                                if let ref = draft.evidenceRefs?.first(where: { $0.contextID == entry.contextID }),
+                                   ref.sourceEntityID != nil {
+                                    Spacer(minLength: 0)
+                                    Label(
+                                        HoloContextEvidenceNavigator.displayName(for: ref.sourceDomain),
+                                        systemImage: "arrow.up.right.square"
+                                    )
+                                    .font(.caption2)
+                                    .foregroundStyle(.tint)
+                                }
                             }
                             Text(entry.statement)
                                 .font(.caption)
@@ -272,6 +322,9 @@ struct ContextPlanChatCard: View {
                         .padding(8)
                         .background(Color(.secondarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                        .onTapGesture { openEvidence(for: draft, contextID: entry.contextID) }
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }
@@ -336,8 +389,15 @@ struct ContextPlanChatCard: View {
                 Button {
                     save(draft)
                 } label: {
+                    // 数量来自当前 selection state（§8.2）：无日期数量一并如实展示
+                    let noDateCount = draft.items
+                        .filter { selected.contains($0.itemID) }
+                        .filter { confirmedDates[$0.itemID] == nil }
+                        .count
                     Label(
-                        String(localized: "添加选中的 \(selected.count) 项到待办"),
+                        noDateCount > 0
+                            ? String(localized: "添加选中的 \(selected.count) 项到待办（\(noDateCount) 项未设日期）")
+                            : String(localized: "添加选中的 \(selected.count) 项到待办"),
                         systemImage: "square.and.arrow.down"
                     )
                     .font(.subheadline.weight(.medium))
@@ -433,15 +493,40 @@ struct ContextPlanChatCard: View {
 
     // MARK: - 动作
 
+    /// 依据行回源（§7.2）：跳原实体详情；不可达时统一交代，不跳空页面。
+    private func openEvidence(for draft: HoloContextPlanDraft, contextID: String) {
+        guard let ref = draft.evidenceRefs?.first(where: { $0.contextID == contextID }),
+              let entityID = ref.sourceEntityID else {
+            showEvidenceUnavailable = true
+            return
+        }
+        let navigated = HoloContextEvidenceNavigator.navigate(
+            sourceDomain: ref.sourceDomain,
+            sourceEntityID: entityID
+        )
+        if !navigated {
+            showEvidenceUnavailable = true
+        }
+    }
+
+    /// 默认选中策略（§8.2）：无未决前置、不需要替用户猜日期的直接相关项才默认勾选。
+    /// 依赖未知条件（preconditions 非空）或只有相对时间表达的项默认不选。
+    private func isSelfEvidentlyReady(_ item: HoloContextPlanItem) -> Bool {
+        guard item.preconditions.isEmpty else { return false }
+        if item.relativeTiming != nil && item.confirmedDate == nil { return false }
+        return true
+    }
+
     private func loadDraft() {
         guard let json = draftJSON, let data = json.data(using: .utf8) else { return }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let decoded = try? decoder.decode(HoloContextPlanDraft.self, from: data) else { return }
         draft0 = decoded
-        // 默认选中待办/清单项。
+        // 默认选中待办/清单项（§8.2 默认选择策略）。
         selected = Set(decoded.items
             .filter { $0.kind == .task || $0.kind == .checklistItem }
+            .filter { isSelfEvidentlyReady($0) }
             .map(\.itemID))
         // 纠正状态跨会话兑现（P0）：重启后「已安排好/本次不用」不再回到可保存态。
         if let raw = receipts.loadResolution(runID: decoded.runID),

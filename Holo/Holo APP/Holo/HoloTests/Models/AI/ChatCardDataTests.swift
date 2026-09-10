@@ -555,4 +555,193 @@ final class ChatCardDataTests: XCTestCase {
         XCTAssertNil(ChatCardData.linkedEntityId(from: [:]))
         XCTAssertNil(ChatCardData.linkedEntityId(from: ["amount": "35"]))
     }
+
+    // MARK: 个人情境规划失败类型化（实施方案 2026-09-09 §5.4：替代旧 try? 静默回落）
+
+    func testContextPlanningFailureMappingCoversTypedCases() {
+        // 生成不可用：明确交代「没有完成」且可重试
+        let unavailable = ContextPlanningFailure.make(
+            from: HoloContextChatPlanner.PlannerError.generationUnavailable
+        )
+        XCTAssertEqual(unavailable.code, "PLANNING_GENERATION_UNAVAILABLE")
+        XCTAssertTrue(unavailable.retryable)
+        XCTAssertTrue(unavailable.userMessage.contains("没有完成"))
+
+        // 内层协调器四类语义错误各自有稳定错误码，供日志与后续 UI 细分
+        XCTAssertEqual(
+            ContextPlanningFailure.make(from: HoloContextPlanningCoordinator.PlanningError.gateClosed).code,
+            "PLANNING_GATE_CLOSED"
+        )
+        XCTAssertEqual(
+            ContextPlanningFailure.make(from: HoloContextPlanningCoordinator.PlanningError.staleRun).code,
+            "PLANNING_STALE_RUN"
+        )
+        XCTAssertEqual(
+            ContextPlanningFailure.make(from: HoloContextPlanningCoordinator.PlanningError.generationChanged).code,
+            "PLANNING_GENERATION_CHANGED"
+        )
+        XCTAssertEqual(
+            ContextPlanningFailure.make(from: HoloContextPlanningCoordinator.PlanningError.undeliverableAfterRepair).code,
+            "PLANNING_UNDELIVERABLE"
+        )
+
+        // 未知错误走兜底码，文案仍明确交代「不是个性化方案」（不得伪装普通回答）
+        struct UnknownPlanningError: Error {}
+        let fallback = ContextPlanningFailure.make(from: UnknownPlanningError())
+        XCTAssertEqual(fallback.code, "PLANNING_EXECUTION_FAILED")
+        XCTAssertTrue(fallback.userMessage.contains("不是个性化方案"))
+    }
+
+    // MARK: 规划运行状态机（实施方案 2026-09-09 §5.1/§6.3：revision 单调 + 终态锁 + 对账）
+
+    private func makeRunEnvelope(stage: HoloContextPlanStage) -> HoloContextPlanRunEnvelope {
+        let messageID = UUID()
+        return HoloContextPlanRunEnvelope(
+            runID: messageID.uuidString,
+            assistantMessageID: messageID,
+            stage: stage
+        )
+    }
+
+    func testPlanningRunAdvanceIsMonotonicAndTerminalLocked() {
+        let controller = HoloContextPlanRunController(envelope: makeRunEnvelope(stage: .planningRecognized))
+        XCTAssertTrue(controller.advance(to: .readingPersonalContext))
+        XCTAssertEqual(controller.envelope.stage, .readingPersonalContext)
+        XCTAssertEqual(controller.envelope.stageRevision, 1)
+
+        XCTAssertTrue(controller.advance(to: .generatingDraft))
+        XCTAssertEqual(controller.envelope.stageRevision, 2)
+
+        // 失败终态后，迟到的阶段推进与再次失败都必须被拒绝（§5.1 迟到回调 guard）
+        controller.fail(code: "PLANNING_TIMEOUT")
+        XCTAssertEqual(controller.envelope.stage, .failed)
+        XCTAssertFalse(controller.advance(to: .generatingDraft))
+        XCTAssertFalse(controller.fail(code: "PLANNING_TIMEOUT"))
+        XCTAssertFalse(controller.advance(to: .draftReady))
+        XCTAssertEqual(controller.envelope.stageRevision, 3, "终态后的拒绝不得推进 revision")
+    }
+
+    func testPlanningRunCompleteDraftSwapsRealRunID() {
+        let controller = HoloContextPlanRunController(envelope: makeRunEnvelope(stage: .generatingDraft))
+        let realRunID = "run-abc-123"
+        controller.completeDraft(finalRunID: realRunID)
+        XCTAssertEqual(controller.envelope.stage, .draftReady)
+        XCTAssertEqual(controller.envelope.runID, realRunID)
+        XCTAssertTrue(controller.envelope.stage.isTerminal)
+    }
+
+    func testPlanningRunCancelWinsOverLateAdvance() {
+        let controller = HoloContextPlanRunController(envelope: makeRunEnvelope(stage: .generatingDraft))
+        controller.cancel()
+        XCTAssertEqual(controller.envelope.stage, .cancelled)
+        XCTAssertFalse(controller.advance(to: .draftReady))
+        XCTAssertEqual(controller.envelope.stage, .cancelled, "取消终态胜出，迟到结果不得改写")
+    }
+
+    func testPlanningRunPersistWritesThroughEachTransition() {
+        var written: [Int] = []
+        let controller = HoloContextPlanRunController(
+            envelope: makeRunEnvelope(stage: .planningRecognized),
+            persist: { _, json in
+                if let envelope = HoloContextPlanRunController.decode(json) {
+                    written.append(envelope.stageRevision)
+                }
+            }
+        )
+        controller.advance(to: .readingPersonalContext)
+        controller.completeDraft()
+        XCTAssertEqual(written, [1, 2], "每次迁移都应原样写穿")
+    }
+
+    func testInterruptedRunDetectionSkipsTerminalAndLiveRuns() {
+        // 非终态 + 非活跃 → 需要对账；终态/无信封 → 跳过。
+        let dead = makeRunEnvelope(stage: .generatingDraft)
+        let done = makeRunEnvelope(stage: .draftReady)
+        let noRun = UUID()
+
+        let deadID = dead.assistantMessageID
+        let doneID = done.assistantMessageID
+        let encodedDone = HoloContextPlanRunController.encode(done)
+
+        // controller 存活期间：登记表持有 → 不对账
+        var encodedDead: String?
+        do {
+            let controller = HoloContextPlanRunController(envelope: dead)
+            let liveMessage = ChatMessageViewData(
+                id: deadID, role: "assistant", content: "",
+                timestamp: Date(), intent: nil, extractedDataJSON: nil, isStreaming: true,
+                parentMessageId: nil, messageType: .contextPlan,
+                contextPlanRunJSON: HoloContextPlanRunController.encode(controller.envelope)
+            )
+            XCTAssertTrue(HoloContextPlanRunController.interruptedRunIDs(from: [liveMessage]).isEmpty)
+            encodedDead = HoloContextPlanRunController.encode(controller.envelope)
+        } // 作用域结束 → controller deinit 注销登记表
+
+        let deadMessage = ChatMessageViewData(
+            id: deadID, role: "assistant", content: "",
+            timestamp: Date(), intent: nil, extractedDataJSON: nil, isStreaming: true,
+            parentMessageId: nil, messageType: .contextPlan,
+            contextPlanRunJSON: encodedDead
+        )
+        let doneMessage = ChatMessageViewData(
+            id: doneID, role: "assistant", content: "",
+            timestamp: Date(), intent: nil, extractedDataJSON: nil, isStreaming: false,
+            parentMessageId: nil, messageType: .contextPlan,
+            contextPlanRunJSON: encodedDone
+        )
+        let noRunMessage = ChatMessageViewData(
+            id: noRun, role: "assistant", content: "",
+            timestamp: Date(), intent: nil, extractedDataJSON: nil, isStreaming: false,
+            parentMessageId: nil, messageType: .contextPlan,
+            contextPlanRunJSON: nil
+        )
+        XCTAssertEqual(
+            HoloContextPlanRunController.interruptedRunIDs(from: [deadMessage, doneMessage, noRunMessage]),
+            [deadID]
+        )
+
+        // 对账载荷：revision 递增 + 固定失败码
+        let reconciled = HoloContextPlanRunController.interruptedEnvelope(
+            for: deadID,
+            previous: HoloContextPlanRunController.decode(encodedDead)
+        )
+        XCTAssertEqual(reconciled.stage, .failed)
+        XCTAssertEqual(reconciled.failureCode, "PLANNING_RUN_INTERRUPTED")
+    }
+
+    // MARK: 可信表达校验（实施方案 2026-09-09 §9：数据缺失≠零值，推断不带人格标签）
+
+    func testTrustedExpressionViolationScan() {
+        // 数据缺失冒充零值：阻断
+        XCTAssertNotNil(HoloContextPlanValidator.firstTrustedExpressionViolation(
+            in: "最近收入为零，建议控制开支。"
+        ))
+        XCTAssertNotNil(HoloContextPlanValidator.firstTrustedExpressionViolation(
+            in: "你目前没有任何收入。"
+        ))
+        // 人格化判断：阻断
+        XCTAssertNotNil(HoloContextPlanValidator.firstTrustedExpressionViolation(
+            in: "你有冲动消费的历史，这次要更保守。"
+        ))
+        XCTAssertNotNil(HoloContextPlanValidator.firstTrustedExpressionViolation(
+            in: "考虑到你自控力差，建议设置预算上限。"
+        ))
+        // 正确口径：不拦
+        XCTAssertNil(HoloContextPlanValidator.firstTrustedExpressionViolation(
+            in: "Holo 最近没有查到收入记录；这不代表你实际没有收入。"
+        ))
+        XCTAssertNil(HoloContextPlanValidator.firstTrustedExpressionViolation(
+            in: "从当前记录看，这个月的餐饮支出比上月高，可能需要留意预算。"
+        ))
+    }
+
+    func testTrustedExpressionViolationsBlockDelivery() {
+        let zero = HoloContextPlanValidator.Finding(code: .dataMissingAsZero, detail: "test")
+        let judgment = HoloContextPlanValidator.Finding(code: .personalizedJudgment, detail: "test")
+        XCTAssertFalse(HoloContextPlanValidator.isDeliverable(findings: [zero]))
+        XCTAssertFalse(HoloContextPlanValidator.isDeliverable(findings: [judgment]))
+        // 净化性问题仍是非阻断的
+        let sanitized = HoloContextPlanValidator.Finding(code: .unknownContextRef, detail: "test")
+        XCTAssertTrue(HoloContextPlanValidator.isDeliverable(findings: [sanitized]))
+    }
 }

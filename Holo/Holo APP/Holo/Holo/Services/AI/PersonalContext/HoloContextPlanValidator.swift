@@ -31,6 +31,10 @@ nonisolated enum HoloContextPlanValidator {
             case suggestsCompletedOccurrence
             case tooManyUnknowns
             case selfDependency
+            /// 数据缺失被表达成零值/事实（§9.1：缺失≠没有）。
+            case dataMissingAsZero
+            /// 人格化判断（§9.1：推断必须带限定，不得贴人格标签）。
+            case personalizedJudgment
         }
 
         var code: Code
@@ -148,7 +152,40 @@ nonisolated enum HoloContextPlanValidator {
             }
         }
 
+        // 9) 可信表达（§9）：数据缺失冒充零值/事实、人格化判断——阻断性发现，
+        //    触发一次修复再生成；仍违规则按不可交付处理。
+        let scannedText = [draft.answerText]
+            + draft.items.map { "\($0.title) \($0.reason)" }
+        if let hit = Self.firstTrustedExpressionViolation(in: scannedText.joined(separator: "\n")) {
+            findings.append(hit)
+        }
+
         return (sanitized, findings)
+    }
+
+    /// 可信表达违例扫描（§9.1）。模式窄集合，只拦确凿的硬伤表达：
+    /// - 数据缺失 → 零值/事实：「收入为零」「没有任何收入」等；
+    /// - 人格化判断：「冲动消费历史」「自控力差」等贴标签。
+    static func firstTrustedExpressionViolation(in text: String) -> Finding? {
+        let zeroPatterns: [(String, String)] = [
+            ("收入为零|零收入|没有任何收入|收入是零|收入为 0", "「没有查到收入记录」被表达成「收入为零」"),
+            ("没有任何(?:支出|消费|记录)(?:记录|史)?", "数据缺失被表达成绝对零值事实"),
+        ]
+        for (pattern, detail) in zeroPatterns {
+            if text.range(of: pattern, options: .regularExpression) != nil {
+                return Finding(code: .dataMissingAsZero, detail: detail)
+            }
+        }
+        let judgmentPatterns: [(String, String)] = [
+            ("冲动消费|消费不节制|乱花钱|花钱大手大脚", "对用户贴消费人格标签"),
+            ("自控力差|自制力差|缺乏自制力|没有自律", "对用户贴自律人格标签"),
+        ]
+        for (pattern, detail) in judgmentPatterns {
+            if text.range(of: pattern, options: .regularExpression) != nil {
+                return Finding(code: .personalizedJudgment, detail: detail)
+            }
+        }
+        return nil
     }
 
     /// DFS 环检测。
@@ -178,13 +215,14 @@ nonisolated enum HoloContextPlanValidator {
     static func isDeliverable(findings: [Finding]) -> Bool {
         findings.allSatisfy { finding in
             // 这些是净化性问题（已自动处理）；其余视为结构失败触发一次再生成。
+            // 可信表达违例（数据缺失冒充零值/人格化判断）是信任红线，阻断交付（§9）。
             switch finding.code {
             case .unknownContextRef, .personalEvidenceWithoutSource,
                  .fabricatedConfirmedDate, .duplicateItemID, .tooManyUnknowns,
                  .danglingDependency, .selfDependency, .dependencyCycle,
                  .suggestsCompletedOccurrence:
                 return true
-            case .emptyAnswer:
+            case .emptyAnswer, .dataMissingAsZero, .personalizedJudgment:
                 return false
             }
         }

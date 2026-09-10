@@ -21,6 +21,10 @@ final class HoloCloudAnalysisClient {
 
     struct StatusResponse: Decodable {
         let status: String
+        /// context_plan 阶段流（2026-09-09 方案 §5.3.6）：轮询兜底与 SSE 同一快照词表
+        let stage: String?
+        let stageRevision: Int?
+        let stageUpdatedAt: Double?
         let result: CloudResult?
         let failureReason: String?
 

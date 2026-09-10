@@ -7,6 +7,33 @@
 
 import SwiftUI
 
+// MARK: - 进程级解析缓存
+//
+// @State 只在单元格存活期间有效：LazyVStack 把滑出屏幕的消息回收后，再次滑入会
+// 重新走「纯文本秒开→异步解析→升级结构化」，两种排版高度不同，表现为滚动中的
+// 内容跳动；上下反复滑动时每条消息反复重演。进程级缓存让第二次进屏同步命中、
+// 首帧即结构化，消除重复解析与高度跳变。聊天消息文本定稿后不可变，按全文做键。
+
+private struct AIResponseParsedContent {
+    let document: AIReadableResponseDocument
+    let inline: [String: AttributedString]
+}
+
+private final class AIResponseParsedContentBox {
+    let content: AIResponseParsedContent
+    init(_ content: AIResponseParsedContent) { self.content = content }
+}
+
+private enum AIResponseParsedContentCache {
+    /// 条数上限覆盖长会话的滚动区间；内存压力下系统自动逐出，逐出后最多退回
+    /// 「一次后台解析」的行为，不影响正确性。
+    static let cache: NSCache<NSString, AIResponseParsedContentBox> = {
+        let cache = NSCache<NSString, AIResponseParsedContentBox>()
+        cache.countLimit = 300
+        return cache
+    }()
+}
+
 struct AIReadableResponseView: View {
     let text: String
     let isStreaming: Bool
@@ -19,6 +46,11 @@ struct AIReadableResponseView: View {
     @State private var document: AIReadableResponseDocument?
     /// 每个 block 文本对应的富文本结果缓存（避免每次 body 重复同步解析 Markdown）
     @State private var inlineCache: [String: AttributedString] = [:]
+
+    /// 本条消息文本在进程缓存中的解析结果（未解析过为 nil）
+    private var cachedContent: AIResponseParsedContent? {
+        AIResponseParsedContentCache.cache.object(forKey: text as NSString)?.content
+    }
 
     var body: some View {
         Group {
@@ -40,9 +72,19 @@ struct AIReadableResponseView: View {
                 inlineCache.removeAll(keepingCapacity: true)
                 return
             }
+            // 进程缓存命中（第二次及以后进屏）：直接复用，不再后台解析
+            if let cached = cachedContent {
+                document = cached.document
+                inlineCache = cached.inline
+                return
+            }
             let source = text
             let (parsedDoc, parsedInline) = await Self.parseDocumentAndInline(source)
             guard source == text else { return }
+            AIResponseParsedContentCache.cache.setObject(
+                AIResponseParsedContentBox(AIResponseParsedContent(document: parsedDoc, inline: parsedInline)),
+                forKey: source as NSString
+            )
             document = parsedDoc
             inlineCache = parsedInline
         }
@@ -111,14 +153,11 @@ struct AIReadableResponseView: View {
     @ViewBuilder
     private var readableContent: some View {
         // document 解析完成前先纯文本秒开，解析完成后自动升级为结构化富文本。
+        // 进程缓存命中（第二次进屏）时不走纯文本兜底，首帧即结构化，高度不跳变。
         if let document {
-            VStack(alignment: .leading, spacing: 14) {
-                blockList(document.blocks)
-
-                if document.hasDetails {
-                    detailDisclosure(detailBlocks: document.detailBlocks)
-                }
-            }
+            structuredContent(document)
+        } else if let cached = cachedContent {
+            structuredContent(cached.document)
         } else {
             Text(text)
                 .font(.body)
@@ -126,6 +165,17 @@ struct AIReadableResponseView: View {
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+        }
+    }
+
+    @ViewBuilder
+    private func structuredContent(_ document: AIReadableResponseDocument) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            blockList(document.blocks)
+
+            if document.hasDetails {
+                detailDisclosure(detailBlocks: document.detailBlocks)
+            }
         }
     }
 
@@ -353,8 +403,12 @@ struct AIReadableResponseView: View {
     }
 
     private func inlineAttributedString(_ text: String) -> AttributedString {
-        // 优先读预填缓存（非流式）；缓存未命中（错误态等少量路径）才同步解析。
+        // 两级缓存：先读本单元格预填缓存，再读进程缓存（@State 被回收后的路径）；
+        // 都未命中（错误态等少量路径）才同步解析。
         if let cached = inlineCache[text] {
+            return cached
+        }
+        if let cached = cachedContent?.inline[text] {
             return cached
         }
         let parsed = MarkdownAttributedStringRenderer.parseInlineSync(text) ?? AttributedString(text)

@@ -125,6 +125,14 @@ extension CoreDataStack {
         chatContextPlanJSON.isOptional = true
         chatAttributes.append(chatContextPlanJSON)
 
+        // 个人情境规划运行信封 JSON（HoloContextPlanRunEnvelope 序列化）
+        // 运行中的阶段状态持久化：退出重进/冷启动按同一 run 渲染，不再是空白消息；轻量迁移。
+        let chatContextPlanRunJSON = NSAttributeDescription()
+        chatContextPlanRunJSON.name = "contextPlanRunJSON"
+        chatContextPlanRunJSON.attributeType = .stringAttributeType
+        chatContextPlanRunJSON.isOptional = true
+        chatAttributes.append(chatContextPlanRunJSON)
+
         // 报告收藏时间（报告 Tab 右滑收藏）。nil = 未收藏；非 nil 即收藏时间，
         // 一个字段同时承载状态与排序，轻量迁移。
         let chatFavoritedAt = NSAttributeDescription()

@@ -29,6 +29,61 @@ struct ConversationProcessResult {
     var actionParserCallLog: LLMCallLog?
     /// 个人情境规划产出（只读草案，不写业务事项）；非 nil 时 ChatViewModel 落 .contextPlan 草案卡消息。
     var contextPlanOutcome: HoloContextChatPlanner.PlanOutcome?
+    /// 个人情境规划已路由但执行失败的显式降级载荷（实施方案 §5.4）。非 nil 时
+    /// ChatViewModel 直接以 finalText 定稿该消息，不得继续普通流式回答。
+    var contextPlanningFailure: ContextPlanningFailure? = nil
+    /// 云端异步规划已启动（§5.3）：非 nil 时 ChatViewModel 接管轮询/领取/ack，
+    /// 流式会话立即收尾，不锁全局输入。
+    var contextPlanCloudStart: HoloContextChatPlanner.CloudPlanStart? = nil
+}
+
+/// 个人情境规划已路由但执行失败的类型化降级（实施方案 §5.4 unavailable 语义）：
+/// 区分失败原因给用户明确交代，替代旧的 `try?` 静默回落。
+struct ContextPlanningFailure: Error {
+    let code: String
+    let userMessage: String
+    let retryable: Bool
+
+    static func make(from error: Error) -> ContextPlanningFailure {
+        switch error {
+        case HoloContextChatPlanner.PlannerError.generationUnavailable:
+            ContextPlanningFailure(
+                code: "PLANNING_GENERATION_UNAVAILABLE",
+                userMessage: String(localized: "这次的个性化规划没有完成：AI 服务暂时连不上。这条回答不是个性化方案，稍后可以重新发送再试一次。"),
+                retryable: true
+            )
+        case HoloContextPlanningCoordinator.PlanningError.gateClosed:
+            ContextPlanningFailure(
+                code: "PLANNING_GATE_CLOSED",
+                userMessage: String(localized: "个性化规划当前没有开启，这条回答不是个性化方案。在设置里开启记忆相关开关后，重新发送就能再试。"),
+                retryable: true
+            )
+        case HoloContextPlanningCoordinator.PlanningError.staleRun:
+            ContextPlanningFailure(
+                code: "PLANNING_STALE_RUN",
+                userMessage: String(localized: "这次规划被新的请求取代，没有生成方案。重新发送刚才的话即可再试。"),
+                retryable: true
+            )
+        case HoloContextPlanningCoordinator.PlanningError.generationChanged:
+            ContextPlanningFailure(
+                code: "PLANNING_GENERATION_CHANGED",
+                userMessage: String(localized: "数据授权刚刚发生了变化，这次规划没有完成。重新发送刚才的话即可再试。"),
+                retryable: true
+            )
+        case HoloContextPlanningCoordinator.PlanningError.undeliverableAfterRepair:
+            ContextPlanningFailure(
+                code: "PLANNING_UNDELIVERABLE",
+                userMessage: String(localized: "这次的个性化规划没有完成：生成的方案没有通过校验。这条回答不是个性化方案，可以重新发送再试一次。"),
+                retryable: true
+            )
+        default:
+            ContextPlanningFailure(
+                code: "PLANNING_EXECUTION_FAILED",
+                userMessage: String(localized: "这次的个性化规划没有完成。这条回答不是个性化方案，你可以重新发送刚才的话再试一次。"),
+                retryable: true
+            )
+        }
+    }
 }
 
 @MainActor
@@ -63,11 +118,34 @@ final class ConversationCoordinator {
 
     // MARK: - Main Entry
 
+    /// 规划分流成功路径的统一出参（成功/失败两类出参共用同一批固定字段）。
+    private static func planningSuccessResult(
+        _ outcome: HoloContextChatPlanner.PlanOutcome,
+        parseBatch: AIParseBatch,
+        intentLog: LLMCallLog?
+    ) -> ConversationProcessResult {
+        ConversationProcessResult(
+            finalText: outcome.draft.answerText,
+            parsedBatch: parseBatch,
+            executionBatch: nil,
+            firstIntent: .contextualPlanning,
+            firstExtractedData: nil,
+            shouldStreamChat: false,
+            analysisContext: nil,
+            flexibleQueryResult: nil,
+            intentCallLog: intentLog,
+            actionParserCallLog: nil,
+            contextPlanOutcome: outcome
+        )
+    }
+
     func process(
         text: String,
         userContext: UserContext,
         provider: AIProvider,
-        activePlanningRunID: String? = nil
+        activePlanningRunID: String? = nil,
+        planningProgress: ((HoloContextPlanStage, HoloContextPlanRouteSource?, String?) -> Void)? = nil,
+        contextPlanCloudAsync: Bool = false
     ) async throws -> ConversationProcessResult {
         let parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
         let intentLog = provider.lastCallLog
@@ -178,32 +256,106 @@ final class ConversationCoordinator {
 
         // 个人情境规划分流（只读，实施方案 §9.1）：显式规划意图开新 run；
         // 活跃规划会话（最后一条 AI 消息是未解决草案卡）内的非写消息续接追问，
-        // 不再绕过草案直接走写链路或普通聊天。生成失败/闸关闭/预算耗尽时
-        // 落回下方普通流式聊天，不阻断对话。
+        // 不再绕过草案直接走写链路或普通聊天。
+        // 失败语义（实施方案 §5.4）：规划一旦被路由就必须给明确结果——闸关闭
+        // （能力未开启）按既有产品规则降级普通聊天；其余失败显式降级定稿，
+        // 不得吞掉后伪装成「没触发过规划」继续流式闲聊。
         let planningWriteItems = parseBatch.items.filter { !$0.intent.isQuery && $0.intent != .unknown }
         if planningWriteItems.isEmpty {
             let explicitPlanning = parseBatch.items.contains { $0.intent == .contextualPlanning }
             if explicitPlanning || activePlanningRunID != nil {
-                let outcome: HoloContextChatPlanner.PlanOutcome?
-                if explicitPlanning {
-                    outcome = try? await HoloContextChatPlanner.plan(
-                        utterance: text,
-                        parentMessageID: nil,
-                        provider: provider
+                // 路由已确认（§4.2）：此时才能显示「已识别为个性化规划」；routeSource
+                // 来自后端稳定层标记（旧后端不下发时按 model 口径）。
+                if let planningProgress {
+                    let planningItem = parseBatch.items.first { $0.intent == .contextualPlanning }
+                    planningProgress(
+                        .planningRecognized,
+                        planningItem?.routeSource.flatMap(HoloContextPlanRouteSource.init(rawValue:)) ?? .model,
+                        planningItem?.routeReasonCode
                     )
-                } else if let runID = activePlanningRunID {
-                    outcome = try? await HoloContextChatPlanner.followUp(
-                        runID: runID,
-                        utterance: text,
-                        provider: provider
-                    )
-                } else {
-                    outcome = nil
                 }
-                if let outcome {
-                    logger.info("个人情境规划分流：run=\(outcome.runID) items=\(outcome.draft.items.count)")
+                // 真实阶段映射：协调器的 retrieving/generating 是已发生的工作阶段（§12.3）。
+                let stageReporter: ((HoloPlanningRunState) -> Void)? = planningProgress.map { report in
+                    { state in
+                        let stage: HoloContextPlanStage
+                        switch state {
+                        case .preparing: stage = .planningRecognized
+                        case .retrieving: stage = .readingPersonalContext
+                        case .generating: stage = .generatingDraft
+                        case .needsInput: stage = .needsInput
+                        case .draftReady: stage = .validatingDraft
+                        case .failed: stage = .failed
+                        case .cancelled: stage = .cancelled
+                        }
+                        report(stage, nil, nil)
+                    }
+                }
+                do {
+                    if explicitPlanning {
+                        // 云异步灰度路径（§5.3）：本机检索+prompt 组装，生成移交云端任务；
+                        // 立即返回启动载荷，轮询/领取/ack 由 ChatViewModel 接管。
+                        if contextPlanCloudAsync, HoloContextChatPlanner.isCloudAsyncEnabled {
+                            // 云路径没有「本地生成」阶段：preparePrompt 的 generating 事件拦截掉，
+                            // uploadingContext/cloudPlanning 由 VM 在任务创建后按真实事件推进。
+                            let cloudStageReporter: ((HoloPlanningRunState) -> Void)? = stageReporter.map { base in
+                                { state in
+                                    guard state != .generating else { return }
+                                    base(state)
+                                }
+                            }
+                            let cloudStart = try await HoloContextChatPlanner.startCloudPlan(
+                                utterance: text,
+                                parentMessageID: nil,
+                                provider: provider,
+                                onStage: cloudStageReporter
+                            )
+                            logger.info("个人情境规划云任务已启动：task=\(cloudStart.cloudTaskID)")
+                            return ConversationProcessResult(
+                                finalText: "",
+                                parsedBatch: parseBatch,
+                                executionBatch: nil,
+                                firstIntent: .contextualPlanning,
+                                firstExtractedData: nil,
+                                shouldStreamChat: false,
+                                analysisContext: nil,
+                                flexibleQueryResult: nil,
+                                intentCallLog: intentLog,
+                                actionParserCallLog: nil,
+                                contextPlanCloudStart: cloudStart
+                            )
+                        }
+                        let outcome = try await HoloContextChatPlanner.plan(
+                            utterance: text,
+                            parentMessageID: nil,
+                            provider: provider,
+                            onStage: stageReporter
+                        )
+                        return Self.planningSuccessResult(
+                            outcome,
+                            parseBatch: parseBatch,
+                            intentLog: intentLog
+                        )
+                    }
+                    if let runID = activePlanningRunID {
+                        let outcome = try await HoloContextChatPlanner.followUp(
+                            runID: runID,
+                            utterance: text,
+                            provider: provider,
+                            onStage: stageReporter
+                        )
+                        return Self.planningSuccessResult(
+                            outcome,
+                            parseBatch: parseBatch,
+                            intentLog: intentLog
+                        )
+                    }
+                } catch HoloContextChatPlanner.PlannerError.gateClosed {
+                    logger.info("个人情境规划闸关闭，按既有规则走普通聊天路径")
+                } catch {
+                    let failure = ContextPlanningFailure.make(from: error)
+                    logger.error("个人情境规划失败，显式降级：code=\(failure.code)")
                     return ConversationProcessResult(
-                        finalText: outcome.draft.answerText,
+                        finalText: failure.userMessage,
                         parsedBatch: parseBatch,
                         executionBatch: nil,
                         firstIntent: .contextualPlanning,
@@ -213,10 +365,9 @@ final class ConversationCoordinator {
                         flexibleQueryResult: nil,
                         intentCallLog: intentLog,
                         actionParserCallLog: nil,
-                        contextPlanOutcome: outcome
+                        contextPlanningFailure: failure
                     )
                 }
-                logger.info("个人情境规划不可用，落回普通聊天路径")
             }
         }
 

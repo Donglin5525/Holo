@@ -40,7 +40,9 @@ struct ChatView: View {
     @State private var pendingCategoryEditItemID: String?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
-    @State private var memoryInboxNotice: String?
+    @State private var memoryInboxSnapshot: HoloMemoryInboxSnapshot?
+    /// 「待确认 N 件」直达确认队列（与个人页同通道）
+    @State private var showMemoryConfirmationQueue = false
     /// 待举报的 AI 消息（驱动 ContentReportSheet）
     @State private var reportingMessage: ChatMessageViewData?
     /// 额度耗尽卡片「了解 Holo Plus」触发，sheet 呈现会员中心
@@ -107,6 +109,7 @@ struct ChatView: View {
                 } else if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
                     // 已连接、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
                     pageTabBar
+                    chatMemoryNoticeBar
                     pageTabContent
                 } else if !viewModel.isConfigured {
                     // 服务不可用兜底
@@ -126,52 +129,11 @@ struct ChatView: View {
             viewModel.clearContinuationDraft()
             close()
         }
-        .overlay(alignment: .top) {
-            if let notice = memoryInboxNotice {
-                HStack(spacing: HoloSpacing.xs) {
-                    Button {
-                        HoloMemoryReceiptStore.markWriteReceiptsRead()
-                        memoryInboxNotice = nil
-                        DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
-                    } label: {
-                        Label(notice, systemImage: "brain.head.profile.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoTextPrimary)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        HoloMemoryReceiptStore.markWriteReceiptsRead()
-                        memoryInboxNotice = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
-                            .padding(5)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, 14)
-                .padding(.trailing, 6)
-                .padding(.vertical, 7)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
-                .padding(.top, 58)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            } else if let notice = viewModel.memoryNotice {
-                Label(notice, systemImage: "brain.head.profile.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
-                    .padding(.top, 58)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: memoryInboxNotice)
+        .animation(.easeInOut(duration: 0.2), value: memoryInboxSnapshot)
         .animation(.easeInOut(duration: 0.2), value: viewModel.memoryNotice)
+        .sheet(isPresented: $showMemoryConfirmationQueue) {
+            MemoryConfirmationQueueView()
+        }
         .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
             sheetContent(sheet)
         }
@@ -299,11 +261,13 @@ struct ChatView: View {
                 Task { await viewModel.startPeriodReplay(periodType: periodType, start: start, end: end) }
             }
         }
-        // 云端分析首次启用前的隐私说明（只出现一次；本次仍本地分析，下次生效）
-        .sheet(isPresented: $viewModel.showCloudPrivacySheet) {
+        // 云端分析首次启用前的隐私说明：确认后续跑挂起中的云端分析；
+        // 未确认直接关闭则本次分析落「未开启」卡（云端独占，不回落本地）
+        .sheet(isPresented: $viewModel.showCloudPrivacySheet, onDismiss: {
+            viewModel.abandonPendingCloudAnalysis()
+        }) {
             CloudAnalysisPrivacySheet {
-                viewModel.showCloudPrivacySheet = false
-                HoloCloudAnalysisService.markPrivacyConsented()
+                viewModel.confirmCloudPrivacyAndContinue()
             }
             .presentationDetents([.medium])
         }
@@ -459,6 +423,63 @@ struct ChatView: View {
         .background(Color.holoTextSecondary.opacity(0.09), in: Capsule())
         .padding(.top, 2)
         .padding(.bottom, 6)
+    }
+
+    /// 记忆收件箱/使用回执提示条：占位于 Tab 栏与内容区之间，随内容排版不遮挡消息。
+    /// 点击动线与个人页对齐：有待确认先弹确认队列，否则去长廊高亮新记忆。
+    @ViewBuilder
+    private var chatMemoryNoticeBar: some View {
+        if let snapshot = memoryInboxSnapshot {
+            HStack(spacing: HoloSpacing.xs) {
+                Button {
+                    HoloMemoryReceiptStore.markWriteReceiptsRead()
+                    let hadPending = snapshot.pendingConfirmationCount > 0
+                    memoryInboxSnapshot = nil
+                    if hadPending {
+                        showMemoryConfirmationQueue = true
+                    } else {
+                        DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
+                    }
+                } label: {
+                    Label(snapshot.summaryText, systemImage: "brain.head.profile.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextPrimary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    HoloMemoryReceiptStore.markWriteReceiptsRead()
+                    memoryInboxSnapshot = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(5)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+            .padding(.vertical, 7)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, 6)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        } else if let notice = viewModel.memoryNotice {
+            Label(notice, systemImage: "brain.head.profile.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.holoTextPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 
     private func pageTabButton(_ tab: ChatPageTab, title: String, showsDot: Bool) -> some View {
@@ -840,6 +861,9 @@ struct ChatView: View {
                             if let undo = viewModel.lastPlanUndo, undo.planID == snapshot.id {
                                 viewModel.undoLifePlanConfirm(planID: undo.planID, token: undo.token)
                             }
+                        },
+                        onPlanningRunCancel: { msg in
+                            viewModel.cancelPlanningRun(msg.id)
                         }
                     )
                     .equatable()
@@ -1344,7 +1368,7 @@ struct ChatView: View {
         guard !snapshot.isEmpty,
               HoloMemoryReceiptStore.shouldPresentSummary() else { return }
         HoloMemoryReceiptStore.markSummaryPresented()
-        memoryInboxNotice = snapshot.summaryText
+        memoryInboxSnapshot = snapshot
     }
 }
 

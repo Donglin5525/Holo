@@ -364,6 +364,42 @@ nonisolated struct HoloContextPlanBasisEntry: Codable, Equatable, Sendable {
     }
 }
 
+/// 类型化证据引用（2026-09-09 方案 §7.1）：在依据快照之上补来源坐标，
+/// 让每条「你的记录」可回源跳转。来源实体是否存在以打开时的运行时解析为准
+/// （HoloContextEvidenceNavigator），不在草案里持久化可还原正文。
+nonisolated struct HoloContextEvidenceRef: Codable, Equatable, Sendable, Identifiable {
+    var id: String
+    var contextID: String
+    var contextVersionID: String?
+    /// 来源域原始值（thought/task/finance/habit/goal/anniversary/…，萃取管道写入）。
+    var sourceDomain: String
+    var sourceEntityID: String?
+    /// 本机命题短摘录（卡片已展示内容，非额外泄露面）。
+    var excerpt: String?
+    var epistemicStatus: String?
+    var sourceCreatedAt: Date?
+
+    init(
+        id: String,
+        contextID: String,
+        contextVersionID: String? = nil,
+        sourceDomain: String,
+        sourceEntityID: String? = nil,
+        excerpt: String? = nil,
+        epistemicStatus: String? = nil,
+        sourceCreatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.contextID = contextID
+        self.contextVersionID = contextVersionID
+        self.sourceDomain = sourceDomain
+        self.sourceEntityID = sourceEntityID
+        self.excerpt = excerpt
+        self.epistemicStatus = epistemicStatus
+        self.sourceCreatedAt = sourceCreatedAt
+    }
+}
+
 nonisolated struct HoloContextPlanDraft: Codable, Equatable, Sendable {
     static let supportedSchemaVersion = 1
 
@@ -383,6 +419,8 @@ nonisolated struct HoloContextPlanDraft: Codable, Equatable, Sendable {
     var coverage: HoloContextPlanCoverage
     /// 依据快照（生成时回填；可选解码保证旧草案 JSON 兼容）。
     var basisEntries: [HoloContextPlanBasisEntry]?
+    /// 类型化证据引用（生成时回填；§7.1 可回源跳转；旧草案缺失即无跳转）。
+    var evidenceRefs: [HoloContextEvidenceRef]?
     /// 方案影响（P0）：因个人情况产生的变化；模型未输出时为空，卡片诚实降级。
     var planEffects: [HoloContextPlanEffect]?
 
@@ -397,6 +435,7 @@ nonisolated struct HoloContextPlanDraft: Codable, Equatable, Sendable {
         dependencyEdges: [HoloContextPlanDependencyEdge] = [],
         coverage: HoloContextPlanCoverage = HoloContextPlanCoverage(),
         basisEntries: [HoloContextPlanBasisEntry]? = nil,
+        evidenceRefs: [HoloContextEvidenceRef]? = nil,
         planEffects: [HoloContextPlanEffect]? = nil
     ) {
         self.schemaVersion = Self.supportedSchemaVersion
@@ -410,6 +449,7 @@ nonisolated struct HoloContextPlanDraft: Codable, Equatable, Sendable {
         self.dependencyEdges = dependencyEdges
         self.coverage = coverage
         self.basisEntries = basisEntries
+        self.evidenceRefs = evidenceRefs
         self.planEffects = planEffects
     }
 
@@ -461,5 +501,105 @@ nonisolated enum HoloContextPlanDraftParser {
             coverage: partial.coverage ?? HoloContextPlanCoverage(),
             planEffects: partial.planEffects
         )
+    }
+}
+
+// MARK: - 规划运行信封（实施方案 2026-09-09 §5.1）
+
+/// 规划运行的真实工作阶段。只允许展示已发生/已收到的阶段；文案由受控映射生成，
+/// 不接受任何模型自由写入。`generatingDraft` 是同步生成路径的真实阶段
+///（Phase 3 云端任务接手后由 uploadingContext/cloudPlanning 取代）。
+nonisolated enum HoloContextPlanStage: String, Codable, Sendable, CaseIterable {
+    case understandingRequest
+    case planningRecognized
+    case readingPersonalContext
+    case generatingDraft
+    case uploadingContext
+    case cloudPlanning
+    case validatingDraft
+    case needsInput
+    case draftReady
+    case waitingForNetwork
+    case waitingForForeground
+    case failed
+    case cancelled
+
+    /// 终态：终态后迟到回调不得改写（§5.1）。
+    var isTerminal: Bool {
+        switch self {
+        case .draftReady, .failed, .cancelled: return true
+        default: return false
+        }
+    }
+
+    /// 受控文案映射（§6.1）。
+    var displayText: String {
+        switch self {
+        case .understandingRequest: return String(localized: "正在理解你的需求")
+        case .planningRecognized: return String(localized: "已识别为个性化规划")
+        case .readingPersonalContext: return String(localized: "正在查找与你有关的记录")
+        case .generatingDraft: return String(localized: "正在整理你的专属方案")
+        case .uploadingContext: return String(localized: "正在安全发送本次规划所需信息")
+        case .cloudPlanning: return String(localized: "正在云端整理方案")
+        case .validatingDraft: return String(localized: "正在核对日期、依据和可执行项")
+        case .needsInput: return String(localized: "还需要你确认一个关键信息")
+        case .draftReady: return String(localized: "方案已就绪")
+        case .waitingForNetwork: return String(localized: "网络恢复后会继续")
+        case .waitingForForeground: return String(localized: "回到 Holo 后继续完成")
+        case .failed: return String(localized: "这次个性化规划没有完成")
+        case .cancelled: return String(localized: "已停止本次规划")
+        }
+    }
+}
+
+/// 路由来源（§5.4）：deterministic=后端稳定层；model=模型分类；ordinaryFallback=降级。
+nonisolated enum HoloContextPlanRouteSource: String, Codable, Sendable {
+    case deterministic
+    case model
+    case ordinaryFallback
+}
+
+/// 一次规划运行的用户可见状态载荷，持久化在 ChatMessage.contextPlanRunJSON。
+/// 精简设计：只承载身份与状态（run 本体在 HoloPlanningMemoryRunPersistence 按 runID
+/// 可查），让聊天轻量快照解码保持廉价。stageDisplayText 由 stage 受控映射实时生成，
+/// 不落库。
+nonisolated struct HoloContextPlanRunEnvelope: Codable, Equatable, Sendable {
+    var schemaVersion: Int
+    var runID: String
+    var assistantMessageID: UUID
+    var stage: HoloContextPlanStage
+    var stageRevision: Int
+    var updatedAt: Date
+    var routeSource: HoloContextPlanRouteSource?
+    var routeReasonCode: String?
+    var cloudTaskID: String?
+    var failureCode: String?
+    /// 是否存在可恢复的云端任务（Phase 3 云端路径写入）。
+    var canResume: Bool
+
+    init(
+        schemaVersion: Int = 1,
+        runID: String,
+        assistantMessageID: UUID,
+        stage: HoloContextPlanStage,
+        stageRevision: Int = 0,
+        updatedAt: Date = Date(),
+        routeSource: HoloContextPlanRouteSource? = nil,
+        routeReasonCode: String? = nil,
+        cloudTaskID: String? = nil,
+        failureCode: String? = nil,
+        canResume: Bool = false
+    ) {
+        self.schemaVersion = schemaVersion
+        self.runID = runID
+        self.assistantMessageID = assistantMessageID
+        self.stage = stage
+        self.stageRevision = stageRevision
+        self.updatedAt = updatedAt
+        self.routeSource = routeSource
+        self.routeReasonCode = routeReasonCode
+        self.cloudTaskID = cloudTaskID
+        self.failureCode = failureCode
+        self.canResume = canResume
     }
 }
