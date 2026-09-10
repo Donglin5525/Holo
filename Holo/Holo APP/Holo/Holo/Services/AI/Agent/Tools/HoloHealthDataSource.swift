@@ -62,6 +62,27 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
         }
     }
 
+    func activityPatternRecords(timeRange: HoloAgentTimeRange?) async -> [HoloActivityPatternRecord] {
+        switch await activityPatternRecordsStrict(timeRange: timeRange) {
+        case .value(let records): return records
+        case .noData, .waitingForUnlock, .unavailable: return []
+        }
+    }
+
+    func energyRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] {
+        switch await energyRecordsStrict(timeRange: timeRange) {
+        case .value(let records): return records
+        case .noData, .waitingForUnlock, .unavailable: return []
+        }
+    }
+
+    func distanceRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] {
+        switch await distanceRecordsStrict(timeRange: timeRange) {
+        case .value(let records): return records
+        case .noData, .waitingForUnlock, .unavailable: return []
+        }
+    }
+
     // MARK: - 严格查询（§7.1 P0-4：锁屏错误必须显式传播，不得伪装空数组/0）
 
     func dailyRecordsStrict(
@@ -107,8 +128,56 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
                 HoloSleepRecord(date: $0.date, totalHours: $0.totalHours, coreHours: $0.coreHours,
                                 deepHours: $0.deepHours, remHours: $0.remHours, awakeHours: $0.awakeHours,
                                 inBedHours: $0.inBedHours, bedtime: $0.bedtime, wakeTime: $0.wakeTime,
-                                interruptionCount: $0.interruptionCount)
+                                interruptionCount: $0.interruptionCount,
+                                remEpisodes: $0.remEpisodes,
+                                remLatencyMinutes: $0.remLatencyMinutes,
+                                deepFrontLoadPercent: $0.deepFrontLoadPercent,
+                                sleepOnsetLatencyMinutes: $0.sleepOnsetLatencyMinutes)
             } }
+    }
+
+    // MARK: - 一期细粒度数据（活动节律 / 能量 / 距离）
+
+    func activityPatternRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloActivityPatternRecord]> {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return .noData }
+
+        return await HealthRepository.shared.fetchHourlyStepsRangeStrict(from: window.start, to: window.inclusiveEnd)
+            .map { days in
+                days.compactMap { day -> HoloActivityPatternRecord? in
+                    // 24 桶为单一事实源（分析器与卡片同样 prefix），边界多吐的桶不计入
+                    let buckets = Array(day.hourly.prefix(24))
+                    // 全天无步数样本的天不产出记录（不可得 ≠ 静坐一整天）
+                    let total = buckets.reduce(0, +)
+                    guard total > 0 else { return nil }
+                    let features = ActivityDistributionAnalyzer.features(hourlySteps: buckets)
+                    return HoloActivityPatternRecord(
+                        date: day.date,
+                        longestSedentaryMinutes: features.longestSedentaryMinutes,
+                        activeWindowStartHour: features.activeWindowStartHour,
+                        activeWindowEndHour: features.activeWindowEndHour,
+                        eveningStepShare: features.eveningStepShare,
+                        peakHour: features.peakHour,
+                        totalSteps: total
+                    )
+                }
+            }
+    }
+
+    func energyRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return .noData }
+
+        return await HealthRepository.shared.fetchEnergyRangeStrict(from: window.start, to: window.inclusiveEnd)
+            .map { $0.map { HoloHealthDailyRecord(date: $0.date, value: $0.value) } }
+    }
+
+    func distanceRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return .noData }
+
+        return await HealthRepository.shared.fetchDistanceRangeStrict(from: window.start, to: window.inclusiveEnd)
+            .map { $0.map { HoloHealthDailyRecord(date: $0.date, value: $0.value) } }
     }
 
     private static func repositoryWindow(

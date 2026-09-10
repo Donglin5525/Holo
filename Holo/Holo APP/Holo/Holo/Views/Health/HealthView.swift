@@ -18,6 +18,7 @@ struct HealthView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @StateObject private var repository = HealthRepository.shared
     @State private var selectedMetric: HealthMetricType?
+    @State private var showVitals = false
     @State private var weeklySleepData: [DailyHealthData] = []
     @State private var isRefreshing = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
@@ -75,6 +76,9 @@ struct HealthView: View {
             .navigationDestination(item: $selectedMetric) { metric in
                 HealthDetailView(type: metric, selectedDate: $selectedDate)
             }
+            .navigationDestination(isPresented: $showVitals) {
+                VitalsView()
+            }
             .toolbar(.hidden, for: .navigationBar)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) {
@@ -115,6 +119,7 @@ struct HealthView: View {
                             VStack(spacing: HoloSpacing.md) {
                                 heroCard
                                 metricSummaryRow
+                                vitalsEntry
                                 dataSourceCard
                             }
                             .frame(maxWidth: .infinity)
@@ -130,6 +135,7 @@ struct HealthView: View {
                         VStack(spacing: HoloSpacing.md) {
                             heroCard
                             metricSummaryRow
+                            vitalsEntry
                             dataSourceCard
                             coreInsightCard
                             lifestyleInsightCard
@@ -289,6 +295,53 @@ struct HealthView: View {
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
         .shadow(color: HoloShadow.card, radius: 6, y: 2)
+    }
+
+    /// 身体状态窄入口（二期方案 A）：三指标行下方、数据源卡上方。
+    private var vitalsEntry: some View {
+        Button {
+            showVitals = true
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        LinearGradient(colors: [.holoChart4, .holoChart7], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("身体状态")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("静息心率 · HRV · 呼吸频率")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Text("近 30 天")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, 11)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color.holoBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var metricSummaryRow: some View {

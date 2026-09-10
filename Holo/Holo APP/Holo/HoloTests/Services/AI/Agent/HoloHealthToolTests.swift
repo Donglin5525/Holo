@@ -19,15 +19,24 @@ struct MockHealthDataSource: HoloHealthDataSource {
     let daily: [HoloHealthMetricKind: [HoloHealthDailyRecord]]
     let workouts: [HoloHealthWorkoutRecord]
     let sleeps: [HoloSleepRecord]?
+    let activityPatterns: [HoloActivityPatternRecord]
+    let energy: [HoloHealthDailyRecord]
+    let distance: [HoloHealthDailyRecord]
 
     init(
         daily: [HoloHealthMetricKind: [HoloHealthDailyRecord]] = [:],
         workouts: [HoloHealthWorkoutRecord] = [],
-        sleeps: [HoloSleepRecord]? = nil
+        sleeps: [HoloSleepRecord]? = nil,
+        activityPatterns: [HoloActivityPatternRecord] = [],
+        energy: [HoloHealthDailyRecord] = [],
+        distance: [HoloHealthDailyRecord] = []
     ) {
         self.daily = daily
         self.workouts = workouts
         self.sleeps = sleeps
+        self.activityPatterns = activityPatterns
+        self.energy = energy
+        self.distance = distance
     }
 
     func dailyRecords(
@@ -48,6 +57,18 @@ struct MockHealthDataSource: HoloHealthDataSource {
                             remHours: nil, awakeHours: nil, inBedHours: nil, bedtime: nil,
                             wakeTime: nil, interruptionCount: nil)
         }
+    }
+
+    func activityPatternRecords(timeRange: HoloAgentTimeRange?) async -> [HoloActivityPatternRecord] {
+        activityPatterns
+    }
+
+    func energyRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] {
+        energy
+    }
+
+    func distanceRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] {
+        distance
     }
 }
 
@@ -95,6 +116,7 @@ struct HoloHealthToolTests {
     static func main() async throws {
         try await test睡眠摘要产出平均值达标天数和每日证据()
         try await test睡眠阶段存在时输出完整质量维度()
+        try await test睡眠摘要输出结构特征()
         try await test步数摘要产出日均达标天数和每日证据()
         try await test站立摘要产出日均达标天数和每日证据()
         try await test活动摘要产出日均达标天数和每日证据()
@@ -105,6 +127,7 @@ struct HoloHealthToolTests {
         try test动态查询可现场计算平均睡眠与低睡眠占比()
         try test动态查询可比较周末与工作日步数()
         try test动态查询拒绝未注册字段和超长范围()
+        try await test动态查询活动节律能量与距离数据集()
         try await test锁屏返回DEVICE_LOCKED不产生伪零数据()
         try await test权限拒绝返回HEALTH_PERMISSION_DENIED不可恢复()
         print("HoloHealthToolTests passed")
@@ -131,9 +154,100 @@ struct HoloHealthToolTests {
         expect(!result.warnings.contains { $0.code == "SLEEP_DURATION_ONLY" }, "阶段齐全时不应降级")
     }
 
+    /// 一期睡眠结构特征：sleep_summary 输出 REM 段数/潜伏期/深睡前半夜占比/入睡潜伏期均值，
+    /// 每个指标必须带 semantic（fixedMetricTemplates 已注册）。
+    private static func test睡眠摘要输出结构特征() async throws {
+        let sleeps = [1, 2].map { day in
+            HoloSleepRecord(
+                date: date(day), totalHours: 7.4, coreHours: 3.6, deepHours: 1.8,
+                remHours: 1.6, awakeHours: 0.4, inBedHours: 7.8,
+                bedtime: date(day).addingTimeInterval(23 * 3600 + 47 * 60),
+                wakeTime: date(day + 1).addingTimeInterval(7 * 3600 + 12 * 60),
+                interruptionCount: 2,
+                remEpisodes: 4, remLatencyMinutes: 96,
+                deepFrontLoadPercent: 72, sleepOnsetLatencyMinutes: 18
+            )
+        }
+        let result = try await HoloHealthTool(dataSource: MockHealthDataSource(sleeps: sleeps))
+            .execute(makeRequest(query: "sleep_summary"))
+        expect(metric("health.sleep.rem_episodes", in: result) == 4, "应输出平均 REM 段数 4")
+        expect(metric("health.sleep.rem_latency_minutes", in: result) == 96, "应输出 REM 潜伏期 96 分钟")
+        expect(metric("health.sleep.deep_front_load", in: result) == 72, "应输出深睡前半夜占比 72%")
+        expect(metric("health.sleep.onset_latency_minutes", in: result) == 18, "应输出入睡潜伏期 18 分钟")
+        expect(result.metrics.allSatisfy { $0.semantic != nil }, "结构特征指标必须带类型化语义")
+    }
+
+    /// 一期新数据集：动态查询 health.activity_pattern / health.energy / health.distance。
+    private static func test动态查询活动节律能量与距离数据集() async throws {
+        let patterns = [
+            HoloActivityPatternRecord(date: date(1), longestSedentaryMinutes: 225, activeWindowStartHour: 7,
+                                      activeWindowEndHour: 21, eveningStepShare: 0.48, peakHour: 19, totalSteps: 11_000),
+            HoloActivityPatternRecord(date: date(2), longestSedentaryMinutes: 115, activeWindowStartHour: 8,
+                                      activeWindowEndHour: 20, eveningStepShare: 0.3, peakHour: 10, totalSteps: 9_000)
+        ]
+        let energy = [
+            HoloHealthDailyRecord(date: date(1), value: 420),
+            HoloHealthDailyRecord(date: date(2), value: 380)
+        ]
+        let distance = [
+            HoloHealthDailyRecord(date: date(1), value: 7.2),
+            HoloHealthDailyRecord(date: date(2), value: 6.1)
+        ]
+        let tool = HoloHealthTool(dataSource: MockHealthDataSource(
+            activityPatterns: patterns, energy: energy, distance: distance
+        ))
+
+        // 活动节律：平均最长静坐 = (225+115)/2 = 170
+        let patternPlan = HoloDynamicQueryPlan(
+            source: "health.activity_pattern",
+            aggregations: [
+                HoloDynamicAggregation(id: "avg_sedentary", operation: .average, field: "longestSedentaryMinutes", unit: "分钟")
+            ]
+        )
+        let patternResult = try await tool.execute(
+            makeRequest(query: "dynamic_query", dynamicPlan: patternPlan)
+        )
+        expect(patternResult.status == .success, "活动节律动态查询应成功")
+        expect(patternResult.metrics.contains { abs(($0.value ?? 0) - 170) < 0.01 }, "平均最长静坐应为 170 分钟")
+        expect(patternResult.events.contains { ($0.sourceRecordIDs ?? []).contains { $0.hasPrefix("activity-pattern-") } },
+               "活动节律证据必须溯源到行记录")
+        expect(!patternResult.events.contains { $0.excerpt.contains("health.") }, "用户证据不能暴露内部健康字段")
+
+        // 能量：总和 = 800 千卡
+        let energyPlan = HoloDynamicQueryPlan(
+            source: "health.energy",
+            aggregations: [HoloDynamicAggregation(id: "total_kcal", operation: .sum, field: "value", unit: "千卡")]
+        )
+        let energyResult = try await tool.execute(
+            makeRequest(query: "dynamic_query", dynamicPlan: energyPlan)
+        )
+        expect(energyResult.metrics.contains { ($0.value ?? 0) == 800 }, "两日活动能量总和应为 800 千卡")
+
+        // 距离：平均 = 6.65 公里
+        let distancePlan = HoloDynamicQueryPlan(
+            source: "health.distance",
+            aggregations: [HoloDynamicAggregation(id: "avg_km", operation: .average, field: "value", unit: "公里")]
+        )
+        let distanceResult = try await tool.execute(
+            makeRequest(query: "dynamic_query", dynamicPlan: distancePlan)
+        )
+        expect(distanceResult.metrics.contains { abs(($0.value ?? 0) - 6.65) < 0.01 }, "平均步行距离应为 6.65 公里")
+
+        // 未注册数据集仍被拒绝
+        let unknownPlan = HoloDynamicQueryPlan(
+            source: "health.heart_rate",
+            aggregations: [HoloDynamicAggregation(id: "x", operation: .average, field: "value")]
+        )
+        let unknownResult = try await tool.execute(
+            makeRequest(query: "dynamic_query", dynamicPlan: unknownPlan)
+        )
+        expect(unknownResult.status == .error, "未注册数据集 health.heart_rate 必须被拒绝")
+    }
+
     private static func makeRequest(
         query: String,
-        timeRange: HoloAgentTimeRange? = nil
+        timeRange: HoloAgentTimeRange? = nil,
+        dynamicPlan: HoloDynamicQueryPlan? = nil
     ) -> HoloToolRequest {
         HoloToolRequest(
             id: "health-\(query)",
@@ -142,7 +256,8 @@ struct HoloHealthToolTests {
             timeRange: timeRange,
             baseline: nil,
             requiredMetrics: [],
-            parameters: [:]
+            parameters: [:],
+            dynamicPlan: dynamicPlan
         )
     }
 

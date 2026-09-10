@@ -1006,6 +1006,11 @@ nonisolated enum HoloMetricSemanticFactory {
         "health.sleep.bedtime_variation_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
         "health.sleep.wake_variation_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
         "health.sleep.interruptions": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        // 一期睡眠结构特征（均值口径）
+        "health.sleep.rem_episodes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.rem_latency_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.deep_front_load": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.onset_latency_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
         "health.sleep.hours": .init(domain: .health, dataset: "health.sleep", operation: .sum, valueRole: .current, dimension: .day),
         "health.stand.average_hours": .init(domain: .health, dataset: "health.stand", operation: .average, valueRole: .current),
         "health.stand.goal_met_days": .init(domain: .health, dataset: "health.stand", operation: .count, valueRole: .current),

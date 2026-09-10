@@ -43,12 +43,33 @@ nonisolated struct HoloSleepRecord: Codable, Equatable, Sendable {
     var bedtime: Date?
     var wakeTime: Date?
     var interruptionCount: Int?
+    // 睡眠结构特征：nil = 无阶段数据（需 Apple Watch 分期），不得当 0 解读。
+    var remEpisodes: Int? = nil
+    var remLatencyMinutes: Double? = nil
+    /// 前半夜深睡占整晚深睡百分比（0-100）
+    var deepFrontLoadPercent: Double? = nil
+    var sleepOnsetLatencyMinutes: Double? = nil
 
     var hasStageData: Bool { coreHours != nil || deepHours != nil || remHours != nil }
     var sleepEfficiency: Double? {
         guard let inBedHours, inBedHours > 0 else { return nil }
         return min(1, totalHours / inBedHours)
     }
+}
+
+/// 每日活动节律记录（由小时级步数聚合推导）。nil 字段 = 该维度不可得。
+nonisolated struct HoloActivityPatternRecord: Codable, Equatable, Sendable {
+    var date: Date
+    /// 白天窗（8-21 时）内最长连续安静小时折算分钟；0 = 白天无连续静坐
+    var longestSedentaryMinutes: Double
+    /// 首个/末个活跃小时（0-23）
+    var activeWindowStartHour: Int?
+    var activeWindowEndHour: Int?
+    /// 18-23 时步数占全天比例（0-1）
+    var eveningStepShare: Double?
+    var peakHour: Int?
+    /// 当天总步数（供占比/口径核对）
+    var totalSteps: Double
 }
 
 nonisolated struct HoloHealthWorkoutRecord: Codable, Equatable, Sendable {
@@ -67,6 +88,13 @@ protocol HoloHealthDataSource: Sendable {
     func workoutRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutRecord]
     func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord]
 
+    /// 每日活动节律（小时级步数聚合推导）。默认空实现：fake 数据源按需覆盖。
+    func activityPatternRecords(timeRange: HoloAgentTimeRange?) async -> [HoloActivityPatternRecord]
+    /// 每日活动能量（千卡）。默认空实现。
+    func energyRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord]
+    /// 每日步行+跑步距离（公里）。默认空实现。
+    func distanceRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord]
+
     /// 严格查询（§7.1 P0-4）：生产实现必须读取 HK error，锁屏返回 waitingForUnlock，
     /// 禁止把锁屏/查询错误伪装成空数组或 0。默认实现回落 best-effort 包装（fake/旧实现兼容）。
     func dailyRecordsStrict(
@@ -76,9 +104,17 @@ protocol HoloHealthDataSource: Sendable {
 
     func workoutRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthWorkoutRecord]>
     func sleepRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloSleepRecord]>
+
+    func activityPatternRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloActivityPatternRecord]>
+    func energyRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]>
+    func distanceRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]>
 }
 
 extension HoloHealthDataSource {
+    func activityPatternRecords(timeRange: HoloAgentTimeRange?) async -> [HoloActivityPatternRecord] { [] }
+    func energyRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] { [] }
+    func distanceRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] { [] }
+
     func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord] {
         await dailyRecords(for: .sleep, timeRange: timeRange).map {
             HoloSleepRecord(date: $0.date, totalHours: $0.value, coreHours: nil, deepHours: nil,
@@ -106,49 +142,125 @@ extension HoloHealthDataSource {
         let records = await sleepRecords(timeRange: timeRange)
         return records.isEmpty ? .noData : .value(records)
     }
+
+    func activityPatternRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloActivityPatternRecord]> {
+        let records = await activityPatternRecords(timeRange: timeRange)
+        return records.isEmpty ? .noData : .value(records)
+    }
+
+    func energyRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        let records = await energyRecords(timeRange: timeRange)
+        return records.isEmpty ? .noData : .value(records)
+    }
+
+    func distanceRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        let records = await distanceRecords(timeRange: timeRange)
+        return records.isEmpty ? .noData : .value(records)
+    }
 }
 
 struct HoloHealthTool: HoloDataTool {
 
-    static let dynamicCatalog = HoloDataCatalog(datasets: HoloHealthMetricKind.allCases.map { kind in
-        let config: (name: String, unit: String, description: String) = switch kind {
-        case .steps: ("health.steps", "步", "每日步数")
-        case .sleep: ("health.sleep", "小时", "每日睡眠时长")
-        case .stand: ("health.stand", "小时", "每日站立小时")
-        case .activity: ("health.activity", "分钟", "每日活动分钟")
-        }
-        var fields = [
-            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
-            HoloDataField(name: "value", type: .number, unit: config.unit, filterable: true, groupable: false, aggregatable: true, description: config.description)
-        ]
-        if kind == .sleep {
-            fields += [
-                HoloDataField(name: "deepHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "深睡时长"),
-                HoloDataField(name: "coreHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "核心睡眠时长"),
-                HoloDataField(name: "remHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "REM 睡眠时长"),
-                HoloDataField(name: "awakeHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "夜间清醒时长"),
-                HoloDataField(name: "inBedHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "在床时长"),
-                HoloDataField(name: "efficiency", type: .number, unit: "%", filterable: true, groupable: false, aggregatable: true, description: "睡眠效率"),
-                HoloDataField(name: "bedtimeMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "入睡时间（距午夜分钟）"),
-                HoloDataField(name: "wakeMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "起床时间（距午夜分钟）"),
-                HoloDataField(name: "interruptions", type: .number, unit: "次", filterable: true, groupable: false, aggregatable: true, description: "两分钟以上清醒次数")
+    /// 数据身份证（随目录下发给模型）：睡眠阶段类字段的统一口径说明。
+    private static let sleepStageCaveat = "需 Apple Watch（或兼容设备）写入睡眠分期，缺失=设备无阶段数据而非 0；单晚分期精度有限，结论应基于 7 天以上趋势，与自己对比"
+
+    static let dynamicCatalog = HoloDataCatalog(datasets:
+        HoloHealthMetricKind.allCases.map { kind in
+            let config: (name: String, unit: String, description: String) = switch kind {
+            case .steps: ("health.steps", "步", "每日步数")
+            case .sleep: ("health.sleep", "小时", "每日睡眠时长")
+            case .stand: ("health.stand", "小时", "每日站立小时")
+            case .activity: ("health.activity", "分钟", "每日活动分钟")
+            }
+            var fields = [
+                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
+                HoloDataField(name: "value", type: .number, unit: config.unit, filterable: true, groupable: false, aggregatable: true, description: config.description)
             ]
+            if kind == .sleep {
+                fields += [
+                    HoloDataField(name: "deepHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "深睡时长。\(sleepStageCaveat)", label: "深睡"),
+                    HoloDataField(name: "coreHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "核心睡眠时长。\(sleepStageCaveat)", label: "核心睡眠"),
+                    HoloDataField(name: "remHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "REM 睡眠时长。\(sleepStageCaveat)", label: "REM 睡眠"),
+                    HoloDataField(name: "awakeHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "夜间清醒时长。\(sleepStageCaveat)", label: "夜间清醒"),
+                    HoloDataField(name: "inBedHours", type: .number, unit: "小时", filterable: true, groupable: false, aggregatable: true, description: "在床时长", label: "在床时长"),
+                    HoloDataField(name: "efficiency", type: .number, unit: "%", filterable: true, groupable: false, aggregatable: true, description: "睡眠效率（睡着时长/在床时长）。看长期趋势，单晚波动正常", label: "睡眠效率"),
+                    HoloDataField(name: "bedtimeMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "入睡时间（距午夜分钟，跨午夜为负或超 1440 需按环形时间解读）", label: "入睡时间"),
+                    HoloDataField(name: "wakeMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "起床时间（距午夜分钟）", label: "起床时间"),
+                    HoloDataField(name: "interruptions", type: .number, unit: "次", filterable: true, groupable: false, aggregatable: true, description: "两分钟以上清醒次数。\(sleepStageCaveat)", label: "夜间中断")
+                ]
+                // 一期睡眠结构特征
+                fields += [
+                    HoloDataField(name: "remEpisodes", type: .number, unit: "段", filterable: true, groupable: false, aggregatable: true, description: "一晚 REM 出现段数（已合并重叠段、过滤 5 分钟以下噪声段）。健康成人典型 4-6 段；\(sleepStageCaveat)", label: "REM 段数"),
+                    HoloDataField(name: "remLatencyMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "入睡后到第一段 REM 的分钟数（首段 REM 潜伏期）。偏短可能与睡眠负债相关，解读看多晚趋势。\(sleepStageCaveat)", label: "REM 潜伏期"),
+                    HoloDataField(name: "deepFrontLoadPercent", type: .number, unit: "%", filterable: true, groupable: false, aggregatable: true, description: "前半夜深睡占整晚深睡百分比（0-100）。深睡正常以前半夜为主，长期偏低值得观察。\(sleepStageCaveat)", label: "深睡前半夜占比"),
+                    HoloDataField(name: "onsetLatencyMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "入睡潜伏期（上床到首次入睡）。需设备记录在床段，缺失时不产出", label: "入睡潜伏期")
+                ]
+            }
+            return HoloDataSetSchema(
+                name: config.name,
+                domain: "health",
+                description: config.description,
+                timeField: "date",
+                fields: fields,
+                sensitivity: .sensitive,
+                maximumRangeDays: 366,
+                coverageSemantics: .dailyObservations
+            )
         }
-        return HoloDataSetSchema(
-            name: config.name,
-            domain: "health",
-            description: config.description,
-            timeField: "date",
-            fields: fields,
-            sensitivity: .sensitive,
-            maximumRangeDays: 366,
-            coverageSemantics: .dailyObservations
-        )
-    })
+        + [
+            HoloDataSetSchema(
+                name: "health.activity_pattern",
+                domain: "health",
+                description: "每日活动节律（由小时级步数聚合推导）：最长连续静坐、活动时间窗、晚间步数占比。口径：小时粒度（非分钟级行为记录）；静坐判定=白天 8-21 时整小时步数低于 100；活跃判定=整小时步数不低于 200。iPhone 即可产生，无需 Apple Watch",
+                label: "活动节律",
+                timeField: "date",
+                fields: [
+                    HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
+                    HoloDataField(name: "longestSedentaryMinutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "白天窗内最长连续静坐折算分钟。0=白天无连续静坐小时；久坐观察建议以多天平均口径，单日波动正常", label: "最长连续静坐"),
+                    HoloDataField(name: "activeWindowStartHour", type: .number, unit: "时", filterable: true, groupable: false, aggregatable: true, description: "首个活跃小时（0-23）。缺行=该天无活跃小时", label: "活动窗开始"),
+                    HoloDataField(name: "activeWindowEndHour", type: .number, unit: "时", filterable: true, groupable: false, aggregatable: true, description: "末个活跃小时（0-23）", label: "活动窗结束"),
+                    HoloDataField(name: "eveningStepShare", type: .number, unit: "比例", filterable: true, groupable: false, aggregatable: true, description: "18-23 时步数占全天比例（0-1）。晚间占比高且入睡困难时可作为讨论线索", label: "晚间步数占比"),
+                    HoloDataField(name: "peakHour", type: .number, unit: "时", filterable: true, groupable: false, aggregatable: true, description: "步数最多的小时（0-23），用于判断早型/晚型活动", label: "最活跃小时"),
+                    HoloDataField(name: "totalSteps", type: .number, unit: "步", filterable: true, groupable: false, aggregatable: true, description: "当天总步数（占比分母，供口径核对）", label: "当日总步数")
+                ],
+                sensitivity: .sensitive,
+                maximumRangeDays: 366,
+                coverageSemantics: .dailyObservations
+            ),
+            HoloDataSetSchema(
+                name: "health.energy",
+                domain: "health",
+                description: "每日活动能量消耗。口径：有 Apple Watch 时为实测，无 Watch 时 iPhone 按步数与身体数据推算、误差较大——只看自身趋势与对比，不与他人横向比较，不作为饮食控制的精确依据",
+                label: "活动能量",
+                timeField: "date",
+                fields: [
+                    HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
+                    HoloDataField(name: "value", type: .number, unit: "千卡", filterable: true, groupable: false, aggregatable: true, description: "当日活动能量（估算口径，看趋势）", label: "活动能量")
+                ],
+                sensitivity: .sensitive,
+                maximumRangeDays: 366,
+                coverageSemantics: .dailyObservations
+            ),
+            HoloDataSetSchema(
+                name: "health.distance",
+                domain: "health",
+                description: "每日步行+跑步距离",
+                label: "步行距离",
+                timeField: "date",
+                fields: [
+                    HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
+                    HoloDataField(name: "value", type: .number, unit: "公里", filterable: true, groupable: false, aggregatable: true, description: "当日步行+跑步距离", label: "步行距离")
+                ],
+                sensitivity: .sensitive,
+                maximumRangeDays: 366,
+                coverageSemantics: .dailyObservations
+            )
+        ]
+    )
 
     let descriptor = HoloToolDescriptor(
         name: "health",
-        description: "健康数据分析（综合状态 / 步数 / 睡眠 / 站立 / 活动分钟 / 运动会话）",
+        description: "健康数据分析（综合状态 / 步数 / 睡眠 / 站立 / 活动分钟 / 运动会话 / 活动节律 / 活动能量 / 步行距离）",
         supportedQueries: [
             "health_overview",
             "steps_summary",
@@ -180,6 +292,10 @@ struct HoloHealthTool: HoloDataTool {
             "health.sleep.wake_variation_minutes",
             "health.sleep.interruptions",
             "health.sleep.hours",
+            "health.sleep.rem_episodes",
+            "health.sleep.rem_latency_minutes",
+            "health.sleep.deep_front_load",
+            "health.sleep.onset_latency_minutes",
             "health.stand.average_hours",
             "health.stand.goal_met_days",
             "health.stand.hours",
@@ -255,10 +371,14 @@ struct HoloHealthTool: HoloDataTool {
     }
 }
 
-private extension HoloHealthTool {
+// 行构造器与口径助手：跨域取数源（云端快照）与本地动态查询共用，
+// 需模块内可见，故不用 private extension。
+extension HoloHealthTool {
 
     func dynamicResult(_ request: HoloToolRequest, plan: HoloDynamicQueryPlan) async -> HoloDataToolResult {
-        guard let kind = Self.metricKind(for: plan.source) else { return error(request, reason: "未注册健康数据集：\(plan.source)") }
+        guard Self.metricKind(for: plan.source) != nil
+            || ["health.activity_pattern", "health.energy", "health.distance"].contains(plan.source)
+        else { return error(request, reason: "未注册健康数据集：\(plan.source)") }
         let resolvedRange = HoloAgentHistoricalTimePolicy.resolve(plan.timeRange ?? request.timeRange)
         if resolvedRange.isEntirelyFuture {
             return HoloDataToolResult(
@@ -287,16 +407,35 @@ private extension HoloHealthTool {
         // §7.1：主查询走严格接口，锁屏/权限错误显式传播
         let currentRowsOutcome: HoloHealthQueryOutcome<[HoloQueryRow]>
         let baselineRowsOutcome: HoloHealthQueryOutcome<[HoloQueryRow]>
-        if kind == .sleep {
-            currentRowsOutcome = await dataSource.sleepRecordsStrict(timeRange: currentRange)
-                .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
-            baselineRowsOutcome = await dataSource.sleepRecordsStrict(timeRange: baselineRange)
-                .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
-        } else {
-            currentRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: currentRange)
-                .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
-            baselineRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: baselineRange)
-                .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+        switch plan.source {
+        case "health.activity_pattern":
+            currentRowsOutcome = await dataSource.activityPatternRecordsStrict(timeRange: currentRange)
+                .map { $0.map(Self.activityPatternQueryRow) }
+            baselineRowsOutcome = await dataSource.activityPatternRecordsStrict(timeRange: baselineRange)
+                .map { $0.map(Self.activityPatternQueryRow) }
+        case "health.energy":
+            currentRowsOutcome = await dataSource.energyRecordsStrict(timeRange: currentRange)
+                .map { $0.filter { $0.value > 0 }.map { Self.scalarDailyQueryRow($0, source: "energy", label: "活动能量") } }
+            baselineRowsOutcome = await dataSource.energyRecordsStrict(timeRange: baselineRange)
+                .map { $0.filter { $0.value > 0 }.map { Self.scalarDailyQueryRow($0, source: "energy", label: "活动能量") } }
+        case "health.distance":
+            currentRowsOutcome = await dataSource.distanceRecordsStrict(timeRange: currentRange)
+                .map { $0.filter { $0.value > 0 }.map { Self.scalarDailyQueryRow($0, source: "distance", label: "步行距离") } }
+            baselineRowsOutcome = await dataSource.distanceRecordsStrict(timeRange: baselineRange)
+                .map { $0.filter { $0.value > 0 }.map { Self.scalarDailyQueryRow($0, source: "distance", label: "步行距离") } }
+        default:
+            let kind = Self.metricKind(for: plan.source)!
+            if kind == .sleep {
+                currentRowsOutcome = await dataSource.sleepRecordsStrict(timeRange: currentRange)
+                    .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
+                baselineRowsOutcome = await dataSource.sleepRecordsStrict(timeRange: baselineRange)
+                    .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
+            } else {
+                currentRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: currentRange)
+                    .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+                baselineRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: baselineRange)
+                    .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+            }
         }
         let currentRows: [HoloQueryRow]
         switch currentRowsOutcome {
@@ -373,8 +512,47 @@ private extension HoloHealthTool {
         if let value = record.bedtime { fields["bedtimeMinutes"] = .number(minutesSinceMidnight(value)) }
         if let value = record.wakeTime { fields["wakeMinutes"] = .number(minutesSinceMidnight(value)) }
         if let value = record.interruptionCount { fields["interruptions"] = .number(Double(value)) }
+        if let value = record.remEpisodes { fields["remEpisodes"] = .number(Double(value)) }
+        if let value = record.remLatencyMinutes { fields["remLatencyMinutes"] = .number(value) }
+        if let value = record.deepFrontLoadPercent { fields["deepFrontLoadPercent"] = .number(value) }
+        if let value = record.sleepOnsetLatencyMinutes { fields["onsetLatencyMinutes"] = .number(value) }
         return HoloQueryRow(id: "sleep-\(idFormatter.string(from: record.date))", occurredAt: record.date,
                             fields: fields, excerpt: sleepEvent(record).excerpt)
+    }
+
+    static func activityPatternQueryRow(_ record: HoloActivityPatternRecord) -> HoloQueryRow {
+        var fields: [String: HoloQueryValue] = [
+            "date": .date(record.date),
+            "longestSedentaryMinutes": .number(record.longestSedentaryMinutes),
+            "totalSteps": .number(record.totalSteps)
+        ]
+        if let hour = record.activeWindowStartHour { fields["activeWindowStartHour"] = .number(Double(hour)) }
+        if let hour = record.activeWindowEndHour { fields["activeWindowEndHour"] = .number(Double(hour)) }
+        if let share = record.eveningStepShare { fields["eveningStepShare"] = .number(share) }
+        if let peak = record.peakHour { fields["peakHour"] = .number(Double(peak)) }
+
+        var excerpt = "\(displayFormatter.string(from: record.date)) 最长连续静坐 \(Int(record.longestSedentaryMinutes)) 分钟"
+        if let start = record.activeWindowStartHour, let end = record.activeWindowEndHour {
+            excerpt += " · 活动窗 \(start)-\(end) 时"
+        }
+        if let peak = record.peakHour {
+            excerpt += " · 最活跃 \(peak) 时"
+        }
+        return HoloQueryRow(
+            id: "activity-pattern-\(idFormatter.string(from: record.date))",
+            occurredAt: record.date,
+            fields: fields,
+            excerpt: excerpt
+        )
+    }
+
+    static func scalarDailyQueryRow(_ record: HoloHealthDailyRecord, source: String, label: String) -> HoloQueryRow {
+        HoloQueryRow(
+            id: "\(source)-\(idFormatter.string(from: record.date))",
+            occurredAt: record.date,
+            fields: ["date": .date(record.date), "value": .number(record.value)],
+            excerpt: "\(displayFormatter.string(from: record.date)) \(label) \(String(format: "%.1f", record.value))"
+        )
     }
 
     func dailySummary(
@@ -462,6 +640,14 @@ private extension HoloHealthTool {
         Self.appendAverage(\.awakeHours, key: "health.sleep.awake_hours", unit: "小时", records: records, to: &metrics)
         Self.appendAverage(\.inBedHours, key: "health.sleep.in_bed_hours", unit: "小时", records: records, to: &metrics)
         Self.appendAverage(\.sleepEfficiency, key: "health.sleep.efficiency", unit: "%", multiplier: 100, records: records, to: &metrics)
+        // 一期睡眠结构特征（仅有阶段数据的晚次产出；平均口径与阶段字段一致）
+        let remEpisodesValues = records.compactMap(\.remEpisodes).map(Double.init)
+        if !remEpisodesValues.isEmpty {
+            metrics.append(metric("health.sleep.rem_episodes", remEpisodesValues.reduce(0, +) / Double(remEpisodesValues.count), unit: "段"))
+        }
+        Self.appendAverage(\.remLatencyMinutes, key: "health.sleep.rem_latency_minutes", unit: "分钟", records: records, to: &metrics)
+        Self.appendAverage(\.deepFrontLoadPercent, key: "health.sleep.deep_front_load", unit: "%", records: records, to: &metrics)
+        Self.appendAverage(\.sleepOnsetLatencyMinutes, key: "health.sleep.onset_latency_minutes", unit: "分钟", records: records, to: &metrics)
         let interruptions = records.compactMap(\.interruptionCount).map(Double.init)
         if !interruptions.isEmpty {
             metrics.append(metric("health.sleep.interruptions", interruptions.reduce(0, +) / Double(interruptions.count), unit: "次"))

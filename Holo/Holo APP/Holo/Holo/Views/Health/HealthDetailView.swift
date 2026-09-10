@@ -20,6 +20,8 @@ struct HealthDetailView: View {
     @State private var currentValue: Double = 0
     @State private var currentAvailability: HealthMetricAvailability = .noData
     @State private var sleepDetail: HealthSleepDetail?
+    @State private var sleepTimeline: HealthSleepTimeline?
+    @State private var hourlySteps: HourlyStepsData?
 
     private var metric: HealthMetricSnapshot {
         HealthMetricSnapshot(type: type, value: currentValue, availability: currentAvailability)
@@ -34,8 +36,20 @@ struct HealthDetailView: View {
                     bigRingCard
                     statsSection
 
-                    if type == .sleep, let sleepDetail, sleepDetail.hasStageData {
-                        SleepStagesCard(detail: sleepDetail)
+                    if type == .sleep {
+                        // 阶段三态：有分期=总量卡+时间轴卡；无分期但有时长=引导卡；无数据=不显示
+                        if let sleepDetail, sleepDetail.hasStageData {
+                            SleepStagesCard(detail: sleepDetail)
+                            if let sleepTimeline {
+                                SleepTimelineCard(timeline: sleepTimeline, detail: sleepDetail)
+                            }
+                        } else if let sleepDetail, sleepDetail.totalHours > 0 {
+                            SleepStageGuideCard()
+                        }
+                    }
+
+                    if type == .steps, let hourlySteps {
+                        DailyActivityPatternCard(hourly: hourlySteps)
                     }
 
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -325,11 +339,13 @@ struct HealthDetailView: View {
         case .steps:
             currentValue = data.steps
             currentAvailability = data.steps > 0 ? .available : .noData
+            hourlySteps = await repository.fetchHourlySteps(for: selectedDate)
         case .sleep:
             currentValue = data.sleep
             currentAvailability = data.sleep > 0 ? .available : .noData
             // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
             sleepDetail = await repository.fetchSleepDetailRange(from: selectedDate, to: selectedDate).first
+            sleepTimeline = await repository.fetchSleepTimeline(forWakeDay: selectedDate)
         case .standHours:
             currentValue = data.standHours
             currentAvailability = data.standHours > 0 ? .available : (data.activeMinutes > 0 ? .unsupported : .noData)

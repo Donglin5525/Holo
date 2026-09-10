@@ -457,4 +457,16 @@ func test_092_ThoughtClusterEngineStandaloneTests() async throws {
     // 来源：Services/Thoughts/ThoughtClusterEngineStandaloneTests.swift
     ThoughtClusterEngineStandaloneTests.main()
 }
+func test_093_SleepStructureAnalyzerTests() async throws {
+    // 来源：Models/SleepStructureAnalyzerTests.swift
+    SleepStructureAnalyzerTests.main()
+}
+func test_094_ActivityDistributionAnalyzerTests() async throws {
+    // 来源：Models/ActivityDistributionAnalyzerTests.swift
+    ActivityDistributionAnalyzerTests.main()
+}
+func test_095_HealthSleepTimelineBuilderTests() async throws {
+    // 来源：Models/HealthSleepTimelineBuilderTests.swift
+    HealthSleepTimelineBuilderTests.main()
+}
 }

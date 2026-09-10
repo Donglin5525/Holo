@@ -16,23 +16,27 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
         let timeRange = historicalRange.effectiveRange
         let healthKind: HoloHealthMetricKind? = switch source {
         case "health.steps": .steps
-        case "health.sleep": .sleep
         case "health.stand": .stand
         case "health.activity": .activity
         default: nil
+        }
+        if source == "health.sleep" {
+            // 睡眠行走富字段行构造器：与目录承诺的字段身份证对齐
+            // （阶段/效率/入睡起床/中断…），云端快照与本地动态查询同源同结构。
+            return await HoloDefaultHealthDataSource()
+                .sleepRecords(timeRange: timeRange)
+                .map { HoloHealthTool.sleepQueryRow($0) }
+        }
+        if source == "health.activity_pattern" {
+            return await HoloDefaultHealthDataSource()
+                .activityPatternRecords(timeRange: timeRange)
+                .map { HoloHealthTool.activityPatternQueryRow($0) }
         }
         if let kind = healthKind {
             return await HoloDefaultHealthDataSource()
                 .dailyRecords(for: kind, timeRange: timeRange)
                 .filter { $0.value > 0 }
-                .map { record in
-                    HoloQueryRow(
-                        id: "\(kind.rawValue)-\(Int(record.date.timeIntervalSince1970))",
-                        occurredAt: record.date,
-                        fields: ["date": .date(record.date), "value": .number(record.value)],
-                        excerpt: "\(kind.rawValue) \(record.value)"
-                    )
-                }
+                .map { HoloHealthTool.queryRow($0, kind: kind) }
         }
         if source == "finance.transactions" {
             return await HoloDefaultFinanceDataSource().queryRows(timeRange: timeRange, parameters: [:])

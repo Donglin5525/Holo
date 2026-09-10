@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>健康板块二期 · 产品形态改动原型稿（待拍板）</title>
+<style>
+  :root{
+    --bg:#FDFAF8; --card:#FFFFFF; --nested:#F4F7F9; --border:#F0F0F0;
+    --t1:#333333; --t2:#939393;
+    --blue:#3B82F6; --pink:#EC4899; --yellow:#EAB308; --green:#22C55E;
+    --red:#EF4444; --purple:#8B5CF6; --teal:#14B8A6; --indigo:#6366F1;
+    --accent:#3B82F6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--t1);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:80px;
+  }
+  /* ===== 顶部说明 ===== */
+  .hero{max-width:1180px;margin:0 auto;padding:48px 24px 8px;}
+  .hero .tag{display:inline-block;font-size:12px;font-weight:600;color:var(--accent);
+    background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);
+    border-radius:99px;padding:4px 12px;margin-bottom:14px;}
+  .hero h1{font-size:26px;font-weight:700;letter-spacing:-.3px;}
+  .hero p{font-size:14px;color:var(--t2);line-height:1.7;margin-top:10px;max-width:720px;}
+  .hero p b{color:var(--t1);font-weight:600;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--t2);}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .dot{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  /* ===== 导航 ===== */
+  nav{position:sticky;top:0;z-index:50;background:rgba(253,250,248,.92);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);margin-top:28px;}
+  nav .in{max-width:1180px;margin:0 auto;padding:12px 24px;display:flex;gap:8px;flex-wrap:wrap;}
+  nav a{font-size:13px;color:var(--t2);text-decoration:none;padding:6px 14px;border-radius:99px;
+    border:1px solid transparent;transition:.15s;}
+  nav a:hover{color:var(--accent);background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.2);}
+  /* ===== 区块 ===== */
+  section{max-width:1180px;margin:0 auto;padding:44px 24px 0;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;}
+  .sec-head .no{font-size:13px;font-weight:700;color:var(--accent);}
+  .sec-head h2{font-size:20px;font-weight:700;}
+  .sec-sub{font-size:13px;color:var(--t2);line-height:1.7;margin-bottom:22px;max-width:760px;}
+  .sec-sub b{color:var(--t1);}
+  /* ===== 并排对比 ===== */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+  @media(max-width:860px){.compare{grid-template-columns:1fr;}}
+  .col-label{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .pill{font-size:11px;font-weight:600;border-radius:99px;padding:3px 10px;}
+  .pill.before{color:var(--t2);background:#F0F0F0;}
+  .pill.after{color:#fff;background:var(--green);}
+  .pill.new{color:#fff;background:var(--accent);}
+  /* ===== iPhone mockup ===== */
+  .iphone{width:375px;max-width:100%;background:var(--bg);border:1px solid var(--border);
+    border-radius:36px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.06);margin:0 auto;}
+  .screen{background:var(--bg);border-radius:28px;overflow:hidden;}
+  .statusbar{height:36px;display:flex;justify-content:space-between;align-items:center;
+    padding:0 22px;font-size:12px;font-weight:600;color:var(--t1);}
+  .app{padding:6px 16px 20px;}
+  .pgtitle{font-size:22px;font-weight:700;margin:6px 4px 2px;}
+  .pgsub{font-size:12px;color:var(--t2);margin:0 4px 14px;}
+  /* ===== 卡片 ===== */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;}
+  .card h3{font-size:15px;font-weight:600;margin-bottom:12px;}
+  .card .cap{font-size:11px;color:var(--t2);margin-top:10px;line-height:1.6;}
+  .is-new{position:relative;outline:2px dashed rgba(59,130,246,.5);outline-offset:6px;border-radius:16px;}
+  .is-new .flag{position:absolute;top:-12px;right:-6px;background:var(--accent);color:#fff;
+    font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;z-index:2;}
+  /* ===== 阶段总量卡（还原现有 SleepStagesCard）===== */
+  .deep-hero{display:flex;gap:12px;align-items:center;margin-bottom:14px;}
+  .deep-badge{width:34px;height:34px;border-radius:50%;background:var(--blue);color:#fff;
+    font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .stage-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
+  .stage-name{font-size:13px;width:64px;color:var(--t1);flex-shrink:0;}
+  .stage-bar{flex:1;height:8px;border-radius:99px;background:var(--nested);overflow:hidden;}
+  .stage-bar i{display:block;height:100%;border-radius:99px;}
+  .stage-val{font-size:12px;color:var(--t2);width:78px;text-align:right;flex-shrink:0;}
+  /* ===== 睡眠时间轴 ===== */
+  .tl-wrap{padding:6px 0 2px;}
+  .tl{display:flex;height:44px;border-radius:8px;overflow:hidden;position:relative;}
+  .seg{height:100%;position:relative;}
+  .seg.core{background:var(--pink);} .seg.deep{background:var(--blue);}
+  .seg.rem{background:var(--yellow);} .seg.awake{background:#C7CBD1;}
+  .seg.latency{background:repeating-linear-gradient(45deg,#E8EAEE 0 5px,#F2F4F7 5px 10px);}
+  .tl-ticks{position:relative;height:18px;margin-top:4px;}
+  .tl-ticks span{position:absolute;transform:translateX(-50%);font-size:10px;color:var(--t2);}
+  .wake-mark{position:absolute;top:-7px;transform:translateX(-50%);font-size:10px;color:var(--red);
+    font-weight:600;white-space:nowrap;}
+  .wake-mark::after{content:"";display:block;width:0;height:0;margin:1px auto 0;
+    border:4px solid transparent;border-top-color:var(--red);}
+  .tl-stats{display:flex;gap:0;margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+  .tl-stat{flex:1;text-align:center;}
+  .tl-stat .v{font-size:15px;font-weight:700;}
+  .tl-stat .k{font-size:10px;color:var(--t2);margin-top:2px;}
+  .tl-legend{display:flex;gap:14px;margin-top:12px;font-size:11px;color:var(--t2);flex-wrap:wrap;}
+  .tl-legend span{display:flex;align-items:center;gap:5px;}
+  .readout{margin-top:12px;background:var(--nested);border-radius:10px;padding:10px 12px;
+    font-size:12px;color:var(--t1);line-height:1.65;}
+  .readout b{font-weight:600;}
+  /* ===== 24h 分布 ===== */
+  .h24{display:flex;align-items:flex-end;gap:2px;height:120px;position:relative;
+    padding:0; border-radius:8px;}
+  .h24 .bar{flex:1;background:var(--teal);border-radius:3px 3px 0 0;min-height:2px;position:relative;z-index:2;}
+  .h24 .bar.zero{min-height:2px;background:#E5E8EC;}
+  .sedentary-band{position:absolute;top:-6px;bottom:-6px;left:56.9%;width:15.4%;
+    background:rgba(239,68,68,.07);border:1px dashed rgba(239,68,68,.45);border-radius:8px;z-index:1;}
+  .sedentary-band .lab{position:absolute;top:-24px;left:50%;transform:translateX(-50%);
+    font-size:10px;color:var(--red);font-weight:600;white-space:nowrap;}
+  .h24-ticks{display:flex;margin-top:5px;}
+  .h24-ticks span{flex:1;text-align:center;font-size:9px;color:var(--t2);}
+  .h24-ticks span:nth-child(odd){opacity:0;}
+  .act-win{display:flex;justify-content:space-between;margin-top:12px;font-size:11px;color:var(--t2);
+    border-top:1px solid var(--border);padding-top:10px;}
+  .act-win b{color:var(--t1);font-weight:600;}
+  /* ===== 主看板三指标行 + 窄入口 ===== */
+  .metric-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .metric{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;}
+  .metric .ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-size:13px;color:#fff;margin-bottom:8px;}
+  .metric .v{font-size:18px;font-weight:700;}
+  .metric .k{font-size:10px;color:var(--t2);margin-top:2px;}
+  .entry{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);
+    border-radius:14px;padding:13px 14px;}
+  .entry .ic{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--red),var(--pink));
+    color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .entry .tx{flex:1;} .entry .t1s{font-size:14px;font-weight:600;}
+  .entry .t2s{font-size:11px;color:var(--t2);margin-top:2px;}
+  .entry .go{font-size:12px;color:var(--t2);}
+  /* ===== 体征页 ===== */
+  .vital{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);}
+  .vital:last-of-type{border-bottom:none;}
+  .vital .info{width:118px;flex-shrink:0;}
+  .vital .nm{font-size:13px;font-weight:600;}
+  .vital .sub{font-size:10px;color:var(--t2);margin-top:2px;line-height:1.5;}
+  .vital svg{flex:1;height:44px;}
+  .vital .val{width:74px;text-align:right;flex-shrink:0;}
+  .vital .vv{font-size:17px;font-weight:700;}
+  .vital .vk{font-size:10px;margin-top:2px;font-weight:600;}
+  .vk.up{color:var(--red);} .vk.down{color:var(--red);} .vk.flat{color:var(--t2);}
+  .baseline-note{font-size:11px;color:var(--t2);margin-top:12px;line-height:1.6;
+    background:var(--nested);border-radius:10px;padding:10px 12px;}
+  /* ===== 方案B 对比 ===== */
+  .metric-row4{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .mini-note{font-size:12px;color:var(--t2);background:#FFF7ED;border:1px solid #FED7AA;
+    border-radius:10px;padding:10px 12px;margin-top:12px;line-height:1.65;}
+  .mini-note b{color:#C2410C;}
+  /* ===== 无Watch引导 ===== */
+  .ghost{border:1.5px dashed var(--border);border-radius:16px;padding:22px 16px;
+    text-align:center;color:#C9CDD3;font-size:12px;margin-bottom:12px;background:rgba(255,255,255,.4);}
+  .guide-card{display:flex;gap:12px;align-items:flex-start;}
+  .guide-ic{width:36px;height:36px;border-radius:10px;background:var(--nested);color:var(--t2);
+    display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  /* ===== AI 对话 ===== */
+  .chat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;}
+  .bub{max-width:82%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.65;margin-bottom:12px;}
+  .bub.user{background:var(--accent);color:#fff;margin-left:auto;border-bottom-right-radius:4px;}
+  .bub.ai{background:var(--nested);color:var(--t1);border-bottom-left-radius:4px;}
+  .bub.ai .meta{display:block;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);
+    font-size:11px;color:var(--t2);}
+  .bub.ai b{font-weight:600;}
+  .bub.ai ul{margin:6px 0 2px 16px;}
+  .bub.ai li{margin:3px 0;}
+  /* ===== 拍板区 ===== */
+  .decide{max-width:1180px;margin:52px auto 0;padding:0 24px;}
+  .decide .box{background:linear-gradient(135deg,#EFF6FF,#FDF2F8);border:1px solid rgba(59,130,246,.25);
+    border-radius:20px;padding:26px;}
+  .decide h2{font-size:18px;font-weight:700;margin-bottom:4px;}
+  .decide .sub{font-size:13px;color:var(--t2);margin-bottom:16px;}
+  .decide ol{list-style:none;counter-reset:d;}
+  .decide li{counter-increment:d;background:#fff;border:1px solid var(--border);border-radius:12px;
+    padding:14px 16px 14px 52px;margin-bottom:10px;font-size:13px;line-height:1.65;position:relative;}
+  .decide li::before{content:counter(d);position:absolute;left:14px;top:14px;width:24px;height:24px;
+    border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;}
+  .decide li b{font-weight:700;}
+  .decide .rec{color:var(--green);font-weight:700;}
+  .footnote{max-width:1180px;margin:26px auto 0;padding:0 24px;font-size:11px;color:var(--t2);line-height:1.7;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="tag">设计稿 · 待拍板</span>
+  <h1>健康板块二期 · 产品形态改动</h1>
+  <p>一期（AI 能力升级）<b>无界面改动</b>，不在本稿；本稿展示<b>二期的四处界面变化</b> + 一期 AI 回答口径预览。
+     所有数字均为<b>示意数据</b>，只为呈现形态。建议从上往下看，每处改动都有「改动前 → 改动后」对比。</p>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--blue)"></i>深睡</span>
+    <span><i class="dot" style="background:var(--pink)"></i>核心睡眠</span>
+    <span><i class="dot" style="background:var(--yellow)"></i>REM</span>
+    <span><i class="dot" style="background:#C7CBD1"></i>清醒 / 入睡中</span>
+    <span><i class="dot" style="background:rgba(59,130,246,.5)"></i>虚线框 = 本期新增内容</span>
+  </div>
+</div>
+
+<nav><div class="in">
+  <a href="#s1">① 睡眠时间轴</a>
+  <a href="#s2">② 一天怎么动的</a>
+  <a href="#s3">③ 身体状态页</a>
+  <a href="#s4">④ 无 Watch 引导</a>
+  <a href="#s5">⑤ AI 回答预览</a>
+  <a href="#decide">拍板点</a>
+</div></nav>
+
+<!-- ============ ① 睡眠时间轴 ============ -->
+<section id="s1">
+  <div class="sec-head"><span class="no">①</span><h2>睡眠详情页 · 新增「整晚睡眠时间轴」</h2></div>
+  <p class="sec-sub">现状只能看到「各阶段共多少小时」，看不到<b>一晚上的分布</b>：REM 集中在前半夜还是后半夜、几点夜醒、深睡是不是都堆在入睡头三小时。新增时间轴卡放在阶段总量卡<b>下方</b>（总量回答「多少」，时间轴回答「什么结构」），颜色与现有阶段卡一致，无需重新学习。</p>
+  <div class="compare">
+    <div>
+      <div class="col-label"><span class="pill before">改动前 · 现状</span>只有阶段总量卡</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">睡眠</div>
+          <div class="pgsub">9月8日 · 昨晚及近 7 天趋势</div>
+          <div class="card">
+            <h3>睡眠阶段</h3>
+            <div class="deep-hero">
+              <div class="deep-badge">深</div>
+              <div>
+                <div style="font-size:13px;font-weight:600;">深度睡眠</div>
+                <div style="font-size:11px;color:var(--t2);margin-top:2px;">1.8 小时 · 占总睡眠 26%</div>
+              </div>
+            </div>
+            <div class="stage-row"><span class="stage-name">核心睡眠</span><div class="stage-bar"><i style="width:52%;background:var(--pink)"></i></div><span class="stage-val">3.6 小时</span></div>
+            <div class="stage-row"><span class="stage-name">快速眼动</span><div class="stage-bar"><i style="width:23%;background:var(--yellow)"></i></div><span class="stage-val">1.6 小时</span></div>
+            <div class="stage-row"><span class="stage-name">清醒</span><div class="stage-bar"><i style="width:6%;background:#C7CBD1"></i></div><span class="stage-val">0.4 小时</span></div>
+          </div>
+          <div class="ghost">下方无内容 —— 看不到一晚的结构</div>
+        </div>
+      </div></div>
+    </div>
+    <div>
+      <div class="col-label"><span class="pill after">改动后</span>总量卡保留 + 新增时间轴卡</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">睡眠</div>
+          <div class="pgsub">9月8日 · 昨晚及近 7 天趋势</div>
+          <div class="card" style="padding-bottom:12px;">
+            <h3>睡眠阶段</h3>
+            <div class="deep-hero" style="margin-bottom:8px;">
+              <div class="deep-badge">深</div>
+              <div>
+                <div style="font-size:13px;font-weight:600;">深度睡眠</div>
+                <div style="font-size:11px;color:var(--t2);margin-top:2px;">1.8 小时 · 占总睡眠 26%</div>
+              </div>
+            </div>
+            <div class="stage-row"><span class="stage-name">核心睡眠</span><div class="stage-bar"><i style="width:52%;background:var(--pink)"></i></div><span class="stage-val">3.6 小时</span></div>
+            <div class="stage-row"><span class="stage-name">快速眼动</span><div class="stage-bar"><i style="width:23%;background:var(--yellow)"></i></div><span class="stage-val">1.6 小时</span></div>
+            <div class="stage-row"><span class="stage-name">清醒</span><div class="stage-bar"><i style="width:6%;background:#C7CBD1"></i></div><span class="stage-val">0.4 小时</span></div>
+          </div>
+
+          <div class="card is-new">
+            <span class="flag">新增</span>
+            <h3>整晚睡眠时间轴</h3>
+            <div class="tl-wrap">
+              <div class="tl">
+                <div class="seg latency" style="width:3.7%" title="入睡中 23:30-23:47"></div>
+                <div class="seg deep"   style="width:9.5%" title="深睡 23:47-00:31"></div>
+                <div class="seg core"   style="width:9.5%" title="核心 00:31-01:15"></div>
+                <div class="seg deep"   style="width:9.2%" title="深睡 01:15-01:58"></div>
+                <div class="seg rem"    style="width:2.6%" title="REM 01:58-02:10"></div>
+                <div class="seg awake"  style="width:2.6%" title="夜醒 02:10-02:22"></div>
+                <div class="seg core"   style="width:9.2%" title="核心 02:22-03:05"></div>
+                <div class="seg deep"   style="width:4.5%" title="深睡 03:05-03:26"></div>
+                <div class="seg rem"    style="width:4.7%" title="REM 03:26-03:48"></div>
+                <div class="seg core"   style="width:9.0%" title="核心 03:48-04:30"></div>
+                <div class="seg core"   style="width:7.5%" title="核心 04:30-05:05"></div>
+                <div class="seg awake"  style="width:2.4%" title="夜醒 05:05-05:16"></div>
+                <div class="seg rem"    style="width:7.3%" title="REM 05:16-05:50"></div>
+                <div class="seg core"   style="width:6.0%" title="核心 05:50-06:18"></div>
+                <div class="seg rem"    style="width:6.0%" title="REM 06:18-06:46"></div>
+                <div class="seg core"   style="width:5.6%" title="核心 06:46-07:12"></div>
+                <div class="wake-mark" style="left:35.9%">02:10</div>
+                <div class="wake-mark" style="left:77.4%">05:05</div>
+              </div>
+              <div class="tl-ticks">
+                <span style="left:3.7%">23:47</span><span style="left:16.8%">01:00</span>
+                <span style="left:29.7%">02:00</span><span style="left:42.6%">03:00</span>
+                <span style="left:55.5%">04:00</span><span style="left:68.4%">05:00</span>
+                <span style="left:81.3%">06:00</span><span style="left:96.3%">07:12</span>
+              </div>
+            </div>
+            <div class="tl-stats">
+              <div class="tl-stat"><div class="v">23:47</div><div class="k">入睡</div></div>
+              <div class="tl-stat"><div class="v">07:12</div><div class="k">起床</div></div>
+              <div class="tl-stat"><div class="v">2 次</div><div class="k">夜醒</div></div>
+              <div class="tl-stat"><div class="v">4 段</div><div class="k">REM</div></div>
+              <div class="tl-stat"><div class="v">前半夜</div><div class="k">深睡集中</div></div>
+            </div>
+            <div class="readout"><b>结构解读</b>：深睡集中在入睡后前 3 小时（正常节律）；REM 越接近早晨越长，共 4 段 1.6 小时；两次夜醒都在 20 分钟内重新入睡，连续性良好。</div>
+            <div class="cap">▸ 交互：随日期切换，可回看任意历史一晚 · 数据来自 Apple Watch 睡眠分期</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ② 一天怎么动的 ============ -->
+<section id="s2">
+  <div class="sec-head"><span class="no">②</span><h2>步数详情页 · 新增「一天怎么动的」</h2></div>
+  <p class="sec-sub">日总 11,150 步看着不错，但可能是<b>三个活跃时段 + 一整个下午没挪窝</b>。24 小时分布图让久坐"现形"：高亮今天最长的连续静坐段，这也是 AI 对话说「你下午连坐 4 小时」时的页面证据。</p>
+  <div class="compare">
+    <div>
+      <div class="col-label"><span class="pill before">改动前 · 现状</span>当日值 + 7 天趋势</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">步数</div>
+          <div class="pgsub">9月8日 · 及近 7 天趋势</div>
+          <div class="card">
+            <h3>今日步数</h3>
+            <div style="font-size:32px;font-weight:700;">11,150</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:4px;">目标 8,000 · 已达成</div>
+          </div>
+          <div class="card">
+            <h3>近 7 天趋势</h3>
+            <div style="display:flex;align-items:flex-end;gap:8px;height:90px;">
+              <div style="flex:1;height:72%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+              <div style="flex:1;height:45%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+              <div style="flex:1;height:88%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+              <div style="flex:1;height:60%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+              <div style="flex:1;height:95%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+              <div style="flex:1;height:52%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+              <div style="flex:1;height:78%;background:var(--teal);border-radius:4px 4px 0 0;"></div>
+            </div>
+            <div class="cap">看不出这一天里"什么时候在动、什么时候久坐"</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div>
+      <div class="col-label"><span class="pill after">改动后</span>新增 24 小时分布图</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">步数</div>
+          <div class="pgsub">9月8日 · 及近 7 天趋势</div>
+          <div class="card">
+            <h3>今日步数</h3>
+            <div style="font-size:32px;font-weight:700;">11,150</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:4px;">目标 8,000 · 已达成</div>
+          </div>
+          <div class="card is-new">
+            <span class="flag">新增</span>
+            <h3>一天怎么动的</h3>
+            <div class="h24">
+              <div class="sedentary-band"><span class="lab">最长静坐 3 小时 45 分</span></div>
+              <div class="bar zero"></div><div class="bar zero"></div><div class="bar zero"></div>
+              <div class="bar zero"></div><div class="bar zero"></div><div class="bar zero"></div>
+              <div class="bar" style="height:6%"></div><div class="bar" style="height:45%"></div>
+              <div class="bar" style="height:76%"></div><div class="bar" style="height:32%"></div>
+              <div class="bar" style="height:58%"></div><div class="bar" style="height:47%"></div>
+              <div class="bar" style="height:21%"></div><div class="bar" style="height:8%"></div>
+              <div class="bar zero"></div><div class="bar zero"></div><div class="bar" style="height:4%"></div>
+              <div class="bar" style="height:11%"></div><div class="bar" style="height:84%"></div>
+              <div class="bar" style="height:100%"></div><div class="bar" style="height:63%"></div>
+              <div class="bar" style="height:26%"></div><div class="bar" style="height:5%"></div>
+              <div class="bar zero"></div>
+            </div>
+            <div class="h24-ticks">
+              <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+              <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span>
+              <span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span>
+              <span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span>
+            </div>
+            <div class="act-win"><span>活动时间窗 <b>07:02 – 21:44</b></span><span>最活跃 <b>19 时 · 1,900 步</b></span></div>
+            <div class="readout">总量达标，但<b>13:40–17:25 连续静坐 3 小时 45 分</b>——上午和傍晚各有一个活跃峰，午后是整天的低谷。</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ③ 身体状态页 ============ -->
+<section id="s3">
+  <div class="sec-head"><span class="no">③</span><h2>新增「身体状态」页（体征三项 · 入口方案 A）</h2></div>
+  <p class="sec-sub">静息心率、HRV、夜间呼吸频率——"疲劳 / 要生病"的常见前兆信号。做成<b>趋势页</b>而非今日值（这些指标日波动小，跟<b>自己的 30 天基线</b>比偏离度才有意义）。主看板三卡结构不动，只在下方加一条窄入口。右侧附方案 B 对比供拍板。</p>
+  <div class="compare" style="grid-template-columns:1.2fr 1fr;">
+    <div>
+      <div class="col-label"><span class="pill after">改动后 · 方案 A</span>窄入口 → 新页面</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">健康</div>
+          <div class="pgsub">主看板（结构不变）</div>
+          <div class="metric-row">
+            <div class="metric"><div class="ic" style="background:var(--teal)">🚶</div><div class="v">11,150</div><div class="k">步数</div></div>
+            <div class="metric"><div class="ic" style="background:var(--indigo)">🌙</div><div class="v">7.4</div><div class="k">睡眠 · 小时</div></div>
+            <div class="metric"><div class="ic" style="background:var(--green)">🧍</div><div class="v">12</div><div class="k">站立 · 小时</div></div>
+          </div>
+          <div class="entry is-new" style="margin-top:10px;">
+            <span class="flag">新增入口</span>
+            <div class="ic">❤︎</div>
+            <div class="tx"><div class="t1s">身体状态</div><div class="t2s">静息心率 · HRV · 呼吸频率</div></div>
+            <div class="go">近 30 天 ›</div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="iphone" style="margin-top:18px;"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span>‹ 健康</span></div>
+        <div class="app">
+          <div class="pgtitle">身体状态</div>
+          <div class="pgsub">与你自己的 30 天基线比较</div>
+          <div class="card is-new" style="margin-top:4px;">
+            <span class="flag">新页面</span>
+
+            <div class="vital">
+              <div class="info"><div class="nm">静息心率</div><div class="sub">7 天均值 vs 基线 55</div></div>
+              <svg viewBox="0 0 120 40" preserveAspectRatio="none">
+                <line x1="0" y1="18" x2="120" y2="18" stroke="#C9CDD3" stroke-dasharray="4 3" stroke-width="1"/>
+                <polyline points="4,20 22,24 40,27 58,18 76,13 94,10 112,12" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <div class="val"><div class="vv">58</div><div class="vk up">bpm · 高于基线 3 ↗</div></div>
+            </div>
+
+            <div class="vital">
+              <div class="info"><div class="nm">心率变异性</div><div class="sub">HRV · 压力与恢复</div></div>
+              <svg viewBox="0 0 120 40" preserveAspectRatio="none">
+                <line x1="0" y1="14" x2="120" y2="14" stroke="#C9CDD3" stroke-dasharray="4 3" stroke-width="1"/>
+                <polyline points="4,8 22,13 40,12 58,19 76,25 94,31 112,29" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <div class="val"><div class="vv">42</div><div class="vk down">ms · 低于基线 6 ↘</div></div>
+            </div>
+
+            <div class="vital">
+              <div class="info"><div class="nm">夜间呼吸频率</div><div class="sub">睡眠期均值 vs 基线 14.8</div></div>
+              <svg viewBox="0 0 120 40" preserveAspectRatio="none">
+                <line x1="0" y1="16" x2="120" y2="16" stroke="#C9CDD3" stroke-dasharray="4 3" stroke-width="1"/>
+                <polyline points="4,18 22,16 40,15 58,15 76,14 94,12 112,13" fill="none" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <div class="val"><div class="vv">15.2</div><div class="vk flat">次/分 · 基线附近</div></div>
+            </div>
+
+            <div class="baseline-note">心率偏高 + HRV 偏低同时出现，常与疲劳或恢复不足相关，今明两天可降低训练强度。<br>▸ 趋势观察，非医疗建议 · 数据来自 Apple Watch</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="col-label"><span class="pill before">备选 · 方案 B</span>看板直接变四卡</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">健康</div>
+          <div class="pgsub">三指标行 → 四卡（2×2）</div>
+          <div class="metric-row4">
+            <div class="metric"><div class="ic" style="background:var(--teal)">🚶</div><div class="v">11,150</div><div class="k">步数</div></div>
+            <div class="metric"><div class="ic" style="background:var(--indigo)">🌙</div><div class="v">7.4</div><div class="k">睡眠 · 小时</div></div>
+            <div class="metric"><div class="ic" style="background:var(--green)">🧍</div><div class="v">12</div><div class="k">站立 · 小时</div></div>
+            <div class="metric"><div class="ic" style="background:linear-gradient(135deg,var(--red),var(--pink))">❤︎</div><div class="v">58</div><div class="k">静息心率 · bpm</div></div>
+          </div>
+          <div class="mini-note"><b>不推荐的理由</b>：静息心率/HRV 日波动极小（今天 58、明天 58、后天 57），放进"每日目标型"看板，卡片数字长期纹丝不动，观感是"死"的；且三卡变四卡后看板重心从"今日目标"漂移。方案 A 让体征以"趋势偏离"形态出现，只在该提醒的时候有存在感。</div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ④ 无 Watch 引导 ============ -->
+<section id="s4">
+  <div class="sec-head"><span class="no">④</span><h2>无 Apple Watch · 睡眠阶段卡从「隐藏」变「引导」</h2></div>
+  <p class="sec-sub">现状：没有 Watch 数据时整卡消失，用户以为 App 没这功能。改动后：卡片保留 + 一句说明 + 告诉用户<b>仍能用什么</b>（时长与作息分析不依赖 Watch）。文案级小改动。</p>
+  <div class="compare">
+    <div>
+      <div class="col-label"><span class="pill before">改动前 · 现状</span>整卡隐藏</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">睡眠</div>
+          <div class="pgsub">9月8日 · 昨晚及近 7 天趋势</div>
+          <div class="card"><h3>睡眠时长</h3>
+            <div style="font-size:28px;font-weight:700;">7.1 <span style="font-size:13px;color:var(--t2);font-weight:400;">小时</span></div>
+            <div style="font-size:11px;color:var(--t2);margin-top:4px;">入睡 23:52 · 起床 07:05</div>
+          </div>
+          <div class="ghost">阶段卡不出现 —— 用户不知道这个功能存在</div>
+        </div>
+      </div></div>
+    </div>
+    <div>
+      <div class="col-label"><span class="pill after">改动后</span>保留卡片 + 引导文案</div>
+      <div class="iphone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="app">
+          <div class="pgtitle">睡眠</div>
+          <div class="pgsub">9月8日 · 昨晚及近 7 天趋势</div>
+          <div class="card"><h3>睡眠时长</h3>
+            <div style="font-size:28px;font-weight:700;">7.1 <span style="font-size:13px;color:var(--t2);font-weight:400;">小时</span></div>
+            <div style="font-size:11px;color:var(--t2);margin-top:4px;">入睡 23:52 · 起床 07:05</div>
+          </div>
+          <div class="card is-new">
+            <span class="flag">文案改动</span>
+            <div class="guide-card">
+              <div class="guide-ic">⌚</div>
+              <div>
+                <div style="font-size:13px;font-weight:600;">想看睡眠阶段（深睡 / REM）？</div>
+                <div style="font-size:12px;color:var(--t2);margin-top:4px;line-height:1.6;">佩戴 Apple Watch 入睡即可自动记录阶段结构。在此之前，<b style="color:var(--t1)">时长趋势与作息规律分析不受影响</b>。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ⑤ AI 回答预览 ============ -->
+<section id="s5">
+  <div class="sec-head"><span class="no">⑤</span><h2>一期预览 · HoloAI 回答口径升级（无界面改动）</h2></div>
+  <p class="sec-sub">一期上线后，HoloAI 对话界面不变，但健康类回答的内容和<b>可信度外显</b>升级：先报数据覆盖度、没数据不装懂、结论跟自己的基线比。以下是回答内容示意（App 内为现有对话界面）。</p>
+  <div class="compare">
+    <div>
+      <div class="col-label"><span class="pill after">有数据场景</span>结构化回答 + 覆盖度声明</div>
+      <div class="chat">
+        <div class="bub user">我最近的 REM 怎么样？</div>
+        <div class="bub ai">
+          基于<b>过去 30 天中 26 天</b>的睡眠数据：
+          <ul>
+            <li>平均每晚 REM <b>1.6 小时</b>，占总睡眠 21%，在健康区间</li>
+            <li>REM 集中在<b>后半夜</b>，凌晨 4 点后每段明显变长——这是正常节律</li>
+            <li>首段 REM 平均在入睡后 <b>96 分钟</b>出现，比两周前的 110 分钟略有提前，入睡质量在变好</li>
+          </ul>
+          <span class="meta">📊 数据覆盖：30 天中 26 天有睡眠分期（Apple Watch）· 其余 4 天未佩戴</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="col-label"><span class="pill new">无数据场景</span>不装懂 + 短板变引导</div>
+      <div class="chat">
+        <div class="bub user">我深睡够不够？</div>
+        <div class="bub ai">
+          我目前<b>看不到你的睡眠阶段</b>——记录深睡 / REM 需要佩戴 Apple Watch 入睡。<br><br>
+          能确认的是：过去 30 天平均睡 <b>7 小时 2 分</b>，入睡时间波动 ±38 分钟，时长上没有亏欠。<br><br>
+          如果想看阶段结构，戴表睡几晚后再来问我 👌
+        </div>
+        <div class="bub user">那我是不是久坐挺严重的？</div>
+        <div class="bub ai">
+          看 9 月 1 日–7 日这周：工作日<b>最长连续静坐平均 3 小时 40 分</b>，集中在 13:30–17:30；周末只有 1 小时 50 分。工作日下午值得起来走两趟 🚶
+          <span class="meta">📊 数据覆盖：7 天全部有步数记录（iPhone 即可产生，无需 Watch）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 拍板点 ============ -->
+<div class="decide" id="decide">
+  <div class="box">
+    <h2>本稿待拍板（4 点）</h2>
+    <div class="sub">对应《一期+二期产品方案》§八，看完原型后定即可。</div>
+    <ol>
+      <li><b>身体状态页入口</b>：方案 A 窄入口进新页（<span class="rec">推荐</span>，③ 区有方案 B 对比及不推荐理由）vs 方案 B 看板四卡。</li>
+      <li><b>无 Watch 睡眠阶段卡</b>：改为引导文案（<span class="rec">推荐</span>，见 ④ 区）vs 维持整卡隐藏。</li>
+      <li><b>睡眠时间轴的信息密度</b>：底部是否保留「结构解读」一行（本稿保留，帮助用户读懂第一眼；也可做成仅 AI 问答时输出）。</li>
+      <li><b>Apple Watch 佩戴情况</b>：决定 ①③ 两区的真机验收形态，仍待确认。</li>
+    </ol>
+  </div>
+</div>
+
+<p class="footnote">* 本稿为产品形态示意：所有数字均为编造的示意数据；颜色取自 Holo 现有设计系统（蓝 #3B82F6 / 粉 #EC4899 / 黄 #EAB308 与现有睡眠阶段卡一致）；实际页面布局以实现为准。<br>* 一期（数据底座 + AI 能力）无界面改动，本稿 ⑤ 区仅为回答内容示意。</p>
+
+</body>
+</html>
