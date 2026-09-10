@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>想法 V3 · Thought + Topic 双核心 UI 设计稿</title>
+<style>
+  /* ============ 工作台（非 App 部分） ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0E0E10;
+    color: #F5F5F5;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh;
+    padding: 36px 24px 60px;
+  }
+  .page-head { text-align: center; margin-bottom: 18px; }
+  .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  .page-head p { font-size: 13px; color: #939393; margin-top: 8px; line-height: 1.7; }
+
+  .legend {
+    max-width: 920px; margin: 0 auto 30px;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 14px;
+    padding: 14px 18px;
+  }
+  .legend-row { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: #C9C9C9; line-height: 1.65; }
+  .legend-row + .legend-row { margin-top: 8px; }
+  .legend-row b { color: #F5F5F5; }
+  .pin-inline {
+    flex: none; width: 20px; height: 20px; border-radius: 50%;
+    color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .pin-inline.o { background: #F46D38; }
+  .pin-inline.g { background: #3E9B4F; }
+  .pin-inline.r { background: #E0483E; }
+
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .row { display: flex; gap: 44px; flex-wrap: wrap; justify-content: center; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label {
+    font-size: 14px; font-weight: 600; margin-bottom: 14px; letter-spacing: 2px;
+    color: #C9C9C9;
+  }
+  .col-label .sub { font-weight: 400; letter-spacing: 0; color: #939393; font-size: 12px; margin-left: 8px; }
+
+  .notes {
+    width: 390px; margin-top: 14px;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .notes .n { display: flex; gap: 8px; font-size: 12px; color: #C9C9C9; line-height: 1.6; }
+  .notes .n + .n { margin-top: 7px; }
+  .notes .n b { color: #F5F5F5; }
+
+  /* ============ 手机框 ============ */
+  .phone {
+    width: 390px; height: 800px;
+    background: #F7F4EF;               /* 暖纸底（想法模块现状） */
+    border: 3px solid #0A0A0B; border-radius: 54px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 6px #26262A;
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .statusbar {
+    flex: none; height: 44px; display: flex; justify-content: space-between; align-items: center;
+    padding: 0 26px 0 32px; font-size: 13.5px; font-weight: 600; color: #1C1C1E;
+  }
+  .statusbar .icons { display: flex; gap: 5px; align-items: center; }
+  .batt { width: 22px; height: 11px; border: 1px solid rgba(28,28,30,.4); border-radius: 3px; position: relative; }
+  .batt::after { content: ""; position: absolute; left: 1.5px; top: 1.5px; bottom: 1.5px; width: 60%; background: #1C1C1E; border-radius: 1.5px; }
+
+  .pin {
+    position: absolute; z-index: 60; width: 22px; height: 22px; border-radius: 50%;
+    color: #fff; font-size: 12.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+  .pin.o { background: #F46D38; box-shadow: 0 2px 8px rgba(244,109,56,.5); }
+  .pin.g { background: #3E9B4F; box-shadow: 0 2px 8px rgba(62,155,79,.5); }
+  .pin.r { background: #E0483E; box-shadow: 0 2px 8px rgba(224,72,62,.5); }
+
+  .homebar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 134px; height: 5px; border-radius: 3px; background: rgba(28,28,30,.85); z-index: 55; }
+
+  /* ============ 想法模块通用（浅色暖纸） ============ */
+  .nav { flex: none; height: 52px; display: flex; align-items: center;
+    padding: 0 12px; position: relative; }
+  .nav .back { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    color: #1C1C1E; font-size: 21px; font-weight: 600; }
+  .nav .title { flex: 1; text-align: center; font-size: 18px; font-weight: 700; color: #1C1C1E; }
+  .nav .more { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    color: #1C1C1E; font-size: 19px; font-weight: 700; }
+
+  .seg { margin: 4px 16px 12px; background: #FFFFFF; border-radius: 16px; padding: 3px;
+    display: flex; box-shadow: 0 1px 3px rgba(28,28,30,.05); }
+  .seg .s { flex: 1; height: 40px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
+    gap: 6px; font-size: 15px; font-weight: 600; color: #8A8A8E; }
+  .seg .s.on { background: linear-gradient(135deg, #F58B4F, #EE5A2E); color: #fff;
+    box-shadow: 0 3px 10px rgba(238,90,46,.32); }
+
+  .search { margin: 0 16px 12px; height: 44px; background: #FFFFFF; border-radius: 14px;
+    display: flex; align-items: center; padding: 0 14px; gap: 8px;
+    color: #B4B4B8; font-size: 15px; box-shadow: 0 1px 3px rgba(28,28,30,.05); }
+
+  .chips { display: flex; gap: 8px; padding: 2px 16px 12px; overflow: hidden; }
+  .chip { flex: none; height: 36px; padding: 0 15px; border-radius: 18px;
+    display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 500;
+    background: #FFFFFF; color: #5B5B60; box-shadow: 0 1px 3px rgba(28,28,30,.05); }
+  .chip.on { background: linear-gradient(135deg, #F58B4F, #EE5A2E); color: #fff;
+    box-shadow: 0 3px 10px rgba(238,90,46,.3); }
+  .chip.ghost { border: 1.5px dashed rgba(224,72,62,.55); background: rgba(224,72,62,.06);
+    color: rgba(224,72,62,.75); box-shadow: none; text-decoration: line-through; }
+  .chip .hash { opacity: .55; font-weight: 700; }
+
+  .feed { flex: 1; overflow: hidden; padding: 2px 16px 0; }
+  .day { font-size: 13px; font-weight: 600; color: #A6A6AA; margin: 10px 4px 8px; }
+  .card { background: #FFFFFF; border-radius: 20px; padding: 16px 18px 13px; margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); position: relative; }
+  .card .cdate { display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: #A6A6AA; margin-bottom: 8px; }
+  .card .cdate .dot { letter-spacing: 2px; color: #C9C9CD; }
+  .card .body { font-size: 16.5px; line-height: 1.55; color: #1C1C1E; }
+  .card .tags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .htag { font-size: 12.5px; font-weight: 600; color: #C2551F; background: rgba(244,109,56,.10);
+    padding: 3px 9px; border-radius: 9px; }
+  .tbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500;
+    color: #5F7058; background: #EFF2EC; padding: 4px 10px; border-radius: 10px; }
+  .tbadge svg { flex: none; }
+
+  .fab { position: absolute; right: 20px; bottom: 34px; width: 60px; height: 60px; border-radius: 30px;
+    background: linear-gradient(135deg, #F58B4F, #EE5A2E); color: #fff; font-size: 28px; font-weight: 300;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 22px rgba(238,90,46,.42); z-index: 40; }
+
+  /* toast */
+  .toast { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); z-index: 70;
+    background: rgba(28,28,30,.88); color: #fff; font-size: 14px; font-weight: 600;
+    padding: 10px 18px; border-radius: 22px; display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.28); white-space: nowrap; }
+  .toast .ck { width: 17px; height: 17px; border-radius: 50%; background: #3E9B4F;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; }
+
+  /* 主题页 */
+  .topic-hero { margin: 4px 16px 14px; background: #FFFFFF; border-radius: 20px; padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); }
+  .topic-hero .th-head { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 600; color: #C2551F; }
+  .topic-hero .th-name { font-size: 19px; font-weight: 700; color: #1C1C1E; margin: 8px 0 4px; }
+  .topic-hero .th-meta { font-size: 13px; color: #8A8A8E; }
+  .topic-hero .th-actions { display: flex; gap: 8px; margin-top: 13px; }
+  .btn { flex: 1; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; }
+  .btn.primary { background: linear-gradient(135deg, #F58B4F, #EE5A2E); color: #fff;
+    box-shadow: 0 3px 10px rgba(238,90,46,.3); }
+  .btn.plain { background: #F2EFE9; color: #5B5B60; }
+
+  .trow { display: flex; align-items: center; gap: 13px; background: #FFFFFF; border-radius: 20px;
+    padding: 15px 17px; margin-bottom: 11px; box-shadow: 0 2px 8px rgba(28,28,30,.05); }
+  .trow .ticon { width: 44px; height: 44px; border-radius: 14px; background: #EFF2EC;
+    display: flex; align-items: center; justify-content: center; flex: none; }
+  .trow .tmain { flex: 1; min-width: 0; }
+  .trow .tname { font-size: 16px; font-weight: 600; color: #1C1C1E; }
+  .trow .tmeta { font-size: 12.5px; color: #8A8A8E; margin-top: 3px; }
+  .trow .chev { color: #C9C9CD; font-size: 17px; }
+  .sect-label { font-size: 13px; font-weight: 600; color: #A6A6AA; margin: 12px 4px 9px; }
+
+  /* 详情页 */
+  .d-hero { padding: 2px 20px 12px; }
+  .d-hero .d-icon { width: 52px; height: 52px; border-radius: 17px; background: #EFF2EC;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .d-hero h2 { font-size: 24px; font-weight: 800; color: #1C1C1E; letter-spacing: .3px; }
+  .d-hero .d-meta { font-size: 13px; color: #8A8A8E; margin-top: 5px; }
+  .d-sec { margin: 0 16px 12px; background: #FFFFFF; border-radius: 20px; padding: 15px 17px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); }
+  .d-sec .s-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .d-sec .s-title { font-size: 14px; font-weight: 700; color: #1C1C1E; }
+  .d-sec .s-tag { font-size: 11px; font-weight: 600; color: #8A8A8E; background: #F2EFE9;
+    padding: 3px 8px; border-radius: 8px; display: flex; align-items: center; gap: 4px; }
+  .d-sec .s-body { font-size: 14.5px; line-height: 1.65; color: #3D3D40; }
+  .view-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; }
+  .view-row + .view-row { border-top: 0.5px solid #F0EDE7; }
+  .view-row .v-dot { width: 6px; height: 6px; border-radius: 3px; background: #F46D38; margin-top: 8px; flex: none; }
+  .view-row .v-text { flex: 1; font-size: 14.5px; color: #1C1C1E; line-height: 1.5; }
+  .view-row .v-count { flex: none; font-size: 12px; color: #A6A6AA; background: #F2EFE9;
+    padding: 2px 8px; border-radius: 8px; margin-top: 1px; }
+  .line-row { display: flex; gap: 12px; padding: 8px 0; }
+  .line-row .l-date { flex: none; width: 58px; font-size: 12.5px; color: #A6A6AA; padding-top: 2px; }
+  .line-row .l-text { flex: 1; font-size: 14px; color: #3D3D40; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .expand { text-align: center; font-size: 13px; font-weight: 600; color: #C2551F; padding-top: 9px; }
+
+  /* 交互菜单（屏B） */
+  .sheet-mask { position: absolute; inset: 0; background: rgba(28,28,30,.28); z-index: 45; }
+  .sheet { position: absolute; left: 10px; right: 10px; bottom: 14px; z-index: 46;
+    background: #FFFFFF; border-radius: 22px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.22); }
+  .sheet .sheet-title { text-align: center; font-size: 12.5px; color: #8A8A8E; padding: 13px 0 9px; }
+  .sheet .act { height: 52px; display: flex; align-items: center; justify-content: center;
+    font-size: 16.5px; color: #1C1C1E; border-top: 0.5px solid #F0EDE7; }
+  .sheet .act.warn { color: #E0483E; font-weight: 600; }
+  .sheet .cancel { height: 52px; display: flex; align-items: center; justify-content: center;
+    font-size: 16.5px; font-weight: 700; color: #1C1C1E; border-top: 6px solid #F2EFE9; }
+
+  /* ============ 对照与拍板面板 ============ */
+  .compare {
+    max-width: 860px; width: 100%;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 16px; padding: 20px 22px;
+  }
+  .compare h3 { font-size: 15px; font-weight: 700; letter-spacing: 1px; margin-bottom: 14px; }
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .cmp-col { background: #141416; border: 1px solid #2C2C2E; border-radius: 12px; padding: 13px 15px; }
+  .cmp-col h4 { font-size: 12.5px; letter-spacing: 2px; margin-bottom: 10px; }
+  .cmp-col.del h4 { color: #F08A82; }
+  .cmp-col.keep h4 { color: #9BE0A6; }
+  .cmp-col.add h4 { color: #F5B08A; }
+  .cmp-col li { list-style: none; font-size: 12px; color: #C9C9C9; line-height: 1.65;
+    padding-left: 14px; position: relative; margin-bottom: 6px; }
+  .cmp-col li::before { content: "·"; position: absolute; left: 2px; color: #6A6A6E; }
+
+  .decide { max-width: 860px; width: 100%;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 16px; padding: 20px 22px; }
+  .decide h3 { font-size: 15px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+  .decide .d-sub { font-size: 12px; color: #939393; margin-bottom: 14px; }
+  .q { display: flex; gap: 12px; padding: 11px 0; border-top: 0.5px solid #2C2C2E; }
+  .q .q-n { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #F46D38;
+    color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .q .q-body { font-size: 13px; color: #C9C9C9; line-height: 1.7; }
+  .q .q-body b { color: #F5F5F5; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>想法 V3 · 「想法 + 主题」双核心 UI 设计稿</h1>
+  <p>2026-09-10 · Phase 4 拍板用 · 视觉语言沿用现状（暖纸底 / 橙色主色 / 大圆角白卡）<br>
+  核心原则：保存永不等待 AI · 正确的结果静默出现 · 无主题是正常状态 · 用户决定永远优先</p>
+</div>
+
+<div class="legend">
+  <div class="legend-row"><span class="pin-inline o">1</span><b>橙色标注</b>：关键交互与行为说明（这个界面会怎么运作）。</div>
+  <div class="legend-row"><span class="pin-inline g">2</span><b>绿色标注</b>：相对现状新增的东西。</div>
+  <div class="legend-row"><span class="pin-inline r">3</span><b>红色标注</b>：相对现状移除的东西（主路径不再出现，AI 整理相关全部退场）。</div>
+  <div class="legend-row"><span class="pin-inline o">？</span><b>待你拍板的点</b>统一放在页面最下方，共 5 个。</div>
+</div>
+
+<div class="stage">
+
+  <!-- ============ 第一行：想法首页 + 卡片交互 ============ -->
+  <div class="row">
+
+    <!-- 屏A 想法首页 -->
+    <div class="col">
+      <div class="col-label">屏A · 想法首页<span class="sub">目标态</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">想法</div>
+          <div class="more">···</div>
+        </div>
+
+        <div class="seg">
+          <div class="s on">💡 想法</div>
+          <div class="s">🍃 主题</div>
+        </div>
+
+        <div class="search">⌕ 搜索你的想法…</div>
+
+        <div class="chips">
+          <div class="chip on">全部</div>
+          <div class="chip ghost">✨整理想法 AI 3</div>
+          <div class="chip"><span class="hash">#</span>半马备战</div>
+          <div class="chip"><span class="hash">#</span>碎碎念</div>
+          <div class="tbadge" style="height:36px;border-radius:18px;padding:0 14px;">🍃 跑步训练</div>
+        </div>
+
+        <div class="feed">
+          <div class="day">今天</div>
+          <div class="card">
+            <div class="cdate"><span>19:02</span><span class="dot">···</span></div>
+            <div class="body">最近觉得自动打标签本身可能就是错的，标签应该是人打的。</div>
+            <div class="tags">
+              <span class="htag">#Holo</span>
+              <span class="tbadge"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#5F7058"/></svg>产品设计</span>
+            </div>
+          </div>
+
+          <div class="day">9月08日</div>
+          <div class="card">
+            <div class="cdate"><span>08:15</span><span class="dot">···</span></div>
+            <div class="body">备战年底半马，长距离拉练安排在周日早上。</div>
+            <div class="tags">
+              <span class="tbadge"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#5F7058"/></svg>跑步训练</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cdate"><span>07:40</span><span class="dot">···</span></div>
+            <div class="body">左膝还是不舒服，这周减量到跑一休一。</div>
+            <div class="tags">
+              <span class="tbadge"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#5F7058"/></svg>跑步训练</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="fab">+</div>
+        <div class="homebar"></div>
+
+        <!-- pins -->
+        <div class="pin r" style="right:118px; top:392px;">1</div>
+        <div class="pin g" style="right:44px; top:562px;">2</div>
+        <div class="pin o" style="left:30px; top:352px;">3</div>
+        <div class="pin o" style="right:24px; top:708px;">4</div>
+      </div>
+      <div class="notes">
+        <div class="n"><span class="pin-inline r">1</span><span><b>移除</b>「✨整理想法 AI」入口：AI 整理进度、失败、配额、确认队列、标签治理全部退出主页面。</span></div>
+        <div class="n"><span class="pin-inline g">2</span><span><b>新增</b>卡片底部弱展示主题（最多 2 个）：灰绿小胶囊，与 <b style="color:#F08A82">#</b>橙色用户标签明确区分。</span></div>
+        <div class="n"><span class="pin-inline o">3</span><span>筛选一行混排：用户 <b>#标签</b>（橙字）与 <b>主题</b>（绿胶囊）都可筛选。</span></div>
+        <div class="n"><span class="pin-inline o">4</span><span>AI 判断对了 → 主题徽章<b>静默出现</b>，无弹窗无红点；判断错了 → 点徽章即可改（见屏B）。</span></div>
+      </div>
+    </div>
+
+    <!-- 屏B 卡片交互 -->
+    <div class="col">
+      <div class="col-label">屏B · 点主题徽章<span class="sub">纠正交互</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">想法</div>
+          <div class="more">···</div>
+        </div>
+
+        <div class="seg">
+          <div class="s on">💡 想法</div>
+          <div class="s">🍃 主题</div>
+        </div>
+
+        <div class="feed" style="margin-top:8px;">
+          <div class="day">9月08日</div>
+          <div class="card" style="box-shadow:0 6px 20px rgba(238,90,46,.14); border:1.5px solid rgba(244,109,56,.35);">
+            <div class="cdate"><span>08:15</span><span class="dot">···</span></div>
+            <div class="body">备战年底半马，长距离拉练安排在周日早上。</div>
+            <div class="tags">
+              <span class="tbadge" style="outline:1.5px solid rgba(95,112,88,.45); outline-offset:2px;"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#5F7058"/></svg>跑步训练</span>
+              <span class="tbadge"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#5F7058"/></svg>健康</span>
+            </div>
+          </div>
+          <div class="day" style="margin-top:18px;">9月06日</div>
+          <div class="card" style="opacity:.55;">
+            <div class="cdate"><span>07:20</span><span class="dot">···</span></div>
+            <div class="body">今早五公里配速六分半，比上月快了十五秒。</div>
+          </div>
+        </div>
+
+        <div class="sheet-mask"></div>
+        <div class="sheet">
+          <div class="sheet-title">「跑步训练」· 9月08日 这条想法</div>
+          <div class="act">更改主题…</div>
+          <div class="act warn">从这条移除</div>
+          <div class="cancel">取消</div>
+        </div>
+        <div class="homebar"></div>
+
+        <div class="pin o" style="left:196px; top:404px;">1</div>
+        <div class="pin o" style="right:60px; top:560px;">2</div>
+      </div>
+      <div class="notes">
+        <div class="n"><span class="pin-inline o">1</span><span>一条想法允许关联 <b>0–2 个</b>主题（示意：跑步训练 + 健康），不强制归类。</span></div>
+        <div class="n"><span class="pin-inline o">2</span><span>点徽章 → <b>更改主题 / 从这条移除</b>。移除后同一错误<b>不会立刻重现</b>（本地记住拒绝）。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 第二行：保存反馈 + 主题页 ============ -->
+  <div class="row">
+
+    <!-- 屏C 保存反馈 -->
+    <div class="col">
+      <div class="col-label">屏C · 保存反馈<span class="sub">「已记录」即走</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">想法</div>
+          <div class="more">···</div>
+        </div>
+
+        <div class="seg">
+          <div class="s on">💡 想法</div>
+          <div class="s">🍃 主题</div>
+        </div>
+
+        <div class="feed" style="opacity:.92; position:relative;">
+          <div class="toast" style="top:6px;"><span class="ck">✓</span>已记录</div>
+          <div class="day">刚刚</div>
+          <div class="card" style="box-shadow:0 6px 20px rgba(238,90,46,.14); border:1.5px solid rgba(244,109,56,.35);">
+            <div class="cdate"><span>现在</span><span class="dot">···</span></div>
+            <div class="body">周末试了新的补给策略，体感比能量胶舒服。</div>
+          </div>
+          <div class="day">9月08日</div>
+          <div class="card" style="opacity:.55;">
+            <div class="cdate"><span>08:15</span><span class="dot">···</span></div>
+            <div class="body">备战年底半马，长距离拉练安排在周日早上。</div>
+            <div class="tags">
+              <span class="tbadge"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#5F7058"/></svg>跑步训练</span>
+            </div>
+          </div>
+        </div>
+        <div class="homebar"></div>
+
+        <div class="pin o" style="right:120px; top:318px;">1</div>
+        <div class="pin o" style="left:30px; top:420px;">2</div>
+      </div>
+      <div class="notes">
+        <div class="n"><span class="pin-inline o">1</span><span>点保存 → <b>立即退出编辑器</b> + 轻提示「已记录」（约 1.5 秒自动消失）。不等 embedding、不等主题判断、不等任何 AI。</span></div>
+        <div class="n"><span class="pin-inline o">2</span><span>AI 相关的事都在<b>后台慢慢做</b>：几秒后这条想法可能静静长出主题徽章，也可能一直没有——都是正常状态。</span></div>
+      </div>
+    </div>
+
+    <!-- 屏D 主题页 -->
+    <div class="col">
+      <div class="col-label">屏D · 主题页<span class="sub">新脉络建议卡</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">想法</div>
+          <div class="more">···</div>
+        </div>
+
+        <div class="seg">
+          <div class="s">💡 想法</div>
+          <div class="s on">🍃 主题</div>
+        </div>
+
+        <div class="feed">
+          <!-- 新脉络建议卡（同一时间最多一张） -->
+          <div class="topic-hero" style="box-shadow:0 6px 20px rgba(238,90,46,.13); border:1.5px solid rgba(244,109,56,.28);">
+            <div class="th-head">✦ 最近有 5 条想法形成了新的脉络</div>
+            <div class="th-name">「AI 产品体验」</div>
+            <div class="th-meta">5 条想法 · 持续 18 天</div>
+            <div class="th-actions">
+              <div class="btn primary">建立主题</div>
+              <div class="btn plain">改个名字</div>
+              <div class="btn plain">以后再说</div>
+            </div>
+          </div>
+
+          <div class="sect-label">我的主题</div>
+
+          <div class="trow">
+            <div class="ticon"><svg width="22" height="22" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#3E9B4F"/></svg></div>
+            <div class="tmain">
+              <div class="tname">跑步训练</div>
+              <div class="tmeta">12 条想法 · 持续 45 天 · 3 天前更新</div>
+            </div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="trow">
+            <div class="ticon" style="background:#F2EFE9;"><svg width="22" height="22" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#C2551F"/></svg></div>
+            <div class="tmain">
+              <div class="tname">上门喂猫</div>
+              <div class="tmeta">4 条想法 · 持续 9 天 · 上周更新</div>
+            </div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="trow" style="opacity:.5;">
+            <div class="tmain" style="text-align:center;"><div class="tmeta">已归档（1）</div></div>
+          </div>
+        </div>
+        <div class="homebar"></div>
+
+        <div class="pin g" style="right:26px; top:368px;">1</div>
+        <div class="pin o" style="left:120px; top:560px;">2</div>
+        <div class="pin r" style="right:26px; bottom:64px;">3</div>
+      </div>
+      <div class="notes">
+        <div class="n"><span class="pin-inline g">1</span><span><b>新增</b>：新脉络建议卡，同一时间<b>最多一张</b>。「以后再说」→ 至少冷却 30 天才可能再出现；卡片角落还藏着「不再建议这个方向」。</span></div>
+        <div class="n"><span class="pin-inline o">2</span><span><b>建立主题</b>=按 AI 提议的名字建；<b>改个名字</b>=你命名，之后 AI <b>永不自动改名</b>。</span></div>
+        <div class="n"><span class="pin-inline r">3</span><span><b>移除</b>：「发现新主题」「未归入主题」「整理设置」三个卡片退场——未归类不是待办，不制造数量焦虑。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 第三行：主题详情 ============ -->
+  <div class="row">
+    <!-- 屏E Topic 详情 -->
+    <div class="col">
+      <div class="col-label">屏E · 主题详情<span class="sub">主题页点任意主题进入</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>▮▮▮</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">主题</div>
+          <div class="more">···</div>
+        </div>
+
+        <div style="flex:1; overflow:hidden;">
+          <div class="d-hero" style="padding-bottom:5px;">
+            <div class="d-icon" style="width:44px;height:44px;border-radius:14px;margin-bottom:8px;"><svg width="22" height="22" viewBox="0 0 12 12"><path d="M6 1C3 3 2 6 3.5 9c2 .5 4.5-.5 5-3.5C8.8 3.6 7 2 6 1z" fill="#3E9B4F"/></svg></div>
+            <h2 style="font-size:22px;">跑步训练</h2>
+            <div class="d-meta" style="margin-top:3px;">12 条想法 · 持续 45 天 · 你创建了它</div>
+          </div>
+
+          <div class="d-sec" style="padding:12px 16px; margin-bottom:9px;">
+            <div class="s-head" style="margin-bottom:7px;">
+              <div class="s-title">这段时间的变化</div>
+              <div class="s-tag">AI 摘要 · 可重建 ↻</div>
+            </div>
+            <div class="s-body" style="font-size:14px;line-height:1.55;">你在备战年底半马：周日长距离成了主力课，左膝不适后你主动减量，配速仍在提升。</div>
+          </div>
+
+          <div class="d-sec" style="padding:12px 16px; margin-bottom:9px;">
+            <div class="s-head" style="margin-bottom:5px;">
+              <div class="s-title">你反复提到的</div>
+            </div>
+            <div class="view-row" style="padding:7px 0;"><div class="v-dot"></div><div class="v-text" style="font-size:14px;">周日晚长距离拉练是主力课</div><div class="v-count">3 条</div></div>
+            <div class="view-row" style="padding:7px 0;"><div class="v-dot"></div><div class="v-text" style="font-size:14px;">左膝不适时要减量</div><div class="v-count">2 条</div></div>
+            <div class="view-row" style="padding:7px 0;"><div class="v-dot"></div><div class="v-text" style="font-size:14px;">配速在稳步提升</div><div class="v-count">2 条</div></div>
+          </div>
+
+          <div class="d-sec" style="padding:12px 16px; margin-bottom:9px;">
+            <div class="s-head" style="margin-bottom:4px;">
+              <div class="s-title">时间脉络</div>
+            </div>
+            <div class="line-row" style="padding:6px 0;"><div class="l-date">9月08日</div><div class="l-text" style="font-size:13.5px;">备战年底半马，长距离拉练安排在周日早上。</div></div>
+            <div class="line-row" style="padding:6px 0;"><div class="l-date">9月07日</div><div class="l-text" style="font-size:13.5px;">左膝还是不舒服，这周减量到跑一休一。</div></div>
+            <div class="line-row" style="padding:6px 0;"><div class="l-date">9月06日</div><div class="l-text" style="font-size:13.5px;">今早五公里配速六分半，比上月快了十五秒。</div></div>
+            <div class="expand" style="padding-top:4px;">还有 9 条 ↓</div>
+          </div>
+
+          <div class="d-sec" style="padding:12px 16px; margin-bottom:9px;">
+            <div class="s-head" style="margin-bottom:4px;">
+              <div class="s-title">可能相关的旧想法</div>
+              <div class="s-tag">最多 3 条 · 可展开</div>
+            </div>
+            <div class="line-row" style="padding:6px 0;"><div class="l-date">6月02日</div><div class="l-text" style="font-size:13.5px;">第一次跑十公里，膝盖完了，得研究护膝。</div></div>
+            <div class="line-row" style="padding:6px 0;"><div class="l-date">5月18日</div><div class="l-text" style="font-size:13.5px;">报了下半年比赛就要按计划练。</div></div>
+          </div>
+        </div>
+        <div class="homebar"></div>
+
+        <div class="pin o" style="right:26px; top:236px;">1</div>
+        <div class="pin o" style="left:30px; top:300px;">2</div>
+        <div class="pin g" style="right:26px; top:636px;">3</div>
+        <div class="pin o" style="right:26px; top:60px;">4</div>
+      </div>
+      <div class="notes">
+        <div class="n"><span class="pin-inline o">1</span><span>摘要明确标注 <b>「AI 摘要 · 可重建」</b>，不冒充你写的结论；生成失败时整块隐藏，不影响其他内容。</span></div>
+        <div class="n"><span class="pin-inline o">2</span><span>「你反复提到的」每条<b>可点跳回来源想法</b>——这是「主题为什么存在」的证据。</span></div>
+        <div class="n"><span class="pin-inline g">3</span><span><b>新增</b>「可能相关的旧想法」（默认最多 3 条，可展开）：帮你在对的时刻重遇旧记录。</span></div>
+        <div class="n"><span class="pin-inline o">4</span><span>右上 <b>···</b> 菜单：添加想法 / 重命名 / 归档 / 删除。删除仅删主题壳，想法原文不丢。</span></div>
+      </div>
+    </div>
+
+    <!-- 对照 + 拍板 -->
+    <div class="col" style="align-items:flex-start; max-width:860px;">
+      <div class="compare">
+        <h3>改动对照 · 主路径上发生什么</h3>
+        <div class="cmp-grid">
+          <div class="cmp-col del">
+            <h4>移除（从主路径退场）</h4>
+            <ul>
+              <li>「✨整理想法」入口与进度 / 失败 / 配额展示</li>
+              <li>AI 标签、AI 建议标签、标签治理</li>
+              <li>低置信主题确认队列（不再制造待办）</li>
+              <li>「未归入主题」数量卡（未归类≠负债）</li>
+              <li>「发现新主题」审批卡（由建议卡替代）</li>
+              <li>「整理设置」与分类主题开关</li>
+              <li>知识树入口（被「主题」分段替代）</li>
+            </ul>
+          </div>
+          <div class="cmp-col keep">
+            <h4>保留（体验不变）</h4>
+            <ul>
+              <li>时间流卡片 + 搜索</li>
+              <li>用户 <b style="color:#F08A82">#标签</b>：照常输入、展示、筛选</li>
+              <li>新增想法入口（右下 +）</li>
+              <li>断网 / 关闭 AI 时：记录与文字搜索<b>完全可用</b></li>
+              <li>主题列表与已归档（弱化为列表底部小入口）</li>
+            </ul>
+          </div>
+          <div class="cmp-col add">
+            <h4>新增（静默生长）</h4>
+            <ul>
+              <li>卡片底部主题弱徽章（最多 2 个）</li>
+              <li>点徽章 → 更改主题 / 从这条移除</li>
+              <li>主题页顶部「新脉络」建议卡（最多一张）</li>
+              <li>主题详情：AI 摘要 / 反复观点 / 时间脉络 / 相关旧想法</li>
+              <li>设置里的「设备智能索引」状态页（AI 唯一可见处）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="decide" style="margin-top:18px;">
+        <h3>待拍板 · 5 个点</h3>
+        <div class="d-sub">都已按推荐做法画在稿子里；不同意哪个就指出，我按你的意见改。</div>
+        <div class="q"><div class="q-n">1</div><div class="q-body"><b>主题徽章样式</b>：灰绿小胶囊（叶子图标），与橙色 #标签拉开区分。<b>AI 自动关联和手动添加的徽章长得完全一样</b>，不做视觉区分——避免「这条是 AI 贴的」心理负担。可以接受吗？</div></div>
+        <div class="q"><div class="q-n">2</div><div class="q-body"><b>筛选行</b>：用户 #标签 与主题<b>混排一行横滚</b>（省纵向空间）；还是分成两行（#标签一行、主题一行）？稿子里画的是混排。</div></div>
+        <div class="q"><div class="q-n">3</div><div class="q-body"><b>建议卡三按钮</b>：建立主题 / 改个名字 / 以后再说（方案原文文案）；「不再建议这个方向」收在卡片二级（长按或角落小字），不占主按钮位。OK？</div></div>
+        <div class="q"><div class="q-n">4</div><div class="q-body"><b>主题详情摘要标题</b>：稿子里用「这段时间的变化」这种平实标题 + 「AI 摘要 · 可重建」角标；也可以直接叫「AI 摘要」。倾向前者（AI 退后一步）。</div></div>
+        <div class="q"><div class="q-n">5</div><div class="q-body"><b>保存反馈文案</b>：「已记录」+ 绿色对勾，1.5 秒自动消失。备选：「已保存」「记好了」。定一个。</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

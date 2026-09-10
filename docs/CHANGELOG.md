@@ -13,6 +13,12 @@
 ## [Unreleased]
 
 ### Features
+- **iOS+后端**: 想法语义图谱 V3 Phase 4 第一批——「想法+主题」双核心新 UI（flag 门控）+ 后端 relate 端点已发版
+  - 设计稿拍板后实施（docs/design-prototypes/thought-v3-topic-ui-prototype.html，5 屏）：新 UI 开关 `ThoughtSemanticFeatureFlags.uiEnabled`（显式设置优先；Debug 默认开=验收通道，Release 默认关=小流量闸门，回滚只切 flag 不删数据）
+  - 卡片主题弱徽章：来自 ThoughtTopicLink 投影（≤2 个），AI 归类静默出现不弹窗；点徽章「更改主题…/从这条移除」（移除写 rejected 墓碑，同一错误不重现）；筛选行新增主题 chips 与 #标签混排；保存新建想法即出「已记录」轻提示、不等 AI
+  - 主路径 AI 退场：整理想法 chip/AI 状态条/AI 标签/状态徽章/待确认入口/未归入主题/发现新主题/整理设置/自动合集全部隐藏（flag 关=旧 UI 完整保留）；主题列表改用全部可见主题口径
+  - 后端发版（东林授权）：semantic-relate 端点上线生产（容器内验证路由在位、健康 200、未鉴权 503=隐私闸门正确拦截；生产 embeddings 开关本已 qwen 无需改动）
+  - 模拟器走查实证：徽章静默出现+纠错菜单+墓碑落库+已记录 toast 全链路通过；投影 standalone 测试 PASS；翻译批处理待补 3 键（已记录/更改主题…/从这条移除）
 - **iOS+后端**: 既有主题语义关联第一批（语义图谱 V3 Phase 3，shadow 模式零 UI 变化）
   - 后端新端点 /v1/thoughts/semantic-relate：目标想法×≤3 候选主题离散判断（same_thread/related/none/insufficient+逐字证据 rangeUTF16）；契约硬拒绝模型自造 Topic、伪造证据与数值置信度；purpose=thought_semantic_relate_v1 进 metadata-only 白名单（日志无正文哨兵测试锁定）；独立预算（¥0.10/日）与限流（20/分·200/日）不占对话额度；隐私闸门同整理口径（未核实 503）；13 项新测试+全量 379/379 绿；**待发版**（发版时与 embeddings 生产开关一起确认）
   - iOS embed 执行器：队列→脱敏（复用 V2 策略）→后端 embeddings→L2 归一化→SQLite 真身+索引原子落库；纯图 textUnavailable 合法完成；指数退避/协议终态；本地 mock 后端端到端实证（12 条想法真实落库 13 条向量）

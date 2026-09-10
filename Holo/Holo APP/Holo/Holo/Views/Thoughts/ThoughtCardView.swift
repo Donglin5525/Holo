@@ -41,9 +41,15 @@ struct ThoughtCardView: View {
     /// P0 分级判定输入：用户认可标签集合（归一化 key）。
     /// 列表主入口传入；其他低频调用点不传时降级为「有 ai 标签即待确认」。
     var recognizedTagKeys: Set<String>? = nil
+    /// V3 新 UI：点主题徽章「更改主题」（由列表接主题选择器）
+    var onChangeTopic: (() -> Void)?
+    /// V3 新 UI：点主题徽章「从这条移除」（列表接 TopicRepository.remove）
+    var onRemoveTopic: ((Topic) -> Void)?
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
+    /// V3 主题徽章的纠错菜单
+    @State private var topicMenuTopic: Topic? = nil
     /// 「…」菜单删除的二次确认（软删进回收站，提示可恢复）
     @State private var showDeleteConfirm = false
     /// 分享卡面板
@@ -128,13 +134,16 @@ struct ThoughtCardView: View {
 
             Spacer()
 
-            ThoughtCardStatusBadge(
-                thought: thought,
-                aiTagNames: aiTagNames,
-                recognizedTagKeys: recognizedTagKeys,
-                onRetryOrganize: onRetryOrganize,
-                onOpenConfirmation: onConfirmNavigate ?? onNavigate
-            )
+            // V3 新 UI：AI 整理状态（整理中/待确认/失败）不进主路径
+            if !ThoughtSemanticFeatureFlags.uiEnabled {
+                ThoughtCardStatusBadge(
+                    thought: thought,
+                    aiTagNames: aiTagNames,
+                    recognizedTagKeys: recognizedTagKeys,
+                    onRetryOrganize: onRetryOrganize,
+                    onOpenConfirmation: onConfirmNavigate ?? onNavigate
+                )
+            }
 
             // 更多操作按钮（仅当至少有一个可用操作时才展示）
             if hasAvailableActions {
@@ -158,7 +167,7 @@ struct ThoughtCardView: View {
                             pendingMenuAction = .shareCard
                             showActionSheet = false
                         }
-                        if let onRetryOrganize {
+                        if let onRetryOrganize, !ThoughtSemanticFeatureFlags.uiEnabled {
                             Button("重新整理") { onRetryOrganize() }
                         }
                         if let onMoveToTopic {
@@ -230,6 +239,8 @@ struct ThoughtCardView: View {
 
     private func footerView(aiTagNames: [String]) -> some View {
         HStack(spacing: 0) {
+            // V3 新 UI：AI 产出的标签退为内部索引，卡片只展示用户标签 + 主题弱徽章
+            let aiNames = ThoughtSemanticFeatureFlags.uiEnabled ? [] : aiTagNames
             // 认可口径（自己打的 + 确认过 AI 建议的）走 assignment 事实源：
             // tagArray 兼容镜像混有编辑保存时回填的 AI 标签；确认过的 AI 标签也
             // 必须在这里出现，否则「确认=收进标签库」的承诺在卡片上看不到兑现
@@ -237,7 +248,7 @@ struct ThoughtCardView: View {
             // PRD AC-05：卡片最多展示 3 个标签（手动 ≤2 + AI ≤1），超出以 +N 提示
             let presentation = ThoughtTagPresentation.card(
                 manualNames: recognizedTagNames,
-                aiNames: aiTagNames,
+                aiNames: aiNames,
                 manualLimit: 2,
                 aiLimit: 1
             )
@@ -264,11 +275,15 @@ struct ThoughtCardView: View {
                         }
                     }
                 }
-            } else if thought.organizedStatus == "processing" {
-                // 正在整理
+            } else if !ThoughtSemanticFeatureFlags.uiEnabled, thought.organizedStatus == "processing" {
+                // 正在整理（V3 新 UI 下不出现：AI 过程不进主路径）
                 Text("AI 正在整理...")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
+            }
+
+            if ThoughtSemanticFeatureFlags.uiEnabled {
+                topicBadgeRow
             }
 
             Spacer()
@@ -284,6 +299,72 @@ struct ThoughtCardView: View {
                 }
                 .foregroundColor(.holoPrimary)
             }
+        }
+    }
+
+    // MARK: - V3 主题弱徽章
+
+    /// 卡片底部的主题弱徽章（V3 §4.3）：来自 ThoughtTopicLink 投影，最多 2 个；
+    /// 高可信自动关联静默出现在这里，不弹窗不打扰。点击出「更改主题/从这条移除」。
+    /// 只在提供纠错入口的调用点显示（列表主路径），避免详情页等上下文出现死菜单。
+    private var topicBadgeRow: some View {
+        let topics = onRemoveTopic != nil
+            ? ThoughtTopicLinkProjection.effectiveTopics(for: thought)
+                .filter { $0.statusEnum == .active || $0.statusEnum == .classification }
+                .prefix(2)
+            : []
+        return Group {
+            if !topics.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(Array(topics), id: \.id) { topic in
+                        topicBadge(topic)
+                    }
+                }
+                .padding(.leading, 12)
+            }
+        }
+    }
+
+    private func topicBadge(_ topic: Topic) -> some View {
+        Button {
+            HapticManager.light()
+            topicMenuTopic = topic
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(topic.title)
+                    .font(.holoLabel)
+                    .lineLimit(1)
+            }
+            .foregroundColor(Color.holoSuccess.opacity(0.9))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.holoSuccess.opacity(0.09))
+            .cornerRadius(HoloRadius.sm)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(.plain)
+        // 徽章是子 Button，独占点击不触发卡片进详情（父子 onTapGesture 双触发坑）
+        .contentShape(Rectangle())
+        .accessibilityLabel(String(localized: "主题 \(topic.title)"))
+        .confirmationDialog(
+            "「\(topic.title)」· 这条想法",
+            isPresented: Binding(
+                get: { topicMenuTopic?.id == topic.id },
+                set: { if !$0 { topicMenuTopic = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "更改主题…")) {
+                topicMenuTopic = nil
+                onChangeTopic?()
+            }
+            Button(String(localized: "从这条移除"), role: .destructive) {
+                topicMenuTopic = nil
+                onRemoveTopic?(topic)
+            }
+            Button("取消", role: .cancel) {}
         }
     }
 

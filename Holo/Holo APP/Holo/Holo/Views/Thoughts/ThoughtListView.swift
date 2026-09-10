@@ -80,6 +80,9 @@ struct ThoughtListView: View {
     /// 所有标签
     @State private var allTags: [ThoughtTag] = []
 
+    /// V3 新 UI：主题筛选 chips 的候选（可见主题，按最近活跃排序）
+    @State private var filterTopics: [Topic] = []
+
     /// 右滑展开的卡片 ID
     @State private var revealedThoughtId: UUID? = nil
 
@@ -179,6 +182,17 @@ struct ThoughtListView: View {
         if let selectedTagName { return selectedTagName }
         if case .aiTag(let name) = drawerSelection { return name }
         return nil
+    }
+
+    /// V3 新 UI：当前主题筛选（抽屉通道 drawerSelection 的 topic case）
+    var activeTopicFilterID: UUID? {
+        if case .topic(let id) = drawerSelection { return id }
+        return nil
+    }
+
+    /// 主题 chip 选中判定
+    func isTopicFilterSelected(_ topic: Topic) -> Bool {
+        activeTopicFilterID == topic.id
     }
 
     // MARK: - Body
@@ -432,7 +446,9 @@ struct ThoughtListView: View {
     /// AI 归纳状态条（批量进度 / 配额耗尽 / 单条增量三态）
     private var aiOrganizationBanner: some View {
         Group {
-            if shouldShowAIEducation {
+            if ThoughtSemanticFeatureFlags.uiEnabled {
+                // V3 新 UI：AI 整理进度/配额/待确认不进主路径
+            } else if shouldShowAIEducation {
                 aiEducationBanner
             } else if orgQueue.isBatchOrganizing, let total = orgQueue.batchTotal {
                 // 批量整理进度
@@ -722,12 +738,35 @@ struct ThoughtListView: View {
             logger.error("加载标签失败：\(error)")
             allTags = []
         }
+        loadFilterTopics()
+    }
+
+    /// V3 新 UI：主题筛选 chips 候选（可见主题；上限 6 个，抽屉选中的主题必在列）
+    private func loadFilterTopics() {
+        guard ThoughtSemanticFeatureFlags.uiEnabled else {
+            filterTopics = []
+            return
+        }
+        let topics = (try? topicRepository.fetchVisibleTopics()) ?? []
+        if let selectedID = activeTopicFilterID,
+           !topics.contains(where: { $0.id == selectedID }),
+           let selected = topics.first(where: { $0.id == selectedID }) {
+            filterTopics = [selected] + Array(topics.prefix(5))
+        } else {
+            filterTopics = Array(topics.prefix(6))
+        }
     }
 
     // MARK: - 批量自动整理
 
     /// 加载待整理数量（chip 徽章）
     private func loadUnprocessedCount() {
+        // V3 新 UI：AI 整理进度不进主路径，跳过计数查询
+        guard !ThoughtSemanticFeatureFlags.uiEnabled else {
+            unprocessedCount = 0
+            pendingConfirmationCount = 0
+            return
+        }
         do {
             unprocessedCount = try thoughtRepository.countUnprocessed()
         } catch {
@@ -1018,17 +1057,20 @@ struct ThoughtListView: View {
                 HoloFilterChip(
                     title: String(localized: "全部"),
                     iconColor: .holoPrimary,
-                    isSelected: activeTagFilterName == nil
+                    isSelected: activeTagFilterName == nil && activeTopicFilterID == nil
                 ) {
                     clearTagFilter()
                 }
 
                 // 自动整理动作 chip（橙色主操作 + 小型紫色 AI 来源标识）
-                ThoughtOrganizeActionChip(
-                    pendingCount: unprocessedCount,
-                    isOrganizing: orgQueue.isBatchOrganizing
-                ) {
-                    handleOrganizeChipTap()
+                // V3 新 UI：AI 整理入口退出主路径
+                if !ThoughtSemanticFeatureFlags.uiEnabled {
+                    ThoughtOrganizeActionChip(
+                        pendingCount: unprocessedCount,
+                        isOrganizing: orgQueue.isBatchOrganizing
+                    ) {
+                        handleOrganizeChipTap()
+                    }
                 }
 
                 // 从卡片/详情页跳转的非常用标签也要在顶部显示当前筛选状态。
@@ -1055,6 +1097,38 @@ struct ThoughtListView: View {
                     ) {
                         selectedTagName = tag.name
                         drawerSelection = nil
+                    }
+                }
+
+                // V3 新 UI：主题筛选 chips（与用户 #标签混排一行）
+                if ThoughtSemanticFeatureFlags.uiEnabled {
+                    ForEach(Array(filterTopics), id: \.id) { topic in
+                        Button {
+                            let node = DrawerNode.topic(topic.id)
+                            let isSame = drawerSelection == node
+                            drawerSelection = node
+                            selectedTagName = nil
+                            if isSame {
+                                reloadByDrawer()
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "leaf.fill")
+                                    .font(.system(size: 9, weight: .semibold))
+                                Text(topic.title)
+                                    .font(.holoLabel)
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(isTopicFilterSelected(topic)
+                                             ? .white : Color.holoSuccess.opacity(0.9))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(isTopicFilterSelected(topic)
+                                        ? Color.holoSuccess.opacity(0.85)
+                                        : Color.holoSuccess.opacity(0.09))
+                            .cornerRadius(HoloRadius.full)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -1127,14 +1201,22 @@ struct ThoughtListView: View {
                                 onArchive: {
                                     archiveThought(thought)
                                 },
-                                onRetryOrganize: thought.organizedStatus == "failed" ? {
+                                onRetryOrganize: (thought.organizedStatus == "failed" && !ThoughtSemanticFeatureFlags.uiEnabled) ? {
                                     ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thought.id)
                                 } : nil,
                                 onDelete: {
                                     deleteThought(thought)
                                 },
                                 archiveActionTitle: isArchivedView ? String(localized: "恢复") : String(localized: "归档"),
-                                recognizedTagKeys: recognizedTagKeys
+                                recognizedTagKeys: recognizedTagKeys,
+                                onChangeTopic: {
+                                    // V3：主题徽章「更改主题」复用移入主题选择器
+                                    topicPickerThoughtId = thought.id
+                                    showTopicPicker = true
+                                },
+                                onRemoveTopic: { topic in
+                                    removeThoughtLocally(thought, topic: topic)
+                                }
                             )
                             .contextMenu {
                                 Button {
@@ -1225,6 +1307,23 @@ struct ThoughtListView: View {
             loadThoughts()
         } catch {
             Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("删除想法失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// V3：主题徽章「从这条移除」——写 rejected 墓碑，同一错误不会立刻重现
+    private func removeThoughtLocally(_ thought: Thought, topic: Topic) {
+        do {
+            try topicRepository.remove(thoughtId: thought.id, fromTopic: topic.id)
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            if case .topic(let id) = drawerSelection, id == topic.id {
+                // 正按该主题筛选时移除，就地从列表消失
+                thoughts.removeAll { $0.id == thought.id }
+            } else {
+                loadThoughts()
+            }
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("移除主题归属失败: \(error.localizedDescription)")
+            HoloToastCenter.shared.show(String(localized: "操作失败，请重试"), type: .error)
         }
     }
 

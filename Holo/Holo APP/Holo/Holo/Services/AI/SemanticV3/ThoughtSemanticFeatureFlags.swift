@@ -35,6 +35,17 @@ enum ThoughtSemanticFeatureFlags {
         set { UserDefaults.standard.set(newValue, forKey: prefix + "ui") }
     }
 
+    /// 新 UI 生效判定：显式设置永远优先；未设置时 Debug 构建默认开（开发与真机验收
+    /// 通道），Release 默认关（= 小流量闸门：生产放量只需改默认值或远端下发）。
+    static var uiEnabled: Bool {
+        if UserDefaults.standard.object(forKey: prefix + "ui") != nil { return ui }
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
     /// 新 Topic 候选簇建议。
     static var discovery: TriState {
         get { triState("discovery") } set { setTriState(newValue, "discovery") }

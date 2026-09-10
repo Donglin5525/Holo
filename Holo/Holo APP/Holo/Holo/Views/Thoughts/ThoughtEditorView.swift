@@ -101,6 +101,8 @@ struct ThoughtEditorView: View {
     @State private var didEnqueueAIClassification: Bool = false
     /// 短想法「暂不整理」提示是否已发过（每个编辑器会话只提示一次，避免反复打扰）
     @State private var didAnnounceShortSkip: Bool = false
+    /// 本次会话是否新建过想法（V3「已记录」轻提示只在新建退出时给一次）
+    @State private var didCreateThoughtInSession: Bool = false
 
     // MARK: - Attachment State
     /// 新建模式暂存图：保留原始数据（落库走与编辑模式一致的 2048 压缩管线），
@@ -418,6 +420,7 @@ struct ThoughtEditorView: View {
                     richContentJSON: richJSON
                 )
                 draftThoughtId = thought.id
+                didCreateThoughtInSession = true
                 try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
                 // 不能依赖上面的 @State 在本次同步调用中立即回写；调用方需要继续使用刚创建的 ID。
                 persistedThoughtId = thought.id
@@ -468,13 +471,20 @@ struct ThoughtEditorView: View {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             onSave?()
 
-            // 短想法告知（2026-09-06 东林拍板：不参与整理但要让用户知道）。
-            // 与 ThoughtAIClassificationPolicy 同口径（<10 字 → skipped）；纯图想法心智上
-            // 本就不期待文字整理，不提示；每个编辑器会话只提示一次。
-            if !didAnnounceShortSkip,
+            if ThoughtSemanticFeatureFlags.uiEnabled {
+                // V3 §4.2：保存完成即「已记录」，保存永不等待 AI。
+                // 只在新建退出时给一次；AI 相关的短想法提示不进新 UI。
+                if didCreateThoughtInSession {
+                    didCreateThoughtInSession = false
+                    HoloToastCenter.shared.show(String(localized: "已记录"), type: .success)
+                }
+            } else if !didAnnounceShortSkip,
                ThoughtAIClassificationPolicy.isEnabled(),
                !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                content.count < 10 {
+                // 短想法告知（2026-09-06 东林拍板：不参与整理但要让用户知道）。
+                // 与 ThoughtAIClassificationPolicy 同口径（<10 字 → skipped）；纯图想法心智上
+                // 本就不期待文字整理，不提示；每个编辑器会话只提示一次。
                 didAnnounceShortSkip = true
                 HoloToastCenter.shared.show(
                     String(localized: "内容较短，暂不自动整理；补充内容后会自动整理"),

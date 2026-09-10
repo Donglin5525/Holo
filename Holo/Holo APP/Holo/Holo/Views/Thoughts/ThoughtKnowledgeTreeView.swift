@@ -59,7 +59,11 @@ struct ThoughtKnowledgeTreeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                aiStatusBar
+                // V3 新 UI：AI 状态条 / 自动合集 / 未归入 / 发现新主题 / 整理设置全部退场；
+                // 只留主题列表 + 已归档弱入口。新脉络建议卡属 Phase 5（discovery flag）。
+                if !ThoughtSemanticFeatureFlags.uiEnabled {
+                    aiStatusBar
+                }
 
                 sectionLabel(String(localized: "我的主题"))
 
@@ -69,16 +73,20 @@ struct ThoughtKnowledgeTreeView: View {
                     topicGrid
                 }
 
-                if !collections.isEmpty {
+                if !ThoughtSemanticFeatureFlags.uiEnabled, !collections.isEmpty {
                     autoCollectionsSection
                 }
 
-                unclassifiedCard
-                discoverRow
+                if !ThoughtSemanticFeatureFlags.uiEnabled {
+                    unclassifiedCard
+                    discoverRow
+                }
                 archivedRow
 
                 // P1：整理设置统一收口入口（东林拍板：后续想法 AI 设置都放这里）
-                organizationSettingsRow
+                if !ThoughtSemanticFeatureFlags.uiEnabled {
+                    organizationSettingsRow
+                }
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.sm)
@@ -121,21 +129,28 @@ struct ThoughtKnowledgeTreeView: View {
     @MainActor
     private func loadData() async {
         do {
-            let allTopics = try topicRepository.fetchClassificationTopics()
-            topics = allTopics
+            // V3 新 UI：主题是核心对象，列表=全部可见主题（旧口径只列 classification 池）
+            topics = try ThoughtSemanticFeatureFlags.uiEnabled
+                ? topicRepository.fetchVisibleTopics()
+                : topicRepository.fetchClassificationTopics()
 
             var stats: [UUID: (count: Int, latestDate: Date?)] = [:]
-            for topic in allTopics {
+            for topic in topics {
                 let thoughts = try topicRepository.fetchThoughts(byTopic: topic.id)
                 stats[topic.id] = (count: thoughts.count, latestDate: thoughts.first?.createdAt)
             }
             topicStats = stats
 
+            // 已归档弱入口在 V3 新 UI 下保留
+            archivedCount = (try? thoughtRepository.fetchArchived().count) ?? 0
+
+            // V3 新 UI：AI 派生区块不展示，跳过纯 AI 查询
+            guard !ThoughtSemanticFeatureFlags.uiEnabled else { return }
+
             tagBuckets = try thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)
             unclassifiedCount = try thoughtRepository.fetchUnclassifiedThoughts().count
             // V2 自动合集：投影统一口径统计（正文已编辑的失效关系不计入）
             collections = try thoughtRepository.fetchAutoCollections()
-            archivedCount = try thoughtRepository.fetchArchived().count
             pendingConfirmationCount = try thoughtRepository.fetchThoughtsPendingTopicConfirmation().count
         } catch {
             // 保持既有数据，不打断浏览
@@ -263,8 +278,12 @@ struct ThoughtKnowledgeTreeView: View {
                         .foregroundColor(.holoTextSecondary)
                 }
 
-                // 关键词胶囊：固定高度单行，最多 2 个，超宽截断（不换行不挤压）
-                keywordChipRow(topic)
+                // 关键词胶囊：AI 标签派生；V3 新 UI 下退为内部索引，占位保持卡片等高
+                if ThoughtSemanticFeatureFlags.uiEnabled {
+                    Color.clear.frame(height: 21)
+                } else {
+                    keywordChipRow(topic)
+                }
 
                 // 最近活跃（固定高度，无想法时占位保持等高）
                 Text(recentLabel(for: topic))
