@@ -33,6 +33,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   thought_organize_r: "thought_organize_r",
   thought_organize_b: "thought_organize_b",
   thought_semantic_relate_v1: "thought_semantic_relate_v1",
+  thought_topic_name_v1: "thought_topic_name_v1",
+  thought_topic_summary_v1: "thought_topic_summary_v1",
   category_pattern_induction: "category_pattern_induction",
   bill_column_mapping: "bill_column_mapping",
   bill_categorization: "bill_categorization",
@@ -67,6 +69,9 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   // 是结构化 JSON 契约 → 不注入语言指令（避免破坏下游匹配）。
   "personal_context_planning",
   "personal_context_request",
+  // 主题命名/摘要：输出用户直接阅读 → 多语言
+  "thought_topic_name_v1",
+  "thought_topic_summary_v1",
 ]);
 
 export function injectServerPrompt(purpose, messages, options = {}) {

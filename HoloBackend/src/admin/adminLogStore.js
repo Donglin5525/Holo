@@ -52,6 +52,8 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // 想法语义关联 V3（2026-09-10 方案 §16.2）：请求含用户想法正文与主题代表片段，
   // 响应含逐字证据——一律 metadata_only，正文与证据不落任何日志/缓存/错误。
   'thought_semantic_relate_v1',
+  'thought_topic_name_v1',
+  'thought_topic_summary_v1',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */

@@ -32,6 +32,12 @@ export function createMockChatProvider() {
       if (request.purpose === "thought_semantic_relate_v1") {
         return mockThoughtSemanticRelateCompletion(request);
       }
+      if (request.purpose === "thought_topic_name_v1") {
+        return mockThoughtTopicNameCompletion(request);
+      }
+      if (request.purpose === "thought_topic_summary_v1") {
+        return mockThoughtTopicSummaryCompletion(request);
+      }
 
       return {
         id: "mock-chat-completion",
@@ -109,6 +115,63 @@ function mockThoughtSemanticRelateCompletion(request) {
     id: "mock-relate",
     choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ decisions }) }, finish_reason: "stop" }],
     usage: { prompt_tokens: 80, completion_tokens: 40, total_tokens: 120 },
+  };
+}
+
+/**
+ * 主题命名/摘要 V3 确定性 mock（开发/测试联调用，无真实语义）：
+ * 命名取跨片段最高频二字组合（保证不与任何片段原文相同，满足契约）；
+ * 摘要给固定句式，反复观点逐字取前两条片段的前 8 字并给出严格 range。
+ */
+function mockThoughtTopicNameCompletion(request) {
+  let payload = null;
+  try {
+    payload = JSON.parse(lastUserMessage(request.messages));
+  } catch {
+    payload = null;
+  }
+  const reps = Array.isArray(payload?.representatives) ? payload.representatives : [];
+  const counts = new Map();
+  for (const rep of reps) {
+    const text = String(rep?.text ?? "");
+    for (let i = 0; i + 2 <= text.length; i += 1) {
+      const gram = text.slice(i, i + 2);
+      counts.set(gram, (counts.get(gram) ?? 0) + 1);
+    }
+  }
+  let best = "";
+  let bestCount = 1; // 只接受出现 ≥2 次的组合，避免凑单字
+  for (const [gram, count] of counts) {
+    if (count > bestCount) {
+      best = gram;
+      bestCount = count;
+    }
+  }
+  const name = (best || "共同主题") + "相关";
+  return {
+    id: "mock-topic-name",
+    choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ name }) }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 60, completion_tokens: 20, total_tokens: 80 },
+  };
+}
+
+function mockThoughtTopicSummaryCompletion(request) {
+  let payload = null;
+  try {
+    payload = JSON.parse(lastUserMessage(request.messages));
+  } catch {
+    payload = null;
+  }
+  const reps = Array.isArray(payload?.representatives) ? payload.representatives : [];
+  const summary = `这些想法围绕共同方向展开，共 ${reps.length} 条片段。`;
+  const viewpoints = reps.slice(0, 2).map((rep) => {
+    const quote = rep.text.slice(0, Math.min(8, rep.text.length));
+    return { ref: rep.ref, quote, rangeUTF16: [0, quote.length] };
+  });
+  return {
+    id: "mock-topic-summary",
+    choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ summary, viewpoints }) }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
   };
 }
 

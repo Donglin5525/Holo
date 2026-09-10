@@ -45,6 +45,8 @@ import { createContentModerationService } from "./moderation/contentModerationSe
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
+import { createThoughtTopicInsightService } from "./thoughts/topicInsightService.js";
+import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsightSchema.js";
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
 import { extractJsonContent, normalizeUnderstanding } from "./vision/understandingContract.js";
@@ -299,6 +301,15 @@ export function createApp(overrides = {}) {
 
   // 想法语义关联 V3（方案 §16.2）：预算挂靠整理记账类（operationId 维度幂等），上限独立
   const thoughtSemanticRelateService = createThoughtSemanticRelateService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
+  // 主题命名/摘要 V3（方案 §4.4/§4.5）：同预算记账类，两端点共享独立预算池
+  const thoughtTopicInsightService = createThoughtTopicInsightService({
     config,
     providers,
     adminLogStore,
@@ -1058,6 +1069,75 @@ export function createApp(overrides = {}) {
       return createErrorResponse(context, error);
     }
   });
+
+  // 主题命名/摘要 V3（方案 §4.4/§4.5）：与 relate 同口径的隐私闸门——
+  // 供应商留存未核实时不向真实供应商发送数据；mock 通道不设闸（本地链路可通）。
+  const topicInsightPurposeByPath = {
+    "/v1/thoughts/topic-name": {
+      enabled: "name",
+      route: "thought_topic_name_v1",
+      usage: "thought_topic_name",
+      limits: TOPIC_NAME_LIMITS,
+      run: (service, args) => service.nameTopic(args),
+    },
+    "/v1/thoughts/topic-summary": {
+      enabled: "summary",
+      route: "thought_topic_summary_v1",
+      usage: "thought_topic_summary",
+      limits: TOPIC_SUMMARY_LIMITS,
+      run: (service, args) => service.summarizeTopic(args),
+    },
+  };
+  for (const [path, spec] of Object.entries(topicInsightPurposeByPath)) {
+    app.post(path, async (context) => {
+      try {
+        if (!config.thoughtTopicInsight?.enabled) {
+          throw new GatewayError("THOUGHT_TOPIC_INSIGHT_DISABLED", "Topic insight is disabled", 503);
+        }
+        const route = config.routes[spec.route];
+        const usesMockProvider = route?.provider === "mock";
+        if (!usesMockProvider && !config.thoughtTopicInsight.privacyVerified) {
+          throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+        }
+        if (!route) {
+          throw new GatewayError("MODEL_UNAVAILABLE", `${spec.route} route is not configured`, 503);
+        }
+
+        const contentLength = Number(context.req.header("content-length") ?? 0);
+        if (contentLength > spec.limits.requestBodyMaxBytes) {
+          throw new GatewayError(
+            "INPUT_TOO_LARGE",
+            `Request body exceeds ${spec.limits.requestBodyMaxBytes} bytes`,
+            413,
+          );
+        }
+
+        const deviceId = getDeviceId(context, config);
+        const entitlement = entitlementResolver.resolve(deviceId);
+        const usage = usageStore.consume({
+          deviceId,
+          purpose: spec.usage,
+          minuteLimit: config.thoughtTopicInsight.requestLimits.perMinute,
+          dailyLimit: config.thoughtTopicInsight.requestLimits.perDay,
+        });
+        if (!usage.allowed) {
+          throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+        }
+
+        const body = await readJson(context);
+        const result = await spec.run(thoughtTopicInsightService, {
+          deviceId,
+          subjectId: entitlement.usageSubjectId,
+          body,
+          clientSignal: context.req.raw.signal,
+        });
+        context.header("Cache-Control", "no-store");
+        return context.json(result);
+      } catch (error) {
+        return createErrorResponse(context, error);
+      }
+    });
+  }
 
   app.post("/v1/asr/transcriptions", async (context) => {
     let quotaReservation = null;

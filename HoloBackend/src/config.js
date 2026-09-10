@@ -353,6 +353,21 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 512),
     },
+    // 主题命名/摘要 V3（§4.4/§4.5）：命名是轻量归纳（短输出），摘要是带反复观点的结构化 JSON。
+    thought_topic_name_v1: {
+      provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_TEMPERATURE ?? 0.3),
+      reasoningEffort: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_MAX_TOKENS ?? 256),
+    },
+    thought_topic_summary_v1: {
+      provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_SUMMARY_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_SUMMARY_MAX_TOKENS ?? 800),
+    },
     category_pattern_induction: {
       provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
@@ -536,6 +551,24 @@ const DEFAULT_CONFIG = {
       perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 200),
     },
   },
+  // 主题命名/摘要 V3：两端点共享预算池（Phase 5 低频事件），限流各自独立桶
+  thoughtTopicInsight: {
+    enabled: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_ENABLED !== "false",
+    privacyVerified: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PRIVACY_VERIFIED === "true",
+    deadlineMs: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DEADLINE_MS ?? 30_000),
+    budgets: {
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DAILY_MAX_CNY ?? 0.20),
+      moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODERATION_CNY ?? 0.0005),
+    },
+    pricing: {
+      inputPerMillionCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_OUTPUT_PRICE ?? 9),
+    },
+    requestLimits: {
+      perMinute: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_MINUTE ?? 20),
+      perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 100),
+    },
+  },
 };
 
 function csv(value) {
@@ -605,6 +638,22 @@ export function loadConfig(overrides = {}) {
       requestLimits: {
         ...DEFAULT_CONFIG.thoughtSemanticRelate.requestLimits,
         ...(overrides.thoughtSemanticRelate?.requestLimits ?? {}),
+      },
+    },
+    thoughtTopicInsight: {
+      ...DEFAULT_CONFIG.thoughtTopicInsight,
+      ...overrides.thoughtTopicInsight,
+      budgets: {
+        ...DEFAULT_CONFIG.thoughtTopicInsight.budgets,
+        ...(overrides.thoughtTopicInsight?.budgets ?? {}),
+      },
+      pricing: {
+        ...DEFAULT_CONFIG.thoughtTopicInsight.pricing,
+        ...(overrides.thoughtTopicInsight?.pricing ?? {}),
+      },
+      requestLimits: {
+        ...DEFAULT_CONFIG.thoughtTopicInsight.requestLimits,
+        ...(overrides.thoughtTopicInsight?.requestLimits ?? {}),
       },
     },
     thoughtOrganize: {
