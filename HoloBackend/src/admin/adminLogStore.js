@@ -54,6 +54,13 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   'thought_semantic_relate_v1',
   'thought_topic_name_v1',
   'thought_topic_summary_v1',
+  // 云端分析四通道（2026-09-10 健康域入快照拍板）：快照/回放素材含健康摘要等
+  // 敏感数据，日志只允许 taskId/轮次/消息数等元数据；现状 request 本就不带内容，
+  // 入清单是把口径锁死为服务器级约束——后续改代码也绕不开，健康数据不落日志。
+  'cloud_deep_analysis',
+  'cloud_period_replay',
+  'cloud_context_plan',
+  'cloud_replay_digest',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */

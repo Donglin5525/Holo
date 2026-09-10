@@ -235,6 +235,56 @@ test("查询引擎：filter+groupBy+sum 输出 iOS 同构结构", () => {
   assert.ok(result.events[0].excerpt.includes("公式："));
 });
 
+test("查询引擎：health.sleep 富字段日聚合（2026-09-10 健康域入快照）", () => {
+  // 行结构 = iOS HoloHealthTool.sleepQueryRow 产出的字段身份证子集，
+  // 云端模型据此可答「睡眠质量如何」（时长+深睡/REM+效率+入睡时间趋势）。
+  const engine = createCloudAnalysisQueryEngine();
+  const sleepSnapshot = {
+    version: 1,
+    datasets: {
+      "health.sleep": {
+        fields: [
+          { name: "date", type: "date" },
+          { name: "value", type: "number", unit: "小时", description: "每日睡眠时长" },
+          { name: "deepHours", type: "number", unit: "小时" },
+          { name: "remHours", type: "number", unit: "小时" },
+          { name: "efficiency", type: "number", unit: "%" },
+          { name: "bedtimeMinutes", type: "number", unit: "分钟" },
+        ],
+        rows: [
+          { date: "2026-08-01", value: 7.5, deepHours: 1.8, remHours: 1.6, efficiency: 91, bedtimeMinutes: -30 },
+          { date: "2026-08-02", value: 6.5, deepHours: 1.2, remHours: 1.2, efficiency: 85, bedtimeMinutes: 30 },
+          { date: "2026-08-03", value: 8, deepHours: 2, remHours: 1.8, efficiency: 93, bedtimeMinutes: -15 },
+        ],
+      },
+    },
+  };
+  const result = engine.execute({
+    source: "health.sleep",
+    filters: [],
+    groupBy: [],
+    aggregations: [
+      { id: "avg_sleep", operation: "average", field: "value", unit: "小时" },
+      { id: "avg_deep", operation: "average", field: "deepHours", unit: "小时" },
+      { id: "avg_efficiency", operation: "average", field: "efficiency", unit: "%" },
+    ],
+    derivations: [],
+    limit: 10,
+    evidenceLimit: 5,
+  }, sleepSnapshot, { toolRequestID: "h1", tool: "health" });
+  assert.equal(result.status, "success");
+  const byId = {};
+  for (const metric of result.metrics) {
+    if (metric.metricKey.includes(".avg_sleep.")) byId.sleep = metric.value;
+    if (metric.metricKey.includes(".avg_deep.")) byId.deep = metric.value;
+    if (metric.metricKey.includes(".avg_efficiency.")) byId.efficiency = metric.value;
+  }
+  // 引擎输出统一保留 4 位小数
+  assert.equal(byId.sleep, 7.3333);
+  assert.equal(byId.deep, 1.6667);
+  assert.equal(byId.efficiency, 89.6667);
+});
+
 test("查询引擎：oneOf 与数值比较 + distinctCount", () => {
   const engine = createCloudAnalysisQueryEngine();
   const result = engine.execute({
