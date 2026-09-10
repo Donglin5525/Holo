@@ -326,6 +326,23 @@ final class HoloBackendAIProvider: AIProvider {
         return try await apiClient.send(request)
     }
 
+    /// 想法语义关联 V3 专用无状态端点（POST /v1/thoughts/semantic-relate）。
+    /// 与整理端点同隐私口径（服务端 metadata_only 强制），不得以 chat(purpose:) 绕过。
+    func semanticRelate(_ body: ThoughtSemanticRelateRequestDTO) async throws -> ThoughtSemanticRelateResponseDTO {
+        try ensureDataProcessingConsent()
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/thoughts/semantic-relate",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: body
+        )
+        return try await apiClient.send(request)
+    }
+
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
         chatStreaming(
             messages: messages,

@@ -168,6 +168,46 @@ actor ThoughtSemanticStore {
         return sqlite3_column_int64(stmt, 0) > 0
     }
 
+    /// 读取单条想法的当前向量（Float32；无/墓碑返回 nil）。
+    func loadVector(thoughtID: UUID) throws -> [Float]? {
+        let stmt = try prepare(
+            """
+            SELECT dimension, vector_f16 FROM semantic_item
+            WHERE thought_id=?1 AND state='active'
+            """,
+            .uuid(thoughtID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        let dim = Int(sqlite3_column_int(stmt, 0))
+        var vector = [Float](repeating: 0, count: dim)
+        if let blob = sqlite3_column_blob(stmt, 1) {
+            let ptr = blob.assumingMemoryBound(to: Float16.self)
+            for i in 0..<dim { vector[i] = Float(ptr[i]) }
+        }
+        return vector
+    }
+
+    /// 记录一次影子关联决策（relation_candidate 表，Phase 3 shadow 主产物）。
+    func recordRelationCandidate(thoughtID: UUID,
+                                 topicID: UUID,
+                                 contentHash: String,
+                                 scoreFeatures: String,
+                                 verifierResult: String,
+                                 state: String,
+                                 engineVersion: String,
+                                 expiryDays: Int) throws {
+        let expires = Date().addingTimeInterval(Double(expiryDays) * 86_400)
+        try bindExec("""
+            INSERT INTO relation_candidate(thought_id, topic_id, content_hash, score_features,
+                                           verifier_result, state, engine_version, expires_at)
+            VALUES(?1,?2,?3,?4,?5,?6,?7,?8)
+            ON CONFLICT(thought_id, topic_id) DO UPDATE SET content_hash=?3, score_features=?4,
+                verifier_result=?5, state=?6, engine_version=?7, expires_at=?8
+            """,
+            .uuid(thoughtID), .uuid(topicID), .text(contentHash), .text(scoreFeatures),
+            .text(verifierResult), .text(state), .text(engineVersion), .date(expires))
+    }
+
     /// tombstone 删除（物理清理由 compact）。
     func tombstoneItem(thoughtID: UUID) throws {
         try bindExec("UPDATE semantic_item SET state='tombstoned', updated_at=?2 WHERE thought_id=?1",

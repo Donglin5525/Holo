@@ -103,6 +103,12 @@ actor ThoughtSemanticEmbeddingExecutor {
                 try? await index.checkpoint()
             }
             try? await store.finishJob(id: job.id, state: "done")
+            await runShadowRelateIfNeeded(thoughtID: snapshot.id,
+                                          redactedText: redacted,
+                                          contentHash: job.contentHash,
+                                          vector: vector,
+                                          store: store,
+                                          index: index)
         } catch {
             let attempt = job.attemptCount + 1
             // 协议/数据类错误直接终态；网络类退避重试（指数，封顶 1h）
@@ -114,6 +120,24 @@ actor ThoughtSemanticEmbeddingExecutor {
                                        errorCode: errorCode(for: error))
             logger.error("embed 失败 thought=\(job.thoughtID) attempt=\(attempt) terminal=\(terminal) code=\(self.errorCode(for: error))")
         }
+    }
+
+    /// embed 完成后的影子关联评估（flag relation=shadow 时；失败静默不影响 embed 结果）。
+    private func runShadowRelateIfNeeded(thoughtID: UUID,
+                                         redactedText: String,
+                                         contentHash: String,
+                                         vector: [Float],
+                                         store: ThoughtSemanticStore,
+                                         index: (any LocalSemanticIndex)?) async {
+        let flag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
+        guard flag == .shadow else { return }
+        let (calibration, _) = ThoughtSemanticCalibration.current()
+        let provider = await MainActor.run { HoloBackendAIProvider() }
+        let context = await MainActor.run { CoreDataStack.shared.viewContext }
+        _ = await ThoughtTopicVerifier.shadowEvaluate(
+            thoughtID: thoughtID, redactedText: redactedText, contentHash: contentHash,
+            targetVector: vector, store: store, index: index,
+            context: context, provider: provider, calibration: calibration)
     }
 
     private func isTerminalError(_ error: Error) -> Bool {
