@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../design.css">
+<style>
+  body.ipad { width: 2064px; height: 2752px; }
+  .stage { display: flex; align-items: center; justify-content: center; }
+  /* 裁剪：ipad ai-analysis.png x340 y1885 w1400 h689 → k=1.1143 → 1560×768 */
+  .shot { width: 1560px; height: 768px; border-radius: 48px; }
+  .shot img { width: 2064px; transform-origin: 0 0; transform: scale(1.1143) translate(-340px, -1885px); }
+</style>
+</head>
+<body class="ipad accent-orange">
+  <div class="bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+  <div class="brand">
+    <div class="logo"><div class="dot"></div><div class="name">HOLO AI</div></div>
+    <div class="num">05</div>
+  </div>
+  <div class="chip">AI 账单分析</div>
+  <h1 class="headline">钱花在哪<br>一问就知道</h1>
+  <p class="subtitle">账单、趋势、明细，问一句就拿到</p>
+  <div class="stage">
+    <div class="shot"><img src="../../assets/ipad/ai-analysis.png" alt=""></div>
+  </div>
+</body>
+</html>

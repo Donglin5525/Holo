@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; }
+  body { width: 1320px; position: relative; }
+  img { display: block; width: 1320px; }
+  .line { position: absolute; left: 0; width: 1320px; height: 1px; background: rgba(255,0,0,.55); }
+  .vline { position: absolute; top: 0; width: 1px; height: 2868px; background: rgba(0,80,255,.45); }
+  .tag { position: absolute; left: 4px; font-size: 22px; font-weight: 700; color: #fff; background: rgba(220,0,0,.75); padding: 1px 8px; border-radius: 4px; }
+  .vtag { top: 4px; font-size: 22px; font-weight: 700; color: #fff; background: rgba(0,60,220,.75); padding: 1px 8px; border-radius: 4px; position: absolute; }
+</style>
+</head>
+<body>
+<img id="pic" src="">
+<script>
+  const params = new URLSearchParams(location.search);
+  const H = parseInt(params.get('h') || '2868');
+  document.getElementById('pic').src = '../assets/' + (params.get('dir') || 'iphone') + '/' + params.get('img');
+  const step = 100;
+  for (let y = step; y < H; y += step) {
+    const l = document.createElement('div');
+    l.className = 'line'; l.style.top = y + 'px';
+    const t = document.createElement('div');
+    t.className = 'tag'; t.style.top = (y + 2) + 'px'; t.textContent = y;
+    document.body.appendChild(l); document.body.appendChild(t);
+  }
+  for (let x = 200; x < 2100; x += 200) {
+    const l = document.createElement('div');
+    l.className = 'vline'; l.style.left = x + 'px'; l.style.height = H + 'px';
+    const t = document.createElement('div');
+    t.className = 'vtag'; t.style.left = (x + 4) + 'px'; t.textContent = x;
+    document.body.appendChild(l); document.body.appendChild(t);
+  }
+</script>
+</body>
+</html>

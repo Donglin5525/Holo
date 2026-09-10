@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../design.css">
+<style>
+  body.ipad { width: 2064px; height: 2752px; }
+  .stage { display: flex; align-items: center; justify-content: center; }
+  /* 裁剪：ipad period-replay.png x340 y1512 w1400 h1062 → k=0.9286 → 1300×986 */
+  .shot { width: 1300px; height: 986px; border-radius: 48px; }
+  .shot img { width: 2064px; transform-origin: 0 0; transform: scale(0.9286) translate(-340px, -1512px); }
+</style>
+</head>
+<body class="ipad accent-violet">
+  <div class="bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+  <div class="brand">
+    <div class="logo"><div class="dot"></div><div class="name">HOLO AI</div></div>
+    <div class="num">04</div>
+  </div>
+  <div class="chip">月度回放 · 自动生成</div>
+  <h1 class="headline">每个月<br>它替你复盘生活</h1>
+  <p class="subtitle">支出、习惯、待办、想法放在一起，看出你的节奏</p>
+  <div class="stage">
+    <div class="shot"><img src="../../assets/ipad/period-replay.png" alt=""></div>
+  </div>
+</body>
+</html>

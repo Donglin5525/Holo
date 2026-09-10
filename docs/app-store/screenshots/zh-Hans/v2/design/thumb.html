@@ -1,0 +1,6 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0}img{display:block;width:750px}div{position:absolute;left:0;width:60px;height:2px;background:red}</style></head><body>
+<img id="p"><script>
+const q=new URLSearchParams(location.search);
+document.getElementById('p').src='../assets/'+(q.get('dir')||'ipad')+'/'+q.get('img');
+for(let y=0;y<=100;y+=5){const d=document.createElement('div');d.style.top=(y*10)+'px';d.style.width='40px';d.style.background=y%10?'rgba(255,0,0,.35)':'red';document.body.appendChild(d);}
+</script></body></html>
