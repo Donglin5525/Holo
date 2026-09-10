@@ -80,9 +80,10 @@ enum ThoughtTopicLinkProjection {
     }
 
     /// 关系被新版本取代（AI 分类替换、引擎重写）：active → superseded 留痕。
+    /// 用户决定的 active 行不压制（§7.1：AI 换分类不得移除用户手动/接受的关系）。
     static func recordSuperseded(thought: Thought, topic: Topic) {
         let link = upsertLink(thought: thought, topic: topic)
-        guard link.stateEnum == .active else { return }
+        guard link.stateEnum == .active, !isUserDecision(link) else { return }
         link.stateEnum = .superseded
         link.updatedAt = Date()
     }
@@ -97,14 +98,37 @@ enum ThoughtTopicLinkProjection {
 
     /// V2 AI 分类通道写入：pair → legacy/ai + active + internal。
     /// （Phase 3 起 V3 引擎改走 ai/v3 + decisionTier；此处保持 V2 语义。）
-    /// 旧行若为用户决定，按 V2 现行行为如实记录为被替换（superseded）——
-    /// AI 覆盖用户关系是 V3 要根治的问题，Phase 1 不改变行为只留痕。
+    /// §7.1 不变量「用户决定不可被 AI 覆盖」（2026-09-10 起生效，取代 Phase 1 镜像妥协）：
+    /// - 现有行是用户拒绝墓碑 → 不复活（同一错误不得重现）；
+    /// - 现有行是用户手动/接受建议的 active 关系 → 不降级不替换（保留用户选择）；
+    /// 两种情况 AI 分类的其他产出（标签等）不受影响，仅主题归属让位于用户。
     static func recordLegacyAIAssignment(thought: Thought, topic: Topic) {
         let link = upsertLink(thought: thought, topic: topic)
+        guard !isUserDecision(link) else { return }
         link.sourceEnum = .legacyAI
         link.stateEnum = .active
         link.visibilityEnum = .internalOnly
         link.updatedAt = Date()
+    }
+
+    /// 该 pair 当前是否处于用户拒绝墓碑（AI 分类旧关系层守卫用）。
+    static func isUserRejectedPair(thought: Thought, topic: Topic) -> Bool {
+        let request = ThoughtTopicLink.fetchRequest()
+        request.predicate = NSPredicate(format: "thought == %@ AND topic == %@", thought, topic)
+        request.fetchLimit = 3
+        let rows = (try? ManagedObjectContextCompat.fetch(request, in: thought.managedObjectContext)) ?? []
+        return rows.contains { $0.stateEnum == .rejected }
+    }
+
+    /// 用户决定判定：手动移入 / 建议卡接受 / 显式拒绝（墓碑）都属用户意志。
+    private static func isUserDecision(_ link: ThoughtTopicLink) -> Bool {
+        if link.stateEnum == .rejected { return true }
+        switch link.sourceEnum {
+        case .userManual, .userAcceptedSuggestion:
+            return link.stateEnum == .active
+        default:
+            return false
+        }
     }
 
     /// 主题合并（duplicate → keeper）：镜像旧 relationship 行为——

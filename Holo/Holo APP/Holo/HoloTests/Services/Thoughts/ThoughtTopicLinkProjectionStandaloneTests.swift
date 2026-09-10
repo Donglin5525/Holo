@@ -19,7 +19,8 @@ struct ThoughtTopicLinkProjectionStandaloneTests {
         try projectionPriorityAcrossDuplicateRows(ctx)
         try mergeDualWrite(ctx)
         try supersededOnAIReplacement(ctx)
-        print("PASS: 确定性ID、迁移幂等、shadow=0、双写生命周期、墓碑语义（V2镜像妥协在档）、重复行裁决、合并双写、AI替换superseded")
+        try userDecisionProtection(ctx)
+        print("PASS: 确定性ID、迁移幂等、shadow=0、双写生命周期、墓碑语义、重复行裁决、合并双写、AI替换superseded、用户决定保护（§7.1不覆盖）")
     }
 
     // MARK: - 1. 确定性 ID（防多设备重复 pair）
@@ -83,14 +84,13 @@ struct ThoughtTopicLinkProjectionStandaloneTests {
         check(link.stateEnum == .rejected && link.rejectedAt != nil, "移除必须留墓碑")
         check(try ThoughtTopicLinkProjection.shadowDifference(in: ctx).isConsistent, "墓碑不进投影")
 
-        // Phase 1 已知妥协（在档）：V2 applyClassification 通道重建用户拒绝过的 pair 时，
-        // link 层如实镜像旧行为翻回 active（V2 覆盖用户决定是 V3 要根治的缺陷，
-        // 墓碑压制在 Phase 3 的 ai/v3 写入路径生效）。此处锁定的是镜像行为本身。
-        topic.addThoughts(thought)
+        // §7.1 不变量（2026-09-10 生效，取代 Phase 1 镜像妥协锁定）：V2 applyClassification
+        // 通道不得复活用户拒绝墓碑——同一错误不得重现；link 层与旧关系层双守卫。
+        // 新行为下 applyClassification 的旧关系层守卫阻止 addThoughts（不再写回），仅走投影层
         ThoughtTopicLinkProjection.recordLegacyAIAssignment(thought: thought, topic: topic)
         link = try fetchLink(ctx, thought: thought, topic: topic)
-        check(link.stateEnum == .active && link.sourceEnum == .legacyAI && link.visibilityEnum == .internalOnly)
-        check(try ThoughtTopicLinkProjection.shadowDifference(in: ctx).isConsistent)
+        check(link.stateEnum == .rejected && link.rejectedAt != nil, "墓碑不得被 AI 分类复活")
+        check(try ThoughtTopicLinkProjection.shadowDifference(in: ctx).isConsistent, "墓碑不进投影")
 
         // 用户重建曾拒绝 pair（手动加回）→ 合法用户决定，覆盖 AI 行
         ThoughtTopicLinkProjection.recordManualAdd(thought: thought, topic: topic)
@@ -98,17 +98,15 @@ struct ThoughtTopicLinkProjectionStandaloneTests {
         check(link.isUserDecision && link.stateEnum == .active && link.rejectedAt == nil, "用户决定覆盖且清拒绝痕迹")
 
         // 迁移不复活用户决定：把行改回 rejected 后跑 backfill
+        // （新行为下 remove 已摘旧关系 join 行，backfill 只扫旧关系 pair——
+        //   天然不触碰该墓碑；此处直接验证墓碑在迁移前后保持）
         link.stateEnum = .rejected
         link.rejectedAt = Date()
         try ctx.save()
-        let r = try ThoughtTopicLinkProjection.backfillLegacyLinks(in: ctx)
-        check(r.linksPreservedUserDecision >= 1, "迁移必须保留用户拒绝决定")
+        _ = try ThoughtTopicLinkProjection.backfillLegacyLinks(in: ctx)
         link = try fetchLink(ctx, thought: thought, topic: topic)
         check(link.stateEnum == .rejected, "迁移后墓碑仍在")
-        // 恢复现场：摘掉 AI 重建的旧关系（墓碑保留），后续场景的全局 shadow 断言不被本场景遗留态污染
-        topic.removeThoughts(thought)
-        try ctx.save()
-        check(try ThoughtTopicLinkProjection.shadowDifference(in: ctx).isConsistent, "场景3收尾后全局一致")
+        check(try ThoughtTopicLinkProjection.shadowDifference(in: ctx).isConsistent, "墓碑不进投影、旧关系已摘，全局一致")
     }
 
     // MARK: - 4. 同 pair 重复行裁决（CloudKit 竞态形态）
@@ -179,6 +177,40 @@ struct ThoughtTopicLinkProjectionStandaloneTests {
         try ctx.save()
         check(try fetchLink(ctx, thought: thought, topic: topic).stateEnum == .superseded)
         check(try ThoughtTopicLinkProjection.shadowDifference(in: ctx).isConsistent, "superseded 不进投影")
+    }
+
+    // MARK: - 用户决定保护（2026-09-10 起 §7.1 不变量生效，取代 Phase 1 镜像妥协）
+
+    static func userDecisionProtection(_ ctx: NSManagedObjectContext) throws {
+        // 1) 用户拒绝墓碑不被 V2 AI 分类复活：移除后再 AI 归类，仍是 rejected 墓碑
+        let (t1, p1) = try makePair(ctx, reason: nil)
+        ThoughtTopicLinkProjection.recordManualAdd(thought: t1, topic: p1)
+        ThoughtTopicLinkProjection.recordManualRemove(thought: t1, topic: p1)
+        ThoughtTopicLinkProjection.recordLegacyAIAssignment(thought: t1, topic: p1)
+        try ctx.save()
+        let tombstone = try fetchLink(ctx, thought: t1, topic: p1)
+        check(tombstone.stateEnum == .rejected, "墓碑不得被 AI 分类复活")
+        check(tombstone.sourceEnum == .userManual, "墓碑来源保持用户语义")
+        check(ThoughtTopicLinkProjection.effectiveTopics(for: t1).isEmpty, "被拒绝的 pair 不进投影")
+
+        // 2) 用户手动关系不被 V2 AI 分类覆盖：user/manual active 原样保留
+        let (t2, p2) = try makePair(ctx, reason: nil)
+        ThoughtTopicLinkProjection.recordManualAdd(thought: t2, topic: p2)
+        ThoughtTopicLinkProjection.recordLegacyAIAssignment(thought: t2, topic: p2)
+        try ctx.save()
+        let manual = try fetchLink(ctx, thought: t2, topic: p2)
+        check(manual.stateEnum == .active && manual.sourceEnum == .userManual,
+              "用户手动关系不得被 AI 分类降级/替换")
+
+        // 3) 建议卡接受关系不被 AI 换分类压制：user/acceptedSuggestion active 原样保留
+        let (t3, p3) = try makePair(ctx, reason: nil)
+        ThoughtTopicLinkProjection.recordAcceptedSuggestion(thought: t3, topic: p3)
+        ThoughtTopicLinkProjection.recordSuperseded(thought: t3, topic: p3)
+        try ctx.save()
+        let accepted = try fetchLink(ctx, thought: t3, topic: p3)
+        check(accepted.stateEnum == .active && accepted.sourceEnum == .userAcceptedSuggestion,
+              "建议卡接受关系不得被 AI 换分类压制")
+        check(ThoughtTopicLinkProjection.effectiveTopics(for: t3).count == 1, "接受关系仍在投影")
     }
 
     // MARK: - 夹具

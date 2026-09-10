@@ -246,7 +246,8 @@ struct ThoughtKnowledgeTreeView: View {
                 Spacer()
             }
 
-            Text(suggestedCluster?.name ?? String(localized: "（正在为这组想法起名…）"))
+            // 命名回填失败（离线/闸门）时用中性占位；「建立主题」会转入用户命名
+            Text(suggestedCluster?.name ?? String(localized: "这组新想法"))
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.holoTextPrimary)
 

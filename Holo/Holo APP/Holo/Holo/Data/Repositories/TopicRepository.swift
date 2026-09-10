@@ -404,6 +404,7 @@ final class TopicRepository {
         }
         topic.addThoughts(thought)
         topic.updatedAt = Date()
+        topic.topicRevision += 1
         ThoughtTopicLinkProjection.recordManualAdd(thought: thought, topic: topic)
         if topic.isClassificationTopic {
             thought.topicConfidence = 1.0
@@ -418,6 +419,7 @@ final class TopicRepository {
         guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
         topic.removeThoughts(thought)
         topic.updatedAt = Date()
+        topic.topicRevision += 1
         ThoughtTopicLinkProjection.recordManualRemove(thought: thought, topic: topic)
         thought.topicConfidence = 0
         thought.topicAssignmentReason = nil
@@ -435,6 +437,7 @@ final class TopicRepository {
         topic.status = Topic.TopicStatus.active.rawValue
         topic.titleSource = isUserNamed ? "user" : "ai"
         topic.updatedAt = Date()
+        topic.topicRevision += 1
         for thoughtId in thoughtIds {
             guard let thought = try fetchThoughtById(thoughtId) else { continue }
             topic.addThoughts(thought)
@@ -485,7 +488,17 @@ final class TopicRepository {
             return
         }
 
+        // §7.1：用户移除过的 pair（rejected 墓碑）AI 不再归入——旧关系层同守卫，
+        // 避免详情页读路径与卡片徽章不一致；标签等其它产出不受影响。
+        if ThoughtTopicLinkProjection.isUserRejectedPair(thought: thought, topic: topic) {
+            thought.topicConfidence = 0
+            thought.topicAssignmentReason = reason
+            try context.save()
+            return
+        }
+
         topic.addThoughts(thought)
+        topic.topicRevision += 1
         thought.topicConfidence = min(max(confidence, 0), 1)
         thought.topicAssignmentReason = reason
         ThoughtTopicLinkProjection.recordLegacyAIAssignment(thought: thought, topic: topic)
