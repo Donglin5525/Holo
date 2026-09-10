@@ -34,6 +34,13 @@ struct ThoughtKnowledgeTreeView: View {
     @State private var topicDetailId: UUID? = nil
     @State private var showConfirmationQueue = false
 
+    /// V3 新脉络建议卡（§4.4）：discovery flag .on 才展示；引擎 shadow 只落库不出卡
+    @State private var suggestedCluster: ThoughtSemanticStore.ClusterRecord? = nil
+    @State private var clusterMembers: [Thought] = []
+    @State private var clusterBusy = false
+    @State private var showClusterNameAlert = false
+    @State private var clusterNameInput = ""
+
     /// 数据刷新节流任务（批量整理时通知风暴，合并刷新避免主线程卡顿）
     @State private var refreshTask: Task<Void, Never>? = nil
 
@@ -59,6 +66,11 @@ struct ThoughtKnowledgeTreeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                // V3 新脉络建议卡（同一时间最多一张，§4.4）
+                if ThoughtSemanticFeatureFlags.discoveryEnabled, suggestedCluster != nil {
+                    suggestionCard
+                }
+
                 // V3 新 UI：AI 状态条 / 自动合集 / 未归入 / 发现新主题 / 整理设置全部退场；
                 // 只留主题列表 + 已归档弱入口。新脉络建议卡属 Phase 5（discovery flag）。
                 if !ThoughtSemanticFeatureFlags.uiEnabled {
@@ -94,7 +106,10 @@ struct ThoughtKnowledgeTreeView: View {
             // 通览型页面对齐长廊 920 口径（通宵冲刺 D3）；iPhone 直通
             .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
         }
-        .task { await loadData() }
+        .task {
+            await loadData()
+            await triggerDiscoveryAndLoadCard()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             // 节流：与列表刷新同策略，合并 500ms 内的通知统一刷新
             refreshTask?.cancel()
@@ -102,8 +117,18 @@ struct ThoughtKnowledgeTreeView: View {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 if !Task.isCancelled {
                     await loadData()
+                    await reloadSuggestedCard()
                 }
             }
+        }
+        .alert("给这个方向起个名字", isPresented: $showClusterNameAlert) {
+            TextField("主题名", text: $clusterNameInput)
+            Button("取消", role: .cancel) {}
+            Button("建立主题") {
+                Task { await establishClusterTopic(userTitle: clusterNameInput) }
+            }
+        } message: {
+            Text("按你的名字创建主题；AI 以后不会自动改这个名字。")
         }
         .fullScreenCover(item: $topicDetailId) { topicId in
             TopicDetailView(
@@ -140,8 +165,6 @@ struct ThoughtKnowledgeTreeView: View {
                 stats[topic.id] = (count: thoughts.count, latestDate: thoughts.first?.createdAt)
             }
             topicStats = stats
-
-            // 已归档弱入口在 V3 新 UI 下保留
             archivedCount = (try? thoughtRepository.fetchArchived().count) ?? 0
 
             // V3 新 UI：AI 派生区块不展示，跳过纯 AI 查询
@@ -155,6 +178,206 @@ struct ThoughtKnowledgeTreeView: View {
         } catch {
             // 保持既有数据，不打断浏览
         }
+    }
+
+    // MARK: - V3 新脉络建议卡（§4.4）
+
+    /// 引擎触发（6h 节流）+ 建议卡装载 + 名字回填。失败全静默（shadow 纪律：不打扰）。
+    @MainActor
+    private func triggerDiscoveryAndLoadCard() async {
+        guard ThoughtSemanticFeatureFlags.clusterEngineActive,
+              let store = await ThoughtSemanticPipeline.shared.store,
+              let index = await ThoughtSemanticPipeline.shared.index else { return }
+        let context = CoreDataStack.shared.viewContext
+        _ = try? await ThoughtTopicClusterEngine.discoverIfNeeded(context: context, store: store, index: index)
+        await reloadSuggestedCard(store: store)
+    }
+
+    @MainActor
+    private func reloadSuggestedCard() async {
+        guard let store = await ThoughtSemanticPipeline.shared.store else { return }
+        await reloadSuggestedCard(store: store)
+    }
+
+    @MainActor
+    private func reloadSuggestedCard(store: ThoughtSemanticStore) async {
+        guard ThoughtSemanticFeatureFlags.discoveryEnabled else {
+            suggestedCluster = nil
+            clusterMembers = []
+            return
+        }
+        guard let cluster = try? await store.loadSuggestedCluster() else {
+            suggestedCluster = nil
+            clusterMembers = []
+            return
+        }
+        suggestedCluster = cluster
+        clusterMembers = cluster.memberIDs.compactMap { try? thoughtRepository.fetchById($0) }
+        // 建议名回填（一次；离线/503 失败显示占位，卡片动作仍可用）
+        if cluster.name == nil, !clusterMembers.isEmpty {
+            let name = await ThoughtTopicSummaryClient.refreshClusterName(
+                fingerprint: cluster.fingerprint,
+                thoughts: clusterMembers,
+                provider: HoloBackendAIProvider(),
+                store: store)
+            if let name { suggestedCluster?.name = name }
+        }
+    }
+
+    /// 卡片持续天数（成员想法最早→最晚自然日跨度，单日=1 天）
+    private var clusterDurationText: String {
+        let dates = clusterMembers.compactMap(\.createdAt)
+        guard let earliest = dates.min(), let latest = dates.max() else {
+            return String(localized: "持续 1 天")
+        }
+        let days = (Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0) + 1
+        return String(localized: "持续 \(max(1, days)) 天")
+    }
+
+    private var suggestionCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm + 2) {
+            HStack(spacing: 6) {
+                Text("✦")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+                Text("最近有 \(suggestedCluster?.memberIDs.count ?? 0) 条想法形成了新的脉络")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+            }
+
+            Text(suggestedCluster?.name ?? String(localized: "（正在为这组想法起名…）"))
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.holoTextPrimary)
+
+            Text("\(suggestedCluster?.memberIDs.count ?? 0) 条想法 · \(clusterDurationText)")
+                .font(.system(size: 12.5))
+                .foregroundColor(.holoTextSecondary)
+
+            HStack(spacing: HoloSpacing.sm) {
+                Button {
+                    Task { await establishClusterTopic(userTitle: nil) }
+                } label: {
+                    Text("建立主题")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .fill(Color.holoPrimary))
+                }
+                .buttonStyle(.plain)
+                .disabled(clusterBusy)
+
+                Button {
+                    clusterNameInput = suggestedCluster?.name ?? ""
+                    showClusterNameAlert = true
+                } label: {
+                    Text("改个名字")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .fill(Color.holoCardBackground))
+                        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .stroke(Color.holoBorder, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(clusterBusy)
+
+                Button {
+                    Task { await snoozeCluster() }
+                } label: {
+                    Text("以后再说")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .fill(Color.holoCardBackground))
+                        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .stroke(Color.holoBorder, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(clusterBusy)
+            }
+            .padding(.top, 2)
+
+            // 二级操作（§4.4：本地拒绝 tombstone，永不建议这个方向）
+            Button {
+                Task { await rejectCluster() }
+            } label: {
+                Text("不再建议这个方向")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoPrimary.opacity(0.3), lineWidth: 1)
+        )
+        .opacity(clusterBusy ? 0.6 : 1)
+    }
+
+    @MainActor
+    private func establishClusterTopic(userTitle: String?) async {
+        guard let cluster = suggestedCluster, !clusterBusy else { return }
+        let title = (userTitle ?? cluster.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
+            clusterNameInput = cluster.name ?? ""
+            showClusterNameAlert = true
+            return
+        }
+        clusterBusy = true
+        defer { clusterBusy = false }
+        do {
+            _ = try topicRepository.createTopicFromSuggestion(
+                title: title,
+                isUserNamed: userTitle != nil,
+                thoughtIds: cluster.memberIDs)
+            if let store = await ThoughtSemanticPipeline.shared.store {
+                try? await store.upsertCluster(id: cluster.id, fingerprint: cluster.fingerprint,
+                                               memberIDs: cluster.memberIDs, state: "converted",
+                                               cohesion: cluster.cohesion, name: cluster.name,
+                                               dismissedUntil: nil)
+            }
+            suggestedCluster = nil
+            clusterMembers = []
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            await loadData()
+        } catch {
+            HoloToastCenter.shared.show(String(localized: "创建失败，请稍后重试"), type: .error)
+        }
+    }
+
+    @MainActor
+    private func snoozeCluster() async {
+        guard let cluster = suggestedCluster, let store = await ThoughtSemanticPipeline.shared.store else { return }
+        try? await store.upsertCluster(id: cluster.id, fingerprint: cluster.fingerprint,
+                                       memberIDs: cluster.memberIDs, state: "snoozed",
+                                       cohesion: cluster.cohesion, name: cluster.name,
+                                       dismissedUntil: Date().addingTimeInterval(Double(ThoughtTopicClusterEngine.snoozeDays) * 86_400))
+        suggestedCluster = nil
+        clusterMembers = []
+    }
+
+    @MainActor
+    private func rejectCluster() async {
+        guard let cluster = suggestedCluster, let store = await ThoughtSemanticPipeline.shared.store else { return }
+        try? await store.upsertCluster(id: cluster.id, fingerprint: cluster.fingerprint,
+                                       memberIDs: cluster.memberIDs, state: "rejected",
+                                       cohesion: cluster.cohesion, name: cluster.name,
+                                       dismissedUntil: nil)
+        suggestedCluster = nil
+        clusterMembers = []
     }
 
     // MARK: - AI 状态条

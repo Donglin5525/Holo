@@ -113,20 +113,19 @@ enum ThoughtTopicClusterEngine {
     @discardableResult
     static func discoverIfNeeded(context: NSManagedObjectContext,
                                  store: ThoughtSemanticStore,
-                                 index: any LocalSemanticIndex,
-                                 modelVersion: String) async throws -> Bool {
+                                 index: any LocalSemanticIndex) async throws -> Bool {
         let last = UserDefaults.standard.double(forKey: throttleKey)
         guard Date().timeIntervalSince1970 - last >= throttleInterval else { return false }
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: throttleKey)
-        try await discover(context: context, store: store, index: index, modelVersion: modelVersion)
+        try await discover(context: context, store: store, index: index)
         return true
     }
 
     static func discover(context: NSManagedObjectContext,
                          store: ThoughtSemanticStore,
-                         index: any LocalSemanticIndex,
-                         modelVersion: String) async throws {
+                         index: any LocalSemanticIndex) async throws {
         let threshold = ThoughtSemanticCalibration.current().config.recallMinCosine
+        let modelVersion = try await store.manifest().activeModelVersion
 
         // 孤儿集合：全量想法中投影无 active 主题、且在本机语义库有向量的
         let request = Thought.fetchRequest()
@@ -187,11 +186,12 @@ enum ThoughtTopicClusterEngine {
             if !suggestedUsed {
                 try await store.upsertCluster(id: id, fingerprint: fp, memberIDs: component.members,
                                               state: "suggested", cohesion: component.cohesion,
-                                              dismissedUntil: nil)
+                                              name: existing?.name, dismissedUntil: nil)
                 suggestedUsed = true
             } else {
                 try await store.upsertCluster(id: id, fingerprint: fp, memberIDs: component.members,
                                               state: "ready", cohesion: component.cohesion,
+                                              name: existing?.name,
                                               dismissedUntil: existing?.dismissedUntil)
             }
         }

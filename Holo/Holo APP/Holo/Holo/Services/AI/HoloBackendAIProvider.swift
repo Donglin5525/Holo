@@ -360,6 +360,23 @@ final class HoloBackendAIProvider: AIProvider {
         return try await apiClient.send(request)
     }
 
+    /// 主题命名 V3 专用无状态端点（POST /v1/thoughts/topic-name）。
+    /// 建议卡「建立主题」的 AI 提议名；失败由调用方降级为无名字占位。
+    func topicName(_ body: ThoughtTopicNameRequestDTO) async throws -> ThoughtTopicNameResponseDTO {
+        try ensureDataProcessingConsent()
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/thoughts/topic-name",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: body
+        )
+        return try await apiClient.send(request)
+    }
+
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
         chatStreaming(
             messages: messages,

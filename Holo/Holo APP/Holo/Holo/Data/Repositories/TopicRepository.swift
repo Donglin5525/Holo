@@ -424,6 +424,26 @@ final class TopicRepository {
         try context.save()
     }
 
+    /// 建议卡「建立主题」（V3 §4.4）：按 AI 提议名（titleSource=ai）或用户命名
+    /// （titleSource=user，此后 AI 永不自动改名）创建 active 主题；成员写旧关系
+    /// （详情页/计数读路径一致）+ user/acceptedSuggestion link（用户接受来源）。
+    /// 同名主题幂等复用（getByTitle 全可见状态查重）。
+    func createTopicFromSuggestion(title: String, isUserNamed: Bool, thoughtIds: [UUID]) throws -> Topic {
+        let normalized = ThoughtTagNormalizer.displayName(title.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !normalized.isEmpty else { throw AssignError.thoughtNotFound }
+        let topic = try getOrCreateTopic(title: normalized)
+        topic.status = Topic.TopicStatus.active.rawValue
+        topic.titleSource = isUserNamed ? "user" : "ai"
+        topic.updatedAt = Date()
+        for thoughtId in thoughtIds {
+            guard let thought = try fetchThoughtById(thoughtId) else { continue }
+            topic.addThoughts(thought)
+            ThoughtTopicLinkProjection.recordAcceptedSuggestion(thought: thought, topic: topic)
+        }
+        try context.save()
+        return topic
+    }
+
     /// 保存主题对象的就地修改（图标等轻量字段）
     func saveTopicChanges(_ topic: Topic) throws {
         topic.updatedAt = Date()

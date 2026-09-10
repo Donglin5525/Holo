@@ -107,13 +107,14 @@ struct ThoughtDetailView: View {
 
                         // AI 归纳（三区合一：主题 + 标签 + 理由放一个区块——
                         // 它们本来就是同一次 AI 调用的产出，不再让用户自己拼图）
-                        if thought != nil {
+                        // V3 新 UI：AI 归纳链路退出主路径（主题徽章纠错走列表卡片）
+                        if thought != nil, !ThoughtSemanticFeatureFlags.uiEnabled {
                             aiSummarySection
                                 .id(DetailScrollAnchor.aiSummary)
                         }
 
                         // 整理失败：人话原因 + 一键重试（独立于 AI 归纳区，红色轻提示）
-                        if thought?.organizedStatus == "failed" {
+                        if thought?.organizedStatus == "failed", !ThoughtSemanticFeatureFlags.uiEnabled {
                             organizationFailedSection
                         }
 

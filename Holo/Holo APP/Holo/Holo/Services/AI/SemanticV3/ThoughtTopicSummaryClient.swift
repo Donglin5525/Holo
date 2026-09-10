@@ -142,3 +142,62 @@ extension String {
         return utf16.distance(from: utf16.startIndex, to: lower)
     }
 }
+
+// MARK: - 主题命名（topic-name，方案 §4.4）
+
+struct ThoughtTopicNameRequestDTO: Codable {
+    struct Representative: Codable { let ref: String; let text: String }
+    let schemaVersion: Int
+    let operationId: String
+    let engineVersion: String
+    let representatives: [Representative]
+}
+
+struct ThoughtTopicNameResponseDTO: Codable {
+    let schemaVersion: Int
+    let operationId: String
+    let name: String
+}
+
+extension ThoughtTopicSummaryClient {
+
+    /// 用簇成员组装命名请求（≤8 条，§5.2 新 Topic 命名上限；脱敏同摘要口径）。
+    static func makeNameRequest(thoughts: [Thought]) -> ThoughtTopicNameRequestDTO? {
+        let representatives: [ThoughtTopicNameRequestDTO.Representative] = thoughts
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+            .prefix(8)
+            .compactMap { thought in
+                let plain = thought.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                let redacted = ThoughtIndexV2Policy.redactedText(forUpload: plain)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !redacted.isEmpty else { return nil }
+                return .init(ref: thought.id.uuidString,
+                             text: String(redacted.prefix(representativeTextMaxUTF16)))
+            }
+        guard !representatives.isEmpty else { return nil }
+        return ThoughtTopicNameRequestDTO(
+            schemaVersion: 1,
+            operationId: UUID().uuidString.lowercased(),
+            engineVersion: engineVersion,
+            representatives: representatives)
+    }
+
+    /// 给建议簇起名：无名字时调 topic-name 回填；失败返回 nil（UI 显示占位）。
+    @discardableResult
+    static func refreshClusterName(fingerprint: String,
+                                   thoughts: [Thought],
+                                   provider: HoloBackendAIProvider,
+                                   store: ThoughtSemanticStore) async -> String? {
+        guard let request = makeNameRequest(thoughts: thoughts) else { return nil }
+        do {
+            let response = try await provider.topicName(request)
+            let name = response.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard (1...32).contains(name.count) else { return nil }
+            try await store.updateClusterName(fingerprint: fingerprint, name: name)
+            return name
+        } catch {
+            logger.error("cluster naming failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+}

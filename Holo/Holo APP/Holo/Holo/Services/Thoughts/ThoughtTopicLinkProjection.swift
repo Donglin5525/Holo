@@ -66,6 +66,19 @@ enum ThoughtTopicLinkProjection {
         link.updatedAt = Date()
     }
 
+    /// 建议卡「建立主题」（§4.4）：pair → user/acceptedSuggestion + active + userVisible。
+    /// 优先级与手动同档（用户接受了这次建议=用户决定），清拒绝痕迹。
+    static func recordAcceptedSuggestion(thought: Thought, topic: Topic) {
+        let link = upsertLink(thought: thought, topic: topic)
+        link.sourceEnum = .userAcceptedSuggestion
+        link.stateEnum = .active
+        link.visibilityEnum = .userVisible
+        link.rejectedAt = nil
+        link.basisTextHash = nil
+        link.decisionTier = nil
+        link.updatedAt = Date()
+    }
+
     /// 关系被新版本取代（AI 分类替换、引擎重写）：active → superseded 留痕。
     static func recordSuperseded(thought: Thought, topic: Topic) {
         let link = upsertLink(thought: thought, topic: topic)

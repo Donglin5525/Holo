@@ -871,16 +871,33 @@ struct SettingsView: View {
             }
 
             // P1（东林拍板）：AI 自动分类开关已迁移至 知识树 → 整理设置，此处不再保留第二开关
-            settingsRow(
-                icon: "slider.horizontal.3",
-                iconColor: .holoPrimary,
-                title: String(localized: "想法整理设置"),
-                subtitle: String(localized: "自动分类开关与标签治理，已移至想法页的「主题」内")
-            ) {
-                showThoughtOrganizationSettings = true
-            }
-            .sheet(isPresented: $showThoughtOrganizationSettings) {
-                ThoughtOrganizationSettingsView()
+            // V3 新 UI：整理设置退场，换「设备智能索引」状态页（AI 状态唯一可见处，§4.1）
+            if ThoughtSemanticFeatureFlags.uiEnabled {
+                NavigationLink {
+                    DeviceIntelligenceIndexView()
+                } label: {
+                    settingsRow(
+                        icon: "cpu",
+                        iconColor: .holoPrimary,
+                        title: String(localized: "设备智能索引"),
+                        subtitle: ThoughtSemanticFeatureFlags.index == .off
+                            ? String(localized: "未开启")
+                            : String(localized: "本机语义索引状态与删除入口")
+                    ) {}
+                }
+                .buttonStyle(.plain)
+            } else {
+                settingsRow(
+                    icon: "slider.horizontal.3",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "想法整理设置"),
+                    subtitle: String(localized: "自动分类开关与标签治理，已移至想法页的「主题」内")
+                ) {
+                    showThoughtOrganizationSettings = true
+                }
+                .sheet(isPresented: $showThoughtOrganizationSettings) {
+                    ThoughtOrganizationSettingsView()
+                }
             }
 
             // 统一通知中心入口（早报/习惯提醒/晨报/AI 回放的完整开关与时间都在这里）

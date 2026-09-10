@@ -51,6 +51,24 @@ enum ThoughtSemanticFeatureFlags {
         get { triState("discovery") } set { setTriState(newValue, "discovery") }
     }
 
+    /// 建议卡生效判定（与 uiEnabled 同纪律）：显式设置优先；未设置时 Debug 默认开
+    /// （真机验收通道），Release 默认关（灰度放量闸门）。
+    static var discoveryEnabled: Bool {
+        if UserDefaults.standard.object(forKey: prefix + "discovery") != nil {
+            return triState("discovery") == .on
+        }
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    /// 引擎可跑判定：建议卡开启、或显式 shadow（只落库不出卡）。
+    static var clusterEngineActive: Bool {
+        discoveryEnabled || discovery == .shadow
+    }
+
     /// 旧想法重新遇见（Topic 详情相关旧想法 + 看板卡）。
     static var resurfacing: Bool {
         get { UserDefaults.standard.bool(forKey: prefix + "resurfacing") }
