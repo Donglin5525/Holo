@@ -244,7 +244,12 @@ struct ThoughtCardView: View {
             // 认可口径（自己打的 + 确认过 AI 建议的）走 assignment 事实源：
             // tagArray 兼容镜像混有编辑保存时回填的 AI 标签；确认过的 AI 标签也
             // 必须在这里出现，否则「确认=收进标签库」的承诺在卡片上看不到兑现
-            let recognizedTagNames = thought.recognizedTagNames
+            // 行内标签已在正文高亮渲染，底部不再重复列（真机反馈：三处重复）
+            let inlineKeys = Set(InlineTagDetector.extractTags(from: thought.content)
+                .map { ThoughtTagNormalizer.key($0) })
+            let recognizedTagNames = thought.recognizedTagNames.filter {
+                !inlineKeys.contains(ThoughtTagNormalizer.key($0))
+            }
             // PRD AC-05：卡片最多展示 3 个标签（手动 ≤2 + AI ≤1），超出以 +N 提示
             let presentation = ThoughtTagPresentation.card(
                 manualNames: recognizedTagNames,
