@@ -60,7 +60,11 @@ nonisolated enum CloudKitRuntimeAvailability {
             guard let profile, !profile.isEmpty else {
                 return true
             }
-            return profile.contains("<string>CloudKit</string>") &&
+            // icloud-services 为通配符 *（Xcode 自动管理的开发 profile 常见形态）时同样含 CloudKit，
+            // 只认字面 "CloudKit" 会把这类包误判为不支持同步、静默退化为本地容器。
+            let cloudKitServiceAllowed = profile.contains("<string>CloudKit</string>") ||
+                profile.contains("<string>*</string>")
+            return cloudKitServiceAllowed &&
                 profile.contains("<string>\(containerIdentifier)</string>")
         }
     }

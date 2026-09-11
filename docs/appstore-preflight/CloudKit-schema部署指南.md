@@ -1,6 +1,17 @@
 # CloudKit Schema 部署到 Production（上架前必做）
 
 > 交给 GPT 执行的自包含操作文档。更新于 2026-09-07，适用于 1.0.2 提审前。
+> ✅ **2026-09-11 增量部署完成（1.0.3 发版批次）**：Record Types 52 项变更全部上线 Production——
+> 33 个既有类型加字段（含 CD_ChatMessage `contextPlanRunJSON`（情境规划运行态）、想法 V3 的
+> CD_Topic/CD_Thought/CD_ThoughtTopicLink、CD_Transaction/CD_TodoTask/CD_MemoryInsight 等）
+> + 18 个新增实体（Goal/GoalMetricLog/RepeatRule/HoloMatter 四件套/LifePlanMO/Plan 四件套/
+> HoloMemoryAnchorAliasMO/HoloMemoryTombstoneMO/MemoryInsightFeedback/RecycleBinBatch/
+> CategoryInductionRuleEntity/ThoughtTopicLink）+ 52 组索引 + 安全角色 3 项。
+> Diff 程序化核对：174 删除行全部与同名新增成对（重排噪音），**净删除 0，净新增 108 项**；
+> 已在 Production Record Types 页复核 CD_ChatMessage 42 字段（含 contextPlanRunJSONString）就位。
+> 本次上报通道备注：模拟器因代码禁用 CloudKit 永不上报 schema，改由真机 Development 包
+> 跑一次（顺带修复 Debug 包 icloud-services 通配符 `*` 被误判为不支持同步的缺陷）。
+>
 > ✅ **2026-09-08 深夜已部署完成**：35 个 Record Types + 35 组 Indexes 全部部署至 Production
 > （Console 弹窗确认 0 个 Delete，全为 Create），线上 1.0/1.0.1 用户的 iCloud 同步随即恢复。
 > 历史勘误：此前记载「8-25（build 21）部署过一次 Production」不实——当日实查 Production 曾为空
