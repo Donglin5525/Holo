@@ -1,10 +1,171 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-09-07
+更新时间：2026-09-11（1.0.3 提审版）
 
 ## 使用方式
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
+
+## 1.0.3 提审材料包（2026-09-11 定稿，本次发版贴这个）
+
+> 归档：`~/Library/Developer/Xcode/Archives/2026-09-11/Holo 2026-09-11 1.0.3 (25).xcarchive`（版本 1.0.3 / 构建 25）。
+> 贴入位置：ASC → 版本 1.0.3 → 「推广文本」「描述」「此版本的新增内容」；截图在「App 预览和 App 截图」。
+
+### 推广文本（Promotional Text，随时可改，不必随版本审核）
+
+**简体中文（56 字符）：**
+
+账单截图发给 AI，一键记账；睡眠时间轴、体征趋势全新健康页；小组件上直接打卡。你的人生数据库，越记越懂你。
+
+**繁體中文：**
+
+帳單截圖傳給 AI，一鍵記帳；睡眠時間軸、數值趨勢全新健康頁；小工具上直接打卡。你的人生資料庫，越記越懂你。
+
+**English（147 字符）：**
+
+Send a bill screenshot and AI records it. New sleep timeline and vitals trends. Check habits from widgets. Your life database — it grows with you.
+
+### 版本更新说明（What's New，随版本审核）
+
+**简体中文：**
+
+Holo 1.0.3 来了：AI 更能干，健康更立体，同步更可靠。
+【截图识别记账】把账单截图发给 HoloAI，金额、分类、账户自动识别，一键入账。
+【健康全面升级】新增睡眠时间轴（深睡、REM、夜醒一目了然）、24 小时活动分布图、身体体征页（静息心率、心率变异性、呼吸频率的 30 天趋势）。
+【记账更有条理】新增「项目」：跨分类聚合支出、可选预算；统计分析「类别」免费开放。
+【AI 回复支持表格】对比、汇总类回答以表格呈现，一眼看清。
+【桌面小组件】待办、习惯、收支放上桌面与锁屏，习惯可在小组件上直接打卡。
+【想法自动归类】AI 自动把相关想法聚成主题，记录多了也能看清脉络。
+【同步更可靠】iCloud 同步失败如实提示，空间满时给出清理指引；多设备重复数据自动清理；新增同步诊断页。
+【iPad 更好用】健康、任务、想法、报告等更多页面适配宽屏。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文：**
+
+Holo 1.0.3 來了：AI 更能幹，健康更立體，同步更可靠。
+【截圖識別記帳】把帳單截圖傳給 HoloAI，金額、分類、帳戶自動辨識，一鍵入帳。
+【健康全面升級】新增睡眠時間軸（深睡、REM、夜醒一目瞭然）、24 小時活動分布圖、身體數值頁（靜息心率、心率變異性、呼吸頻率的 30 天趨勢）。
+【記帳更有條理】新增「項目」：跨分類聚合支出、可選預算；統計分析「類別」免費開放。
+【AI 回覆支援表格】對比、彙總類回答以表格呈現，一目瞭然。
+【桌面小工具】待辦、習慣、收支放上桌面與鎖定畫面，習慣可在小工具上直接打卡。
+【想法自動歸類】AI 自動把相關想法聚成主題，記錄多了也能看清脈絡。
+【同步更可靠】iCloud 同步失敗如實提示，空間不足時給出清理指引；多裝置重複資料自動清理；新增同步診斷頁。
+【iPad 更好用】健康、任務、想法、報告等更多頁面適配寬螢幕。
+感謝每一位使用者的支持，有問題隨時在設定裡回饋給我們。
+
+**English:**
+
+Holo 1.0.3 brings a smarter AI, richer health insights, and more reliable sync.
+- Receipt screenshots: send a bill screenshot to HoloAI and it extracts the amount, category and account — one tap to record.
+- Health, upgraded: a new sleep timeline (deep sleep, REM, awakenings), 24-hour activity distribution, and a vitals page with 30-day resting heart rate, HRV and respiratory rate trends.
+- Better budgeting: new Projects group spending across categories with optional budgets; the Category view in Statistics is now free.
+- Tables in AI replies: comparisons and summaries now render as clean tables.
+- Home Screen widgets: tasks, habits and spending at a glance — check off habits right from the widget.
+- Automatic topic grouping: HoloAI clusters related notes into topics, so your thoughts stay navigable as they grow.
+- More reliable iCloud sync: failures are reported honestly with clear guidance (including iCloud storage full), duplicate records across devices are cleaned up automatically, and a new sync diagnostics page is available.
+- Better on iPad: Health, Tasks, Thoughts, Reports and more adapt beautifully to the wide screen.
+Thank you for your support — reach us anytime via Settings.
+
+### 描述（Description）——建议小幅更新，改动三处
+
+口径不变（沿用「人生数据库」版），只在功能清单里补 1.0.3 新能力：新增「截图记账」「桌面小组件」两行，健康行和记账行扩写，想法行补「自动归类」。下面是可直接整段粘贴的完整描述。
+
+**简体中文（成品整段）：**
+
+每天都有很多事发生：花了多少钱、完成了什么、习惯有没有坚持、身体状态怎么样、脑子里冒出了哪些想法。Holo 帮你把这些零散记录放在一个清晰的生活工作台里——你的人生数据库。
+
+你可以用 Holo 记账、管理待办、追踪习惯、记录笔记和灵感，也可以通过 Apple Health 授权查看步数、睡眠、站立和运动时长。Holo 会用日历和记忆长廊帮你复盘每天的变化，而不是让记录散落在不同 App 里。
+
+如果你开启 AI 数据处理授权，HoloAI 可以帮你整理记录、识别分类、总结近期状态，并把一些值得回看的线索沉淀下来。AI 生成内容仅供参考，不构成医疗、财务、法律或投资建议。
+
+你可以用 Holo 做什么：
+
+- 记账与收支记录：记录日常消费、收入、分类和账户，支持账单周期与项目预算。
+- 截图记账：把账单截图发给 HoloAI，自动识别金额、分类和账户（需 AI 授权）。
+- 待办与清单管理：整理任务、计划和事项。
+- 习惯追踪：记录习惯完成情况，观察坚持节奏。
+- 笔记与灵感记录：保存想法、观点、标签和引用，AI 自动把相关想法归成主题。
+- 日历复盘：用周历和月历回看每天发生了什么。
+- 记忆长廊：把长期变化整理成更容易理解的回顾。
+- 健康状态：只读展示 Apple Health 授权后的步数、睡眠、站立和运动数据；新增睡眠阶段时间轴、24 小时活动分布与体征趋势。
+- 桌面小组件：待办、习惯、收支放上桌面与锁屏，习惯可在小组件上直接打卡。
+- AI 整理：在你授权后，辅助分类、总结和发现记录之间的联系。
+- iCloud 同步：通过用户自己的 iCloud 私有数据库在设备间同步 Holo 本地记录。
+- 数据管理：应用内提供隐私政策、用户协议和账号/数据删除入口。
+
+隐私与数据：
+
+- Holo 不使用第三方广告追踪。
+- Holo 不会主动保存你发送给 AI 的原始请求正文、语音音频或完整上下文作为用户资料。
+- 为保障服务安全、限流和故障排查，Holo 后端会保存最小化技术日志或摘要信息，并按后台配置定期清理。
+- Holo 不会将从 Apple HealthKit 读取的原始健康数据写入或同步到 Holo 的 iCloud 数据库；使用需要健康上下文的 AI 功能时，必要的健康摘要会在用户同意 AI 数据处理后发送至 Holo 后端和第三方 AI 服务。
+
+**繁體中文（成品整段）：**
+
+每天都有很多事發生：花了多少錢、完成了什麼、習慣有沒有堅持、身體狀態怎麼樣、腦中冒出了哪些想法。Holo 幫你把這些零散記錄放在一個清晰的生活工作台裡——你的人生資料庫。
+
+你可以用 Holo 記帳、管理待辦、追蹤習慣、記錄筆記和靈感，也可以透過 Apple Health 授權查看步數、睡眠、站立和運動時長。Holo 會用行事曆和記憶長廊幫你回顧每天的變化，而不是讓記錄散落在不同 App 裡。
+
+如果你開啟 AI 資料處理授權，HoloAI 可以幫你整理記錄、識別分類、總結近期狀態，並把一些值得回看的線索沉澱下來。AI 生成內容僅供參考，不構成醫療、財務、法律或投資建議。
+
+你可以用 Holo 做什麼：
+
+- 記帳與收支記錄：記錄日常消費、收入、分類和帳戶，支援帳單週期與項目預算。
+- 截圖記帳：把帳單截圖傳給 HoloAI，自動辨識金額、分類和帳戶（需 AI 授權）。
+- 待辦與清單管理：整理任務、計畫和事項。
+- 習慣追蹤：記錄習慣完成情況，觀察堅持節奏。
+- 筆記與靈感記錄：保存想法、觀點、標籤和引用，AI 自動把相關想法歸成主題。
+- 行事曆回顧：用週曆和月曆回看每天發生了什麼。
+- 記憶長廊：把長期變化整理成更容易理解的回顧。
+- 健康狀態：唯讀顯示 Apple Health 授權後的步數、睡眠、站立和運動資料；新增睡眠階段時間軸、24 小時活動分布與數值趨勢。
+- 桌面小工具：待辦、習慣、收支放上桌面與鎖定畫面，習慣可在小工具上直接打卡。
+- AI 整理：在你授權後，輔助分類、總結和發現記錄之間的聯繫。
+- iCloud 同步：透過使用者自己的 iCloud 私人資料庫在裝置間同步 Holo 本地記錄。
+- 資料管理：應用內提供隱私政策、使用者協議和帳號/資料刪除入口。
+
+隱私與資料：
+
+- Holo 不使用第三方廣告追蹤。
+- Holo 不會主動保存你傳送給 AI 的原始請求正文、語音音訊或完整上下文作為使用者資料。
+- 為保障服務安全、限流和故障排查，Holo 後端會保存最小化技術日誌或摘要資訊，並按後台設定定期清理。
+- Holo 不會將從 Apple HealthKit 讀取的原始健康資料寫入或同步到 Holo 的 iCloud 資料庫；使用需要健康上下文的 AI 功能時，必要的健康摘要會在使用者同意 AI 資料處理後傳送至 Holo 後端和第三方 AI 服務。
+
+**English（成品整段）：**
+
+A lot happens every day: what you spent, what you finished, whether your habits held up, how you slept, and the ideas that crossed your mind. Holo puts those scattered records into one clear life dashboard — your life database.
+
+Use Holo to track expenses, manage to-dos, build habits, and capture notes and ideas. With Apple Health permission, view steps, sleep, stand hours and workouts. Holo's calendar and Memory Gallery help you review each day instead of losing records across different apps.
+
+If you enable AI data processing, HoloAI can organize your records, categorize entries, summarize recent status, and surface clues worth revisiting. AI-generated content is for reference only and is not medical, financial, legal or investment advice.
+
+What you can do with Holo:
+
+- Expense tracking: log spending, income, categories and accounts, with billing cycles and project budgets.
+- Screenshot billing: send a bill screenshot to HoloAI and it extracts the amount, category and account (requires AI consent).
+- To-dos & lists: organize tasks, plans and errands.
+- Habit tracking: record completions and see your streaks.
+- Notes & ideas: save thoughts, tags and references; HoloAI automatically groups related notes into topics.
+- Calendar reviews: look back with weekly and monthly views.
+- Memory Gallery: long-term change, organized into easy reads.
+- Health stats: read-only steps, sleep, stand and workout data from Apple Health, plus a new sleep-stage timeline, 24-hour activity distribution and vitals trends.
+- Home Screen widgets: tasks, habits and spending at a glance — check off habits right from the widget.
+- AI organization: with your permission, assist categorizing, summarizing and connecting records.
+- iCloud sync: your records sync across devices via your own iCloud private database.
+- Data controls: privacy policy, terms, and account/data deletion in-app.
+
+Privacy & data:
+
+- Holo uses no third-party ad tracking.
+- Holo does not proactively store the raw text, voice audio or full context you send to AI as user profiles.
+- For security, rate limiting and troubleshooting, the Holo backend keeps minimized technical logs or summaries, purged on schedule.
+- Raw health data from Apple HealthKit is never written to or synced with Holo's iCloud database; when AI features need health context, a minimal health summary is sent to the Holo backend and third-party AI services only after you consent to AI data processing.
+
+### 宣传图片（截图）——用 v2 新图替换
+
+- **本版结论：要换。** `docs/app-store/screenshots/zh-Hans/v2/` 是 2026-09-10 基于 1.0.3 能力重新规划的六图（AI 一句话执行开场 → 六域卡片墙 → 数据问答 → 月度回放 → 账单分析 → 记忆长廊），iPhone 6.9（1320×2868）与 iPad 13（2064×2752）两套成品在 `final/` 目录，按 01-06 顺序上传替换 ASC 现有截图。
+- 已知取舍：健康模块无整图素材（HealthKit 无法 seeder 造数），以 02 卡片墙「新」徽章体现；如要健康整图需后续 debug 通道写样本补截。
+- 英文/繁体仍沿用简体截图（与 1.0.2 做法一致）；en/zh-Hant 截图批量生成为遗留项。
+- 其余元数据（App 名称、副标题、关键词、简短描述）保持现状——关键词 2026-09-07 七麦复核版刚优化过，不动。
 
 ## 1.0（21）拒审后重新提交补充说明
 
