@@ -44,6 +44,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   personal_context_request: "personal_context_request",
   personal_context_planning: "personal_context_planning",
   vision_extraction: "vision_extraction",
+  matter_reconciliation: "matter_reconciliation",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，

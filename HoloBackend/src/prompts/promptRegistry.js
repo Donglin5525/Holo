@@ -40,6 +40,8 @@ const PROMPT_VERSIONS = {
   // scripts/eval-vision-extraction.mjs 的 PROMPT 常量同源（M0 五轮评测 24/24 定稿），
   // 外币少样本示例是精度关键，改 prompt 前先跑评测。
   vision_extraction: 1,
+  // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
+  matter_reconciliation: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

@@ -297,6 +297,18 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_REQUESTS_PER_DAY ?? 60),
       },
     },
+    // Matter「进行中的事」对账（typed proposal 契约）：单轮小输出，与 planning 同模型档位但独立 purpose/计费。
+    matter_reconciliation: {
+      provider: process.env.HOLO_MATTER_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_MATTER_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_MATTER_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_MATTER_MAX_TOKENS ?? 1500),
+      reasoningEffort: process.env.HOLO_MATTER_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_MATTER_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_MATTER_REQUESTS_PER_DAY ?? 120),
+      },
+    },
     // 情境向量：独立 purpose，不沿用 thought_embedding 的「正文已审核」假设（§7.2）；
     // 端点对 personal_context_embedding 强制先过 moderation。
     personal_context_embedding: {
