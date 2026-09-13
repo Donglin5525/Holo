@@ -51,9 +51,13 @@ struct ContextPlanRunStatusView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text(relativeUpdate)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            // 相对时间必须随时间走（TimelineView 周期重算）：此前只在视图求值时算一次，
+            // 「更新于 0 秒后」会永远冻住（2026-09-13 真机验收指出）
+            TimelineView(.periodic(from: .now, by: 5)) { timeline in
+                Text(relativeUpdate(asOf: timeline.date))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,10 +105,10 @@ struct ContextPlanRunStatusView: View {
         return envelope.stage.displayText
     }
 
-    private var relativeUpdate: String {
+    private func relativeUpdate(asOf now: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
-        let localized = formatter.localizedString(for: envelope.updatedAt, relativeTo: Date())
+        let localized = formatter.localizedString(for: envelope.updatedAt, relativeTo: now)
         return String(localized: "更新于 \(localized)")
     }
 }
