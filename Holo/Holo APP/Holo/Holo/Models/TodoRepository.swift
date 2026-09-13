@@ -203,6 +203,24 @@ class TodoRepository: ObservableObject {
 
     // MARK: - List CRUD
 
+    /// AI 收集任务的清单归属：按名匹配已有清单（精确 > 唯一双向包含）；
+    /// 无命中自动创建。清单是轻资源，宁可先归组也不让任务散在「全部」。
+    /// 返回 nil 表示没有可用的清单名（调用方落默认位置）。
+    @discardableResult
+    func matchOrCreateList(named suggested: String) throws -> (list: TodoList, created: Bool)? {
+        let lists = folders.flatMap { $0.listsArray } + unfiledLists
+        guard let resolution = TodoListNameResolver.resolve(
+            suggested: suggested,
+            existingListNames: lists.map(\.name)
+        ) else { return nil }
+        if let matchedName = resolution.matchedExistingName,
+           let hit = lists.first(where: { $0.name == matchedName }) {
+            return (hit, false)
+        }
+        let list = try createList(name: resolution.name)
+        return (list, true)
+    }
+
     /// 创建清单
     @discardableResult
     func createList(
@@ -903,6 +921,43 @@ class TodoRepository: ObservableObject {
     private func collectTaskIdsInFolder(_ folder: TodoFolder) -> [UUID] {
         let lists = folder.lists?.allObjects as? [TodoList] ?? []
         return lists.flatMap { collectTaskIdsInList($0) }
+    }
+}
+
+// MARK: - 清单名归属判定（纯逻辑，可测试）
+
+/// AI 建任务的清单归属判定：名字清理 → 匹配已有（精确 > 唯一双向包含）→ 未命中新建。
+/// 「该不该归清单」由提示词侧的 AI 判断（填 listName 才走这里），这里只管「归到哪个」。
+nonisolated enum TodoListNameResolver {
+
+    struct Resolution: Equatable {
+        /// 清理后可用于新建的清单名
+        let name: String
+        /// 命中的已有清单名；nil 表示新建
+        let matchedExistingName: String?
+    }
+
+    /// 与合并主任务标题同限：清单名超长说明 AI 没提炼好主题，截断保底
+    static let maxNameLength = 16
+
+    static func clean(_ raw: String) -> String {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "「」『』\"“”'’"))
+        return String(name.prefix(maxNameLength))
+    }
+
+    /// 清完为空返回 nil（调用方落默认位置）；多命中视为主题不明确，按 AI 给的名字新建
+    static func resolve(suggested: String, existingListNames: [String]) -> Resolution? {
+        let name = clean(suggested)
+        guard !name.isEmpty else { return nil }
+        if existingListNames.contains(name) {
+            return Resolution(name: name, matchedExistingName: name)
+        }
+        let fuzzy = existingListNames.filter { $0.contains(name) || name.contains($0) }
+        if fuzzy.count == 1 {
+            return Resolution(name: name, matchedExistingName: fuzzy[0])
+        }
+        return Resolution(name: name, matchedExistingName: nil)
     }
 }
 

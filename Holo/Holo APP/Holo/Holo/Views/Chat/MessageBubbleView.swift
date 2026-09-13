@@ -203,6 +203,18 @@ struct MessageBubbleView: View {
                             let repo = TodoRepository.shared
                             var receipts: [String: HoloContextPlanCreationReceipt] = [:]
 
+                            // 多条目落卡按方案主题归清单（匹配已有优先，未命中自动创建），
+                            // 不让一整个场景的准备任务散在「全部」；归组失败不阻断建任务。
+                            // 单条落卡主题性弱，保持默认位置。
+                            var planList: TodoList?
+                            if creations.count >= 2,
+                               let groupTitle = groupParentTitle.flatMap({ $0.isEmpty ? nil : $0 }),
+                               let outcome = try? repo.matchOrCreateList(
+                                   named: TaskGroupMergePlanner.mergedGroupTitle(from: groupTitle)
+                               ) {
+                                planList = outcome.list
+                            }
+
                             // 无日期的多条目并成一个主任务 + 子条目，避免一个场景
                             // 拆成一堆碎片任务；单条或带日期的条目保持独立任务。
                             if let groupTitle = groupParentTitle.flatMap({ $0.isEmpty ? nil : $0 }),
@@ -210,7 +222,7 @@ struct MessageBubbleView: View {
                                 do {
                                     let parent = try repo.createTask(
                                         title: TaskGroupMergePlanner.mergedGroupTitle(from: groupTitle),
-                                        list: nil,
+                                        list: planList,
                                         priority: .medium,
                                         dueDate: nil,
                                         isAllDay: true,
@@ -233,7 +245,7 @@ struct MessageBubbleView: View {
                                 do {
                                     let task = try repo.createTask(
                                         title: creation.title,
-                                        list: nil,
+                                        list: planList,
                                         priority: .medium,
                                         dueDate: creation.dueDate,
                                         isAllDay: true,

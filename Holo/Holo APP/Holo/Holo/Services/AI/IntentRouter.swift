@@ -461,15 +461,16 @@ final class IntentRouter {
             logger.info("任务时间解析（含兜底）：dueDate=\(dueDate.map { String(describing: $0) } ?? "nil") hasTime=\(hasTime)")
         }
 
-        // 指定清单：精确名 > 唯一模糊命中；匹配不到放默认位置（不阻断创建）
+        // 指定清单：AI 判断的主题归属（如「日本旅行」）。匹配已有清单优先，未命中自动
+        // 创建——不让主题任务散在「全部」；AI 未给主题时落默认位置（不阻断创建）
         var listNote: String?
         var targetList: TodoList?
         if let listName = data["listName"]?.trimmingCharacters(in: .whitespacesAndNewlines), !listName.isEmpty {
-            if let list = Self.matchTodoList(named: listName) {
-                targetList = list
-                listNote = "，已放入清单「\(list.name)」"
-            } else {
-                listNote = "（没找到清单「\(listName)」，已放到默认位置）"
+            if let outcome = try todoRepo.matchOrCreateList(named: listName) {
+                targetList = outcome.list
+                listNote = outcome.created
+                    ? "，已创建清单「\(outcome.list.name)」并放入"
+                    : "，已放入清单「\(outcome.list.name)」"
             }
         }
 
@@ -522,15 +523,6 @@ final class IntentRouter {
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )
-    }
-
-    /// 清单名匹配：精确等值 > 唯一双向包含；多命中/无命中返回 nil（由调用方决定兜底）
-    private static func matchTodoList(named name: String) -> TodoList? {
-        let repo = TodoRepository.shared
-        let lists = repo.folders.flatMap { $0.listsArray } + repo.unfiledLists
-        if let exact = lists.first(where: { $0.name == name }) { return exact }
-        let fuzzy = lists.filter { $0.name.contains(name) || name.contains($0.name) }
-        return fuzzy.count == 1 ? fuzzy[0] : nil
     }
 
     // MARK: - Modify Task Items

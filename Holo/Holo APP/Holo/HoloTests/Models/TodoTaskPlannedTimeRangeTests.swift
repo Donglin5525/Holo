@@ -181,3 +181,84 @@ final class TodoTaskPlannedTimeRangeTests: XCTestCase {
         XCTAssertEqual(task.actualDurationMinutes?.intValue, 0)
     }
 }
+
+// MARK: - AI 建任务的清单归属（TodoListNameResolver + matchOrCreateList）
+
+final class TodoListAssignmentTests: XCTestCase {
+
+    private func makeRepo() throws -> (TodoRepository, NSManagedObjectContext) {
+        let model = CoreDataTestSupport.sharedModel
+        let container = NSPersistentContainer(name: "TodoListAssignmentTest", managedObjectModel: model)
+        let description = NSPersistentStoreDescription()
+        description.type = NSInMemoryStoreType
+        container.persistentStoreDescriptions = [description]
+        var storeError: Error?
+        container.loadPersistentStores { _, error in storeError = error }
+        if let storeError { throw storeError }
+        let ctx = container.viewContext
+        let repository = TodoRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
+    }
+
+    // MARK: - TodoListNameResolver 纯逻辑
+
+    func test_清理_剥引号与空白并限长() {
+        XCTAssertEqual(TodoListNameResolver.clean(" 「日本旅行」 "), "日本旅行")
+        let long = String(repeating: "旅", count: 20)
+        XCTAssertEqual(TodoListNameResolver.clean(long).count, TodoListNameResolver.maxNameLength)
+    }
+
+    func test_判定_精确命中已有清单() {
+        let r = TodoListNameResolver.resolve(suggested: "日本旅行", existingListNames: ["购物", "日本旅行"])
+        XCTAssertEqual(r?.matchedExistingName, "日本旅行")
+    }
+
+    func test_判定_唯一模糊命中() {
+        let r = TodoListNameResolver.resolve(suggested: "日本旅行", existingListNames: ["购物", "日本旅行准备"])
+        XCTAssertEqual(r?.matchedExistingName, "日本旅行准备")
+    }
+
+    func test_判定_多命中视为主题不明确_新建() {
+        let r = TodoListNameResolver.resolve(suggested: "旅行", existingListNames: ["日本旅行", "三亚旅行"])
+        XCTAssertNil(r?.matchedExistingName)
+        XCTAssertEqual(r?.name, "旅行")
+    }
+
+    func test_判定_无相近清单_新建() {
+        let r = TodoListNameResolver.resolve(suggested: "日本旅行", existingListNames: ["购物"])
+        XCTAssertNil(r?.matchedExistingName)
+        XCTAssertEqual(r?.name, "日本旅行")
+    }
+
+    func test_判定_清完为空_返回nil落默认位置() {
+        XCTAssertNil(TodoListNameResolver.resolve(suggested: "「」", existingListNames: ["购物"]))
+    }
+
+    // MARK: - matchOrCreateList 落库行为
+
+    func test_归属_无命中自动创建清单() throws {
+        let (repo, _) = try makeRepo()
+        let outcome = try repo.matchOrCreateList(named: "日本旅行")
+        XCTAssertEqual(outcome?.created, true)
+        XCTAssertEqual(outcome?.list.name, "日本旅行")
+        XCTAssertEqual(repo.unfiledLists.map(\.name), ["日本旅行"])
+    }
+
+    func test_归属_二次同名复用已有清单不重复建() throws {
+        let (repo, _) = try makeRepo()
+        let first = try repo.matchOrCreateList(named: "日本旅行")
+        XCTAssertEqual(first?.created, true)
+        let second = try repo.matchOrCreateList(named: "日本旅行")
+        XCTAssertEqual(second?.created, false)
+        XCTAssertEqual(second?.list.id, first?.list.id)
+        XCTAssertEqual(repo.unfiledLists.count, 1)
+    }
+
+    func test_归属_垃圾输入返回nil不建清单() throws {
+        let (repo, _) = try makeRepo()
+        let outcome = try repo.matchOrCreateList(named: "  「」 ")
+        XCTAssertNil(outcome)
+        XCTAssertTrue(repo.unfiledLists.isEmpty)
+    }
+}
