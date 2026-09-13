@@ -197,4 +197,25 @@ final class HoloMatterStateMachineTests: XCTestCase {
         let decoded = try JSONDecoder.holoMatter.decode(HoloMatterMutationProposal.self, from: data)
         XCTAssertEqual(decoded, proposal)
     }
+
+    // MARK: - 灰度默认值（2026-09-13 拍板：基础三件套默认开）
+
+    func testBaseFlagsDefaultOnAndLaterPhasesDefaultOff() {
+        UserDefaults.standard.removeObject(forKey: HoloMatterRolloutPolicy.Flag.matterStorageEnabled.rawValue)
+        UserDefaults.standard.removeObject(forKey: HoloMatterRolloutPolicy.Flag.matterActivationEnabled.rawValue)
+        UserDefaults.standard.removeObject(forKey: HoloMatterRolloutPolicy.Flag.matterScopedChatEnabled.rawValue)
+        UserDefaults.standard.removeObject(forKey: HoloMatterRolloutPolicy.Flag.matterInferredAssociationEnabled.rawValue)
+        UserDefaults.standard.removeObject(forKey: HoloMatterRolloutPolicy.Flag.matterInterventionEnabled.rawValue)
+
+        XCTAssertTrue(HoloMatterRolloutPolicy.storageEnabled, "存储层应默认开")
+        XCTAssertTrue(HoloMatterRolloutPolicy.activationEnabled, "激活入口应默认开")
+        XCTAssertTrue(HoloMatterRolloutPolicy.scopedChatEnabled, "事情内对话应默认开")
+        XCTAssertFalse(HoloMatterRolloutPolicy.inferredAssociationEnabled, "外部关联推荐按方案节奏默认关")
+        XCTAssertFalse(HoloMatterRolloutPolicy.interventionEnabled, "主动通知按方案节奏默认关")
+
+        // 用户显式关闭 → 尊重设置
+        UserDefaults.standard.set(false, forKey: HoloMatterRolloutPolicy.Flag.matterActivationEnabled.rawValue)
+        XCTAssertFalse(HoloMatterRolloutPolicy.activationEnabled)
+        UserDefaults.standard.removeObject(forKey: HoloMatterRolloutPolicy.Flag.matterActivationEnabled.rawValue)
+    }
 }

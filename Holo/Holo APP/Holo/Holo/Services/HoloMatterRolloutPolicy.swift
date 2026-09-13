@@ -36,10 +36,23 @@ nonisolated enum HoloMatterRolloutPolicy {
 
     private static let defaults = UserDefaults.standard
 
+    /// 默认开启的层级（2026-09-13 东林拍板：安全网齐备——AI 动作全可撤销、不自动建业务对象、
+    /// 完成必须用户亲手触发，最坏后果只是打扰而非数据破坏，故首版直接全量开放基础三件套）。
+    /// inferredAssociation（M4）与 intervention（M5）仍按方案节奏默认关。
+    private static let defaultOn: Set<Flag> = [
+        .matterStorageEnabled,
+        .matterActivationEnabled,
+        .matterScopedChatEnabled,
+    ]
+
     /// 指定开关当前是否生效（含依赖链校验：任何前置关闭即视为关闭）。
+    /// 用户显式设置过（object 非 nil）则尊重设置；否则取默认值。
     static func isEnabled(_ flag: Flag) -> Bool {
         guard flag.prerequisites.allSatisfy({ isEnabled($0) }) else { return false }
-        return defaults.bool(forKey: flag.rawValue)
+        if let explicit = defaults.object(forKey: flag.rawValue) as? Bool {
+            return explicit
+        }
+        return defaultOn.contains(flag)
     }
 
     /// 打开开关（仅 Debug 或内部灰度账号可写；依赖自动前置开启）。
