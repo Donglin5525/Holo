@@ -79,11 +79,18 @@ final class ThoughtSemanticChangeFeed {
             let request = Thought.fetchRequest()
             request.predicate = NSPredicate(format: "deletedAt == nil")
             let thoughts = (try? context.fetch(request)) ?? []
-            Task { [thoughts] in
+            // 块内解出值类型快照：托管对象不能跨线程进 Task（行缓存被合并/清理后
+            // 取值得到 nil，非可选 UUID 强桥接直接崩，2026-09-13 真机 SIGTRAP 实证）
+            let snapshots: [(id: UUID, hash: String)] = thoughts.compactMap { thought in
+                guard let id = thought.value(forKey: "id") as? UUID,
+                      let content = thought.value(forKey: "content") as? String else { return nil }
+                return (id, ThoughtEmbeddingStore.contentHash(of: content))
+            }
+            Task { [snapshots] in
                 var enqueued = 0
-                for thought in thoughts {
-                    if await self.enqueueEmbedIfNeeded(thoughtID: thought.id,
-                                                        contentHash: ThoughtEmbeddingStore.contentHash(of: thought.content)) {
+                for snapshot in snapshots {
+                    if await self.enqueueEmbedIfNeeded(thoughtID: snapshot.id,
+                                                        contentHash: snapshot.hash) {
                         enqueued += 1
                     }
                 }
