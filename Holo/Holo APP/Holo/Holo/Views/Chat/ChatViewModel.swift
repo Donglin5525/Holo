@@ -3182,26 +3182,121 @@ final class ChatViewModel: ObservableObject {
         return runID
     }
 
-    /// 重进/冷启动对账（实施方案 §6.3）：无存活任务的未终态规划运行落明确失败，
-    /// 不残留永久三个点。只在消息装载后跑一次（活跃运行由登记表豁免）。
+    /// 重进/冷启动对账（实施方案 §6.3）：未终态规划运行先向云端查证——
+    /// 任务已完成则恢复领取落方案卡，进行中则恢复轮询；查无任务才落明确失败。
+    /// 2026-09-13 修复：此前只查进程内登记表（闪退后必为空），把云端仍在跑/已跑完的任务误判死。
+    /// 只在消息装载后跑一次（活跃运行由登记表豁免）。
     private func reconcileInterruptedPlanningRuns() {
         let interruptedIDs = HoloContextPlanRunController.interruptedRunIDs(from: messages)
         guard !interruptedIDs.isEmpty else { return }
         for messageID in interruptedIDs {
-            let previous = messages
-                .first(where: { $0.id == messageID })
-                .flatMap { HoloContextPlanRunController.decode($0.contextPlanRunJSON) }
-            let envelope = HoloContextPlanRunController.interruptedEnvelope(for: messageID, previous: previous)
-            chatRepo?.finalizeMessage(
-                messageID,
-                finalContent: String(localized: "这次个性化规划没有完成（App 中途退出）。这条回答不是个性化方案，重新发送刚才的话即可再试。"),
-                intent: nil,
-                extractedDataJSON: nil,
-                parsedBatchJSON: nil,
-                executionBatchJSON: nil,
-                contextPlanRunJSON: HoloContextPlanRunController.encode(envelope),
-                messageType: .contextPlan
-            )
+            guard let view = messages.first(where: { $0.id == messageID }),
+                  let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
+            // 云端查证优先：有云端任务 ID 的先尝试恢复，而不是直接判死
+            if let cloudTaskID = envelope.cloudTaskID, !cloudTaskID.isEmpty {
+                let utterance = view.parentMessageId
+                    .flatMap { parentID in messages.first(where: { $0.id == parentID }) }?
+                    .content ?? ""
+                let parentMessageID = view.parentMessageId?.uuidString
+                Task { @MainActor in
+                    await self.resumeInterruptedCloudRun(
+                        messageID: messageID,
+                        previous: envelope,
+                        cloudTaskID: cloudTaskID,
+                        parentMessageID: parentMessageID,
+                        utterance: utterance
+                    )
+                }
+                continue
+            }
+            finalizeInterruptedRun(messageID: messageID, previous: envelope)
+        }
+    }
+
+    /// 查无云端任务时的诚实失败态（原判死路径）。
+    private func finalizeInterruptedRun(messageID: UUID, previous: HoloContextPlanRunEnvelope?) {
+        let envelope = HoloContextPlanRunController.interruptedEnvelope(for: messageID, previous: previous)
+        chatRepo?.finalizeMessage(
+            messageID,
+            finalContent: String(localized: "这次个性化规划没有完成（App 中途退出）。这条回答不是个性化方案，重新发送刚才的话即可再试。"),
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            contextPlanRunJSON: HoloContextPlanRunController.encode(envelope),
+            messageType: .contextPlan
+        )
+    }
+
+    /// 中断运行的云端查证与恢复：completed 直接领取落方案卡；进行中恢复轮询；查无/失败落判死。
+    private func resumeInterruptedCloudRun(
+        messageID: UUID,
+        previous: HoloContextPlanRunEnvelope,
+        cloudTaskID: String,
+        parentMessageID: String?,
+        utterance: String
+    ) async {
+        let client = HoloCloudAnalysisClient()
+        do {
+            let status = try await client.fetchStatus(taskId: cloudTaskID)
+            switch status.status {
+            case "completed":
+                let output = status.result?.output ?? ""
+                guard !output.isEmpty else {
+                    finalizeInterruptedRun(messageID: messageID, previous: previous)
+                    return
+                }
+                // 凭用户原话重建本机检索产物（交付校验的依赖），再走既有领取+校验+落库
+                let preparation = try await HoloContextChatPlanner.resumePreparation(
+                    utterance: utterance, parentMessageID: parentMessageID
+                )
+                let start = HoloContextChatPlanner.CloudPlanStart(
+                    cloudTaskID: cloudTaskID, preparation: preparation, utterance: utterance
+                )
+                let outcome = try await HoloContextChatPlanner.deliverCloudPlan(start, output: output)
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let draftJSON = (try? encoder.encode(outcome.draft)).flatMap { String(data: $0, encoding: .utf8) }
+                var finalEnvelope = previous
+                finalEnvelope.stage = .draftReady
+                finalEnvelope.stageRevision += 1
+                finalEnvelope.updatedAt = Date()
+                chatRepo?.finalizeMessage(
+                    messageID,
+                    finalContent: outcome.draft.answerText,
+                    intent: AIIntent.contextualPlanning.rawValue,
+                    extractedDataJSON: nil,
+                    parsedBatchJSON: nil,
+                    executionBatchJSON: nil,
+                    analysisContextJSON: nil,
+                    rawLogJSON: nil,
+                    contextPlanJSON: draftJSON,
+                    contextPlanRunJSON: HoloContextPlanRunController.encode(finalEnvelope),
+                    messageType: .contextPlan
+                )
+                try? await client.ackResult(taskId: cloudTaskID)
+                logger.info("中断云端规划已恢复领取：task=\(cloudTaskID)")
+            case "failed":
+                finalizeInterruptedRun(messageID: messageID, previous: previous)
+            default:
+                // 进行中（pending/running/queued 等）：登记存活 + 重建材料后恢复既有轮询
+                let preparation = try await HoloContextChatPlanner.resumePreparation(
+                    utterance: utterance, parentMessageID: parentMessageID
+                )
+                let start = HoloContextChatPlanner.CloudPlanStart(
+                    cloudTaskID: cloudTaskID, preparation: preparation, utterance: utterance
+                )
+                HoloContextPlanRunRegistry.shared.markLive(messageID)
+                let pollTask = Task { [weak self] in
+                    guard let self else { return }
+                    await self.pollCloudPlanningRun(start, aiMessageId: messageID, runController: nil)
+                }
+                cloudPlanningPollTasks[messageID] = pollTask
+            }
+        } catch {
+            // 云端查证失败（任务过期/网络）→ 维持诚实判死，不比原行为差
+            logger.error("中断云端运行查证失败，落判死：\(error.localizedDescription)")
+            finalizeInterruptedRun(messageID: messageID, previous: previous)
         }
     }
 

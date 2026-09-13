@@ -307,6 +307,46 @@ enum HoloContextChatPlanner {
         return CloudPlanStart(cloudTaskID: start.taskId, preparation: preparation, utterance: utterance)
     }
 
+    /// 中断恢复：仅重建本机检索产物（不创建云端任务、不上传快照）。
+    /// App 中途退出后凭聊天记录里的用户原话重建 preparation，配合云端任务领取结果
+    /// （2026-09-13：此前闪退后对账只查进程内登记表，把云端仍在跑/已完成的规划误判死）。
+    static func resumePreparation(
+        utterance: String,
+        parentMessageID: String?
+    ) async throws -> HoloContextPlanningCoordinator.PreparedPlanPrompt {
+        let aiProvider = HoloBackendAIProvider()
+        let controls = HoloPersonalContextControls.resolve(
+            defaults: .standard,
+            isInternalAccount: HoloMemoryRolloutProductPolicy.current.isInternalAccount,
+            automaticMemoryEnabled: HoloMemorySettings.shared.automaticMemoryEnabled,
+            memoryAssistedAnsweringEnabled: HoloMemorySettings.shared.memoryAssistedAnsweringEnabled,
+            aiDataProcessingConsentGranted: HoloAIDataProcessingConsent.shared.isGranted
+        )
+        guard controls.allowsPlanningInjection else {
+            throw PlannerError.gateClosed
+        }
+        guard let repository = try? await HoloMemoryRuntime.shared.repository() else {
+            throw PlannerError.generationUnavailable
+        }
+        let coordinator = Self.makeCoordinator(
+            aiProvider: aiProvider,
+            controls: controls,
+            repository: repository,
+            persistence: HoloPlanningMemoryRunPersistence(),
+            contextCountOut: ContextCountBox()
+        )
+        let frame = HoloPlanningRequestFrame(
+            utterance: utterance,
+            goalSummary: utterance,
+            referenceTime: Date()
+        )
+        return try await coordinator.preparePrompt(
+            frame: frame,
+            parentMessageID: parentMessageID,
+            onStage: nil
+        )
+    }
+
     /// 云端异步路径第二步：领取云端产物 → 本机解析+校验+落库（真相源不外移）。
     static func deliverCloudPlan(
         _ start: CloudPlanStart,
