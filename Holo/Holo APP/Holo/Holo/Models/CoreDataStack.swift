@@ -141,6 +141,8 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: CoreDataStack.createScheduleEntities())
         // 回收站清空批次（数据清理功能）
         entities.append(contentsOf: createRecycleBinEntities())
+        // Matter「进行中的事」四实体（ID 逻辑外键、无跨域关系）
+        entities.append(contentsOf: createMatterEntities())
         model.entities = entities
         return model
     }

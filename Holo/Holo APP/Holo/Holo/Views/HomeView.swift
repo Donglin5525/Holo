@@ -374,6 +374,19 @@ struct HomeView: View {
                 TaskDetailView(repository: TodoRepository.shared, list: nil)
             }
         }
+        // Matter「进行中的事」列表（查看全部；内部路由，不占 Tab）
+        .sheet(isPresented: $showMatterList) {
+            MatterListView(
+                onAddTapped: {
+                    showMatterList = false
+                    openRootScreen(.ai)
+                }
+            )
+        }
+        // Matter 详情（首页焦点卡直达）
+        .sheet(item: $matterDetailTarget) { target in
+            MatterDetailView(matterID: target.id)
+        }
         // Deep Link / 小组件 - 记录想法
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
         .fullScreenCover(isPresented: $showThoughtEditor) {
@@ -606,6 +619,63 @@ struct HomeView: View {
         }
     }
     
+    // MARK: - Matter 焦点卡（方案 §13.2）
+
+    @ObservedObject private var matterRepository = HoloMatterRepository.shared
+    @State private var showMatterList = false
+    @State private var matterDetailTarget: MatterDetailTarget?
+
+    /// sheet(item:) 的 Identifiable 包装。
+    struct MatterDetailTarget: Identifiable {
+        let id: UUID
+    }
+
+    /// 焦点卡区域：0 件 active 时整块不出现；1 件完整卡；多件只展示最高关注的一件 + 查看全部。
+    @ViewBuilder
+    private var matterFocusSection: some View {
+        if HoloMatterRolloutPolicy.storageEnabled, let item = matterFocusItem {
+            MatterFocusCard(
+                item: item,
+                compact: shouldCompactMatterCard,
+                onTap: {
+                    matterDetailTarget = MatterDetailTarget(id: item.id)
+                },
+                onViewAll: {
+                    showMatterList = true
+                }
+            )
+        }
+    }
+
+    /// 小屏机型（高度不足）自动降档为紧凑条，不挤占中央大按钮（方案 §13.2）。
+    private var shouldCompactMatterCard: Bool {
+        UIScreen.main.bounds.height < 700
+    }
+
+    private var matterFocusItem: MatterFocusCard.Item? {
+        let active = matterRepository.matters(lifecycles: [.active])
+        guard !active.isEmpty else { return nil }
+        let candidates = active.map { matter -> MatterHomeSurface.Candidate in
+            let loops = matterRepository.openLoops(matterID: matter.id, activeOnly: true).map {
+                HoloMatterAttentionPolicy.LoopInput(
+                    title: $0.title, state: $0.state, epistemic: $0.epistemic, targetDate: $0.targetDate
+                )
+            }
+            let projection = matter.isProjectionStale ? nil : matter.projection
+            return MatterHomeSurface.Candidate(
+                id: matter.id,
+                title: matter.title,
+                targetDate: matter.targetDate,
+                updatedAt: matter.updatedAt,
+                nextActionTitle: projection?.nextAction?.title,
+                nextActionTargetDate: projection?.nextAction?.targetDate,
+                loops: loops,
+                projectionAttention: projection?.attention
+            )
+        }
+        return MatterHomeSurface.select(candidates).first
+    }
+
     // MARK: - Home Content
 
     /// 正常的首页内容（数据加载完毕后显示）
@@ -625,6 +695,13 @@ struct HomeView: View {
 
             // 今日日程摘要条（系统日历开启且有日程时出现，点击进今日看板）
             todayScheduleBar
+
+            // Matter「进行中的事」焦点卡（方案 §13.2：日程条下方、中央主内容上方）
+            // 无 active Matter 时整块消失，不制造空模块
+            matterFocusSection
+                .holoContentColumn(maxWidth: 520, paintsBackground: false)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.sm)
 
             Spacer()
 

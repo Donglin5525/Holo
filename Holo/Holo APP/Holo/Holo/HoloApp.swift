@@ -198,6 +198,8 @@ struct HoloApp: App {
                     await HoloAppStoreScreenshotSeeder.runIfRequested()
                 let simulatorMemoryValidationActive =
                     await HoloMemorySimulatorValidationScenario.runIfRequested()
+                // Matter 模拟器纵向验收合成数据（-MatterDemoSeed 启动参数触发，幂等）
+                await MatterDemoSeed.seedIfNeeded()
                 #else
                 let appStoreScreenshotModeActive = false
                 let simulatorMemoryValidationActive = false

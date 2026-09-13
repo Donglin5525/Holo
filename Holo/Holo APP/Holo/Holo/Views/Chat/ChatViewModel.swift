@@ -825,6 +825,21 @@ final class ChatViewModel: ObservableObject {
 
         // 1. 保存用户消息
         let userMessageId = chatRepo.addMessage(role: "user", content: text)
+        lastSentUserText = text
+
+        // Matter-scoped Chat：用户消息自动关联到当前事情（方案 §6.1 系统确定性关联）
+        if let matterContext = matterChatContext.active {
+            Task { [weak self] in
+                _ = try? await HoloMatterRepository.shared.addLink(
+                    matterID: matterContext.matterID,
+                    entityType: .chatMessage,
+                    entityID: userMessageId.uuidString,
+                    role: .conversation,
+                    origin: .system
+                )
+                _ = self // 保持 weak 语义明确
+            }
+        }
 
         // 2. 创建 AI 占位消息
         let aiMessageId = chatRepo.addStreamingMessage(role: "assistant", parentMessageId: userMessageId)
@@ -1426,7 +1441,40 @@ final class ChatViewModel: ObservableObject {
             streamingText = ""
             activeStreamingMessageID = nil
         }
+        // Matter 对账（方案 §11.4）：回答落定后再跑，与普通回答串行，不阻塞消息入库。
+        triggerMatterReconciliationIfScoped()
     }
+
+    /// Matter 内对话的持续对账：失败静默（不写假状态），歧义转追问。
+    private func triggerMatterReconciliationIfScoped() {
+        guard HoloMatterRolloutPolicy.scopedChatEnabled else { return }
+        guard let context = MatterChatContextStore.shared.active else { return }
+        let text = lastSentUserText ?? ""
+        guard !text.isEmpty else { return }
+        lastSentUserText = nil
+        let store = MatterChatContextStore.shared
+        Task { @MainActor in
+            let matterTitle = HoloMatterRepository.shared.matter(id: context.matterID)?.title
+            let coordinator = HoloMatterReconciliationCoordinator()
+            let result = await coordinator.reconcile(matterID: context.matterID, messageID: UUID(), messageText: text)
+            guard context.matterID == store.active?.matterID else { return } // 用户已退出上下文
+            if result.hasChanges {
+                store.lastFeedback = MatterChatContextStore.MatterFeedback(
+                    matterTitle: matterTitle ?? "",
+                    summaries: result.appliedSummaries,
+                    revertEventID: result.lastResolvedEventIDs.last
+                )
+            } else if let ambiguity = result.ambiguities.first {
+                store.pendingAmbiguity = ambiguity
+            }
+        }
+    }
+
+    /// 最近一次发送的用户消息文本（对账输入；回答结束后消费一次）。
+    nonisolated(unsafe) fileprivate var lastSentUserText: String?
+
+    /// Matter 对话上下文通道（详情页进入、胶囊退出）。
+    fileprivate var matterChatContext: MatterChatContextStore { MatterChatContextStore.shared }
 
     // MARK: - 每周生活计划（LifePlan）
 

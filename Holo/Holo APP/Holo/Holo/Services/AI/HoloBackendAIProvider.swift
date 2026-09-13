@@ -223,6 +223,12 @@ final class HoloBackendAIProvider: AIProvider {
         try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .personalContextPlanning)
     }
 
+    /// Matter 对账：后端注入 matter_reconciliation 系统 prompt（typed proposal JSON 契约）。
+    /// 输入为最小 Matter 快照组装的 prompt，输出由 HoloMatterReconciliationCoordinator 校验后应用。
+    func reconcileMatter(prompt: String, context: UserContext) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterReconciliation)
+    }
+
     /// 个人情境萃取：后端注入 personal_context_extraction 系统 prompt（JSON 契约），
     /// prompt 已含来源片段与既有候选；解析由 HoloPersonalContextResponseParser 负责。
     func extractPersonalContext(prompt: String, context: UserContext) async throws -> String {
@@ -687,6 +693,8 @@ enum HoloBackendPurpose: String {
     case healthInsightGeneration = "health_insight_generation"
     case weeklyPlanGeneration = "weekly_plan_generation"
     case personalContextPlanning = "personal_context_planning"
+    /// Matter「进行中的事」对账（typed proposal 契约，方案 §12）
+    case matterReconciliation = "matter_reconciliation"
     case personalContextExtraction = "personal_context_extraction"
     case personalContextVerification = "personal_context_verification"
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）

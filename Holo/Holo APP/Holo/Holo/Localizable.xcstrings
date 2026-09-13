@@ -1231,6 +1231,22 @@
         }
       }
     },
+    "%@为目标": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@為目標"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is the goal"
+          }
+        }
+      }
+    },
     "%@主要被%@记录占据。": {
       "localizations": {
         "en": {
@@ -1775,6 +1791,22 @@
         }
       }
     },
+    "%@，%@，%@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，%@，%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress, %@, %@, %@"
+          }
+        }
+      }
+    },
     "%@，直到%@": {
       "localizations": {
         "en": {
@@ -1915,6 +1947,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld"
+          }
+        }
+      }
+    },
+    "%lld %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld %@"
           }
         }
       }
@@ -2075,6 +2123,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 個已設定"
+          }
+        }
+      }
+    },
+    "%lld 个待确认": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個待確認"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld to confirm"
           }
         }
       }
@@ -2901,6 +2965,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 項"
+          }
+        }
+      }
+    },
+    "%lld 项在等待外部结果": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項在等待外部結果"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items waiting on external results"
           }
         }
       }
@@ -4541,6 +4621,22 @@
         }
       }
     },
+    "AI 从对话里猜的，等你确认": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 從對話裡猜的，等你確認"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI guessed this from the conversation, waiting for your confirmation"
+          }
+        }
+      }
+    },
     "AI 从未归类想法中归纳潜在新主题，经你确认后创建": {
       "localizations": {
         "en": {
@@ -4713,6 +4809,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "AI 建議"
+          }
+        }
+      }
+    },
+    "AI 建议，已解决": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 建議，已解決"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI suggestion, resolved"
           }
         }
       }
@@ -5614,6 +5726,22 @@
         }
       }
     },
+    "HOLO 判断": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HOLO 判斷"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HOLO Assessment"
+          }
+        }
+      }
+    },
     "HOLO 只读取你的健康数据，用于展示三环进度和生成生活洞察；不会写入 Apple Health，也不会上传原始健康记录。": {
       "localizations": {
         "en": {
@@ -5855,6 +5983,22 @@
         }
       }
     },
+    "Holo 会持续记住这件事的进展，你随时可以在里面继续讨论。": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo 會持續記住這件事的進展，你隨時可以在裡面繼續討論。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo will keep track of this matter's progress, and you can continue the discussion anytime."
+          }
+        }
+      }
+    },
     "Holo 会自动为想法打标签、归主题。不合适的建议点 ✗ 即可，不管它也没关系。": {
       "localizations": {
         "en": {
@@ -5867,6 +6011,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Holo 會自動為想法打標籤、歸主題。不合適的建議點 ✗ 即可，不管它也沒關係。"
+          }
+        }
+      }
+    },
+    "Holo 会记住进展、没解决的问题和下一步。": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo 會記住進展、沒解決的問題和下一步。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo will remember the progress, unresolved issues, and next steps."
           }
         }
       }
@@ -7062,6 +7222,22 @@
         }
       }
     },
+    "· %lld 个 AI 猜测待你确认": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld 個 AI 猜測待你確認"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld AI guesses to confirm"
+          }
+        }
+      }
+    },
     "· 与 %@ 金额相同": {
       "localizations": {
         "en": {
@@ -7529,6 +7705,38 @@
         }
       }
     },
+    "「%@」不需要处理": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」不需要處理"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" needs no action"
+          }
+        }
+      }
+    },
+    "「%@」临近处理窗口": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」臨近處理視窗"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" is approaching its handling window"
+          }
+        }
+      }
+    },
     "「%@」及聊天里的提问和回答都会删除，此操作不可撤销。": {
       "localizations": {
         "en": {
@@ -7593,6 +7801,22 @@
         }
       }
     },
+    "「%@」标记为等待中": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」標記為等待中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" marked as waiting"
+          }
+        }
+      }
+    },
     "「%@」的事件已改为跨天，超出任务时间块范围，已解除同步": {
       "localizations": {
         "en": {
@@ -7653,6 +7877,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "「%@」的日曆事件已刪除，任務保留、同步已斷開"
+          }
+        }
+      }
+    },
+    "「%@」的期限已过": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」的期限已過"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" is past its deadline"
           }
         }
       }
@@ -7846,6 +8086,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "一個可以試試的小動作"
+          }
+        }
+      }
+    },
+    "一个问题已解决": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一個問題已解決"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An issue was resolved"
           }
         }
       }
@@ -8490,6 +8746,22 @@
         }
       }
     },
+    "下一步：%@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一步：%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next step: %@"
+          }
+        }
+      }
+    },
     "下划线": {
       "localizations": {
         "en": {
@@ -9015,6 +9287,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "不需要"
+          }
+        }
+      }
+    },
+    "不需要处理": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不需要處理"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No action needed"
           }
         }
       }
@@ -10271,6 +10559,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "事實"
+          }
+        }
+      }
+    },
+    "事项名称": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事項名稱"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Item name"
           }
         }
       }
@@ -11580,6 +11884,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "今晚優先補睡眠"
+          }
+        }
+      }
+    },
+    "仍新建一件": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍新建一件"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a new one anyway"
           }
         }
       }
@@ -13026,6 +13346,22 @@
         }
       }
     },
+    "你在对话里说": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在對話裡說"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You said in the conversation"
+          }
+        }
+      }
+    },
     "你好，我是 Holo": {
       "localizations": {
         "en": {
@@ -13038,6 +13374,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "你好，我是 Holo"
+          }
+        }
+      }
+    },
+    "你完成了这件事 🎉": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你完成了這件事 🎉"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You completed this matter 🎉"
+          }
+        }
+      }
+    },
+    "你开始了「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你開始了「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You started \"%@\""
           }
         }
       }
@@ -13086,6 +13454,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "你未採納這個重點"
+          }
+        }
+      }
+    },
+    "你标记": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你標記"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You marked"
           }
         }
       }
@@ -13250,6 +13634,38 @@
         }
       }
     },
+    "你确认了问题「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你確認了問題「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You confirmed the issue \"%@\""
+          }
+        }
+      }
+    },
+    "你确认过的问题": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你確認過的問題"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Issues you've confirmed"
+          }
+        }
+      }
+    },
     "你觉得哪里有问题？": {
       "localizations": {
         "en": {
@@ -13310,6 +13726,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "你還未開啟 AI 資料處理授權\n開啟後即可使用"
+          }
+        }
+      }
+    },
+    "你重新打开了这件事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你重新開啟了這件事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You reopened this matter"
           }
         }
       }
@@ -14515,6 +14947,38 @@
         }
       }
     },
+    "先不归档": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先不歸檔"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't archive yet"
+          }
+        }
+      }
+    },
+    "先不整理": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先不整理"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't organize yet"
+          }
+        }
+      }
+    },
     "先不选，之后再说": {
       "localizations": {
         "en": {
@@ -15203,6 +15667,22 @@
         }
       }
     },
+    "关联了新内容": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關聯了新內容"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linked new content"
+          }
+        }
+      }
+    },
     "关联任务": {
       "localizations": {
         "en": {
@@ -15247,6 +15727,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "關聯線索"
+          }
+        }
+      }
+    },
+    "关键事项都在等待外部结果": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關鍵事項都在等待外部結果"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key items are all waiting on external results"
           }
         }
       }
@@ -15477,6 +15973,22 @@
         }
       }
     },
+    "其余事项都在等待或依赖它": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其餘事項都在等待或依賴它"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other items are waiting on or depend on it"
+          }
+        }
+      }
+    },
     "具体时间": {
       "localizations": {
         "en": {
@@ -15537,6 +16049,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "內容較短，暫不自動整理；補充內容後會自動整理"
+          }
+        }
+      }
+    },
+    "再等等": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再等等"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait a bit longer"
           }
         }
       }
@@ -17511,6 +18039,22 @@
         }
       }
     },
+    "判断正在更新，先看下面的状态": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "判斷正在更新，先看下面的狀態"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assessment is updating, check the status below"
+          }
+        }
+      }
+    },
     "到指定日期": {
       "localizations": {
         "en": {
@@ -17795,6 +18339,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "功能建議"
+          }
+        }
+      }
+    },
+    "加入「进行中的事」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入「進行中的事」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to \"In Progress\""
           }
         }
       }
@@ -19404,6 +19964,22 @@
         }
       }
     },
+    "另有 %lld 个建议待你确认": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另有 %lld 個建議待你確認"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld more suggestions to confirm"
+          }
+        }
+      }
+    },
     "另有 %lld 条": {
       "localizations": {
         "en": {
@@ -19673,6 +20249,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "可繼續使用其他 HOLO 模組"
+          }
+        }
+      }
+    },
+    "可能还需要确认：%@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能還需要確認：%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "May also need confirmation: %@"
           }
         }
       }
@@ -20729,6 +21321,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "和"
+          }
+        }
+      }
+    },
+    "和 Holo 讨论这件事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和 Holo 討論這件事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discuss this with Holo"
           }
         }
       }
@@ -22366,6 +22974,22 @@
         }
       }
     },
+    "大概什么时候": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大概什麼時候"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roughly when"
+          }
+        }
+      }
+    },
     "天": {
       "localizations": {
         "en": {
@@ -23136,6 +23760,22 @@
         }
       }
     },
+    "完成后它会从首页焦点位撤下，你随时可以在列表里回看或重新打开。未解决的问题会保留记录。": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成後它會從首頁焦點位撤下，你隨時可以在列表裡回看或重新開啟。未解決的問題會保留記錄。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once completed, it will be removed from the home focus area. You can review or reopen it anytime in the list. Unresolved issues will keep their records."
+          }
+        }
+      }
+    },
     "完成天数": {
       "localizations": {
         "en": {
@@ -23260,6 +23900,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "完成記錄"
+          }
+        }
+      }
+    },
+    "完成这件事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成這件事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete this matter"
+          }
+        }
+      }
+    },
+    "完成这件事？": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成這件事？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete this matter?"
           }
         }
       }
@@ -25348,6 +26020,22 @@
         }
       }
     },
+    "已加入「进行中的事」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入「進行中的事」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to \"In Progress\""
+          }
+        }
+      }
+    },
     "已匹配 %lld 个交易对方（高置信 %lld）": {
       "localizations": {
         "en": {
@@ -25852,6 +26540,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已完成 %lld/%lld 項"
+          }
+        }
+      }
+    },
+    "已完成 · %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成 · %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed · %@"
           }
         }
       }
@@ -26496,6 +27200,22 @@
         }
       }
     },
+    "已更新到「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已更新到「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated to \"%@\""
+          }
+        }
+      }
+    },
     "已更新目标": {
       "localizations": {
         "en": {
@@ -26896,6 +27616,22 @@
         }
       }
     },
+    "已经解决 · %lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已經解決 · %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved · %lld"
+          }
+        }
+      }
+    },
     "已经走过": {
       "localizations": {
         "en": {
@@ -27068,6 +27804,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已花 ¥2,340，超了預算 ¥340"
+          }
+        }
+      }
+    },
+    "已解决「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已解決「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved \"%@\""
           }
         }
       }
@@ -27438,6 +28190,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已過期"
+          }
+        }
+      }
+    },
+    "已过期 %lld 天": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已過期 %lld 天"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overdue by %lld days"
           }
         }
       }
@@ -28232,6 +29000,22 @@
         }
       }
     },
+    "建议关注「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議關注「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest focusing on \"%@\""
+          }
+        }
+      }
+    },
     "建议对账：与银行 App 核对一次，余额更可信": {
       "extractionState": "stale",
       "localizations": {
@@ -28794,6 +29578,22 @@
         }
       }
     },
+    "归档是轻性的收起，不删除任何数据，随时可以重新打开。": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歸檔是輕性的收起，不刪除任何資料，隨時可以重新開啟。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archiving is a light way to tuck it away. No data is deleted, and you can reopen it anytime."
+          }
+        }
+      }
+    },
     "归档管理": {
       "localizations": {
         "en": {
@@ -28822,6 +29622,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "歸檔帳戶"
+          }
+        }
+      }
+    },
+    "归档这件事？": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歸檔這件事？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive this matter?"
           }
         }
       }
@@ -31385,6 +32201,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "或手動建立"
+          }
+        }
+      }
+    },
+    "或更新已有的": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "或更新已有的"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Or update an existing one"
           }
         }
       }
@@ -35553,6 +36385,22 @@
         }
       }
     },
+    "整体在正常推进": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整體在正常推進"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overall progressing normally"
+          }
+        }
+      }
+    },
     "整体完成率 %lld%%，比上月 ": {
       "localizations": {
         "en": {
@@ -36001,6 +36849,22 @@
         }
       }
     },
+    "新增问题「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增問題「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New issue \"%@\""
+          }
+        }
+      }
+    },
     "新建": {
       "localizations": {
         "en": {
@@ -36237,6 +37101,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "新問題"
+          }
+        }
+      }
+    },
+    "方案": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan"
           }
         }
       }
@@ -38388,6 +39268,38 @@
         }
       }
     },
+    "暂无待处理问题": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無待處理問題"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No pending issues"
+          }
+        }
+      }
+    },
+    "暂无待处理问题。": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無待處理問題。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No pending issues."
+          }
+        }
+      }
+    },
     "暂无想法": {
       "localizations": {
         "en": {
@@ -38788,6 +39700,22 @@
         }
       }
     },
+    "更新到「%@」": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update to \"%@\""
+          }
+        }
+      }
+    },
     "更新失败，请稍后重试": {
       "localizations": {
         "en": {
@@ -38800,6 +39728,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新失敗，請稍後重試"
+          }
+        }
+      }
+    },
+    "更新已撤销": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已撤銷"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update undone"
           }
         }
       }
@@ -39216,6 +40160,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近刪除"
+          }
+        }
+      }
+    },
+    "最近变化": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近變化"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent changes"
           }
         }
       }
@@ -39798,6 +40758,38 @@
         }
       }
     },
+    "有事项临近处理窗口": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有事項臨近處理視窗"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An item is approaching its handling window"
+          }
+        }
+      }
+    },
+    "有事项已经过期": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有事項已經過期"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An item is overdue"
+          }
+        }
+      }
+    },
     "有序列表": {
       "localizations": {
         "en": {
@@ -39858,6 +40850,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "有用"
+          }
+        }
+      }
+    },
+    "有风险": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有風險"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At risk"
           }
         }
       }
@@ -40054,6 +41062,22 @@
         }
       }
     },
+    "期限已过，需要立即处理": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "期限已過，需要立即處理"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deadline passed, needs immediate action"
+          }
+        }
+      }
+    },
     "未使用": {
       "localizations": {
         "en": {
@@ -40162,6 +41186,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "未啟用（目前建置不含 iCloud 同步）"
+          }
+        }
+      }
+    },
+    "未命名事项": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未命名事項"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled item"
           }
         }
       }
@@ -42104,6 +43144,22 @@
         }
       }
     },
+    "查看": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
+          }
+        }
+      }
+    },
     "查看 AI 归纳建议": {
       "localizations": {
         "en": {
@@ -42773,6 +43829,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "標記為未完成"
+          }
+        }
+      }
+    },
+    "标记为等待中": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標記為等待中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as waiting"
           }
         }
       }
@@ -43749,6 +44821,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在讀取本地 Agent 狀態…"
+          }
+        }
+      }
+    },
+    "正在进行": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在進行"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress"
           }
         }
       }
@@ -44970,6 +46058,22 @@
         }
       }
     },
+    "没有整理成功，可以再试一次": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有整理成功，可以再試一次"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organization failed, please try again"
+          }
+        }
+      }
+    },
     "没有新的可归纳变化": {
       "localizations": {
         "en": {
@@ -45927,6 +47031,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "新增跟進任務"
+          }
+        }
+      }
+    },
+    "添加进行中的事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增進行中的事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add in-progress matter"
           }
         }
       }
@@ -47185,6 +48305,22 @@
         }
       }
     },
+    "现在最值得做": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在最值得做"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most worth doing now"
+          }
+        }
+      }
+    },
     "现金": {
       "localizations": {
         "en": {
@@ -48100,6 +49236,22 @@
         }
       }
     },
+    "目标日期已过": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標日期已過"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Target date passed"
+          }
+        }
+      }
+    },
     "目标标题": {
       "localizations": {
         "en": {
@@ -48368,6 +49520,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "相關 AI 標籤路徑會同步更新。"
+          }
+        }
+      }
+    },
+    "相关内容": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相關內容"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Related content"
           }
         }
       }
@@ -49124,6 +50292,22 @@
         }
       }
     },
+    "确认完成": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認完成"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm completion"
+          }
+        }
+      }
+    },
     "确认对平": {
       "localizations": {
         "en": {
@@ -49140,6 +50324,22 @@
         }
       }
     },
+    "确认开始整理": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認開始整理"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm and start organizing"
+          }
+        }
+      }
+    },
     "确认归并": {
       "localizations": {
         "en": {
@@ -49152,6 +50352,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "確認歸併"
+          }
+        }
+      }
+    },
+    "确认归档": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認歸檔"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm archive"
           }
         }
       }
@@ -49296,6 +50512,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "確認落庫"
+          }
+        }
+      }
+    },
+    "确认这是待办问题": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認這是待辦問題"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm this is a to-do issue"
           }
         }
       }
@@ -50248,6 +51480,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待 Apple Health 資料"
+          }
+        }
+      }
+    },
+    "等待中": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting"
           }
         }
       }
@@ -51211,6 +52459,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "繼續向下，回看前一天"
+          }
+        }
+      }
+    },
+    "继续整理这件事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續整理這件事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue organizing this matter"
           }
         }
       }
@@ -53084,6 +54348,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "觀察時間：%@"
+          }
+        }
+      }
+    },
+    "规划中": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規劃中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planning"
           }
         }
       }
@@ -56644,6 +57924,38 @@
         }
       }
     },
+    "距离期限最近，且还没有解决": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距離期限最近，且還沒有解決"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closest to deadline and still unresolved"
+          }
+        }
+      }
+    },
+    "距离目标日期不远，还有未解决的问题": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距離目標日期不遠，還有未解決的問題"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Target date is near, with unresolved issues"
+          }
+        }
+      }
+    },
     "距离这天还有": {
       "localizations": {
         "en": {
@@ -58071,6 +59383,38 @@
         }
       }
     },
+    "还不确定": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還不確定"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not sure yet"
+          }
+        }
+      }
+    },
+    "还不确定，先不填": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還不確定，先不填"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not sure yet, skip for now"
+          }
+        }
+      }
+    },
     "还剩 ": {
       "localizations": {
         "en": {
@@ -58135,6 +59479,22 @@
         }
       }
     },
+    "还在收集信息": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還在收集資訊"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still gathering information"
+          }
+        }
+      }
+    },
     "还差 %@ 小时": {
       "localizations": {
         "en": {
@@ -58179,6 +59539,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "還有"
+          }
+        }
+      }
+    },
+    "还有 %lld 个已确认的问题未解决": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還有 %lld 個已確認的問題未解決"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld confirmed issues still unresolved"
+          }
+        }
+      }
+    },
+    "还有 %lld 个问题没有闭环。": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還有 %lld 個問題沒有閉環。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld issues are still open."
           }
         }
       }
@@ -58394,6 +59786,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "還沒有你確認過的標籤"
+          }
+        }
+      }
+    },
+    "还没有归档的事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有歸檔的事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No archived matters yet"
           }
         }
       }
@@ -58621,6 +60029,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "還沒有項目，點選右上角 + 新增"
+          }
+        }
+      }
+    },
+    "还没解决 · %lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒解決 · %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unresolved · %lld"
           }
         }
       }
@@ -59166,6 +60590,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "這些資料**僅用於這一次分析**——分析結束或失敗後立即刪除，雲端不會保留。"
+          }
+        }
+      }
+    },
+    "这件事不存在或已删除": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這件事不存在或已刪除"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This matter doesn't exist or has been deleted"
+          }
+        }
+      }
+    },
+    "这件事叫什么": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這件事叫什麼"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What's this matter called"
+          }
+        }
+      }
+    },
+    "这件事已归档": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這件事已歸檔"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This matter is archived"
           }
         }
       }
@@ -60626,6 +62098,22 @@
         }
       }
     },
+    "进行中的事": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "進行中的事"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Progress"
+          }
+        }
+      }
+    },
     "连接 Apple Health": {
       "localizations": {
         "en": {
@@ -60942,6 +62430,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出登入失敗：%@"
+          }
+        }
+      }
+    },
+    "退出这件事的上下文": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出這件事的上下文"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exit this matter's context"
           }
         }
       }
@@ -62259,6 +63763,22 @@
         }
       }
     },
+    "重新打开": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新開啟"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopen"
+          }
+        }
+      }
+    },
     "重新授权健康数据": {
       "localizations": {
         "en": {
@@ -63329,6 +64849,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要使用麥克風來記錄你的語音"
+          }
+        }
+      }
+    },
+    "需要关注": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要關注"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs attention"
           }
         }
       }

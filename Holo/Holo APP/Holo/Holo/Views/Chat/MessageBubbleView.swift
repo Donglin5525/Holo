@@ -28,6 +28,7 @@ struct MessageBubbleView: View {
     var onAgentResumePaused: (() -> Void)? = nil
     var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
+    var onOpenMatter: ((UUID) -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
     /// 额度耗尽卡片「了解 Holo Plus」点击，由上层导航到会员中心
@@ -193,6 +194,8 @@ struct MessageBubbleView: View {
                 if message.contextPlanJSON != nil {
                     ContextPlanChatCard(
                         draftJSON: message.contextPlanJSON,
+                        messageID: message.id,
+                        userMessageID: message.parentMessageId,
                         receipts: ContextPlanUserDefaultsReceipts(),
                         onCreateTasks: { creations, groupParentTitle in
                             // 结构化映射直接建任务（§10：不把计划重新丢回意图识别模型）。

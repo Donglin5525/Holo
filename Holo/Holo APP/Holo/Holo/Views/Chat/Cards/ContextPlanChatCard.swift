@@ -15,12 +15,18 @@ import SwiftUI
 struct ContextPlanChatCard: View {
     /// 消息里的草案 JSON（HoloContextPlanDraft，iso8601）。
     let draftJSON: String?
+    /// 本条方案卡消息 ID（Matter 激活的幂等来源键）。
+    var messageID: UUID = UUID()
+    /// 关联的用户消息 ID（可空；用于 Matter 关联对话上下文）。
+    var userMessageID: UUID? = nil
     /// 保存回执存储（logicalItemID → 内容指纹）。
     let receipts: ContextPlanReceiptStoring
     /// 任务创建出口（返回幂等键 → 真实回执；已发送请求≠成功，卡片按回执更新）。
     /// 第二参数是合并主任务标题：选中的无日期条目 ≥2 时为草案目标摘要，
     /// 落库侧据此并成一个主任务 + 子条目；nil 表示逐条建独立任务。
     let onCreateTasks: ([HoloContextPlanTaskCreation], String?) -> [String: HoloContextPlanCreationReceipt]
+    /// Matter「查看」出口（打开事情详情；nil 时仅显示状态）。
+    var onOpenMatter: ((UUID) -> Void)? = nil
 
     @State private var draft0: HoloContextPlanDraft?
     @State private var selected: Set<String> = []
@@ -34,6 +40,16 @@ struct ContextPlanChatCard: View {
     @State private var resolvedState: ResolvedState = .active
     @State private var followUpText = ""
     @State private var regenerating = false
+
+    // MARK: Matter 激活（方案 §13.1）
+
+    @State private var matterPreparation: HoloMatterActivationCoordinator.Preparation?
+    @State private var showActivationSheet = false
+    @State private var activationTitle = ""
+    @State private var activationTargetDate: Date?
+    @State private var activationExistingMatterID: UUID?
+    @State private var activationInFlight = false
+    @State private var activationErrorText: String?
 
     enum SaveState: Equatable {
         case idle
@@ -65,6 +81,7 @@ struct ContextPlanChatCard: View {
                 if resolvedState == .active {
                     saveSection(draft)
                     correctionSection(draft)
+                    matterActivationSection(draft)
                 } else {
                     resolvedLabel
                 }
@@ -533,6 +550,301 @@ struct ContextPlanChatCard: View {
            let restored = ResolvedState(rawValue: raw), restored != .active {
             resolvedState = restored
         }
+        refreshMatterPreparation(for: decoded)
+    }
+
+    // MARK: - Matter 激活区（方案 §13.1）
+
+    /// 灰度关闭 / 纯说明草案 / 已被用户纠正收起时不出现（不制造打扰）。
+    @ViewBuilder
+    private func matterActivationSection(_ draft: HoloContextPlanDraft) -> some View {
+        if HoloMatterRolloutPolicy.activationEnabled, resolvedState == .active {
+            switch matterPreparation {
+            case .alreadyActivated(let matterID):
+                activationDoneStrip(matterID)
+            case .ready(let proposedTitle, let proposedDate):
+                activationStrip(draft: draft, proposedTitle: proposedTitle, proposedDate: proposedDate, duplicate: nil)
+            case .possibleDuplicate(let existingID, let existingTitle, let proposedTitle, let proposedDate):
+                activationStrip(
+                    draft: draft,
+                    proposedTitle: proposedTitle,
+                    proposedDate: proposedDate,
+                    duplicate: (existingID, existingTitle)
+                )
+            case nil:
+                EmptyView()
+            }
+        }
+    }
+
+    /// 激活入口条（未激活态）。
+    private func activationStrip(
+        draft: HoloContextPlanDraft,
+        proposedTitle: String,
+        proposedDate: Date?,
+        duplicate: (UUID, String)?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Text(String(localized: "继续整理这件事"))
+                    .font(.footnote.weight(.semibold))
+                if duplicate != nil {
+                    Text(String(localized: "或更新已有的"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(String(localized: "Holo 会记住进展、没解决的问题和下一步。"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let (existingID, existingTitle) = duplicate {
+                // 去重场景（§11.3）：不猜，把选择交给用户。
+                Button {
+                    activationExistingMatterID = existingID
+                    activationTitle = proposedTitle
+                    activationTargetDate = proposedDate
+                    startActivation(draft: draft, existingMatterID: existingID)
+                } label: {
+                    Text(String(localized: "更新到「\(existingTitle)」"))
+                        .font(.footnote.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(Color.holoPrimary)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(activationInFlight)
+
+                Button {
+                    activationExistingMatterID = nil
+                    activationTitle = proposedTitle
+                    activationTargetDate = proposedDate
+                    showActivationSheet = true
+                } label: {
+                    Text(String(localized: "仍新建一件"))
+                        .font(.footnote)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(Color(.tertiarySystemGroupedBackground))
+                        .foregroundStyle(.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(activationInFlight)
+            } else {
+                Button {
+                    activationExistingMatterID = nil
+                    activationTitle = proposedTitle
+                    activationTargetDate = proposedDate
+                    showActivationSheet = true
+                } label: {
+                    Text(String(localized: "开始整理"))
+                        .font(.footnote.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(Color.holoPrimary)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .shadow(color: Color.holoPrimary.opacity(0.25), radius: 6, y: 2)
+                }
+                .buttonStyle(.plain)
+                .disabled(activationInFlight)
+            }
+
+            if let error = activationErrorText {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.holoPrimary.opacity(0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.holoPrimary.opacity(0.2), lineWidth: 1)
+        )
+        .sheet(isPresented: $showActivationSheet) {
+            activationConfirmSheet(draft)
+        }
+    }
+
+    /// 轻确认弹层：只校对标题与目标日期，不做项目管理表单（方案 §13.1）。
+    private func activationConfirmSheet(_ draft: HoloContextPlanDraft) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(localized: "加入「进行中的事」"))
+                        .font(.headline)
+                    Text(String(localized: "Holo 会持续记住这件事的进展，你随时可以在里面继续讨论。"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(localized: "这件事叫什么"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    TextField(String(localized: "事项名称"), text: $activationTitle)
+                        .font(.subheadline.weight(.medium))
+                        .padding(11)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(.tertiarySystemGroupedBackground))
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(localized: "大概什么时候"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    if let date = activationTargetDate {
+                        HStack {
+                            Text(Self.dateText(date))
+                                .font(.subheadline)
+                            Spacer()
+                            Button(String(localized: "还不确定")) {
+                                activationTargetDate = nil
+                            }
+                            .font(.caption)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.holoPrimary)
+                        }
+                        .padding(11)
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemGroupedBackground)))
+                    } else {
+                        HStack {
+                            Text(String(localized: "还不确定，先不填"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            DatePicker("", selection: Binding(
+                                get: { activationTargetDate ?? Date().addingTimeInterval(86_400) },
+                                set: { activationTargetDate = $0 }
+                            ), displayedComponents: .date)
+                            .labelsHidden()
+                        }
+                        .padding(11)
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemGroupedBackground)))
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    startActivation(draft: draft, existingMatterID: activationExistingMatterID)
+                } label: {
+                    if activationInFlight {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                    } else {
+                        Text(String(localized: "确认开始整理"))
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                    }
+                }
+                .buttonStyle(.plain)
+                .background(Color.holoPrimary)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .disabled(activationInFlight || activationTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                Button {
+                    showActivationSheet = false
+                } label: {
+                    Text(String(localized: "先不整理"))
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Color(.tertiarySystemGroupedBackground))
+                        .foregroundStyle(.secondary)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(18)
+            .presentationDetents([.medium])
+        }
+    }
+
+    /// 已激活回执条（§13.1：原位显示，可进入详情）。
+    private func activationDoneStrip(_ matterID: UUID) -> some View {
+        HStack {
+            Label(String(localized: "已加入「进行中的事」"), systemImage: "checkmark.circle.fill")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.green)
+            Spacer()
+            Button {
+                onOpenMatter?(matterID)
+            } label: {
+                HStack(spacing: 2) {
+                    Text(String(localized: "查看"))
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.green.opacity(0.08))
+        )
+    }
+
+    private func refreshMatterPreparation(for draft: HoloContextPlanDraft) {
+        guard HoloMatterRolloutPolicy.activationEnabled else { return }
+        let coordinator = HoloMatterActivationCoordinator()
+        matterPreparation = coordinator.prepare(
+            contextPlanMessageID: messageID,
+            draft: draft
+        )
+    }
+
+    private func startActivation(draft: HoloContextPlanDraft, existingMatterID: UUID?) {
+        activationInFlight = true
+        activationErrorText = nil
+        let title = activationTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let date = activationTargetDate
+        let userMessage = userMessageID
+        Task { @MainActor in
+            defer { activationInFlight = false }
+            do {
+                let coordinator = HoloMatterActivationCoordinator()
+                let receipt = try await coordinator.confirm(
+                    contextPlanMessageID: messageID,
+                    userMessageID: userMessage,
+                    draft: draft,
+                    confirmedTitle: title,
+                    confirmedTargetDate: date,
+                    existingMatterID: existingMatterID
+                )
+                showActivationSheet = false
+                matterPreparation = .alreadyActivated(matterID: receipt.matterID)
+            } catch {
+                activationErrorText = String(localized: "没有整理成功，可以再试一次")
+            }
+        }
+    }
+
+    nonisolated private static func dateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日"
+        return formatter.string(from: date)
     }
 
     private func save(_ draft: HoloContextPlanDraft) {

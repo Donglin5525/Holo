@@ -54,6 +54,8 @@ struct ChatView: View {
     @Binding var goalPlanningRequest: GoalPlanningRequest?
     /// 跨模块洞察直达（首页胶囊 / 系统通知）：消费 .memoryInsight 深链
     @ObservedObject private var deepLinkState = DeepLinkState.shared
+    /// Matter「进行中的事」对话上下文（详情页进入 / 胶囊退出）
+    @ObservedObject var matterChatStore = MatterChatContextStore.shared
 
     // MARK: 页内双 Tab（对话 / 报告）——设计文档 §4.1
 
@@ -102,6 +104,17 @@ struct ChatView: View {
             VStack(spacing: 0) {
                 // 顶部导航栏
                 chatNavBar
+
+                // Matter 上下文胶囊（方案 §13.5）：可退出，退出后不再自动关联
+                if let matterContext = matterChatStore.active {
+                    matterContextPill(matterContext)
+                }
+                if let feedback = matterChatStore.lastFeedback {
+                    matterFeedbackToast(feedback)
+                }
+                if let ambiguity = matterChatStore.pendingAmbiguity {
+                    matterAmbiguityBar(ambiguity)
+                }
 
                 if !consent.isGranted {
                     // 未开启 AI 数据处理授权：首屏给出准确引导，避免误导性的「服务不可用」
@@ -778,6 +791,9 @@ struct ChatView: View {
                         onGoalDraftCardTap: {
                             viewModel.showGoalDraftReview = true
                         },
+                        onOpenMatter: { matterID in
+                            activeSheet = .matterDetail(matterID)
+                        },
                         onSavedGoalCardTap: { goalId in
                             DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
                         },
@@ -1341,6 +1357,11 @@ struct ChatView: View {
             }
         case .analysisDetail(let message):
             AnalysisDetailSheet(message: message)
+        case .matterDetail(let matterID):
+            MatterDetailView(matterID: matterID) { discussID in
+                activeSheet = nil
+                matterChatStore.enter(matterID: discussID, source: .matterDetail)
+            }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .chat)) { transcript in
                 pendingVoiceTranscriptToSend = transcript
@@ -1380,6 +1401,8 @@ private enum ChatSheet: Identifiable {
     case editTransaction(Transaction)
     case analysisDetail(ChatMessageViewData)
     case voiceInput
+    /// Matter「进行中的事」详情（内部路由，不占 Tab）
+    case matterDetail(UUID)
 
     var id: String {
         switch self {
@@ -1393,6 +1416,8 @@ private enum ChatSheet: Identifiable {
             return "editTransaction-\(transaction.id)"
         case .analysisDetail(let message):
             return "analysisDetail-\(message.id)"
+        case .matterDetail(let id):
+            return "matterDetail-\(id)"
         case .voiceInput:
             return "voiceInput"
         }
