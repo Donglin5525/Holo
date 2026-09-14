@@ -689,13 +689,16 @@ struct TaskListView: View {
         .shadow(color: Color.holoPrimary.opacity(0.32), radius: 14, x: 0, y: 6)
     }
 
-    /// 庆祝卡副行：有次日任务时预告明天，给一天画上句点
+    /// 庆祝卡副行：有次日任务时预告明天；其余时段用不绑定时间的普适句（深夜除外，改致意休息）
     private func celebrateSubtitle(total: Int) -> String {
         let tomorrowCount = tasks.filter { $0.isDueTomorrow && !$0.completed }.count
         if tomorrowCount > 0 {
             return String(localized: "共 \(total) 项全部清零 · 明天还有 \(tomorrowCount) 项等着你")
         }
-        return String(localized: "共 \(total) 项任务全部清零 · 享受你的夜晚吧")
+        if DayPeriod.current() == .lateNight {
+            return String(localized: "共 \(total) 项任务全部清零 · 夜深了，早点休息")
+        }
+        return String(localized: "共 \(total) 项任务全部清零 · 今天剩下的时间都是你的")
     }
 
     // MARK: - 筛选器

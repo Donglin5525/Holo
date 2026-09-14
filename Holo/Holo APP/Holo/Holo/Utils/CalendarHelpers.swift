@@ -103,3 +103,36 @@ struct CalendarDateFormatter {
         else { return String(format: "%.0fk", v / 1000) }
     }
 }
+
+// MARK: - 时段划分
+
+/// 一天四段的唯一口径：问候语、任务清零庆祝卡等「按时段说话」的文案都从这里取时段，边界调整只改这一处
+nonisolated enum DayPeriod {
+    case lateNight
+    case morning
+    case afternoon
+    case evening
+
+    static func forHour(_ hour: Int) -> DayPeriod {
+        switch hour {
+        case 0..<6: return .lateNight
+        case 6..<12: return .morning
+        case 12..<18: return .afternoon
+        default: return .evening
+        }
+    }
+
+    static func current(now: Date = Date()) -> DayPeriod {
+        forHour(Calendar.current.component(.hour, from: now))
+    }
+
+    /// 问候用词
+    var greetingWord: String {
+        switch self {
+        case .lateNight: return String(localized: "夜深了")
+        case .morning: return String(localized: "早上好")
+        case .afternoon: return String(localized: "下午好")
+        case .evening: return String(localized: "晚上好")
+        }
+    }
+}

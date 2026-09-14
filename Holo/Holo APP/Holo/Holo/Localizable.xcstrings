@@ -15491,18 +15491,34 @@
         }
       }
     },
-    "共 %lld 项任务全部清零 · 享受你的夜晚吧": {
+    "共 %lld 项任务全部清零 · 今天剩下的时间都是你的": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "All %lld tasks cleared · Enjoy your evening"
+            "value": "All %lld tasks cleared · The rest of today is yours"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "共 %lld 項任務全部清零 · 享受你的夜晚吧"
+            "value": "共 %lld 項任務全部清零 · 今天剩下的時間都是你的"
+          }
+        }
+      }
+    },
+    "共 %lld 项任务全部清零 · 夜深了，早点休息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All %lld tasks cleared · It's late, get some rest"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共 %lld 項任務全部清零 · 夜深了，早點休息"
           }
         }
       }

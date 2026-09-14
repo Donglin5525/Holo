@@ -73,15 +73,9 @@ struct UserDisplayNameSettings {
     }
 
     /// 统一问候语组装：时段问候 + 称呼。
-    /// 没设置过昵称时省略称呼（「下午好」而不是「下午好，你」），首页与看板页共用。
+    /// 没设置过昵称时省略称呼（「下午好」而不是「下午好，你」），首页与看板页共用；时段边界统一走 DayPeriod。
     static func greetingText(hour: Int, rawName: String?) -> String {
-        let hourPart: String
-        switch hour {
-        case 0..<6: hourPart = String(localized: "夜深了")
-        case 6..<12: hourPart = String(localized: "早上好")
-        case 12..<18: hourPart = String(localized: "下午好")
-        default: hourPart = String(localized: "晚上好")
-        }
+        let hourPart = DayPeriod.forHour(hour).greetingWord
         guard let name = normalizedDisplayName(rawName), name != fallbackDisplayName else {
             return hourPart
         }
