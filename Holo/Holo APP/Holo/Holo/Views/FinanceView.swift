@@ -178,7 +178,12 @@ struct FinanceView: View {
             }
         }
         .sheet(isPresented: $showAddTransaction) {
-            AddTransactionSheet(editingTransaction: nil) { _ in
+            // 账本页正在看哪天就预填哪天（选中昨天即记昨天）；
+            // 账户页无日期语境，保持默认今天，避免把残留选中日带进新账
+            AddTransactionSheet(
+                editingTransaction: nil,
+                presetDate: selectedTab == .ledger ? calendarState.selectedDate : nil
+            ) { _ in
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
             // 通宵冲刺 D8 起点：高频表单弹层宽度政策（iPad 定宽 560 居中；iPhone 全宽不变）
