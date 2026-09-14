@@ -81,7 +81,7 @@ enum HoloWidgetHabitTodoSnapshotWriter {
         // 末尾带一条今日已完成的划线样本，桌面能看到「今天推进了什么」
         let completedToday = TodoCompletionCore.fetchActiveTasks(in: context)
             .filter { $0.completed && $0.isDueToday }
-            .max { ($0.updatedAt ?? .distantPast) < ($1.updatedAt ?? .distantPast) }
+            .max { $0.updatedAt < $1.updatedAt }
 
         var items = pending.prefix(5).map { task in
             HoloWidgetTodoItem(

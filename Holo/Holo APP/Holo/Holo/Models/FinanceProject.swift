@@ -64,9 +64,6 @@ public class FinanceProject: NSManagedObject {
     }
 }
 
-// MARK: - Concurrency
-extension FinanceProject: @unchecked Sendable {}
-
 // MARK: - Identifiable
 /// 用于 SwiftUI sheet(item:) 等
 extension FinanceProject: Identifiable {}

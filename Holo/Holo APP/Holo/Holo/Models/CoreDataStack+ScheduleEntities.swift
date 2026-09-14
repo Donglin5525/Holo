@@ -8,7 +8,7 @@
 
 import CoreData
 
-extension CoreDataStack {
+nonisolated extension CoreDataStack {
 
     /// 创建日程同步相关实体
     static func createScheduleEntities() -> [NSEntityDescription] {

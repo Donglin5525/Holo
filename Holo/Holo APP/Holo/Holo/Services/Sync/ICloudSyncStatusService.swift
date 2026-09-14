@@ -211,7 +211,7 @@ final class ICloudSyncStatusService: ObservableObject {
         probeFeedbackTimeoutTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.probeFeedbackTimeout))
             guard !Task.isCancelled else { return }
-            await self?.finishProbeFeedback(timedOut: true)
+            self?.finishProbeFeedback(timedOut: true)
         }
     }
 

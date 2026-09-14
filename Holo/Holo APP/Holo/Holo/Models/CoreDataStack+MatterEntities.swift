@@ -12,7 +12,7 @@
 
 import CoreData
 
-extension CoreDataStack {
+nonisolated extension CoreDataStack {
 
     nonisolated func createMatterEntities() -> [NSEntityDescription] {
         let matter = makeMatterEntity()
@@ -30,6 +30,7 @@ extension CoreDataStack {
         entity.managedObjectClassName = "HoloMatter"
 
         var attributes: [NSAttributeDescription] = []
+        @discardableResult
         func attr(_ name: String, _ type: NSAttributeType, optional: Bool, default value: Any? = nil) -> NSAttributeDescription {
             let a = NSAttributeDescription()
             a.name = name
@@ -76,6 +77,7 @@ extension CoreDataStack {
         entity.managedObjectClassName = "HoloMatterOpenLoop"
 
         var attributes: [NSAttributeDescription] = []
+        @discardableResult
         func attr(_ name: String, _ type: NSAttributeType, optional: Bool, default value: Any? = nil) -> NSAttributeDescription {
             let a = NSAttributeDescription()
             a.name = name
@@ -121,6 +123,7 @@ extension CoreDataStack {
         entity.managedObjectClassName = "HoloMatterLink"
 
         var attributes: [NSAttributeDescription] = []
+        @discardableResult
         func attr(_ name: String, _ type: NSAttributeType, optional: Bool, default value: Any? = nil) -> NSAttributeDescription {
             let a = NSAttributeDescription()
             a.name = name
@@ -164,6 +167,7 @@ extension CoreDataStack {
         entity.managedObjectClassName = "HoloMatterEvent"
 
         var attributes: [NSAttributeDescription] = []
+        @discardableResult
         func attr(_ name: String, _ type: NSAttributeType, optional: Bool, default value: Any? = nil) -> NSAttributeDescription {
             let a = NSAttributeDescription()
             a.name = name

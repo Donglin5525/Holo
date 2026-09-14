@@ -91,8 +91,9 @@ class HabitRepository: ObservableObject {
             object: CoreDataStack.shared.persistentContainer.persistentStoreCoordinator,
             queue: nil
         ) { [weak self] _ in
+            guard let self else { return }
             Task { @MainActor in
-                self?.scheduleRemoteChangeRefresh()
+                self.scheduleRemoteChangeRefresh()
             }
         }
     }

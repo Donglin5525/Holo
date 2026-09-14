@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(CheckItem)
-class CheckItem: NSManagedObject, @unchecked Sendable {
+class CheckItem: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<CheckItem> {
         NSFetchRequest<CheckItem>(entityName: "CheckItem")
     }
