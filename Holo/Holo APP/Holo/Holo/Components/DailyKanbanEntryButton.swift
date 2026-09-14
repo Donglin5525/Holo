@@ -200,7 +200,7 @@ struct DailyKanbanEntryButton: View {
             }
             let agendaCount = snapshot.agenda.count
             if agendaCount > 0 {
-                return String(localized: "今天有 \(agendaCount) 项安排")
+                return String(localized: "今天有\(agendaCount)项安排")
             }
             if snapshot.primaryFocus != nil {
                 return String(localized: "1 件事值得推进")
@@ -233,6 +233,15 @@ struct DailyKanbanEntryButton: View {
                 .stroke(Color.white.opacity(opacity), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .frame(width: size, height: size)
                 .rotationEffect(.degrees(-90))
+
+            // 末端光点
+            let tipAngle = (-90 + progress * 360) * .pi / 180
+            let tipRadius = size / 2
+            Circle()
+                .fill(Color.white.opacity(opacity))
+                .frame(width: lineWidth + 2, height: lineWidth + 2)
+                .blur(radius: 1)
+                .offset(x: tipRadius * cos(tipAngle), y: tipRadius * sin(tipAngle))
         }
         .rotationEffect(.degrees(rotation))
     }
