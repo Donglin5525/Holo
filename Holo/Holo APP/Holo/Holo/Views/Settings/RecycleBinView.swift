@@ -47,7 +47,7 @@ struct RecycleBinView: View {
             .navigationTitle("最近删除")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
                 }
                 ToolbarItem(placement: .destructiveAction) {

@@ -18,10 +18,10 @@ struct UnsavedChangesAlert: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert("放弃修改？", isPresented: $isPresented) {
+                Button("继续编辑", role: .cancel) {}
                 Button("放弃", role: .destructive) {
                     onConfirmDismiss()
                 }
-                Button("继续编辑", role: .cancel) {}
             } message: {
                 Text(message)
             }

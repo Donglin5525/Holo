@@ -146,10 +146,10 @@ struct SettingsView: View {
             await storageService.calculateCacheSize()
         }
         .alert("退出 Apple 登录？", isPresented: $showSignOutConfirmation) {
+            Button("取消", role: .cancel) {}
             Button("退出登录", role: .destructive) {
                 authService.signOut()
             }
-            Button("取消", role: .cancel) {}
         } message: {
             Text("退出登录只会清除 Holo 的本地登录状态，不会删除本机数据，也不会删除 iCloud 云端数据。")
         }
@@ -163,8 +163,8 @@ struct SettingsView: View {
         }
         .alert("怎么称呼你", isPresented: $showNicknameEditor) {
             TextField("昵称", text: $nicknameDraft)
-            Button("保存") { saveNickname() }
             Button("取消", role: .cancel) {}
+            Button("保存") { saveNickname() }
         } message: {
             Text("保存后随 iCloud 同步，卸载重装也能找回来")
         }

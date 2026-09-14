@@ -164,7 +164,7 @@ struct ThoughtEditorView: View {
             // 工具栏是编辑器卡片的一部分（见 contentSection 底部的 EditorFormatToolbar），
             // 不需要 SwiftUI 层 safeAreaInset，也不依赖键盘附属条。
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: dismiss.callAsFunction) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 17, weight: .semibold))
@@ -259,12 +259,12 @@ struct ThoughtEditorView: View {
             scheduleAutoSave()
         }
         .alert("无法访问", isPresented: $showCameraPermissionAlert) {
+            Button("取消", role: .cancel) {}
             Button("去设置") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            Button("取消", role: .cancel) {}
         } message: {
             Text(String(localized: "请在系统设置中允许 Holo 访问相机"))
         }

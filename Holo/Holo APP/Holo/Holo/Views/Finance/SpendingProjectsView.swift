@@ -195,7 +195,7 @@ struct SpendingProjectDetailView: View {
         .toolbarBackground(Color.holoBackground, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("完成") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             ToolbarItem(placement: .destructiveAction) { Button(role: .destructive) { showDeleteConfirmation = true } label: { Image(systemName: "trash") } }
         }
         .confirmationDialog(project.isRecurring ? String(localized: "删除这个固定支出项目？已生成的账本流水会保留。") : String(localized: "删除这个一次性购买项目？"), isPresented: $showDeleteConfirmation, titleVisibility: .visible) {

@@ -35,7 +35,7 @@ struct DataManagementView: View {
             .navigationTitle("数据管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
                 }
             }

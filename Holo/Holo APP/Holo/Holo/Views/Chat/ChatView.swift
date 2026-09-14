@@ -261,10 +261,10 @@ struct ChatView: View {
             "需要开启 AI 数据处理授权",
             isPresented: $viewModel.showConsentPrompt
         ) {
+            Button("取消", role: .cancel) {}
             Button("去开启") {
                 activeSheet = .aiConsent
             }
-            Button("取消", role: .cancel) {}
         } message: {
             Text(HoloAIDataProcessingConsent.requiredMessage)
         }

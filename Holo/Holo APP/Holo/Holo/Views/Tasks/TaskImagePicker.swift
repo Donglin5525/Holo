@@ -57,12 +57,12 @@ struct TaskImagePicker: View {
                 })
             }
             .alert("无法访问", isPresented: $showPermissionAlert) {
+                Button("取消", role: .cancel) {}
                 Button("去设置") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                 }
-                Button("取消", role: .cancel) {}
             } message: {
                 Text(permissionMessage)
             }

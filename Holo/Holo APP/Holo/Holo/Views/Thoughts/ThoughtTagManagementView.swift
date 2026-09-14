@@ -80,14 +80,14 @@ struct ThoughtTagManagementView: View {
             .onAppear { loadData() }
             .alert("重命名标签", isPresented: renameBinding) {
                 TextField("新标签名", text: $renameText)
-                Button("确认") { applyRename() }
                 Button("取消", role: .cancel) { renameTarget = nil }
+                Button("确认") { applyRename() }
             } message: {
                 Text("把 #\(ThoughtTagNormalizer.displayName(renameTarget ?? "")) 改名为（与已有标签同名即为合并）")
             }
             .alert("删除标签", isPresented: deleteBinding) {
-                Button("删除", role: .destructive) { applyDelete() }
                 Button("取消", role: .cancel) { deleteTarget = nil }
+                Button("删除", role: .destructive) { applyDelete() }
             } message: {
                 Text("将影响 \(deleteAffectedCount) 条想法的标签关联；原文与手动标签不受影响，AI 也不会立即再建回。")
             }

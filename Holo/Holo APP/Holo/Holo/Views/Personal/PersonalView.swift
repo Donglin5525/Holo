@@ -101,8 +101,8 @@ struct PersonalView: View {
             }
             .alert("怎么称呼你", isPresented: $showNicknameEditor) {
                 TextField("昵称", text: $nicknameDraft)
-                Button("保存") { saveNickname() }
                 Button("取消", role: .cancel) {}
+                Button("保存") { saveNickname() }
             } message: {
                 Text("保存后随 iCloud 同步，卸载重装也能找回来")
             }

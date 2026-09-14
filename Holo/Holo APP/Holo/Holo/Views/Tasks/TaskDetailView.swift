@@ -1110,12 +1110,12 @@ struct TaskDetailView: View {
             Button("取消", role: .cancel) {}
         }
         .alert("无法访问", isPresented: $showCameraPermissionAlert) {
+            Button("取消", role: .cancel) {}
             Button("去设置") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            Button("取消", role: .cancel) {}
         } message: {
             Text(String(localized: "请在系统设置中允许 Holo 访问相机"))
         }

@@ -93,13 +93,13 @@ struct CategoryManagementView: View {
             Text(errorMessage ?? "")
         }
         .alert("确认删除", isPresented: $showDeleteConfirmation) {
+            Button("取消", role: .cancel) {
+                categoryToDelete = nil
+            }
             Button("删除", role: .destructive) {
                 if let cat = categoryToDelete {
                     confirmDelete(cat)
                 }
-                categoryToDelete = nil
-            }
-            Button("取消", role: .cancel) {
                 categoryToDelete = nil
             }
         } message: {
@@ -311,13 +311,13 @@ struct CategoryManagementView: View {
             }
         }
         .alert("确认删除", isPresented: $showDeleteConfirmation) {
+            Button("取消", role: .cancel) {
+                categoryToDelete = nil
+            }
             Button("删除", role: .destructive) {
                 if let cat = categoryToDelete {
                     confirmDelete(cat)
                 }
-                categoryToDelete = nil
-            }
-            Button("取消", role: .cancel) {
                 categoryToDelete = nil
             }
         } message: {
