@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今天 · 光球方案 — 真实 iPhone 尺寸预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #241C15; color: #EFE7DC;
+    font-family: "PingFang SC", -apple-system, sans-serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    gap: 44px; padding: 32px 20px; flex-wrap: wrap;
+  }
+  .iphone {
+    width: 393px; height: 852px; flex: none;
+    background: #FAF5F0; border-radius: 54px;
+    border: 10px solid #14100B;
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,.75);
+    overflow: hidden; position: relative; transform-origin: top center;
+  }
+  @media (max-height: 960px) { .iphone { transform: scale(.86); } }
+  @media (max-height: 860px) { .iphone { transform: scale(.76); } }
+  @media (max-height: 760px) { .iphone { transform: scale(.66); } }
+  .statusbar { display: flex; justify-content: space-between; padding: 16px 30px 0; color: #3D2B1F; font-size: 15px; font-weight: 600; }
+  .greeting { padding: 30px 30px 0; }
+  .greeting .holo { font-size: 13px; color: #B49B85; letter-spacing: 1px; }
+  .greeting .hello { font-size: 22px; font-weight: 600; color: #3D2B1F; margin-top: 4px; }
+  .taskchip { margin: 24px auto 0; width: fit-content; background: rgba(255,255,255,.75); border-radius: 999px; padding: 7px 16px; font-size: 12.5px; color: #6B5D4F; box-shadow: 0 4px 14px -8px rgba(234,88,12,.3); }
+  .taskchip i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #F5A623; margin-right: 6px; }
+  .orbzone { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); width: 192px; height: 192px; }
+  .orbzone svg { width: 192px; height: 192px; display: block; }
+  .feat { position: absolute; width: 56px; text-align: center; }
+  .feat .ic { width: 50px; height: 50px; border-radius: 15px; margin: 0 auto; background: #F3EDE5; box-shadow: 0 6px 16px -8px rgba(120,80,40,.25); display: flex; align-items: center; justify-content: center; font-size: 21px; }
+  .feat .lb { font-size: 11.5px; color: #6B5D4F; margin-top: 6px; }
+  .f-top  { left: 50%; top: 23%; transform: translateX(-50%); }
+  .f-l1   { left: 16px;  top: 34%; }
+  .f-r1   { right: 16px; top: 34%; }
+  .f-l2   { left: 13%;  top: 60%; }
+  .f-r2   { right: 13%; top: 60%; }
+  .bottomnav { position: absolute; left: 20px; right: 20px; bottom: 24px; background: rgba(255,255,255,.88); border-radius: 26px; display: flex; justify-content: space-around; align-items: center; padding: 12px 8px; box-shadow: 0 8px 24px -12px rgba(120,80,40,.3); }
+  .bn { font-size: 11px; color: #8a7a6a; text-align: center; }
+  .bn .ic { font-size: 18px; display: block; margin-bottom: 2px; }
+  .bn.ai .ic { width: 46px; height: 46px; line-height: 46px; border-radius: 50%; background: linear-gradient(135deg, #FED7AA, #F46D38, #EA580C); color: #fff; font-size: 20px; margin: -24px auto 2px; box-shadow: 0 8px 18px -6px rgba(234,88,12,.5); }
+  .panel { width: 300px; }
+  .panel h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .panel .sub { font-size: 12.5px; color: #A08D79; line-height: 1.8; margin-bottom: 18px; }
+  .tabs { display: flex; flex-direction: column; gap: 9px; }
+  .tab { text-align: left; border: 1px solid rgba(239,231,220,.16); background: rgba(255,255,255,.04); color: #EFE7DC; border-radius: 14px; padding: 11px 14px; cursor: pointer; transition: border-color .15s; font-family: inherit; width: 100%; }
+  .tab:hover { border-color: rgba(244,109,56,.5); }
+  .tab.on { background: rgba(244,109,56,.16); border-color: #F46D38; }
+  .tab .t { font-size: 14px; font-weight: 600; }
+  .tab .d { font-size: 11.5px; color: #B8A897; margin-top: 3px; line-height: 1.65; }
+  .hint { margin-top: 14px; font-size: 11.5px; color: #8a7a6a; line-height: 1.8; }
+</style>
+</head>
+<body>
+  <div class="iphone">
+    <div class="statusbar"><span>14:28</span><span>4G ▸</span></div>
+    <div class="greeting"><div class="holo">Holo</div><div class="hello">下午好，东林</div></div>
+    <div class="taskchip"><i></i>有 24 个任务待完成</div>
+    <div class="feat f-top"><div class="ic">📋</div><div class="lb">财务</div></div>
+    <div class="feat f-l1"><div class="ic">💡</div><div class="lb">想法</div></div>
+    <div class="feat f-r1"><div class="ic">❤️</div><div class="lb">健康</div></div>
+    <div class="feat f-l2"><div class="ic">✅</div><div class="lb">任务</div></div>
+    <div class="feat f-r2"><div class="ic">◯</div><div class="lb">习惯</div></div>
+    <div class="orbzone" id="orbzone"></div>
+    <div class="bottomnav">
+      <div class="bn"><span class="ic">👤</span>个人</div>
+      <div class="bn ai"><span class="ic">✦</span></div>
+      <div class="bn"><span class="ic">📖</span>记忆长廊</div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>光球方案 · 真机比例</h2>
+    <p class="sub">左侧为 393×852 的 iPhone 屏幕，光球为真实 192pt 落位。点方案切换。</p>
+    <div class="tabs">
+      <button class="tab on" data-k="su4" onclick="pick(this,'su4')"><div class="t">素四 · 本色（保底）</div><div class="d">品牌色零改动，环与文字调素。随时可落地。</div></button>
+      <button class="tab" data-k="cx1" onclick="pick(this,'cx1')"><div class="t">创新一 · 月相钟</div><div class="d">亮暗=今天的时间进度，16 秒一天快进。文字真机版锚定亮暗交界线。</div></button>
+      <button class="tab" data-k="cx2" onclick="pick(this,'cx2')"><div class="t">创新二 · 行星与卫星</div><div class="d">3 项安排=3 颗卫星，完成即点亮（演示循环点亮一颗）。</div></button>
+      <button class="tab" data-k="cx3" onclick="pick(this,'cx3')"><div class="t">创新三 · 天气球</div><div class="d">球面即天空，云纹按当日状态飘移。演示晴间多云。</div></button>
+      <button class="tab" data-k="cx4" onclick="pick(this,'cx4')"><div class="t">创新四 · 显影文字</div><div class="d">平时零文字，触碰浮现涟漪沉浮（7 秒循环）。适合作彩蛋叠加。</div></button>
+    </div>
+    <p class="hint">五角形按钮与问候语为占位示意；光球即真机尺寸与落位。方向定了先出动态设计定稿，再落 Swift 真机。</p>
+  </div>
+<script>
+  const ORBS = {"su4": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 192 192\"
+  <!-- ══════════ 素四 · 本色 ══════════
+       品牌色零改动：球体渐变与现网完全一致（#FED7AA→#F46D38→#EA580C）。
+       「素」只做在环与文字上：环线细化降调、高光收敛、去全部装饰——气质安静，品牌不动。
+       文字几何沿用已验证约束（弧 r=72、字号 10.5、净空 8pt）。
+  -->
+  <defs>
+    <linearGradient id=\"brandBall\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+      <stop offset=\"0%\" stop-color=\"#FED7AA\"/>
+      <stop offset=\"52%\" stop-color=\"#F46D38\"/>
+      <stop offset=\"100%\" stop-color=\"#EA580C\"/>
+    </linearGradient>
+    <radialGradient id=\"softCore\" cx=\"0.5\" cy=\"0.5\" r=\"0.5\">
+      <stop offset=\"0%\" stop-color=\"rgba(255,255,255,.65)\"/>
+      <stop offset=\"100%\" stop-color=\"rgba(255,255,255,0)\"/>
+    </radialGradient>
+    <path id=\"arcSu4\" d=\"M 49.7 151.2 A 72 72 0 0 0 142.3 151.2\" fill=\"none\"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+  </style>
+
+  <!-- 球体：品牌渐变原样，仅高光从 0.4/0.8 收敛为 0.16/0.5（哑光一档，不改色） -->
+  <circle cx=\"96\" cy=\"96\" r=\"88\" fill=\"url(#brandBall)\"/>
+
+  <!-- 三环：线宽减半、白弧降调（0.92→0.55/0.38/0.26），滚动不变、噪声大降 -->
+  <g class=\"s1\">
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"3.5\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.55)\" stroke-width=\"3.5\"
+            stroke-linecap=\"round\" stroke-dasharray=\"202.6 326.7\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s2\">
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.07)\" stroke-width=\"2.8\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.38)\" stroke-width=\"2.8\"
+            stroke-linecap=\"round\" stroke-dasharray=\"105.8 235.6\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s3\">
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.06)\" stroke-width=\"2.2\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.26)\" stroke-width=\"2.2\"
+            stroke-linecap=\"round\" stroke-dasharray=\"123.2 154\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+
+  <!-- 中心呼吸光点：原版元素保留，节奏放缓 -->
+  <circle class=\"core\" cx=\"96\" cy=\"96\" r=\"10\" fill=\"url(#softCore)\"/>
+
+  <!-- 铭文：白度 0.94→0.88，安静一档 -->
+  <text font-size=\"10.5\" fill=\"rgba(255,255,255,.88)\" letter-spacing=\"3\"
+        font-family=\"PingFang SC, sans-serif\" font-weight=\"400\">
+    <textPath href=\"#arcSu4\" startOffset=\"50%\" text-anchor=\"middle\">今天有3项安排</textPath>
+  </text>
+</svg>", "cx1": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 192 192\"
+  <!-- ══════════ 创新一 · 月相钟 ══════════
+       球体的亮暗 = 今天的时间进度。演示为「一天快进」循环（真机上由真实时刻驱动）：
+       清晨细亮 → 正午全亮 → 傍晚半亮 → 深夜近暗 → 回到清晨。
+       演示循环 16s = 一天；文字沿下弧常驻（真机版将锚定亮暗交界弧，位置随时刻变化）。
+       三环保留任务/习惯/总进度语义（品牌色渐变亮面 + 深暖褐暗面）。
+  -->
+  <defs>
+    <!-- 亮面：品牌渐变 -->
+    <linearGradient id=\"dayLit\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+      <stop offset=\"0%\" stop-color=\"#FED7AA\"/>
+      <stop offset=\"52%\" stop-color=\"#F46D38\"/>
+      <stop offset=\"100%\" stop-color=\"#EA580C\"/>
+    </linearGradient>
+    <!-- 暗面：深暖褐（未照亮的一面） -->
+    <linearGradient id=\"dayDark\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+      <stop offset=\"0%\" stop-color=\"#6E3A16\"/>
+      <stop offset=\"100%\" stop-color=\"#4A2408\"/>
+    </linearGradient>
+    <!-- 亮暗交界的微光 -->
+    <radialGradient id=\"terminatorGlow\" cx=\"0.5\" cy=\"0.5\" r=\"0.5\">
+      <stop offset=\"0%\" stop-color=\"rgba(255,214,170,.5)\"/>
+      <stop offset=\"100%\" stop-color=\"rgba(255,214,170,0)\"/>
+    </radialGradient>
+    <clipPath id=\"ballClip\"><circle cx=\"96\" cy=\"96\" r=\"88\"/></clipPath>
+    <path id=\"arcCx1\" d=\"M 49.7 151.2 A 72 72 0 0 0 142.3 151.2\" fill=\"none\"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 一天快进：暗面圆从右缘扫入（晨）→ 居中（暮）→ 左缘退出（正午）→ 循环
+       x 偏移 0→192 往返；暗面半径同步变化让明暗过渡柔和 */
+    .darkSide { animation: daycycle 16s ease-in-out infinite; }
+    @keyframes daycycle {
+      0%   { transform: translateX(132px); }   /* 清晨：细亮月牙在左 */
+      25%  { transform: translateX(0px);  }    /* 正午：全亮 */
+      50%  { transform: translateX(-60px); }   /* 午后：暗面从左侧进入 */
+      62%  { transform: translateX(-32px); opacity: .96; } /* 傍晚：半暗 */
+      80%  { transform: translateX(88px); }    /* 夜：暗面盖大半 */
+      100% { transform: translateX(132px); }   /* 回到清晨 */
+    }
+    .glowline { animation: glowmove 16s ease-in-out infinite; }
+    @keyframes glowmove {
+      0%, 50%, 100% { opacity: 0; }
+      56%, 68% { opacity: .8; }
+    }
+  </style>
+
+  <!-- 球底：暗面（未照亮侧） -->
+  <circle cx=\"96\" cy=\"96\" r=\"88\" fill=\"url(#dayDark)\"/>
+
+  <!-- 亮面：品牌渐变，被暗面圆扫过 -->
+  <g clip-path=\"url(#ballClip)\">
+    <circle cx=\"96\" cy=\"96\" r=\"88\" fill=\"url(#dayLit)\"/>
+    <!-- 暗面圆：在球上滑动（演示一天） -->
+    <circle class=\"darkSide\" cx=\"96\" cy=\"96\" r=\"92\" fill=\"url(#dayDark)\" opacity=\".94\"/>
+  </g>
+
+  <!-- 亮暗交界微光（晨昏线提示） -->
+  <ellipse class=\"glowline\" cx=\"96\" cy=\"96\" rx=\"10\" ry=\"86\" fill=\"url(#terminatorGlow)\"/>
+
+  <!-- 三环：任务/习惯/总进度（亮弧在暗面上也可读） -->
+  <g class=\"s1\">
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.10)\" stroke-width=\"3.5\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,246,238,.62)\" stroke-width=\"3.5\"
+            stroke-linecap=\"round\" stroke-dasharray=\"202.6 326.7\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s2\">
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.09)\" stroke-width=\"2.8\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,246,238,.45)\" stroke-width=\"2.8\"
+            stroke-linecap=\"round\" stroke-dasharray=\"105.8 235.6\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s3\">
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.2\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,246,238,.32)\" stroke-width=\"2.2\"
+            stroke-linecap=\"round\" stroke-dasharray=\"123.2 154\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+
+  <!-- 中心呼吸光点（现在是「今天的太阳」） -->
+  <circle cx=\"96\" cy=\"96\" r=\"10\" fill=\"rgba(255,236,210,.35)\"/>
+  <circle cx=\"96\" cy=\"96\" r=\"5.5\" fill=\"rgba(255,240,220,.92)\"/>
+
+  <!-- 铭文：真机版将沿亮暗交界弧动态定位；演示稿沿下弧常驻 -->
+  <text font-size=\"10.5\" fill=\"rgba(255,248,240,.9)\" letter-spacing=\"3\"
+        font-family=\"PingFang SC, sans-serif\" font-weight=\"400\">
+    <textPath href=\"#arcCx1\" startOffset=\"50%\" text-anchor=\"middle\">今天有3项安排</textPath>
+  </text>
+</svg>", "cx2": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 192 192\"
+  <!-- ══════════ 创新二 · 行星与卫星 ══════════
+       进度=轨道上的卫星：今天 3 项安排=外轨道 3 颗卫星（已亮 1、待办 2）。
+       完成一件事：暗卫星点亮并沿轨道滑行。演示里 1 颗暗卫星周期性点亮（演示「完成瞬间」）。
+       球体=行星（本色品牌渐变），文字=环上铭文。
+  -->
+  <defs>
+    <linearGradient id=\"planet\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+      <stop offset=\"0%\" stop-color=\"#FED7AA\"/>
+      <stop offset=\"52%\" stop-color=\"#F46D38\"/>
+      <stop offset=\"100%\" stop-color=\"#EA580C\"/>
+    </linearGradient>
+    <radialGradient id=\"satGlow\" cx=\"0.5\" cy=\"0.5\" r=\"0.5\">
+      <stop offset=\"0%\" stop-color=\"rgba(255,255,255,.9)\"/>
+      <stop offset=\"100%\" stop-color=\"rgba(255,255,255,0)\"/>
+    </radialGradient>
+    <path id=\"arcCx2\" d=\"M 49.7 151.2 A 72 72 0 0 0 142.3 151.2\" fill=\"none\"/>
+  </defs>
+  <style>
+    .orbit1 { animation: rot 60s linear infinite; transform-origin: 96px 96px; }
+    .orbit2 { animation: rot 44s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 30s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 完成演示：暗卫星周期点亮（真机上由真实完成事件触发，常亮不熄） */
+    .ignite { animation: ignite 7s ease-in-out infinite; }
+    @keyframes ignite {
+      0%, 55% { fill: rgba(255,246,238,.28); r: 3; }
+      62%     { fill: #FFFFFF; r: 4.2; }
+      78%     { fill: #FFFFFF; r: 4.2; }
+      92%, 100% { fill: rgba(255,246,238,.28); r: 3; }
+    }
+    .igniteGlow { animation: igniteGlow 7s ease-in-out infinite; }
+    @keyframes igniteGlow {
+      0%, 55%, 92%, 100% { opacity: 0; }
+      66%, 76% { opacity: .8; }
+    }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+  </style>
+
+  <circle cx=\"96\" cy=\"96\" r=\"88\" fill=\"url(#planet)\"/>
+  <ellipse cx=\"72\" cy=\"50\" rx=\"44\" ry=\"27\" fill=\"rgba(255,255,255,.16)\"/>
+
+  <!-- 三轨道（细线） -->
+  <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.10)\" stroke-width=\"1.6\"/>
+  <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"1.3\"/>
+  <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.07)\" stroke-width=\"1.2\"/>
+
+  <!-- 外轨道卫星：2 颗已点亮（缓慢公转）+ 1 颗待办暗卫星（演示点亮） -->
+  <g class=\"orbit1\">
+    <circle cx=\"96\" cy=\"44\" r=\"4.4\" fill=\"#FFF8F0\"/>
+    <circle cx=\"96\" cy=\"44\" r=\"7\" fill=\"url(#satGlow)\" opacity=\".5\"/>
+    <circle cx=\"148\" cy=\"96\" r=\"4.4\" fill=\"#FFF8F0\"/>
+    <circle cx=\"148\" cy=\"96\" r=\"7\" fill=\"url(#satGlow)\" opacity=\".5\"/>
+    <!-- 待办暗卫星：空心，周期演示点亮 -->
+    <circle class=\"igniteGlow\" cx=\"96\" cy=\"148\" r=\"8\" fill=\"url(#satGlow)\"/>
+    <circle class=\"ignite\" cx=\"96\" cy=\"148\" r=\"3\" fill=\"rgba(255,246,238,.28)\" stroke=\"rgba(255,255,255,.55)\" stroke-width=\"1\"/>
+  </g>
+
+  <!-- 中轨道：习惯（星尘两粒示意） -->
+  <g class=\"orbit2\">
+    <circle cx=\"133.5\" cy=\"96\" r=\"2.2\" fill=\"rgba(255,246,238,.6)\"/>
+    <circle cx=\"58.5\" cy=\"96\" r=\"2.2\" fill=\"rgba(255,246,238,.45)\"/>
+  </g>
+
+  <!-- 内环：纯装饰刻线 -->
+  <g class=\"s3\">
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.14)\" stroke-width=\"1.2\"
+            stroke-dasharray=\"2 6\"/>
+  </g>
+
+  <!-- 中心呼吸 -->
+  <circle class=\"core\" cx=\"96\" cy=\"96\" r=\"10\" fill=\"rgba(255,236,210,.35)\"/>
+  <circle cx=\"96\" cy=\"96\" r=\"5\" fill=\"rgba(255,240,220,.9)\"/>
+
+  <!-- 环上铭文 -->
+  <text font-size=\"10.5\" fill=\"rgba(255,248,240,.9)\" letter-spacing=\"3\"
+        font-family=\"PingFang SC, sans-serif\" font-weight=\"400\">
+    <textPath href=\"#arcCx2\" startOffset=\"50%\" text-anchor=\"middle\">今天有3项安排</textPath>
+  </text>
+</svg>", "cx3": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 192 192\"
+  <!-- ══════════ 创新三 · 天气球 ══════════
+       球面即今天的天空。演示「有安排」的晴间多云态：几缕半透明云纹缓慢飘移。
+       （其余状态：无急事=通透无云；逾期=球缘薄雾。真机由当日状态驱动。）
+       文字嵌在球体下缘如地平线铭文。
+  -->
+  <defs>
+    <linearGradient id=\"skyBall\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+      <stop offset=\"0%\" stop-color=\"#FED7AA\"/>
+      <stop offset=\"52%\" stop-color=\"#F46D38\"/>
+      <stop offset=\"100%\" stop-color=\"#EA580C\"/>
+    </linearGradient>
+    <radialGradient id=\"cloudSoft\" cx=\"0.5\" cy=\"0.5\" r=\"0.5\">
+      <stop offset=\"0%\" stop-color=\"rgba(255,255,255,.5)\"/>
+      <stop offset=\"100%\" stop-color=\"rgba(255,255,255,0)\"/>
+    </radialGradient>
+    <clipPath id=\"skyClip\"><circle cx=\"96\" cy=\"96\" r=\"87\"/></clipPath>
+    <path id=\"arcCx3\" d=\"M 49.7 151.2 A 72 72 0 0 0 142.3 151.2\" fill=\"none\"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 云纹飘移：不同速度、不同深度 */
+    .cloudA { animation: drift 26s linear infinite; }
+    .cloudB { animation: drift 38s linear infinite reverse; }
+    .cloudC { animation: drift 20s linear infinite; }
+    @keyframes drift {
+      from { transform: translateX(-150px); }
+      to   { transform: translateX(150px); }
+    }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+  </style>
+
+  <circle cx=\"96\" cy=\"96\" r=\"88\" fill=\"url(#skyBall)\"/>
+
+  <!-- 云纹：柔和的光斑群，在球面内飘 -->
+  <g clip-path=\"url(#skyClip)\" opacity=\".85\">
+    <g class=\"cloudA\">
+      <ellipse cx=\"40\" cy=\"70\" rx=\"26\" ry=\"9\" fill=\"url(#cloudSoft)\"/>
+      <ellipse cx=\"58\" cy=\"64\" rx=\"14\" ry=\"6\" fill=\"url(#cloudSoft)\"/>
+    </g>
+    <g class=\"cloudB\">
+      <ellipse cx=\"120\" cy=\"120\" rx=\"30\" ry=\"10\" fill=\"url(#cloudSoft)\" opacity=\".7\"/>
+      <ellipse cx=\"100\" cy=\"126\" rx=\"16\" ry=\"6.5\" fill=\"url(#cloudSoft)\" opacity=\".6\"/>
+    </g>
+    <g class=\"cloudC\">
+      <ellipse cx=\"150\" cy=\"86\" rx=\"20\" ry=\"7\" fill=\"url(#cloudSoft)\" opacity=\".55\"/>
+    </g>
+  </g>
+
+  <!-- 三环：天空中的轨道细线 -->
+  <g class=\"s1\">
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.10)\" stroke-width=\"2.4\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.5)\" stroke-width=\"2.4\"
+            stroke-linecap=\"round\" stroke-dasharray=\"202.6 326.7\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s2\">
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"1.9\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.36)\" stroke-width=\"1.9\"
+            stroke-linecap=\"round\" stroke-dasharray=\"105.8 235.6\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+
+  <!-- 中心呼吸（今天的小太阳） -->
+  <circle class=\"core\" cx=\"96\" cy=\"96\" r=\"10\" fill=\"rgba(255,236,210,.4)\"/>
+  <circle cx=\"96\" cy=\"96\" r=\"5\" fill=\"rgba(255,242,222,.95)\"/>
+
+  <!-- 地平线铭文 -->
+  <text font-size=\"10.5\" fill=\"rgba(255,250,244,.92)\" letter-spacing=\"3\"
+        font-family=\"PingFang SC, sans-serif\" font-weight=\"400\">
+    <textPath href=\"#arcCx3\" startOffset=\"50%\" text-anchor=\"middle\">今天有3项安排</textPath>
+  </text>
+</svg>", "cx4": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 192 192\"
+  <!-- ══════════ 创新四 · 显影文字 ══════════
+       平时球面零文字（铭文沉在 0.05 透明度），周期演示「指尖触碰 → 文字如水面倒影浮起 → 松手沉没」。
+       真机上由触摸事件驱动；此为交互彩蛋，常驻信息仍由素四方案承担。
+  -->
+  <defs>
+    <linearGradient id=\"echoBall\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+      <stop offset=\"0%\" stop-color=\"#FED7AA\"/>
+      <stop offset=\"52%\" stop-color=\"#F46D38\"/>
+      <stop offset=\"100%\" stop-color=\"#EA580C\"/>
+    </linearGradient>
+    <radialGradient id=\"touchRipple\" cx=\"0.5\" cy=\"0.5\" r=\"0.5\">
+      <stop offset=\"0%\" stop-color=\"rgba(255,255,255,.55)\"/>
+      <stop offset=\"70%\" stop-color=\"rgba(255,255,255,.18)\"/>
+      <stop offset=\"100%\" stop-color=\"rgba(255,255,255,0)\"/>
+    </radialGradient>
+    <path id=\"arcCx4\" d=\"M 49.7 151.2 A 72 72 0 0 0 142.3 151.2\" fill=\"none\"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+    /* 显影循环（演示）：隐 55% → 浮现 → 保持 → 沉没 */
+    .inscription {
+      animation: surface 7s ease-in-out infinite;
+      letter-spacing: 3;
+    }
+    @keyframes surface {
+      0%, 48%  { opacity: .05; }
+      60%      { opacity: .95; }
+      78%      { opacity: .95; }
+      90%, 100% { opacity: .05; }
+    }
+    /* 触碰涟漪：文字浮现时从中心荡开一圈 */
+    .ripple {
+      animation: ripple 7s ease-out infinite;
+      transform-origin: 96px 96px;
+      opacity: 0;
+    }
+    @keyframes ripple {
+      0%, 52% { opacity: 0; transform: scale(.3); }
+      62%     { opacity: .75; }
+      82%     { opacity: 0; transform: scale(1.15); }
+      100%    { opacity: 0; }
+    }
+  </style>
+
+  <circle cx=\"96\" cy=\"96\" r=\"88\" fill=\"url(#echoBall)\"/>
+  <ellipse cx=\"72\" cy=\"50\" rx=\"44\" ry=\"27\" fill=\"rgba(255,255,255,.16)\"/>
+
+  <!-- 三环（细金丝调，同素四） -->
+  <g class=\"s1\">
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"3.5\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,.55)\" stroke-width=\"3.5\"
+            stroke-linecap=\"round\" stroke-dasharray=\"202.6 326.7\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s2\">
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.07)\" stroke-width=\"2.8\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"37.5\" fill=\"none\" stroke=\"rgba(255,255,255,.38)\" stroke-width=\"2.8\"
+            stroke-linecap=\"round\" stroke-dasharray=\"105.8 235.6\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+  <g class=\"s3\">
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.06)\" stroke-width=\"2.2\"/>
+    <circle cx=\"96\" cy=\"96\" r=\"24.5\" fill=\"none\" stroke=\"rgba(255,255,255,.26)\" stroke-width=\"2.2\"
+            stroke-linecap=\"round\" stroke-dasharray=\"123.2 154\" transform=\"rotate(-90 96 96)\"/>
+  </g>
+
+  <!-- 触碰涟漪（与文字浮现同步荡开） -->
+  <circle class=\"ripple\" cx=\"96\" cy=\"96\" r=\"80\" fill=\"none\" stroke=\"rgba(255,255,255,.5)\" stroke-width=\"1.2\"/>
+
+  <!-- 中心呼吸 -->
+  <circle class=\"core\" cx=\"96\" cy=\"96\" r=\"10\" fill=\"rgba(255,236,210,.35)\"/>
+  <circle cx=\"96\" cy=\"96\" r=\"5\" fill=\"rgba(255,240,220,.9)\"/>
+
+  <!-- 沉浮的铭文 -->
+  <text class=\"inscription\" font-size=\"10.5\" fill=\"rgba(255,250,244,.95)\"
+        font-family=\"PingFang SC, sans-serif\" font-weight=\"400\">
+    <textPath href=\"#arcCx4\" startOffset=\"50%\" text-anchor=\"middle\">今天有3项安排</textPath>
+  </text>
+</svg>"};
+  function pick(btn, key) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+    btn.classList.add('on');
+    document.getElementById('orbzone').innerHTML = ORBS[key];
+  }
+  document.getElementById('orbzone').innerHTML = ORBS['su4'];
+</script>
+</body>
+</html>

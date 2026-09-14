@@ -109,6 +109,19 @@ final class HoloMatterActivationCoordinator {
             try? await repository.saveProjection(matterID: receipt.matterID, projection: projection)
         }
 
+        // 任务先创建、Matter 后激活的补链（§8.3 顺序 2）：按同一来源消息的 V2 回执把既有任务链入。
+        // 仅新建场景需要（幂等命中说明激活早已发生，创建时即时链已覆盖）；失败不影响激活结果。
+        if receipt.created {
+            let receipts = ContextPlanUserDefaultsReceipts().loadReceiptsV2()
+            let _ = try? await HoloMatterLinkingCoordinator.linkExistingTasksFromReceipts(
+                matterID: receipt.matterID,
+                contextPlanMessageID: contextPlanMessageID,
+                taskFinder: { TodoRepository.shared.findTask(by: $0) },
+                aiSourceFinder: { TodoRepository.shared.findTaskByAISource(messageId: $0, itemId: $1) },
+                receipts: receipts
+            )
+        }
+
         logger.info("Matter 激活完成：\(receipt.matterID.uuidString, privacy: .public) created=\(receipt.created)")
         return receipt
     }

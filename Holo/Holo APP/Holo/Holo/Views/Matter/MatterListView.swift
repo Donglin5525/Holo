@@ -14,6 +14,8 @@ struct MatterListView: View {
     var onOpenMatter: ((UUID) -> Void)? = nil
     /// 「+」出口：打开 HoloAI 并给引导问题（不预写为用户消息）。
     var onAddTapped: (() -> Void)? = nil
+    /// 详情页「和 Holo 讨论」出口（§8.5：所有入口统一接线，由调用方进 scoped Chat）。
+    var onDiscussMatter: ((UUID) -> Void)? = nil
 
     @ObservedObject private var repository = HoloMatterRepository.shared
     @Environment(\.dismiss) private var dismiss
@@ -21,30 +23,44 @@ struct MatterListView: View {
 
     public var body: some View {
         NavigationStack {
-            content
-                .background(Color.holoBackground.ignoresSafeArea())
-                .navigationTitle(String(localized: "进行中的事"))
-                .navigationBarTitleDisplayMode(.large)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            onAddTapped?()
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .accessibilityLabel(String(localized: "添加进行中的事"))
+            MatterListContent { matterID in
+                onDiscussMatter?(matterID)
+            }
+            .background(Color.holoBackground.ignoresSafeArea())
+            .navigationTitle(String(localized: "进行中的事"))
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        onAddTapped?()
+                    } label: {
+                        Image(systemName: "plus")
                     }
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(String(localized: "完成")) { dismiss() }
-                    }
+                    .accessibilityLabel(String(localized: "添加进行中的事"))
                 }
-                .navigationDestination(item: $pushedMatterID) { id in
-                    MatterDetailView(matterID: id)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(String(localized: "完成")) { dismiss() }
                 }
+            }
+            .navigationDestination(item: $pushedMatterID) { id in
+                MatterDetailView(matterID: id) { discussID in
+                    onDiscussMatter?(discussID)
+                }
+            }
         }
     }
+}
 
-    private var content: some View {
+/// 列表内容（无 NavigationStack）：独立 sheet 与「今天」内部路由共用（§10.1）。
+struct MatterListContent: View {
+
+    /// 详情页「和 Holo 讨论」出口。
+    var onDiscussMatter: ((UUID) -> Void)? = nil
+
+    @ObservedObject private var repository = HoloMatterRepository.shared
+    @State private var contentPushedMatterID: UUID?
+
+    var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 groupSection(
@@ -59,6 +75,11 @@ struct MatterListView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 6)
+        }
+        .navigationDestination(item: $contentPushedMatterID) { id in
+            MatterDetailView(matterID: id) { discussID in
+                onDiscussMatter?(discussID)
+            }
         }
     }
 
@@ -101,7 +122,7 @@ struct MatterListView: View {
 
     private func row(_ matter: HoloMatter) -> some View {
         Button {
-            pushedMatterID = matter.id
+            contentPushedMatterID = matter.id
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {

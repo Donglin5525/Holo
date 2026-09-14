@@ -60,6 +60,73 @@ nonisolated struct HoloContextPlanCreationReceipt: Equatable, Sendable {
     }
 }
 
+// MARK: - 回执 V2（今日看板 Matter 化方案 §8.2）
+
+/// 带真实任务 ID 的执行回执：跨重启幂等 + Matter 补链依据。
+/// Optional 只用于兼容 legacy；新写入的成功回执必须同时有 taskID/sourceMessageID。
+nonisolated struct HoloContextPlanTaskReceiptV2: Codable, Equatable, Sendable {
+    static let schemaVersion = 2
+
+    let schemaVersion: Int
+    let logicalItemID: String
+    let fingerprint: String
+    let taskID: UUID?
+    let sourceMessageID: UUID?
+    let sourceItemID: String
+    let createdAt: Date
+
+    init(
+        logicalItemID: String,
+        fingerprint: String,
+        taskID: UUID?,
+        sourceMessageID: UUID?,
+        sourceItemID: String,
+        createdAt: Date
+    ) {
+        self.schemaVersion = Self.schemaVersion
+        self.logicalItemID = logicalItemID
+        self.fingerprint = fingerprint
+        self.taskID = taskID
+        self.sourceMessageID = sourceMessageID
+        self.sourceItemID = sourceItemID
+        self.createdAt = createdAt
+    }
+
+    /// legacy 回执（只有指纹）转 V2 形态：能防重复，但没有任务 ID，不伪造 MatterLink。
+    static func legacy(logicalItemID: String, fingerprint: String) -> Self {
+        HoloContextPlanTaskReceiptV2(
+            logicalItemID: logicalItemID,
+            fingerprint: fingerprint,
+            taskID: nil,
+            sourceMessageID: nil,
+            sourceItemID: logicalItemID.split(separator: "|").last.map(String.init) ?? logicalItemID,
+            createdAt: .distantPast
+        )
+    }
+}
+
+/// 单项保存状态机（§8.1）：每个条目自己持有，互不影响。
+nonisolated enum HoloContextPlanItemSaveState: Equatable, Sendable {
+    case idle
+    case saving
+    /// 已加入，附真实任务 ID。
+    case added(taskID: UUID)
+    /// legacy 回执命中：已加入但任务 ID 未知（不伪造跳转/关联）。
+    case addedLegacy
+    /// 有 taskID 回执但任务已被删除：显示「原任务已删除，可重新加入」。
+    case taskDeleted
+    case failed(message: String)
+    /// 权限阻断：背景被忘记/更改/闸关闭。
+    case blocked
+}
+
+/// 单项 prepare 结果：要么创建，要么复用既有回执。
+nonisolated enum HoloContextPlanSinglePreparation: Equatable, Sendable {
+    case create(HoloContextPlanTaskCreation)
+    /// 已加入；taskID 为 nil 表示 legacy 回执。
+    case alreadyAdded(taskID: UUID?)
+}
+
 /// 真实回执对账结果：回执表只含真实落库项，成败计数以回执为准。
 nonisolated struct HoloContextPlanReconciliation: Equatable, Sendable {
     /// existingReceipts + 本次新增成功项指纹。
@@ -167,5 +234,74 @@ nonisolated enum HoloContextPlanExecutionAdapter {
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+
+    // MARK: - 单项执行（§8.1：逐条即时加入，每项自己持有保存状态）
+
+    /// 单项幂等判定：已有成功回执且实质未变 → 复用；否则产出创建请求。
+    /// legacy 指纹命中同样防重复，但 taskID 为 nil（不伪造跳转/关联）。
+    static func prepareSingleItem(
+        item: HoloContextPlanItem,
+        confirmedDate: Date?,
+        runID: String,
+        draftRevision: Int,
+        legacyFingerprint: String?,
+        receiptV2: HoloContextPlanTaskReceiptV2?,
+        taskExists: Bool?
+    ) -> HoloContextPlanSinglePreparation {
+        let logicalKey = "\(runID)|\(item.itemID)"
+        let fingerprint = contentFingerprint(item, confirmedDate: confirmedDate)
+
+        // V2 回执：内容未变即复用；任务已删则允许重新创建（旧回执失效）。
+        if let receipt = receiptV2, receipt.fingerprint == fingerprint {
+            switch taskExists {
+            case .some(false) where receipt.taskID != nil:
+                break // 任务已删除 → 走重新创建
+            default:
+                return .alreadyAdded(taskID: receipt.taskID)
+            }
+        }
+        // legacy 指纹：仍防重复（内容未变时），无 taskID。
+        if receiptV2 == nil, let legacyFingerprint, legacyFingerprint == fingerprint {
+            return .alreadyAdded(taskID: nil)
+        }
+
+        return .create(HoloContextPlanTaskCreation(
+            idempotencyKey: "\(runID)|v\(draftRevision)|\(item.itemID)",
+            logicalItemID: logicalKey,
+            itemID: item.itemID,
+            title: item.title,
+            note: item.reason.isEmpty ? nil : item.reason,
+            dueDate: confirmedDate
+        ))
+    }
+
+    /// 回执展示状态判定（§8.2：任务被删除后回执不得让 UI 显示「已加入」）。
+    static func resolveDisplayState(
+        receipt: HoloContextPlanTaskReceiptV2?,
+        taskExists: Bool?
+    ) -> HoloContextPlanItemSaveState {
+        guard let receipt else { return .idle }
+        if let taskID = receipt.taskID {
+            if taskExists == false { return .taskDeleted }
+            return .added(taskID: taskID)
+        }
+        return .addedLegacy
+    }
+
+    /// 容量清理：按 createdAt 淘汰最旧（禁 Dictionary.keys.prefix 的非确定性淘汰）。
+    static func trimReceipts(
+        _ receipts: [String: HoloContextPlanTaskReceiptV2],
+        limit: Int
+    ) -> [String: HoloContextPlanTaskReceiptV2] {
+        guard receipts.count > limit else { return receipts }
+        let sorted = receipts.sorted { lhs, rhs in
+            lhs.value.createdAt < rhs.value.createdAt
+        }
+        var result = receipts
+        for (key, _) in sorted.prefix(receipts.count - limit) {
+            result.removeValue(forKey: key)
+        }
+        return result
     }
 }

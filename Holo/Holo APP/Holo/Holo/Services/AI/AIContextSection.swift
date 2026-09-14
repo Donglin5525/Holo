@@ -28,7 +28,65 @@ enum AIContextSectionRegistry {
         AnniversaryContextSection(),
         DataCoverageContextSection(),
         RecentLinkedTaskContextSection(),
+        MatterContextSection(),
     ]
+}
+
+// MARK: - 当前 Matter（scoped Chat）
+
+struct MatterContextSection: AIContextSection {
+    let id = "currentMatter"
+    let priority = 50
+
+    func chatBlock(_ context: UserContext) -> String? {
+        // 仅 scoped Chat 注入当前 Matter 最小快照（§8.6）；confirmed 与 suggested 分区，
+        // 明确告知 suggested 不是事实；当前用户消息始终优先，Matter 背景不得自动扩展动作。
+        guard let matter = context.matterSnapshot else { return nil }
+        var block = "--- 当前进行中的事（仅作背景，不要改变话题） ---"
+        block += "\n- 这件事：\(matter.title)"
+        if let phase = matter.phase {
+            block += "（阶段：\(phase.displayLabel)）"
+        }
+        if let target = matter.targetDate {
+            block += "\n- 目标日期：\(Self.dateText(target))"
+        }
+        if let summary = matter.summary, !summary.isEmpty {
+            block += "\n- 当前判断：\(summary)"
+        }
+        if !matter.confirmedOpenLoops.isEmpty {
+            let lines = matter.confirmedOpenLoops
+                .map { loop -> String in
+                    if let date = loop.targetDate {
+                        let datePart = Self.dateText(date)
+                        return "- \(loop.title)（期限 \(datePart)）"
+                    }
+                    return "- \(loop.title)"
+                }
+                .joined(separator: "\n")
+            block += "\n- 已确认还没解决的问题：\n\(lines)"
+        }
+        if !matter.suggestedOpenLoops.isEmpty {
+            let lines = matter.suggestedOpenLoops.map { "- \($0.title)" }.joined(separator: "\n")
+            block += "\n- AI 猜测、尚未确认的问题（只是推测，不得当作事实，可顺势确认）：\n\(lines)"
+        }
+        if let next = matter.nextAction {
+            block += "\n- 下一步：\(next.title)"
+        }
+        block += "\n规则：以上只是当前事情的最小背景。用户这条消息优先；与该事情相关时自然衔接，不要重新要求用户解释背景，也不要未经确认就执行状态变更。"
+        return block
+    }
+
+    func intentBlock(_ context: UserContext) -> String? {
+        // 意图识别不注入 Matter 背景：Matter 背景只服务回答生成，不得扩展用户动作。
+        nil
+    }
+
+    nonisolated private static func dateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - 纪念日

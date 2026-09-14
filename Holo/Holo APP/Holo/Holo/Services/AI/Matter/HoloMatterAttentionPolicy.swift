@@ -22,16 +22,29 @@ nonisolated enum HoloMatterAttentionPolicy {
 
     /// 规则输入：一条 active Open Loop 的最小快照。
     nonisolated struct LoopInput: Sendable {
+        /// loop 真实 ID（携带时 Next Action 可指向真实实体；展示层旧调用可不传）。
+        let id: UUID?
         let title: String
         let state: HoloMatterOpenLoopState
         let epistemic: HoloMatterOpenLoopEpistemic
         let targetDate: Date?
+        /// loop 已链接的真实任务（Next Action 从 openLoopAction 升级为 linkedTask）。
+        let linkedTaskID: UUID?
 
-        init(title: String, state: HoloMatterOpenLoopState, epistemic: HoloMatterOpenLoopEpistemic, targetDate: Date? = nil) {
+        init(
+            id: UUID? = nil,
+            title: String,
+            state: HoloMatterOpenLoopState,
+            epistemic: HoloMatterOpenLoopEpistemic,
+            targetDate: Date? = nil,
+            linkedTaskID: UUID? = nil
+        ) {
+            self.id = id
             self.title = title
             self.state = state
             self.epistemic = epistemic
             self.targetDate = targetDate
+            self.linkedTaskID = linkedTaskID
         }
     }
 

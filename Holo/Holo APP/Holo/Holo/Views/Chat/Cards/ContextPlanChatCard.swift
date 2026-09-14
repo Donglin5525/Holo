@@ -19,20 +19,25 @@ struct ContextPlanChatCard: View {
     var messageID: UUID = UUID()
     /// 关联的用户消息 ID（可空；用于 Matter 关联对话上下文）。
     var userMessageID: UUID? = nil
-    /// 保存回执存储（logicalItemID → 内容指纹）。
+    /// 保存回执存储（V2 带任务 ID；legacy 指纹兜底）。
     let receipts: ContextPlanReceiptStoring
-    /// 任务创建出口（返回幂等键 → 真实回执；已发送请求≠成功，卡片按回执更新）。
-    /// 第二参数是合并主任务标题：选中的无日期条目 ≥2 时为草案目标摘要，
-    /// 落库侧据此并成一个主任务 + 子条目；nil 表示逐条建独立任务。
-    let onCreateTasks: ([HoloContextPlanTaskCreation], String?) -> [String: HoloContextPlanCreationReceipt]
+    /// 任务创建出口（逐条回报真实回执；写入成功才算成功）。
+    /// 闭包内负责归清单与创建后即时补链；卡片只消费回执。
+    let onCreateTasks: ([HoloContextPlanTaskCreation]) -> [String: HoloContextPlanCreationReceipt]
+    /// 判断任务是否仍存在（回执降级判定用：任务被删后不再显示「已加入」）。
+    var taskExists: ((UUID) -> Bool)? = nil
+    /// 任务详情出口（已加入态「查看」；nil 时仅显示状态）。
+    var onOpenTask: ((UUID) -> Void)? = nil
     /// Matter「查看」出口（打开事情详情；nil 时仅显示状态）。
     var onOpenMatter: ((UUID) -> Void)? = nil
 
     @State private var draft0: HoloContextPlanDraft?
-    @State private var selected: Set<String> = []
+    /// 每个条目自己的保存状态（§8.1：单项状态机，互不影响）。
+    @State private var itemSaveStates: [String: HoloContextPlanItemSaveState] = [:]
     @State private var confirmedDates: [String: Date] = [:]
     @State private var showBasis = false
-    @State private var saveState: SaveState = .idle
+    /// 批量「全部加入」的次要快捷操作结果。
+    @State private var batchState: BatchState = .idle
     @State private var duplicates: [String] = []
     /// 证据回源失败（原记录已删除/域不可达）的统一交代（§7.2：不跳空页面）。
     @State private var showEvidenceUnavailable = false
@@ -51,13 +56,12 @@ struct ContextPlanChatCard: View {
     @State private var activationInFlight = false
     @State private var activationErrorText: String?
 
-    enum SaveState: Equatable {
+    /// 批量快捷操作结果（次要入口；单项主入口状态在 itemSaveStates）。
+    enum BatchState: Equatable {
         case idle
         case saved(Int)
-        /// 部分失败：只按真实回执计数，不虚报。
         case savedWithFailures(succeeded: Int, failed: Int)
         case failed
-        /// 权限阻断：背景被忘记/更改/闸关闭，旧草案不可保存。
         case blocked
     }
 
@@ -189,25 +193,10 @@ struct ContextPlanChatCard: View {
     private func itemRow(_ item: HoloContextPlanItem) -> some View {
         let isTask = item.kind == .task || item.kind == .checklistItem
         return HStack(alignment: .top, spacing: 10) {
-            if isTask {
-                Button {
-                    if selected.contains(item.itemID) {
-                        selected.remove(item.itemID)
-                    } else {
-                        selected.insert(item.itemID)
-                    }
-                } label: {
-                    Image(systemName: selected.contains(item.itemID)
-                          ? "checkmark.circle.fill"
-                          : "circle")
-                        .foregroundStyle(selected.contains(item.itemID) ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                }
-                .buttonStyle(.plain)
-            } else {
-                Image(systemName: icon(for: item.kind))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Image(systemName: icon(for: item.kind))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(item.title)
@@ -225,7 +214,7 @@ struct ContextPlanChatCard: View {
                         .foregroundStyle(.secondary)
                 }
                 if isTask {
-                    // 日期三态（§8.1）：未设置就显示「设置日期」，绝不默认今天；
+                    // 日期三态（§8.1 规则 8）：未设置就显示「设置日期」，绝不默认今天；
                     // 建议值只进选择器，用户确认后 confirmedDates 才有值、保存才带日期。
                     if confirmedDates[item.itemID] != nil {
                         HStack(spacing: 8) {
@@ -257,14 +246,80 @@ struct ContextPlanChatCard: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                     }
-                    // 默认未勾选的待提示原因（§8.2：依赖项默认不选并说明）。
-                    if !selected.contains(item.itemID) && !item.preconditions.isEmpty {
-                        Text(String(localized: "确认 \(item.preconditions.joined(separator: "、")) 后可加入"))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                    // 单项即时加入（§8.1）：主入口在条目行内，逐条真实回执。
+                    itemSaveControl(item)
                 }
             }
+        }
+    }
+
+    /// 单条任务的保存状态控件（§8.1 交互状态表）。
+    @ViewBuilder
+    private func itemSaveControl(_ item: HoloContextPlanItem) -> some View {
+        let state = itemSaveStates[item.itemID] ?? .idle
+        switch state {
+        case .idle:
+            Button {
+                performSingleSave(item)
+            } label: {
+                Label(String(localized: "加入待办"), systemImage: "plus.circle")
+                    .font(.caption.weight(.medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+        case .saving:
+            ProgressView()
+                .controlSize(.mini)
+        case .added(let taskID):
+            HStack(spacing: 8) {
+                Label(String(localized: "已加入"), systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                Button {
+                    onOpenTask?(taskID)
+                } label: {
+                    Text(String(localized: "查看"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+                .buttonStyle(.plain)
+            }
+        case .addedLegacy:
+            Label(String(localized: "已加入"), systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        case .taskDeleted:
+            HStack(spacing: 8) {
+                Label(String(localized: "原任务已删除"), systemImage: "trash.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    performSingleSave(item, force: true)
+                } label: {
+                    Text(String(localized: "重新加入"))
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
+        case .failed:
+            HStack(spacing: 8) {
+                Label(String(localized: "未加入成功"), systemImage: "xmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                Button {
+                    performSingleSave(item)
+                } label: {
+                    Text(String(localized: "重试"))
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
+        case .blocked:
+            Label(String(localized: "方案背景已变化，请重新生成"), systemImage: "lock.shield")
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 
@@ -356,78 +411,69 @@ struct ContextPlanChatCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    /// 批量「全部加入」：次要快捷操作（§8.1 规则 3），逐条执行、部分失败不回滚。
     private func saveSection(_ draft: HoloContextPlanDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            switch saveState {
-            case .saved(let count):
-                Label(
-                    String(localized: "已添加 \(count) 项到待办"),
-                    systemImage: "checkmark.circle.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.green)
-            case .savedWithFailures(let succeeded, let failed):
-                VStack(alignment: .leading, spacing: 4) {
+            let pendingItems = draft.items.filter { isJoinable($0) }
+            if pendingItems.count >= 2 {
+                switch batchState {
+                case .saved(let count):
                     Label(
-                        String(localized: "已添加 \(succeeded) 项，\(failed) 项未成功"),
-                        systemImage: "exclamationmark.triangle.fill"
+                        String(localized: "已添加 \(count) 项到待办"),
+                        systemImage: "checkmark.circle.fill"
                     )
                     .font(.caption)
-                    .foregroundStyle(.orange)
-                    Text(String(localized: "未成功的项没有写入，可以再点一次只补失败的部分。"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            case .failed:
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(
-                        String(localized: "这次没有添加成功"),
-                        systemImage: "xmark.circle.fill"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    Text(String(localized: "任务没有写入，稍后再试或到待办页手动创建。"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            case .blocked:
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(
-                        String(localized: "方案背景已变化，暂时不能保存"),
-                        systemImage: "lock.shield"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    Text(String(localized: "你的记忆设置或相关记录有更新，重新提问生成新方案即可。"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            case .idle:
-                Button {
-                    save(draft)
-                } label: {
-                    // 数量来自当前 selection state（§8.2）：无日期数量一并如实展示
-                    let noDateCount = draft.items
-                        .filter { selected.contains($0.itemID) }
-                        .filter { confirmedDates[$0.itemID] == nil }
-                        .count
-                    Label(
-                        noDateCount > 0
-                            ? String(localized: "添加选中的 \(selected.count) 项到待办（\(noDateCount) 项未设日期）")
-                            : String(localized: "添加选中的 \(selected.count) 项到待办"),
-                        systemImage: "square.and.arrow.down"
-                    )
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(selected.isEmpty)
-                if !duplicates.isEmpty {
-                    Text(String(localized: "提醒：已有相似任务（\(duplicates.joined(separator: "、"))），不会自动合并。"))
-                        .font(.caption2)
+                    .foregroundStyle(.green)
+                case .savedWithFailures(let succeeded, let failed):
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(
+                            String(localized: "已添加 \(succeeded) 项，\(failed) 项未成功"),
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
                         .foregroundStyle(.orange)
+                        Text(String(localized: "未成功的项没有写入，可以再点一次只补失败的部分。"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                case .failed:
+                    Label(String(localized: "这次没有添加成功"), systemImage: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                case .blocked:
+                    Label(String(localized: "方案背景已变化，暂时不能保存"), systemImage: "lock.shield")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                case .idle:
+                    Button {
+                        performBatchSave(draft, items: pendingItems)
+                    } label: {
+                        Label(
+                            String(localized: "全部加入（\(pendingItems.count) 项）"),
+                            systemImage: "square.and.arrow.down.on.square"
+                        )
+                        .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
+            if !duplicates.isEmpty {
+                Text(String(localized: "提醒：已有相似任务（\(duplicates.joined(separator: "、"))），不会自动合并。"))
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    /// 该条目当前是否可再加入（已加入/保存中的不算）。
+    private func isJoinable(_ item: HoloContextPlanItem) -> Bool {
+        guard item.kind == .task || item.kind == .checklistItem else { return false }
+        switch itemSaveStates[item.itemID] ?? .idle {
+        case .idle, .failed, .taskDeleted:
+            return true
+        default:
+            return false
         }
     }
 
@@ -498,13 +544,12 @@ struct ContextPlanChatCard: View {
                 utterance: followUpText
             ) else { return }
             draft0 = outcome.draft
-            selected = Set(outcome.draft.items
-                .filter { $0.kind == .task || $0.kind == .checklistItem }
-                .map(\.itemID))
             confirmedDates = [:]
-            saveState = .idle
+            itemSaveStates = [:]
+            batchState = .idle
             duplicates = []
             followUpText = ""
+            restoreItemStates(for: outcome.draft)
         }
     }
 
@@ -526,13 +571,7 @@ struct ContextPlanChatCard: View {
         }
     }
 
-    /// 默认选中策略（§8.2）：无未决前置、不需要替用户猜日期的直接相关项才默认勾选。
-    /// 依赖未知条件（preconditions 非空）或只有相对时间表达的项默认不选。
-    private func isSelfEvidentlyReady(_ item: HoloContextPlanItem) -> Bool {
-        guard item.preconditions.isEmpty else { return false }
-        if item.relativeTiming != nil && item.confirmedDate == nil { return false }
-        return true
-    }
+    /// 默认选中策略已随批量唯一入口退役（§8.1 改逐条即时加入）。
 
     private func loadDraft() {
         guard let json = draftJSON, let data = json.data(using: .utf8) else { return }
@@ -540,17 +579,36 @@ struct ContextPlanChatCard: View {
         decoder.dateDecodingStrategy = .iso8601
         guard let decoded = try? decoder.decode(HoloContextPlanDraft.self, from: data) else { return }
         draft0 = decoded
-        // 默认选中待办/清单项（§8.2 默认选择策略）。
-        selected = Set(decoded.items
-            .filter { $0.kind == .task || $0.kind == .checklistItem }
-            .filter { isSelfEvidentlyReady($0) }
-            .map(\.itemID))
         // 纠正状态跨会话兑现（P0）：重启后「已安排好/本次不用」不再回到可保存态。
         if let raw = receipts.loadResolution(runID: decoded.runID),
            let restored = ResolvedState(rawValue: raw), restored != .active {
             resolvedState = restored
         }
+        restoreItemStates(for: decoded)
         refreshMatterPreparation(for: decoded)
+    }
+
+    /// 从回执表恢复每个条目的已加入状态（退出重进不重复创建，§8.1 规则 7）。
+    private func restoreItemStates(for draft: HoloContextPlanDraft) {
+        var states: [String: HoloContextPlanItemSaveState] = [:]
+        let receiptsV2 = receipts.loadReceiptsV2()
+        let legacy = receipts.loadReceipts()
+        for item in draft.items where item.kind == .task || item.kind == .checklistItem {
+            let logicalKey = "\(draft.runID)|\(item.itemID)"
+            let fingerprint = HoloContextPlanExecutionAdapter.contentFingerprint(
+                item, confirmedDate: confirmedDates[item.itemID]
+            )
+            if let receipt = receiptsV2[logicalKey], receipt.fingerprint == fingerprint {
+                let exists = receipt.taskID.flatMap { taskExists?($0) }
+                states[item.itemID] = HoloContextPlanExecutionAdapter.resolveDisplayState(
+                    receipt: receipt, taskExists: exists
+                )
+            } else if let legacyFingerprint = legacy[logicalKey],
+                      legacyFingerprint == fingerprint {
+                states[item.itemID] = .addedLegacy
+            }
+        }
+        itemSaveStates = states
     }
 
     // MARK: - Matter 激活区（方案 §13.1）
@@ -847,70 +905,127 @@ struct ContextPlanChatCard: View {
         return formatter.string(from: date)
     }
 
-    private func save(_ draft: HoloContextPlanDraft) {
+    // MARK: - 单项/批量保存
+
+    /// 保存前权限复查（§10）：背景被忘记/更改/闸关闭后不得保存。
+    private func canSave(_ draft: HoloContextPlanDraft, completion: @escaping (Bool) -> Void) {
         Task { @MainActor in
-            // 权限阻断复查（§10）：背景被忘记/更改/闸关闭后不得保存。
-            guard await HoloContextChatPlanner.canSave(
+            let allowed = await HoloContextChatPlanner.canSave(
                 runID: draft.runID,
                 draftRevision: draft.draftRevision
-            ) else {
-                saveState = .blocked
-                return
-            }
-            performSave(draft)
+            )
+            completion(allowed)
         }
     }
 
-    private func performSave(_ draft: HoloContextPlanDraft) {
-        var request = HoloContextPlanExecutionRequest(
-            runID: draft.runID,
-            draftRevision: draft.draftRevision,
-            items: [],
-            confirmedDates: confirmedDates
-        )
-        request.items = draft.items.map { item in
-            var mutable = item
-            mutable.selected = selected.contains(item.itemID)
-            return mutable
+    /// 单条任务即时加入（§8.1 主入口）：只创建这一项，成功立即显示回执。
+    private func performSingleSave(_ item: HoloContextPlanItem, force: Bool = false) {
+        guard let draft = draft0 else { return }
+        canSave(draft) { [self] allowed in
+            guard allowed else {
+                itemSaveStates[item.itemID] = .blocked
+                return
+            }
+            itemSaveStates[item.itemID] = .saving
+            let creation = HoloContextPlanTaskCreation(
+                idempotencyKey: "\(draft.runID)|v\(draft.draftRevision)|\(item.itemID)",
+                logicalItemID: "\(draft.runID)|\(item.itemID)",
+                itemID: item.itemID,
+                title: item.title,
+                note: item.reason.isEmpty ? nil : item.reason,
+                dueDate: confirmedDates[item.itemID]
+            )
+            let results = onCreateTasks([creation])
+            applyReceipts(results: results, creations: [creation])
         }
+    }
+
+    /// 批量快捷操作（次要入口）：逐条创建、逐条回报，部分失败不回滚已成功项。
+    private func performBatchSave(_ draft: HoloContextPlanDraft, items: [HoloContextPlanItem]) {
+        canSave(draft) { [self] allowed in
+            guard allowed else {
+                batchState = .blocked
+                return
+            }
+            let creations = items.map { item in
+                HoloContextPlanTaskCreation(
+                    idempotencyKey: "\(draft.runID)|v\(draft.draftRevision)|\(item.itemID)",
+                    logicalItemID: "\(draft.runID)|\(item.itemID)",
+                    itemID: item.itemID,
+                    title: item.title,
+                    note: item.reason.isEmpty ? nil : item.reason,
+                    dueDate: confirmedDates[item.itemID]
+                )
+            }
+            let results = onCreateTasks(creations)
+            applyReceipts(results: results, creations: creations)
+
+            let succeeded = creations.filter { results[$0.idempotencyKey]?.succeeded == true }.count
+            let failed = creations.count - succeeded
+            batchState = failed == 0 ? .saved(succeeded) : (succeeded == 0 ? .failed : .savedWithFailures(succeeded: succeeded, failed: failed))
+        }
+    }
+
+    /// 按真实回执更新单项状态与 V2 回执表（失败不记回执、不虚报成功）。
+    private func applyReceipts(
+        results: [String: HoloContextPlanCreationReceipt],
+        creations: [HoloContextPlanTaskCreation]
+    ) {
+        guard let draft = draft0 else { return }
+        var receiptsV2 = receipts.loadReceiptsV2()
+        var legacyReceipts = receipts.loadReceipts()
+        var duplicatesBuffer: [String] = []
+
+        for creation in creations {
+            let state: HoloContextPlanItemSaveState
+            if let receipt = results[creation.idempotencyKey], receipt.succeeded {
+                let taskID = receipt.taskID.flatMap { UUID(uuidString: $0) }
+                if let taskID {
+                    state = .added(taskID: taskID)
+                    receiptsV2[creation.logicalItemID] = HoloContextPlanTaskReceiptV2(
+                        logicalItemID: creation.logicalItemID,
+                        fingerprint: HoloContextPlanExecutionAdapter.contentFingerprint(
+                            item(for: creation, in: draft),
+                            confirmedDate: confirmedDates[creation.itemID]
+                        ),
+                        taskID: taskID,
+                        sourceMessageID: messageID,
+                        sourceItemID: creation.itemID,
+                        createdAt: Date()
+                    )
+                    // legacy 表同键清理（V2 已覆盖，防旧指纹干扰重试判定）
+                    legacyReceipts.removeValue(forKey: creation.logicalItemID)
+                } else {
+                    // 闭包只回指纹（legacy 落库路径），不伪造任务 ID。
+                    state = .addedLegacy
+                    legacyReceipts[creation.logicalItemID] = creation.idempotencyKey
+                }
+            } else {
+                state = .failed(message: results[creation.idempotencyKey]?.failureMessage ?? "")
+            }
+            itemSaveStates[creation.itemID] = state
+        }
+
+        // 相似任务提示（不合并，只提醒）。
         let repo = TodoRepository.shared
         let existingTitles = Set(
             (repo.getTodayTasks() + repo.getOverdueTasks())
                 .map { HoloContextPlanExecutionAdapter.normalizedTitle($0.title) }
         )
-        let outcome = HoloContextPlanExecutionAdapter.prepare(
-            request: request,
-            successfulReceipts: receipts.loadReceipts(),
-            existingTaskTitles: existingTitles
-        )
-        // 无日期的选中条目 ≥2 时交给落库侧并成一个主任务 + 子条目；
-        // 用户指定了日期的条目是时间锚定的独立事项，保持独立任务。
-        let groupParentTitle: String? =
-            (outcome.creations.count >= 2 && outcome.creations.allSatisfy { $0.dueDate == nil })
-            ? draft.goalSummary
-            : nil
-        let results = onCreateTasks(outcome.creations, groupParentTitle)
-        // 回执以仓储写入结果为准：失败不记、不虚报（纯逻辑在 Adapter，可 standalone 测试）。
-        let reconciliation = HoloContextPlanExecutionAdapter.reconcileReceipts(
-            creations: outcome.creations,
-            results: results,
-            existingReceipts: receipts.loadReceipts(),
-            items: draft.items,
-            confirmedDates: confirmedDates
-        )
-        if reconciliation.hasNewSuccesses {
-            receipts.saveReceipts(reconciliation.updatedReceipts)
+        for creation in creations where existingTitles.contains(HoloContextPlanExecutionAdapter.normalizedTitle(creation.title)) {
+            duplicatesBuffer.append(creation.title)
         }
-        duplicates = outcome.possibleDuplicateTitles
-        switch (reconciliation.succeededCount, reconciliation.failedCount) {
-        case (_, 0): saveState = .saved(reconciliation.succeededCount)
-        case (0, _): saveState = .failed
-        default:
-            saveState = .savedWithFailures(
-                succeeded: reconciliation.succeededCount,
-                failed: reconciliation.failedCount
-            )
+        if !duplicatesBuffer.isEmpty {
+            duplicates = duplicatesBuffer
         }
+
+        receipts.saveReceiptsV2(receiptsV2)
+        receipts.saveReceipts(legacyReceipts)
+    }
+
+    private func item(for creation: HoloContextPlanTaskCreation, in draft: HoloContextPlanDraft) -> HoloContextPlanItem {
+        draft.items.first { $0.itemID == creation.itemID }
+            ?? HoloContextPlanItem(itemID: creation.itemID, title: creation.title, kind: .task)
     }
 
     // MARK: - 小件
@@ -962,11 +1077,14 @@ struct ContextPlanChatCard: View {
     }
 }
 
-/// 保存回执存储：logicalItemID → 内容指纹（UserDefaults 本机，跨草案版本对账）。
-/// 纠正状态（runID → arranged/declined）同在本机持久化，跨会话兑现。
+/// 保存回执存储：V2（logicalItemID → 带任务 ID 的回执）+ legacy 指纹兼容 + 纠正状态。
+/// 全部本机持久化（UserDefaults），跨草案版本对账（今日看板 Matter 化方案 §8.2）。
 struct ContextPlanUserDefaultsReceipts: ContextPlanReceiptStoring {
     private static let key = "holo_personal_context_plan_receipts_v1"
+    private static let keyV2 = "holo_personal_context_plan_receipts_v2"
     private static let resolutionKey = "holo_personal_context_plan_resolutions_v1"
+    /// 回执容量上限：超限按 createdAt 淘汰最旧（§8.2，禁非确定性淘汰）。
+    private static let receiptLimit = 200
 
     func loadReceipts() -> [String: String] {
         guard let data = UserDefaults.standard.data(forKey: Self.key),
@@ -978,6 +1096,20 @@ struct ContextPlanUserDefaultsReceipts: ContextPlanReceiptStoring {
     func saveReceipts(_ receipts: [String: String]) {
         if let data = try? JSONEncoder().encode(receipts) {
             UserDefaults.standard.set(data, forKey: Self.key)
+        }
+    }
+
+    func loadReceiptsV2() -> [String: HoloContextPlanTaskReceiptV2] {
+        guard let data = UserDefaults.standard.data(forKey: Self.keyV2),
+              let receipts = try? JSONDecoder.holoMatter.decode([String: HoloContextPlanTaskReceiptV2].self, from: data)
+        else { return [:] }
+        return receipts
+    }
+
+    func saveReceiptsV2(_ receipts: [String: HoloContextPlanTaskReceiptV2]) {
+        let trimmed = HoloContextPlanExecutionAdapter.trimReceipts(receipts, limit: Self.receiptLimit)
+        if let data = try? JSONEncoder.holoMatter.encode(trimmed) {
+            UserDefaults.standard.set(data, forKey: Self.keyV2)
         }
     }
 
@@ -1008,8 +1140,12 @@ struct ContextPlanUserDefaultsReceipts: ContextPlanReceiptStoring {
 }
 
 protocol ContextPlanReceiptStoring {
+    /// legacy 指纹表（旧版本写入；仅用于对已升级数据的兜底防重复）。
     func loadReceipts() -> [String: String]
     func saveReceipts(_ receipts: [String: String])
+    /// V2 回执表（带真实任务 ID 与来源键；Matter 补链依据）。
+    func loadReceiptsV2() -> [String: HoloContextPlanTaskReceiptV2]
+    func saveReceiptsV2(_ receipts: [String: HoloContextPlanTaskReceiptV2])
     /// 纠正状态跨会话兑现（runID → arranged/declined）。
     func loadResolution(runID: String) -> String?
     func saveResolution(runID: String, resolution: String)

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct MessageBubbleView: View {
     #if DEBUG || INTERNAL_DIAGNOSTICS
@@ -29,6 +30,8 @@ struct MessageBubbleView: View {
     var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onOpenMatter: ((UUID) -> Void)? = nil
+    /// 方案卡单项「查看」已加入任务（跳任务详情）。
+    var onOpenTask: ((UUID) -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
     /// 额度耗尽卡片「了解 Holo Plus」点击，由上层导航到会员中心
@@ -197,9 +200,9 @@ struct MessageBubbleView: View {
                         messageID: message.id,
                         userMessageID: message.parentMessageId,
                         receipts: ContextPlanUserDefaultsReceipts(),
-                        onCreateTasks: { creations, groupParentTitle in
+                        onCreateTasks: { creations in
                             // 结构化映射直接建任务（§10：不把计划重新丢回意图识别模型）。
-                            // 逐项回报真实回执：写入成功才算成功，失败项如实交回卡片。
+                            // 逐条真实创建、逐条回报回执（§8.1：不再按数量合并主任务）。
                             let repo = TodoRepository.shared
                             var receipts: [String: HoloContextPlanCreationReceipt] = [:]
 
@@ -207,51 +210,25 @@ struct MessageBubbleView: View {
                             // 不让一整个场景的准备任务散在「全部」；归组失败不阻断建任务。
                             // 单条落卡主题性弱，保持默认位置。
                             var planList: TodoList?
-                            if creations.count >= 2,
-                               let groupTitle = groupParentTitle.flatMap({ $0.isEmpty ? nil : $0 }),
+                            let planSummary = Self.contextPlanGoalSummary(of: message)
+                            if creations.count >= 2, let planSummary,
                                let outcome = try? repo.matchOrCreateList(
-                                   named: TaskGroupMergePlanner.mergedGroupTitle(from: groupTitle)
+                                   named: TaskGroupMergePlanner.mergedGroupTitle(from: planSummary)
                                ) {
                                 planList = outcome.list
                             }
 
-                            // 无日期的多条目并成一个主任务 + 子条目，避免一个场景
-                            // 拆成一堆碎片任务；单条或带日期的条目保持独立任务。
-                            if let groupTitle = groupParentTitle.flatMap({ $0.isEmpty ? nil : $0 }),
-                               creations.count >= 2 {
-                                do {
-                                    let parent = try repo.createTask(
-                                        title: TaskGroupMergePlanner.mergedGroupTitle(from: groupTitle),
-                                        list: planList,
-                                        priority: .medium,
-                                        dueDate: nil,
-                                        isAllDay: true,
-                                        reminders: nil,
-                                        checkItemTitles: creations.map(\.title)
-                                    )
-                                    for creation in creations {
-                                        receipts[creation.idempotencyKey] = .success(taskID: parent.id.uuidString)
-                                    }
-                                    return receipts
-                                } catch {
-                                    for creation in creations {
-                                        receipts[creation.idempotencyKey] = .failure(error.localizedDescription)
-                                    }
-                                    return receipts
-                                }
-                            }
-
                             for creation in creations {
                                 do {
-                                    let task = try repo.createTask(
-                                        title: creation.title,
-                                        list: planList,
-                                        priority: .medium,
-                                        dueDate: creation.dueDate,
-                                        isAllDay: true,
-                                        reminders: nil,
-                                        checkItemTitles: nil
+                                    let task = try repo.createContextPlanTask(
+                                        creation: creation,
+                                        sourceMessageID: message.id
                                     )
+                                    // 创建后若清单归属为空则补挂方案清单（幂等创建返回既有任务时也一样）。
+                                    if let planList, task.list == nil {
+                                        task.list = planList
+                                        try? repo.context.save()
+                                    }
                                     receipts[creation.idempotencyKey] = .success(taskID: task.id.uuidString)
                                 } catch {
                                     receipts[creation.idempotencyKey] = .failure(
@@ -259,7 +236,29 @@ struct MessageBubbleView: View {
                                     )
                                 }
                             }
+
+                            // 创建后即时补链（§8.3）：该方案卡已激活 Matter 时，把新任务链进去。
+                            // 失败不回滚任务——激活补链通道会按 V2 回执兜底。
+                            if HoloMatterRolloutPolicy.storageEnabled {
+                                let linkedTaskIDs = receipts.values
+                                    .filter(\.succeeded)
+                                    .compactMap { $0.taskID.flatMap(UUID.init(uuidString:)) }
+                                if !linkedTaskIDs.isEmpty {
+                                    Task {
+                                        await HoloMatterLinkingCoordinator.linkCreatedTasks(
+                                            contextPlanMessageID: message.id,
+                                            taskIDs: linkedTaskIDs
+                                        )
+                                    }
+                                }
+                            }
                             return receipts
+                        },
+                        taskExists: { taskID in
+                            TodoRepository.shared.findTask(by: taskID) != nil
+                        },
+                        onOpenTask: { taskID in
+                            onOpenTask?(taskID)
                         }
                     )
                 } else if let runEnvelope = message.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:)) {
@@ -632,6 +631,18 @@ extension MessageBubbleView: Equatable {
         lhs.message == rhs.message
             && lhs.streamingText == rhs.streamingText
             && lhs.goalDraftForReview == rhs.goalDraftForReview
+    }
+}
+
+// MARK: - 方案卡辅助
+
+extension MessageBubbleView {
+    /// 从方案卡消息的草案 JSON 取 goalSummary（归清单主题；解析失败即 nil）。
+    nonisolated static func contextPlanGoalSummary(of message: ChatMessageViewData) -> String? {
+        guard let json = message.contextPlanJSON, let data = json.data(using: .utf8) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode(HoloContextPlanDraft.self, from: data))?.goalSummary
     }
 }
 

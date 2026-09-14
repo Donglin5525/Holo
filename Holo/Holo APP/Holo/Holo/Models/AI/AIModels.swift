@@ -470,6 +470,8 @@ struct UserContext {
     var recentLinkedTask: RecentLinkedTaskSummary? = nil
     /// 全量纪念日事实（每条一行：标题+日期+下一次/倒计时），供意图识别与对话回复共用；无则空
     var anniversaryLines: [String] = []
+    /// 当前 Matter 最小快照（scoped Chat 普通回答生成前注入；§8.6，nil = 非 Matter 对话）
+    var matterSnapshot: HoloMatterPromptSnapshot? = nil
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(

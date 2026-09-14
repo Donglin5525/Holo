@@ -19,10 +19,11 @@ struct MatterDetailView: View {
 
     @ObservedObject private var repository = HoloMatterRepository.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var menuLoopID: UUID?
     @State private var showCompleteConfirm = false
     @State private var showArchiveConfirm = false
     @State private var loadFailed = false
+    /// 正在「转成任务」的 loop ID（防重复点击）。
+    @State private var creatingTaskFromLoop: UUID?
 
     var body: some View {
         NavigationStack {
@@ -256,9 +257,64 @@ struct MatterDetailView: View {
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
                         .strokeBorder(Color.holoPrimary.opacity(0.4), lineWidth: 1.2)
                 )
+                // 类型化动作出口（§8.4）：与 Today Hero 共用同一解析，无 entityID 只能讨论。
+                nextActionActions(next, matterID: matter.id)
             }
         }
         // 没有依据就不显示「下一步」区块（不填充泛泛建议）。
+    }
+
+    /// Next Action 的动作行（与 TodayActionDispatcher 同一解析语义）。
+    @ViewBuilder
+    private func nextActionActions(_ next: HoloMatterNextAction, matterID: UUID) -> some View {
+        HStack(spacing: 10) {
+            switch next.kind {
+            case .linkedTask:
+                if let entityID = next.entityID.flatMap(UUID.init(uuidString:)),
+                   TodoRepository.shared.findTask(by: entityID) != nil {
+                    actionButton(String(localized: "查看任务"), systemImage: "checklist") {
+                        dismiss()
+                        DeepLinkState.shared.navigate(to: .taskDetail(taskId: entityID))
+                    }
+                } else {
+                    // entityID 丢失/任务已删：不猜标题，降级为讨论。
+                    actionButton(String(localized: "和 Holo 梳理"), systemImage: "bubble.left.and.text.bubble.right") {
+                        onDiscuss?(matterID)
+                    }
+                }
+            case .openLoopAction:
+                if let loopID = next.entityID.flatMap(UUID.init(uuidString:)) {
+                    actionButton(String(localized: "转成任务"), systemImage: "plus.circle") {
+                        creatingTaskFromLoop = loopID
+                        Task {
+                            _ = try? await HoloMatterLinkingCoordinator.createTaskFromOpenLoop(
+                                matterID: matterID, openLoopID: loopID
+                            )
+                            creatingTaskFromLoop = nil
+                        }
+                    }
+                    .disabled(creatingTaskFromLoop == loopID)
+                }
+            case .suggestion:
+                // 建议只引导讨论确认，不直接执行。
+                actionButton(String(localized: "和 Holo 确认"), systemImage: "questionmark.bubble") {
+                    onDiscuss?(matterID)
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func actionButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: ④ 还没解决
@@ -272,13 +328,12 @@ struct MatterDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     sectionLabel(String(localized: "还没解决 · \(loops.count)"))
                     ForEach(confirmed) { loop in
+                        // 省略号为显式 Menu（§8.5：点按即弹，不依赖长按 context menu）。
                         MatterOpenLoopRow(
                             title: loop.title,
                             epistemic: .confirmed,
-                            state: loop.state,
-                            onMenuTap: { menuLoopID = loop.id }
-                        )
-                        .contextMenu {
+                            state: loop.state
+                        ) {
                             if loop.state == .open {
                                 Button {
                                     Task { try? await repository.setOpenLoopState(id: loop.id, state: .waiting, actor: .user) }
@@ -297,10 +352,8 @@ struct MatterDetailView: View {
                         MatterOpenLoopRow(
                             title: String(localized: "可能还需要确认：\(loop.title)"),
                             epistemic: .suggested,
-                            state: loop.state,
-                            onMenuTap: { menuLoopID = loop.id }
-                        )
-                        .contextMenu {
+                            state: loop.state
+                        ) {
                             Button {
                                 Task { try? await repository.confirmOpenLoop(id: loop.id) }
                             } label: {

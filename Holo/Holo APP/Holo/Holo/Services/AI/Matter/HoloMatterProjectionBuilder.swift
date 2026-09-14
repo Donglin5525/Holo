@@ -53,8 +53,9 @@ nonisolated enum HoloMatterProjectionBuilder {
 
     /// Next Action 唯一排序规则（方案 §9.2：最多一个；无依据则为 nil，不填充泛泛建议）。
     /// - 只考虑已确认且未解决的问题；AI 建议（suggested）永不直接成为 Next Action。
+    /// - openLoopAction 必须携带真实 loop entityID（§8.4）；loop 已链接任务时升级为 linkedTask。
+    /// - 无 ID 的 loop（旧调用方）降级为无 entityID 的 openLoopAction，动作层只允许「打开 Matter」。
     static func selectNextAction(loops: [HoloMatterAttentionPolicy.LoopInput], now: Date = Date()) -> HoloMatterNextAction? {
-        // loop 输入不携带 ID（展示层补充）；排序依据：有日期且最近/已过期 > 优先级。
         let candidates = loops.filter { $0.epistemic == .confirmed && $0.state == .open }
         guard !candidates.isEmpty else { return nil }
 
@@ -77,9 +78,21 @@ nonisolated enum HoloMatterProjectionBuilder {
             reason = String(localized: "其余事项都在等待或依赖它")
         }
 
+        // 已链接真实任务：动作目标从 loop 升级为任务（Today/详情共用同一解析）。
+        if let linkedTaskID = top.linkedTaskID {
+            return HoloMatterNextAction(
+                kind: .linkedTask,
+                entityID: linkedTaskID.uuidString,
+                title: top.title,
+                reason: reason,
+                targetDate: top.targetDate,
+                evidenceRefs: []
+            )
+        }
+
         return HoloMatterNextAction(
             kind: .openLoopAction,
-            entityID: nil,
+            entityID: top.id?.uuidString,
             title: top.title,
             reason: reason,
             targetDate: top.targetDate,

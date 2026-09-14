@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+<style>
+  .spin1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+  .spin2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+  .spin3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .pulse { animation: pulse 2.6s ease-in-out infinite; transform-origin: 96px 96px; }
+  @keyframes pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+</style>
+
+          <defs>
+            <linearGradient id="ballB" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FED7AA"/>
+              <stop offset="52%" stop-color="#F46D38"/>
+              <stop offset="100%" stop-color="#EA580C"/>
+            </linearGradient>
+            <!-- 下环带（晨昏线）：两同心弧围成的月牙带 -->
+            <filter id="softB" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.4"/></filter>
+            <path id="bandB" d="M 48.4 152.7 A 74 74 0 0 0 143.6 152.7 L 134.6 142 A 60 60 0 0 1 57.4 142 Z" fill="rgba(140,45,5,.34)" filter="url(#softB)"/>
+            <path id="arcB" d="M 51.3 149.2 A 69.5 69.5 0 0 0 140.7 149.2" fill="none"/>
+          </defs>
+          <circle cx="96" cy="96" r="88" fill="url(#ballB)"/>
+          <ellipse cx="74" cy="52" rx="46" ry="30" fill="rgba(255,255,255,.30)"/>
+          <g class="spin1">
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6.5"/>
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="6.5"
+                    stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="44" r="4.6" fill="#fff"/>
+          </g>
+          <g class="spin2">
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="5"/>
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="5"
+                    stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="58.5" r="3.6" fill="rgba(255,255,255,.75)"/>
+          </g>
+          <g class="spin3">
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="4"/>
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="4"
+                    stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+          </g>
+          <circle class="pulse" cx="96" cy="96" r="9" fill="rgba(255,255,255,.65)"/>
+          <!-- ★ 晨昏线：一条与球同心的暗带沉在球下部，文字落在带上 -->
+          <use href="#bandB"/>
+          <text font-size="10" font-weight="500" fill="rgba(255,255,255,.95)" letter-spacing="2"
+                font-family="PingFang SC, sans-serif">
+            <textPath href="#arcB" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+          </text>
+        
+</svg>

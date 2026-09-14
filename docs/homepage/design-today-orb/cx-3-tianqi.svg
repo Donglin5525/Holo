@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 创新三 · 天气球 ══════════
+       球面即今天的天空。演示「有安排」的晴间多云态：几缕半透明云纹缓慢飘移。
+       （其余状态：无急事=通透无云；逾期=球缘薄雾。真机由当日状态驱动。）
+       文字嵌在球体下缘如地平线铭文。
+  -->
+  <defs>
+    <linearGradient id="skyBall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="52%" stop-color="#F46D38"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <radialGradient id="cloudSoft" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,255,255,.5)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <clipPath id="skyClip"><circle cx="96" cy="96" r="87"/></clipPath>
+    <path id="arcCx3" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 云纹飘移：不同速度、不同深度 */
+    .cloudA { animation: drift 26s linear infinite; }
+    .cloudB { animation: drift 38s linear infinite reverse; }
+    .cloudC { animation: drift 20s linear infinite; }
+    @keyframes drift {
+      from { transform: translateX(-150px); }
+      to   { transform: translateX(150px); }
+    }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+  </style>
+
+  <circle cx="96" cy="96" r="88" fill="url(#skyBall)"/>
+
+  <!-- 云纹：柔和的光斑群，在球面内飘 -->
+  <g clip-path="url(#skyClip)" opacity=".85">
+    <g class="cloudA">
+      <ellipse cx="40" cy="70" rx="26" ry="9" fill="url(#cloudSoft)"/>
+      <ellipse cx="58" cy="64" rx="14" ry="6" fill="url(#cloudSoft)"/>
+    </g>
+    <g class="cloudB">
+      <ellipse cx="120" cy="120" rx="30" ry="10" fill="url(#cloudSoft)" opacity=".7"/>
+      <ellipse cx="100" cy="126" rx="16" ry="6.5" fill="url(#cloudSoft)" opacity=".6"/>
+    </g>
+    <g class="cloudC">
+      <ellipse cx="150" cy="86" rx="20" ry="7" fill="url(#cloudSoft)" opacity=".55"/>
+    </g>
+  </g>
+
+  <!-- 三环：天空中的轨道细线 -->
+  <g class="s1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="2.4"/>
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2.4"
+            stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1.9"/>
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.36)" stroke-width="1.9"
+            stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+  </g>
+
+  <!-- 中心呼吸（今天的小太阳） -->
+  <circle class="core" cx="96" cy="96" r="10" fill="rgba(255,236,210,.4)"/>
+  <circle cx="96" cy="96" r="5" fill="rgba(255,242,222,.95)"/>
+
+  <!-- 地平线铭文 -->
+  <text font-size="10.5" fill="rgba(255,250,244,.92)" letter-spacing="3"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcCx3" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

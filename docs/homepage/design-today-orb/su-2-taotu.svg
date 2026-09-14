@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 素二 · 陶土 ══════════
+       保留品牌温度但整体降饱和：一颗未上釉的陶土球，同色系深浅表达进度，无一处白元素。
+  -->
+  <defs>
+    <radialGradient id="clay" cx="0.40" cy="0.34" r="0.95">
+      <stop offset="0%" stop-color="#E59469"/>
+      <stop offset="52%" stop-color="#D8764C"/>
+      <stop offset="85%" stop-color="#C3623B"/>
+      <stop offset="100%" stop-color="#AE5430"/>
+    </radialGradient>
+    <path id="arcSu2" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .dot { animation: breathe 3.2s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .5; } 50% { opacity: .95; } }
+  </style>
+
+  <circle cx="96" cy="96" r="88" fill="url(#clay)"/>
+  <!-- 左上极轻提亮（哑光，非镜面高光） -->
+  <ellipse cx="72" cy="52" rx="42" ry="26" fill="rgba(255,235,215,.10)"/>
+
+  <!-- 三环：同色系深一号，像陶坯上的刻线 -->
+  <g class="s1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(112,48,22,.20)" stroke-width="2.5"/>
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(112,48,22,.52)" stroke-width="2.5"
+            stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(112,48,22,.17)" stroke-width="2"/>
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(112,48,22,.42)" stroke-width="2"
+            stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(112,48,22,.14)" stroke-width="1.6"/>
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(112,48,22,.34)" stroke-width="1.6"
+            stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+  </g>
+
+  <!-- 中心呼吸：奶白一点 -->
+  <circle class="dot" cx="96" cy="96" r="3.4" fill="rgba(253,243,234,.95)"/>
+
+  <!-- 铭文：奶白细字 -->
+  <text font-size="10.5" fill="rgba(253,243,234,.92)" letter-spacing="3"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcSu2" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

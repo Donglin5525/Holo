@@ -51,6 +51,19 @@ final class UserContextBuilder {
                 )
                 : nil
 
+        // scoped Chat：构建当前 Matter 最小快照（§8.6，普通回答生成前注入）。
+        // 快照在请求构建期一次成型；ChatViewModel 侧保证对账用同一 matterID。
+        let matterSnapshot: HoloMatterPromptSnapshot?
+        if HoloMatterRolloutPolicy.scopedChatEnabled,
+           let active = MatterChatContextStore.shared.active {
+            matterSnapshot = HoloMatterPromptSnapshotBuilder.build(
+                matterID: active.matterID,
+                repository: .shared
+            )
+        } else {
+            matterSnapshot = nil
+        }
+
         let coverage = DataCoverageEvaluator.evaluate(
             from: UserContext(
                 todayDate: todayDate,
@@ -65,7 +78,8 @@ final class UserContextBuilder {
                 goalContext: goalContext,
                 dataCoverage: nil,
                 memorySummary: memorySummary,
-                anniversaryLines: anniversaryLines
+                anniversaryLines: anniversaryLines,
+                matterSnapshot: matterSnapshot
             )
         )
 
@@ -82,7 +96,8 @@ final class UserContextBuilder {
             goalContext: goalContext,
             dataCoverage: coverage,
             memorySummary: memorySummary,
-            anniversaryLines: anniversaryLines
+            anniversaryLines: anniversaryLines,
+            matterSnapshot: matterSnapshot
         )
     }
 

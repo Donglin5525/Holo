@@ -8,14 +8,43 @@
 import SwiftUI
 
 /// 一条「还没解决」问题的展示行。
-struct MatterOpenLoopRow: View {
+/// 省略号为显式 Menu（§8.5：点按直接弹出，不依赖长按发现）。
+struct MatterOpenLoopRow<MenuContent: View>: View {
 
     let title: String
     let epistemic: HoloMatterOpenLoopEpistemic
     let state: HoloMatterOpenLoopState
     /// 关联任务说明（如「已建任务：问妈妈是否方便」），nil 不显示。
     var taskLine: String? = nil
-    var onMenuTap: (() -> Void)? = nil
+    /// 点按省略号弹出的操作菜单；nil 时省略号按钮不显示。
+    private let menuContent: (() -> MenuContent)?
+
+    init(
+        title: String,
+        epistemic: HoloMatterOpenLoopEpistemic,
+        state: HoloMatterOpenLoopState,
+        taskLine: String? = nil,
+        @ViewBuilder menuContent: @escaping () -> MenuContent
+    ) {
+        self.title = title
+        self.epistemic = epistemic
+        self.state = state
+        self.taskLine = taskLine
+        self.menuContent = menuContent
+    }
+
+    init(
+        title: String,
+        epistemic: HoloMatterOpenLoopEpistemic,
+        state: HoloMatterOpenLoopState,
+        taskLine: String? = nil
+    ) where MenuContent == EmptyView {
+        self.title = title
+        self.epistemic = epistemic
+        self.state = state
+        self.taskLine = taskLine
+        self.menuContent = nil
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -37,16 +66,16 @@ struct MatterOpenLoopRow: View {
                 }
             }
             Spacer(minLength: 0)
-            if let onMenuTap {
-                Button(action: onMenuTap) {
+            if let menuContent {
+                Menu {
+                    menuContent()
+                } label: {
                     Image(systemName: "ellipsis")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
-                        .padding(6)
-                    // iOS 26 plain 按钮热区收缩补丁
+                        .frame(width: 26, height: 26)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
                 .accessibilityLabel(String(localized: "更多操作"))
             }
         }

@@ -105,6 +105,25 @@ final class HoloMatterRepository: ObservableObject {
         return (try? context.fetch(request)) ?? []
     }
 
+    /// Open Loop 组装为 attention/Next Action 输入，并解析 loop→task 真实对应。
+    /// loop→task 对应约定：addLink(.todoTask) 时把 sourceRevision 写为 loopID（真实 UUID 对应，不靠标题匹配）。
+    func attentionLoopInputs(matterID: UUID) -> [HoloMatterAttentionPolicy.LoopInput] {
+        let loops = openLoops(matterID: matterID, activeOnly: true)
+        let taskLinks = links(matterID: matterID).filter { $0.entityType == .todoTask }
+        return loops.map { loop in
+            HoloMatterAttentionPolicy.LoopInput(
+                id: loop.id,
+                title: loop.title,
+                state: loop.state,
+                epistemic: loop.epistemic,
+                targetDate: loop.targetDate,
+                linkedTaskID: taskLinks
+                    .first { $0.sourceRevision == loop.id.uuidString }
+                    .flatMap { UUID(uuidString: $0.entityID) }
+            )
+        }
+    }
+
     func events(matterID: UUID, limit: Int = 50) -> [HoloMatterEvent] {
         let request = NSFetchRequest<HoloMatterEvent>(entityName: "HoloMatterEvent")
         request.predicate = NSPredicate(format: "matterID == %@ AND deletedAt == nil", matterID as CVarArg)
@@ -177,7 +196,7 @@ final class HoloMatterRepository: ObservableObject {
             // 用户选择更新到已有 Matter：补 origin link + 事件，不新建。
             if let existingID = request.existingMatterID,
                let existing = try Self.fetchMatter(id: existingID, in: ctx) {
-                let link = try Self.addLinkInternal(
+                let (link, _) = try Self.addLinkInternal(
                     matter: existing,
                     entityType: .contextPlan,
                     entityID: request.contextPlanMessageID.uuidString,
@@ -227,7 +246,7 @@ final class HoloMatterRepository: ObservableObject {
 
             // 链接：origin（方案卡）+ 对话消息。
             var linkedIDs: [String] = []
-            let originLink = try Self.addLinkInternal(
+            let (originLink, _) = try Self.addLinkInternal(
                 matter: matter,
                 entityType: .contextPlan,
                 entityID: request.contextPlanMessageID.uuidString,
@@ -242,7 +261,7 @@ final class HoloMatterRepository: ObservableObject {
             linkedIDs.append(originLink.entityID)
 
             if let userMessageID = request.userMessageID {
-                let messageLink = try Self.addLinkInternal(
+                let (messageLink, _) = try Self.addLinkInternal(
                     matter: matter,
                     entityType: .chatMessage,
                     entityID: userMessageID.uuidString,
@@ -530,7 +549,7 @@ final class HoloMatterRepository: ObservableObject {
 
     // MARK: - Link 操作
 
-    /// 添加链接（幂等：同 matter+type+entityID 已存在则折叠）。
+    /// 添加链接（幂等：同 matter+type+entityID 已存在且已 linked → 折叠复用，不 bump revision 不重复落事件）。
     @discardableResult
     func addLink(
         matterID: UUID,
@@ -547,7 +566,7 @@ final class HoloMatterRepository: ObservableObject {
             guard let matter = try Self.fetchMatter(id: matterID, in: ctx) else {
                 throw HoloMatterRepositoryError.notFound("HoloMatter \(matterID)")
             }
-            let link = try Self.addLinkInternal(
+            let (link, changed) = try Self.addLinkInternal(
                 matter: matter,
                 entityType: entityType,
                 entityID: entityID,
@@ -559,7 +578,7 @@ final class HoloMatterRepository: ObservableObject {
                 at: now,
                 in: ctx
             )
-            if status == .linked {
+            if changed {
                 Self.bumpRevision(of: matter, at: now)
                 _ = try Self.appendEvent(
                     matter: matter,
@@ -615,7 +634,7 @@ final class HoloMatterRepository: ObservableObject {
             guard let matter = try Self.fetchMatter(id: matterID, in: ctx) else {
                 throw HoloMatterRepositoryError.notFound("HoloMatter \(matterID)")
             }
-            return try Self.addLinkInternal(
+            let (link, _) = try Self.addLinkInternal(
                 matter: matter,
                 entityType: entityType,
                 entityID: entityID,
@@ -627,6 +646,7 @@ final class HoloMatterRepository: ObservableObject {
                 at: now,
                 in: ctx
             )
+            return link
         }
     }
 
@@ -736,6 +756,7 @@ final class HoloMatterRepository: ObservableObject {
         return try fetchMatter(id: link.matterID, in: ctx)
     }
 
+    /// 返回 (link, changed)：changed = 新建链接或状态升级为 linked（此时才 bump revision/落事件）。
     nonisolated private static func addLinkInternal(
         matter: HoloMatter,
         entityType: HoloMatterLinkEntityType,
@@ -747,7 +768,7 @@ final class HoloMatterRepository: ObservableObject {
         sourceRevision: String?,
         at now: Date,
         in ctx: NSManagedObjectContext
-    ) throws -> HoloMatterLink {
+    ) throws -> (HoloMatterLink, Bool) {
         // 幂等：同 matter + type + entity 的链接已存在（任意状态）→ 折叠复用，不建第二行。
         let request = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
         request.predicate = NSPredicate(
@@ -762,8 +783,9 @@ final class HoloMatterRepository: ObservableObject {
             if status == .linked && existing.status != .linked {
                 existing.status = .linked
                 existing.updatedAt = now
+                return (existing, true)
             }
-            return existing
+            return (existing, false)
         }
 
         let link = HoloMatterLink(entity: NSEntityDescription.entity(forEntityName: "HoloMatterLink", in: ctx)!, insertInto: ctx)
@@ -778,7 +800,7 @@ final class HoloMatterRepository: ObservableObject {
         link.sourceRevision = sourceRevision
         link.createdAt = now
         link.updatedAt = now
-        return link
+        return (link, status == .linked)
     }
 
     nonisolated private static func addOpenLoopInternal(

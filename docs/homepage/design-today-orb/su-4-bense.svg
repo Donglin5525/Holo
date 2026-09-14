@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 素四 · 本色 ══════════
+       品牌色零改动：球体渐变与现网完全一致（#FED7AA→#F46D38→#EA580C）。
+       「素」只做在环与文字上：环线细化降调、高光收敛、去全部装饰——气质安静，品牌不动。
+       文字几何沿用已验证约束（弧 r=72、字号 10.5、净空 8pt）。
+  -->
+  <defs>
+    <linearGradient id="brandBall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="52%" stop-color="#F46D38"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <radialGradient id="softCore" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,255,255,.65)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <path id="arcSu4" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+  </style>
+
+  <!-- 球体：品牌渐变原样，仅高光从 0.4/0.8 收敛为 0.16/0.5（哑光一档，不改色） -->
+  <circle cx="96" cy="96" r="88" fill="url(#brandBall)"/>
+
+  <!-- 三环：线宽减半、白弧降调（0.92→0.55/0.38/0.26），滚动不变、噪声大降 -->
+  <g class="s1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3.5"/>
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="3.5"
+            stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="2.8"/>
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.38)" stroke-width="2.8"
+            stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="2.2"/>
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="2.2"
+            stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+  </g>
+
+  <!-- 中心呼吸光点：原版元素保留，节奏放缓 -->
+  <circle class="core" cx="96" cy="96" r="10" fill="url(#softCore)"/>
+
+  <!-- 铭文：白度 0.94→0.88，安静一档 -->
+  <text font-size="10.5" fill="rgba(255,255,255,.88)" letter-spacing="3"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcSu4" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

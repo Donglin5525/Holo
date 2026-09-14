@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ A-Pro · 表盘铭文 精修版 ══════════
+       几何不变量（已复核）：文字弧基线 r=72（净空 8.0pt）· 三环 104/75/49 · 球体 192
+       精修层：径向光影球体 / 表圈台阶线 / 环弧光晕+光点拖尾 / 铭文装饰点+雕刻光晕+呼吸明暗 / 双层中心光晕
+  -->
+  <defs>
+    <!-- 主渐变：左上光源径向，中心透亮、四缘收暗 -->
+    <radialGradient id="ballPro" cx="0.38" cy="0.32" r="0.95">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="42%" stop-color="#F5703C"/>
+      <stop offset="78%" stop-color="#EE5F14"/>
+      <stop offset="100%" stop-color="#D14E08"/>
+    </radialGradient>
+    <!-- 边缘暗晕：行星缘收光 -->
+    <radialGradient id="rimShade" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(120,40,5,0)"/>
+      <stop offset="86%" stop-color="rgba(120,40,5,0)"/>
+      <stop offset="100%" stop-color="rgba(120,40,5,.38)"/>
+    </radialGradient>
+    <!-- 中心双层呼吸：核 -->
+    <radialGradient id="coreGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,255,255,.95)"/>
+      <stop offset="45%" stop-color="rgba(255,255,255,.55)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <!-- 铭文雕刻光晕 -->
+    <filter id="engraveGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.55" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- 环弧微光晕 -->
+    <filter id="arcGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.1" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <path id="arcPro" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+
+  <style>
+    .spin1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .spin2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .spin3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 双层呼吸：核与晕同周期异幅 */
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    .halo { animation: breathe 2.8s ease-in-out infinite .12s; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .5; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.06); } }
+    /* 铭文与球同呼吸：极轻的明暗起伏 */
+    .inscription { animation: inscribe 2.8s ease-in-out infinite; }
+    @keyframes inscribe { 0%,100% { opacity: .86; } 50% { opacity: .98; } }
+  </style>
+
+  <!-- ── 球体：径向光影 + 边缘暗晕 ── -->
+  <circle cx="96" cy="96" r="88" fill="url(#ballPro)"/>
+  <circle cx="96" cy="96" r="88" fill="url(#rimShade)"/>
+  <!-- 表圈台阶线：球缘内侧极细一圈（r 84，不与外环 55.25 冲突） -->
+  <circle cx="96" cy="96" r="84" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="0.6"/>
+  <circle cx="96" cy="96" r="88" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.8"/>
+
+  <!-- ── 高光：柔化双层（主光斑 + 弥散） ── -->
+  <ellipse cx="72" cy="50" rx="44" ry="27" fill="rgba(255,255,255,.16)"/>
+  <ellipse cx="66" cy="46" rx="26" ry="15" fill="rgba(255,255,255,.22)"/>
+
+  <!-- ── 外环 104 / 亮弧带光晕 / 末端光点带拖尾 ── -->
+  <g class="spin1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="6.5"/>
+    <g filter="url(#arcGlow)">
+      <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="6.5"
+              stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+    </g>
+    <!-- 光点拖尾（跟随光点的一小段渐弱弧） -->
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.38)" stroke-width="6.5"
+            stroke-linecap="round" stroke-dasharray="16 513.3" transform="rotate(-102 96 96)"/>
+    <circle cx="96" cy="44" r="4.6" fill="#fff"/>
+    <circle cx="96" cy="44" r="7.2" fill="rgba(255,255,255,.28)"/>
+  </g>
+
+  <!-- ── 中环 75 ── -->
+  <g class="spin2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="5"/>
+    <g filter="url(#arcGlow)">
+      <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="5"
+              stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+    </g>
+    <circle cx="96" cy="58.5" r="3.6" fill="rgba(255,255,255,.78)"/>
+    <circle cx="96" cy="58.5" r="5.6" fill="rgba(255,255,255,.22)"/>
+  </g>
+
+  <!-- ── 内环 49 ── -->
+  <g class="spin3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.11)" stroke-width="4"/>
+    <g filter="url(#arcGlow)">
+      <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="4"
+              stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+    </g>
+  </g>
+
+  <!-- ── 中心双层呼吸光晕 ── -->
+  <circle class="halo" cx="96" cy="96" r="13" fill="url(#coreGlow)" opacity=".55"/>
+  <circle class="core" cx="96" cy="96" r="7" fill="url(#coreGlow)"/>
+
+  <!-- ── 铭文：雕刻光晕 + 两端装饰点 + 呼吸明暗（几何与已复核的 A 完全一致） ── -->
+  <g class="inscription" filter="url(#engraveGlow)">
+    <text font-size="10.5" fill="rgba(255,255,255,.94)" letter-spacing="3"
+          font-family="PingFang SC, sans-serif" font-weight="500">
+      <textPath href="#arcPro" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+    </text>
+    <!-- 铭刻收尾装饰点：弧跨 ±40°，文字约占 ±36°，点落在 ±39.2° 的弧上（r=72，净空与文字一致） -->
+    <circle cx="51.18" cy="152.35" r="0.9" fill="rgba(255,255,255,.75)"/>
+    <circle cx="140.82" cy="152.35" r="0.9" fill="rgba(255,255,255,.75)"/>
+  </g>
+</svg>

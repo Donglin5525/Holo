@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 创新四 · 显影文字 ══════════
+       平时球面零文字（铭文沉在 0.05 透明度），周期演示「指尖触碰 → 文字如水面倒影浮起 → 松手沉没」。
+       真机上由触摸事件驱动；此为交互彩蛋，常驻信息仍由素四方案承担。
+  -->
+  <defs>
+    <linearGradient id="echoBall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="52%" stop-color="#F46D38"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <radialGradient id="touchRipple" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
+      <stop offset="70%" stop-color="rgba(255,255,255,.18)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <path id="arcCx4" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+    /* 显影循环（演示）：隐 55% → 浮现 → 保持 → 沉没 */
+    .inscription {
+      animation: surface 7s ease-in-out infinite;
+      letter-spacing: 3;
+    }
+    @keyframes surface {
+      0%, 48%  { opacity: .05; }
+      60%      { opacity: .95; }
+      78%      { opacity: .95; }
+      90%, 100% { opacity: .05; }
+    }
+    /* 触碰涟漪：文字浮现时从中心荡开一圈 */
+    .ripple {
+      animation: ripple 7s ease-out infinite;
+      transform-origin: 96px 96px;
+      opacity: 0;
+    }
+    @keyframes ripple {
+      0%, 52% { opacity: 0; transform: scale(.3); }
+      62%     { opacity: .75; }
+      82%     { opacity: 0; transform: scale(1.15); }
+      100%    { opacity: 0; }
+    }
+  </style>
+
+  <circle cx="96" cy="96" r="88" fill="url(#echoBall)"/>
+  <ellipse cx="72" cy="50" rx="44" ry="27" fill="rgba(255,255,255,.16)"/>
+
+  <!-- 三环（细金丝调，同素四） -->
+  <g class="s1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3.5"/>
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="3.5"
+            stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="2.8"/>
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.38)" stroke-width="2.8"
+            stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="2.2"/>
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="2.2"
+            stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+  </g>
+
+  <!-- 触碰涟漪（与文字浮现同步荡开） -->
+  <circle class="ripple" cx="96" cy="96" r="80" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/>
+
+  <!-- 中心呼吸 -->
+  <circle class="core" cx="96" cy="96" r="10" fill="rgba(255,236,210,.35)"/>
+  <circle cx="96" cy="96" r="5" fill="rgba(255,240,220,.9)"/>
+
+  <!-- 沉浮的铭文 -->
+  <text class="inscription" font-size="10.5" fill="rgba(255,250,244,.95)"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcCx4" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

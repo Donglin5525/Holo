@@ -794,6 +794,9 @@ struct ChatView: View {
                         onOpenMatter: { matterID in
                             activeSheet = .matterDetail(matterID)
                         },
+                        onOpenTask: { taskID in
+                            activeSheet = .taskDetail(taskID)
+                        },
                         onSavedGoalCardTap: { goalId in
                             DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
                         },
@@ -1362,6 +1365,21 @@ struct ChatView: View {
                 activeSheet = nil
                 matterChatStore.enter(matterID: discussID, source: .matterDetail)
             }
+        case .taskDetail(let taskID):
+            Group {
+                if let task = TodoRepository.shared.findTask(by: taskID) {
+                    TaskDetailView(task: task, repository: TodoRepository.shared) {
+                        activeSheet = nil
+                    }
+                } else {
+                    VStack(spacing: 10) {
+                        Image(systemName: "tray").font(.title).foregroundStyle(.tertiary)
+                        Text(String(localized: "这条任务已被删除"))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .padding(30)
+                }
+            }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .chat)) { transcript in
                 pendingVoiceTranscriptToSend = transcript
@@ -1403,6 +1421,8 @@ private enum ChatSheet: Identifiable {
     case voiceInput
     /// Matter「进行中的事」详情（内部路由，不占 Tab）
     case matterDetail(UUID)
+    /// 方案卡已加入任务的详情（§8.1 单项「查看」）
+    case taskDetail(UUID)
 
     var id: String {
         switch self {
@@ -1418,6 +1438,8 @@ private enum ChatSheet: Identifiable {
             return "analysisDetail-\(message.id)"
         case .matterDetail(let id):
             return "matterDetail-\(id)"
+        case .taskDetail(let id):
+            return "taskDetail-\(id)"
         case .voiceInput:
             return "voiceInput"
         }

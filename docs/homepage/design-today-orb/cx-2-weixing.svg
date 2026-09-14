@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 创新二 · 行星与卫星 ══════════
+       进度=轨道上的卫星：今天 3 项安排=外轨道 3 颗卫星（已亮 1、待办 2）。
+       完成一件事：暗卫星点亮并沿轨道滑行。演示里 1 颗暗卫星周期性点亮（演示「完成瞬间」）。
+       球体=行星（本色品牌渐变），文字=环上铭文。
+  -->
+  <defs>
+    <linearGradient id="planet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="52%" stop-color="#F46D38"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <radialGradient id="satGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,255,255,.9)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <path id="arcCx2" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .orbit1 { animation: rot 60s linear infinite; transform-origin: 96px 96px; }
+    .orbit2 { animation: rot 44s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 30s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 完成演示：暗卫星周期点亮（真机上由真实完成事件触发，常亮不熄） */
+    .ignite { animation: ignite 7s ease-in-out infinite; }
+    @keyframes ignite {
+      0%, 55% { fill: rgba(255,246,238,.28); r: 3; }
+      62%     { fill: #FFFFFF; r: 4.2; }
+      78%     { fill: #FFFFFF; r: 4.2; }
+      92%, 100% { fill: rgba(255,246,238,.28); r: 3; }
+    }
+    .igniteGlow { animation: igniteGlow 7s ease-in-out infinite; }
+    @keyframes igniteGlow {
+      0%, 55%, 92%, 100% { opacity: 0; }
+      66%, 76% { opacity: .8; }
+    }
+    .core { animation: breathe 2.8s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+  </style>
+
+  <circle cx="96" cy="96" r="88" fill="url(#planet)"/>
+  <ellipse cx="72" cy="50" rx="44" ry="27" fill="rgba(255,255,255,.16)"/>
+
+  <!-- 三轨道（细线） -->
+  <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1.6"/>
+  <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1.3"/>
+  <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.2"/>
+
+  <!-- 外轨道卫星：2 颗已点亮（缓慢公转）+ 1 颗待办暗卫星（演示点亮） -->
+  <g class="orbit1">
+    <circle cx="96" cy="44" r="4.4" fill="#FFF8F0"/>
+    <circle cx="96" cy="44" r="7" fill="url(#satGlow)" opacity=".5"/>
+    <circle cx="148" cy="96" r="4.4" fill="#FFF8F0"/>
+    <circle cx="148" cy="96" r="7" fill="url(#satGlow)" opacity=".5"/>
+    <!-- 待办暗卫星：空心，周期演示点亮 -->
+    <circle class="igniteGlow" cx="96" cy="148" r="8" fill="url(#satGlow)"/>
+    <circle class="ignite" cx="96" cy="148" r="3" fill="rgba(255,246,238,.28)" stroke="rgba(255,255,255,.55)" stroke-width="1"/>
+  </g>
+
+  <!-- 中轨道：习惯（星尘两粒示意） -->
+  <g class="orbit2">
+    <circle cx="133.5" cy="96" r="2.2" fill="rgba(255,246,238,.6)"/>
+    <circle cx="58.5" cy="96" r="2.2" fill="rgba(255,246,238,.45)"/>
+  </g>
+
+  <!-- 内环：纯装饰刻线 -->
+  <g class="s3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1.2"
+            stroke-dasharray="2 6"/>
+  </g>
+
+  <!-- 中心呼吸 -->
+  <circle class="core" cx="96" cy="96" r="10" fill="rgba(255,236,210,.35)"/>
+  <circle cx="96" cy="96" r="5" fill="rgba(255,240,220,.9)"/>
+
+  <!-- 环上铭文 -->
+  <text font-size="10.5" fill="rgba(255,248,240,.9)" letter-spacing="3"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcCx2" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

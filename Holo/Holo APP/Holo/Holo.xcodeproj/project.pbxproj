@@ -21,6 +21,10 @@
 		153383C1FA3FF48FED398CB8 /* CategoryCandidateResolverStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6696B2DCA973283DCF537 /* CategoryCandidateResolverStandaloneTests.swift */; };
 		164E695105AEE4C78C1F3A67 /* ThoughtRepositoryAITagBucketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE87E028D77731426EB3061 /* ThoughtRepositoryAITagBucketTests.swift */; };
 		18CE77872E80FFCF40DACBC0 /* CalendarRangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873DF286F1A7241AF0612E0D /* CalendarRangeBuilderTests.swift */; };
+		1A2B3C4D5E6F00000000AA02 /* HoloTodayFocusResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F00000000AA01 /* HoloTodayFocusResolverTests.swift */; };
+		1A2B3C4D5E6F00000000BB02 /* ContextPlanItemExecutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F00000000BB01 /* ContextPlanItemExecutionTests.swift */; };
+		1A2B3C4D5E6F00000000CC02 /* HoloMatterTaskLinkingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F00000000CC01 /* HoloMatterTaskLinkingTests.swift */; };
+		1A2B3C4D5E6F00000000DD02 /* TodayMatterVerticalSliceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F00000000DD01 /* TodayMatterVerticalSliceUITests.swift */; };
 		1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */; };
 		1BCF2DB29B3C875332B40EAB /* ScheduleRankerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B02CFCDAD0D5AA918A480A0 /* ScheduleRankerStandaloneTests.swift */; };
 		1D9E82E735A6F6B42C6616F5 /* HoloLongTermMemoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56D841A046242260A5371CA8 /* HoloLongTermMemoryStoreTests.swift */; };
@@ -81,7 +85,6 @@
 		5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */; };
 		5EF3D41ADABBC9CE64365090 /* VoiceInputViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332AD18C54757A4476C899B5 /* VoiceInputViewModelTests.swift */; };
 		5F7A9B23D4E6C8F0A2134D75 /* HealthSleepTimelineBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5E7F91B2C4A6D8E0F21B53 /* HealthSleepTimelineBuilderTests.swift */; };
-		7C4E9A21B8D3F5E60A1C2D3E /* HealthSleepSessionSplitterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5D8B04C9A1F3D67B2E4F5A /* HealthSleepSessionSplitterTests.swift */; };
 		616846A4AB8C2BD03630E7EB /* HoloMemoryReceiptCompatibilityStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B9CAF239FD35D854D2D22D /* HoloMemoryReceiptCompatibilityStandaloneTests.swift */; };
 		64CC2125D96E17D2B2A5C4E8 /* CategoryDefaultIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38047768B578BCEBA8BE74EE /* CategoryDefaultIconTests.swift */; };
 		66E24B38A2CB459E9CA433CE /* TimelineAxisLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D531892A7D014FFC9E0B398D /* TimelineAxisLayoutTests.swift */; };
@@ -100,19 +103,11 @@
 		7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8D2A1F9E3B4760B2D8F1A3 /* HoloDeterministicAnswerComposerStandaloneTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
 		7A5C2EA02B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */; };
-		EA77E10C0DE00000000000D1 /* HoloMatterVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000D0 /* HoloMatterVocabulary.swift */; };
-		EA77E10C0DE00000000000E1 /* CoreDataStack+MatterEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000E0 /* CoreDataStack+MatterEntities.swift */; };
-		EA77E10C0DE00000000000F1 /* HoloMatter+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000F0 /* HoloMatter+CoreDataClass.swift */; };
-		EA77E10C0DE0000000000102 /* HoloMatterOpenLoop+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000101 /* HoloMatterOpenLoop+CoreDataClass.swift */; };
-		EA77E10C0DE0000000000112 /* HoloMatterLink+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000111 /* HoloMatterLink+CoreDataClass.swift */; };
-		EA77E10C0DE0000000000122 /* HoloMatterEvent+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000121 /* HoloMatterEvent+CoreDataClass.swift */; };
-		EA77E10C0DE00000000000A2 /* HoloMatterStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000A1 /* HoloMatterStateMachineTests.swift */; };
-		EA77E10C0DE00000000000B2 /* HoloMatterRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000B1 /* HoloMatterRepositoryTests.swift */; };
-		EA77E10C0DE0000000000022 /* MatterPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */; };
 		7A5D3E022B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D3E012B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift */; };
 		7A5D3E042B7F5C8DAE2B3501 /* SyncErrorLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D3E032B7F5C8DAE2B3501 /* SyncErrorLog.swift */; };
 		7A9EB0466A1CC5121E0D4658 /* HoloThoughtToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */; };
 		7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */; };
+		7C4E9A21B8D3F5E60A1C2D3E /* HealthSleepSessionSplitterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5D8B04C9A1F3D67B2E4F5A /* HealthSleepSessionSplitterTests.swift */; };
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };
 		7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */; };
 		7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */; };
@@ -245,7 +240,6 @@
 		AA11BB22CC33DD44EE55F002 /* CloudEvidencePresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55F001 /* CloudEvidencePresenterTests.swift */; };
 		AA11BB22CC33DD44EE55FF01 /* HoloMemoryEvidenceRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */; };
 		AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */; };
-		EA77E10C0DE0000000000032 /* MatterVerticalSliceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */; };
 		AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */; };
 		AA11BB22CC33DD44EE880002 /* PersonalContextWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE880001 /* PersonalContextWalkthroughUITests.swift */; };
 		AA55E9C10D42F1B3A7E8C901 /* FullScreenCoverEdgeSwipeBackAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA55E9C10D42F1B3A7E8C902 /* FullScreenCoverEdgeSwipeBackAuditTests.swift */; };
@@ -273,7 +267,6 @@
 		BE0D5A692EF70168491166D9 /* HoloSemanticMemoryIdentityStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D3B35A5CE16EA3527FFDFD1 /* HoloSemanticMemoryIdentityStandaloneTests.swift */; };
 		BE20105F70C8E7B0F404ADE1 /* CategoryIconCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C1A2077BA368A85BEC6D7F /* CategoryIconCatalogTests.swift */; };
 		BE6A8BBEA553E7E47B0CDC70 /* ThoughtClusterEngineStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C711026222AF3DCEBFFFABD3 /* ThoughtClusterEngineStandaloneTests.swift */; };
-		FA10D3C0D4E5F60718296001 /* ThoughtDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */; };
 		C07E22010000000000000001 /* HabitRepositoryCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07E22020000000000000001 /* HabitRepositoryCalendarTests.swift */; };
 		C10066D146B0666E6097FD5B /* HoloAgentJSONStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A8CA5AB2CCAC6491B22D88 /* HoloAgentJSONStoreTests.swift */; };
 		C10D0000A1B1C1D1E1F1AA02 /* HoloCloudAnalysisQAUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D0000A1B1C1D1E1F1AA01 /* HoloCloudAnalysisQAUITests.swift */; };
@@ -306,6 +299,16 @@
 		E66F7344C0A46928F735B651 /* HoloInsightCriticTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9400352FE311A1786D062AC /* HoloInsightCriticTests.swift */; };
 		E6E13FA916D361969B44678F /* InstallmentNoteSanitizerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3A4266B8E20BFB85AAB16E /* InstallmentNoteSanitizerStandaloneTests.swift */; };
 		EA453D22097913A8A7AAE783 /* HoloMemoryScorerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2064F5B8A042CDF0397036 /* HoloMemoryScorerStandaloneTests.swift */; };
+		EA77E10C0DE0000000000022 /* MatterPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */; };
+		EA77E10C0DE0000000000032 /* MatterVerticalSliceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */; };
+		EA77E10C0DE00000000000A2 /* HoloMatterStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000A1 /* HoloMatterStateMachineTests.swift */; };
+		EA77E10C0DE00000000000B2 /* HoloMatterRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000B1 /* HoloMatterRepositoryTests.swift */; };
+		EA77E10C0DE00000000000D1 /* HoloMatterVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000D0 /* HoloMatterVocabulary.swift */; };
+		EA77E10C0DE00000000000E1 /* CoreDataStack+MatterEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000E0 /* CoreDataStack+MatterEntities.swift */; };
+		EA77E10C0DE00000000000F1 /* HoloMatter+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE00000000000F0 /* HoloMatter+CoreDataClass.swift */; };
+		EA77E10C0DE0000000000102 /* HoloMatterOpenLoop+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000101 /* HoloMatterOpenLoop+CoreDataClass.swift */; };
+		EA77E10C0DE0000000000112 /* HoloMatterLink+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000111 /* HoloMatterLink+CoreDataClass.swift */; };
+		EA77E10C0DE0000000000122 /* HoloMatterEvent+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77E10C0DE0000000000121 /* HoloMatterEvent+CoreDataClass.swift */; };
 		EC8125AD41D8261AB745C1AB /* HoloAIUserErrorMapperStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C88C107340F8CF79EB696A3 /* HoloAIUserErrorMapperStandaloneTests.swift */; };
 		EE2C665A7F36D918331F7E0E /* ImportCategoryPlannerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097DB427B80108FA6901D5FF /* ImportCategoryPlannerStandaloneTests.swift */; };
 		EECC8C107E3DA5F04356D687 /* HealthInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF705B0F02D71A705C9A58C /* HealthInsightResponseParserTests.swift */; };
@@ -323,6 +326,7 @@
 		F5846726F7A37ECB5DBB5049 /* ThoughtOrganizationBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B5A27F34F962AF28839320 /* ThoughtOrganizationBatchTests.swift */; };
 		F6804A1C4E46CF4790373A71 /* HoloHabitToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371AC1CB73E45FA0F14D5920 /* HoloHabitToolTests.swift */; };
 		F755253A916BDD01DE62D188 /* HealthInsightCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */; };
+		FA10D3C0D4E5F60718296001 /* ThoughtDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */; };
 		FE1000000000000000000003 /* HoloAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000000000000000000001 /* HoloAcceptanceUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -388,6 +392,10 @@
 		177B647718EA3134C39D209C /* ScheduleSyncPlannerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleSyncPlannerTests.swift; sourceTree = "<group>"; };
 		1931317A74E1E6333BB7DDC3 /* HoloLocalAgentRuntimeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloLocalAgentRuntimeTests.swift; sourceTree = "<group>"; };
 		19CE3990C07175D90E1F2109 /* HoloToolRegistryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloToolRegistryTests.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F00000000AA01 /* HoloTodayFocusResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloTodayFocusResolverTests.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F00000000BB01 /* ContextPlanItemExecutionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContextPlanItemExecutionTests.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F00000000CC01 /* HoloMatterTaskLinkingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMatterTaskLinkingTests.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F00000000DD01 /* TodayMatterVerticalSliceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayMatterVerticalSliceUITests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodoTaskPlannedTimeRangeTests.swift; sourceTree = "<group>"; };
 		1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightResponseParserTests.swift; sourceTree = "<group>"; };
@@ -399,6 +407,7 @@
 		2B6BEFB331A0A6982A4E3E3B /* ThoughtVoiceTranscriptInsertionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtVoiceTranscriptInsertionTests.swift; sourceTree = "<group>"; };
 		2B9F72A62C0B0A6A03101EE0 /* HabitNumericAggregationStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitNumericAggregationStandaloneTests.swift; sourceTree = "<group>"; };
 		2DACE68F96BC4189A35FF7C0 /* EmojiCatalogSearchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EmojiCatalogSearchTests.swift; sourceTree = "<group>"; };
+		2E5D8B04C9A1F3D67B2E4F5A /* HealthSleepSessionSplitterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthSleepSessionSplitterTests.swift; sourceTree = "<group>"; };
 		2F5AA142A782AA9677832674 /* HoloAgentObservabilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentObservabilityTests.swift; sourceTree = "<group>"; };
 		30C9CFE5C8FE075C8D88AE72 /* ASRAudioChunkingPlanTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ASRAudioChunkingPlanTests.swift; sourceTree = "<group>"; };
 		3158B7C4C51722CA029EB52E /* HoloMemoryPromotionPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryPromotionPolicyStandaloneTests.swift; sourceTree = "<group>"; };
@@ -413,7 +422,6 @@
 		398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightRefreshQuotaTests.swift; sourceTree = "<group>"; };
 		3D3B31C557FBE7EE84931BED /* AIReadableResponseParserStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIReadableResponseParserStandaloneTests.swift; sourceTree = "<group>"; };
 		3D5E7F91B2C4A6D8E0F21B53 /* HealthSleepTimelineBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthSleepTimelineBuilderTests.swift; sourceTree = "<group>"; };
-		2E5D8B04C9A1F3D67B2E4F5A /* HealthSleepSessionSplitterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthSleepSessionSplitterTests.swift; sourceTree = "<group>"; };
 		40AA33CCD7AF48DBBBFDE549 /* HoloMetricSemanticStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMetricSemanticStandaloneTests.swift; sourceTree = "<group>"; };
 		436D7BF8CA5DB0D60F1129E3 /* HoloWidgetModelsStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloWidgetModelsStandaloneTests.swift; sourceTree = "<group>"; };
 		439BD0F9196830BEB35DD79D /* WaveformSampleMapperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WaveformSampleMapperTests.swift; sourceTree = "<group>"; };
@@ -462,16 +470,6 @@
 		7A1C3E95B4D8F2A6C0E31B74 /* SleepStructureAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepStructureAnalyzerTests.swift; sourceTree = "<group>"; };
 		7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudKitRuntimeAvailabilityTests.swift; sourceTree = "<group>"; };
 		7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ICloudSyncStatusServiceTests.swift; sourceTree = "<group>"; };
-		EA77E10C0DE00000000000D0 /* HoloMatterVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloMatterVocabulary.swift; path = Holo/Models/HoloMatterVocabulary.swift; sourceTree = "<group>"; };
-		EA77E10C0DE00000000000E0 /* CoreDataStack+MatterEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+MatterEntities.swift"; path = "Holo/Models/CoreDataStack+MatterEntities.swift"; sourceTree = "<group>"; };
-		EA77E10C0DE00000000000F0 /* HoloMatter+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatter+CoreDataClass.swift"; path = "Holo/Models/HoloMatter+CoreDataClass.swift"; sourceTree = "<group>"; };
-		EA77E10C0DE0000000000101 /* HoloMatterOpenLoop+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatterOpenLoop+CoreDataClass.swift"; path = "Holo/Models/HoloMatterOpenLoop+CoreDataClass.swift"; sourceTree = "<group>"; };
-		EA77E10C0DE0000000000111 /* HoloMatterLink+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatterLink+CoreDataClass.swift"; path = "Holo/Models/HoloMatterLink+CoreDataClass.swift"; sourceTree = "<group>"; };
-		EA77E10C0DE0000000000121 /* HoloMatterEvent+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatterEvent+CoreDataClass.swift"; path = "Holo/Models/HoloMatterEvent+CoreDataClass.swift"; sourceTree = "<group>"; };
-		EA77E10C0DE00000000000A1 /* HoloMatterStateMachineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMatterStateMachineTests.swift; sourceTree = "<group>"; };
-		EA77E10C0DE00000000000B1 /* HoloMatterRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMatterRepositoryTests.swift; sourceTree = "<group>"; };
-		EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MatterPresentationTests.swift; sourceTree = "<group>"; };
-		EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatterVerticalSliceUITests.swift; sourceTree = "<group>"; };
 		7A5D3E012B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudKitSyncErrorAnalyzer.swift; path = Holo/Services/Sync/CloudKitSyncErrorAnalyzer.swift; sourceTree = "<group>"; };
 		7A5D3E032B7F5C8DAE2B3501 /* SyncErrorLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncErrorLog.swift; path = Holo/Services/Sync/SyncErrorLog.swift; sourceTree = "<group>"; };
 		7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnniversaryDaysCalculationTests.swift; sourceTree = "<group>"; };
@@ -652,7 +650,6 @@
 		C4A1E5A77000000000000003 /* HoloAgentAnswerObservabilityStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentAnswerObservabilityStandaloneTests.swift; sourceTree = "<group>"; };
 		C4EA782F629EDACAFC493BF6 /* HoloInternalLogStoreStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloInternalLogStoreStandaloneTests.swift; sourceTree = "<group>"; };
 		C711026222AF3DCEBFFFABD3 /* ThoughtClusterEngineStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtClusterEngineStandaloneTests.swift; sourceTree = "<group>"; };
-		FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtDuplicateRepairStandaloneTests.swift; sourceTree = "<group>"; };
 		C73A204FCCB356339D64EA75 /* HoloAgentTimeSemanticResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentTimeSemanticResolverTests.swift; sourceTree = "<group>"; };
 		C85D7467443244A581F85CE6 /* HoloAgentEvalModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentEvalModels.swift; sourceTree = "<group>"; };
 		C8F5DD88C8E720D0DE219D78 /* HoloProfileToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloProfileToolTests.swift; sourceTree = "<group>"; };
@@ -666,6 +663,16 @@
 		E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitFocusSummaryTests.swift; sourceTree = "<group>"; };
 		E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightContextBuilderTests.swift; sourceTree = "<group>"; };
 		E7EC208640A3633A9D32798C /* HealthInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightContextBuilderTests.swift; sourceTree = "<group>"; };
+		EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MatterPresentationTests.swift; sourceTree = "<group>"; };
+		EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatterVerticalSliceUITests.swift; sourceTree = "<group>"; };
+		EA77E10C0DE00000000000A1 /* HoloMatterStateMachineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMatterStateMachineTests.swift; sourceTree = "<group>"; };
+		EA77E10C0DE00000000000B1 /* HoloMatterRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMatterRepositoryTests.swift; sourceTree = "<group>"; };
+		EA77E10C0DE00000000000D0 /* HoloMatterVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloMatterVocabulary.swift; path = Holo/Models/HoloMatterVocabulary.swift; sourceTree = "<group>"; };
+		EA77E10C0DE00000000000E0 /* CoreDataStack+MatterEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+MatterEntities.swift"; path = "Holo/Models/CoreDataStack+MatterEntities.swift"; sourceTree = "<group>"; };
+		EA77E10C0DE00000000000F0 /* HoloMatter+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatter+CoreDataClass.swift"; path = "Holo/Models/HoloMatter+CoreDataClass.swift"; sourceTree = "<group>"; };
+		EA77E10C0DE0000000000101 /* HoloMatterOpenLoop+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatterOpenLoop+CoreDataClass.swift"; path = "Holo/Models/HoloMatterOpenLoop+CoreDataClass.swift"; sourceTree = "<group>"; };
+		EA77E10C0DE0000000000111 /* HoloMatterLink+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatterLink+CoreDataClass.swift"; path = "Holo/Models/HoloMatterLink+CoreDataClass.swift"; sourceTree = "<group>"; };
+		EA77E10C0DE0000000000121 /* HoloMatterEvent+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloMatterEvent+CoreDataClass.swift"; path = "Holo/Models/HoloMatterEvent+CoreDataClass.swift"; sourceTree = "<group>"; };
 		EC3C97A9EBFDA416A105D738 /* CalendarEventProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarEventProviderTests.swift; sourceTree = "<group>"; };
 		F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceBillImportMatrixStandaloneTests.swift; sourceTree = "<group>"; };
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
@@ -677,6 +684,7 @@
 		F215DFCBE8FF4A72EC6B7745 /* HoloAgentPersistenceManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentPersistenceManagerTests.swift; sourceTree = "<group>"; };
 		F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloExpressionDecisionEngineTests.swift; sourceTree = "<group>"; };
 		F7172AA6F8A3B20680429BDE /* HoloAgentInputSnapshotStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentInputSnapshotStandaloneTests.swift; sourceTree = "<group>"; };
+		FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtDuplicateRepairStandaloneTests.swift; sourceTree = "<group>"; };
 		FB210CE9AF03AFD0A87E2C06 /* HoloProjectToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloProjectToolTests.swift; sourceTree = "<group>"; };
 		FCD82FD43AAF6B2667E5AD52 /* AIUserContextMessageBuilderStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIUserContextMessageBuilderStandaloneTests.swift; sourceTree = "<group>"; };
 		FE1000000000000000000001 /* HoloAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoloAcceptanceUITests.swift; sourceTree = "<group>"; };
@@ -744,6 +752,7 @@
 				F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */,
 				F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */,
 				59C21C10C9C44B1151ADD85C /* ConvergenceRejectionRepositoryTests.swift */,
+				1A2B3C4D5E6F00000000BB00 /* PersonalContext */,
 				F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */,
 				E7EC208640A3633A9D32798C /* HealthInsightContextBuilderTests.swift */,
 				7E86CA8000924B5EE7C10C5D /* HealthInsightGenerationServiceTests.swift */,
@@ -812,6 +821,22 @@
 				9B2A75D9C120F64A88CCA691 /* HorizontalGestureLockTests.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		1A2B3C4D5E6F00000000AA00 /* Today */ = {
+			isa = PBXGroup;
+			children = (
+				1A2B3C4D5E6F00000000AA01 /* HoloTodayFocusResolverTests.swift */,
+			);
+			path = Today;
+			sourceTree = "<group>";
+		};
+		1A2B3C4D5E6F00000000BB00 /* PersonalContext */ = {
+			isa = PBXGroup;
+			children = (
+				1A2B3C4D5E6F00000000BB01 /* ContextPlanItemExecutionTests.swift */,
+			);
+			path = PersonalContext;
 			sourceTree = "<group>";
 		};
 		1B9A00130000000000000001 /* Chat */ = {
@@ -901,14 +926,6 @@
 				C711026222AF3DCEBFFFABD3 /* ThoughtClusterEngineStandaloneTests.swift */,
 			);
 			path = Thoughts;
-			sourceTree = "<group>";
-		};
-		FA10D3C0D4E5F60718296003 /* Sync */ = {
-			isa = PBXGroup;
-			children = (
-				FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */,
-			);
-			path = Sync;
 			sourceTree = "<group>";
 		};
 		496F9B482FDEEF2B00142294 /* Recovered References */ = {
@@ -1132,18 +1149,11 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
-		EA77E10C0DE00000000000C2 /* Matter */ = {
-			isa = PBXGroup;
-			children = (
-				EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */,
-			);
-			path = Matter;
-			sourceTree = "<group>";
-		};
 		9E92ACDDE05DC0E898C42AC2 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				EA77E10C0DE00000000000C2 /* Matter */,
+				1A2B3C4D5E6F00000000AA00 /* Today */,
 				1B9A00130000000000000001 /* Chat */,
 				98C2F2186A5A421A9D79C381 /* MemoryGallery */,
 				83A110F35E80493490927C87 /* Thoughts */,
@@ -1271,15 +1281,6 @@
 			path = Agent;
 			sourceTree = "<group>";
 		};
-		EA77E10C0DE00000000000C1 /* Matter */ = {
-			isa = PBXGroup;
-			children = (
-				EA77E10C0DE00000000000A1 /* HoloMatterStateMachineTests.swift */,
-				EA77E10C0DE00000000000B1 /* HoloMatterRepositoryTests.swift */,
-			);
-			path = Matter;
-			sourceTree = "<group>";
-		};
 		E4EF083CEA4F1BA693FB84AE /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -1305,12 +1306,38 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		EA77E10C0DE00000000000C1 /* Matter */ = {
+			isa = PBXGroup;
+			children = (
+				EA77E10C0DE00000000000A1 /* HoloMatterStateMachineTests.swift */,
+				EA77E10C0DE00000000000B1 /* HoloMatterRepositoryTests.swift */,
+				1A2B3C4D5E6F00000000CC01 /* HoloMatterTaskLinkingTests.swift */,
+			);
+			path = Matter;
+			sourceTree = "<group>";
+		};
+		EA77E10C0DE00000000000C2 /* Matter */ = {
+			isa = PBXGroup;
+			children = (
+				EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */,
+			);
+			path = Matter;
+			sourceTree = "<group>";
+		};
 		F18A001B2C3D4E5F60718295 /* BillImport */ = {
 			isa = PBXGroup;
 			children = (
 				F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */,
 			);
 			path = BillImport;
+			sourceTree = "<group>";
+		};
+		FA10D3C0D4E5F60718296003 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */,
+			);
+			path = Sync;
 			sourceTree = "<group>";
 		};
 		FE1000000000000000000004 /* HoloUITests */ = {
@@ -1328,6 +1355,7 @@
 				F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */,
 				BE02A2C3D4E5F60718293A4B /* HealthPhase2WalkthroughUITests.swift */,
 				AA11BB22CC33DD44EE880001 /* PersonalContextWalkthroughUITests.swift */,
+				1A2B3C4D5E6F00000000DD01 /* TodayMatterVerticalSliceUITests.swift */,
 			);
 			path = HoloUITests;
 			sourceTree = "<group>";
@@ -1540,6 +1568,9 @@
 				7A5C2EA02B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift in Sources */,
 				EA77E10C0DE00000000000A2 /* HoloMatterStateMachineTests.swift in Sources */,
 				EA77E10C0DE00000000000B2 /* HoloMatterRepositoryTests.swift in Sources */,
+				1A2B3C4D5E6F00000000AA02 /* HoloTodayFocusResolverTests.swift in Sources */,
+				1A2B3C4D5E6F00000000BB02 /* ContextPlanItemExecutionTests.swift in Sources */,
+				1A2B3C4D5E6F00000000CC02 /* HoloMatterTaskLinkingTests.swift in Sources */,
 				EA77E10C0DE0000000000022 /* MatterPresentationTests.swift in Sources */,
 				5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B5D /* HoloAgentSchedulerTests.swift in Sources */,
@@ -1831,6 +1862,7 @@
 				F1AC00000000000000000FC4 /* FinanceProjectWalkthroughUITests.swift in Sources */,
 				BE01A2C3D4E5F60718293A4B /* HealthPhase2WalkthroughUITests.swift in Sources */,
 				AA11BB22CC33DD44EE880002 /* PersonalContextWalkthroughUITests.swift in Sources */,
+				1A2B3C4D5E6F00000000DD02 /* TodayMatterVerticalSliceUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -305,6 +305,10 @@ struct HomeView: View {
             scheduleService.setup()
             // 本周观察：有效记录日 Service（首屏读缓存，后台监听四模块刷新）
             EffectiveRecordDayService.shared.setup()
+            // 关联实体变化协调：任务完成/删除联动 Matter 投影（§8.4；Matter 关闭时空转）
+            HoloMatterLinkedEntityChangeCoordinator.shared.startObserving()
+            // 「今天」入口摘要预热：首页出现即构建快照，入口按钮不再停在加载态
+            await todayViewModel.loadIfNeeded()
             // 纪念日：初始化 + 兜底生成到期任务
             AnniversaryRepository.shared.setup()
             _ = await AnniversaryTaskGenerator.shared.generateDueTasks()
@@ -330,9 +334,32 @@ struct HomeView: View {
             showWeeklyBriefCard = false
         }) {
             LazyView {
-                DailyKanbanView(showWeeklyBrief: showWeeklyBriefCard)
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                    .holoContentColumn()
+                DailyKanbanView(
+                    showWeeklyBrief: showWeeklyBriefCard,
+                    todayViewModel: todayViewModel,
+                    onOpenChatWithMatter: { matterID in
+                        // Today 详情页讨论：上下文已由调用方保存，这里只负责关闭后进 Chat。
+                        openRootScreen(.ai)
+                    },
+                    onOpenAI: {
+                        showDailyKanban = false
+                        openRootScreen(.ai)
+                    },
+                    onOpenFinance: {
+                        showDailyKanban = false
+                        navigateToScreen(.finance)
+                    },
+                    onAddTask: {
+                        showDailyKanban = false
+                        showAddTaskSheet = true
+                    },
+                    onAddThought: {
+                        showDailyKanban = false
+                        showThoughtEditor = true
+                    }
+                )
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                .holoContentColumn()
             }
         }
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
@@ -380,12 +407,23 @@ struct HomeView: View {
                 onAddTapped: {
                     showMatterList = false
                     openRootScreen(.ai)
+                },
+                onDiscussMatter: { matterID in
+                    // 列表详情内「和 Holo 讨论」：先存上下文，再关列表进 Chat（§8.5）。
+                    MatterChatContextStore.shared.enter(matterID: matterID, source: .matterDetail)
+                    showMatterList = false
+                    openRootScreen(.ai)
                 }
             )
         }
-        // Matter 详情（首页焦点卡直达）
+        // Matter 详情（首页焦点卡直达；讨论入口统一接线，§8.5）
         .sheet(item: $matterDetailTarget) { target in
-            MatterDetailView(matterID: target.id)
+            MatterDetailView(matterID: target.id) { discussID in
+                // 先保存 scoped 上下文再关 sheet（路由转换期间不清空 Matter context），随后进 resident Chat。
+                MatterChatContextStore.shared.enter(matterID: discussID, source: .homeFocusCard)
+                matterDetailTarget = nil
+                openRootScreen(.ai)
+            }
         }
         // Deep Link / 小组件 - 记录想法
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
@@ -623,6 +661,8 @@ struct HomeView: View {
 
     @ObservedObject private var matterRepository = HoloMatterRepository.shared
     @State private var showMatterList = false
+    /// 「今天」唯一 ViewModel：首页入口与 Today 页共用同一快照（§9.1）。
+    @StateObject private var todayViewModel = HoloTodayViewModel()
     @State private var matterDetailTarget: MatterDetailTarget?
 
     /// sheet(item:) 的 Identifiable 包装。
@@ -633,7 +673,9 @@ struct HomeView: View {
     /// 焦点卡区域：0 件 active 时整块不出现；1 件完整卡；多件只展示最高关注的一件 + 查看全部。
     @ViewBuilder
     private var matterFocusSection: some View {
-        if HoloMatterRolloutPolicy.storageEnabled, let item = matterFocusItem {
+        // 新版「今天」开启后 Matter 焦点并入 Today 页，首页不再重复两套焦点（§4/T4）。
+        if !HoloTodayRolloutPolicy.isEnabled,
+           HoloMatterRolloutPolicy.storageEnabled, let item = matterFocusItem {
             MatterFocusCard(
                 item: item,
                 compact: shouldCompactMatterCard,
@@ -887,8 +929,8 @@ struct HomeView: View {
             featureButtons
                 .coachMarkTarget(HomeCoachTour.featureButtonsID)
 
-            // 中央今日看板入口按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
-            DailyKanbanEntryButton {
+            // 中央「今天」入口按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
+            DailyKanbanEntryButton(todayViewModel: todayViewModel) {
                 showDailyKanban = true
             }
             .coachMarkTarget(HomeCoachTour.kanbanEntryID)

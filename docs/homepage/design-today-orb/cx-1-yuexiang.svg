@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 创新一 · 月相钟 ══════════
+       球体的亮暗 = 今天的时间进度。演示为「一天快进」循环（真机上由真实时刻驱动）：
+       清晨细亮 → 正午全亮 → 傍晚半亮 → 深夜近暗 → 回到清晨。
+       演示循环 16s = 一天；文字沿下弧常驻（真机版将锚定亮暗交界弧，位置随时刻变化）。
+       三环保留任务/习惯/总进度语义（品牌色渐变亮面 + 深暖褐暗面）。
+  -->
+  <defs>
+    <!-- 亮面：品牌渐变 -->
+    <linearGradient id="dayLit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="52%" stop-color="#F46D38"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <!-- 暗面：深暖褐（未照亮的一面） -->
+    <linearGradient id="dayDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6E3A16"/>
+      <stop offset="100%" stop-color="#4A2408"/>
+    </linearGradient>
+    <!-- 亮暗交界的微光 -->
+    <radialGradient id="terminatorGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,214,170,.5)"/>
+      <stop offset="100%" stop-color="rgba(255,214,170,0)"/>
+    </radialGradient>
+    <clipPath id="ballClip"><circle cx="96" cy="96" r="88"/></clipPath>
+    <path id="arcCx1" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    /* 一天快进：暗面圆从右缘扫入（晨）→ 居中（暮）→ 左缘退出（正午）→ 循环
+       x 偏移 0→192 往返；暗面半径同步变化让明暗过渡柔和 */
+    .darkSide { animation: daycycle 16s ease-in-out infinite; }
+    @keyframes daycycle {
+      0%   { transform: translateX(132px); }   /* 清晨：细亮月牙在左 */
+      25%  { transform: translateX(0px);  }    /* 正午：全亮 */
+      50%  { transform: translateX(-60px); }   /* 午后：暗面从左侧进入 */
+      62%  { transform: translateX(-32px); opacity: .96; } /* 傍晚：半暗 */
+      80%  { transform: translateX(88px); }    /* 夜：暗面盖大半 */
+      100% { transform: translateX(132px); }   /* 回到清晨 */
+    }
+    .glowline { animation: glowmove 16s ease-in-out infinite; }
+    @keyframes glowmove {
+      0%, 50%, 100% { opacity: 0; }
+      56%, 68% { opacity: .8; }
+    }
+  </style>
+
+  <!-- 球底：暗面（未照亮侧） -->
+  <circle cx="96" cy="96" r="88" fill="url(#dayDark)"/>
+
+  <!-- 亮面：品牌渐变，被暗面圆扫过 -->
+  <g clip-path="url(#ballClip)">
+    <circle cx="96" cy="96" r="88" fill="url(#dayLit)"/>
+    <!-- 暗面圆：在球上滑动（演示一天） -->
+    <circle class="darkSide" cx="96" cy="96" r="92" fill="url(#dayDark)" opacity=".94"/>
+  </g>
+
+  <!-- 亮暗交界微光（晨昏线提示） -->
+  <ellipse class="glowline" cx="96" cy="96" rx="10" ry="86" fill="url(#terminatorGlow)"/>
+
+  <!-- 三环：任务/习惯/总进度（亮弧在暗面上也可读） -->
+  <g class="s1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="3.5"/>
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,246,238,.62)" stroke-width="3.5"
+            stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="2.8"/>
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,246,238,.45)" stroke-width="2.8"
+            stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2.2"/>
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,246,238,.32)" stroke-width="2.2"
+            stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+  </g>
+
+  <!-- 中心呼吸光点（现在是「今天的太阳」） -->
+  <circle cx="96" cy="96" r="10" fill="rgba(255,236,210,.35)"/>
+  <circle cx="96" cy="96" r="5.5" fill="rgba(255,240,220,.92)"/>
+
+  <!-- 铭文：真机版将沿亮暗交界弧动态定位；演示稿沿下弧常驻 -->
+  <text font-size="10.5" fill="rgba(255,248,240,.9)" letter-spacing="3"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcCx1" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

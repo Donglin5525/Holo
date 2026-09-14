@@ -24,8 +24,8 @@ enum HomeCoachTour {
             ),
             CoachMarkStep(
                 targetID: kanbanEntryID,
-                title: String(localized: "今天，一目了然"),
-                message: String(localized: "点开看今天的任务、习惯和健康全貌，Holo 每天在这里帮你收个尾。")
+                title: String(localized: "从今天开始"),
+                message: String(localized: "这里显示你今天最值得推进的事、正在进行的事和整体安排。Holo 每天在这里帮你收个尾。")
             ),
             CoachMarkStep(
                 targetID: bottomNavID,

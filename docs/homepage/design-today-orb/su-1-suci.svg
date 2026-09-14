@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"
+  <!-- ══════════ 素一 · 素瓷 ══════════
+       暖白瓷球，三环化为瓷上灰线，品牌橙退守为球心唯一一点呼吸。
+       文字几何沿用已验证约束：弧 r=72、字号 10.5（环变细后净空更宽裕）。
+  -->
+  <defs>
+    <radialGradient id="porcelain" cx="0.40" cy="0.34" r="0.9">
+      <stop offset="0%" stop-color="#FBF7F1"/>
+      <stop offset="55%" stop-color="#F1E9DD"/>
+      <stop offset="88%" stop-color="#E7DAC8"/>
+      <stop offset="100%" stop-color="#DFD0BC"/>
+    </radialGradient>
+    <radialGradient id="orangeDot" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#F46D38"/>
+      <stop offset="70%" stop-color="#F46D38"/>
+      <stop offset="100%" stop-color="rgba(244,109,56,0)"/>
+    </radialGradient>
+    <path id="arcSu1" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+  </defs>
+  <style>
+    .s1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+    .s2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+    .s3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .dot { animation: breathe 3.2s ease-in-out infinite; transform-origin: 96px 96px; }
+    @keyframes breathe { 0%,100% { opacity: .55; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.05); } }
+  </style>
+
+  <circle cx="96" cy="96" r="88" fill="url(#porcelain)"/>
+  <circle cx="96" cy="96" r="87.4" fill="none" stroke="rgba(90,78,64,.14)" stroke-width="1"/>
+
+  <!-- 三环：瓷上灰线，进度只体现在深浅 -->
+  <g class="s1">
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(92,80,66,.10)" stroke-width="2.5"/>
+    <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(92,80,66,.38)" stroke-width="2.5"
+            stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s2">
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(92,80,66,.09)" stroke-width="2"/>
+    <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(92,80,66,.30)" stroke-width="2"
+            stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+  </g>
+  <g class="s3">
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(92,80,66,.08)" stroke-width="1.6"/>
+    <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(92,80,66,.24)" stroke-width="1.6"
+            stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+  </g>
+
+  <!-- 唯一的颜色：球心一点橙，安静呼吸 -->
+  <circle class="dot" cx="96" cy="96" r="9" fill="url(#orangeDot)"/>
+  <circle cx="96" cy="96" r="3.2" fill="#F46D38"/>
+
+  <!-- 铭文：暖深灰细字 -->
+  <text font-size="10.5" fill="rgba(96,82,66,.88)" letter-spacing="3"
+        font-family="PingFang SC, sans-serif" font-weight="400">
+    <textPath href="#arcSu1" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+  </text>
+</svg>

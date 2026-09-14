@@ -827,8 +827,11 @@ final class ChatViewModel: ObservableObject {
         let userMessageId = chatRepo.addMessage(role: "user", content: text)
         lastSentUserText = text
 
-        // Matter-scoped Chat：用户消息自动关联到当前事情（方案 §6.1 系统确定性关联）
-        if let matterContext = matterChatContext.active {
+        // Matter-scoped Chat：冻结请求级上下文——消息关联、回答注入、回答后对账共用同一 matterID；
+        // 回答期间用户切换 Matter 时，迟到对账按原请求上下文校验，不写入新 Matter（§8.6）。
+        let requestMatterContext = matterChatContext.active
+        if let matterContext = requestMatterContext {
+            pendingReconciliationContext = matterContext
             Task { [weak self] in
                 _ = try? await HoloMatterRepository.shared.addLink(
                     matterID: matterContext.matterID,
@@ -1446,9 +1449,12 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// Matter 内对话的持续对账：失败静默（不写假状态），歧义转追问。
+    /// 用 sendMessage 时冻结的请求级上下文（pendingReconciliationContext），不用读取时的 active——
+    /// 回答期间用户切换 Matter，迟到对账仍按原请求 matterID 校验（§8.6）。
     private func triggerMatterReconciliationIfScoped() {
         guard HoloMatterRolloutPolicy.scopedChatEnabled else { return }
-        guard let context = MatterChatContextStore.shared.active else { return }
+        guard let context = pendingReconciliationContext else { return }
+        pendingReconciliationContext = nil
         let text = lastSentUserText ?? ""
         guard !text.isEmpty else { return }
         lastSentUserText = nil
@@ -1457,7 +1463,8 @@ final class ChatViewModel: ObservableObject {
             let matterTitle = HoloMatterRepository.shared.matter(id: context.matterID)?.title
             let coordinator = HoloMatterReconciliationCoordinator()
             let result = await coordinator.reconcile(matterID: context.matterID, messageID: UUID(), messageText: text)
-            guard context.matterID == store.active?.matterID else { return } // 用户已退出上下文
+            // 迟到对账守卫：用户退出胶囊（active=nil）或已切到别的 Matter → 结果丢弃，不串事项。
+            guard store.active?.matterID == context.matterID else { return }
             if result.hasChanges {
                 store.lastFeedback = MatterChatContextStore.MatterFeedback(
                     matterTitle: matterTitle ?? "",
@@ -1469,6 +1476,9 @@ final class ChatViewModel: ObservableObject {
             }
         }
     }
+
+    /// 请求级冻结的 Matter 对账上下文（sendMessage 设置、回答落定后消费一次）。
+    fileprivate var pendingReconciliationContext: HoloMatterConversationContext?
 
     /// 最近一次发送的用户消息文本（对账输入；回答结束后消费一次）。
     nonisolated(unsafe) fileprivate var lastSentUserText: String?

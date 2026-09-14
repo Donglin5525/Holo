@@ -344,6 +344,7 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+        notifyTaskChange(.created, taskId: task.id)
         return task
     }
 
@@ -433,6 +434,9 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+        if dueDateChanged {
+            notifyTaskChange(.dueDateChanged, taskId: task.id)
+        }
 
         // 截止时间改动后，把已调度的通知挪到新时间：先取消旧的，再按新时间重建。
         // 只改 reminders 时上面已处理；这里覆盖「只改 dueDate 没动 reminders」的情况。
@@ -468,6 +472,7 @@ class TodoRepository: ObservableObject {
         } else {
             rescheduleRemindersIfNeeded(for: task)
         }
+        notifyTaskChange(becameCompleted ? .completed : .completionReverted, taskId: task.id)
         return becameCompleted
     }
 
@@ -476,6 +481,7 @@ class TodoRepository: ObservableObject {
         try TodoCompletionCore.complete(task, in: context)
         loadActiveTasks()
         notifyDataChange()
+        notifyTaskChange(.completed, taskId: task.id)
 
         TodoNotificationService.shared.removeReminders(for: task)
     }
@@ -577,6 +583,7 @@ class TodoRepository: ObservableObject {
         loadActiveTasks()
         loadTrashedTasks()
         notifyDataChange()
+        notifyTaskChange(.deleted, taskId: task.id)
 
         TodoNotificationService.shared.removeReminders(for: task)
     }
@@ -615,6 +622,7 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+        notifyTaskChange(.archived, taskId: task.id)
 
         TodoNotificationService.shared.removeReminders(for: task)
     }
@@ -802,6 +810,31 @@ class TodoRepository: ObservableObject {
         try? context.save()
     }
 
+    /// 按方案卡条目创建任务：真实写入 aiSource 来源字段，同来源键幂等（今日看板 Matter 化方案 §8.2）。
+    /// 幂等键 = aiSourceMessageId + aiSourceItemId；命中即返回既有任务，不产生副本。
+    /// 任务落库成功才算成功；失败抛错由调用方回报真实回执。
+    @discardableResult
+    func createContextPlanTask(
+        creation: HoloContextPlanTaskCreation,
+        sourceMessageID: UUID
+    ) throws -> TodoTask {
+        let messageId = sourceMessageID.uuidString
+        // 幂等：同来源键已有活任务 → 直接复用。
+        if let existing = findTaskByAISource(messageId: messageId, itemId: creation.itemID),
+           existing.deletedAt == nil {
+            return existing
+        }
+        let task = try createTask(
+            title: creation.title,
+            description: creation.note,
+            dueDate: creation.dueDate
+        )
+        task.aiSourceMessageId = messageId
+        task.aiSourceItemId = creation.itemID
+        try context.save()
+        return task
+    }
+
     /// 按 AI 确认流程来源查找任务（对账：确认中途被杀时实体已建但消息仍停在 confirming）
     func findTaskByAISource(messageId: String, itemId: String) -> TodoTask? {
         let request = TodoTask.fetchRequest()
@@ -908,6 +941,12 @@ class TodoRepository: ObservableObject {
             name: .todoDataDidChange,
             object: taskId
         )
+    }
+
+    /// 类型化任务变更（Matter 关联实体联动用；object 携带 HoloTaskChange，禁止 nil 反猜）。
+    func notifyTaskChange(_ changeKind: HoloTaskChangeKind, taskId: UUID) {
+        let change = HoloTaskChange(taskID: taskId, changeKind: changeKind, changedAt: Date())
+        NotificationCenter.default.post(name: .holoTaskChange, object: change)
     }
 
     // MARK: - Attachment Helpers
