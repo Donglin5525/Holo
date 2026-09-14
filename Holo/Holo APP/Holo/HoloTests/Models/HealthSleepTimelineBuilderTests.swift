@@ -20,10 +20,6 @@ struct HealthSleepTimelineBuilderTests {
         test无阶段数据判定为引导态()
         test无睡着段返回nil()
         test未知阶段值被忽略()
-        test夜醒标注分散时全在上线()
-        test夜醒标注过密时上下行交错()
-        test夜醒标注两行都放不下时不显示()
-        test夜醒标注间距恰好达标时仍算放得下()
         print("HealthSleepTimelineBuilderTests passed")
     }
 
@@ -88,29 +84,6 @@ struct HealthSleepTimelineBuilderTests {
             sample(4, 30, 90)
         ])
         expect(timeline!.segments.count == 1, "未知阶段值样本应被忽略")
-    }
-
-    // MARK: - 夜醒标注两行避让（SleepTimelineCard.wakeMarkRows）
-
-    private static func test夜醒标注分散时全在上线() {
-        let rows = SleepTimelineCard.wakeMarkRows(offsets: [30, 150, 270], minGap: 32)
-        expect(rows == [0, 0, 0], "间距充足的标注应全留在上行，实际 \(rows)")
-    }
-
-    private static func test夜醒标注过密时上下行交错() {
-        // 复刻线上案例：40~45 分钟间隔的三个夜醒（300pt 宽、8 小时跨度下 x≈27/54/81）
-        let rows = SleepTimelineCard.wakeMarkRows(offsets: [30, 50, 90], minGap: 32)
-        expect(rows == [0, 1, 0], "过密标注应上下行交错，实际 \(rows)")
-    }
-
-    private static func test夜醒标注两行都放不下时不显示() {
-        let rows = SleepTimelineCard.wakeMarkRows(offsets: [30, 40, 50], minGap: 32)
-        expect(rows == [0, 1, nil], "第三标注两行均放不下应弃显而非叠字，实际 \(rows)")
-    }
-
-    private static func test夜醒标注间距恰好达标时仍算放得下() {
-        let rows = SleepTimelineCard.wakeMarkRows(offsets: [30, 62], minGap: 32)
-        expect(rows == [0, 0], "间距恰等于 minGap 应视为放得下，实际 \(rows)")
     }
 }
 

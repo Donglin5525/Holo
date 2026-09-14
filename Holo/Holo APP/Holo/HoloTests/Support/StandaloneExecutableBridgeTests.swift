@@ -473,4 +473,8 @@ func test_096_ThoughtDuplicateRepairStandaloneTests() async throws {
     // 来源：Services/Sync/ThoughtDuplicateRepairStandaloneTests.swift
     try ThoughtDuplicateRepairStandaloneTests.main()
 }
+func test_097_HealthSleepSessionSplitterTests() async throws {
+    // 来源：Models/HealthSleepSessionSplitterTests.swift
+    HealthSleepSessionSplitterTests.main()
+}
 }

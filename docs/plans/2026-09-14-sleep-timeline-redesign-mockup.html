@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<title>睡眠时间轴重设计 · 视觉稿（待拍板）</title>
+<style>
+  :root {
+    --bg: #F7F4EE;
+    --card: #FFFFFF;
+    --nested: #F2EEE6;
+    --text: #2E2A24;
+    --text2: #8A8478;
+    --blue: #4A7DFF;   /* 深睡 */
+    --pink: #E8447A;   /* 核心 */
+    --yellow: #E8A93C; /* REM */
+    --gray: #B9B2A6;   /* 清醒 */
+    --inbed: #CDC2AE;  /* 在床未睡 */
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  body {
+    background: var(--bg);
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    padding: 48px 40px 56px;
+  }
+  .page-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .page-sub { font-size: 13px; color: var(--text2); margin-bottom: 36px; line-height: 1.6; }
+  .row { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+  .phone { width: 400px; }
+  .state-tag {
+    display: inline-block; font-size: 12px; font-weight: 600; color: #6B6459;
+    background: #EDE7DB; border-radius: 999px; padding: 5px 12px; margin-bottom: 10px;
+  }
+  .card {
+    background: var(--card); border-radius: 20px; padding: 18px 16px 16px;
+    box-shadow: 0 1px 2px rgba(60,50,30,.05), 0 8px 24px rgba(60,50,30,.06);
+  }
+  .card-title { font-size: 15.5px; font-weight: 600; margin-bottom: 14px; }
+  /* 时刻锚点行 */
+  .anchors { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .anchor { display: flex; flex-direction: column; gap: 1px; }
+  .anchor.right { align-items: flex-end; }
+  .anchor .v { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .anchor .l { font-size: 10.5px; color: var(--text2); }
+  /* 时间轴 */
+  .track-wrap { position: relative; height: 34px; }
+  .track-base {
+    position: absolute; left: 0; right: 0; top: 6px; height: 24px;
+    background: var(--nested); border-radius: 999px;
+  }
+  .seg { position: absolute; top: 6px; height: 24px; }
+  .ticks { position: relative; height: 16px; margin-top: 4px; }
+  .tick { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .tick:first-child { transform: none; }
+  .tick.last { transform: translateX(-100%); }
+  /* 图例 */
+  .legend { display: flex; gap: 14px; margin-top: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  /* 统计行 */
+  .stats { display: flex; border-top: 1px solid #EEE8DC; margin-top: 12px; padding-top: 10px; }
+  .stat { flex: 1; text-align: center; }
+  .stat .v { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 10.5px; color: var(--text2); margin-top: 1px; }
+  /* 小睡行 */
+  .nap { margin-top: 10px; font-size: 11.5px; color: var(--text2); background: var(--nested); border-radius: 10px; padding: 7px 10px; }
+  /* 解读 */
+  .readout {
+    margin-top: 10px; font-size: 12px; line-height: 1.65; color: var(--text);
+    background: var(--nested); border-radius: 12px; padding: 9px 11px;
+  }
+  .caption { font-size: 12.5px; color: #6B6459; line-height: 1.7; margin-top: 12px; width: 368px; }
+  .caption b { color: var(--text); }
+</style>
+</head>
+<body>
+  <div class="page-title">睡眠「整晚时间轴」重设计 · 视觉稿</div>
+  <div class="page-sub">两台卡片为同一版新设计的两种真实数据状态，配合方案文档《2026-09-14-sleep-timeline-redesign-plan.md》拍板。<br>颜色与顶部「睡眠阶段」卡完全一致：蓝=深睡、粉=核心、黄=REM、灰=清醒、浅米=在床未睡。</div>
+
+  <div class="row">
+    <!-- 状态 A：东林 9-13 真实数据（白天小睡 + 夜间主睡眠） -->
+    <div class="phone">
+      <div class="state-tag">状态 A · 东林 9-13 真实数据（白天有过小睡）</div>
+      <div class="card">
+        <div class="card-title">整晚睡眠时间轴</div>
+        <div class="anchors">
+          <div class="anchor"><div class="v">23:47</div><div class="l">入睡</div></div>
+          <div class="anchor right"><div class="v">08:30</div><div class="l">起床</div></div>
+        </div>
+        <div class="track-wrap" id="trackA"><div class="track-base"></div></div>
+        <div class="ticks" id="ticksA"></div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--blue)"></i>深睡</span>
+          <span><i class="dot" style="background:var(--pink)"></i>核心</span>
+          <span><i class="dot" style="background:var(--yellow)"></i>REM</span>
+          <span><i class="dot" style="background:var(--gray)"></i>清醒</span>
+          <span><i class="dot" style="background:var(--inbed)"></i>在床</span>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v">3 次</div><div class="l">夜醒</div></div>
+          <div class="stat"><div class="v">3 段</div><div class="l">REM</div></div>
+          <div class="stat"><div class="v">27 分</div><div class="l">入睡耗时</div></div>
+          <div class="stat"><div class="v">后半夜</div><div class="l">深睡集中</div></div>
+        </div>
+        <div class="nap">☀️ 白天另有小睡 1 次 · 约 1 小时 20 分，未计入上图</div>
+        <div class="readout">深睡分布偏后半夜，入睡质量值得观察；REM 3 段，节律正常。单晚分期精度有限，建议看多晚趋势。</div>
+      </div>
+      <div class="caption"><b>对比现状：</b>轴不再从中午 12:00 画起（小睡已请出主图），「入睡 12:00」的荒谬数字消失；条带按真实时间比例定位，03:10–03:18 手表无数据处如实留白；统计行与解读文案不再一个显示「—」一个说「偏后半夜」。</div>
+    </div>
+
+    <!-- 状态 B：正常晚（无小睡、无在床记录） -->
+    <div class="phone">
+      <div class="state-tag">状态 B · 正常一晚（无小睡，纯手表分期）</div>
+      <div class="card">
+        <div class="card-title">整晚睡眠时间轴</div>
+        <div class="anchors">
+          <div class="anchor"><div class="v">23:35</div><div class="l">入睡</div></div>
+          <div class="anchor right"><div class="v">07:10</div><div class="l">起床</div></div>
+        </div>
+        <div class="track-wrap" id="trackB"><div class="track-base"></div></div>
+        <div class="ticks" id="ticksB"></div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--blue)"></i>深睡</span>
+          <span><i class="dot" style="background:var(--pink)"></i>核心</span>
+          <span><i class="dot" style="background:var(--yellow)"></i>REM</span>
+          <span><i class="dot" style="background:var(--gray)"></i>清醒</span>
+          <span><i class="dot" style="background:var(--inbed)"></i>在床</span>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v">1 次</div><div class="l">夜醒</div></div>
+          <div class="stat"><div class="v">3 段</div><div class="l">REM</div></div>
+          <div class="stat"><div class="v">—</div><div class="l">入睡耗时</div></div>
+          <div class="stat"><div class="v">均匀</div><div class="l">深睡集中</div></div>
+        </div>
+        <div class="readout">深睡分布均匀，节律正常；REM 3 段，节律正常。单晚分期精度有限，建议看多晚趋势。</div>
+      </div>
+      <div class="caption"><b>对照说明：</b>绝大多数夜晚（无小睡）与现状信息一致，只是渲染更干净——同阶段细缝自动缝合、微小段不再强制拉宽、相邻色块白缝消除。入睡耗时无「在床」记录时如实显示「—」，不猜数。</div>
+    </div>
+  </div>
+
+<script>
+  // 分钟数以窗口起点为 0；[阶段, start, end]
+  const C = { deep:'#4A7DFF', core:'#E8447A', rem:'#E8A93C', awake:'#B9B2A6', inbed:'#DDD6C9' };
+  const A = { span: 550, t0: '23:20', ticks: [40,160,280,400,520], labels: ['00:00','02:00','04:00','06:00','08:00'], segs: [
+    ['inbed', 0, 27], ['core', 27, 120], ['rem', 120, 148], ['awake', 148, 151],
+    ['core', 151, 230], /*03:10-03:18 无数据留白*/ ['awake', 238, 246], ['core', 246, 300],
+    ['rem', 300, 327], ['deep', 327, 395], ['awake', 395, 398], ['core', 398, 465],
+    ['rem', 465, 491], ['awake', 491, 502], ['inbed', 502, 550]
+  ]};
+  const B = { span: 450, t0: '23:35', ticks: [25,145,265,385], labels: ['00:00','02:00','04:00','06:00'], segs: [
+    ['core', 0, 55], ['deep', 55, 120], ['core', 120, 175], ['rem', 175, 200], ['awake', 200, 208],
+    ['core', 208, 275], ['rem', 275, 300], ['deep', 300, 345], ['core', 345, 395], ['rem', 395, 420], ['core', 420, 450]
+  ]};
+
+  function render(id, ticksId, state) {
+    const wrap = document.getElementById(id);
+    const w = wrap.clientWidth;
+    state.segs.forEach(([stage, s, e]) => {
+      const d = document.createElement('div');
+      d.className = 'seg';
+      d.style.left = (s / state.span * 100) + '%';
+      d.style.width = ((e - s) / state.span * 100) + '%';
+      d.style.background = C[stage];
+      // 首尾圆角由两端段承担（近似胶囊）
+      if (s === 0) d.style.borderRadius = '999px 0 0 999px';
+      if (e === state.span) d.style.borderRadius = (s === 0 ? '999px 999px 999px 999px' : '0 999px 999px 0');
+      wrap.appendChild(d);
+    });
+    const ticks = document.getElementById(ticksId);
+    state.ticks.forEach((m, i) => {
+      const t = document.createElement('div');
+      t.className = 'tick' + (i === 0 ? ' first' : '') + (i === state.ticks.length - 1 ? ' last' : '');
+      t.style.left = (m / state.span * 100) + '%';
+      t.textContent = state.labels[i];
+      ticks.appendChild(t);
+    });
+  }
+  render('trackA', 'ticksA', A);
+  render('trackB', 'ticksB', B);
+</script>
+</body>
+</html>

@@ -67,6 +67,9 @@ struct HealthSleepDetail: Sendable {
     var remLatencyMinutes: Double? = nil
     var deepFrontLoadPercent: Double? = nil
     var sleepOnsetLatencyMinutes: Double? = nil
+    // 当日小睡摘要（不含夜间主睡眠）；nil = 当日无小睡。
+    var napCount: Int? = nil
+    var napHours: Double? = nil
 
     /// 是否包含睡眠阶段数据（深睡/浅睡/REM），无 Apple Watch 类数据源时为 false
     var hasStageData: Bool {
@@ -543,76 +546,116 @@ class HealthRepository: ObservableObject {
                     ) else { return nil }
                     return (sample.value, clipped.start, clipped.end)
                 }
-                continuation.resume(returning: HealthSleepTimelineBuilder.build(wakeDay: wakeDay, samples: raw))
+                // 小睡与夜间主睡眠切分（小睡不入时间轴，时间轴只画主睡眠）
+                let mainSamples = HealthSleepSessionSplitter.split(samples: raw)?.mainSamples ?? []
+                continuation.resume(returning: HealthSleepTimelineBuilder.build(wakeDay: wakeDay, samples: mainSamples))
             }
             healthStore.execute(query)
         }
     }
 
-    /// 一晚模式化 mock 时间轴（模拟器）：23:30 上床，4 段 REM 集中后半夜，两次夜醒。
-    nonisolated private static func mockSleepTimeline(forWakeDay wakeDay: Date) -> HealthSleepTimeline? {
-        let calendar = Calendar.current
-        guard let bedStart = calendar.date(bySettingHour: 23, minute: 30, second: 0, of: calendar.date(byAdding: .day, value: -1, to: wakeDay) ?? wakeDay) else {
-            return nil
-        }
-        func at(_ minutes: Double) -> Date { bedStart.addingTimeInterval(minutes * 60) }
-        func segment(_ stage: HealthSleepSegment.Stage, _ start: Double, _ end: Double) -> HealthSleepSegment {
-            HealthSleepSegment(stage: stage, start: at(start), end: at(end))
-        }
-        let segments = [
-            segment(.inBedAwake, 0, 17),
-            segment(.asleepDeep, 17, 61),
-            segment(.asleepCore, 61, 105),
-            segment(.asleepDeep, 105, 148),
-            segment(.asleepREM, 148, 160),
-            segment(.awake, 160, 172),
-            segment(.asleepCore, 172, 215),
-            segment(.asleepDeep, 215, 236),
-            segment(.asleepREM, 236, 258),
-            segment(.asleepCore, 258, 340),
-            segment(.awake, 340, 351),
-            segment(.asleepREM, 351, 385),
-            segment(.asleepCore, 385, 413),
-            segment(.asleepREM, 413, 441),
-            segment(.asleepCore, 441, 467)
-        ]
-        return HealthSleepTimeline(wakeDay: wakeDay, segments: segments, hasStageData: true)
-    }
+    /// 由一晚窗口内的原始样本构建睡眠明细。
+    /// 口径：总量（totalHours/core/deep/rem/awake/inBed）= 全窗口含小睡，与顶部
+    /// 「睡眠阶段」总量卡一致；作息与结构特征（入睡/起床/夜醒/REM 段数/深睡集中/
+    /// 入睡耗时）= 主睡眠（HealthSleepSessionSplitter 切分）。真机严格查询与模拟器
+    /// mock 共用此构建器，保证两路口径一致。返回 nil = 窗口内没有睡着段。
+    nonisolated static func makeSleepDetail(wakeDay: Date, rawSamples: [(value: Int, start: Date, end: Date)]) -> HealthSleepDetail? {
+        guard let split = HealthSleepSessionSplitter.split(samples: rawSamples) else { return nil }
+        let main = split.mainSamples
 
-    /// mock 睡眠明细：直接由 mock 时间轴分段聚合推导，保证与时间轴/结构特征一致。
-    nonisolated private static func mockSleepDetail(forWakeDay wakeDay: Date) -> HealthSleepDetail? {
-        guard let timeline = mockSleepTimeline(forWakeDay: wakeDay) else { return nil }
-        func intervals(_ stage: HealthSleepSegment.Stage) -> [HealthSleepSampleAggregator.Interval] {
-            timeline.segments.filter { $0.stage == stage }.map { .init(start: $0.start, end: $0.end) }
+        let coreValue = 4, deepValue = 5, remValue = 6, unspecifiedValue = 3, awakeValue = 2, inBedValue = 0
+        func intervals(_ value: Int, in source: [(value: Int, start: Date, end: Date)]) -> [HealthSleepSampleAggregator.Interval] {
+            source.compactMap { $0.value == value ? HealthSleepSampleAggregator.Interval(start: $0.start, end: $0.end) : nil }
         }
-        let core = intervals(.asleepCore)
-        let deep = intervals(.asleepDeep)
-        let rem = intervals(.asleepREM)
-        let awake = intervals(.awake)
-        let asleep = core + deep + rem
+
+        // 主睡眠口径
+        let core = intervals(coreValue, in: main)
+        let deep = intervals(deepValue, in: main)
+        let rem = intervals(remValue, in: main)
+        let unspecified = intervals(unspecifiedValue, in: main)
+        let awake = intervals(awakeValue, in: main)
+        let inBed = intervals(inBedValue, in: main)
+        let mainAsleep = core + deep + rem + unspecified
+        guard !mainAsleep.isEmpty else { return nil }
+        let hasStages = !core.isEmpty || !deep.isEmpty || !rem.isEmpty
         let structure = SleepStructureAnalyzer.features(
-            SleepStructureAnalyzer.NightSegments(asleep: asleep, core: core, deep: deep, rem: rem, inBed: [])
+            SleepStructureAnalyzer.NightSegments(asleep: mainAsleep, core: core, deep: deep, rem: rem, inBed: inBed)
         )
-        let bedtime = timeline.segments.map(\.start).min()
-        let wakeTime = timeline.segments.map(\.end).max()
-        // mock 时间轴只有入睡前的在床段，在床时长按"上床到起床"口径（与真机无在床段 fallback 一致）
-        let inBedHours = bedtime.flatMap { bed in wakeTime.map { $0.timeIntervalSince(bed) / 3600 } }
+        let bedtime = mainAsleep.map(\.start).min()
+        let wakeTime = main.map(\.end).max()
+        // 夜醒：主睡眠内清醒 ≥2 分钟；主睡着终点之后的清醒是「末次醒来（起床）」不计
+        let interruptionCount = awake.filter {
+            $0.end.timeIntervalSince($0.start) >= 120 && $0.start < split.mainAsleepEnd
+        }.count
+
+        // 全窗口总量口径（含小睡）
+        let coreAll = intervals(coreValue, in: rawSamples)
+        let deepAll = intervals(deepValue, in: rawSamples)
+        let remAll = intervals(remValue, in: rawSamples)
+        let asleepAll = coreAll + deepAll + remAll + intervals(unspecifiedValue, in: rawSamples)
+        let awakeAll = intervals(awakeValue, in: rawSamples)
+        let inBedAll = intervals(inBedValue, in: rawSamples)
+        let windowBedtime = (asleepAll + awakeAll + inBedAll).map(\.start).min()
+        let windowWakeTime = (asleepAll + awakeAll + inBedAll).map(\.end).max()
+
         return HealthSleepDetail(
             date: wakeDay,
-            totalHours: HealthSleepSampleAggregator.totalHours(for: asleep),
-            coreHours: HealthSleepSampleAggregator.totalHours(for: core),
-            deepHours: HealthSleepSampleAggregator.totalHours(for: deep),
-            remHours: HealthSleepSampleAggregator.totalHours(for: rem),
-            awakeHours: awake.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: awake),
-            inBedHours: inBedHours,
-            bedtime: bedtime,
-            wakeTime: wakeTime,
-            interruptionCount: awake.filter { $0.end.timeIntervalSince($0.start) >= 120 }.count,
+            totalHours: HealthSleepSampleAggregator.totalHours(for: asleepAll),
+            coreHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: coreAll) : nil,
+            deepHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: deepAll) : nil,
+            remHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: remAll) : nil,
+            awakeHours: awakeAll.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: awakeAll),
+            inBedHours: inBedAll.isEmpty ? windowBedtime.flatMap { bed in windowWakeTime.map { $0.timeIntervalSince(bed) / 3600 } } : HealthSleepSampleAggregator.totalHours(for: inBedAll),
+            bedtime: bedtime, wakeTime: wakeTime,
+            interruptionCount: awake.isEmpty ? nil : interruptionCount,
             remEpisodes: structure.remEpisodes,
             remLatencyMinutes: structure.remLatencyMinutes,
             deepFrontLoadPercent: structure.deepFrontLoadPercent,
-            sleepOnsetLatencyMinutes: structure.sleepOnsetLatencyMinutes
+            sleepOnsetLatencyMinutes: structure.sleepOnsetLatencyMinutes,
+            napCount: split.napCount > 0 ? split.napCount : nil,
+            napHours: split.napTotalSeconds > 0 ? split.napTotalSeconds / 3600 : nil
         )
+    }
+
+    /// 一晚模式化 mock 原始样本（模拟器）：白天 13:00 小睡 + 23:30 上床的夜间主睡眠
+    /// （4 段 REM、两次夜醒、上床酝酿与晨间赖床尾巴），走查小睡分离与时间轴全形态。
+    nonisolated private static func mockSleepRawSamples(forWakeDay wakeDay: Date) -> [(value: Int, start: Date, end: Date)] {
+        let calendar = Calendar.current
+        guard let bedStart = calendar.date(bySettingHour: 23, minute: 30, second: 0, of: calendar.date(byAdding: .day, value: -1, to: wakeDay) ?? wakeDay) else {
+            return []
+        }
+        func at(_ minutes: Double) -> Date { bedStart.addingTimeInterval(minutes * 60) }
+        return [
+            (value: 4, start: at(-630), end: at(-550)),  // 白天小睡 13:00–14:20
+            (value: 0, start: at(0), end: at(17)),       // 上床
+            (value: 5, start: at(17), end: at(61)),
+            (value: 4, start: at(61), end: at(105)),
+            (value: 5, start: at(105), end: at(148)),
+            (value: 6, start: at(148), end: at(160)),
+            (value: 2, start: at(160), end: at(172)),    // 夜醒
+            (value: 4, start: at(172), end: at(215)),
+            (value: 5, start: at(215), end: at(236)),
+            (value: 6, start: at(236), end: at(258)),
+            (value: 4, start: at(258), end: at(340)),
+            (value: 2, start: at(340), end: at(351)),    // 夜醒
+            (value: 6, start: at(351), end: at(385)),
+            (value: 4, start: at(385), end: at(413)),
+            (value: 6, start: at(413), end: at(441)),
+            (value: 4, start: at(441), end: at(467)),
+            (value: 2, start: at(467), end: at(479)),    // 末次醒来
+            (value: 0, start: at(479), end: at(525))     // 赖床
+        ]
+    }
+
+    /// mock 睡眠时间轴：与真机同一管线（Splitter 切主睡眠 → Builder 归并）。
+    nonisolated private static func mockSleepTimeline(forWakeDay wakeDay: Date) -> HealthSleepTimeline? {
+        guard let split = HealthSleepSessionSplitter.split(samples: mockSleepRawSamples(forWakeDay: wakeDay)) else { return nil }
+        return HealthSleepTimelineBuilder.build(wakeDay: wakeDay, samples: split.mainSamples)
+    }
+
+    /// mock 睡眠明细：与真机同一构建器（makeSleepDetail），保证口径一致。
+    nonisolated private static func mockSleepDetail(forWakeDay wakeDay: Date) -> HealthSleepDetail? {
+        makeSleepDetail(wakeDay: wakeDay, rawSamples: mockSleepRawSamples(forWakeDay: wakeDay))
     }
 
     /// 严格版睡眠明细查询（§7.1）：读取 HK 回调 error；无睡眠样本 → noData。
@@ -633,45 +676,17 @@ class HealthRepository: ObservableObject {
                 }
                 let samples = (samples as? [HKCategorySample]) ?? []
                 let window = HealthSleepSampleAggregator.Interval(start: start, end: noon)
-                func intervals(_ values: Set<Int>) -> [HealthSleepSampleAggregator.Interval] {
-                    samples.compactMap { sample in
-                        guard values.contains(sample.value) else { return nil }
-                        return HealthSleepSampleAggregator.clippedInterval(start: sample.startDate, end: sample.endDate, to: window)
-                    }
+                let rawSamples: [(value: Int, start: Date, end: Date)] = samples.compactMap { sample in
+                    guard let clipped = HealthSleepSampleAggregator.clippedInterval(
+                        start: sample.startDate, end: sample.endDate, to: window
+                    ) else { return nil }
+                    return (sample.value, clipped.start, clipped.end)
                 }
-                let core = intervals([HKCategoryValueSleepAnalysis.asleepCore.rawValue])
-                let deep = intervals([HKCategoryValueSleepAnalysis.asleepDeep.rawValue])
-                let rem = intervals([HKCategoryValueSleepAnalysis.asleepREM.rawValue])
-                let unspecified = intervals([HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue])
-                let awake = intervals([HKCategoryValueSleepAnalysis.awake.rawValue])
-                let inBed = intervals([HKCategoryValueSleepAnalysis.inBed.rawValue])
-                let asleep = core + deep + rem + unspecified
-                guard !asleep.isEmpty else { continuation.resume(returning: .noData); return }
-                let hasStages = !core.isEmpty || !deep.isEmpty || !rem.isEmpty
-                let allIntervals = asleep + awake + inBed
-                let bedtime = allIntervals.map(\.start).min()
-                let wakeTime = allIntervals.map(\.end).max()
-                let interruptionCount = awake.filter { $0.end.timeIntervalSince($0.start) >= 120 }.count
-                let structure = SleepStructureAnalyzer.features(
-                    SleepStructureAnalyzer.NightSegments(
-                        asleep: asleep, core: core, deep: deep, rem: rem, inBed: inBed
-                    )
-                )
-                continuation.resume(returning: .value(HealthSleepDetail(
-                    date: wakeDay,
-                    totalHours: HealthSleepSampleAggregator.totalHours(for: asleep),
-                    coreHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: core) : nil,
-                    deepHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: deep) : nil,
-                    remHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: rem) : nil,
-                    awakeHours: awake.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: awake),
-                    inBedHours: inBed.isEmpty ? bedtime.flatMap { bed in wakeTime.map { $0.timeIntervalSince(bed) / 3600 } } : HealthSleepSampleAggregator.totalHours(for: inBed),
-                    bedtime: bedtime, wakeTime: wakeTime,
-                    interruptionCount: awake.isEmpty ? nil : interruptionCount,
-                    remEpisodes: structure.remEpisodes,
-                    remLatencyMinutes: structure.remLatencyMinutes,
-                    deepFrontLoadPercent: structure.deepFrontLoadPercent,
-                    sleepOnsetLatencyMinutes: structure.sleepOnsetLatencyMinutes
-                )))
+                guard let detail = HealthRepository.makeSleepDetail(wakeDay: wakeDay, rawSamples: rawSamples) else {
+                    continuation.resume(returning: .noData)
+                    return
+                }
+                continuation.resume(returning: .value(detail))
             }
             healthStore.execute(query)
         }
