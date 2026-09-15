@@ -40,9 +40,22 @@ struct SleepStagesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            Text("睡眠阶段")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+            HStack(spacing: HoloSpacing.sm) {
+                Text("睡眠阶段")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                // 与下方时间轴卡口径对齐：本卡总量含小睡（时间轴只画主睡眠），显式标注避免两卡数字对不上
+                if let napCount = detail.napCount, napCount > 0 {
+                    Text("含小睡")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.holoNestedCardBackground)
+                        .clipShape(Capsule())
+                }
+                Spacer()
+            }
 
             if let deep = deepSleepHours {
                 deepSleepHero(hours: deep)

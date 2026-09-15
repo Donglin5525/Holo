@@ -110,7 +110,7 @@ final class HealthInsightGenerationService {
             return outcome(
                 snapshot: fallbackBuilder.buildFallback(
                     period: context.period,
-                    reason: "生成失败：\(error.localizedDescription)",
+                    reason: String(localized: "生成失败：\(error.localizedDescription)"),
                     now: now
                 ),
                 contextHashInput: context.contextHashInput,
@@ -124,9 +124,10 @@ final class HealthInsightGenerationService {
     private func defaultPeriod(now: Date) -> HealthInsightPeriod {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -13, to: today) ?? today
+        let windowDays = HealthThresholds.insightWindowDays
+        let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: today) ?? today
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        return HealthInsightPeriod(start: start, end: end, days: 14)
+        return HealthInsightPeriod(start: start, end: end, days: windowDays)
     }
 
     private func outcome(

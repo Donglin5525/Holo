@@ -91,21 +91,21 @@ struct VitalsView: View {
     private var vitalsContent: some View {
         VStack(spacing: HoloSpacing.md) {
             vitalRow(
-                title: "静息心率",
-                subtitle: "30 天趋势 vs 基线 \(baselineText(\.restingHeartRate))",
+                title: String(localized: "静息心率"),
+                subtitle: String(localized: "30 天趋势 vs 基线 \(baselineText(\.restingHeartRate))"),
                 unit: "bpm",
                 values: series(\.restingHeartRate)
             )
             vitalRow(
-                title: "心率变异性",
-                subtitle: "HRV · 压力与恢复",
+                title: String(localized: "心率变异性"),
+                subtitle: String(localized: "HRV · 压力与恢复"),
                 unit: "ms",
                 values: series(\.heartRateVariability)
             )
             vitalRow(
-                title: "夜间呼吸频率",
-                subtitle: "睡眠期均值 vs 基线 \(baselineText(\.respiratoryRate))",
-                unit: "次/分",
+                title: String(localized: "夜间呼吸频率"),
+                subtitle: String(localized: "睡眠期均值 vs 基线 \(baselineText(\.respiratoryRate))"),
+                unit: String(localized: "次/分"),
                 values: series(\.respiratoryRate)
             )
 
@@ -196,7 +196,7 @@ struct VitalsView: View {
             if let baseline {
                 let delta = latest - baseline
                 let magnitude = abs(delta) / max(baseline, 0.001)
-                if magnitude < 0.03 {
+                if magnitude < Self.baselineBandRatio {
                     Text("基线附近").foregroundColor(.holoTextSecondary)
                 } else if delta > 0 {
                     Text("高于基线 \(String(format: "%.1f", delta)) ↗").foregroundColor(.holoChart4)
@@ -219,7 +219,7 @@ struct VitalsView: View {
     }
 
     private func baseline(_ values: [(date: Date, value: Double)]) -> Double? {
-        guard values.count >= 4 else { return nil }
+        guard values.count >= Self.baselineMinPoints else { return nil }
         return values.reduce(0.0) { $0 + $1.value } / Double(values.count)
     }
 
@@ -275,10 +275,15 @@ struct VitalsView: View {
     private func load() async {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let start = calendar.date(byAdding: .day, value: -29, to: today) ?? today
+        let start = calendar.date(byAdding: .day, value: -(HealthThresholds.vitalsWindowDays - 1), to: today) ?? today
         vitals = await repository.fetchVitalsRange(from: start, to: today)
         isLoading = false
     }
+
+    /// 基线附近的判定带宽（±3% 内视为「基线附近」）
+    private static let baselineBandRatio = 0.03
+    /// 计算基线所需的最少样本点（少于 4 点不足以成线）
+    private static let baselineMinPoints = 4
 }
 
 #Preview {

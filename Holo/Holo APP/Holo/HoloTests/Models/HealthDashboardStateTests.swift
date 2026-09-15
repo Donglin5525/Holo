@@ -71,10 +71,12 @@ final class HealthDashboardStateTests: XCTestCase {
         let snapshot = HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(type: .steps, value: 8_000, availability: .available),
             sleep: HealthMetricSnapshot(type: .sleep, value: 8, availability: .available),
+            workout: HealthMetricSnapshot(type: .workout, value: 45, availability: .available),
             standOrActivity: HealthMetricSnapshot(type: .standHours, value: 18, availability: .available),
             dataSourceState: .connected
         )
 
+        // 运动不参与身体分数（45 分钟满进度但分数与三指标口径一致）
         XCTAssertEqual(snapshot.bodyScore, 94)
     }
 
@@ -82,12 +84,29 @@ final class HealthDashboardStateTests: XCTestCase {
         let snapshot = HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(type: .steps, value: 0, availability: .noData),
             sleep: HealthMetricSnapshot(type: .sleep, value: 0, availability: .noData),
+            workout: HealthMetricSnapshot(type: .workout, value: 0, availability: .noData),
             standOrActivity: HealthMetricSnapshot(type: .standHours, value: 0, availability: .unsupported),
             dataSourceState: .connected
         )
 
         XCTAssertNil(snapshot.bodyScore)
         XCTAssertEqual(snapshot.bodyScoreText, "数据不足")
+    }
+
+    /// 阅读动线（睡眠优先）：指标行为 睡眠→步数→运动→站立；三环徽章只统计三环指标
+    func testMetricsOrderIsSleepFirstAndRingBadgeCountsOnlyRingMetrics() {
+        let snapshot = HealthDashboardSnapshot(
+            steps: HealthMetricSnapshot(type: .steps, value: 10_000, availability: .available),
+            sleep: HealthMetricSnapshot(type: .sleep, value: 8, availability: .available),
+            workout: HealthMetricSnapshot(type: .workout, value: 30, availability: .available),
+            standOrActivity: HealthMetricSnapshot(type: .standHours, value: 12, availability: .available),
+            dataSourceState: .connected
+        )
+
+        XCTAssertEqual(snapshot.metrics.map(\.type), [.sleep, .steps, .workout, .standHours])
+        XCTAssertEqual(snapshot.ringMetrics.count, 3)
+        // 三环全满 → 3/3；即使运动也满进度也不进三环统计
+        XCTAssertEqual(snapshot.ringBadgeText, "三环 3/3 接近达标")
     }
 
     func testStandFallbackUsesActiveMinutesWhenStandIsUnsupported() {
@@ -120,6 +139,7 @@ final class HealthDashboardStateTests: XCTestCase {
         HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(type: .steps, value: 6_000, availability: .available),
             sleep: HealthMetricSnapshot(type: .sleep, value: sleepValue, availability: sleepAvailability),
+            workout: HealthMetricSnapshot(type: .workout, value: 0, availability: .noData),
             standOrActivity: HealthMetricSnapshot(type: .standHours, value: 10, availability: .available),
             dataSourceState: .connected
         )

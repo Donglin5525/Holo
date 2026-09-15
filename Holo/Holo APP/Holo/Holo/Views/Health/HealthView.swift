@@ -20,9 +20,13 @@ struct HealthView: View {
     @State private var selectedMetric: HealthMetricType?
     @State private var showVitals = false
     @State private var weeklySleepData: [DailyHealthData] = []
+    @State private var weeklyStepsData: [DailyHealthData] = []
+    @State private var weeklyWorkoutData: [DailyHealthData] = []
+    /// 趋势卡当前指标（睡眠/步数/运动可切换，默认睡眠）
+    @State private var trendMetric: HealthMetricType = .sleep
     @State private var isRefreshing = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
-    @State private var dayData: (steps: Double, sleep: Double, standHours: Double, activeMinutes: Double) = (0, 0, 0, 0)
+    @State private var dayData = HealthDayData()
     @State private var insightViewModel = HealthInsightViewModel()
     @State private var selectedEvidenceInsight: GeneratedHealthInsight?
 
@@ -36,6 +40,7 @@ struct HealthView: View {
     private var snapshot: HealthDashboardSnapshot {
         let stepsAvail: HealthMetricAvailability = dayData.steps > 0 ? .available : .noData
         let sleepAvail: HealthMetricAvailability = dayData.sleep > 0 ? .available : .noData
+        let workoutAvail: HealthMetricAvailability = dayData.workoutMinutes > 0 ? .available : .noData
         let standAvail: HealthMetricAvailability
         if dayData.standHours > 0 {
             standAvail = .available
@@ -48,6 +53,7 @@ struct HealthView: View {
         return HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(type: .steps, value: dayData.steps, availability: stepsAvail),
             sleep: HealthMetricSnapshot(type: .sleep, value: dayData.sleep, availability: sleepAvail),
+            workout: HealthMetricSnapshot(type: .workout, value: dayData.workoutMinutes, availability: workoutAvail),
             standOrActivity: HealthDashboardSnapshot.standOrActivitySnapshot(
                 standHours: dayData.standHours,
                 activeMinutes: dayData.activeMinutes,
@@ -81,7 +87,13 @@ struct HealthView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
-        .swipeBackToDismiss(isResidentScreenRoot: true) {
+        // 手势挂在 NavigationStack 外面时让位判断恒失效（见 SwipeBackModifier 文档），
+        // 必须按 push 状态显式门控：详情页/身体状态页在前台时整层失效，
+        // 边缘右滑交给两个子页面各自的 swipeBackToDismiss(ignoreNavigationStack: true)
+        .swipeBackToDismiss(
+            isEnabled: selectedMetric == nil && !showVitals,
+            isResidentScreenRoot: true
+        ) {
             if selectedMetric != nil {
                 selectedMetric = nil
             } else {
@@ -114,32 +126,38 @@ struct HealthView: View {
             ScrollView(showsIndicators: false) {
                 Group {
                     if isExpandedWidth {
-                        // v2 宽屏双栏（通宵冲刺 D1）：状态与数据靠左，洞察与趋势靠右
+                        // v2 宽屏双栏：左=今天的数据（三环/指标/体征），右=解读与趋势（洞察/趋势/闭环）
                         HStack(alignment: .top, spacing: HoloSpacing.md) {
                             VStack(spacing: HoloSpacing.md) {
                                 heroCard
                                 metricSummaryRow
                                 vitalsEntry
-                                dataSourceCard
+                                if shouldShowDataSourceCard {
+                                    dataSourceCard
+                                }
                             }
                             .frame(maxWidth: .infinity)
                             VStack(spacing: HoloSpacing.md) {
                                 coreInsightCard
-                                lifestyleInsightCard
                                 weeklyTrendCard
+                                lifestyleInsightCard
                                 healthFootnote
                             }
                             .frame(maxWidth: .infinity)
                         }
                     } else {
+                        // 阅读动线（睡眠优先）：今天怎么样(三环) → 各项具体(指标) → Holo 怎么看(洞察)
+                        // → 最近趋势 → 跨域关联 → 身体状态入口；系统信息只在异常时出现
                         VStack(spacing: HoloSpacing.md) {
                             heroCard
                             metricSummaryRow
-                            vitalsEntry
-                            dataSourceCard
                             coreInsightCard
-                            lifestyleInsightCard
                             weeklyTrendCard
+                            lifestyleInsightCard
+                            vitalsEntry
+                            if shouldShowDataSourceCard {
+                                dataSourceCard
+                            }
                             healthFootnote
                         }
                     }
@@ -148,6 +166,12 @@ struct HealthView: View {
             }
         }
         .background(Color.holoBackground)
+    }
+
+    /// 数据源状态卡只在异常（部分连接）时常驻展示；
+    /// 正常连接的同步状态已由头部副标题承载，不再打断内容动线。
+    private var shouldShowDataSourceCard: Bool {
+        repository.dataSourceState == .partiallyConnected
     }
 
     private var healthFootnote: some View {
@@ -345,7 +369,13 @@ struct HealthView: View {
     }
 
     private var metricSummaryRow: some View {
-        HStack(spacing: HoloSpacing.sm) {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: HoloSpacing.sm),
+                GridItem(.flexible(), spacing: HoloSpacing.sm)
+            ],
+            spacing: HoloSpacing.sm
+        ) {
             ForEach(snapshot.metrics) { metric in
                 Button {
                     selectedMetric = metric.type
@@ -588,24 +618,53 @@ struct HealthView: View {
         }
     }
 
+    /// 7 天趋势卡：睡眠/步数/运动三指标可切换（默认睡眠），右上「详情」进入对应指标页
     private var weeklyTrendCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
-                Text("7 天睡眠")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                trendPicker
                 Spacer()
-                Text("详情")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoChart1)
+                Button {
+                    selectedMetric = trendMetric
+                } label: {
+                    Text("详情")
+                        .font(.holoLabel)
+                        .foregroundColor(trendMetric.color)
+                }
+                .buttonStyle(.plain)
             }
 
-            HealthTrendChart(data: weeklySleepData, type: .sleep)
+            HealthTrendChart(data: trendData, type: trendMetric)
         }
         .padding(HoloSpacing.md)
         .holoCard()
-        .onTapGesture {
-            selectedMetric = .sleep
+    }
+
+    private var trendPicker: some View {
+        HStack(spacing: 6) {
+            ForEach([HealthMetricType.sleep, .steps, .workout], id: \.self) { metric in
+                Button {
+                    trendMetric = metric
+                } label: {
+                    Text(metric.displayName)
+                        .font(.holoLabel)
+                        .foregroundColor(trendMetric == metric ? metric.color : .holoTextSecondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(trendMetric == metric ? metric.color.opacity(0.12) : Color.clear)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var trendData: [DailyHealthData] {
+        switch trendMetric {
+        case .sleep: return weeklySleepData
+        case .steps: return weeklyStepsData
+        case .workout: return weeklyWorkoutData
+        default: return weeklySleepData
         }
     }
 
@@ -703,6 +762,8 @@ struct HealthView: View {
     private func loadDateData() async {
         dayData = await repository.fetchDayData(for: selectedDate)
         weeklySleepData = await repository.fetchWeeklyData(for: .sleep, endingOn: selectedDate)
+        weeklyStepsData = await repository.fetchWeeklyData(for: .steps, endingOn: selectedDate)
+        weeklyWorkoutData = await repository.fetchWeeklyData(for: .workout, endingOn: selectedDate)
     }
 
     @MainActor

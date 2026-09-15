@@ -32,6 +32,25 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                 .activityPatternRecords(timeRange: timeRange)
                 .map { HoloHealthTool.activityPatternQueryRow($0) }
         }
+        if source == "health.workout" {
+            // 运动会话（一行=一次训练）：会话级明细进云端快照与本地动态查询
+            return await HoloDefaultHealthDataSource()
+                .workoutSessionRecords(timeRange: timeRange)
+                .map { HoloHealthTool.workoutSessionQueryRow($0) }
+        }
+        if source == "health.energy" {
+            // 目录早已注册、此前 rows() 缺分发导致云端快照恒空——此处补齐断点
+            return await HoloDefaultHealthDataSource()
+                .energyRecords(timeRange: timeRange)
+                .filter { $0.value > 0 }
+                .map { HoloHealthTool.scalarDailyQueryRow($0, source: "health.energy", label: "活动能量") }
+        }
+        if source == "health.distance" {
+            return await HoloDefaultHealthDataSource()
+                .distanceRecords(timeRange: timeRange)
+                .filter { $0.value > 0 }
+                .map { HoloHealthTool.scalarDailyQueryRow($0, source: "health.distance", label: "步行距离") }
+        }
         if let kind = healthKind {
             return await HoloDefaultHealthDataSource()
                 .dailyRecords(for: kind, timeRange: timeRange)

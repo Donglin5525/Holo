@@ -22,6 +22,8 @@ struct HealthDetailView: View {
     @State private var sleepDetail: HealthSleepDetail?
     @State private var sleepTimeline: HealthSleepTimeline?
     @State private var hourlySteps: HourlyStepsData?
+    @State private var workoutSessions: [WorkoutSessionData] = []
+    @State private var selectedSession: WorkoutSessionData?
 
     private var metric: HealthMetricSnapshot {
         HealthMetricSnapshot(type: type, value: currentValue, availability: currentAvailability)
@@ -32,9 +34,10 @@ struct HealthDetailView: View {
             detailHeader
 
             ScrollView(showsIndicators: false) {
+                // 阅读动线：当日大环 → 当日结构（为什么）→ 周统计 → 周趋势 → 解读（洞察/关联），
+                // 同粒度内容相邻，避免日/周来回跳
                 VStack(spacing: HoloSpacing.md) {
                     bigRingCard
-                    statsSection
 
                     if type == .sleep {
                         // 阶段三态：有分期=总量卡+时间轴卡；无分期但有时长=引导卡；无数据=不显示
@@ -52,22 +55,19 @@ struct HealthDetailView: View {
                         DailyActivityPatternCard(hourly: hourlySteps)
                     }
 
-                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                        HStack {
-                            Text("近 7 天")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
-                            Spacer()
-                            if isLoading {
-                                ProgressView()
-                                    .scaleEffect(0.75)
+                    if type == .workout {
+                        if workoutSessions.isEmpty {
+                            workoutEmptyCard
+                        } else {
+                            WorkoutSessionListCard(sessions: workoutSessions) { session in
+                                selectedSession = session
                             }
                         }
-
-                        HealthTrendChart(data: weeklyData, type: type)
                     }
-                    .padding(HoloSpacing.md)
-                    .holoCard()
+
+                    statsSection
+
+                    trendSection
 
                     insightSection
                     relatedSection
@@ -82,6 +82,9 @@ struct HealthDetailView: View {
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             dismiss()
         }
+        .sheet(item: $selectedSession) { session in
+            WorkoutSessionDetailSheet(session: session)
+        }
         .task {
             await loadDateData()
             await loadWeeklyData()
@@ -92,6 +95,35 @@ struct HealthDetailView: View {
                 await loadWeeklyData()
             }
         }
+    }
+
+    /// 无运动记录的诚实空态（当日没有运动是正常状态，不伪装成异常）
+    private var workoutEmptyCard: some View {
+        VStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "figure.run")
+                .font(.system(size: 28, weight: .light))
+                .foregroundColor(.holoTextSecondary.opacity(0.5))
+            Text("这一天没有运动记录")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .holoCard()
+    }
+
+    /// 近 7 天趋势（图内自带标题与均值行，外层不再重复标题）
+    private var trendSection: some View {
+        ZStack(alignment: .topTrailing) {
+            HealthTrendChart(data: weeklyData, type: type)
+            if isLoading {
+                ProgressView()
+                    .scaleEffect(0.75)
+                    .padding(6)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .holoCard()
     }
 
     private var detailHeader: some View {
@@ -352,6 +384,10 @@ struct HealthDetailView: View {
         case .activeMinutes:
             currentValue = data.activeMinutes
             currentAvailability = data.activeMinutes > 0 ? .available : .noData
+        case .workout:
+            workoutSessions = data.workoutSessions
+            currentValue = data.workoutMinutes
+            currentAvailability = data.workoutMinutes > 0 ? .available : .noData
         }
     }
 
@@ -387,11 +423,15 @@ struct HealthDetailView: View {
         case .steps:
             return remainingValue > 0 ? String(localized: "还差 \(type.formatValue(remainingValue)) 步") : String(localized: "步数目标已达成")
         case .sleep:
-            return currentValue >= 7 ? String(localized: "恢复良好") : String(localized: "今晚优先补睡眠")
+            return currentValue >= HealthThresholds.sleepQualityGoodHours ? String(localized: "恢复良好") : String(localized: "今晚优先补睡眠")
         case .standHours:
             return remainingValue > 0 ? String(localized: "还差 \(type.formatValue(remainingValue)) 小时") : String(localized: "站立目标已达成")
         case .activeMinutes:
             return String(localized: "已启用替代环")
+        case .workout:
+            return currentValue > 0
+                ? String(localized: "今日已运动 \(Int(currentValue.rounded())) 分钟")
+                : String(localized: "今天还没有运动记录")
         }
     }
 
@@ -409,7 +449,7 @@ struct HealthDetailView: View {
             if weeklyData.isEmpty {
                 return String(localized: "近 7 天暂无睡眠数据。")
             }
-            return weeklyAverage >= 7
+            return weeklyAverage >= HealthThresholds.sleepQualityGoodHours
                 ? String(localized: "本周平均睡眠充足，适合安排高专注任务。")
                 : String(localized: "本周平均睡眠偏少，注意补充休息。")
         case .standHours:
@@ -421,6 +461,13 @@ struct HealthDetailView: View {
                 : String(localized: "本周有 \(goalDays) 天达标，可适当增加站立时间。")
         case .activeMinutes:
             return String(localized: "没有站立数据时，HOLO 用活动分钟替代站立环来估算久坐风险。")
+        case .workout:
+            if weeklyData.isEmpty {
+                return String(localized: "近 7 天暂无运动数据。")
+            }
+            return goalDays >= 3
+                ? String(localized: "本周有 \(goalDays) 天运动达标，节奏不错。")
+                : String(localized: "本周有 \(goalDays) 天运动达标，规律比单次强度更重要。")
         }
     }
 
@@ -432,6 +479,8 @@ struct HealthDetailView: View {
             return String(localized: "恢复洞察")
         case .standHours, .activeMinutes:
             return String(localized: "久坐提醒")
+        case .workout:
+            return String(localized: "运动洞察")
         }
     }
 
@@ -445,6 +494,8 @@ struct HealthDetailView: View {
             return String(localized: "站立不足时，压力类想法更容易集中出现，下午适合设置轻提醒。")
         case .activeMinutes:
             return String(localized: "无 Apple Watch 时不隐藏健康模块，而是明确显示替代指标和当前数据精度。")
+        case .workout:
+            return String(localized: "规律运动与睡眠恢复互相促进。连续记录后，HOLO 会把运动和睡眠、任务、习惯串起来看。")
         }
     }
 
@@ -464,6 +515,11 @@ struct HealthDetailView: View {
             return [
                 (String(localized: "想"), String(localized: "压力关联"), String(localized: "久坐日更适合回看压力类想法。"), .holoChart7),
                 (String(localized: "习"), String(localized: "习惯关联"), String(localized: "短散步和喝水习惯能帮助打断久坐。"), .holoSuccess)
+            ]
+        case .workout:
+            return [
+                (String(localized: "健"), String(localized: "恢复关联"), String(localized: "运动日的深睡通常更多，入睡也更快。"), .holoChart1),
+                (String(localized: "任"), String(localized: "精力关联"), String(localized: "运动后的下午，专注类任务完成更稳。"), .holoPrimary)
             ]
         }
     }

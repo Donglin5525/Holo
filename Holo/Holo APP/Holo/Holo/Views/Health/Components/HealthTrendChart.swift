@@ -123,7 +123,6 @@ struct HealthTrendChart: View {
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "E"
-        formatter.locale = Locale(identifier: "zh_CN")
         return formatter.string(from: date)
     }
 
@@ -131,7 +130,7 @@ struct HealthTrendChart: View {
         switch type {
         case .steps:
             return String(format: "%.0f", value / 1000) + "k"
-        case .sleep, .standHours, .activeMinutes:
+        case .sleep, .standHours, .activeMinutes, .workout:
             return String(format: "%.0f", value)
         }
     }

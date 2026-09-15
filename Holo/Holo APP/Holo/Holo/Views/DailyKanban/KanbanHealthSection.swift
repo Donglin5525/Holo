@@ -162,15 +162,15 @@ struct KanbanHealthSection: View {
 
     private var sleepQualityLabel: String {
         let hours = healthRepo.todaySleep
-        if hours >= 7 { return String(localized: "良好") }
-        if hours >= 6 { return String(localized: "一般") }
+        if hours >= HealthThresholds.sleepQualityGoodHours { return String(localized: "良好") }
+        if hours >= HealthThresholds.sleepQualityFairHours { return String(localized: "一般") }
         return String(localized: "不足")
     }
 
     private var sleepQualityColor: Color {
         let hours = healthRepo.todaySleep
-        if hours >= 7 { return .holoSuccess }
-        if hours >= 6 { return Color.orange }
+        if hours >= HealthThresholds.sleepQualityGoodHours { return .holoSuccess }
+        if hours >= HealthThresholds.sleepQualityFairHours { return Color.orange }
         return .holoError
     }
 

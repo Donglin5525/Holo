@@ -276,13 +276,13 @@ struct HealthInsightContextBuilder {
     private let calendar: Calendar
 
     /// 低睡眠阈值（小时）。
-    private let lowSleepThreshold: Double = 6.0
+    private let lowSleepThreshold: Double = HealthThresholds.sleepLowHours
     /// 步数达标阈值。
-    private let stepsGoal: Double = 10_000
-    /// 跨域候选关键词。
-    private let coffeeKeyword: String = "咖啡"
+    private let stepsGoal: Double = HealthMetricType.steps.dailyGoal
+    /// 跨域候选关键词（中英文流水都命中）。
+    private let coffeeKeywords: [String] = HealthThresholds.coffeeKeywords
     /// 运动充足阈值（分钟）。
-    private let workoutSufficientMinutes: Double = 30.0
+    private let workoutSufficientMinutes: Double = HealthThresholds.workoutGoalMinutes
     /// 候选纳入门槛（base 集合最小规模）。
     private let minBaseDays: Int = 2
     /// 候选 lift 下限。
@@ -308,7 +308,7 @@ struct HealthInsightContextBuilder {
     /// 避免 async let 并发导致 Core Data 跨线程 trap（健康页闪退根因，记忆 12724）。
     @MainActor
     func build() async -> HealthInsightContextBuildResult {
-        let window = makeFourteenDayWindow()
+        let window = makeInsightWindow()
 
         // 串行拉取（去 async let 并发）：9 路并发会在主线程制造 fetch 风暴 + 跨线程 trap，串行确保安全。
         let sleepData = await dataSource.dailySleep(from: window.start, to: window.end)
@@ -343,16 +343,16 @@ struct HealthInsightContextBuilder {
 
         // 多域候选（base=低睡眠 ∩ target={咖啡,低待办,低习惯,高观点}），top-4
         let specs: [CandidateSpec] = [
-            .init(id: "candidate-sleep-coffee", description: "低睡眠日咖啡支出频率更高",
+            .init(id: "candidate-sleep-coffee", description: String(localized: "低睡眠日咖啡支出频率更高"),
                   baseDays: lowSleepDays, targetDays: coffeeDays,
                   baseKind: "health-sleep", targetKind: "finance-keyword-coffee"),
-            .init(id: "candidate-sleep-task", description: "低睡眠日待办完成更少",
+            .init(id: "candidate-sleep-task", description: String(localized: "低睡眠日待办完成更少"),
                   baseDays: lowSleepDays, targetDays: lowTaskDays,
                   baseKind: "health-sleep", targetKind: "task-completion"),
-            .init(id: "candidate-sleep-habit", description: "低睡眠日习惯完成率更低",
+            .init(id: "candidate-sleep-habit", description: String(localized: "低睡眠日习惯完成率更低"),
                   baseDays: lowSleepDays, targetDays: lowHabitDays,
                   baseKind: "health-sleep", targetKind: "habit-completion"),
-            .init(id: "candidate-sleep-thought", description: "低睡眠日观点记录更多",
+            .init(id: "candidate-sleep-thought", description: String(localized: "低睡眠日观点记录更多"),
                   baseDays: lowSleepDays, targetDays: highThoughtDays,
                   baseKind: "health-sleep", targetKind: "thought-count")
         ]
@@ -437,11 +437,12 @@ struct HealthInsightContextBuilder {
         var days: Int
     }
 
-    private func makeFourteenDayWindow() -> TimeWindow {
+    private func makeInsightWindow() -> TimeWindow {
         let todayStart = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -13, to: todayStart) ?? todayStart
+        let windowDays = HealthThresholds.insightWindowDays
+        let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: todayStart) ?? todayStart
         let end = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
-        return TimeWindow(start: start, end: end, days: 14)
+        return TimeWindow(start: start, end: end, days: windowDays)
     }
 
     // MARK: - 按日索引
@@ -481,7 +482,7 @@ struct HealthInsightContextBuilder {
 
     private func coffeeDaySet(from records: [HealthInsightFinanceRecord]) -> Set<String> {
         Set(records
-            .filter { $0.searchableText.localizedCaseInsensitiveContains(coffeeKeyword) }
+            .filter { record in coffeeKeywords.contains { record.searchableText.localizedCaseInsensitiveContains($0) } }
             .map { Self.dayKey(from: $0.date) })
     }
 
@@ -518,11 +519,11 @@ struct HealthInsightContextBuilder {
                 id: "health-sleep-\(dayKey)",
                 domain: .health,
                 occurredAt: record.date,
-                title: "\(Self.displayDate(from: record.date)) 睡眠 \(String(format: "%.1f", record.value)) 小时",
-                detail: "低于 \(Int(lowSleepThreshold)) 小时阈值",
+                title: String(localized: "\(Self.displayDate(from: record.date)) 睡眠 \(String(format: "%.1f", record.value)) 小时"),
+                detail: String(localized: "低于 \(Int(lowSleepThreshold)) 小时阈值"),
                 metricKey: "health.sleep.hours",
                 metricValue: record.value,
-                unit: "小时"
+                unit: String(localized: "小时")
             ))
         }
         return result
@@ -535,11 +536,11 @@ struct HealthInsightContextBuilder {
                 id: "task-completion-\(dayKey)",
                 domain: .task,
                 occurredAt: record.date,
-                title: "\(Self.displayDate(from: record.date)) 完成 \(record.completedCount) 项待办",
-                detail: "当日待办完成数",
+                title: String(localized: "\(Self.displayDate(from: record.date)) 完成 \(record.completedCount) 项待办"),
+                detail: String(localized: "当日待办完成数"),
                 metricKey: "task.completed.count",
                 metricValue: Double(record.completedCount),
-                unit: "项"
+                unit: String(localized: "项")
             )
         }
     }
@@ -551,11 +552,11 @@ struct HealthInsightContextBuilder {
                 id: "habit-completion-\(dayKey)",
                 domain: .habit,
                 occurredAt: record.date,
-                title: "\(Self.displayDate(from: record.date)) 习惯完成 \(Int(record.completionRate * 100))%",
-                detail: "当日达标习惯占比",
+                title: String(localized: "\(Self.displayDate(from: record.date)) 习惯完成 \(Int(record.completionRate * 100))%"),
+                detail: String(localized: "当日达标习惯占比"),
                 metricKey: "habit.completion.rate",
                 metricValue: record.completionRate,
-                unit: "比例"
+                unit: String(localized: "比例")
             )
         }
     }
@@ -583,11 +584,11 @@ struct HealthInsightContextBuilder {
                 id: "thought-count-\(dayKey)",
                 domain: .thought,
                 occurredAt: record.date,
-                title: "\(Self.displayDate(from: record.date)) 记录 \(record.count) 条想法",
-                detail: "当日观点条数",
+                title: String(localized: "\(Self.displayDate(from: record.date)) 记录 \(record.count) 条想法"),
+                detail: String(localized: "当日观点条数"),
                 metricKey: "thought.count",
                 metricValue: Double(record.count),
-                unit: "条"
+                unit: String(localized: "条")
             )
         }
     }
@@ -604,11 +605,11 @@ struct HealthInsightContextBuilder {
                 id: "finance-keyword-coffee-\(dayKey)",
                 domain: .finance,
                 occurredAt: record.date,
-                title: "\(Self.displayDate(from: record.date)) 咖啡支出",
-                detail: "命中关键词：\(coffeeKeyword)",
+                title: String(localized: "\(Self.displayDate(from: record.date)) 咖啡支出"),
+                detail: String(localized: "命中咖啡类消费关键词"),
                 metricKey: "finance.keyword.amount",
                 metricValue: record.amount,
-                unit: "元"
+                unit: String(localized: "元")
             )
         }
     }
@@ -623,11 +624,11 @@ struct HealthInsightContextBuilder {
                 id: "health-workout-\(dayKey)",
                 domain: .health,
                 occurredAt: record.date,
-                title: "\(Self.displayDate(from: record.date)) 运动 \(Int(record.totalMinutes)) 分钟\(typeText)",
-                detail: "锻炼会话 \(record.sessionCount) 次",
+                title: String(localized: "\(Self.displayDate(from: record.date)) 运动 \(Int(record.totalMinutes)) 分钟\(typeText)"),
+                detail: String(localized: "锻炼会话 \(record.sessionCount) 次"),
                 metricKey: "health.workout.minutes",
                 metricValue: record.totalMinutes,
-                unit: "分钟"
+                unit: String(localized: "分钟")
             )
         }
     }
@@ -696,22 +697,25 @@ struct HealthInsightContextBuilder {
         let standSummary: String
         if standData.contains(where: { $0.value > 0 }) {
             let standMet = standData.filter { $0.value >= HealthMetricType.standHours.dailyGoal }.count
-            standSummary = "近 \(sleepData.count > 0 ? sleepData.count : 14) 天站立达标 \(standMet) 天"
+            standSummary = String(localized: "近 \(sleepData.count > 0 ? sleepData.count : HealthThresholds.insightWindowDays) 天站立达标 \(standMet) 天")
         } else if activeData.contains(where: { $0.value > 0 }) {
             let activeAvg = average(of: activeData.map(\.value).filter { $0 > 0 })
-            standSummary = "近 14 天活动均值 \(Int(activeAvg)) 分钟"
+            standSummary = String(localized: "近 \(HealthThresholds.insightWindowDays) 天活动均值 \(Int(activeAvg)) 分钟")
         } else {
-            standSummary = "站立/活动数据不足"
+            standSummary = String(localized: "站立/活动数据不足")
         }
 
         let workoutDays = workoutData.filter { $0.totalMinutes >= workoutSufficientMinutes }
         let workoutSummary: String
         if workoutDays.isEmpty {
-            workoutSummary = workoutData.contains(where: { $0.totalMinutes > 0 }) ? "近 14 天偶有运动" : "近 14 天无锻炼记录"
+            workoutSummary = workoutData.contains(where: { $0.totalMinutes > 0 })
+                ? String(localized: "近 \(HealthThresholds.insightWindowDays) 天偶有运动")
+                : String(localized: "近 \(HealthThresholds.insightWindowDays) 天无锻炼记录")
         } else {
             let totalMinutes = workoutDays.reduce(0.0) { $0 + $1.totalMinutes }
             let topType = workoutDays.compactMap(\.topType).first
-            workoutSummary = "近 14 天运动充足 \(workoutDays.count) 天，累计 \(Int(totalMinutes)) 分钟\(topType.map { "（主要是\($0)）" } ?? "")"
+            let typeSuffix = topType.map { String(localized: "（主要是\($0)）") } ?? ""
+            workoutSummary = String(localized: "近 \(HealthThresholds.insightWindowDays) 天运动充足 \(workoutDays.count) 天，累计 \(Int(totalMinutes)) 分钟") + typeSuffix
         }
 
         return HealthInsightGenerationContext.HealthSummary(
@@ -782,11 +786,10 @@ struct HealthInsightContextBuilder {
         return formatter
     }()
 
-    /// 展示用：M月d日（zh_CN）。
+    /// 展示用：本地化月日（随系统语言，如「9月16日」/「Sep 16」）。
     private static let displayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
     }()
 

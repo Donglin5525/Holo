@@ -143,11 +143,15 @@ class HealthRepository: ObservableObject {
     /// 今日活动分钟（无 Apple Watch 时作为站立替代指标）
     @Published var todayActiveMinutes: Double = 0
 
+    /// 今日运动总分钟（运动会话折叠）
+    @Published var todayWorkoutMinutes: Double = 0
+
     /// 各指标可用状态
     @Published var stepsAvailability: HealthMetricAvailability = .noData
     @Published var sleepAvailability: HealthMetricAvailability = .noData
     @Published var standAvailability: HealthMetricAvailability = .noData
     @Published var activeMinutesAvailability: HealthMetricAvailability = .noData
+    @Published var workoutAvailability: HealthMetricAvailability = .noData
 
     /// Apple Health 数据源状态
     @Published var dataSourceState: HealthDataSourceState = .notRequested
@@ -166,8 +170,8 @@ class HealthRepository: ObservableObject {
     // MARK: - Initialization
 
     private init() {
-        // 模拟器无法访问 HealthKit，自动启用模拟数据
-        #if targetEnvironment(simulator)
+        // 模拟器无法访问 HealthKit，自动启用模拟数据（仅 Debug：Release 模拟器构建不得显示假数据）
+        #if DEBUG && targetEnvironment(simulator)
         useMockData = true
         #else
         useMockData = false
@@ -283,14 +287,18 @@ class HealthRepository: ObservableObject {
         async let sleep = fetchSleep(for: Date())
         async let stand = fetchStandTime(for: Date())
         async let activeMinutes = fetchActiveMinutes(for: Date())
+        async let workoutSessions = fetchWorkoutSessionsStrict(for: Date())
 
-        let (stepsValue, sleepValue, standValue, activeMinutesValue) = await (steps, sleep, stand, activeMinutes)
+        let (stepsValue, sleepValue, standValue, activeMinutesValue, workoutOutcome) = await (steps, sleep, stand, activeMinutes, workoutSessions)
 
         await MainActor.run {
             self.todaySteps = stepsValue
             self.todaySleep = sleepValue
             self.todayStandHours = standValue
             self.todayActiveMinutes = activeMinutesValue
+            if case .value(let sessions) = workoutOutcome {
+                self.todayWorkoutMinutes = WorkoutSessionData.fold(sessions, on: Date()).totalMinutes
+            }
             self.updateAvailabilityAfterFetch()
         }
     }
@@ -298,20 +306,29 @@ class HealthRepository: ObservableObject {
     // MARK: - 获取指定日期数据
 
     /// 获取指定日期的所有健康数据
-    func fetchDayData(for date: Date) async -> (steps: Double, sleep: Double, standHours: Double, activeMinutes: Double) {
+    func fetchDayData(for date: Date) async -> HealthDayData {
         if useMockData {
-            return (
-                steps: Double(Int.random(in: 5000...12000)),
-                sleep: Double(Int.random(in: 5...9)) + Double.random(in: 0...0.9),
-                standHours: Double(Int.random(in: 8...14)),
-                activeMinutes: Double(Int.random(in: 18...55))
-            )
+            return mockDayData(for: date)
         }
         async let steps = fetchSteps(for: date)
         async let sleep = fetchSleep(for: date)
         async let stand = fetchStandTime(for: date)
         async let activeMinutes = fetchActiveMinutes(for: date)
-        return await (steps, sleep, stand, activeMinutes)
+        async let workoutSessions = fetchWorkoutSessionsStrict(for: date)
+
+        let (stepsValue, sleepValue, standValue, activeMinutesValue, workoutOutcome) = await (steps, sleep, stand, activeMinutes, workoutSessions)
+
+        var data = HealthDayData(
+            steps: stepsValue,
+            sleep: sleepValue,
+            standHours: standValue,
+            activeMinutes: activeMinutesValue
+        )
+        if case .value(let sessions) = workoutOutcome {
+            data.workoutSessions = sessions
+            data.workoutMinutes = WorkoutSessionData.fold(sessions, on: date).totalMinutes
+        }
+        return data
     }
 
     // MARK: - 获取历史数据
@@ -343,6 +360,8 @@ class HealthRepository: ObservableObject {
                 value = await fetchStandTime(for: currentDate)
             case .activeMinutes:
                 value = await fetchActiveMinutes(for: currentDate)
+            case .workout:
+                value = await fetchWorkouts(for: currentDate).totalMinutes
             }
 
             results.append(DailyHealthData(date: currentDate, value: value))
@@ -425,6 +444,7 @@ class HealthRepository: ObservableObject {
             case .sleep: value = await fetchSleep(for: current)
             case .standHours: value = await fetchStandTime(for: current)
             case .activeMinutes: value = await fetchActiveMinutes(for: current)
+            case .workout: value = await fetchWorkouts(for: current).totalMinutes
             }
             results.append(DailyHealthData(date: current, value: value))
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
@@ -1051,12 +1071,110 @@ class HealthRepository: ObservableObject {
         return results
     }
 
-    // MARK: - 运动会话（HKWorkout）
+    // MARK: - 运动会话（HKWorkout，会话级）
 
-    /// 获取指定日期范围的每日运动会话聚合（AI 分析用）
+    /// 获取指定日期的运动会话列表（best-effort：错误回落空数组）
+    func fetchWorkoutSessions(for date: Date) async -> [WorkoutSessionData] {
+        if useMockData {
+            return Self.mockWorkoutSessions(for: date)
+        }
+        switch await fetchWorkoutSessionsStrict(for: date) {
+        case .value(let sessions): return sessions
+        case .noData, .waitingForUnlock, .unavailable: return []
+        }
+    }
+
+    /// 获取指定日期范围的运动会话列表（AI 快照/会话级行构造用，best-effort）
+    func fetchWorkoutSessionsRange(from start: Date, to end: Date) async -> [WorkoutSessionData] {
+        let calendar = Calendar.current
+        var sessions: [WorkoutSessionData] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while current <= endDay {
+            if useMockData {
+                sessions += Self.mockWorkoutSessions(for: current)
+            } else if case .value(let list) = await fetchWorkoutSessionsStrict(for: current) {
+                sessions += list
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return sessions
+    }
+
+    /// 一次运动的心率明细（懒加载：仅单次运动详情弹层触发）。
+    /// 区间分析所需最大心率来自 HealthKit 生日（220−年龄），读不到回退 190 并标注估算。
+    func fetchWorkoutHeartDetail(session: WorkoutSessionData) async -> WorkoutHeartDetail? {
+        let maxHeartRate = Self.workoutMaxHeartRate(birthComponents: try? healthStore.dateOfBirthComponents())
+        if useMockData {
+            return Self.mockWorkoutHeartDetail(for: session, maxHeartRate: maxHeartRate)
+        }
+        guard let heartType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
+            return nil
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: session.start, end: session.end, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: heartType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, error in
+                // 心率明细是尽力而为的展示数据：锁屏/查询失败按无心率处理（会话列表本身已由严格查询保障）
+                let failure: HoloHealthQueryOutcome<WorkoutHeartDetail>? = HoloStrictHealthQueryService.failure(from: error)
+                if failure != nil {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let unit = HKUnit.count().unitDivided(by: HKUnit.minute())
+                let points = (samples as? [HKQuantitySample])?
+                    .sorted { $0.startDate < $1.startDate }
+                    .map { WorkoutHeartRatePoint(date: $0.startDate, bpm: $0.quantity.doubleValue(for: unit)) }
+                    ?? []
+                guard !points.isEmpty else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: WorkoutHeartDetail(
+                    points: points,
+                    zoneMinutes: WorkoutHeartZoneAnalyzer.zoneMinutes(points: points, maxHeartRate: maxHeartRate.value),
+                    maxHeartRateUsed: maxHeartRate.value,
+                    isEstimatedMaxHeartRate: maxHeartRate.isEstimated
+                ))
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    /// 生日特征 → 估算最大心率（220−年龄；生日缺失/年龄越界回退 190 并标记估算）
+    nonisolated static func workoutMaxHeartRate(birthComponents: DateComponents?) -> (value: Double, isEstimated: Bool) {
+        WorkoutHeartZoneAnalyzer.estimatedMaxHeartRate(birthComponents: birthComponents)
+    }
+
+    /// HKWorkout → 会话模型映射。nonisolated：HKWorkout 属性读取线程安全，可在查询回调线程调用。
+    nonisolated static func session(from workout: HKWorkout) -> WorkoutSessionData {
+        let bpmUnit = HKUnit.count().unitDivided(by: HKUnit.minute())
+        let heartStats = workout.statistics(for: HKQuantityType(.heartRate))
+        return WorkoutSessionData(
+            id: workout.uuid,
+            start: workout.startDate,
+            end: workout.endDate,
+            activityTypeRaw: workout.workoutActivityType.rawValue,
+            typeName: Self.workoutActivityTypeName(workout.workoutActivityType),
+            distanceMeters: workout.totalDistance?.doubleValue(for: .meter()),
+            kilocalories: workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()),
+            averageHeartRate: heartStats?.averageQuantity()?.doubleValue(for: bpmUnit),
+            maxHeartRate: heartStats?.maximumQuantity()?.doubleValue(for: bpmUnit),
+            sourceName: workout.sourceRevision.source.name
+        )
+    }
+
+    /// 获取指定日期范围的每日运动会话聚合（AI 分析用；由会话列表折叠，口径与会话级一致）
     func fetchWorkoutsRange(from start: Date, to end: Date) async -> [DailyWorkoutData] {
         if useMockData {
-            return generateMockWorkoutRange(from: start, to: end)
+            return Self.generateMockWorkoutRange(from: start, to: end)
         }
 
         let calendar = Calendar.current
@@ -1082,8 +1200,23 @@ class HealthRepository: ObservableObject {
         }
     }
 
-    /// 严格版运动会话查询（§7.1）：读取 HK 回调 error；无会话 → noData。
+    /// 严格版日聚合：由会话级查询折叠而来。
     private func fetchWorkoutsStrict(for date: Date) async -> HoloHealthQueryOutcome<DailyWorkoutData> {
+        switch await fetchWorkoutSessionsStrict(for: date) {
+        case .value(let sessions):
+            return .value(WorkoutSessionData.fold(sessions, on: date))
+        case .noData:
+            return .noData
+        case .waitingForUnlock:
+            return .waitingForUnlock
+        case .unavailable(let error):
+            return .unavailable(error)
+        }
+    }
+
+    /// 严格版会话级查询（§7.1）：读取 HK 回调 error；无会话 → noData。
+    /// 单次保留 HKWorkout 全部会话明细（起止/距离/能量/心率 statistics/来源）。
+    private func fetchWorkoutSessionsStrict(for date: Date) async -> HoloHealthQueryOutcome<[WorkoutSessionData]> {
         let workoutType = HKObjectType.workoutType()
 
         let calendar = Calendar.current
@@ -1101,7 +1234,7 @@ class HealthRepository: ObservableObject {
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
             ) { _, samples, error in
-                if let failure: HoloHealthQueryOutcome<DailyWorkoutData> = HoloStrictHealthQueryService.failure(from: error) {
+                if let failure: HoloHealthQueryOutcome<[WorkoutSessionData]> = HoloStrictHealthQueryService.failure(from: error) {
                     continuation.resume(returning: failure)
                     return
                 }
@@ -1110,13 +1243,7 @@ class HealthRepository: ObservableObject {
                     continuation.resume(returning: .noData)
                     return
                 }
-                let totalMinutes = workouts.reduce(0.0) { $0 + $1.duration } / 60
-                continuation.resume(returning: .value(DailyWorkoutData(
-                    date: date,
-                    totalMinutes: totalMinutes,
-                    sessionCount: workouts.count,
-                    topType: Self.topWorkoutTypeName(workouts)
-                )))
+                continuation.resume(returning: .value(workouts.map(Self.session(from:))))
             }
             healthStore.execute(query)
         }
@@ -1144,6 +1271,7 @@ class HealthRepository: ObservableObject {
             case .sleep: outcome = await fetchSleepStrict(for: current)
             case .standHours: outcome = await fetchStandTimeStrict(for: current)
             case .activeMinutes: outcome = await fetchActiveMinutesStrict(for: current)
+            case .workout: outcome = await fetchWorkoutsStrict(for: current).map(\.totalMinutes)
             }
             daily.append(outcome.map { value in DailyHealthData(date: current, value: value) })
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
@@ -1185,7 +1313,7 @@ class HealthRepository: ObservableObject {
     /// 严格版运动会话范围查询：锁屏 → waitingForUnlock；无会话天不计入。
     func fetchWorkoutsRangeStrict(from start: Date, to end: Date) async -> HoloHealthQueryOutcome<[DailyWorkoutData]> {
         if useMockData {
-            let mock = generateMockWorkoutRange(from: start, to: end)
+            let mock = Self.generateMockWorkoutRange(from: start, to: end)
             return mock.isEmpty ? .noData : .value(mock)
         }
 
@@ -1200,18 +1328,6 @@ class HealthRepository: ObservableObject {
             current = next
         }
         return HoloStrictHealthQueryService.fold(daily)
-    }
-
-    /// 取当日时长最长的运动类型中文名。
-    /// nonisolated：HKWorkout 属性读取线程安全，可在 HKSampleQuery 回调线程调用，无需 MainActor。
-    nonisolated private static func topWorkoutTypeName(_ workouts: [HKWorkout]) -> String? {
-        guard !workouts.isEmpty else { return nil }
-        var durationByType: [HKWorkoutActivityType: TimeInterval] = [:]
-        for workout in workouts {
-            durationByType[workout.workoutActivityType, default: 0] += workout.duration
-        }
-        let topKind = durationByType.max(by: { $0.value < $1.value })?.key ?? .other
-        return Self.workoutActivityTypeName(topKind)
     }
 
     /// HKWorkoutActivityType → 中文名（覆盖常见类型，未知统一「运动」）。
@@ -1243,41 +1359,135 @@ class HealthRepository: ObservableObject {
         }
     }
 
-    /// 生成模拟运动范围数据（模拟器无 HealthKit）
-    private func generateMockWorkoutRange(from start: Date, to end: Date) -> [DailyWorkoutData] {
+    /// 生成模拟运动范围数据（模拟器无 HealthKit；由会话级 mock 折叠，口径与真实查询一致）
+    private static func generateMockWorkoutRange(from start: Date, to end: Date) -> [DailyWorkoutData] {
         let calendar = Calendar.current
         var results: [DailyWorkoutData] = []
         var current = calendar.startOfDay(for: start)
         let endDay = calendar.startOfDay(for: end)
-        let mockTypes = ["跑步", "步行", "骑行", "力量训练"]
 
         while current <= endDay {
-            let hasWorkout = Int.random(in: 0...10) > 4
-            let minutes = hasWorkout ? Double(Int.random(in: 20...75)) : 0
-            let sessionCount = hasWorkout ? Int.random(in: 1...2) : 0
-            let topType = hasWorkout ? mockTypes[Int.random(in: 0..<mockTypes.count)] : nil
-            results.append(DailyWorkoutData(date: current, totalMinutes: minutes, sessionCount: sessionCount, topType: topType))
+            results.append(WorkoutSessionData.fold(mockWorkoutSessions(for: current), on: current))
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
         }
         return results
     }
 
+    // MARK: - 模拟运动会话（模拟器无 HealthKit，按日种子化保证同日稳定）
+
+    /// 常见运动类型池（raw = HKWorkoutActivityType.rawValue）
+    private static let mockWorkoutTypePool: [(raw: UInt, name: String, hasDistance: Bool)] = [
+        (HKWorkoutActivityType.running.rawValue, "跑步", true),
+        (HKWorkoutActivityType.walking.rawValue, "步行", true),
+        (HKWorkoutActivityType.cycling.rawValue, "骑行", true),
+        (HKWorkoutActivityType.traditionalStrengthTraining.rawValue, "力量训练", false),
+        (HKWorkoutActivityType.yoga.rawValue, "瑜伽", false),
+        (HKWorkoutActivityType.swimming.rawValue, "游泳", true)
+    ]
+
+    /// 某日的模拟运动会话（以日期为种子：同一天多次调用结果一致，跨天自然变化）
+    nonisolated static func mockWorkoutSessions(for date: Date) -> [WorkoutSessionData] {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        var rng = SeededRandomNumberGenerator(seed: UInt64(bitPattern: Int64(day.timeIntervalSince1970)))
+
+        guard rng.next(0...10) > 3 else { return [] } // 约 6/11 的天有运动
+        let sessionCount = rng.next(1...2)
+        var sessions: [WorkoutSessionData] = []
+        for _ in 0..<sessionCount {
+            let type = mockWorkoutTypePool[rng.next(0..<mockWorkoutTypePool.count)]
+            let startHour = rng.next(7...20)
+            let startMinute = rng.next(0...50)
+            let minutes = Double(rng.next(25...70))
+            let start = day.addingTimeInterval(TimeInterval(startHour * 3600 + startMinute * 60))
+            let averageHeartRate = Double(rng.next(115...160))
+            sessions.append(WorkoutSessionData(
+                id: UUID(),
+                start: start,
+                end: start.addingTimeInterval(minutes * 60),
+                activityTypeRaw: type.raw,
+                typeName: type.name,
+                distanceMeters: type.hasDistance ? Double(rng.next(20...90)) * 100 : nil,
+                kilocalories: Double(rng.next(150...480)),
+                averageHeartRate: averageHeartRate,
+                maxHeartRate: averageHeartRate + Double(rng.next(15...35)),
+                sourceName: "Apple Watch"
+            ))
+            _ = index
+        }
+        return sessions.sorted { $0.start < $1.start }
+    }
+
+    /// 模拟心率曲线：热身 → 顶峰 → 放松三段式（每 60 秒一个样本点）
+    nonisolated static func mockWorkoutHeartDetail(
+        for session: WorkoutSessionData,
+        maxHeartRate: (value: Double, isEstimated: Bool)
+    ) -> WorkoutHeartDetail {
+        let totalMinutes = max(session.minutes, 5)
+        let average = session.averageHeartRate ?? 135
+        let points = stride(from: 0.0, through: totalMinutes, by: 1.0).map { minute -> WorkoutHeartRatePoint in
+            let progress = minute / totalMinutes
+            // 三段式：前 20% 爬坡、中段峰值平台、后 30% 放松
+            let curve: Double
+            switch progress {
+            case ..<0.2: curve = 0.6 + progress / 0.2 * 0.35
+            case 0.2..<0.7: curve = 0.95
+            default: curve = 0.95 - (progress - 0.7) / 0.3 * 0.4
+            }
+            return WorkoutHeartRatePoint(date: session.start.addingTimeInterval(minute * 60), bpm: average * curve)
+        }
+        return WorkoutHeartDetail(
+            points: points,
+            zoneMinutes: WorkoutHeartZoneAnalyzer.zoneMinutes(points: points, maxHeartRate: maxHeartRate.value),
+            maxHeartRateUsed: maxHeartRate.value,
+            isEstimatedMaxHeartRate: maxHeartRate.isEstimated
+        )
+    }
+
     // MARK: - 私有方法 - 模拟数据
 
     /// 加载模拟今日数据
     private func loadMockTodayData() async {
+        let sessions = Self.mockWorkoutSessions(for: Date())
+        let metrics = Self.mockDailyMetrics(for: Date())
         await MainActor.run {
-            self.todaySteps = Double(Int.random(in: 5000...12000))
-            self.todaySleep = Double(Int.random(in: 5...9)) + Double.random(in: 0...0.9)
-            self.todayStandHours = Double(Int.random(in: 8...14))
-            self.todayActiveMinutes = Double(Int.random(in: 18...55))
+            self.todaySteps = metrics.steps
+            self.todaySleep = metrics.sleep
+            self.todayStandHours = metrics.stand
+            self.todayActiveMinutes = metrics.active
+            self.todayWorkoutMinutes = WorkoutSessionData.fold(sessions, on: Date()).totalMinutes
             self.stepsAvailability = .available
             self.sleepAvailability = .available
             self.standAvailability = .available
             self.activeMinutesAvailability = .available
+            self.workoutAvailability = self.todayWorkoutMinutes > 0 ? .available : .noData
             self.dataSourceState = .connected
         }
+    }
+
+    /// 模拟单日数据：四指标与运动会话都按日种子化（同一天跨启动稳定，QA 可复现、截图可比）
+    private func mockDayData(for date: Date) -> HealthDayData {
+        let metrics = Self.mockDailyMetrics(for: date)
+        var data = HealthDayData()
+        data.steps = metrics.steps
+        data.sleep = metrics.sleep
+        data.standHours = metrics.stand
+        data.activeMinutes = metrics.active
+        data.workoutSessions = Self.mockWorkoutSessions(for: date)
+        data.workoutMinutes = WorkoutSessionData.fold(data.workoutSessions, on: date).totalMinutes
+        return data
+    }
+
+    /// 按日种子化的四指标模拟值（步数/睡眠/站立/活动）
+    nonisolated static func mockDailyMetrics(for date: Date) -> (steps: Double, sleep: Double, stand: Double, active: Double) {
+        var rng = SeededRandomNumberGenerator(seed: UInt64(bitPattern: Int64(Calendar.current.startOfDay(for: date).timeIntervalSince1970)) &+ 0x9E3779B1)
+        return (
+            steps: Double(rng.next(5000...12000)),
+            sleep: Double(rng.next(5...9)) + Double(rng.next(0...9)) / 10.0,
+            stand: Double(rng.next(8...14)),
+            active: Double(rng.next(18...55))
+        )
     }
 
     /// 生成模拟周数据
@@ -1292,13 +1502,15 @@ class HealthRepository: ObservableObject {
             let value: Double
             switch type {
             case .steps:
-                value = Double(Int.random(in: 5000...15000))
+                value = Self.mockDailyMetrics(for: date).steps
             case .sleep:
-                value = Double(Int.random(in: 5...10)) + Double.random(in: 0...0.9)
+                value = Self.mockDailyMetrics(for: date).sleep
             case .standHours:
-                value = Double(Int.random(in: 6...14))
+                value = Self.mockDailyMetrics(for: date).stand
             case .activeMinutes:
-                value = Double(Int.random(in: 12...60))
+                value = Self.mockDailyMetrics(for: date).active
+            case .workout:
+                value = WorkoutSessionData.fold(Self.mockWorkoutSessions(for: date), on: date).totalMinutes
             }
 
             return DailyHealthData(date: date, value: value)
@@ -1315,10 +1527,11 @@ class HealthRepository: ObservableObject {
         while current <= endDay {
             let value: Double
             switch type {
-            case .steps: value = Double(Int.random(in: 5000...15000))
-            case .sleep: value = Double(Int.random(in: 5...10)) + Double.random(in: 0...0.9)
-            case .standHours: value = Double(Int.random(in: 6...14))
-            case .activeMinutes: value = Double(Int.random(in: 12...60))
+            case .steps: value = Self.mockDailyMetrics(for: current).steps
+            case .sleep: value = Self.mockDailyMetrics(for: current).sleep
+            case .standHours: value = Self.mockDailyMetrics(for: current).stand
+            case .activeMinutes: value = Self.mockDailyMetrics(for: current).active
+            case .workout: value = WorkoutSessionData.fold(Self.mockWorkoutSessions(for: current), on: current).totalMinutes
             }
             results.append(DailyHealthData(date: current, value: value))
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
@@ -1331,7 +1544,6 @@ class HealthRepository: ObservableObject {
         [
             HKObjectType.quantityType(forIdentifier: .stepCount),
             HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
-            HKObjectType.quantityType(forIdentifier: .appleStandTime),
             HKObjectType.categoryType(forIdentifier: .appleStandHour),
             HKObjectType.quantityType(forIdentifier: .appleExerciseTime),
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned),
@@ -1340,18 +1552,23 @@ class HealthRepository: ObservableObject {
             HKObjectType.quantityType(forIdentifier: .restingHeartRate),
             HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
             HKObjectType.quantityType(forIdentifier: .respiratoryRate),
+            // 运动会话级分析：心率样本（曲线/区间）与生日（估算最大心率分区）
+            HKObjectType.quantityType(forIdentifier: .heartRate),
+            HKObjectType.characteristicType(forIdentifier: .dateOfBirth),
             HKObjectType.workoutType()
         ].compactMap { $0 }
     }
 
     private var hasAnyFetchedData: Bool {
-        todaySteps > 0 || todaySleep > 0 || todayStandHours > 0 || todayActiveMinutes > 0
+        todaySteps > 0 || todaySleep > 0 || todayStandHours > 0 || todayActiveMinutes > 0 || todayWorkoutMinutes > 0
     }
 
     private func updateAvailabilityAfterFetch() {
         stepsAvailability = todaySteps > 0 ? .available : .noData
         sleepAvailability = todaySleep > 0 ? .available : .noData
         activeMinutesAvailability = todayActiveMinutes > 0 ? .available : .noData
+        // 当日没有运动是正常状态，不参与「部分连接」判定
+        workoutAvailability = todayWorkoutMinutes > 0 ? .available : .noData
 
         if todayStandHours > 0 {
             standAvailability = .available
@@ -1390,6 +1607,11 @@ class HealthRepository: ObservableObject {
                 type: .sleep,
                 value: todaySleep,
                 availability: sleepAvailability
+            ),
+            workout: HealthMetricSnapshot(
+                type: .workout,
+                value: todayWorkoutMinutes,
+                availability: workoutAvailability
             ),
             standOrActivity: HealthDashboardSnapshot.standOrActivitySnapshot(
                 standHours: todayStandHours,

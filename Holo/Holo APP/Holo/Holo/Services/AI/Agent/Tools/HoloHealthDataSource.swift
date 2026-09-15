@@ -51,6 +51,33 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
         }
     }
 
+    func workoutSessionRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutSessionRecord] {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return [] }
+
+        let calendar = Calendar.current
+        let sessions = await HealthRepository.shared.fetchWorkoutSessionsRange(
+            from: window.start,
+            to: window.inclusiveEnd
+        )
+        // 数值统一圆整到合理精度：快照与提示词 token 有限，多余小数没有分析价值
+        return sessions.map { session in
+            HoloHealthWorkoutSessionRecord(
+                date: calendar.startOfDay(for: session.start),
+                start: session.start,
+                end: session.end,
+                typeName: session.typeName,
+                minutes: (session.minutes * 10).rounded() / 10,
+                distanceKm: session.distanceMeters.map { (($0 / 1000) * 10).rounded() / 10 },
+                kcal: session.kilocalories.map { $0.rounded() },
+                averageHeartRate: session.averageHeartRate.map { $0.rounded() },
+                maxHeartRate: session.maxHeartRate.map { $0.rounded() },
+                paceSecPerKm: session.paceSecondsPerKm.map { $0.rounded() },
+                sourceName: session.sourceName
+            )
+        }
+    }
+
     func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord] {
         let window = Self.repositoryWindow(for: timeRange)
         guard window.start <= window.inclusiveEnd else { return [] }
@@ -198,7 +225,7 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
         let effectiveRange = historicalRange.effectiveRange
         let exclusiveEnd = calendar.startOfDay(for: effectiveRange?.end ?? defaultEnd)
         let start = calendar.startOfDay(
-            for: effectiveRange?.start ?? calendar.date(byAdding: .day, value: -13, to: today) ?? today
+            for: effectiveRange?.start ?? calendar.date(byAdding: .day, value: -(HealthThresholds.insightWindowDays - 1), to: today) ?? today
         )
         let inclusiveEnd = calendar.date(byAdding: .day, value: -1, to: exclusiveEnd) ?? start
         return (start, inclusiveEnd)

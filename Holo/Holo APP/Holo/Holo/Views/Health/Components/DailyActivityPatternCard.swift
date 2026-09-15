@@ -24,10 +24,10 @@ struct DailyActivityPatternCard: View {
     private var maxSteps: Double { bars.max() ?? 0 }
     private var totalSteps: Double { bars.reduce(0, +) }
 
-    /// 白天窗内最长连续安静小时区间；≥2 小时才值得标注
+    /// 白天窗内最长连续安静小时区间；达到最短标注时长才值得展示
     private var longestSedentaryRange: Range<Int>? {
         let range = ActivityDistributionAnalyzer.longestQuietRange(hourlySteps: bars)
-        return (range?.count ?? 0) >= 2 ? range : nil
+        return (range?.count ?? 0) >= Self.notableSedentaryHours ? range : nil
     }
 
     var body: some View {
@@ -163,8 +163,11 @@ struct DailyActivityPatternCard: View {
     }
 
     private func hourLabel(_ hour: Int) -> String {
-        hour < 10 ? " \(hour) 时" : "\(hour) 时"
+        hour < 10 ? String(localized: " \(hour) 时") : String(localized: "\(hour) 时")
     }
+
+    /// 静坐区间值得标注的最短时长（小时）；口径=白天窗整小时步数<100（见文件头注释）
+    private static let notableSedentaryHours = 2
 }
 
 #Preview {

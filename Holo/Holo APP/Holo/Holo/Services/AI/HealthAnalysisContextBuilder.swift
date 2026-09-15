@@ -183,16 +183,16 @@ struct HealthAnalysisContextBuilder {
     ) -> [String] {
         var anomalies: [String] = []
 
-        // 连续 3 天睡眠 < 6h
-        let lowSleep = consecutiveLowDays(data: sleep, threshold: 6.0)
-        if lowSleep >= 3 {
-            anomalies.append("连续 \(lowSleep) 天睡眠不足 6 小时")
+        // 连续多天睡眠过低（提示词原文保留中文：异常标注进 AI 上下文）
+        let lowSleep = consecutiveLowDays(data: sleep, threshold: HealthThresholds.sleepLowHours)
+        if lowSleep >= HealthThresholds.anomalyConsecutiveDays {
+            anomalies.append("连续 \(lowSleep) 天睡眠不足 \(Int(HealthThresholds.sleepLowHours)) 小时")
         }
 
-        // 连续 3 天步数 < 3000
-        let lowSteps = consecutiveLowDays(data: steps, threshold: 3000)
-        if lowSteps >= 3 {
-            anomalies.append("连续 \(lowSteps) 天步数不足 3000")
+        // 连续多天步数过低
+        let lowSteps = consecutiveLowDays(data: steps, threshold: HealthThresholds.lowStepsThreshold)
+        if lowSteps >= HealthThresholds.anomalyConsecutiveDays {
+            anomalies.append("连续 \(lowSteps) 天步数不足 \(Int(HealthThresholds.lowStepsThreshold))")
         }
 
         // 活动分钟持续为 0

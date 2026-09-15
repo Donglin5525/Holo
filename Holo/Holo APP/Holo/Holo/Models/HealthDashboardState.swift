@@ -126,7 +126,7 @@ struct HealthMetricSnapshot: Identifiable, Equatable {
             return String(localized: "目标 \(Int(goal).formatted())")
         case .sleep, .standHours:
             return String(localized: "目标 \(type.formatValue(goal))h")
-        case .activeMinutes:
+        case .activeMinutes, .workout:
             return String(localized: "目标 \(Int(goal)) 分钟")
         }
     }
@@ -156,10 +156,19 @@ struct HealthInsight: Identifiable {
 struct HealthDashboardSnapshot: Equatable {
     let steps: HealthMetricSnapshot
     let sleep: HealthMetricSnapshot
+    /// 运动会话指标（指标卡行展示；不计入身体分数与三环）
+    let workout: HealthMetricSnapshot
     let standOrActivity: HealthMetricSnapshot
     let dataSourceState: HealthDataSourceState
 
+    /// 指标卡行顺序（阅读动线：睡眠→步数→运动→站立/活动）。
+    /// 睡眠居首与身体分数权重（0.45）、今日看板顺序一致。
     var metrics: [HealthMetricSnapshot] {
+        [sleep, steps, workout, standOrActivity]
+    }
+
+    /// 三环/身体分数口径只含这三项（运动不参与打分）
+    var ringMetrics: [HealthMetricSnapshot] {
         [steps, sleep, standOrActivity]
     }
 
@@ -205,12 +214,12 @@ struct HealthDashboardSnapshot: Equatable {
     }
 
     var ringBadgeText: String {
-        let nearlyMet = metrics.filter { $0.progress >= 0.8 }.count
+        let nearlyMet = ringMetrics.filter { $0.progress >= 0.8 }.count
         return String(localized: "三环 \(nearlyMet)/3 接近达标")
     }
 
     var coreInsight: HealthInsight {
-        if sleep.availability == .available && sleep.value >= 7.5 {
+        if sleep.availability == .available && sleep.value >= HealthThresholds.sleepInsightGoodHours {
             return HealthInsight(
                 domain: String(localized: "HOLO 洞察"),
                 title: String(localized: "今日核心洞察"),
@@ -219,7 +228,7 @@ struct HealthDashboardSnapshot: Equatable {
             )
         }
 
-        if sleep.availability == .available && sleep.value < 6.5 {
+        if sleep.availability == .available && sleep.value < HealthThresholds.sleepInsightLowHours {
             return HealthInsight(
                 domain: String(localized: "HOLO 洞察"),
                 title: String(localized: "今日核心洞察"),

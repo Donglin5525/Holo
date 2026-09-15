@@ -115,6 +115,7 @@ struct TripleHealthRingView: View {
             snapshot: HealthDashboardSnapshot(
                 steps: HealthMetricSnapshot(type: .steps, value: 8400, availability: .available),
                 sleep: HealthMetricSnapshot(type: .sleep, value: 7.2, availability: .available),
+                workout: HealthMetricSnapshot(type: .workout, value: 45, availability: .available),
                 standOrActivity: HealthMetricSnapshot(type: .standHours, value: 8, availability: .available),
                 dataSourceState: .connected
             )

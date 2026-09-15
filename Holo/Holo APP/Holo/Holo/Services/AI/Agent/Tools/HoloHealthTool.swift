@@ -79,6 +79,26 @@ nonisolated struct HoloHealthWorkoutRecord: Codable, Equatable, Sendable {
     var topType: String?
 }
 
+/// 一次运动的会话级记录（云端快照 / 动态查询「一行=一次训练」用）。
+/// 可选字段缺失 = 该次记录没有对应数据（如无 Apple Watch 的第三方记录），不是 0。
+nonisolated struct HoloHealthWorkoutSessionRecord: Codable, Equatable, Sendable {
+    /// 会话归属日（start 所在自然日）
+    var date: Date
+    var start: Date
+    var end: Date
+    /// 运动类型中文名
+    var typeName: String
+    var minutes: Double
+    var distanceKm: Double?
+    var kcal: Double?
+    var averageHeartRate: Double?
+    var maxHeartRate: Double?
+    /// 公里配速（秒/公里），距离不足 1 公里为 nil
+    var paceSecPerKm: Double?
+    /// 记录来源（Apple Watch / iPhone / 第三方 App 名）
+    var sourceName: String
+}
+
 protocol HoloHealthDataSource: Sendable {
     func dailyRecords(
         for metric: HoloHealthMetricKind,
@@ -87,6 +107,8 @@ protocol HoloHealthDataSource: Sendable {
 
     func workoutRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutRecord]
     func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord]
+    /// 运动会话级记录（一行=一次训练，含距离/能量/心率/配速）。默认空实现：fake 数据源按需覆盖。
+    func workoutSessionRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutSessionRecord]
 
     /// 每日活动节律（小时级步数聚合推导）。默认空实现：fake 数据源按需覆盖。
     func activityPatternRecords(timeRange: HoloAgentTimeRange?) async -> [HoloActivityPatternRecord]
@@ -114,6 +136,7 @@ extension HoloHealthDataSource {
     func activityPatternRecords(timeRange: HoloAgentTimeRange?) async -> [HoloActivityPatternRecord] { [] }
     func energyRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] { [] }
     func distanceRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] { [] }
+    func workoutSessionRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutSessionRecord] { [] }
 
     func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord] {
         await dailyRecords(for: .sleep, timeRange: timeRange).map {
@@ -254,6 +277,29 @@ struct HoloHealthTool: HoloDataTool {
                 sensitivity: .sensitive,
                 maximumRangeDays: 366,
                 coverageSemantics: .dailyObservations
+            ),
+            HoloDataSetSchema(
+                name: "health.workout",
+                domain: "health",
+                description: "运动会话（一行=一次训练，来自 Apple 健康/Watch 或第三方运动 App）。心率、距离、配速等字段缺失=该次记录没有对应数据（常见于无 Apple Watch 的记录），不是 0；配速=时长÷距离，仅距离≥1 公里产出",
+                label: "运动会话",
+                timeField: "start",
+                fields: [
+                    HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "会话归属日（开始时间所在自然日）"),
+                    HoloDataField(name: "start", type: .date, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "开始时间"),
+                    HoloDataField(name: "end", type: .date, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "结束时间"),
+                    HoloDataField(name: "type", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "运动类型（跑步/骑行/力量训练等中文类型名）", label: "运动类型"),
+                    HoloDataField(name: "minutes", type: .number, unit: "分钟", filterable: true, groupable: false, aggregatable: true, description: "该次训练时长", label: "训练时长"),
+                    HoloDataField(name: "distanceKm", type: .number, unit: "公里", filterable: true, groupable: false, aggregatable: true, description: "该次训练距离。无距离概念的力量训练等缺失", label: "训练距离"),
+                    HoloDataField(name: "kcal", type: .number, unit: "千卡", filterable: true, groupable: false, aggregatable: true, description: "该次训练能量消耗", label: "训练能量"),
+                    HoloDataField(name: "avgHeartRate", type: .number, unit: "bpm", filterable: true, groupable: false, aggregatable: true, description: "该次训练平均心率。缺失=无心率数据（通常需 Apple Watch）", label: "平均心率"),
+                    HoloDataField(name: "maxHeartRate", type: .number, unit: "bpm", filterable: true, groupable: false, aggregatable: true, description: "该次训练最高心率。缺失=无心率数据", label: "最高心率"),
+                    HoloDataField(name: "paceSecPerKm", type: .number, unit: "秒/公里", filterable: true, groupable: false, aggregatable: true, description: "公里配速（时长÷距离），越小越快；仅距离≥1 公里的训练产出", label: "配速"),
+                    HoloDataField(name: "source", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录来源（Apple Watch/iPhone/第三方 App 名），可判断数据精度", label: "记录来源")
+                ],
+                sensitivity: .sensitive,
+                maximumRangeDays: 366,
+                coverageSemantics: .eventRecords
             )
         ]
     )
@@ -305,7 +351,11 @@ struct HoloHealthTool: HoloDataTool {
             "health.workout.total_minutes",
             "health.workout.session_count",
             "health.workout.active_days",
-            "health.workout.daily_minutes"
+            "health.workout.daily_minutes",
+            "health.workout.total_distance_km",
+            "health.workout.total_kcal",
+            "health.workout.average_heart_rate",
+            "health.workout.session_minutes"
         ],
         sensitivityPolicy: "sensitive",
         dynamicCatalog: Self.dynamicCatalog
@@ -630,8 +680,8 @@ extension HoloHealthTool {
         var metrics = [
             metric("health.sleep.average_hours", average, unit: "小时", baseline: baselineAverage),
             metric("health.sleep.recorded_nights", Double(records.count), unit: "晚"),
-            metric("health.sleep.goal_met_days", Double(records.filter { $0.totalHours >= 8 }.count), unit: "晚"),
-            metric("health.sleep.low_days", Double(records.filter { $0.totalHours < 6 }.count), unit: "晚"),
+            metric("health.sleep.goal_met_days", Double(records.filter { $0.totalHours >= HealthThresholds.sleepGoalHours }.count), unit: "晚"),
+            metric("health.sleep.low_days", Double(records.filter { $0.totalHours < HealthThresholds.sleepLowHours }.count), unit: "晚"),
             metric("health.sleep.duration_variation_minutes", Self.standardDeviation(values) * 60, unit: "分钟")
         ]
         Self.appendAverage(\.deepHours, key: "health.sleep.deep_hours", unit: "小时", records: records, to: &metrics)
@@ -708,18 +758,39 @@ extension HoloHealthTool {
 
         let totalMinutes = records.reduce(0) { $0 + $1.totalMinutes }
         let sessionCount = records.reduce(0) { $0 + $1.sessionCount }
-        let summaryMetrics = [
+        var summaryMetrics = [
             metric("health.workout.total_minutes", totalMinutes, unit: "分钟"),
             metric("health.workout.session_count", Double(sessionCount), unit: "次"),
             metric("health.workout.active_days", Double(records.count), unit: "天")
         ]
+
+        // 会话级增强：距离/能量/心率只有会话记录才有（无 Watch 的时长型记录自动缺席，不伪装 0）
+        let sessions = await dataSource.workoutSessionRecords(timeRange: request.timeRange)
+        let totalKm = sessions.compactMap(\.distanceKm).reduce(0, +)
+        if totalKm > 0 {
+            summaryMetrics.append(metric("health.workout.total_distance_km", totalKm, unit: "公里"))
+        }
+        let totalKcal = sessions.compactMap(\.kcal).reduce(0, +)
+        if totalKcal > 0 {
+            summaryMetrics.append(metric("health.workout.total_kcal", totalKcal, unit: "千卡"))
+        }
+        let averageHeartRates = sessions.compactMap(\.averageHeartRate)
+        if !averageHeartRates.isEmpty {
+            let average = averageHeartRates.reduce(0, +) / Double(averageHeartRates.count)
+            summaryMetrics.append(metric("health.workout.average_heart_rate", average, unit: "bpm"))
+        }
+
+        var events = summaryEvidenceEvents(summaryMetrics, label: "运动汇总", occurredAt: records.last?.date)
+            + records.map(workoutEvent)
+        events += sessions.map(Self.workoutSessionEvent)
+
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: .success,
             coverage: coverage(records.map(\.date), timeRange: request.timeRange),
             metrics: summaryMetrics,
-            events: summaryEvidenceEvents(summaryMetrics, label: "运动汇总") + records.map(workoutEvent),
+            events: events,
             warnings: [],
             error: nil,
             sensitivity: .sensitive
@@ -776,23 +847,23 @@ extension HoloHealthTool {
         case .steps:
             return [
                 metric("health.steps.average", average, unit: "步"),
-                metric("health.steps.goal_met_days", Double(records.filter { $0.value >= 10_000 }.count), unit: "天")
+                metric("health.steps.goal_met_days", Double(records.filter { $0.value >= HealthMetricType.steps.dailyGoal }.count), unit: "天")
             ]
         case .sleep:
             return [
                 metric("health.sleep.average_hours", average, unit: "小时"),
-                metric("health.sleep.goal_met_days", Double(records.filter { $0.value >= 8 }.count), unit: "天"),
-                metric("health.sleep.low_days", Double(records.filter { $0.value < 6 }.count), unit: "天")
+                metric("health.sleep.goal_met_days", Double(records.filter { $0.value >= HealthThresholds.sleepGoalHours }.count), unit: "天"),
+                metric("health.sleep.low_days", Double(records.filter { $0.value < HealthThresholds.sleepLowHours }.count), unit: "天")
             ]
         case .stand:
             return [
                 metric("health.stand.average_hours", average, unit: "小时"),
-                metric("health.stand.goal_met_days", Double(records.filter { $0.value >= 12 }.count), unit: "天")
+                metric("health.stand.goal_met_days", Double(records.filter { $0.value >= HealthMetricType.standHours.dailyGoal }.count), unit: "天")
             ]
         case .activity:
             return [
                 metric("health.activity.average_minutes", average, unit: "分钟"),
-                metric("health.activity.goal_met_days", Double(records.filter { $0.value >= 30 }.count), unit: "天")
+                metric("health.activity.goal_met_days", Double(records.filter { $0.value >= HealthMetricType.activeMinutes.dailyGoal }.count), unit: "天")
             ]
         }
     }
@@ -863,6 +934,52 @@ extension HoloHealthTool {
             metricKey: "health.workout.daily_minutes",
             metricValue: Self.round(record.totalMinutes),
             excerpt: "\(Self.displayFormatter.string(from: record.date)) 运动 \(String(format: "%.0f", record.totalMinutes)) 分钟 · \(record.sessionCount) 次\(typeText)"
+        )
+    }
+
+    /// 单次运动会话证据事件（用户在「查看数据依据」里看到的是这句中文）
+    static func workoutSessionEvent(_ record: HoloHealthWorkoutSessionRecord) -> HoloEvidenceEvent {
+        var excerpt = "\(Self.displayFormatter.string(from: record.date)) \(record.typeName) \(String(format: "%.0f", record.minutes)) 分钟"
+        if let km = record.distanceKm {
+            excerpt += " · \(String(format: "%.1f", km)) 公里"
+        }
+        if let average = record.averageHeartRate {
+            excerpt += " · 均心率 \(Int(average))"
+        }
+        return HoloEvidenceEvent(
+            id: "workout-session-\(Int(record.start.timeIntervalSince1970))",
+            occurredAt: record.start,
+            metricKey: "health.workout.session_minutes",
+            metricValue: Self.round(record.minutes),
+            excerpt: excerpt
+        )
+    }
+
+    /// 会话级行构造（health.workout 数据集，云端快照与本地动态查询同构）
+    static func workoutSessionQueryRow(_ record: HoloHealthWorkoutSessionRecord) -> HoloQueryRow {
+        var fields: [String: HoloQueryValue] = [
+            "date": .date(record.date),
+            "start": .date(record.start),
+            "end": .date(record.end),
+            "type": .text(record.typeName),
+            "minutes": .number(record.minutes),
+            "source": .text(record.sourceName)
+        ]
+        if let km = record.distanceKm { fields["distanceKm"] = .number(km) }
+        if let kcal = record.kcal { fields["kcal"] = .number(kcal) }
+        if let average = record.averageHeartRate { fields["avgHeartRate"] = .number(average) }
+        if let max = record.maxHeartRate { fields["maxHeartRate"] = .number(max) }
+        if let pace = record.paceSecPerKm { fields["paceSecPerKm"] = .number(pace) }
+
+        var excerpt = "\(displayFormatter.string(from: record.date)) \(record.typeName) \(String(format: "%.0f", record.minutes)) 分钟"
+        if let km = record.distanceKm {
+            excerpt += " · \(String(format: "%.1f", km)) 公里"
+        }
+        return HoloQueryRow(
+            id: "workout-session-\(Int(record.start.timeIntervalSince1970))",
+            occurredAt: record.start,
+            fields: fields,
+            excerpt: excerpt
         )
     }
 

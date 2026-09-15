@@ -33,10 +33,10 @@ final class HealthInsightViewModel {
     /// 生成状态文案（1.1：生成中 / 今日已更新 / 数据不足 / 使用本地兜底）。
     var statusText: String {
         switch snapshot?.status {
-        case .fresh, .cached: return "今日已更新"
-        case .insufficientData: return "数据不足"
-        case .fallback: return "使用本地兜底"
-        case .generating: return "生成中"
+        case .fresh, .cached: return String(localized: "今日已更新")
+        case .insufficientData: return String(localized: "数据不足")
+        case .fallback: return String(localized: "使用本地兜底")
+        case .generating: return String(localized: "生成中")
         case .disabled, nil: return ""
         }
     }

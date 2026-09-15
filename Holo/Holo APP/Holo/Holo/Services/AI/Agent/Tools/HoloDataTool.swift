@@ -1021,7 +1021,11 @@ nonisolated enum HoloMetricSemanticFactory {
         "health.workout.total_minutes": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current),
         "health.workout.session_count": .init(domain: .health, dataset: "health.workout", operation: .count, valueRole: .current),
         "health.workout.active_days": .init(domain: .health, dataset: "health.workout", operation: .count, valueRole: .current),
-        "health.workout.daily_minutes": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current, dimension: .day)
+        "health.workout.daily_minutes": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current, dimension: .day),
+        "health.workout.total_distance_km": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current),
+        "health.workout.total_kcal": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current),
+        "health.workout.average_heart_rate": .init(domain: .health, dataset: "health.workout", operation: .average, valueRole: .current),
+        "health.workout.session_minutes": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current)
     ]
 
     /// 固定工具指标语义：精确命中注册表才产出，未知 key 返回 nil（不猜）。
