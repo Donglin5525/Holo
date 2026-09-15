@@ -249,7 +249,7 @@ struct FinanceLedgerView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
-            calendarState.refreshAfterDataChange()
+            // 账本数据刷新由 CalendarState 统一监听通知负责，这里只补视图本地的预算数据
             loadBudgetData()
         }
         // 监听长按日期事件，触发快速记账 Sheet
@@ -503,7 +503,9 @@ struct FinanceLedgerView: View {
                 if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
                     EmptyStateView(
                         isFirstRecord: calendarState.currentMonthExpense == 0
-                            && calendarState.currentMonthIncome == 0
+                            && calendarState.currentMonthIncome == 0,
+                        ctaTitle: String(localized: "记一笔"),
+                        ctaAction: { showAddTransaction = true }
                     )
                     .padding(.top, 40)
                 }

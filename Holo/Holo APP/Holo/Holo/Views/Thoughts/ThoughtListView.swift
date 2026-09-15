@@ -1339,9 +1339,28 @@ struct ThoughtListView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
-            Text("点右下角 + 记录第一条想法")
+            Text("一闪而过的念头，都值得留下来")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+            // 空态行动按钮（激活方案 §3.2）：一键直达编辑器，替代「找右下角 +」
+            Button {
+                showAddThought = true
+            } label: {
+                Label(String(localized: "记录第一条想法"), systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 26)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.holoPrimary)
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("thoughtEmptyCta")
 
             if ICloudSyncStatusService.shared.isInitialSyncPending {
                 Text("正在从 iCloud 恢复数据，稍等片刻就会显示")

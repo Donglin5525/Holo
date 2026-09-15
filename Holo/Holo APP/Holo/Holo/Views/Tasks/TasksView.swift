@@ -92,7 +92,8 @@ struct TasksView: View {
                         repository: repository,
                         onBack: { close() },
                         onFilterChanged: { selectedTaskFilter = $0 },
-                        searchTrigger: searchTrigger
+                        searchTrigger: searchTrigger,
+                        onAddRequested: { showAddTask = true }
                     )
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })

@@ -29,7 +29,8 @@ struct DailyKanbanView: View {
     var onOpenAI: (() -> Void)? = nil
     var onOpenFinance: (() -> Void)? = nil
     var onAddTask: (() -> Void)? = nil
-    var onAddThought: (() -> Void)? = nil
+    /// 「对 Holo 说」快速记录出口（原「记录今天」误指想法编辑器，已按激活方案改指向 AI + 预填）
+    var onQuickRecord: (() -> Void)? = nil
 
     @StateObject private var dispatcher: TodayActionDispatcher
 
@@ -40,7 +41,7 @@ struct DailyKanbanView: View {
         onOpenAI: (() -> Void)? = nil,
         onOpenFinance: (() -> Void)? = nil,
         onAddTask: (() -> Void)? = nil,
-        onAddThought: (() -> Void)? = nil
+        onQuickRecord: (() -> Void)? = nil
     ) {
         self.showWeeklyBrief = showWeeklyBrief
         self.todayViewModel = todayViewModel
@@ -48,7 +49,7 @@ struct DailyKanbanView: View {
         self.onOpenAI = onOpenAI
         self.onOpenFinance = onOpenFinance
         self.onAddTask = onAddTask
-        self.onAddThought = onAddThought
+        self.onQuickRecord = onQuickRecord
         _dispatcher = StateObject(wrappedValue: TodayActionDispatcher(
             viewModel: todayViewModel ?? HoloTodayViewModel()
         ))
@@ -145,7 +146,7 @@ struct DailyKanbanView: View {
                         overview: snapshot.overview,
                         sectionState: snapshot.sectionStates[.overview],
                         onOpenFinance: { onOpenFinance?() },
-                        onAddRecord: { onAddThought?() }
+                        onAddRecord: { onQuickRecord?() }
                     )
                 }
                 VStack(alignment: .leading, spacing: 20) {
@@ -180,7 +181,8 @@ struct DailyKanbanView: View {
                 inFlightAction: dispatcher.inFlightAction,
                 errorMessage: dispatcher.localErrorMessage,
                 onStart: { dispatcher.perform($0) },
-                onPostpone: { todayViewModel?.postponeFocus() }
+                onPostpone: { todayViewModel?.postponeFocus() },
+                onCalmQuickRecord: { onQuickRecord?() }
             )
 
             // 2. Weekly Brief（次级横幅，不压主行动）
@@ -230,7 +232,7 @@ struct DailyKanbanView: View {
                 overview: snapshot.overview,
                 sectionState: snapshot.sectionStates[.overview],
                 onOpenFinance: { onOpenFinance?() },
-                onAddRecord: { onAddThought?() }
+                onAddRecord: { onQuickRecord?() }
             )
         } else {
             // loading：与最终卡等高的骨架

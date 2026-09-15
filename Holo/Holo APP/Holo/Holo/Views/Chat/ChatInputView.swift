@@ -30,19 +30,26 @@ struct ChatInputView: View {
     @State private var showCamera = false
     @State private var pendingCameraData: Data?
     @State private var isLoadingPick = false
+    @FocusState private var isInputFocused: Bool
+    /// 外部入口跳转进入的聚焦信号（看板「对 Holo 说」/第一步行动卡）：
+    /// >0 表示需要落焦，消费后立即归零——AI 页每次切换都会重建，
+    /// 若用 onChange 检测「变化」，重建视图拿到的已是最新值，永远不触发
+    @Binding var inputFocusTrigger: Int
 
     init(
         viewModel: ChatViewModel,
         onInputActivated: @escaping () -> Void = {},
         onVoiceInputTap: @escaping () -> Void = {},
         onImagePicked: ((Data) -> Void)? = nil,
-        onImagePickFailed: ((String) -> Void)? = nil
+        onImagePickFailed: ((String) -> Void)? = nil,
+        inputFocusTrigger: Binding<Int> = .constant(0)
     ) {
         self.viewModel = viewModel
         self.onInputActivated = onInputActivated
         self.onVoiceInputTap = onVoiceInputTap
         self.onImagePicked = onImagePicked
         self.onImagePickFailed = onImagePickFailed
+        self._inputFocusTrigger = inputFocusTrigger
     }
 
     var body: some View {
@@ -92,7 +99,8 @@ struct ChatInputView: View {
 
             HStack(alignment: .bottom, spacing: 12) {
                 // 输入框
-                TextField("输入消息...", text: $viewModel.inputText, axis: .vertical)
+                TextField(String(localized: "告诉 Holo 发生了什么…"), text: $viewModel.inputText, axis: .vertical)
+                    .focused($isInputFocused)
                     .lineLimit(1...5)
                     .textFieldStyle(.plain)
                     .font(.holoBody)
@@ -216,6 +224,17 @@ struct ChatInputView: View {
             pickedItems = []
             loadAndForward(item: newItem)
         }
+        .onAppear { consumeInputFocusSignal() }
+        .onChange(of: inputFocusTrigger) { _, _ in consumeInputFocusSignal() }
+    }
+
+    /// 消费外部聚焦信号：立即归零（防视图重建后误触发），等转场收尾再落焦
+    private func consumeInputFocusSignal() {
+        guard inputFocusTrigger > 0 else { return }
+        inputFocusTrigger = 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            isInputFocused = true
+        }
     }
 
     // 相册入口按钮：PhotosPicker 本体（样式与图片按钮一致，叠在 dialog 场景之外直接可点）
@@ -247,6 +266,10 @@ struct ChatInputView: View {
                 case .permissionRequired:
                     onImagePickFailed?(
                         String(localized: "需要相册权限才能选图识别。请在系统设置 > Holo > 照片中允许访问。")
+                    )
+                case .limitedAccess:
+                    onImagePickFailed?(
+                        String(localized: "相册权限是「仅限选中的照片」，这张图片不在允许范围内。可在系统设置 > Holo > 照片中改为「所有照片」。")
                     )
                 case .unavailable:
                     onImagePickFailed?(

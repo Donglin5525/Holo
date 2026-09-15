@@ -8,6 +8,7 @@
 
 import SwiftUI
 import EventKit
+import Combine
 
 /// 首页视图
 /// 设计布局：
@@ -86,6 +87,16 @@ struct HomeView: View {
 
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
+    /// AI 对话页面「只聚焦不预填」信号：看板「对 Holo 说」/第一步行动卡跳转后
+    /// 光标直接落在输入框等用户开口，App 不替用户说话（示例句预填已废弃）
+    @State private var chatFocusTrigger: Int = 0
+
+    /// 新用户「第一步行动卡」：引导完成第一句 AI 记录（完成后自动消失，× 关闭落盘）
+    @State private var showFirstStepCard = false
+    /// 首次记录庆祝浮层（仅空库用户的第一笔，一次即封）
+    @State private var showFirstRecordCelebration = false
+    /// 本次启动时全库是否无记录：庆祝只对「启动时还是新用户」的人生第一笔触发，老用户升级永不误弹
+    @State private var wasEmptyAtLaunch = false
 
     /// 是否在打开 AI 对话后自动弹出语音输入面板
     @State private var openChatVoiceInput: Bool = false
@@ -236,6 +247,21 @@ struct HomeView: View {
                 .transition(.holoScreenTransition)
                 .zIndex(201)
             }
+
+            // 首次记录庆祝浮层：盖在常驻模块（含 AI 对话）之上——第一笔常在对话中产生
+            if showFirstRecordCelebration {
+                FirstRecordCelebrationOverlay(
+                    onOpenGallery: {
+                        showFirstRecordCelebration = false
+                        openRootScreen(.memoryGallery)
+                    },
+                    onDismiss: {
+                        showFirstRecordCelebration = false
+                    }
+                )
+                .zIndex(300)
+                .transition(.opacity)
+            }
         }
         // 首页三步聚光灯导览：挂在根 ZStack 上，覆盖首页内容与常驻模块
         .coachMarkTour(isPresented: showHomeCoachTour, steps: HomeCoachTour.steps) {
@@ -312,10 +338,16 @@ struct HomeView: View {
             // 纪念日：初始化 + 兜底生成到期任务
             AnniversaryRepository.shared.setup()
             _ = await AnniversaryTaskGenerator.shared.generateDueTasks()
+            // 新用户激活判定要在 store 就绪后做，否则空库误判（老用户会闪现行动卡）
+            wasEmptyAtLaunch = !NewUserActivationState.hasAnyRecord()
+            refreshFirstStepCard()
+            checkFirstRecordCelebration()
         }
         // 轻量新人引导（结束后紧接着播放一次首页三步导览）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
             startHomeCoachTourIfNeeded()
+            // 引导完成（或跳过）后行动卡才具备出现条件
+            refreshFirstStepCard()
         }) {
             HoloLightweightOnboardingView { _ in
                 showOnboarding = false
@@ -356,9 +388,13 @@ struct HomeView: View {
                         showDailyKanban = false
                         showAddTaskSheet = true
                     },
-                    onAddThought: {
+                    onQuickRecord: {
+                        // 「对 Holo 说」/看板 calm 态出口：关看板 → 进 AI → 落焦输入框。
+                        // 不预填示例句（「午饭花了 35 元」曾让用户误以为已记假账），
+                        // 输入框 placeholder 承担「说什么」的提示职责
                         showDailyKanban = false
-                        showThoughtEditor = true
+                        chatFocusTrigger += 1
+                        openRootScreen(.ai)
                     }
                 )
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
@@ -473,6 +509,18 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .replayHomeCoachTour)) { _ in
             replayHomeCoachTour()
         }
+        // 行动卡/庆祝随四域数据变化自动显隐：任一模块产生首条记录 → 卡消失、庆祝判定
+        .onReceive(
+            NotificationCenter.default.publisher(for: .financeDataDidChange)
+                .merge(with: NotificationCenter.default.publisher(for: .todoDataDidChange))
+                .merge(with: NotificationCenter.default.publisher(for: .habitDataDidChange))
+                .merge(with: NotificationCenter.default.publisher(for: .thoughtDataDidChange))
+        ) { _ in
+            if showFirstStepCard {
+                refreshFirstStepCard()
+            }
+            checkFirstRecordCelebration()
+        }
     }
 
     // MARK: - 首页导览触发
@@ -497,6 +545,31 @@ struct HomeView: View {
         }
         withAnimation(.easeInOut(duration: 0.25)) {
             showHomeCoachTour = true
+        }
+    }
+
+    // MARK: - 新用户激活（第一步行动卡 + 首次记录庆祝）
+
+    /// 行动卡与门：引导已完成 + 未手动关闭 + 全库无记录（交易/任务/想法/习惯任一出现即消失）
+    private func refreshFirstStepCard() {
+        let shouldShow = LightweightOnboardingSettings.isCompleted
+            && !OnboardingProgressStore.hasSeen(OnboardingProgressStore.firstStepCardDismissedKey)
+            && !NewUserActivationState.hasAnyRecord()
+        guard showFirstStepCard != shouldShow else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showFirstStepCard = shouldShow
+        }
+    }
+
+    /// 首次记录庆祝：只对「启动时全库为空」的用户在第一笔交易落库时弹一次
+    private func checkFirstRecordCelebration() {
+        guard wasEmptyAtLaunch,
+              !OnboardingProgressStore.hasSeen(OnboardingProgressStore.firstRecordCelebrationShownKey),
+              NewUserActivationState.isFirstTransactionEver()
+        else { return }
+        OnboardingProgressStore.markSeen(OnboardingProgressStore.firstRecordCelebrationShownKey)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showFirstRecordCelebration = true
         }
     }
 
@@ -595,7 +668,8 @@ struct HomeView: View {
             ChatView(
                 goalPlanningRequest: $pendingGoalPlanningRequest,
                 prefillText: chatPrefillText,
-                opensVoiceInputOnAppear: openChatVoiceInput
+                opensVoiceInputOnAppear: openChatVoiceInput,
+                inputFocusTrigger: $chatFocusTrigger
             )
             .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
@@ -772,6 +846,26 @@ struct HomeView: View {
                         openRootScreen(.ai)
                     }
                 )
+                // 新用户「第一步行动卡」（拍板方案 C）：气泡 + 虚线光圈指向中央 AI 按钮
+                .overlay {
+                    if showFirstStepCard {
+                        FirstStepActionBubble(
+                            onTap: {
+                                // 跳转 AI 落焦输入框，不预填不自动发送——
+                                // 说什么、发不发都由用户决定
+                                chatFocusTrigger += 1
+                                openRootScreen(.ai)
+                            },
+                            onDismiss: {
+                                OnboardingProgressStore.markSeen(OnboardingProgressStore.firstStepCardDismissedKey)
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showFirstStepCard = false
+                                }
+                            }
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
                 .coachMarkTarget(HomeCoachTour.bottomNavID)
             } else {
                 // 侧边栏骨架下保留同等底部留白，主视觉不贴边

@@ -76,6 +76,9 @@ struct ChatView: View {
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
     var opensVoiceInputOnAppear: Bool = false
+    /// 外部入口「只聚焦不预填」信号（看板「对 Holo 说」/第一步行动卡），透传给输入栏；
+    /// Binding 以便输入栏消费后归零，防 AI 页重建后重复触发
+    var inputFocusTrigger: Binding<Int> = .constant(0)
 
     private var internalLogAction: ((ChatMessageViewData) -> Void)? {
         #if DEBUG || INTERNAL_DIAGNOSTICS
@@ -90,11 +93,13 @@ struct ChatView: View {
     init(
         goalPlanningRequest: Binding<GoalPlanningRequest?> = .constant(nil),
         prefillText: String? = nil,
-        opensVoiceInputOnAppear: Bool = false
+        opensVoiceInputOnAppear: Bool = false,
+        inputFocusTrigger: Binding<Int> = .constant(0)
     ) {
         self._goalPlanningRequest = goalPlanningRequest
         self.prefillText = prefillText
         self.opensVoiceInputOnAppear = opensVoiceInputOnAppear
+        self.inputFocusTrigger = inputFocusTrigger
     }
 
     var body: some View {
@@ -695,7 +700,8 @@ struct ChatView: View {
                 },
                 onImagePickFailed: { message in
                     viewModel.errorMessage = message
-                }
+                },
+                inputFocusTrigger: inputFocusTrigger
             )
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.isTrulyEmptyConversation)

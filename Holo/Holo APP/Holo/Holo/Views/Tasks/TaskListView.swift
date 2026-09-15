@@ -120,6 +120,8 @@ struct TaskListView: View {
     var onFilterChanged: ((TaskFilterType) -> Void)? = nil
     /// Cmd+F 触发计数（TasksView 转发）：变化即打开任务搜索
     var searchTrigger: Int = 0
+    /// 空态行动按钮回调（激活方案 §3.2）：外层 TasksView 打开新建任务
+    var onAddRequested: (() -> Void)? = nil
 
     /// 任务列表（本地缓存）
     @State private var tasks: [TodoTask] = []
@@ -1455,9 +1457,27 @@ struct TaskListView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextSecondary)
 
-                Text("点击右下角 + 创建第一个任务")
+                Text("告诉 Holo 要做什么，或手动创建")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+                if let onAddRequested {
+                    Button(action: onAddRequested) {
+                        Label(String(localized: "创建第一个任务"), systemImage: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 26)
+                            .padding(.vertical, 11)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.holoPrimary)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("taskEmptyCta")
+                }
             }
 
             if selectedFilter != .today, ICloudSyncStatusService.shared.isInitialSyncPending {
