@@ -212,6 +212,15 @@ final class HoloXhsShotUITests: XCTestCase {
         return app
     }
 
+    private func launchLifeFlow(route: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launch()
+        return app
+    }
+
     private func drag(_ app: XCUIApplication, fromDy: CGFloat, toDy: CGFloat) {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: fromDy))
         let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: toDy))
@@ -312,6 +321,65 @@ final class HoloXhsShotUITests: XCTestCase {
             sleep(2)
             try saveShot("busy4-07-replay-expanded-2")
         }
+    }
+
+    // MARK: - 生活化 App Store 六张图（真实模拟器截图）
+
+    /// 01 一句话把会议、签证和给家人买药交给 Holo，保留真实执行结果卡。
+    func testShotLifeFlow01Actions() throws {
+        let app = launchLifeFlow(route: "ai-actions")
+        sleep(15)
+        try saveShot("life-flow-01-actions")
+    }
+
+    /// 02 首页：同一组生活数据在首页的周节奏摘要与入口布局。
+    func testShotLifeFlow02Home() throws {
+        let app = launchLifeFlow(route: "home")
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60), "首页窗口未出现")
+        sleep(6)
+        try saveShot("life-flow-02-home")
+    }
+
+    /// 03 追问最近为什么总觉得时间不够，向上回看至真实的跨域分析卡。
+    func testShotLifeFlow03Analysis() throws {
+        let app = launchLifeFlow(route: "ai-analysis")
+        sleep(15)
+        drag(app, fromDy: 0.35, toDy: 0.68)
+        sleep(3)
+        let button = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '查看详细分析'")
+        ).firstMatch
+        if button.waitForExistence(timeout: 8) {
+            button.tap()
+            sleep(3)
+        }
+        try saveShot("life-flow-03-analysis")
+    }
+
+    /// 04 周回放：把会议、签证、支出和观点放在一起读。
+    func testShotLifeFlow04WeeklyReplay() throws {
+        let app = launchLifeFlow(route: "period-replay-weekly")
+        sleep(16)
+        try saveShot("life-flow-04-period-replay")
+    }
+
+    /// 05 待确认记忆：会议前留缓冲、出行先列清单，由用户决定是否保留。
+    func testShotLifeFlow05MemoryInsight() throws {
+        let app = launchLifeFlow(route: "memory-insight")
+        sleep(12)
+        let group = app.staticTexts["想和你确认的"]
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "想和你确认的分组未出现")
+        XCTAssertTrue(group.isHittable, "洞察 Tab 未落地，分组不可见")
+        group.tap()
+        sleep(3)
+        try saveShot("life-flow-05-memory-insight")
+    }
+
+    /// 06 记忆长廊日回放：会议材料、签证准备、咖啡与云，组成普通的一天。
+    func testShotLifeFlow06MemoryGallery() throws {
+        let app = launchLifeFlow(route: "memory-calendar")
+        sleep(12)
+        try saveShot("life-flow-06-memory-gallery")
     }
 
     /// 探针，长按主屏空白进入编辑模式，截图并打印元素树（用于小组件自动化）

@@ -36,11 +36,13 @@ enum HoloAppStoreScreenshotSeeder {
     /// 拍摄剧本。rhythm 是首发笔记的「稳定节奏」剧本；milestoneAugust 是第二篇
     /// 笔记的「里程碑八月」剧本（2026 年 8 月，与对外笔记同期，日期固定）；
     /// busyWeek 是第四篇笔记的「忙碌一周」剧本（一句话三件事 → 时间线回看 →
-    /// 深度分析 → 待确认观察），日期跟随拍摄当周。
+    /// 深度分析 → 待确认观察），日期跟随拍摄当周；lifeFlow 是 App Store 新版截图的
+    /// 「会议与出行准备」剧本，把项目周会、签证材料、家人和观点放进同一条生活叙事。
     enum Story: String {
         case rhythm
         case milestoneAugust = "milestone-august"
         case busyWeek = "busy-week"
+        case lifeFlow = "life-flow"
     }
 
     static var requestedStory: Story {
@@ -58,6 +60,7 @@ enum HoloAppStoreScreenshotSeeder {
         case .rhythm: return seededKey
         case .milestoneAugust: return seededKey + "_milestone_august"
         case .busyWeek: return seededKey + "_busy_week"
+        case .lifeFlow: return seededKey + "_life_flow"
         }
     }
 
@@ -303,9 +306,9 @@ enum HoloAppStoreScreenshotSeeder {
         )!
         try seedInsight(context: context, startOfWeek: startOfWeek, story: story)
         try context.save()
-        if story == .busyWeek {
+        if story == .busyWeek || story == .lifeFlow {
             // 忙碌一周剧本只保留自己的待确认观察，不落节奏剧本的理解记忆。
-            try await seedBusyWeekCandidateMemory(now: now)
+            try await seedBusyWeekCandidateMemory(now: now, story: story)
             return
         }
         let memoryIDs = try await seedScreenshotMemoryRecords(now: now, story: story)
@@ -340,8 +343,14 @@ enum HoloAppStoreScreenshotSeeder {
         let daysSinceMonday = (weekday + 5) % 7
         let startOfWeek = calendar.date(byAdding: .day, value: -daysSinceMonday, to: startOfToday)!
 
-        if story == .busyWeek {
-            try await seedBusyWeekAll(in: context, account: account, now: now, startOfWeek: startOfWeek)
+        if story == .busyWeek || story == .lifeFlow {
+            try await seedBusyWeekAll(
+                in: context,
+                account: account,
+                now: now,
+                startOfWeek: startOfWeek,
+                story: story
+            )
             try context.save()
             return true
         }
@@ -1497,18 +1506,18 @@ enum HoloAppStoreScreenshotSeeder {
         return featuredThought
     }
 
-    /// 给当天的想法挂上三张可回看的图片，演示记忆长廊的多图记忆能力。
+    /// 给当天的想法挂上三张可回看的真实图片，演示记忆长廊的多图记忆能力。
     private static func seedMultiplePhotoMemory(
         in context: NSManagedObjectContext,
-        thought: Thought
-    ) async throws {
-        guard thought.sortedAttachments.count < 3 else { return }
-
-        let photoNames = [
+        thought: Thought,
+        photoNames: [String] = [
             "KunmingMemoryCloud",
             "KunmingMemoryCoffee",
             "KunmingMemoryDessert"
         ]
+    ) async throws {
+        guard thought.sortedAttachments.count < 3 else { return }
+
         let repository = ThoughtRepository(context: context)
         for name in photoNames {
             guard let image = UIImage(named: name),
@@ -1707,7 +1716,7 @@ enum HoloAppStoreScreenshotSeeder {
         // 忙碌一周剧本例外：分析对话讲的就是“这一周”，周期跟随拍摄当周。
         let insightStart: Date
         let end: Date
-        if story == .busyWeek {
+        if story == .busyWeek || story == .lifeFlow {
             insightStart = startOfWeek
             end = Calendar.current.date(byAdding: .day, value: 7, to: startOfWeek)!
         } else {
@@ -1720,6 +1729,8 @@ enum HoloAppStoreScreenshotSeeder {
             payload = makeMilestoneAugustWeeklyPayload()
         case .busyWeek:
             payload = makeBusyWeekWeeklyPayload()
+        case .lifeFlow:
+            payload = makeLifeFlowWeeklyPayload()
         case .rhythm:
             payload = makeRhythmWeeklyPayload()
         }
@@ -1821,6 +1832,11 @@ enum HoloAppStoreScreenshotSeeder {
 
     // MARK: - 忙碌一周剧本（第四篇笔记拍摄用）
 
+    private struct BusyWeekSeedTasks {
+        let actionTask: TodoTask
+        let secondaryTask: TodoTask?
+    }
+
     /// 「我不想再做一个催你自律的 App」剧本：
     /// 周内少量工作日记录 → 周五晚的深度分析 → 今天中午「一句话三件事」→
     /// 一条等待用户确认的观察。日期跟随拍摄当周，拍摄日应为周六或周日，
@@ -1829,49 +1845,91 @@ enum HoloAppStoreScreenshotSeeder {
         in context: NSManagedObjectContext,
         account: Account,
         now: Date,
-        startOfWeek: Date
+        startOfWeek: Date,
+        story: Story
     ) async throws {
         let transaction = try await seedBusyWeekTransactions(
             context: context,
             account: account,
-            startOfWeek: startOfWeek
+            startOfWeek: startOfWeek,
+            story: story
         )
-        let habit = try seedBusyWeekHabits(context: context, startOfWeek: startOfWeek)
-        let task = try seedBusyWeekTasks(context: context, startOfWeek: startOfWeek)
-        try seedBusyWeekThoughts(context: context, startOfWeek: startOfWeek)
-        try await seedBusyWeekCandidateMemory(now: now)
+        let habit = try seedBusyWeekHabits(
+            context: context,
+            startOfWeek: startOfWeek,
+            story: story
+        )
+        let tasks = try seedBusyWeekTasks(
+            context: context,
+            startOfWeek: startOfWeek,
+            story: story
+        )
+        let featuredThought = try seedBusyWeekThoughts(
+            context: context,
+            startOfWeek: startOfWeek,
+            story: story
+        )
+        if story == .lifeFlow {
+            try await seedMultiplePhotoMemory(
+                in: context,
+                thought: featuredThought,
+                photoNames: [
+                    "LifeFlowMemoryCoffee",
+                    "LifeFlowMemoryDessert",
+                    "LifeFlowMemorySky"
+                ]
+            )
+        }
+        try await seedBusyWeekCandidateMemory(now: now, story: story)
         try seedBusyWeekConversation(
             context: context,
             transaction: transaction,
-            task: task,
+            tasks: tasks,
             habit: habit,
-            startOfWeek: startOfWeek
+            startOfWeek: startOfWeek,
+            story: story
         )
-        try seedInsight(context: context, startOfWeek: startOfWeek, story: .busyWeek)
+        try seedInsight(context: context, startOfWeek: startOfWeek, story: story)
     }
 
     /// 一周的少量账单：工作日午餐 + 两晚加班外卖，今天中午的“午饭 36 元”。
     private static func seedBusyWeekTransactions(
         context: NSManagedObjectContext,
         account: Account,
-        startOfWeek: Date
+        startOfWeek: Date,
+        story: Story
     ) async throws -> Transaction {
         let categories = try context.fetch(Category.fetchRequest())
         let byName = Dictionary(grouping: categories.filter(\.isSubCategory), by: \.name)
-        let samples: [(day: Int, hour: Int, minute: Int, amount: Decimal, category: String, note: String)] = [
-            (0, 12, 10, 32, "午餐", "午餐"),
-            (0, 20, 10, 45, "外卖", "加班外卖"),
-            (1, 12, 20, 38, "午餐", "午餐"),
-            (1, 20, 30, 52, "晚餐", "改完方案的晚饭"),
-            (2, 12, 25, 36, "午餐", "午餐"),
-            (2, 18, 50, 4, "地铁", "回家地铁"),
-            (3, 12, 15, 42, "午餐", "午餐"),
-            (3, 21, 10, 58, "外卖", "排期收尾的外卖"),
-            (4, 12, 20, 35, "午餐", "午餐"),
-            (4, 19, 30, 66, "超市", "周五补货"),
-            (5, 8, 15, 18, "早餐", "早餐和豆浆"),
-            (5, 12, 20, 36, "午餐", "午饭")
-        ]
+        let samples: [(day: Int, hour: Int, minute: Int, amount: Decimal, category: String, note: String)] = story == .lifeFlow
+            ? [
+                (0, 12, 10, 128, "药品", "给爸妈买药"),
+                (0, 20, 10, 45, "外卖", "开会后的晚餐"),
+                (1, 12, 20, 38, "午餐", "午餐"),
+                (1, 18, 30, 86, "旅行", "签证材料打印与照片"),
+                (2, 12, 25, 36, "午餐", "午餐"),
+                (2, 18, 50, 4, "地铁", "回家地铁"),
+                (3, 12, 15, 42, "午餐", "午餐"),
+                (3, 20, 10, 58, "外卖", "准备签证材料后的晚餐"),
+                (4, 12, 20, 35, "午餐", "午餐"),
+                (4, 19, 30, 66, "超市", "周五补货"),
+                (5, 8, 15, 18, "早餐", "早餐和豆浆"),
+                (5, 12, 20, 36, "午餐", "午饭")
+            ]
+            : [
+                (0, 12, 10, 32, "午餐", "午餐"),
+                (0, 20, 10, 45, "外卖", "加班外卖"),
+                (1, 12, 20, 38, "午餐", "午餐"),
+                (1, 20, 30, 52, "晚餐", "改完方案的晚饭"),
+                (2, 12, 25, 36, "午餐", "午餐"),
+                (2, 18, 50, 4, "地铁", "回家地铁"),
+                (3, 12, 15, 42, "午餐", "午餐"),
+                (3, 21, 10, 58, "外卖", "排期收尾的外卖"),
+                (4, 12, 20, 35, "午餐", "午餐"),
+                (4, 19, 30, 66, "超市", "周五补货"),
+                (5, 8, 15, 18, "早餐", "早餐和豆浆"),
+                (5, 12, 20, 36, "午餐", "午饭")
+            ]
 
         var actionTransaction: Transaction?
         for sample in samples {
@@ -1892,13 +1950,15 @@ enum HoloAppStoreScreenshotSeeder {
                 date: sampleDate,
                 note: sample.note
             )
-            if sample.day == 5 && sample.amount == 36 {
+            if story == .lifeFlow
+                ? (sample.day == 0 && sample.amount == 128)
+                : (sample.day == 5 && sample.amount == 36) {
                 actionTransaction = transaction
             }
         }
 
         guard let actionTransaction else {
-            throw ScreenshotSeedError.missingCategory("午餐")
+            throw ScreenshotSeedError.missingCategory(story == .lifeFlow ? "药品" : "午餐")
         }
         return actionTransaction
     }
@@ -1906,12 +1966,13 @@ enum HoloAppStoreScreenshotSeeder {
     /// 晚饭后散步（周三、周五、今晚各一次）与周一的晚间阅读。
     private static func seedBusyWeekHabits(
         context: NSManagedObjectContext,
-        startOfWeek: Date
+        startOfWeek: Date,
+        story: Story
     ) throws -> Habit {
         let walk = Habit.create(
             in: context,
-            name: "晚饭后散步",
-            icon: "figure.walk",
+            name: story == .lifeFlow ? "给家人打电话" : "晚饭后散步",
+            icon: story == .lifeFlow ? "phone.fill" : "figure.walk",
             color: "#34C759",
             type: .checkIn,
             frequency: .daily,
@@ -1920,8 +1981,8 @@ enum HoloAppStoreScreenshotSeeder {
         )
         let reading = Habit.create(
             in: context,
-            name: "晚间阅读",
-            icon: "book.fill",
+            name: story == .lifeFlow ? "整理签证材料" : "晚间阅读",
+            icon: story == .lifeFlow ? "doc.text.fill" : "book.fill",
             color: "#FF6B35",
             type: .checkIn,
             frequency: .daily,
@@ -1929,27 +1990,41 @@ enum HoloAppStoreScreenshotSeeder {
             sortOrder: 1
         )
 
-        for day in [2, 4, 5] {
+        for day in story == .lifeFlow ? [1, 4, 5] : [2, 4, 5] {
             let record = HabitRecord.createCheckIn(in: context, habit: walk)
-            record.date = date(from: startOfWeek, dayOffset: day, hour: 20, minute: 25)
+            record.date = date(
+                from: startOfWeek,
+                dayOffset: day,
+                hour: story == .lifeFlow ? 21 : 20,
+                minute: 25
+            )
             record.createdAt = record.date
         }
-        let readingRecord = HabitRecord.createCheckIn(in: context, habit: reading)
-        readingRecord.date = date(from: startOfWeek, dayOffset: 0, hour: 21, minute: 40)
-        readingRecord.createdAt = readingRecord.date
+        for day in story == .lifeFlow ? [0, 3] : [0] {
+            let readingRecord = HabitRecord.createCheckIn(in: context, habit: reading)
+            readingRecord.date = date(from: startOfWeek, dayOffset: day, hour: 18, minute: 40)
+            readingRecord.createdAt = readingRecord.date
+        }
         return walk
     }
 
     /// 周内三件已完成的工作任务 + 一件今天创建的访谈整理待办（截止下周五 18:00）。
     private static func seedBusyWeekTasks(
         context: NSManagedObjectContext,
-        startOfWeek: Date
-    ) throws -> TodoTask {
-        let completedSamples: [(String, Int, Int, Int)] = [
-            ("周会材料补充", 0, 18, 20),
-            ("临时改方案", 1, 20, 40),
-            ("输出项目排期", 3, 19, 30)
-        ]
+        startOfWeek: Date,
+        story: Story
+    ) throws -> BusyWeekSeedTasks {
+        let completedSamples: [(String, Int, Int, Int)] = story == .lifeFlow
+            ? [
+                ("整理项目周会材料", 5, 9, 20),
+                ("确认签证清单", 5, 16, 40),
+                ("回复产品群留言", 4, 19, 30)
+            ]
+            : [
+                ("周会材料补充", 0, 18, 20),
+                ("临时改方案", 1, 20, 40),
+                ("输出项目排期", 3, 19, 30)
+            ]
         for sample in completedSamples {
             let completedAt = date(from: startOfWeek, dayOffset: sample.1, hour: sample.2, minute: sample.3)
             let task = TodoTask.create(
@@ -1965,44 +2040,71 @@ enum HoloAppStoreScreenshotSeeder {
             task.updatedAt = completedAt
         }
 
-        let interviewDue = date(from: startOfWeek, dayOffset: 11, hour: 18, minute: 0)
-        let interviewTask = TodoTask.create(
+        let actionTask = TodoTask.create(
             in: context,
-            title: "整理用户访谈",
+            title: story == .lifeFlow ? "项目周会" : "整理用户访谈",
             priority: .high,
-            dueDate: interviewDue
+            dueDate: story == .lifeFlow
+                ? date(from: startOfWeek, dayOffset: 8, hour: 10, minute: 0)
+                : date(from: startOfWeek, dayOffset: 11, hour: 18, minute: 0)
         )
         let createdAt = date(from: startOfWeek, dayOffset: 5, hour: 12, minute: 30)
-        interviewTask.createdAt = createdAt
-        interviewTask.updatedAt = createdAt
+        actionTask.createdAt = createdAt
+        actionTask.updatedAt = createdAt
 
         let replyTask = TodoTask.create(
             in: context,
-            title: "回复产品群留言",
+            title: story == .lifeFlow ? "准备签证材料" : "回复产品群留言",
             priority: .low,
-            dueDate: date(from: startOfWeek, dayOffset: 5, hour: 22, minute: 0)
+            dueDate: story == .lifeFlow
+                ? date(from: startOfWeek, dayOffset: 10, hour: 18, minute: 0)
+                : date(from: startOfWeek, dayOffset: 5, hour: 22, minute: 0)
         )
         replyTask.createdAt = date(from: startOfWeek, dayOffset: 4, hour: 10, minute: 0)
         replyTask.updatedAt = replyTask.createdAt
-        return interviewTask
+        return BusyWeekSeedTasks(
+            actionTask: actionTask,
+            secondaryTask: story == .lifeFlow ? replyTask : nil
+        )
     }
 
-    /// 两条想法：周二晚的“躲一会儿”，和今天说完三件事之后的松一口气。
+    /// 生活化剧本的最后一条想法会挂上三张真实照片，供记忆长廊渲染多图记忆卡。
     private static func seedBusyWeekThoughts(
         context: NSManagedObjectContext,
-        startOfWeek: Date
-    ) throws {
+        startOfWeek: Date,
+        story: Story
+    ) throws -> Thought {
         let repository = ThoughtRepository(context: context)
-        let samples: [(content: String, mood: String, tags: [String], day: Int, hour: Int, minute: Int)] = [
-            (
-                "事情堆在一起的时候，我最想先躲一会儿。缓十分钟，再一件一件来。",
-                "calm", ["生活"], 1, 20, 55
-            ),
-            (
-                "把堆在脑子里的三件事一次说完，脑子清爽多了。记下来不等于要做完。",
-                "calm", ["复盘"], 5, 12, 35
-            )
-        ]
+        let samples: [(content: String, mood: String, tags: [String], day: Int, hour: Int, minute: Int)] = story == .lifeFlow
+            ? [
+                (
+                    "下周二的项目周会要提前准备，不然一整天都会被它牵着走。",
+                    "calm", ["工作"], 0, 21, 5
+                ),
+                (
+                    "准备签证材料的时候，我发现把大事拆成清单，心里会轻很多。",
+                    "calm", ["出行"], 2, 21, 15
+                ),
+                (
+                    "对“效率越高越好”这件事，我现在更想先问：它有没有让我更从容？",
+                    "inspired", ["观点"], 4, 21, 20
+                ),
+                (
+                    "开完会去喝杯咖啡，普通的一天也值得记下来。",
+                    "happy", ["生活"], 5, 19, 10
+                )
+            ]
+            : [
+                (
+                    "事情堆在一起的时候，我最想先躲一会儿。缓十分钟，再一件一件来。",
+                    "calm", ["生活"], 1, 20, 55
+                ),
+                (
+                    "把堆在脑子里的三件事一次说完，脑子清爽多了。记下来不等于要做完。",
+                    "calm", ["复盘"], 5, 12, 35
+                )
+            ]
+        var featuredThought: Thought?
         for sample in samples {
             let thought = try repository.create(
                 content: sample.content,
@@ -2018,15 +2120,23 @@ enum HoloAppStoreScreenshotSeeder {
             thought.createdAt = createdAt
             thought.updatedAt = createdAt
             thought.organizedStatus = "organized"
+            if sample.day == 5 {
+                featuredThought = thought
+            }
         }
+        guard let featuredThought else {
+            throw ScreenshotSeedError.missingFeaturedThought
+        }
+        return featuredThought
     }
 
     /// 待确认的观察：措辞审慎、可被否定，只陈述记录里存在的线索。
-    private static func seedBusyWeekCandidateMemory(now: Date) async throws {
+    private static func seedBusyWeekCandidateMemory(now: Date, story: Story) async throws {
+        let isLifeFlow = story == .lifeFlow
         let anchor = try HoloMemoryAnchorRef(
             type: .userTheme,
-            value: "busy-evening-week",
-            displayLabel: "被占住的晚上"
+            value: isLifeFlow ? "meeting-prep-buffer" : "busy-evening-week",
+            displayLabel: isLifeFlow ? "会议前的缓冲" : "被占住的晚上"
         )
         // 跨域记忆要求 ≥2 条上游记忆做支撑，这里只有单条假设，落任务域。
         let id = try HoloMemoryIdentity.makeStableID(
@@ -2041,40 +2151,44 @@ enum HoloAppStoreScreenshotSeeder {
             scope: .domain,
             primaryDomain: .task,
             sourceDomains: [.task],
-            subjectKey: "busy-evening-week",
+            subjectKey: isLifeFlow ? "meeting-prep-buffer" : "busy-evening-week",
             anchorRefs: [anchor],
             claimKind: .hypothesis,
             persistenceClass: .phase,
-            displaySummary: "这几天的忙乱，可能不只是任务多，也和临时事项集中在晚上有关。",
-            aiUseSummary: "聊到晚间安排时，先向用户确认这个观察是否成立，再决定要不要参考。",
+            displaySummary: isLifeFlow
+                ? "重要会议前，你习惯提前整理材料并预留缓冲时间。"
+                : "这几天的忙乱，可能不只是任务多，也和临时事项集中在晚上有关。",
+            aiUseSummary: isLifeFlow
+                ? "回答工作安排时，可以引用这条候选记忆，但只有用户确认后才使用。"
+                : "聊到晚间安排时，先向用户确认这个观察是否成立，再决定要不要参考。",
             prohibitedInferences: [
-                "不要据此断言用户不自律或时间管理有问题",
-                "不要把忙乱直接归因于用户的个人习惯"
+                isLifeFlow ? "不要据此推断所有会议都需要同样的准备时间" : "不要据此断言用户不自律或时间管理有问题",
+                isLifeFlow ? "不要在用户未确认前自动替用户安排新的会议" : "不要把忙乱直接归因于用户的个人习惯"
             ],
             evidenceRefs: [
                 HoloMemoryEvidenceRef(
-                    id: "busy-week-task-evening",
+                    id: isLifeFlow ? "life-flow-meeting-prep" : "busy-week-task-evening",
                     kind: .entityRef,
                     sourceDomain: .task,
-                    lineageKey: "busy-week-task-evening",
-                    sourceID: "busy-week-evening-tasks",
+                    lineageKey: isLifeFlow ? "life-flow-meeting-prep" : "busy-week-task-evening",
+                    sourceID: isLifeFlow ? "life-flow-meeting-task" : "busy-week-evening-tasks",
                     revisionDigest: "v1",
                     observedAt: now,
-                    summary: "周二和周四的任务都完成在晚上 7 点之后。"
+                    summary: isLifeFlow ? "项目周会材料会在会议前提前整理。" : "周二和周四的任务都完成在晚上 7 点之后。"
                 ),
                 HoloMemoryEvidenceRef(
-                    id: "busy-week-walk-gap",
+                    id: isLifeFlow ? "life-flow-visa-checklist" : "busy-week-walk-gap",
                     kind: .entityRef,
-                    sourceDomain: .habit,
-                    lineageKey: "busy-week-walk-gap",
-                    sourceID: "busy-week-walk-records",
+                    sourceDomain: isLifeFlow ? .task : .habit,
+                    lineageKey: isLifeFlow ? "life-flow-visa-checklist" : "busy-week-walk-gap",
+                    sourceID: isLifeFlow ? "life-flow-visa-task" : "busy-week-walk-records",
                     revisionDigest: "v1",
                     observedAt: now,
-                    summary: "晚饭后散步这周只记录了 2 次。"
+                    summary: isLifeFlow ? "准备签证时，你会先把材料列成清单。" : "晚饭后散步这周只记录了 2 次。"
                 )
             ],
             upstreamMemoryIDs: [],
-            confidenceScore: 0.62,
+            confidenceScore: isLifeFlow ? 0.74 : 0.62,
             state: .candidate,
             adoptionMetadata: HoloMemoryAdoptionMetadata(
                 policyVersion: HoloMemoryActivationPolicy.currentVersion,
@@ -2087,7 +2201,9 @@ enum HoloAppStoreScreenshotSeeder {
         let repository = try await HoloMemoryRuntime.shared.repository()
         _ = try await repository.upsert(
             record,
-            observationKey: "app-store-screenshot-memory-busyweek-v1"
+            observationKey: isLifeFlow
+                ? "app-store-screenshot-memory-lifeflow-v1"
+                : "app-store-screenshot-memory-busyweek-v1"
         )
     }
 
@@ -2096,10 +2212,21 @@ enum HoloAppStoreScreenshotSeeder {
     private static func seedBusyWeekConversation(
         context: NSManagedObjectContext,
         transaction: Transaction,
-        task: TodoTask,
+        tasks: BusyWeekSeedTasks,
         habit: Habit,
-        startOfWeek: Date
+        startOfWeek: Date,
+        story: Story
     ) throws {
+        if story == .lifeFlow {
+            try seedLifeFlowConversation(
+                context: context,
+                transaction: transaction,
+                tasks: tasks,
+                startOfWeek: startOfWeek
+            )
+            return
+        }
+        let task = tasks.actionTask
         let analysisQueryTime = date(from: startOfWeek, dayOffset: 4, hour: 21, minute: 30)
         let queryID = insertMessage(
             in: context,
@@ -2144,6 +2271,55 @@ enum HoloAppStoreScreenshotSeeder {
         analysisAssistant.parentMessageId = queryID
         analysisAssistant.messageType = ChatMessageType.normal.rawValue
         analysisAssistant.analysisContextJSON = try encode(analysis)
+        // 深度分析报告（报告 Tab / 详情页数据源）：真实链路 finalizeCloudResult 会把
+        // 用户提问回填进 rendered.question，种子同样带上——详情页提问卡、分享卡、
+        // 报告列表提问栏都依赖它。空 evidenceReferences / 无 continuationMetadata
+        // 与旧报告形态一致（无追问入口、无证据区）。
+        analysisAssistant.agentResultJSON = try encode(
+            HoloRenderedAgentResult(
+                title: "被临时事项占住的一周",
+                summary: "任务大多落在晚上，晚上的时间被几件临时的事占住了。",
+                sections: [
+                    HoloRenderedAgentSection(
+                        title: "两次关键输出都发生在晚上 7 点后",
+                        body: "周二的「临时改方案」和周四的「输出项目排期」都完成在晚上 7 点之后。连续几晚被临时事项占住，留给恢复的时间在变少。",
+                        kind: "observation",
+                        interpretation: "晚间产出占比高时，第二天的疲惫感会滞后一天出现——周四的忙碌其实是周二加班的账。"
+                    ),
+                    HoloRenderedAgentSection(
+                        title: "恢复型习惯这周停了半程",
+                        body: "晚饭后散步这周只记录了 2 次，晚间阅读停在了周一。两次外卖都出现在加班的晚上，晚饭拖到了 8 点以后。",
+                        kind: "observation",
+                        interpretation: "忙的时候先被牺牲的总是恢复活动，这正是「觉得很忙」体感的来源之一。"
+                    )
+                ],
+                evidenceReferences: [],
+                question: "我这周为什么总觉得很忙？",
+                recommendations: [
+                    HoloRenderedRecommendation(
+                        id: "seed-busyweek-rec-1",
+                        title: "给临时事项设一个每日上限",
+                        body: "这周两次晚间加班都来自临时插入的事项。给「当天新接的事」设一个上限（比如 1 件），超出的顺延到第二天上午。",
+                        priorityLabel: "优先",
+                        confidence: 0.8,
+                        evidenceIDs: [],
+                        scopeLabel: nil
+                    ),
+                    HoloRenderedRecommendation(
+                        id: "seed-busyweek-rec-2",
+                        title: "加班晚保留一次 10 分钟散步",
+                        body: "加班的晚上散步最容易整个被跳过。哪怕只走 10 分钟，也能把「被占住」的体感拆掉一角。",
+                        priorityLabel: nil,
+                        confidence: 0.6,
+                        evidenceIDs: [],
+                        scopeLabel: nil
+                    )
+                ],
+                narrativeSummary: "我把你这周的记录放在一起看了一遍。任务大多落在晚上：周二的「临时改方案」和周四的「输出项目排期」都在晚上 7 点后完成，两次外卖都出现在加班的晚上，晚饭后散步和晚间阅读都停了大半。",
+                keyInsight: "不是你做得不够快，是晚上的时间被几件临时的事占住了。",
+                agentResultID: "seed-busyweek-analysis"
+            )
+        )
 
         let actionTime = date(from: startOfWeek, dayOffset: 5, hour: 12, minute: 30)
         let userActionID = insertMessage(
@@ -2219,6 +2395,132 @@ enum HoloAppStoreScreenshotSeeder {
         actionAssistant.executionBatchJSON = try encode(execution)
     }
 
+    /// 生活化 App Store 剧本：会议、签证和家人的事用一句话一起交给 Holo，
+    /// 同时保留一个可追问的跨域分析，证明这些不是手工拼出来的静态卡片。
+    private static func seedLifeFlowConversation(
+        context: NSManagedObjectContext,
+        transaction: Transaction,
+        tasks: BusyWeekSeedTasks,
+        startOfWeek: Date
+    ) throws {
+        let queryTime = date(from: startOfWeek, dayOffset: 4, hour: 21, minute: 30)
+        let queryID = insertMessage(
+            in: context,
+            role: "user",
+            content: "我最近为什么总觉得时间不够？",
+            timestamp: queryTime
+        )
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let analysis = AnalysisContext(
+            domain: .crossModule,
+            periodLabel: "最近三周",
+            startDate: dateFormatter.string(from: startOfWeek.addingTimeInterval(-14 * 86_400)),
+            endDate: dateFormatter.string(from: startOfWeek.addingTimeInterval(6 * 86_400)),
+            comparisonLabel: nil,
+            finance: nil,
+            habit: nil,
+            task: nil,
+            thought: nil,
+            health: nil,
+            goal: nil,
+            crossModule: CrossModuleAnalysisContext(
+                highlights: [
+                    "工作日的会议和出行准备把时间切成了几段，空档很难连续起来",
+                    "项目周会材料与签证清单都在临近截止时间才集中处理",
+                    "给家人买药和日常支出都有记录，但常常夹在工作安排之间"
+                ],
+                warnings: [
+                    "重要事项之间缺少缓冲时，普通的小事也会显得更赶"
+                ]
+            )
+        )
+        let analysisAssistant = ChatMessage(context: context)
+        analysisAssistant.id = UUID()
+        analysisAssistant.role = "assistant"
+        analysisAssistant.content = "最近三周，你的时间主要被工作日会议和出行准备切碎。把签证材料提前拆成两次处理，重要会议前留出 30 分钟，可能会轻松一些。"
+        analysisAssistant.timestamp = queryTime.addingTimeInterval(5)
+        analysisAssistant.intent = AIIntent.queryAnalysis.rawValue
+        analysisAssistant.isStreaming = false
+        analysisAssistant.parentMessageId = queryID
+        analysisAssistant.messageType = ChatMessageType.normal.rawValue
+        analysisAssistant.analysisContextJSON = try encode(analysis)
+
+        guard let visaTask = tasks.secondaryTask else { return }
+        let actionTime = date(from: startOfWeek, dayOffset: 5, hour: 12, minute: 30)
+        let userActionID = insertMessage(
+            in: context,
+            role: "user",
+            content: "下周二上午十点提醒我开会，周四开始准备签证材料，再记一笔给爸妈买药 128 元。",
+            timestamp: actionTime
+        )
+        let execution = AIExecutionBatch(
+            mode: .multiAction,
+            items: [
+                AIExecutionItem(
+                    id: "lifeflow-expense",
+                    parseItemId: "lifeflow-expense-parse",
+                    intent: .recordExpense,
+                    status: .success,
+                    summaryText: "已记录给爸妈买药 128 元",
+                    renderData: [
+                        "amount": "128",
+                        "note": "给爸妈买药",
+                        "primaryCategory": "医疗",
+                        "subCategory": "药品",
+                        "transactionDate": "今天 12:20",
+                        "confirmationStatus": "confirmed"
+                    ],
+                    linkedEntityType: "transaction",
+                    linkedEntityId: transaction.id.uuidString,
+                    errorText: nil
+                ),
+                AIExecutionItem(
+                    id: "lifeflow-meeting",
+                    parseItemId: "lifeflow-meeting-parse",
+                    intent: .createTask,
+                    status: .success,
+                    summaryText: "已安排项目周会",
+                    renderData: [
+                        "title": "项目周会",
+                        "dueDate": "下周二 10:00",
+                        "priority": "high",
+                        "confirmationStatus": "confirmed"
+                    ],
+                    linkedEntityType: "task",
+                    linkedEntityId: tasks.actionTask.id.uuidString,
+                    errorText: nil
+                ),
+                AIExecutionItem(
+                    id: "lifeflow-visa",
+                    parseItemId: "lifeflow-visa-parse",
+                    intent: .createTask,
+                    status: .success,
+                    summaryText: "已安排准备签证材料",
+                    renderData: [
+                        "title": "准备签证材料",
+                        "dueDate": "周四 18:00",
+                        "priority": "medium",
+                        "confirmationStatus": "confirmed"
+                    ],
+                    linkedEntityType: "task",
+                    linkedEntityId: visaTask.id.uuidString,
+                    errorText: nil
+                )
+            ],
+            finalText: "三件事都安排好了。"
+        )
+        let actionAssistant = ChatMessage(context: context)
+        actionAssistant.id = UUID()
+        actionAssistant.role = "assistant"
+        actionAssistant.content = "三件事都安排好了。"
+        actionAssistant.timestamp = actionTime.addingTimeInterval(5)
+        actionAssistant.isStreaming = false
+        actionAssistant.parentMessageId = userActionID
+        actionAssistant.messageType = ChatMessageType.normal.rawValue
+        actionAssistant.executionBatchJSON = try encode(execution)
+    }
+
     /// 周回放的种子内容：只陈述记录里能对上的线索，不催办、不下结论。
     private static func makeBusyWeekWeeklyPayload() -> MemoryInsightPayload {
         MemoryInsightPayload(
@@ -2278,6 +2580,66 @@ enum HoloAppStoreScreenshotSeeder {
             suggestedQuestions: [
                 "下周怎么把晚上留回来？",
                 "帮我把散步接回晚饭后"
+            ]
+        )
+    }
+
+    private static func makeLifeFlowWeeklyPayload() -> MemoryInsightPayload {
+        MemoryInsightPayload(
+            title: "这一周，重要的事开始有了顺序",
+            summary: "会议、签证准备和家人的安排同时出现。你开始把重要的事提前拆开，也给自己留了一点缓冲。",
+            cards: [
+                MemoryInsightCard(
+                    id: "lifeflow-overview",
+                    type: .overview,
+                    title: "重要的事，开始提前准备",
+                    body: "下周二的项目周会、周四的签证材料和给家人买药，都被放进了同一张生活清单里。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "lifeflow-overview-1", label: "项目周会 · 下周二 10:00", date: nil, sourceType: "task", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "lifeflow-overview-2", label: "准备签证材料 · 周四 18:00", date: nil, sourceType: "task", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "帮我看看下周的安排",
+                    moduleHint: "overview"
+                ),
+                MemoryInsightCard(
+                    id: "lifeflow-task",
+                    type: .task,
+                    title: "会议和签证被拆成了两步",
+                    body: "你没有把所有准备都挤在同一天，而是先留出会议缓冲，再开始整理签证材料。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "lifeflow-task-1", label: "整理项目周会材料 · 周一 18:20", date: nil, sourceType: "task", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "lifeflow-task-2", label: "确认签证清单 · 周三 19:40", date: nil, sourceType: "task", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "怎样让准备更从容？",
+                    moduleHint: "task"
+                ),
+                MemoryInsightCard(
+                    id: "lifeflow-thought",
+                    type: .thought,
+                    title: "你对“效率”的看法在变化",
+                    body: "最近的记录里，你更在意事情是否让自己从容，而不只是把清单尽快清空。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "lifeflow-thought-1", label: "效率越高越好？先问问是否更从容", date: nil, sourceType: "thought", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "把这个观点记下来",
+                    moduleHint: "thought"
+                ),
+                MemoryInsightCard(
+                    id: "lifeflow-finance",
+                    type: .finance,
+                    title: "给家人买药，也被好好记下了",
+                    body: "生活不只有项目和出发：一笔 ¥128 的买药支出，也和这周的安排放在了一起。",
+                    evidence: [
+                        MemoryInsightEvidence(id: "lifeflow-finance-1", label: "给爸妈买药 · ¥128", date: nil, sourceType: "transaction", matchedSourceId: nil),
+                        MemoryInsightEvidence(id: "lifeflow-finance-2", label: "签证材料打印与照片 · ¥86", date: nil, sourceType: "transaction", matchedSourceId: nil)
+                    ],
+                    suggestedQuestion: "看看这周的出行支出",
+                    moduleHint: "finance"
+                )
+            ],
+            suggestedQuestions: [
+                "帮我看看下周的安排",
+                "怎样让准备更从容？"
             ]
         )
     }

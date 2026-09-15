@@ -236,7 +236,8 @@ final class HoloWidgetSnapshotService {
         let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
         let selected = sorted[(dayOfYear - 1) % sorted.count]
         let tags = Array(selected.tagArray.map(\.name).prefix(2))
-        let excerpt = selected.plainContent.truncatedForWidget(maxLength: 72)
+        // 上限需覆盖 iOS 26 拉大后的大尺寸卡片：正文区可容纳 100+ 字
+        let excerpt = selected.plainContent.truncatedForWidget(maxLength: 220)
 
         return HoloWidgetThoughtMemorySnapshot(
             thoughtId: selected.id,
