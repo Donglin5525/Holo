@@ -179,3 +179,158 @@ test("understandingContract：外币符号模式覆盖主流货币", () => {
   assert.ok(!FOREIGN_MONEY_PATTERN.test("¥98.60"));
   assert.ok(!FOREIGN_MONEY_PATTERN.test("98.60 元"));
 });
+
+// ===== v2 契约（docs/finance/plans/2026-09-14-Holo图片账单快捷指令自动记账完整方案.md §7/§26）=====
+// v2 为「自动落账」服务：字段级置信度 + 支付状态 + 分类语义候选。
+// 铁律：v1 输出缺新字段时新客户端必须一律转复核，不能用整体 confidence 冒充字段 confidence。
+
+test("v2：完整 v2 输出透传——schemaVersion/paymentStatus/字段级 confidence/逐笔原文/分类候选", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "payment_screenshot",
+    confidence: 0.97,
+    paymentStatus: "completed",
+    paymentStatusOriginalText: "支付成功",
+    currency: "CNY",
+    amountOriginalText: "¥19.90",
+    merchant: "瑞幸咖啡",
+    paidAt: "2026-09-14",
+    paymentChannel: "微信支付",
+    transactions: [{
+      type: "expense",
+      amount: 19.9,
+      note: "瑞幸咖啡",
+      date: "2026-09-14",
+      amountOriginalText: "¥19.90",
+      confidence: { amount: 0.99, direction: 0.99, paymentStatus: 0.99, date: 0.94, merchant: 0.96, paymentChannel: 0.93 },
+      categoryCandidate: "瑞幸咖啡",
+      normalizedCategoryCandidate: "咖啡",
+      semanticCategoryHint: "餐饮",
+    }],
+  });
+  assert.deepEqual(guards, []);
+  assert.equal(understanding.schemaVersion, 2, "v2 输出必须带 schemaVersion");
+  assert.equal(understanding.paymentStatus, "completed");
+  assert.equal(understanding.paymentStatusOriginalText, "支付成功");
+  const tx = understanding.transactions[0];
+  assert.equal(tx.amountOriginalText, "¥19.90");
+  assert.equal(tx.confidence.amount, 0.99);
+  assert.equal(tx.confidence.direction, 0.99);
+  assert.equal(tx.confidence.paymentStatus, 0.99);
+  assert.equal(tx.confidence.date, 0.94);
+  assert.equal(tx.confidence.paymentChannel, 0.93);
+  assert.equal(tx.categoryCandidate, "瑞幸咖啡");
+  assert.equal(tx.normalizedCategoryCandidate, "咖啡");
+  assert.equal(tx.semanticCategoryHint, "餐饮");
+});
+
+test("v2：v1 旧输出（无新字段）兼容透传，旧字段原样保留", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "receipt",
+    confidence: 0.9,
+    merchant: "盒马鲜生",
+    paidAt: "2026-09-01",
+    transactions: [{ type: "expense", amount: 98.6, note: "盒马鲜生", date: "2026-09-01" }],
+  });
+  assert.deepEqual(guards, [], "缺省新字段是合法 v1 输入，不算护栏改写");
+  assert.equal(understanding.schemaVersion, 2);
+  assert.equal(understanding.paymentStatus, "unknown", "v1 无支付状态 → unknown（客户端转复核）");
+  assert.equal(understanding.paymentStatusOriginalText, null);
+  assert.equal(understanding.transactions[0].amountOriginalText, null);
+  assert.equal(understanding.transactions[0].confidence.amount, null, "缺失字段置信度为 null（不可自动写）");
+  assert.equal(understanding.transactions[0].categoryCandidate, null);
+  assert.equal(understanding.transactions[0].amount, 98.6, "旧字段不变");
+  assert.equal(understanding.confidence, 0.9, "整体 confidence 保留（旧客户端依赖）");
+});
+
+test("v2：pending/failed/cancelled 强制清交易并映射图型（未完成支付红线）", () => {
+  const cases = [
+    ["pending", "pending_order"],
+    ["failed", "unrelated"],
+    ["cancelled", "unrelated"],
+  ];
+  for (const [status, expectedType] of cases) {
+    const { understanding, guards } = normalizeUnderstanding({
+      imageType: "payment_screenshot",
+      paymentStatus: status,
+      paymentStatusOriginalText: "待付款",
+      transactions: [{ type: "expense", amount: 88 }],
+    });
+    assert.equal(understanding.transactions.length, 0, `${status} 不得保留交易候选`);
+    assert.equal(understanding.imageType, expectedType, `${status} 图型应映射为 ${expectedType}`);
+    assert.ok(guards.some((g) => g.reason === "payment_status_forced_clear"), `${status} 必须记录护栏`);
+    assert.ok(understanding.rejectReason && understanding.rejectReason.length > 0, status);
+  }
+});
+
+test("v2：refunded 保留退款收入候选（退款=refunded+证据共同支持，客户端再判）", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "payment_screenshot",
+    paymentStatus: "refunded",
+    paymentStatusOriginalText: "退款成功",
+    transactions: [{ type: "income", amount: 39.9, note: "优衣库退款" }],
+  });
+  assert.deepEqual(guards, []);
+  assert.equal(understanding.transactions.length, 1);
+  assert.equal(understanding.transactions[0].type, "income");
+});
+
+test("v2：paymentStatus 非法值钳制为 unknown 并记录 guard", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "receipt",
+    paymentStatus: "PAID!!!",
+    transactions: [{ type: "expense", amount: 5 }],
+  });
+  assert.equal(understanding.paymentStatus, "unknown");
+  assert.ok(guards.some((g) => g.field === "paymentStatus"), "被钳制行为必须可观测");
+});
+
+test("v2：字段级 confidence 钳制 0...1，非数字/缺失为 null", () => {
+  const { understanding } = normalizeUnderstanding({
+    imageType: "receipt",
+    transactions: [{
+      type: "expense", amount: 5,
+      confidence: { amount: 1.7, direction: -0.5, paymentStatus: "高", date: 0.8, merchant: NaN },
+    }],
+  });
+  const c = understanding.transactions[0].confidence;
+  assert.equal(c.amount, 1, "越界上钳到 1");
+  assert.equal(c.direction, 0, "越界下钳到 0（0=模型自己说不可信，语义与缺失 null 可区分）");
+  assert.equal(c.paymentStatus, null, "非数字必须为 null");
+  assert.equal(c.date, 0.8);
+  assert.equal(c.merchant, null, "NaN 必须为 null");
+  assert.equal(c.paymentChannel, null, "缺失为 null");
+});
+
+test("v2：vision_extraction prompt 升 v2——支付状态/字段级置信度/schemaVersion，外币少样本保留", () => {
+  const prompt = getPrompt("vision_extraction");
+  assert.ok(prompt.version >= 2, "prompt 必须升到 v2");
+  assert.ok(prompt.content.includes("schemaVersion"), "必须声明 schemaVersion 输出");
+  assert.ok(prompt.content.includes("paymentStatus"), "必须定义支付状态字段");
+  assert.ok(prompt.content.includes("paymentStatusOriginalText"), "必须要求支付状态原文抄录");
+  assert.ok(prompt.content.includes("confidence"), "必须要求字段级置信度");
+  assert.ok(prompt.content.includes("categoryCandidate"), "必须输出分类语义候选");
+  assert.ok(prompt.content.includes("【货币判定示例】"), "外币少样本示例是精度关键，不得删除");
+  assert.ok(prompt.content.includes("amountOriginalText"), "逐笔金额原文要求保留");
+});
+
+test("v2：自动化总闸默认关闭；响应必须携带 automationPolicy（§26.2/§30.2）", () => {
+  const config = loadConfig();
+  assert.equal(config.visionAutomation.autoCommitAllowed, false, "默认必须关闭——服务端总闸红线");
+  assert.ok(config.visionAutomation.policyVersion, "缺 policyVersion");
+  const source = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  assert.ok(source.includes("automationPolicy"), "vision/extract 响应必须携带 automationPolicy 字段");
+});
+
+test("v2：HOLO_VISION_AUTO_COMMIT_ALLOWED=true 时总闸打开（灰度通道）", async () => {
+  const prev = process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED;
+  process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED = "true";
+  try {
+    // DEFAULT_CONFIG 在模块加载时读取 env，须拿全新模块实例验证 env 生效
+    const fresh = await import("../src/config.js?env-toggle-test=1");
+    const config = fresh.loadConfig();
+    assert.equal(config.visionAutomation.autoCommitAllowed, true);
+  } finally {
+    if (prev === undefined) delete process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED;
+    else process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED = prev;
+  }
+});

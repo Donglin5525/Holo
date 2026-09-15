@@ -6,6 +6,25 @@
 
 export const FOREIGN_MONEY_PATTERN = /[$€£]|USD|EUR|GBP|JPY|HKD|NT\$/i;
 
+// v2（docs/finance/plans/2026-09-14-Holo图片账单快捷指令自动记账完整方案.md §7/§26）：
+// 为「自动落账」升级契约——支付状态 + 逐笔字段级置信度 + 分类语义候选。
+// v1 字段全部保留（旧客户端兼容）；新客户端对缺失新字段一律按不可自动写处理。
+export const UNDERSTANDING_SCHEMA_VERSION = 2;
+
+export const PAYMENT_STATUSES = [
+  "completed",
+  "refunded",
+  "pending",
+  "failed",
+  "cancelled",
+  "unknown",
+];
+
+// 未完成支付三类：即使图型是可记账的支付截图也绝不允许保留交易候选。
+// refunded 不在列——退款到账是合法 income 候选，由客户端门禁结合证据判断。
+const AUTO_INELIGIBLE_PAYMENT_STATUSES = new Set(["pending", "failed", "cancelled"]);
+const PAYMENT_STATUS_IMAGE_TYPES = { pending: "pending_order", failed: "unrelated", cancelled: "unrelated" };
+
 export const UNDERSTANDING_IMAGE_TYPES = [
   "receipt",
   "payment_screenshot",
@@ -46,6 +65,26 @@ function clampDate(value) {
   return typeof value === "string" && ISO_DATE.test(value.trim()) ? value.trim() : null;
 }
 
+/** 字段级置信度钳制：数字夹到 0...1；非数字/缺失一律 null（null=不可作为自动写依据）。 */
+function clampConfidence(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.min(1, Math.max(0, number));
+}
+
+function normalizeTransactionConfidence(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const pick = (key) => (source[key] === undefined || source[key] === null ? null : clampConfidence(source[key]));
+  return {
+    amount: pick("amount"),
+    direction: pick("direction"),
+    paymentStatus: pick("paymentStatus"),
+    date: pick("date"),
+    merchant: pick("merchant"),
+    paymentChannel: pick("paymentChannel"),
+  };
+}
+
 /** 从模型自由文本里抠出 JSON 对象（容忍代码块围栏与前后闲话）。解析失败抛错。 */
 export function extractJsonContent(text) {
   if (typeof text !== "string" || text.length === 0) {
@@ -80,6 +119,14 @@ export function normalizeUnderstanding(raw) {
     ? Math.min(1, Math.max(0, confidenceRaw))
     : 0.5;
 
+  // v2 支付状态：非法值钳制为 unknown 并记录 guard（改写可观测）。
+  const paymentStatusRaw = typeof source.paymentStatus === "string" ? source.paymentStatus.trim().toLowerCase() : "";
+  const paymentStatus = PAYMENT_STATUSES.includes(paymentStatusRaw) ? paymentStatusRaw : "unknown";
+  if (paymentStatusRaw !== "" && paymentStatusRaw !== paymentStatus) {
+    guards.push({ field: "paymentStatus", from: source.paymentStatus, to: paymentStatus });
+  }
+  const paymentStatusOriginalText = clampString(source.paymentStatusOriginalText, 60);
+
   let transactions = (Array.isArray(source.transactions) ? source.transactions : [])
     .slice(0, 10)
     .map((transaction) => {
@@ -90,6 +137,13 @@ export function normalizeUnderstanding(raw) {
         amount,
         note: clampString(transaction?.note, 120),
         date: clampDate(transaction?.date),
+        // v2 逐笔新增：金额原文、字段级置信度、分类语义候选。
+        // 分类只给语义候选，禁止模型输出用户账本里的分类名/ID（最终匹配在 iOS 本地完成）。
+        amountOriginalText: clampString(transaction?.amountOriginalText, 60),
+        confidence: normalizeTransactionConfidence(transaction?.confidence),
+        categoryCandidate: clampString(transaction?.categoryCandidate, 120),
+        normalizedCategoryCandidate: clampString(transaction?.normalizedCategoryCandidate, 120),
+        semanticCategoryHint: clampString(transaction?.semanticCategoryHint, 40),
       };
     })
     .filter(Boolean);
@@ -114,7 +168,19 @@ export function normalizeUnderstanding(raw) {
     imageType = "foreign_currency";
   }
 
-  // 护栏二（图型红线）：不可记账图型绝不允许携带交易——模型偶尔会无视规则
+  // 护栏二（v2 支付状态红线）：未完成支付（待付/失败/已取消）绝不允许保留消费候选。
+  // 图型同步映射成对应拒识类型，让客户端既有文案给出正确解释（待付款/无法识别）。
+  if (transactions.length > 0 && AUTO_INELIGIBLE_PAYMENT_STATUSES.has(paymentStatus)) {
+    guards.push({
+      field: "transactions",
+      reason: "payment_status_forced_clear",
+      paymentStatus,
+    });
+    transactions = [];
+    imageType = PAYMENT_STATUS_IMAGE_TYPES[paymentStatus];
+  }
+
+  // 护栏三（图型红线）：不可记账图型绝不允许携带交易——模型偶尔会无视规则
   // 给转账/待付款截图也塞 transactions，这里兜底清掉。
   if (!BILLABLE_TYPES.has(imageType) && transactions.length > 0) {
     guards.push({ field: "transactions", reason: `non_billable_type_${imageType}_forced_clear` });
@@ -122,8 +188,11 @@ export function normalizeUnderstanding(raw) {
   }
 
   const understanding = {
+    schemaVersion: UNDERSTANDING_SCHEMA_VERSION,
     imageType,
     confidence,
+    paymentStatus,
+    paymentStatusOriginalText,
     summary: clampString(source.summary, 200),
     merchant: clampString(source.merchant, 120),
     paidAt: clampDate(source.paidAt),

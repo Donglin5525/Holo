@@ -1416,11 +1416,22 @@ export function createApp(overrides = {}) {
           outcome: understanding.imageType,
           imageType: understanding.imageType,
           confidence: understanding.confidence,
+          paymentStatus: understanding.paymentStatus,
           transactionCount: understanding.transactions.length,
         },
         usage: result?.usage ?? null,
       });
-      return context.json({ ok: true, understanding, guards });
+      // v2 自动化总闸（2026-09-14 完整方案 §26.2）：不含用户数据；
+      // 客户端缺失该字段时一律按 false 处理（只能复核，不能自动写）。
+      return context.json({
+        ok: true,
+        understanding,
+        guards,
+        automationPolicy: {
+          autoCommitAllowed: config.visionAutomation.autoCommitAllowed,
+          policyVersion: config.visionAutomation.policyVersion,
+        },
+      });
     } catch (error) {
       finishLog({ status: "error", error: serializeError(error) });
       return createErrorResponse(context, error);

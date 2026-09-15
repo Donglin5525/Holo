@@ -60,6 +60,13 @@ const DEFAULT_CONFIG = {
     deviceTokenReportsPerMinute: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_MINUTE ?? 10),
     deviceTokenReportsPerDay: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_DAY ?? 50),
   },
+  // 图片自动记账 · 服务端总闸（2026-09-14 完整方案 §26.2/§30.2）：
+  // 客户端必须同时满足本地开关、本总闸和本地确定性门禁才允许自动写账；
+  // 本字段缺失或 false 时客户端只能转复核。红线触发时改 env 重启即可全量转复核，不用发版。
+  visionAutomation: {
+    autoCommitAllowed: process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED === "true",
+    policyVersion: process.env.HOLO_VISION_AUTO_COMMIT_POLICY_VERSION ?? "v1",
+  },
   routes: {
     chat: {
       provider: process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -607,6 +614,10 @@ export function loadConfig(overrides = {}) {
     limits: {
       ...DEFAULT_CONFIG.limits,
       ...overrides.limits,
+    },
+    visionAutomation: {
+      ...DEFAULT_CONFIG.visionAutomation,
+      ...overrides.visionAutomation,
     },
     routes: {
       ...DEFAULT_CONFIG.routes,

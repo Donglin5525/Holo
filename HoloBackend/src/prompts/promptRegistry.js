@@ -39,7 +39,9 @@ const PROMPT_VERSIONS = {
   // 截图识别记账（2026-09-09 方案 §5）：视觉抽取理解单。内容与
   // scripts/eval-vision-extraction.mjs 的 PROMPT 常量同源（M0 五轮评测 24/24 定稿），
   // 外币少样本示例是精度关键，改 prompt 前先跑评测。
-  vision_extraction: 1,
+  // v2（2026-09-14 图片快捷指令自动记账方案 §26）：schemaVersion/paymentStatus/
+  // paymentStatusOriginalText/逐笔 amountOriginalText/字段级 confidence/分类语义候选。
+  vision_extraction: 2,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
   matter_reconciliation: 1,
 };
