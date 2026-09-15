@@ -861,9 +861,12 @@ class HabitRepository: ObservableObject {
                 checkDate = yesterday
             }
 
+            // 创建日之前不存在「克制」：0 记录的新坏习惯只累计创建以来的天数，不顶满回溯上限
+            let creationDay = calendar.startOfDay(for: habit.createdAt)
             let maxLookback = 3650
             for _ in 0..<maxLookback {
                 let dayStart = checkDate
+                guard dayStart >= creationDay else { break }
                 guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
 
                 let request = HabitRecord.fetchRequest()
@@ -1018,9 +1021,12 @@ class HabitRepository: ObservableObject {
 
         var streak = 0
         let maxLookback = periodComponent == .weekOfYear ? 520 : 120
+        // 创建日之前的周期不可能有记录：坏习惯不得凭空累计（好习惯在首个空周期自然中断，此下限对其无影响）
+        let creationDay = calendar.startOfDay(for: habit.createdAt)
 
         for _ in 0..<maxLookback {
             guard let periodEnd = calendar.date(byAdding: periodComponent, value: 1, to: checkPeriodStart) else { break }
+            guard periodEnd > creationDay else { break }
             let count = periodCount(habit, checkPeriodStart, periodEnd)
             guard count >= target else { break }
 
