@@ -16,6 +16,9 @@ struct CategoryManagementView: View {
     @Environment(\.dismiss) var dismiss
     private let repository = FinanceRepository.shared
     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryManagement")
+
+    /// 以弹层（sheet）方式打开时显示「完成」关闭按钮；被 push 进入时保持系统返回
+    var showsDoneButton: Bool = false
     
     @State private var transactionType: TransactionType = .expense
     @State private var topLevelCategories: [Category] = []
@@ -64,6 +67,12 @@ struct CategoryManagementView: View {
                             .font(.system(size: 22))
                             .foregroundColor(.holoPrimary)
                     }
+                }
+            }
+            // 「完成」是主动作，放在导航栏最右（声明顺序决定同侧多个按钮的左右排列）
+            if showsDoneButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
                 }
             }
         }

@@ -95,7 +95,8 @@ extension AddTransactionSheet {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .animation(.easeInOut(duration: 0.25), value: drillDownParent?.objectID)
         .sheet(isPresented: $showCategoryManagement) {
-            CategoryManagementView()
+            // 分类管理页内含 NavigationLink，必须自带导航栈容器，否则页内跳转全部失效
+            NavigationStack { CategoryManagementView(showsDoneButton: true) }
         }
         .sheet(isPresented: $showAddCategory) {
             AddCategorySheet(parentId: addCategoryParentId, type: transactionType) {

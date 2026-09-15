@@ -20,6 +20,9 @@ struct CategoryPicker: View {
     
     /// 交易类型（收入/支出），改为 Binding 以支持 Tab 切换时联动外部状态
     @Binding var transactionType: TransactionType
+
+    /// 是否显示收入/支出切换 Tab（固定支出等纯支出场景关闭）
+    var showsTypeTabs: Bool = true
     
     /// 所有分类数据（含一级和二级）
     @State private var categories: [Category] = []
@@ -66,6 +69,7 @@ struct CategoryPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // --- 管理分类入口 ---
+            // Form/List 环境里必须显式 plain，否则点击会被行级手势吞给行内第一个按钮
             Button {
                 showCategoryManagement = true
             } label: {
@@ -77,9 +81,12 @@ struct CategoryPicker: View {
                 }
                 .foregroundColor(.holoPrimary)
             }
+            .buttonStyle(.plain)
             
             // --- 收入/支出 Tab 栏 ---
-            typeTabBar
+            if showsTypeTabs {
+                typeTabBar
+            }
             
             // --- 最近常用分类（仅在一级视图且有历史数据时显示）---
             if drillDownParent == nil && !recentCategories.isEmpty {
@@ -104,7 +111,8 @@ struct CategoryPicker: View {
         .padding(HoloSpacing.md)
         .animation(.easeInOut(duration: 0.25), value: drillDownParent?.objectID)
         .sheet(isPresented: $showCategoryManagement) {
-            CategoryManagementView()
+            // 分类管理页内含 NavigationLink，必须自带导航栈容器，否则页内跳转全部失效
+            NavigationStack { CategoryManagementView(showsDoneButton: true) }
         }
         .onChange(of: showCategoryManagement) { _, isShowing in
             if !isShowing {
@@ -177,7 +185,8 @@ struct CategoryPicker: View {
                 ForEach(topLevelCategories, id: \.objectID) { category in
                     PickerCategoryButton(
                         category: category,
-                        isSelected: false
+                        // 已选二级分类时高亮其所属一级分类，让"当前选了什么"在总览视图可见
+                        isSelected: selectedCategory?.parentId == category.id
                     ) {
                         withAnimation {
                             drillDownParent = category
@@ -205,6 +214,7 @@ struct CategoryPicker: View {
                 }
                 .foregroundColor(.holoPrimary)
             }
+            .buttonStyle(.plain)
             
             LazyVGrid(columns: gridColumns, spacing: HoloSpacing.md) {
                 ForEach(childCategories, id: \.objectID) { category in
@@ -305,6 +315,8 @@ private struct PickerCategoryButton: View {
                     .lineLimit(1)
             }
         }
+        // Form/List 环境里必须显式 plain，否则点击会被行级手势吞给行内第一个按钮
+        .buttonStyle(.plain)
     }
 }
 

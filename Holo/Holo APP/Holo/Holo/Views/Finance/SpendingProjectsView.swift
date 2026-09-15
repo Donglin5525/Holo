@@ -317,7 +317,6 @@ struct SpendingProjectOneOffEditorSheet: View {
     @State private var name: String
     @State private var amount: String
     @State private var purchaseDate: Date
-    @State private var categories: [Category] = []
     @State private var selectedCategory: Category?
     @State private var errorMessage: String?
     /// 金额输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
@@ -329,6 +328,7 @@ struct SpendingProjectOneOffEditorSheet: View {
         _name = State(initialValue: project.name)
         _amount = State(initialValue: NSDecimalNumber(decimal: project.amountDecimal).stringValue)
         _purchaseDate = State(initialValue: project.startDate)
+        _selectedCategory = State(initialValue: project.categoryId.flatMap { FinanceRepository.shared.findCategory(by: $0) })
     }
 
     var body: some View {
@@ -338,9 +338,13 @@ struct SpendingProjectOneOffEditorSheet: View {
                     TextField("商品名称", text: $name)
                     TextField("购买金额", text: $amount).keyboardType(.decimalPad).focused($isAmountFocused)
                     DatePicker(String(localized: "购买日期"), selection: $purchaseDate, displayedComponents: .date)
-                    SpendingProjectCategoryMenu(categories: categories, selectedCategory: $selectedCategory)
                 }
                 .listRowBackground(Color.holoCardBackground)
+                Section("分类") {
+                    CategoryPicker(selectedCategory: $selectedCategory, transactionType: .constant(.expense), showsTypeTabs: false)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.holoCardBackground)
+                }
                 Section {
                     Text("仅用于计算持有天数和日均成本，不会生成账本流水，也不会计入消费或余额。")
                         .font(.caption)
@@ -365,7 +369,6 @@ struct SpendingProjectOneOffEditorSheet: View {
                     Button("完成") { isAmountFocused = false }
                 }
             }
-            .onAppear { loadCategories() }
         }
     }
 
@@ -384,16 +387,6 @@ struct SpendingProjectOneOffEditorSheet: View {
             errorMessage = String(localized: "保存失败，请稍后重试")
         }
     }
-
-    private func loadCategories() {
-        let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "type == %@ AND parentId != nil", TransactionType.expense.rawValue)
-        request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        categories = (try? FinanceRepository.shared.context.fetch(request)) ?? []
-        if selectedCategory == nil, let categoryId = project.categoryId {
-            selectedCategory = FinanceRepository.shared.findCategory(by: categoryId)
-        }
-    }
 }
 
 struct AddSpendingProjectSheet: View {
@@ -407,7 +400,6 @@ struct AddSpendingProjectSheet: View {
     @State private var endMode: SpendingProjectEndMode = .forever
     @State private var endDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @State private var totalOccurrences = "12"
-    @State private var categories: [Category] = []
     @State private var selectedCategory: Category?
     @State private var errorMessage: String?
 
@@ -418,9 +410,13 @@ struct AddSpendingProjectSheet: View {
                     Picker("项目类型", selection: $kind) { Text("周期性支出").tag(SpendingProjectKind.recurring); Text("一次性购买").tag(SpendingProjectKind.oneOff) }.pickerStyle(.segmented)
                     TextField("名称，例如 年度旅行 / 新电脑", text: $name)
                     TextField(kind == .recurring ? String(localized: "每期金额") : String(localized: "购买金额"), text: $amount).keyboardType(.decimalPad)
-                    SpendingProjectCategoryMenu(categories: categories, selectedCategory: $selectedCategory)
                 }
                 .listRowBackground(Color.holoCardBackground)
+                Section("分类") {
+                    CategoryPicker(selectedCategory: $selectedCategory, transactionType: .constant(.expense), showsTypeTabs: false)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.holoCardBackground)
+                }
                 Section("规则") {
                     DatePicker(kind == .oneOff ? String(localized: "购买日期") : String(localized: "开始日期"), selection: $startDate, displayedComponents: .date)
                     if kind == .recurring {
@@ -450,7 +446,6 @@ struct AddSpendingProjectSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Decimal(string: amount) == nil) }
             }
             .presentationBackground(Color.holoBackground)
-            .onAppear { loadCategories() }
         }
     }
 
@@ -466,38 +461,5 @@ struct AddSpendingProjectSheet: View {
             _ = try SpendingProjectRepository.shared.create(name: name, kind: kind, amount: value, frequency: kind == .recurring ? frequency : nil, startDate: startDate, endDate: projectEndDate, maxOccurrences: maxOccurrences, plannedLifespanDays: 0, category: selectedCategory, account: account)
             onSaved(); dismiss()
         } catch { errorMessage = String(localized: "保存失败，请稍后重试") }
-    }
-
-    private func loadCategories() {
-        let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "type == %@ AND parentId != nil", TransactionType.expense.rawValue)
-        request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        categories = (try? FinanceRepository.shared.context.fetch(request)) ?? []
-    }
-}
-
-/// 固定支出复用财务二级分类，分类图标即项目图标。
-struct SpendingProjectCategoryMenu: View {
-    let categories: [Category]
-    @Binding var selectedCategory: Category?
-
-    var body: some View {
-        Menu {
-            ForEach(categories, id: \.objectID) { category in
-                Button(category.name) { selectedCategory = category }
-            }
-        } label: {
-            HStack(spacing: HoloSpacing.sm) {
-                if let selectedCategory {
-                    CategoryIconBadge(category: selectedCategory, diameter: 28)
-                    Text(selectedCategory.name).foregroundColor(.holoTextPrimary)
-                } else {
-                    CategoryIconBadge(iconName: "bag.fill", color: .holoTextSecondary, diameter: 28)
-                    Text("选择消费分类").foregroundColor(.holoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .medium)).foregroundColor(.holoTextSecondary)
-            }
-        }
     }
 }
