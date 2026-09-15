@@ -57,8 +57,10 @@ const MODELS = {
   },
   deepseek: {
     label: 'DeepSeek v4 视觉',
-    baseURL: env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-    key: process.env.DEEPSEEK_API_KEY_EVAL || env.DEEPSEEK_API_KEY,
+    baseURL: env.DEEPSEEK_VISION_BASE_URL || env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+    // 2026-09-09 生产换 deepseek-v4-flash-vision-exp 走独立钥匙通道（与主聊天隔离），
+    // 评测同口径优先读 DEEPSEEK_VISION_API_KEY
+    key: process.env.DEEPSEEK_API_KEY_EVAL || env.DEEPSEEK_VISION_API_KEY || env.DEEPSEEK_API_KEY,
     model: arg('--model-deepseek', 'deepseek-v4-flash-vision-exp'),
     reasoningEffort: arg('--reasoning-effort'),
   },
@@ -67,7 +69,8 @@ const MODELS = {
 // ---------- 理解单抽取 prompt ----------
 // 单一真源是 HoloBackend/src/prompts/defaultPrompts.json 的 vision_extraction（生产热更体系），
 // 本脚本优先读它；嵌入常量只作仓库不齐时的兜底。改 prompt 先跑本评测。
-const EMBEDDED_PROMPT = `你是记账应用的图片理解引擎。仔细看图，输出一张「图片理解单」。只输出一个 JSON 对象，禁止输出任何其他文字、解释或代码块标记。
+// v2（2026-09-14 图片快捷指令自动记账方案 §26）与生产 prompt 同步。
+const EMBEDDED_PROMPT = `你是记账应用的图片理解引擎。仔细看图，输出一张「图片理解单」。只输出一个 JSON 对象，禁止输出任何其他文字、解释或代码块标记。输出对象的第一个字段必须是 "schemaVersion": 2。
 
 imageType 取值（必选其一）：
 - receipt：纸质小票/购物凭证/发票
@@ -84,18 +87,21 @@ imageType 取值（必选其一）：
 2. 【货币红线，最先判断】只要图中金额不是人民币（$、€、£、JP¥、USD 等任何外币符号或文字），imageType 必须是 foreign_currency，transactions 必须为空数组，禁止把外币换算后记进 transactions。
 3. 正常消费 type=expense；退款/退货到账 type=income。
 4. amount 是实付金额（数字，单位元）。一张图多笔交易时 transactions 有多笔。
-5. amountOriginalText：逐字抄录图中「合计/实付金额」的原文，包括货币符号（如 "$14.47"、"¥98.60"、"PAID $14.47"），禁止换算或改写。
+5. amountOriginalText：逐字抄录图中「合计/实付金额」的原文，包括货币符号（如 "$14.47"、"¥98.60"、"PAID $14.47"），禁止换算或改写。transactions 里每笔交易也要带各自的 amountOriginalText（逐字抄录该笔金额原文）。
 6. date 用 YYYY-MM-DD。merchant 保留图中商户原文。items 列出小票明细（没有则空数组）。
 7. paymentChannel：微信支付/支付宝/现金/银行卡（给尾号后4位，如 "4321"）；图中看不出则 null。
-8. 看不清或不确定时 confidence 低于 0.6，不要编造字段。
+8. 看不清或不确定时顶层 confidence 低于 0.6，不要编造字段。
 9. 图型补充判定：微信/QQ 等聊天对话记录截图 → unrelated（不是 list_note，清单专指购物清单/待办列表）；支付失败的收银台/订单截图 → unrelated，transactions 必须为空。
-10. 图中出现「退款」「退货」字样的凭证，交易 type 必须是 income。
+10. 图中出现「退款」「退货」字样的凭证，交易 type 必须是 income，顶层 paymentStatus 必须是 refunded。
+11. paymentStatus（顶层支付状态）：completed（已完成支付）/ refunded（退款/退货到账）/ pending（待支付）/ failed（支付失败）/ cancelled（订单已取消）/ unknown（看不出）。paymentStatusOriginalText 逐字抄录图中状态原文（如「支付成功」「待付款」「退款成功」），看不出则 null。注意「待收货/配送中/已发货」说明订单已支付，按 completed；只有「待付款」才是 pending。
+12. transactions 每笔必须带 confidence 对象：{"amount":0~1,"direction":0~1,"paymentStatus":0~1,"date":0~1,"merchant":0~1,"paymentChannel":0~1}，表示你对每个字段判断的把握。看不准的字段如实给低分，禁止为凑齐输出编造高分。
+13. 分类只给语义候选，禁止猜测用户账本里的分类名或编号：categoryCandidate=图中商户/商品原文；normalizedCategoryCandidate=归一化品类词（如「咖啡」「打车」「超市」）；semanticCategoryHint=语义大类，从 餐饮/交通/购物/娱乐/居住/医疗/教育/通讯/其他 中选。看不出则 null。
+
+【完整输出示例】一张瑞幸咖啡微信支付成功小票（¥19.90，2026-09-14）的唯一正确输出：
+{"schemaVersion":2,"imageType":"receipt","confidence":0.95,"paymentStatus":"completed","paymentStatusOriginalText":"支付成功","summary":"瑞幸咖啡微信支付小票","merchant":"瑞幸咖啡","paidAt":"2026-09-14","paymentChannel":"微信支付","currency":"CNY","amountOriginalText":"¥19.90","items":[{"name":"生椰拿铁","amount":19.9}],"transactions":[{"type":"expense","amount":19.9,"note":"瑞幸咖啡","date":"2026-09-14","amountOriginalText":"¥19.90","confidence":{"amount":0.99,"direction":0.99,"paymentStatus":0.98,"date":0.94,"merchant":0.96,"paymentChannel":0.97},"categoryCandidate":"瑞幸咖啡","normalizedCategoryCandidate":"咖啡","semanticCategoryHint":"餐饮"}],"rejectReason":null}
 
 【货币判定示例】输入是一张外币小票（Total $14.47，VISA 支付）时，唯一正确输出是外币拒识——currency 和 amountOriginalText 必须保留美元原文，绝不能写成人民币：
-{"imageType":"foreign_currency","confidence":0.95,"summary":"Whole Foods 美元消费小票","merchant":"Whole Foods Market","paidAt":null,"paymentChannel":"8821","currency":"USD","amountOriginalText":"$14.47","items":[{"name":"Organic Bananas","amount":3.99}],"transactions":[],"rejectReason":"外币消费暂不支持记账"}
-
-输出结构：
-{"imageType":"receipt","confidence":0.9,"summary":"一句话摘要","merchant":"商户或null","paidAt":"YYYY-MM-DD或null","paymentChannel":"微信支付或支付宝或现金或银行卡尾号4位或null","currency":"CNY","amountOriginalText":"¥98.60","items":[{"name":"条目","amount":0}],"transactions":[{"type":"expense","amount":0,"note":"商户或条目摘要","date":"YYYY-MM-DD"}],"rejectReason":null}`;
+{"schemaVersion":2,"imageType":"foreign_currency","confidence":0.95,"paymentStatus":"completed","paymentStatusOriginalText":null,"summary":"Whole Foods 美元消费小票","merchant":"Whole Foods Market","paidAt":null,"paymentChannel":"8821","currency":"USD","amountOriginalText":"$14.47","items":[{"name":"Organic Bananas","amount":3.99}],"transactions":[],"rejectReason":"外币消费暂不支持记账"}`;
 
 function loadProductionPrompt() {
   try {
@@ -124,7 +130,9 @@ async function callVision(cfg, b64) {
       body: JSON.stringify({
         model: cfg.model,
         temperature: 0,
-        max_tokens: 1500,
+        // 与生产 config.routes.vision_extraction.maxTokens=4000 对齐：
+        // v2 理解单带字段级 confidence，1500 会截断 JSON（qwen 6 张断尾实锤）
+        max_tokens: 4000,
         ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}),
         messages: [{
           role: 'user',
@@ -156,6 +164,9 @@ function extractJSON(text) {
 const near = (a, b) => Math.abs(a - b) < 0.005;
 // 生产管线同款确定性护栏：模型口头承诺 CNY 不可信，以「逐字抄录的金额原文」为准
 const FOREIGN_MONEY = /[$€£]|USD|EUR|GBP|JPY|HKD|NT\$/i;
+// 生产 understandingContract.js 同款 v2 支付状态护栏（pending/failed/cancelled 强制清空）
+const AUTO_INELIGIBLE_STATUS = new Set(['pending', 'failed', 'cancelled']);
+const STATUS_IMAGE_TYPE = { pending: 'pending_order', failed: 'unrelated', cancelled: 'unrelated' };
 function applyProductionGuard(p) {
   const txt = String(p.amountOriginalText || '');
   if ((p.transactions || []).length > 0 && FOREIGN_MONEY.test(txt)) {
@@ -163,6 +174,14 @@ function applyProductionGuard(p) {
     p.imageType = 'foreign_currency';
     p.rejectReason = p.rejectReason || '检测到外币金额，暂不支持外币记账';
     p.__guardApplied = true;
+    return p;
+  }
+  const status = typeof p.paymentStatus === 'string' ? p.paymentStatus.trim().toLowerCase() : '';
+  if ((p.transactions || []).length > 0 && AUTO_INELIGIBLE_STATUS.has(status)) {
+    p.transactions = [];
+    p.imageType = STATUS_IMAGE_TYPE[status];
+    p.rejectReason = p.rejectReason || `支付状态为 ${status}，不记账`;
+    p.__statusGuardApplied = true;
   }
   return p;
 }
@@ -186,7 +205,7 @@ function scoreOne(exp, p) {
   const typeOK = exp.typeAnyOf ? exp.typeAnyOf.includes(it) : it === exp.type;
   const rejected = txs.length === 0;
 
-  const checks = { type: typeOK, reject: true, amounts: true, types: true, date: true, merchant: true, channel: true };
+  const checks = { type: typeOK, reject: true, amounts: true, types: true, date: true, merchant: true, channel: true, paymentStatus: true };
   if (exp.reject) {
     checks.reject = rejected;
   } else if (rejected && exp.acceptRejectToo) {
@@ -202,8 +221,62 @@ function scoreOne(exp, p) {
     checks.date = exp.date ? dates.includes(exp.date) : dates.length === 0;
     checks.merchant = exp.merchantIncludes.every((n) => merchantHay.includes(n));
     checks.channel = exp.channelIncludes.every((n) => channelHay.includes(n));
+    if (exp.paymentStatus) {
+      checks.paymentStatus = String(p.paymentStatus || 'unknown') === exp.paymentStatus;
+    }
   }
   return { pass: Object.values(checks).every(Boolean), lenient: false, checks };
+}
+
+// ---------- v2 自动落账门禁仿真（2026-09-14 完整方案 §8/§28-M0）----------
+// 以生产 ReceiptBookingPolicy 的首版规则仿真：单笔 + completed/refunded + 字段级置信度 ≥ 阈值
+// → autoCommit（§26.3：退款需 refunded，方向证据由 type=income 表达）。
+// auto-WRONG（金额或方向错误的自动入账）是发布红线指标，必须为 0。
+const GATE_THRESHOLDS = [0.6, 0.7, 0.8, 0.9, 0.95, 0.99];
+function simulateGate(exp, p, threshold) {
+  if (exp.reject) return 'intercepted';
+  if (exp.acceptRejectToo && (p.transactions || []).length === 0) return 'rejected-lenient';
+  const txs = Array.isArray(p.transactions) ? p.transactions : [];
+  if (txs.length !== 1) return 'review'; // 多笔/零笔 → 复核或拒识
+  if (p.__guardApplied || p.__statusGuardApplied) return 'review'; // 护栏改写 → 只能复核
+  if (!['completed', 'refunded'].includes(String(p.paymentStatus || 'unknown'))) return 'review';
+  const c = txs[0]?.confidence || {};
+  const required = ['amount', 'direction', 'paymentStatus'];
+  if (required.some((k) => typeof c[k] !== 'number' || c[k] < threshold)) return 'review';
+  const amountOK = exp.amounts.length === 1 && near(exp.amounts[0], Math.abs(Number(txs[0].amount) || 0));
+  const typeOK = txs[0]?.type === exp.types[0];
+  return amountOK && typeOK ? 'auto-correct' : 'auto-WRONG';
+}
+
+function runGateSim(rows, manifest) {
+  const table = {};
+  for (const threshold of GATE_THRESHOLDS) {
+    const outcomes = rows.map((r) => {
+      const item = manifest.find((m) => m.file === r.file);
+      if (!item || !r.parsed) return 'parse-failed';
+      return simulateGate(item.expect, r.parsed, threshold);
+    });
+    const count = (k) => outcomes.filter((o) => o === k).length;
+    const eligible = count('auto-correct') + count('auto-WRONG');
+    table[threshold] = {
+      autoCorrect: count('auto-correct'),
+      autoWrong: count('auto-WRONG'),
+      eligible,
+      autoAccuracy: eligible ? (count('auto-correct') / eligible * 100).toFixed(1) + '%' : '-',
+      review: count('review'),
+      intercepted: count('intercepted'),
+      rejectedLenient: count('rejected-lenient'),
+      parseFailed: count('parse-failed'),
+    };
+  }
+  return table;
+}
+
+function printGateSim(table) {
+  console.log(`\n—— v2 自动落账门禁仿真（2026-09-14 方案 §8）——`);
+  for (const [threshold, g] of Object.entries(table)) {
+    console.log(`T=${Number(threshold).toFixed(2)}  自动落账 ${g.autoCorrect}/${g.eligible} (准确率 ${g.autoAccuracy})  【红线·错误自动入账 ${g.autoWrong}】  转复核 ${g.review}  拦截 ${g.intercepted}`);
+  }
 }
 
 // ---------- 并发池 ----------
@@ -222,6 +295,14 @@ async function pool(items, n, fn) {
 // ---------- 主流程 ----------
 const manifest = JSON.parse(fs.readFileSync(path.join(corpusDir, 'manifest.json'), 'utf8')).slice(0, limit);
 fs.mkdirSync(resultsDir, { recursive: true });
+
+// --resim <results.json>：用已存的模型输出离线重算门禁阈值表，不调 API（调阈值时零成本复算）
+const resimFile = arg('--resim', '');
+if (resimFile) {
+  const stored = JSON.parse(fs.readFileSync(resimFile, 'utf8'));
+  printGateSim(runGateSim(stored.rows, JSON.parse(fs.readFileSync(path.join(corpusDir, 'manifest.json'), 'utf8'))));
+  process.exit(0);
+}
 
 for (const mk of modelKeys) {
   const cfg = MODELS[mk];
@@ -276,9 +357,14 @@ for (const mk of modelKeys) {
   console.log(`图型准确: ${dim('type')}/${scored.length}  拒识正确: ${dim('reject')}/${scored.length}`);
   console.log(`金额准确: ${billable.length ? billableRows.filter((r) => r.checks?.amounts && r.checks?.types).length + '/' + billable.length : '-'}  日期: ${billableRows.filter((r) => r.checks?.date).length}/${billable.length}`);
   console.log(`商户准确: ${billableRows.filter((r) => r.checks?.merchant).length}/${billable.length}  通道准确: ${billableRows.filter((r) => r.checks?.channel).length}/${billable.length}`);
+  console.log(`支付状态准确: ${billableRows.filter((r) => r.checks?.paymentStatus).length}/${billable.length}`);
   console.log(`【安全红线】资金流转拦截召回: ${interceptHit.length}/${interceptItems.length}  误拒(该记没记): ${falseRejects.length}/${billable.length}`);
   console.log(`tokens: prompt合计 ${promptTokens}, 单均 ${(promptTokens / Math.max(rows.length, 1)).toFixed(0)}, 总 ${tokens}`);
 
-  fs.writeFileSync(path.join(resultsDir, `${cfg.model}.json`), JSON.stringify({ model: cfg.model, ranAt: new Date().toISOString(), summary: { pass: scored.filter((r) => r.pass).length, total: manifest.length }, rows }, null, 2));
+  // v2 门禁仿真：按候选阈值输出自动落账命中率与红线指标，供选阈值用（§28-M0.4）
+  const gateSim = runGateSim(rows, manifest);
+  printGateSim(gateSim);
+
+  fs.writeFileSync(path.join(resultsDir, `${cfg.model}.json`), JSON.stringify({ model: cfg.model, ranAt: new Date().toISOString(), promptSchemaVersion: 2, summary: { pass: scored.filter((r) => r.pass).length, total: manifest.length }, gateSim, rows }, null, 2));
   console.log(`结果已写 results/${cfg.model}.json`);
 }
