@@ -39,6 +39,8 @@ struct HabitTileView: View {
     /// 测量类历史最新值（今日无记录时的回退显示）
     @State private var latestHistoricalValue: Double? = nil
     @State private var streakInfo: HabitStreak = .zero()
+    /// 全历史累计（打卡型好习惯=完成次数；计数类=数值总和；坏习惯/测量类=nil）
+    @State private var lifetimeTotal: Double? = nil
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
     @State private var inputNote: String = ""
@@ -214,6 +216,14 @@ struct HabitTileView: View {
                 }
                 .opacity(0.85)
                 .fixedSize()
+            }
+
+            // 累计总账徽章（永不归零）：坏习惯/测量类为 nil 不显示，0 不显示与火焰口径一致
+            if let lifetimeTotal, lifetimeTotal > 0 {
+                Text(String(localized: "累计\(habit.formatValue(lifetimeTotal))次"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .opacity(0.85)
+                    .fixedSize()
             }
         }
         .foregroundColor(isCompleted ? .white : .holoTextPrimary)
@@ -840,6 +850,7 @@ struct HabitTileView: View {
                     latestHistoricalValue = repo.getLatestValue(for: habit)
                 }
             }
+            lifetimeTotal = repo.calculateLifetimeTotal(for: habit)
             // 补签入口依据：最近 7 天可补天数（方法内部会过滤类型/坏习惯/频率）
             retroEligibleCount = repo.retroactiveEligibleDays(for: habit).count
         }

@@ -47,6 +47,20 @@ extension HabitRepository {
         ).map(\.value)
     }
 
+    /// 全历史累计：打卡型好习惯 = 已完成次数（一天一条记录，取消重打复用同条不双计，补签计入）；
+    /// 计数类 = 历史所有记录数值总和（与统计页当月累计同口径）。
+    /// 坏习惯与测量类无「累计」概念，返回 nil（UI 不展示）。
+    /// 恒为全部历史，不随详情页时间范围选择器变化；走 getAllRecords 过同 id 去重，防 iCloud 副本双计。
+    func calculateLifetimeTotal(for habit: Habit) -> Double? {
+        guard !habit.isBadHabit else { return nil }
+        let records = getAllRecords(for: habit)
+        if habit.isCheckInType {
+            return Double(records.filter { $0.isCompleted }.count)
+        }
+        guard habit.isCountType else { return nil }
+        return records.compactMap { $0.valueDouble }.reduce(0, +)
+    }
+
     /// 获取总览统计数据
     func getOverviewStats(range: HabitStatsDateRange) -> HabitOverviewStats {
         let habits = activeHabits

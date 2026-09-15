@@ -29,6 +29,8 @@ struct HabitDetailSnapshot {
     var completedCount: Int = 0
     var completionRate: Double = 0
     var totalDays: Int = 0
+    /// 全历史累计（打卡型好习惯=完成次数；计数类=数值总和；坏习惯/测量类=nil 不展示）
+    var lifetimeTotal: Double? = nil
     var periodStats: HabitPeriodStats = HabitPeriodStats(
         total: 0, average: 0, min: 0, max: 0, count: 0,
         latestValue: nil, earliestValue: nil
@@ -262,6 +264,7 @@ struct HabitDetailView: View {
             } else {
                 s.periodStats = repo.calculatePeriodStats(for: habit, dateRange: effectiveDateRange)
             }
+            s.lifetimeTotal = repo.calculateLifetimeTotal(for: habit)
             
             // 更新 @State 变量
             records = loadedRecords
@@ -561,24 +564,36 @@ struct HabitDetailView: View {
                 icon: "flame.fill",
                 color: .holoPrimary
             )
-            
+
             Divider().frame(height: 40)
-            
+
             statItem(
                 value: "\(snapshot.completedCount)",
                 label: String(localized: "\(selectedRangeLabel)完成"),
                 icon: "checkmark.circle.fill",
                 color: .holoSuccess
             )
-            
+
             Divider().frame(height: 40)
-            
+
             statItem(
                 value: String(format: "%.0f%%", snapshot.completionRate),
                 label: String(localized: "完成率"),
                 icon: "chart.pie.fill",
                 color: .holoInfo
             )
+
+            // 累计不跟随时间范围；坏习惯无累计（lifetimeTotal 为 nil）回落三项
+            if let lifetimeTotal = snapshot.lifetimeTotal {
+                Divider().frame(height: 40)
+
+                statItem(
+                    value: formatValue(lifetimeTotal),
+                    label: String(localized: "累计"),
+                    icon: "infinity",
+                    color: .holoSuccess
+                )
+            }
         }
     }
     
@@ -610,6 +625,16 @@ struct HabitDetailView: View {
                         icon: "arrow.up",
                         color: .holoPrimary
                     )
+                    // 累计恒为全部历史数值总和，不随时间范围变化
+                    if let lifetimeTotal = snapshot.lifetimeTotal {
+                        Divider().frame(height: 40)
+                        statItem(
+                            value: formatValue(lifetimeTotal),
+                            label: String(localized: "累计"),
+                            icon: "infinity",
+                            color: .holoSuccess
+                        )
+                    }
                 }
             } else {
                 HStack(spacing: 0) {
