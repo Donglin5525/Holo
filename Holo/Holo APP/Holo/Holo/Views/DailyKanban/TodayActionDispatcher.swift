@@ -17,7 +17,6 @@ import Combine
 nonisolated enum HoloTodayRoute: Hashable {
     case matterList
     case matterDetail(UUID, focusOpenLoopID: UUID?)
-    case taskDetail(UUID)
     case scheduleDetail(String)
 }
 
@@ -28,6 +27,10 @@ final class TodayActionDispatcher: ObservableObject {
     @Published var path: [HoloTodayRoute] = []
     /// 日程详情 sheet。
     @Published var scheduleDetailItem: ScheduleItem?
+    /// 任务详情 sheet（仅持 id，呈现时按 id 取最新任务对象；
+    /// TaskDetailView 是全 App 统一的弹窗形态，不走 push——push 会触发其
+    /// sheetDismissGuard 劫持 Today cover 的关闭代理，见 2026-09-14 闪退修复）。
+    @Published var taskDetailSelection: UUID?
     /// 执行中的动作（按钮 loading 与防双击）。
     @Published var inFlightAction: HoloTodayAction?
     /// 局部错误（保留原卡，按钮行显示）。
@@ -52,7 +55,7 @@ final class TodayActionDispatcher: ObservableObject {
                 Task { await viewModel.refreshNow() }
                 return
             }
-            path.append(.taskDetail(taskID))
+            taskDetailSelection = taskID
 
         case .openSchedule(let scheduleID):
             if let item = findSchedule(scheduleID) {

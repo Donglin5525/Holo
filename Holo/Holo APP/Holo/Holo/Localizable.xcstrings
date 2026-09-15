@@ -66641,6 +66641,22 @@
           }
         }
       }
+    },
+    "我想开始一件事：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'd like to get something started: "
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我想開始一件事："
+          }
+        }
+      }
     }
   },
   "version": "1.0"

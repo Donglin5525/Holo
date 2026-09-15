@@ -342,7 +342,10 @@ struct HomeView: View {
                         openRootScreen(.ai)
                     },
                     onOpenAI: {
+                        // 「＋开始一件事」：关看板 → 预填引导语 → 进 AI（只预填不发送，
+                        // 方案 §5.2；用户补后半句发送即走情境规划 → 方案卡 → 加入进行中的事）
                         showDailyKanban = false
+                        chatPrefillText = String(localized: "我想开始一件事：")
                         openRootScreen(.ai)
                     },
                     onOpenFinance: {

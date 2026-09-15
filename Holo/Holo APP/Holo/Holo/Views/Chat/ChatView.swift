@@ -188,6 +188,13 @@ struct ChatView: View {
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             consumeInsightDeepLink()
         }
+        .onChange(of: prefillText) { _, newValue in
+            // 常驻页兜底：本页常驻不销毁，外部入口（今日看板「开始一件事」、
+            // 看板快捷记录等）在页面已存在时设置预填，.task 不会重跑，靠这里写入；
+            // 输入框已有内容时不覆盖用户正在输入的文字
+            guard let text = newValue, !text.isEmpty, viewModel.inputText.isEmpty else { return }
+            viewModel.inputText = text
+        }
         .onReceive(ChatReportTabRouter.shared.$requestTicket.dropFirst()) { _ in
             // dropFirst：@Published 订阅时会先回放当前值，不滤掉会把
             // 「进入页面」误判成一次跳转请求，导致默认落在报告 Tab。

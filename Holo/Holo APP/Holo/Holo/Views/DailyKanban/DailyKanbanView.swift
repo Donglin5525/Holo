@@ -110,6 +110,13 @@ struct DailyKanbanView: View {
             .sheet(item: $dispatcher.scheduleDetailItem) { item in
                 ScheduleDetailSheet(item: item)
             }
+            .sheet(item: $dispatcher.taskDetailSelection) { taskID in
+                // TaskDetailView 全 App 统一弹窗呈现（TasksView/KanbanTaskSection 同款）；
+                // 不传 onBack，内部 dismiss 即关闭，sheet(item:) 自动置空 selection
+                if let task = TodoRepository.shared.findTask(by: taskID) {
+                    TaskDetailView(task: task, repository: TodoRepository.shared)
+                }
+            }
         }
         .swipeBackToDismiss { dismiss() }
         .task {
@@ -245,25 +252,9 @@ struct DailyKanbanView: View {
             MatterDetailView(matterID: matterID) { discussID in
                 openChat(matterID: discussID)
             }
-        case .taskDetail(let taskID):
-            if let task = TodoRepository.shared.findTask(by: taskID) {
-                TaskDetailView(task: task, repository: TodoRepository.shared) {
-                    dispatcher.path.removeLast()
-                }
-            } else {
-                missingEntityView(String(localized: "这条任务已被删除"))
-            }
         case .scheduleDetail:
             EmptyView()
         }
-    }
-
-    private func missingEntityView(_ text: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "tray").font(.title).foregroundStyle(.tertiary)
-            Text(text).font(.subheadline).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// 讨论出口：存上下文 → 关 Today → 进 resident Chat（由 HomeView 接管）。
