@@ -577,6 +577,10 @@ export function createCloudAnalysisExecutor({
         if (output.status === "final_claims") {
           const result = {
             title: output.title ?? null,
+            // v17/v21 叙事字段（温暖陪伴 P0 契约止损）：Validator 已规范化门控，
+            // 此前落库丢弃导致设备端只能拼「发现 N/分号」——温度在这层丢失
+            narrativeSummary: output.narrativeSummary ?? null,
+            keyInsight: output.keyInsight ?? null,
             claims: output.claims ?? [],
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),

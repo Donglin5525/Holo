@@ -342,11 +342,17 @@ test("执行器全循环：need_tools→工具结果→final_claims→完成即�
       }],
     }),
     agentJson("final_claims", {
+      title: "外卖撑起了这个月",
+      narrativeSummary: "这个月餐饮上涨主要来自晚间外卖，其余支出平稳。",
+      keyInsight: "晚间外卖与晚睡同时变多，像是一个节奏问题",
       claims: [{
         summary: "本月餐饮 102 元",
         displayText: "本月餐饮支出合计 102 元",
         metricAssertions: [],
         evidenceIDs: ["finance.transactions#0"],
+        type: "change",
+        confidence: 0.8,
+        interpretation: "餐饮集中在晚间，像是下班后不想做饭的节奏",
       }],
     }),
   ]);
@@ -377,6 +383,33 @@ test("执行器全循环：need_tools→工具结果→final_claims→完成即�
   const result = JSON.parse(fetched.result);
   assert.equal(result.claims.length, 1);
   assert.equal(result.engine, "cloud-m2a");
+  // 温暖陪伴 P0 契约止损：叙事字段必须端到端保真落库，不允许在执行器层丢弃
+  assert.equal(result.title, "外卖撑起了这个月");
+  assert.equal(result.narrativeSummary, "这个月餐饮上涨主要来自晚间外卖，其余支出平稳。");
+  assert.equal(result.keyInsight, "晚间外卖与晚睡同时变多，像是一个节奏问题");
+  assert.equal(result.claims[0].interpretation, "餐饮集中在晚间，像是下班后不想做饭的节奏");
+  assert.equal(result.claims[0].type, "change");
+  assert.equal(result.claims[0].confidence, 0.8);
+});
+
+test("final_claims 叙事契约：模型未产出叙事字段时落 null，不伪造", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "本月餐饮支出合计 102 元",
+        metricAssertions: [],
+        evidenceIDs: ["finance.transactions#0"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-b", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.narrativeSummary, null);
+  assert.equal(result.keyInsight, null);
+  assert.equal(result.claims[0].interpretation, null);
 });
 
 test("执行器：静态块直读 + 未知数据集返回可解释错误", async () => {
