@@ -392,6 +392,8 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     let result: HoloRenderedAgentResult
     var onFinanceDrilldown: ((HoloRenderedFinanceDrilldown) -> Void)?
+    /// 用户发起本次提问的时间；旧消息缺省时提问卡不显示时间行。
+    var askedAt: Date? = nil
     /// 报告内追问控制器：非 nil 时底部显示追问输入条、正文尾部显示追问记录。
     /// nil（回放等无追问能力的入口）不显示追问 UI。
     var followUpController: ReportFollowUpController? = nil
@@ -400,6 +402,7 @@ struct AgentDeepAnalysisDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var isEvidenceExpanded = false
+    @State private var showsShareSheet = false
 
     private var narrative: AgentDeepAnalysisNarrativeModel {
         AgentDeepAnalysisNarrativeModel(result: result)
@@ -411,6 +414,9 @@ struct AgentDeepAnalysisDetailSheet: View {
             VStack(alignment: .leading, spacing: 18) {
                 if result.continuationMetadata?.isFollowUp == true {
                     lineageBar
+                }
+                if let question = userQuestion {
+                    ReportQuestionCard(question: question, askedAt: askedAt)
                 }
                 header
                 if model.isEmptyState {
@@ -476,8 +482,22 @@ struct AgentDeepAnalysisDetailSheet: View {
 
                 Spacer()
 
-                Color.clear
-                    .frame(width: 32, height: 32)
+                if model.isEmptyState {
+                    Color.clear
+                        .frame(width: 32, height: 32)
+                } else {
+                    Button {
+                        showsShareSheet = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoTextPrimary)
+                            .frame(width: 32, height: 32)
+                            .background(Color.holoTextSecondary.opacity(0.1), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "分享报告"))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -490,6 +510,23 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         // 全屏页交互规则：边缘右滑返回（fullScreenCover 没有系统右滑返回）
         .holoEdgeSwipeBack { dismiss() }
+        .sheet(isPresented: $showsShareSheet) {
+            ReportShareSheet(
+                narrative: narrative,
+                question: userQuestion,
+                scopeLabel: result.scope?.displayLabel,
+                generatedAt: askedAt
+            )
+        }
+    }
+
+    /// 详情页展示的提问：优先本次提问（question），旧报告退回追问链根问题；都为空时不渲染提问卡。
+    private var userQuestion: String? {
+        for candidate in [result.question, result.rootUserQuestion] {
+            let trimmed = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
     }
 
     /// 子报告血统条：这份报告是某次追问的产物时，正文顶部交代「从哪问出来的」。
@@ -1119,5 +1156,102 @@ struct AgentDeepAnalysisDetailSheet: View {
             return keyword
         }
         return String(localized: "观察")
+    }
+}
+
+/// 详情页顶部「你的提问」卡：报告是回答，读之前先看到问的是什么。
+/// 提问为长句时默认折 3 行，点「展开」看全文；时间缺失时不显示时间行。
+private struct ReportQuestionCard: View {
+
+    let question: String
+    let askedAt: Date?
+
+    @State private var isExpanded = false
+    @State private var needsExpansion = false
+
+    private static let askedAtFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMd HH:mm")
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(Color.holoPrimary)
+                    .frame(width: 5, height: 5)
+                Text(String(localized: "你的提问"))
+                    .font(.system(size: 11, weight: .bold))
+                    .kerning(1)
+                    .foregroundColor(Color.holoPrimary)
+            }
+
+            Text(question)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.holoTextPrimary)
+                .lineSpacing(4)
+                .lineLimit(isExpanded ? nil : 3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 13)
+                .overlay(alignment: .topLeading) {
+                    Text(verbatim: "“")
+                        .font(.system(size: 20, weight: .bold, design: .serif))
+                        .foregroundColor(Color.holoPrimary)
+                        .offset(x: -2, y: -5)
+                }
+                .background(
+                    // SwiftUI 没有「lineLimit 是否真的截断了文本」的 API，
+                    // 拿到实际宽度后用同一字体做排版测量近似判断，超 3 行才给「展开」。
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear { measureTruncation(width: geo.size.width) }
+                    }
+                )
+
+            HStack(alignment: .firstTextBaseline) {
+                if let askedAt {
+                    Text(String(localized: "\(Self.askedAtFormatter.string(from: askedAt)) 提问"))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                Spacer()
+                if needsExpansion {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Text(isExpanded ? String(localized: "收起") : String(localized: "展开"))
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundColor(Color.holoPrimary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.55), lineWidth: 1)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "你的提问"))
+        .accessibilityValue(question)
+    }
+
+    private func measureTruncation(width: CGFloat) {
+        guard width > 0 else { return }
+        let font = UIFont.systemFont(ofSize: 15, weight: .medium)
+        let attributed = NSAttributedString(string: question, attributes: [.font: font])
+        let bounds = attributed.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        needsExpansion = bounds.height > font.lineHeight * 3 + 1
     }
 }
