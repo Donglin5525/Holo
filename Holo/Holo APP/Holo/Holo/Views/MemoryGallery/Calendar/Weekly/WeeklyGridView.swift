@@ -128,6 +128,9 @@ struct WeeklyGridView: View {
         let profile = computeProfile(eventsByDay)
         VStack(spacing: 0) {
             // 泳道卡片：表头、凌晨带、网格主体收进同一张卡；图例留在卡片外
+            // 注意：横向翻页手势只挂网格滚动区（gridScroll），不挂整卡——
+            // 否则「0–7」折叠/日期头/凌晨摘要这些按钮的轻微触点位移会被
+            // DragGesture 抢走，点击被吞还可能触发误翻页。
             VStack(spacing: 0) {
                 calendarHeader
 
@@ -145,7 +148,6 @@ struct WeeklyGridView: View {
                 RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
                     .stroke(Color.holoBorder.opacity(0.48), lineWidth: 1)
             )
-            .simultaneousGesture(horizontalPagingGesture)
 
             legend
                 .padding(.top, HoloSpacing.xs)
@@ -488,6 +490,7 @@ struct WeeklyGridView: View {
                 .frame(width: geo.size.width, height: profile.totalHeight, alignment: .topLeading)
             }
             .simultaneousGesture(hourScalePinchGesture)
+            .simultaneousGesture(horizontalPagingGesture)
             .scrollDisabled(isPinching)
             // 双击重置用 onTapGesture：不能挡住子级横向翻页的跟手性
             .onTapGesture(count: 2, perform: resetHourScale)
@@ -555,7 +558,9 @@ struct WeeklyGridView: View {
             }
             .onEnded { value in
                 let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.15
-                guard isHorizontal else { return }
+                // 实际位移门槛：快速点击的 predictedEndTranslation 投影可能远超真实位移，
+                // 单看投影会把「点一下」误判成翻页（0–7 折叠按钮误滑一天的真凶）。
+                guard isHorizontal, abs(value.translation.width) >= 24 else { return }
 
                 let projected = abs(value.predictedEndTranslation.width) > abs(value.translation.width)
                     ? value.predictedEndTranslation.width

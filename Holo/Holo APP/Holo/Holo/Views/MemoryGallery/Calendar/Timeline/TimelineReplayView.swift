@@ -7,8 +7,8 @@
 //  左组=带时间段的任务（含已完成，带计划/实际对比），右组=系统日程（按需拉取，不限活跃窗口）。
 //  拖拽反写：空白处长按拖出选区直接建带时间段任务（15 分钟吸附）；拖任务块上下缘调整时间段。
 //
-//  交互分层原则：默认一切触摸都给滚动；建任务/调时间必须长按成立（震动提示）后才接管手指，
-//  让「能不能滑」的分界线可感知，而不是藏在不可见的 0.3 秒阈值里。
+//  交互分层原则：默认一切触摸都给滚动；建任务/调时间必须「几乎静止」长按成立（震动提示）
+//  后才接管手指——手指只要开始移动就立刻让位给滚动，慢速浏览时间轴永远不会被建任务劫持。
 //  凌晨 0–7 默认折叠成一条摘要带（与周档同一交互语言），表头可展开收起，偏好持久化。
 //  打开自动定位到「现在」（今天）或首个事件前一小时（历史日）；今天右上角常驻「此刻」回正。
 //
@@ -32,6 +32,8 @@ struct TimelineReplayView: View {
     @State private var resizePreview: [UUID: (start: Date, end: Date)] = [:]
     /// 空白长按已成立、选区尚未拖出：给「可拖动」提示条
     @State private var isPressArmed = false
+    /// 任务块边缘长按已成立（调整时间段中）：与建任务共用同一条「临时锁滚动」通道
+    @State private var isEdgeResizing = false
     /// 折叠/展开切换后重定位用（ScrollViewProxy 只在 onAppear 后可用）
     @State private var scrollProxy: ScrollViewProxy?
 
@@ -80,6 +82,10 @@ struct TimelineReplayView: View {
                 .onChange(of: collapseMorning) { _, _ in
                     // 折叠切换后总高度变化，滚动位置会飘：重新锚回当前关注点
                     scrollToInitialAnchor(proxy)
+                }
+                .onChange(of: newTaskDraft == nil) { _, isClosed in
+                    // 建任务表单关闭后轴上的块要即时反映保存/删除结果（@State 不随库自动刷新）
+                    if isClosed { loadData() }
                 }
                 .sheet(item: $selectedSchedule) { item in
                     ScheduleDetailSheet(item: item)
@@ -192,9 +198,11 @@ struct TimelineReplayView: View {
             .frame(height: axisLayout.contentHeight)
             .contentShape(Rectangle())
             .coordinateSpace(name: Self.axisSpace)
-            // highPriorityGesture：长按成立后 ScrollView 让位，垂直拖动不再被滚动吞掉；
-            // 长按未成立（<0.5s 就滑）时本手势不认，滚动完全不受影响
-            .highPriorityGesture(createTaskGesture)
+            // 建任务手势已下沉到每行刻度的空白背景（TimelineLongPressBridge，UIKit 长按）：
+            // 实测 SwiftUI 的 LongPress+Drag 序列手势无论挂 highPriority 还是 simultaneous，
+            // 在 iOS 26 上都会压制 ScrollView 的滚动通道（快慢滑动全部失效）；
+            // UIKit 长按识别器与滚动 pan 天然并行，手指一动长按即失败、滚动不受影响。
+            .scrollDisabled(isPressArmed || isEdgeResizing)
         }
         .overlay(alignment: .top) {
             topOverlay(proxy: proxy)
@@ -239,6 +247,17 @@ struct TimelineReplayView: View {
 
     private func hourRow(_ hour: Int, isFirstHour: Bool = false) -> some View {
         ZStack(alignment: .leading) {
+            // 空白区长按建任务的 UIKit 桥：铺在行背景、时间刻度之后起，
+            // 上层任务块/日程块/热区照常命中，桥只兜住空白触摸
+            TimelineLongPressBridge(
+                axisYOffset: axisLayout.y(minute: CGFloat(hour) * 60),
+                onPressBegan: handlePressBegan,
+                onPressMoved: handlePressMoved,
+                onPressEnded: handlePressEnded
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.leading, TimelineAxisLayout.gutterWidth)
+
             Rectangle()
                 .fill(Color.holoBorder.opacity(0.35))
                 .frame(height: 0.5)
@@ -594,13 +613,14 @@ struct TimelineReplayView: View {
     private func edgeHandle(_ task: TodoTask, edge: Edge) -> some View {
         Color.clear
             .contentShape(Rectangle())
-            // 同轴面：长按成立后拖边缘必须压过 ScrollView 滚动
-            .highPriorityGesture(
-                LongPressGesture(minimumDuration: 0.4).sequenced(before: DragGesture(minimumDistance: 8))
+            // 同轴面：长按成立后锁滚动（isEdgeResizing → scrollDisabled），拖边缘只调时间
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.4, maximumDistance: 8).sequenced(before: DragGesture(minimumDistance: 8))
                     .onChanged { value in
                         switch value {
                         case .first(true):
                             HapticManager.light()
+                            isEdgeResizing = true
                         case .second(true, let drag?):
                             applyResize(task, edge: edge, translationY: drag.translation.height)
                         default:
@@ -608,6 +628,7 @@ struct TimelineReplayView: View {
                         }
                     }
                     .onEnded { _ in
+                        isEdgeResizing = false
                         commitResize(task)
                     }
             )
@@ -682,37 +703,31 @@ struct TimelineReplayView: View {
     // MARK: - 拖拽建任务
 
     @State private var dragDraft: (startMinute: CGFloat, endMinute: CGFloat)?
+    /// 长按起点吸附后的分钟数（选区一端，随拖动实时更新另一端）
+    @State private var pressStartMinute: CGFloat = 0
 
-    private var createTaskGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.5).sequenced(before: DragGesture(
-            minimumDistance: 5,
-            coordinateSpace: .named(Self.axisSpace)
-        ))
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    // 长按成立即接管并给反馈：滚动与建任务的分界线从此可感知
-                    HapticManager.light()
-                    isPressArmed = true
-                case .second(true, let drag?):
-                    isPressArmed = false
-                    let a = axisLayout.snapMinute(axisLayout.minute(y: drag.startLocation.y), snap: Self.snapMinutes)
-                    let b = axisLayout.snapMinute(axisLayout.minute(y: drag.location.y), snap: Self.snapMinutes)
-                    guard abs(b - a) >= Self.minimumDraftMinutes else { return }
-                    dragDraft = (min(a, b), max(a, b))
-                default:
-                    break
-                }
-            }
-            .onEnded { _ in
-                isPressArmed = false
-                guard let draft = dragDraft else { return }
-                dragDraft = nil
-                let dayStart = calendar.startOfDay(for: focusedDate)
-                let start = dayStart.addingTimeInterval(TimeInterval(draft.startMinute) * 60)
-                let end = dayStart.addingTimeInterval(TimeInterval(draft.endMinute) * 60)
-                newTaskDraft = PlannedRangeDraft(start: start, end: end)
-            }
+    private func handlePressBegan(axisY: CGFloat) {
+        HapticManager.light()
+        isPressArmed = true
+        pressStartMinute = axisLayout.snapMinute(axisLayout.minute(y: axisY), snap: Self.snapMinutes)
+    }
+
+    private func handlePressMoved(axisY: CGFloat) {
+        isPressArmed = false
+        let end = axisLayout.snapMinute(axisLayout.minute(y: axisY), snap: Self.snapMinutes)
+        guard abs(end - pressStartMinute) >= Self.minimumDraftMinutes else { return }
+        dragDraft = (min(pressStartMinute, end), max(pressStartMinute, end))
+    }
+
+    private func handlePressEnded(axisY: CGFloat) {
+        isPressArmed = false
+        guard let draft = dragDraft else { return }
+        dragDraft = nil
+        let dayStart = calendar.startOfDay(for: focusedDate)
+        newTaskDraft = PlannedRangeDraft(
+            start: dayStart.addingTimeInterval(TimeInterval(draft.startMinute) * 60),
+            end: dayStart.addingTimeInterval(TimeInterval(draft.endMinute) * 60)
+        )
     }
 
     @ViewBuilder
@@ -763,5 +778,58 @@ struct TimelineReplayView: View {
 
     static func timeText(_ date: Date) -> String {
         timeFormatter.string(from: date)
+    }
+}
+
+/// 空白区「长按拖动建任务」的 UIKit 手势桥。
+/// SwiftUI 的 LongPress+Drag 序列手势挂在 ScrollView 内容上会整体压制滚动
+/// （iOS 26 实测：快慢滑动全部失效），而 UILongPressGestureRecognizer 与
+/// UIScrollView 的滚动 pan 默认并行识别——手指一动长按即失败、滚动不受影响；
+/// 只有静止按住 0.5 秒长按才成立。松手前的位移由识别器持续回报（拖出行外坐标依然连续）。
+/// 实例按小时行铺在空白背景上：任务块/热区在上层照常命中，桥只兜住空白触摸。
+private struct TimelineLongPressBridge: UIViewRepresentable {
+    /// 本行在轴内容坐标系中的起点 y（行内触摸 y 与之相加得轴坐标）
+    let axisYOffset: CGFloat
+    var onPressBegan: (CGFloat) -> Void
+    var onPressMoved: (CGFloat) -> Void
+    var onPressEnded: (CGFloat) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        let recognizer = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handle(_:))
+        )
+        recognizer.minimumPressDuration = 0.5
+        recognizer.allowableMovement = 12
+        view.addGestureRecognizer(recognizer)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject {
+        var parent: TimelineLongPressBridge
+        init(_ parent: TimelineLongPressBridge) {
+            self.parent = parent
+        }
+
+        @objc func handle(_ recognizer: UILongPressGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            let axisY = parent.axisYOffset + recognizer.location(in: view).y
+            switch recognizer.state {
+            case .began: parent.onPressBegan(axisY)
+            case .changed: parent.onPressMoved(axisY)
+            case .ended: parent.onPressEnded(axisY)
+            default: break
+            }
+        }
     }
 }
