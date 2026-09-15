@@ -108,7 +108,6 @@ struct ThoughtEditorView: View {
     /// 新建模式暂存图：保留原始数据（落库走与编辑模式一致的 2048 压缩管线），
     /// preview 仅供缩略条展示，不再作为持久化来源。
     @State private var pendingImageItems: [PendingImageItem] = []
-    @State private var showAttachmentSourceChoice: Bool = false
     @State private var showAttachmentPhotoPicker: Bool = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
     @State private var showAttachmentCamera: Bool = false
@@ -321,14 +320,6 @@ struct ThoughtEditorView: View {
                     startIndex: galleryStartIndex
                 )
             }
-        }
-        // 添加图片来源：用 .sheet 而非 .confirmationDialog。原因同上方 Token 菜单——
-        // confirmationDialog 呈现时会让 UITextView 失焦，弹层还没显示就被撤回，
-        // 表现为「第一次点图片按钮没反应，第二次（键盘已收起）才弹出来」。
-        .sheet(isPresented: $showAttachmentSourceChoice) {
-            attachmentSourceSheet
-                .presentationDetents([.height(185)])
-                .presentationDragIndicator(.visible)
         }
     }
 
@@ -591,9 +582,18 @@ struct ThoughtEditorView: View {
                     if showsColorPalette { showsColorPalette = false }
                     pendingEditorAction = .convertToTask
                 },
-                onAddImage: {
+                onCamera: {
                     if showsColorPalette { showsColorPalette = false }
-                    showAttachmentSourceChoice = true
+                    requestCameraAccess()
+                },
+                onPickFromLibrary: {
+                    if showsColorPalette { showsColorPalette = false }
+                    Task { @MainActor in
+                        // 相册读取权限是一次性前置申请：它是「iCloud 原图自动下载」的前提；
+                        // 被拒也不阻断选图，本地照片不受影响
+                        await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+                        showAttachmentPhotoPicker = true
+                    }
                 },
                 onVoiceInput: {
                     if showsColorPalette { showsColorPalette = false }
@@ -952,37 +952,6 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 添加图片来源选择（拍照 / 从相册选择），样式对齐 Token 操作菜单
-    private var attachmentSourceSheet: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            Text("添加图片")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.top, HoloSpacing.sm)
-
-            Divider()
-                .padding(.vertical, 2)
-
-            VStack(spacing: 0) {
-                tokenMenuButton(String(localized: "拍照"), icon: "camera") {
-                    showAttachmentSourceChoice = false
-                    requestCameraAccess()
-                }
-                tokenMenuButton(String(localized: "从相册选择"), icon: "photo") {
-                    showAttachmentSourceChoice = false
-                    Task { @MainActor in
-                        // 相册读取权限是一次性前置申请：它是「iCloud 原图自动下载」的前提；
-                        // 被拒也不阻断选图，本地照片不受影响
-                        await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
-                        showAttachmentPhotoPicker = true
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, HoloSpacing.lg)
-    }
-
     /// 查看标签：保存当前内容后发筛选通知并退出
     private func viewTagThoughts(_ path: String) {
         autoSaveTask?.cancel()
@@ -1169,11 +1138,13 @@ struct ThoughtEditorView: View {
         Task { @MainActor in
             var failedCount = 0
             var permissionRequired = false
+            var limitedAccess = false
             for photo in photos {
                 let outcome = await PhotoLibraryImageLoader.loadImageData(from: photo)
                 guard case .data(let data) = outcome else {
                     failedCount += 1
                     if case .permissionRequired = outcome { permissionRequired = true }
+                    if case .limitedAccess = outcome { limitedAccess = true }
                     continue
                 }
 
@@ -1205,7 +1176,7 @@ struct ThoughtEditorView: View {
                     }
                 }
             }
-            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count, permissionRequired: permissionRequired)
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess)
             selectedAttachmentPhotos = []
         }
     }

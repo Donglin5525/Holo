@@ -29,17 +29,25 @@ nonisolated enum PhotoLibraryImageLoader {
 
     /// 加载相册选中项的图片数据（保留原始格式，可直接进压缩管线）
     static func loadImageData(from item: PhotosPickerItem) async -> PhotoLoadOutcome {
-        if let data = try? await item.loadTransferable(type: Data.self),
-           UIImage(data: data) != nil {
-            return .data(data)
+        do {
+            if let data = try await item.loadTransferable(type: Data.self),
+               UIImage(data: data) != nil {
+                return .data(data)
+            }
+        } catch {
+            logger.error("裸 Data 加载失败，进入转码层: \(error.localizedDescription, privacy: .public)")
         }
 
-        if let decoded = try? await item.loadTransferable(type: DecodedImage.self),
-           let jpeg = decoded.image.jpegData(compressionQuality: 0.95) {
-            return .data(jpeg)
+        do {
+            if let decoded = try await item.loadTransferable(type: DecodedImage.self),
+               let jpeg = decoded.image.jpegData(compressionQuality: 0.95) {
+                return .data(jpeg)
+            }
+        } catch {
+            logger.error("系统转码加载失败，进入 iCloud 原图下载: \(error.localizedDescription, privacy: .public)")
         }
 
-        logger.error("Data/转码两层加载失败，尝试 iCloud 原图下载: \(item.itemIdentifier ?? "nil")")
+        logger.error("Data/转码两层加载失败，尝试 iCloud 原图下载: \(item.itemIdentifier?.description ?? "nil")")
         return await downloadOriginalFromICloud(item)
     }
 
@@ -62,6 +70,11 @@ nonisolated enum PhotoLibraryImageLoader {
 
         guard let identifier = item.itemIdentifier,
               let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject else {
+            // 「仅限选中的照片」权限下，不在授权子集内的照片按标识取不到资产。
+            // 用户视角是「选择器里看得到、加载却失败」，与网络失败的自救动作不同，须细分。
+            if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .limited {
+                return .limitedAccess
+            }
             return .unavailable
         }
 
@@ -82,7 +95,8 @@ nonisolated enum PhotoLibraryImageLoader {
                     continuation.resume(returning: .data(data))
                 } else {
                     let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) ?? false
-                    logger.error("iCloud 原图下载失败 isInCloud=\(isInCloud): \(item.itemIdentifier ?? "nil")")
+                    let underlying = (info?[PHImageErrorKey] as? Error)?.localizedDescription ?? "无系统错误信息"
+                    logger.error("iCloud 原图下载失败 isInCloud=\(isInCloud): \(underlying, privacy: .public)")
                     continuation.resume(returning: .unavailable)
                 }
             }
@@ -104,14 +118,19 @@ nonisolated enum PhotoLibraryImageLoader {
     // MARK: - 失败提示
 
     /// 加载失败后的统一用户提示（部分失败 / 全部失败两种口径），想法、任务、反馈三处共用。
-    /// 全部失败时优先区分权限原因——它有明确的自救动作（去设置开启）。
+    /// 全部失败时优先区分权限原因——它们有明确的自救动作（去设置开启 / 改授权范围）。
     @MainActor
-    static func announceLoadFailure(failedCount: Int, totalCount: Int, permissionRequired: Bool = false) {
+    static func announceLoadFailure(failedCount: Int, totalCount: Int, permissionRequired: Bool = false, limitedAccess: Bool = false) {
         guard failedCount > 0 else { return }
-        logger.error("图片读取失败 \(failedCount)/\(totalCount) permissionRequired=\(permissionRequired)")
+        logger.error("图片读取失败 \(failedCount)/\(totalCount) permissionRequired=\(permissionRequired) limitedAccess=\(limitedAccess)")
         if failedCount >= totalCount && permissionRequired {
             HoloToastCenter.shared.show(
                 String(localized: "相册读取权限未开启，无法自动下载 iCloud 中的原图，请在系统设置中允许 Holo 访问照片"),
+                type: .error
+            )
+        } else if failedCount >= totalCount && limitedAccess {
+            HoloToastCenter.shared.show(
+                String(localized: "相册权限是「仅限选中的照片」，所选图片不在允许范围内。可在系统设置 > Holo > 照片中改为「所有照片」后重试"),
                 type: .error
             )
         } else if failedCount >= totalCount {
@@ -135,6 +154,8 @@ enum PhotoLoadOutcome: Sendable {
     case data(Data)
     /// 相册读取权限未开启，无法按资产标识自动下载 iCloud 原图
     case permissionRequired
+    /// 相册权限是「仅限选中的照片」，所选照片不在授权子集内（选择器看得到，按标识取不到）
+    case limitedAccess
     /// 下载失败（网络不可用等），重试可能成功
     case unavailable
 }

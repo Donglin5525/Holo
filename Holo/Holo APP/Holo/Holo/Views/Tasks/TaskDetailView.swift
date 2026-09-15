@@ -1250,6 +1250,7 @@ struct TaskDetailView: View {
             selectedAttachmentPhotos = []
             var failedCount = 0
             var permissionRequired = false
+            var limitedAccess = false
 
             if let task = existingTask {
                 for item in items {
@@ -1257,6 +1258,7 @@ struct TaskDetailView: View {
                     guard case .data(let data) = outcome else {
                         failedCount += 1
                         if case .permissionRequired = outcome { permissionRequired = true }
+                        if case .limitedAccess = outcome { limitedAccess = true }
                         continue
                     }
                     do {
@@ -1276,12 +1278,13 @@ struct TaskDetailView: View {
                     } else {
                         failedCount += 1
                         if case .permissionRequired = outcome { permissionRequired = true }
+                        if case .limitedAccess = outcome { limitedAccess = true }
                     }
                 }
                 guard !images.isEmpty || failedCount > 0 else { return }
                 pendingImages.append(contentsOf: images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess)
         }
     }
 

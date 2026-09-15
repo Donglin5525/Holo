@@ -291,6 +291,7 @@ struct FeedbackSheet: View {
             var loaded: [FeedbackShot] = []
             var failedCount = 0
             var permissionRequired = false
+            var limitedAccess = false
             for item in items.prefix(remaining) {
                 let outcome = await PhotoLibraryImageLoader.loadImageData(from: item)
                 guard case .data(let data) = outcome,
@@ -298,6 +299,7 @@ struct FeedbackSheet: View {
                       let image = UIImage(data: jpeg) else {
                     failedCount += 1
                     if case .permissionRequired = outcome { permissionRequired = true }
+                    if case .limitedAccess = outcome { limitedAccess = true }
                     continue
                 }
                 loaded.append(FeedbackShot(image: image, data: jpeg))
@@ -305,7 +307,7 @@ struct FeedbackSheet: View {
             shots.append(contentsOf: loaded)
             pickerItems = []
             isProcessingImages = false
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count, permissionRequired: permissionRequired)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count, permissionRequired: permissionRequired, limitedAccess: limitedAccess)
         }
     }
 

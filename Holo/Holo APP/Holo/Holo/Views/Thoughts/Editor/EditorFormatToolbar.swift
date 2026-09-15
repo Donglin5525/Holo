@@ -23,8 +23,10 @@ struct EditorFormatToolbar: View {
     var onAction: (MarkdownEditorAction) -> Void
     /// 「转为任务」：编辑器读当前选区（有选中转选中，无选中转整篇）
     var onConvertToTask: () -> Void
-    /// 「添加图片」：弹来源选择
-    var onAddImage: () -> Void
+    /// 「拍照」：走相机权限流程后全屏打开相机
+    var onCamera: () -> Void
+    /// 「从相册选择」：前置相册读取权限后弹系统选择器
+    var onPickFromLibrary: () -> Void
     /// 「语音输入」：弹语音面板
     var onVoiceInput: () -> Void
     /// 智能总结开关（长按语音按钮切换；绑定 AppStorage）
@@ -68,9 +70,7 @@ struct EditorFormatToolbar: View {
             toolButton("at", String(localized: "引用想法")) {
                 onAction(.insertTriggerCharacter("@"))
             }
-            toolButton("photo", String(localized: "添加图片")) {
-                onAddImage()
-            }
+            addImageMenuButton
 
             groupDivider
 
@@ -129,9 +129,32 @@ struct EditorFormatToolbar: View {
         .accessibilityLabel(String(localized: "文字样式"))
     }
 
-    /// 列表入口（菜单：无序/有序）
-    private var listMenuButton: some View {
+    /// 添加图片入口（锚定菜单：拍照 / 从相册选择）。
+    /// 与样式/列表入口同一形态：系统菜单贴着按钮弹出，不再经过贴底 sheet——
+    /// sheet 在 iOS 26 呈现为悬在屏幕底部的小卡片，离编辑器远、样式突兀。
+    private var addImageMenuButton: some View {
         Menu {
+            Button {
+                onCamera()
+            } label: {
+                Label(String(localized: "拍照"), systemImage: "camera")
+            }
+            Button {
+                onPickFromLibrary()
+            } label: {
+                Label(String(localized: "从相册选择"), systemImage: "photo")
+            }
+        } label: {
+            Image(systemName: "photo")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 40, height: 44)
+        }
+        .accessibilityLabel(String(localized: "添加图片"))
+    }
+
+    /// 列表入口（菜单：无序/有序）
+    private var listMenuButton: some View {        Menu {
             Button {
                 onAction(.insertUnorderedList)
             } label: {
