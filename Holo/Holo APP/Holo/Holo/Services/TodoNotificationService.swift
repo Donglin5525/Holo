@@ -182,10 +182,18 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
+        // 图片自动记账结果（无操作按钮，点击直达待复核项/最近结果；2026-09-14 方案 §25.3）
+        let receiptBookingCategory = UNNotificationCategory(
+            identifier: ReceiptBookingNotificationService.categoryIdentifier,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
         UNUserNotificationCenter.current().setNotificationCategories([
             taskCategory, dailyCategory, memoryInsightCategory,
             anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory,
-            billDueCategory, budgetOverrunCategory
+            billDueCategory, budgetOverrunCategory, receiptBookingCategory
         ])
         Self.logger.info("已注册通知分类")
     }
@@ -518,6 +526,18 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             case TodoNotificationCategory.budgetOverrun:
                 Self.logger.info("预算超支通知 Deep Link")
                 DeepLinkState.shared.navigate(to: .finance)
+            case ReceiptBookingNotificationService.categoryIdentifier:
+                Self.logger.info("图片自动记账通知 Deep Link")
+                if let draftIDString = userInfo["draftID"] as? String,
+                   let draftID = UUID(uuidString: draftIDString) {
+                    DeepLinkState.shared.navigate(to: .receiptReview(draftID: draftID))
+                } else if let transactionIDString = userInfo["transactionID"] as? String,
+                          let transactionID = UUID(uuidString: transactionIDString) {
+                    DeepLinkState.shared.navigate(to: .transactionDetail(transactionId: transactionID))
+                } else if let resultIDString = userInfo["resultID"] as? String,
+                          let resultID = UUID(uuidString: resultIDString) {
+                    DeepLinkState.shared.navigate(to: .receiptBookingResult(resultID: resultID))
+                }
             default:
                 break
             }

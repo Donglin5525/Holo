@@ -285,7 +285,12 @@ class FinanceRepository {
         note: String? = nil,
         remark: String? = nil,
         tags: [String]? = nil,
-        financeProject: FinanceProject? = nil
+        financeProject: FinanceProject? = nil,
+        // AI 来源字段（2026-09-14 完整方案 §24.4）：传了就与交易同一次 save 落库，
+        // 不再「创建后再 markTransactionAsAICreated」两次保存；不传（旧调用方）行为不变
+        aiSourceMessageId: String? = nil,
+        aiSourceItemId: String? = nil,
+        aiCandidate: String? = nil
     ) async throws -> Transaction {
         try validateTransactionCategory(category)
 
@@ -300,6 +305,12 @@ class FinanceRepository {
         transaction.remark = remark
         transaction.tags = tags
         transaction.financeProjectId = financeProject?.id
+        if let aiSourceMessageId {
+            transaction.isAICreated = true
+            transaction.aiCandidate = aiCandidate
+            transaction.aiSourceMessageId = aiSourceMessageId
+            transaction.aiSourceItemId = aiSourceItemId
+        }
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
         try context.save()
@@ -674,6 +685,61 @@ class FinanceRepository {
         )
         request.fetchLimit = 1
         return try? context.fetch(request).first
+    }
+
+    // MARK: - 图片自动记账 · 原子入账（2026-09-14 完整方案 §24.4/§24.5）
+
+    /// 原子 AI 入账：幂等查重 → 创建（金额/方向/日期/分类/账户/项目/AI 来源字段一次赋全）→ 单次 save。
+    /// 方法体内部零 await，整个函数在主线程同一临界区内完成：
+    /// 同图连按、系统重试、回执丢失后重跑都命中来源键返回既有交易，绝不二次入账。
+    /// 不走「先创建再 markTransactionAsAICreated」的两次保存路径。
+    /// 幂等查询排除软删交易（撤销后同图重跑允许重新入账）。
+    func bookTransactionAtomically(
+        amount: Decimal,
+        type: TransactionType,
+        category: Category,
+        account: Account,
+        date: Date,
+        note: String?,
+        remark: String?,
+        financeProjectId: UUID?,
+        aiCandidate: String?,
+        aiSourceMessageId: String,
+        aiSourceItemId: String
+    ) throws -> (transaction: Transaction, created: Bool) {
+        try validateTransactionCategory(category)
+
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "aiSourceMessageId == %@ AND aiSourceItemId == %@",
+                aiSourceMessageId, aiSourceItemId
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.fetchLimit = 1
+        if let existing = try context.fetch(request).first {
+            return (existing, false)
+        }
+
+        let transaction = Transaction(context: context)
+        transaction.id = UUID()
+        transaction.amount = NSDecimalNumber(decimal: amount)
+        transaction.type = type.rawValue
+        transaction.category = category
+        transaction.account = account
+        transaction.date = date
+        transaction.note = note
+        transaction.remark = remark
+        transaction.financeProjectId = financeProjectId
+        transaction.isAICreated = true
+        transaction.aiCandidate = aiCandidate
+        transaction.aiSourceMessageId = aiSourceMessageId
+        transaction.aiSourceItemId = aiSourceItemId
+        transaction.createdAt = Date()
+        transaction.updatedAt = Date()
+        try context.save()
+        return (transaction, true)
     }
 
     /// 查询同一分期组的所有交易

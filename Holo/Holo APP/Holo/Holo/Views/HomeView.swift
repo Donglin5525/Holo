@@ -1207,6 +1207,9 @@ struct HomeView: View {
             pendingFinanceAnalysisDeepLink = nil
             pendingFinanceEvidenceReviewDeepLink = link
             navigateToScreen(.finance)
+        case .receiptReview, .receiptBookingResult:
+            // 图片自动记账：先开财务模块，pendingTarget 由 FinanceView 消费弹复核/结果
+            navigateToScreen(.finance)
         case .addTransaction:
             showAddTransactionSheet = true
             deepLinkState.pendingTarget = nil

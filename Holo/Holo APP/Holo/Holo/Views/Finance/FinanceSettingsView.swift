@@ -13,6 +13,8 @@ struct FinanceSettingsView: View {
     @ObservedObject private var periodSettings = FinancePeriodSettings.shared
     @ObservedObject private var budgetSettings = FinanceBudgetSettings.shared
     @State private var showClearFinanceSheet = false
+    /// 图片自动记账待复核数量（§11 角标）
+    @State private var receiptDraftCount = 0
 
     var body: some View {
         NavigationStack {
@@ -49,6 +51,62 @@ struct FinanceSettingsView: View {
                 VStack(spacing: HoloSpacing.xl) {
                     // 记账周期模块
                     billingCycleSection
+
+                    // 图片自动记账（快捷指令入口，2026-09-14 方案 §11）
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("自动化")
+                                .font(.holoLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.bottom, HoloSpacing.sm)
+
+                        NavigationLink {
+                            ReceiptBookingSettingsView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "photo.badge.checkmark")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.holoPrimary)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.holoPrimary.opacity(0.1))
+                                    .clipShape(Circle())
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("图片自动记账")
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoTextPrimary)
+                                    Text("操作按钮一按，自动识别账户与项目")
+                                        .font(.caption)
+                                        .foregroundColor(.holoTextSecondary)
+                                }
+
+                                Spacer()
+
+                                // 待复核角标（§11）：存在待复核项时显示数量
+                                if receiptDraftCount > 0 {
+                                    Text("\(receiptDraftCount)")
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Capsule().fill(Color.orange.opacity(0.18)))
+                                        .foregroundStyle(Color.orange)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                            .padding(HoloSpacing.md)
+                            .background(Color.holoCardBackground)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onAppear {
+                        receiptDraftCount = ReceiptBookingResultStore.shared.loadDrafts().count
+                    }
 
                     // 预算模块
                     strictBudgetSection

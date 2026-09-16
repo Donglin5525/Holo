@@ -74,6 +74,9 @@ struct FinanceView: View {
     /// Cmd+F 触发计数：切到账本 Tab 并转发给 FinanceLedgerView 打开搜索
     @State private var searchTrigger: Int = 0
     @State private var deepLinkedTransaction: Transaction?
+    /// 图片自动记账深链（§25.3）：待复核直达 / 最近结果
+    @State private var receiptReviewDeepLink: ReceiptReviewDeepLinkID?
+    @State private var showReceiptBookingSettings = false
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -195,6 +198,20 @@ struct FinanceView: View {
             }
             .holoSheetWidth(.form)
         }
+        // 图片自动记账：待复核直达（§25.3）与最近结果
+        .sheet(item: $receiptReviewDeepLink, onDismiss: {
+            // 复核弹层整体关闭后兜底广播：确保账本/账户汇总与最新入账一致
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        }) { link in
+            ReceiptReviewListView(initialDraftID: link.id)
+                .holoSheetWidth(.form)
+        }
+        .sheet(isPresented: $showReceiptBookingSettings) {
+            NavigationStack {
+                ReceiptBookingSettingsView()
+            }
+            .holoSheetWidth(.form)
+        }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
         }
@@ -220,6 +237,21 @@ struct FinanceView: View {
             deepLinkState.pendingTarget = nil
         case .financeEvidenceReview(let link):
             evidenceReviewDeepLink = link
+            deepLinkState.pendingTarget = nil
+        case .receiptReview(let draftID):
+            // 草案可能已被处理/过期：不存在时明确提示，不开空页
+            if ReceiptBookingResultStore.shared.loadDrafts().contains(where: { $0.id == draftID }) {
+                receiptReviewDeepLink = ReceiptReviewDeepLinkID(id: draftID)
+            } else {
+                HoloToastCenter.shared.show(String(localized: "这条待复核已处理或已过期"), type: .info)
+            }
+            deepLinkState.pendingTarget = nil
+        case .receiptBookingResult(let resultID):
+            if ReceiptBookingResultStore.shared.loadResults().contains(where: { $0.id == resultID }) {
+                showReceiptBookingSettings = true
+            } else {
+                HoloToastCenter.shared.show(String(localized: "这条结果已过期清理"), type: .info)
+            }
             deepLinkState.pendingTarget = nil
         default:
             return

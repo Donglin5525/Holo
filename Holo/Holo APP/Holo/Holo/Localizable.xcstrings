@@ -593,16 +593,6 @@
         }
       }
     },
-    "%@ %@ %@ 元\n%@ · %@\n%@ · %@": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@ %2$@ %3$@ 元\n%4$@ · %5$@\n%6$@ · %7$@"
-          }
-        }
-      }
-    },
     "%@ %@%@": {
       "localizations": {
         "en": {
@@ -4638,6 +4628,7 @@
       }
     },
     "7 天睡眠": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -6789,6 +6780,28 @@
         }
       }
     },
+    "HoloAI 记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded by HoloAI"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HoloAI 记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HoloAI 記錄"
+          }
+        }
+      }
+    },
     "HoloAI 语音启动": {
       "extractionState": "stale",
       "localizations": {
@@ -8918,6 +8931,7 @@
       }
     },
     "三步开启（约 1 分钟）": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -9606,6 +9620,7 @@
       }
     },
     "不开通知也不影响记账：快捷指令运行完会直接显示结果。": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -23186,6 +23201,7 @@
       }
     },
     "固定项目": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -23298,6 +23314,7 @@
       }
     },
     "图片压缩去位置信息后上传识别，识别完即弃": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -23309,6 +23326,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "圖片壓縮去位置資訊後上傳識別，識別完即棄"
+          }
+        }
+      }
+    },
+    "图片原图存放在 iCloud，但下载失败。请检查网络后重试，或连上 Wi-Fi 再试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original is stored in iCloud, but the download failed. Check your connection and try again, or switch to Wi-Fi."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖片原圖存放在 iCloud，但下載失敗。請檢查網路後重試，或連上 Wi-Fi 再試"
+          }
+        }
+      }
+    },
+    "图片原图存放在 iCloud，但下载失败。请检查网络后重试，或连上 Wi-Fi 再试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original is stored in iCloud, but the download failed. Check your connection and try again, or switch to Wi-Fi."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖片原圖存放在 iCloud，但下載失敗。請檢查網路後重試，或連上 Wi-Fi 再試。"
           }
         }
       }
@@ -23688,6 +23737,7 @@
       }
     },
     "在支付成功页长按操作按钮，系统截屏交给 Holo 识别：金额、商户、日期、支付方式。金额状态可靠时自动入账并通知你；不可靠时不乱记，等你确认。": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -24392,7 +24442,6 @@
         }
       }
     },
-    "复核放弃": {},
     "复盘": {
       "localizations": {
         "en": {
@@ -24668,7 +24717,6 @@
         }
       }
     },
-    "失败：%@": {},
     "好": {
       "localizations": {
         "en": {
@@ -27028,6 +27076,28 @@
       }
     },
     "展开未完成的习惯": {},
+    "展开边栏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Sidebar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开边栏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展開邊欄"
+          }
+        }
+      }
+    },
     "岁 · 生日快乐": {
       "localizations": {
         "en": {
@@ -28420,6 +28490,7 @@
       }
     },
     "已开启": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -28643,7 +28714,6 @@
         }
       }
     },
-    "已拦截：%@": {},
     "已挂到其他项目的交易不会出现在这里": {
       "localizations": {
         "en": {
@@ -28884,8 +28954,6 @@
         }
       }
     },
-    "已放弃": {},
-    "已放弃，没有入账。": {},
     "已整理成更适合任务描述的表达": {
       "localizations": {
         "en": {
@@ -30818,6 +30886,7 @@
       }
     },
     "建议先用「安全时自动记账」；想每笔都先确认，可在指令的「处理方式」里改成「始终先确认」。": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -31703,6 +31772,7 @@
       }
     },
     "当前授权": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -31864,6 +31934,7 @@
       }
     },
     "当前设备不支持": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -34117,6 +34188,7 @@
     },
     "成功记录可在 10 分钟内撤销。": {},
     "成功记录可在 10 分钟内撤销；待复核证据 7 天后自动清理。": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -35533,6 +35605,28 @@
         }
       }
     },
+    "报告详情": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report Details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "報告詳情"
+          }
+        }
+      }
+    },
     "报告长这样（示例）": {
       "localizations": {
         "en": {
@@ -35984,6 +36078,7 @@
       }
     },
     "按图匹配": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -38246,6 +38341,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "收起詳細分析"
+          }
+        }
+      }
+    },
+    "收起边栏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Sidebar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起边栏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起邊欄"
           }
         }
       }
@@ -43077,6 +43194,7 @@
     },
     "最近结果": {},
     "最近自动记账结果": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -44167,6 +44285,28 @@
         }
       }
     },
+    "未指定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未指定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未指定"
+          }
+        }
+      }
+    },
     "未授权": {
       "localizations": {
         "en": {
@@ -45160,6 +45300,50 @@
         }
       }
     },
+    "本日支出": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today's Expenses"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本日支出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本日支出"
+          }
+        }
+      }
+    },
+    "本日收入": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today's Income"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本日收入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本日收入"
+          }
+        }
+      }
+    },
     "本月": {
       "localizations": {
         "en": {
@@ -45466,6 +45650,7 @@
       }
     },
     "本机暂存的识别证据，确认或放弃后删除": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -45718,6 +45903,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "條"
+          }
+        }
+      }
+    },
+    "来源": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來源"
           }
         }
       }
@@ -48861,7 +49068,6 @@
       }
     },
     "没有入账，请稍后重试。": {},
-    "没有入账，这笔还在 Holo 的待复核里。": {},
     "没有加入成功，可以再试一次": {},
     "没有加载出来": {
       "localizations": {
@@ -49078,6 +49284,7 @@
     },
     "没有识别到可记账内容": {},
     "没有需要复核的账。": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -49125,7 +49332,6 @@
         }
       }
     },
-    "没确认也不会丢：这笔会留在 Holo 的待复核里": {},
     "没认出可靠的金额，没有入账。截图仍在照片里，可以拍清楚些再试。": {
       "localizations": {
         "en": {
@@ -53347,6 +53553,7 @@
       }
     },
     "确认卡放弃": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -54734,6 +54941,7 @@
       }
     },
     "等待 Apple Health 数据": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -57275,7 +57483,6 @@
         }
       }
     },
-    "草案": {},
     "草稿": {},
     "草稿和暂存的证据图会被删除，且不会记账。": {},
     "获取标准 CSV 模板文件": {
@@ -57984,6 +58191,7 @@
       }
     },
     "计入账单": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -58900,7 +59108,6 @@
         }
       }
     },
-    "记账失败": {},
     "记账已保存": {
       "localizations": {
         "en": {
@@ -58949,7 +59156,6 @@
         }
       }
     },
-    "记账结果": {},
     "设为默认": {
       "localizations": {
         "en": {
@@ -59306,6 +59512,7 @@
     },
     "识别可靠的账会自动入账，有疑问的账才会出现在这里。": {},
     "识别后发通知": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -60143,7 +60350,6 @@
         }
       }
     },
-    "请先完成设置": {},
     "请先打开 Holo 创建账户": {
       "localizations": {
         "en": {
@@ -61313,7 +61519,6 @@
         }
       }
     },
-    "账户：%@": {},
     "账本": {
       "localizations": {
         "en": {
@@ -62352,6 +62557,28 @@
         }
       }
     },
+    "轻点左侧一笔交易，在这里核对金额、分类与账户": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap a transaction on the left to review its amount, category, and account here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻点左侧一笔交易，在这里核对金额、分类与账户"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕點左側一筆交易，在這裡核對金額、分類與帳戶"
+          }
+        }
+      }
+    },
     "轻点打开想法详情": {
       "extractionState": "stale",
       "localizations": {
@@ -63108,6 +63335,7 @@
       }
     },
     "近 7 天": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -66084,6 +66312,7 @@
       }
     },
     "这笔已经处理过了。": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -69298,6 +69527,7 @@
     },
     "需要你处理": {},
     "需要你确认的账": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -69346,6 +69576,7 @@
       }
     },
     "需要在系统设置中授权": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -69492,6 +69723,7 @@
       }
     },
     "非账单图片": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {

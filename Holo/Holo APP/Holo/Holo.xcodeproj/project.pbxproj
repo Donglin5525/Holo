@@ -320,6 +320,7 @@
 		F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */; };
 		F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */; };
 		F1AC00000000000000000FC4 /* FinanceProjectWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */; };
+		F1AC09090000000000000001 /* ReceiptBookingKernelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
 		F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDBA4E276B54BCF52A416D0 /* FlexibleQueryChatCardDataTests.swift */; };
@@ -684,6 +685,7 @@
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceProjectRepositoryTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceProjectWalkthroughUITests.swift; sourceTree = "<group>"; };
+		F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingKernelTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
 		F1FA0A000000000000000002 /* VisionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionStandaloneTests.swift; sourceTree = "<group>"; };
@@ -1297,6 +1299,7 @@
 				FA10D3C0D4E5F60718296003 /* Sync */,
 				2A7C5E9130B4D6F81C0A5562 /* Schedule */,
 				5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */,
+				F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */,
 				01FEFE4BD64B0BA4926A551E /* AI */,
 				F18A001B2C3D4E5F60718295 /* BillImport */,
 				C07E22030000000000000001 /* Calendar */,
@@ -1671,6 +1674,7 @@
 				E6E13FA916D361969B44678F /* InstallmentNoteSanitizerStandaloneTests.swift in Sources */,
 				45280B2121824FEFC0E7022D /* AIUserContextMessageBuilderStandaloneTests.swift in Sources */,
 				F1FA0A000000000000000001 /* VisionStandaloneTests.swift in Sources */,
+				F1AC09090000000000000001 /* ReceiptBookingKernelTests.swift in Sources */,
 				F40EF4AD4070679E31983D42 /* HoloAgentAnswerPresentationStandaloneTests.swift in Sources */,
 				C3B396F1371E49388FFE1755 /* HoloMetricSemanticStandaloneTests.swift in Sources */,
 				7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */,

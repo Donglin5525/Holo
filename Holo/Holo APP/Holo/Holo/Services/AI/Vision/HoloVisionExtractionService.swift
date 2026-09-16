@@ -32,11 +32,24 @@ struct HoloVisionExtractionResponse: Decodable {
     let understanding: HoloVisionUnderstanding
     /// 服务端护栏改写记录（观测用）
     let guards: [HoloVisionGuard]?
+    /// v2 自动化总闸（2026-09-14 完整方案 §26.2）：缺失一律按 false 处理
+    let automationPolicy: HoloVisionAutomationPolicy?
+}
+
+struct HoloVisionAutomationPolicy: Decodable {
+    let autoCommitAllowed: Bool?
+    let policyVersion: String?
 }
 
 struct HoloVisionUnderstanding: Decodable {
     let imageType: String
     let confidence: Double
+    // ---- v2 契约字段（2026-09-14 完整方案 §26.2）：全部可选，旧服务端缺字段 → 自动写资格由门禁判定 ----
+    let schemaVersion: Int?
+    let paymentStatus: String?
+    let paymentStatusOriginalText: String?
+    /// 后端 v1 起就有（护栏归一为 CNY/FOREIGN），旧客户端只是没解码
+    let currency: String?
     let summary: String?
     let merchant: String?
     let paidAt: String?
@@ -60,12 +73,29 @@ struct HoloVisionItem: Decodable {
     let amount: Double?
 }
 
+/// 字段级置信度（v2）：nil = 模型未提供 = 不可作为自动写依据（§26.2）
+struct HoloVisionFieldConfidence: Decodable {
+    let amount: Double?
+    let direction: Double?
+    let paymentStatus: Double?
+    let date: Double?
+    let merchant: Double?
+    let paymentChannel: Double?
+}
+
 struct HoloVisionTransaction: Decodable {
     /// "expense" | "income"
     let type: String?
     let amount: Double
     let note: String?
     let date: String?
+    // ---- v2 逐笔新增 ----
+    let amountOriginalText: String?
+    let confidence: HoloVisionFieldConfidence?
+    /// 分类语义候选（方案 §7）：分类最终匹配在 iOS 本地完成
+    let categoryCandidate: String?
+    let normalizedCategoryCandidate: String?
+    let semanticCategoryHint: String?
 
     var isIncome: Bool { type == "income" }
 }
@@ -187,29 +217,44 @@ final class HoloVisionExtractionService {
         let duplicateHints: [String]
         /// 支付通道匹配到的账户（拍板 6：确认后归位；nil = 落默认账户）
         let matchedAccount: Account?
+        /// 服务端护栏改写记录（门禁：出现护栏改写不得自动写）
+        let guards: [HoloVisionGuard]?
+        /// v2 自动化总闸（缺失 = false = 不得自动写）
+        let automationPolicy: HoloVisionAutomationPolicy?
     }
 
     private let apiClient = APIClient.shared
 
     /// 上传识别。调用方传原始图数据（内部走压缩管线）。
     /// 服务端 413（图片超限）时自动压得更小重试一次——用户只需看到结果，不该看到体积报错。
-    func extract(rawImageData: Data, caption: String?) async throws -> ExtractionOutcome {
+    /// - Parameter precompressedJPEG: 协调器已算过摘要的规范化 JPEG（幂等基准必须与上传字节一致）；
+    ///   传 nil 时内部压缩（聊天路径）。aggressive 重试始终重新压缩。
+    func extract(
+        rawImageData: Data,
+        caption: String?,
+        precompressedJPEG: Data? = nil
+    ) async throws -> ExtractionOutcome {
         do {
-            return try await runExtraction(rawImageData: rawImageData, caption: caption, aggressive: false)
+            return try await runExtraction(rawImageData: rawImageData, caption: caption, precompressedJPEG: precompressedJPEG, aggressive: false)
         } catch let error as APIError {
             guard case .httpError(let statusCode, _) = error, statusCode == 413 else {
                 throw error
             }
             do {
-                return try await runExtraction(rawImageData: rawImageData, caption: caption, aggressive: true)
+                return try await runExtraction(rawImageData: rawImageData, caption: caption, precompressedJPEG: nil, aggressive: true)
             } catch APIError.httpError(413, _) {
                 throw VisionError(userMessage: String(localized: "这张图太大了，处理不了。换一张小一点的试试。"))
             }
         }
     }
 
-    private func runExtraction(rawImageData: Data, caption: String?, aggressive: Bool) async throws -> ExtractionOutcome {
-        guard let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData, aggressive: aggressive) else {
+    private func runExtraction(
+        rawImageData: Data,
+        caption: String?,
+        precompressedJPEG: Data?,
+        aggressive: Bool
+    ) async throws -> ExtractionOutcome {
+        guard let jpeg = precompressedJPEG ?? HoloVisionImagePipeline.compressedJPEG(from: rawImageData, aggressive: aggressive) else {
             throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
         }
 
@@ -237,7 +282,9 @@ final class HoloVisionExtractionService {
             understanding: understanding,
             rejectionText: rejection,
             duplicateHints: hints,
-            matchedAccount: account
+            matchedAccount: account,
+            guards: response.guards,
+            automationPolicy: response.automationPolicy
         )
     }
 
@@ -314,26 +361,18 @@ final class HoloVisionExtractionService {
     }
 
     // MARK: 账户匹配（拍板 6：自动识别微信/支付宝，卡上可改）
+    // 匹配规则整体在 FinanceTransactionDraftResolver（方案 §27.2：移出为公共解析器），
+    // 这里只是聊天路径的薄壳；固定账户语义见 ReceiptBookingCoordinator。
 
     private func matchedAccount(for understanding: HoloVisionUnderstanding) -> Account? {
         guard let channel = understanding.paymentChannel, !channel.isEmpty else { return nil }
-        let accounts = FinanceRepository.shared.getAccounts()
-        guard !accounts.isEmpty else { return nil }
-
-        // 尾号优先：支付通道是 4 位数字时按账户名含尾号匹配
-        if let tail = channel.firstMatch(of: /\d{4}/)?.output {
-            if let hit = accounts.first(where: { $0.name.contains(String(tail)) == true }) {
-                return hit
-            }
+        switch FinanceTransactionDraftResolver.shared.resolveAccount(channel: channel, choice: .automatic) {
+        case .resolved(let id, _, let usedDefault):
+            // 落默认账户时返回 nil：聊天确认卡的账户行只在「识别出更合适账户」时高亮（既有口径）
+            return usedDefault ? nil : FinanceRepository.shared.findAccount(by: id)
+        case .fixedUnavailable, .noAccountAvailable:
+            return nil
         }
-        // 通道名关键词：账户名含「微信」「支付宝」「现金」等
-        let keywords = [String(localized: "微信"), String(localized: "支付宝"), String(localized: "现金")]
-        for keyword in keywords where channel.contains(keyword) {
-            if let hit = accounts.first(where: { $0.name.contains(keyword) == true }) {
-                return hit
-            }
-        }
-        return nil
     }
 
     // MARK: 防重软检测（拍板 9：只提示不阻断，借鉴 BillDuplicateDetector 口径）

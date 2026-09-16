@@ -27,6 +27,11 @@ struct FinanceEvidenceReviewDeepLink: Equatable {
     var sourceEvidenceID: String?
 }
 
+/// 图片自动记账复核深链的 sheet(item:) 包装（UUID 不满足 Identifiable）
+struct ReceiptReviewDeepLinkID: Equatable, Identifiable {
+    var id: UUID
+}
+
 extension DeepLinkState {
     /// 报告证据「点按核对」→ 账单复核页的统一跳转入口。
     /// 聊天页 / 收藏夹等所有报告入口共用，避免 DeepLink 构造漂移。
@@ -77,6 +82,10 @@ enum DeepLinkTarget: Equatable {
     case memoryGallery(focusNewMemories: Bool)
     /// 精准打开指定洞察：由 ChatView 消费，在聊天流直接落成该洞察的回放卡片
     case memoryInsight(insightId: UUID)
+    /// 图片自动记账：直达指定待复核项（§25.3，通知点击进入；FinanceView 消费）
+    case receiptReview(draftID: UUID)
+    /// 图片自动记账：打开最近结果（设置页结果区；FinanceView 消费）
+    case receiptBookingResult(resultID: UUID)
 }
 
 /// Deep Link 状态管理器

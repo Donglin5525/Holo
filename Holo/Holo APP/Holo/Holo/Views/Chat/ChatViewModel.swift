@@ -703,14 +703,16 @@ final class ChatViewModel: ObservableObject {
         currentTask = Task { [weak self] in
             guard let self = self else { return }
             do {
-                let outcome = try await HoloVisionExtractionService.shared.extract(
+                // 公共协调器抽取阶段（2026-09-14 完整方案 §27.2）：压缩/摘要/识别/账户解析一条链，
+                // 聊天不再自己调视觉服务；拒识与防重的展示文案保持既有体验
+                let preparation = try await ReceiptBookingCoordinator.shared.prepareVisionExtraction(
                     rawImageData: rawImageData,
                     caption: caption.isEmpty ? nil : caption
                 )
                 try Task.checkCancellation()
 
                 // 拒识分流：资金流转/外币/清单/未支付/无关/低置信 → 诚实拒识气泡
-                if let rejection = outcome.rejectionText {
+                if let rejection = preparation.rejectionText {
                     self.chatRepo?.finalizeMessage(
                         aiMessageId,
                         finalContent: rejection,
@@ -725,16 +727,16 @@ final class ChatViewModel: ObservableObject {
                 }
 
                 // 防重软提示（拍板 9：只提示不阻断），独立消息不入卡片流
-                for hint in outcome.duplicateHints {
+                for hint in preparation.duplicateHints {
                     _ = chatRepo.addMessage(role: "assistant", content: hint)
                 }
-                if let account = outcome.matchedAccount {
-                    self.visionAccountByMessageID[aiMessageId] = account.id
+                if let accountID = preparation.matchedAccountID {
+                    self.visionAccountByMessageID[aiMessageId] = accountID
                 }
 
                 // 第二段：理解单拼自然语言 → 现有 intent 管道（方案 §2 零改动承诺）
                 let stage2 = HoloVisionExtractionService.shared.stage2Text(
-                    for: outcome.understanding,
+                    for: preparation.understanding,
                     caption: caption.isEmpty ? nil : caption
                 )
                 let userContext = await UserContextBuilder.shared.buildContext()
@@ -2466,10 +2468,20 @@ final class ChatViewModel: ObservableObject {
                     ? (currentItems.intent == .recordIncome ? .recordIncome : .recordExpense)
                     : currentItems.intent
 
+                // AI 来源键 + 截图识别账户注入执行数据（2026-09-14 完整方案 §24.4/§27.2）：
+                // 交易、AI 来源标记、目标账户在同一次 save 落库，不再「先建卡再补标记、确认后再搬账户」；
+                // 路由期间被杀也能凭来源键对账（ChatMessageRepository.reconcileInterruptedConfirmations）
+                var routeData = currentRenderData
+                routeData["aiSourceMessageId"] = message.id.uuidString
+                routeData["aiSourceItemId"] = itemId
+                if let accountID = self.visionAccountByMessageID[message.id] {
+                    routeData["visionAccountId"] = accountID.uuidString
+                }
+
                 let result = ParsedResult(
                     intent: intent,
                     confidence: 1,
-                    extractedData: currentRenderData,
+                    extractedData: routeData,
                     needsClarification: false,
                     clarificationQuestion: nil,
                     responseText: nil
@@ -2490,26 +2502,6 @@ final class ChatViewModel: ObservableObject {
                 }
                 if let sub = routeResult.matchedSubCategory {
                     confirmedRenderData["subCategory"] = sub
-                }
-
-                // 写入 AI 来源标记 + 确认流程来源（对账依据）
-                if let txId = routeResult.transactionId {
-                    self.markTransactionAsAICreated(
-                        txId,
-                        candidate: currentRenderData["categoryCandidate"] ?? currentRenderData["note"],
-                        sourceMessageId: message.id.uuidString,
-                        sourceItemId: itemId
-                    )
-                    // 截图识别账户归位（拍板 6）：识别出的支付通道匹配到更合适的账户时，
-                    // 把交易从默认账户搬过去；只换 account 关系，不动分类与统计口径
-                    if let accountId = self.visionAccountByMessageID[message.id] {
-                        Task {
-                            try? await FinanceRepository.shared.moveTransactionToAccount(
-                                transactionId: txId,
-                                accountId: accountId
-                            )
-                        }
-                    }
                 }
 
                 guard let currentIndex = currentBatch.items.firstIndex(where: { $0.id == itemId }) else {
