@@ -31,3 +31,16 @@ nonisolated enum SubtaskParser {
         return limited.count >= 2 ? limited : []
     }
 }
+
+/// 提醒时间槽位解析器
+/// 汇总 LLM 返回的用户指定提醒时间：reminderDates（逗号分隔多个）+ reminderDate（单个，兼容）
+nonisolated enum ReminderSlotParser {
+    static func parse(from data: [String: String]) -> [String] {
+        let multi = SubtaskParser.parse(data["reminderDates"], allowsSingle: true)
+        let single = data["reminderDate"].map { [$0] } ?? []
+        var seen = Set<String>()
+        return (multi + single)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+}

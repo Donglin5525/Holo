@@ -106,6 +106,11 @@ enum NLDateParser {
         if text.contains("今早") { return startOfToday }
         if text.contains("明早") { return calendar.date(byAdding: .day, value: 1, to: startOfToday) }
 
+        // 绝对日期（「9月20日」「2026年9月20日」「10月3号」）
+        if let absolute = resolveAbsoluteDay(text, referenceDate: referenceDate, calendar: calendar) {
+            return absolute
+        }
+
         // 星期（长词优先）
         let weekdayMap: [(keyword: String, weekday: Int)] = [
             ("星期一", 2), ("周一", 2),
@@ -149,6 +154,46 @@ enum NLDateParser {
         }
 
         return calendar.date(byAdding: .day, value: offset, to: startOfToday)!
+    }
+
+    /// 解析「M月d日」「yyyy年M月d日」绝对日期
+    /// 无年份时取未来最近的一个：本年该日期已过去则进位下一年（过期截止日期无意义）
+    private static func resolveAbsoluteDay(_ text: String, referenceDate: Date, calendar: Calendar) -> Date? {
+        let pattern = "(?:(\\d{2,4})\\s*年)?\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*[日号]"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else {
+            return nil
+        }
+
+        func captureGroup(_ index: Int) -> Int? {
+            guard let range = Range(match.range(at: index), in: text) else { return nil }
+            return Int(String(text[range]))
+        }
+
+        let referenceComponents = calendar.dateComponents([.year], from: referenceDate)
+        let year = captureGroup(1) ?? referenceComponents.year
+        guard let month = captureGroup(2), let day = captureGroup(3),
+              (1...12).contains(month), (1...31).contains(day) else { return nil }
+
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+
+        // Calendar 对非法组合（如 2 月 30 日）会进位产出错误日期，回读校验拦截
+        guard let candidate = calendar.date(from: components),
+              calendar.component(.month, from: candidate) == month,
+              calendar.component(.day, from: candidate) == day else {
+            return nil
+        }
+
+        // 无显式年份且已是过去日期 → 滚到下一年（「1月5日」在 9 月说指来年 1 月）
+        if match.range(at: 1).location == NSNotFound,
+           candidate < calendar.startOfDay(for: referenceDate),
+           let nextYear = calendar.date(byAdding: .year, value: 1, to: candidate) {
+            return nextYear
+        }
+        return candidate
     }
 
     // MARK: - Time Extraction

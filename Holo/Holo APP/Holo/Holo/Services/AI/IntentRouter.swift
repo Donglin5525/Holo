@@ -452,10 +452,19 @@ final class IntentRouter {
         let priority = parsePriority(data["priority"])
         let checkItemTitles = SubtaskParser.parse(data["subtasks"])
 
-        // 有具体时间时，自动添加提前 15 分钟提醒
-        let reminders: Set<TaskReminder>? = (hasTime && dueDate != nil)
-            ? [TaskReminder(offsetMinutes: 15)]
-            : nil
+        // 用户明确指定的提醒时间（可多个，逗号分隔）→ 绝对模式提醒；
+        // 未指定但有截止时间 → 默认提前 15 分钟
+        let userReminders = ReminderSlotParser.parse(from: data)
+            .compactMap { parseDate(from: $0) }
+            .map { TaskReminder(triggerDate: $0) }
+        let reminders: Set<TaskReminder>?
+        if !userReminders.isEmpty {
+            reminders = Set(userReminders)
+        } else {
+            reminders = (hasTime && dueDate != nil)
+                ? [TaskReminder(offsetMinutes: 15)]
+                : nil
+        }
 
         if originalInput != nil && dueDate != nil && hasTime {
             logger.info("任务时间解析（含兜底）：dueDate=\(dueDate.map { String(describing: $0) } ?? "nil") hasTime=\(hasTime)")

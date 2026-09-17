@@ -2044,7 +2044,12 @@ final class ChatViewModel: ObservableObject {
                     clarificationQuestion: nil,
                     responseText: nil
                 )
-                let routeResult = try await IntentRouter.shared.route(result)
+                // 原话兜底：Coordinator 生成确认卡时存进 renderData，
+                // 让 IntentRouter 在 LLM 漏填时间/日期时能用原文解析（与立即执行路径对齐）
+                let routeResult = try await IntentRouter.shared.route(
+                    result,
+                    originalInput: currentItems.renderData?["originalInput"]
+                )
                 await self.finalizeTaskConfirmation(
                     chatRepo: chatRepo, message: message, itemId: itemId,
                     currentBatch: currentBatch, renderData: renderData,

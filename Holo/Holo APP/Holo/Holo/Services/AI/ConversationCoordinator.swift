@@ -514,6 +514,9 @@ final class ConversationCoordinator {
 
                 renderData["confirmationStatus"] = "pending"
                 renderData["pendingKind"] = "task"
+                // 透传原话：确认执行（confirmPendingTask → route）无法拿到对话上下文，
+                // 存进 renderData 让 IntentRouter 的原文兜底解析（漏填时间/日期时）仍然生效
+                renderData["originalInput"] = text
                 executionItems.append(
                     AIExecutionItem(
                         id: UUID().uuidString,

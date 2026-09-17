@@ -34,6 +34,7 @@ struct TaskDatePickerSheet: View {
 
     @State private var showEndDatePicker = false
     @State private var newAbsoluteReminderId: UUID? = nil
+    @State private var showReminderDetail = false
 
     // MARK: - Body
 
@@ -364,8 +365,14 @@ struct TaskDatePickerSheet: View {
 
     // MARK: - Reminder Section
 
-    private var reminderSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// 提醒区头部行：有截止日且有已设提醒时可点开明细弹窗——
+    /// 绝对提醒时刻（AI 建的多提醒）不在预设 chips 里，主面板上不可见，
+    /// 用户只能看到计数徽标；明细弹窗承担「看得见 + 可删除」
+    private var reminderHeaderRow: some View {
+        let showsDetailEntry = hasDueDate && !selectedReminders.isEmpty
+        return Button {
+            showReminderDetail = true
+        } label: {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "bell")
                     .font(.system(size: 16, weight: .medium))
@@ -386,7 +393,26 @@ struct TaskDatePickerSheet: View {
                 }
 
                 Spacer()
+
+                if showsDetailEntry {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                }
             }
+            // contentShape 必须在 label 内：挂在外层会让整行点击识别失效（真机实锤坑）
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!showsDetailEntry)
+        .sheet(isPresented: $showReminderDetail) {
+            ReminderDetailSheet(reminders: $selectedReminders)
+        }
+    }
+
+    private var reminderSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            reminderHeaderRow
 
             if hasDueDate {
                 // 有截止日：相对预设（截止前 N 分钟）
@@ -837,6 +863,110 @@ struct TaskDatePickerSheet: View {
         }
         .presentationDetents([.height(400)])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - 提醒明细弹窗
+
+/// 已设提醒的逐项明细：绝对提醒（AI 建/自定义时刻）显示完整触发时间，
+/// 相对提醒显示提前量；每条可删除。
+/// 独立 struct（视图树类型边界），不复用宿主的泛型参数
+private struct ReminderDetailSheet: View {
+    @Binding var reminders: Set<TaskReminder>
+    @Environment(\.dismiss) private var dismiss
+
+    /// 绝对项按触发时间升序在前，相对项按提前量从远到近在后
+    private var sortedReminders: [TaskReminder] {
+        let absolute = reminders
+            .filter { $0.isAbsolute }
+            .sorted { ($0.triggerDate ?? .distantPast) < ($1.triggerDate ?? .distantPast) }
+        let relative = reminders
+            .filter { !$0.isAbsolute }
+            .sorted { $0.offsetMinutes > $1.offsetMinutes }
+        return absolute + relative
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if sortedReminders.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "bell.slash")
+                            .font(.system(size: 28))
+                            .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        Text("暂无提醒")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        Section {
+                            ForEach(sortedReminders) { reminder in
+                                reminderRow(reminder)
+                            }
+                        } footer: {
+                            Text("「独立提醒」按设定时刻准时提醒，与截止时间无关；其余为截止时间前的提前提醒。")
+                                .font(.holoCaption)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("提醒明细")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func reminderRow(_ reminder: TaskReminder) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: reminder.isAbsolute ? "alarm" : "bell")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.holoPrimary)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(displayTitle(for: reminder))
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text(reminder.isAbsolute ? "独立提醒" : "截止时间前提醒")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                reminders.remove(reminder)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// 绝对项带星期的完整时刻（与任务详情「时间」行口径一致），相对项沿用模型文案
+    private func displayTitle(for reminder: TaskReminder) -> String {
+        guard let date = reminder.triggerDate else {
+            return reminder.displayTitle
+        }
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMdEHHmm")
+        return formatter.string(from: date)
     }
 }
 

@@ -117,6 +117,7 @@ struct TaskChatCard: View {
                             Text(footerText)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.holoTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         Spacer()
@@ -183,11 +184,17 @@ struct TaskChatCard: View {
     // MARK: - Formatting
 
     private var footerText: String {
-        if let reminderDate = data.reminderDate, !reminderDate.isEmpty {
-            return String(localized: "提醒：\(reminderDate)")
-        }
+        // 截止日期与提醒都要可见：确认前用户靠这行核对识别结果，
+        // 只有提醒没有日期时（旧缺陷）用户无从发现日期识别错误
+        var parts: [String] = []
         if let dueDate = data.dueDate, !dueDate.isEmpty {
-            return String(localized: "日期：\(dueDate)")
+            parts.append(String(localized: "日期：\(dueDate)"))
+        }
+        if !data.reminderDates.isEmpty {
+            parts.append(String(localized: "提醒：\(data.reminderDates.joined(separator: "、"))"))
+        }
+        if !parts.isEmpty {
+            return parts.joined(separator: " · ")
         }
         return data.requiresConfirmation ? String(localized: "待确认") : String(localized: "今天")
     }

@@ -122,6 +122,7 @@ nonisolated enum ChatCardData: Equatable {
                 description: data["description"],
                 subtasks: SubtaskParser.parse(data["subtasks"]),
                 reminderDate: data["reminderDate"],
+                reminderDates: ReminderSlotParser.parse(from: data),
                 requiresConfirmation: ["pending", "confirming", "failed"]
                     .contains(data["confirmationStatus"] ?? ""),
                 repeatEnabled: data["repeatEnabled"] == "true",
@@ -608,6 +609,8 @@ nonisolated struct TaskCardData: Equatable {
     let description: String?
     let subtasks: [String]
     let reminderDate: String?
+    /// 多个提醒时间（用户一句话里要多个提醒时，如「头天晚上+当天早上」）
+    var reminderDates: [String] = []
     let requiresConfirmation: Bool
     let repeatEnabled: Bool
     let repeatType: String?
@@ -641,6 +644,7 @@ nonisolated struct TaskCardData: Equatable {
         description: String? = nil,
         subtasks: [String] = [],
         reminderDate: String? = nil,
+        reminderDates: [String] = [],
         requiresConfirmation: Bool = false,
         repeatEnabled: Bool = false,
         repeatType: String? = nil,
@@ -664,6 +668,9 @@ nonisolated struct TaskCardData: Equatable {
         self.description = description
         self.subtasks = subtasks
         self.reminderDate = reminderDate
+        self.reminderDates = reminderDates.isEmpty
+            ? (reminderDate.map { [$0] } ?? [])
+            : reminderDates
         self.requiresConfirmation = requiresConfirmation
         self.repeatEnabled = repeatEnabled
         self.repeatType = repeatType
