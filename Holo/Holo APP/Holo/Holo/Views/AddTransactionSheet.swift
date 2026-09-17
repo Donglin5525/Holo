@@ -195,9 +195,6 @@ struct AddTransactionSheet: View {
         self.pendingPrefill = pendingPrefill
         self.presetFinanceProject = presetFinanceProject
         self.onSave = onSave
-        // 从日期格进来（带预设日期）时键盘默认收起：打开即完整表单，预填日期可直接核对；
-        // 其余入口日期固定是今天，保持键盘先行的快速记账路径
-        _showNumericKeypad = State(initialValue: presetDate == nil)
     }
 
     /// 键盘布局（5行4列，支持四则运算）
@@ -437,6 +434,7 @@ struct AddTransactionSheet: View {
                     }
                 }
                 .disabled(!canSave || isSaving)
+                .accessibilityIdentifier("transactionSheet.saveButton")
             }
             .frame(maxWidth: .infinity)
         }
