@@ -56,7 +56,6 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         context.coordinator.syncRenderInputs(
             nodes: nodes,
             deletedReferenceIds: deletedReferenceIds,
-            lineLimit: lineLimit,
             allowsTokenInteraction: allowsTokenInteraction
         )
 
@@ -83,7 +82,6 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         let inputsChanged = sizeCategoryChanged || !context.coordinator.hasSameRenderInputs(
             nodes: nodes,
             deletedReferenceIds: deletedReferenceIds,
-            lineLimit: lineLimit,
             allowsTokenInteraction: allowsTokenInteraction
         )
         guard inputsChanged else { return }
@@ -99,7 +97,6 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         context.coordinator.syncRenderInputs(
             nodes: nodes,
             deletedReferenceIds: deletedReferenceIds,
-            lineLimit: lineLimit,
             allowsTokenInteraction: allowsTokenInteraction
         )
     }
@@ -133,10 +130,12 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onTokenTap: (HoloContentNode) -> Void
         var lastSizeCategory: ContentSizeCategory?
-        // 渲染输入缓存：nodes 等输入不变时跳过 updateUIView 的全量重建
+        // 渲染输入缓存：nodes 等输入不变时跳过 updateUIView 的全量重建。
+        // lineLimit 刻意不入键：attributedText 内容与行数无关，行数只是
+        // textContainer 属性（updateUIView 每次同步），把卡片预览的展开/收起
+        // 挡在全量重建之外，切换只触发一次 UIKit reflow。
         private var lastRenderedNodes: [HoloContentNode] = []
         private var lastDeletedReferenceIds: Set<UUID> = []
-        private var lastLineLimit: Int?
         private var lastAllowsTokenInteraction: Bool?
 
         init(onTokenTap: @escaping (HoloContentNode) -> Void) {
@@ -146,24 +145,20 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         func hasSameRenderInputs(
             nodes: [HoloContentNode],
             deletedReferenceIds: Set<UUID>,
-            lineLimit: Int?,
             allowsTokenInteraction: Bool
         ) -> Bool {
             lastRenderedNodes == nodes
                 && lastDeletedReferenceIds == deletedReferenceIds
-                && lastLineLimit == lineLimit
                 && lastAllowsTokenInteraction == allowsTokenInteraction
         }
 
         func syncRenderInputs(
             nodes: [HoloContentNode],
             deletedReferenceIds: Set<UUID>,
-            lineLimit: Int?,
             allowsTokenInteraction: Bool
         ) {
             lastRenderedNodes = nodes
             lastDeletedReferenceIds = deletedReferenceIds
-            lastLineLimit = lineLimit
             lastAllowsTokenInteraction = allowsTokenInteraction
         }
 
@@ -231,19 +226,27 @@ struct ReadOnlyRichTextPreview: View {
 
     @State private var availableWidth: CGFloat = 0
     @State private var isOverflowing = false
+    // 展开态封闭在本组件内部：外层卡片（ThoughtContentBody 只依赖内容字符串）
+    // 不感知这个状态，父级状态型重算依旧整体跳过正文；卡片滚出 LazyVStack
+    // 即销毁，展开态随之复位，无驻留成本。
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ReadOnlyRichTextView(
                 nodes: nodes,
                 onTokenTap: { _ in },
-                lineLimit: lineLimit,
+                lineLimit: isExpanded ? nil : lineLimit,
                 allowsTokenInteraction: false
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 GeometryReader { proxy in
+                    // 测宽用的透明占位必须禁命中：SwiftUI 的 Color.clear 默认可命中，
+                    // 触摸穿透上方禁交互的 UITextView 后会被它截胡，正文点击（Button
+                    // 命中链）整体失灵（2026-09-17 探针实证；同纪念日/报告收藏事故根因）
                     Color.clear
+                        .allowsHitTesting(false)
                         .onAppear {
                             updateWidth(proxy.size.width)
                         }
@@ -254,14 +257,24 @@ struct ReadOnlyRichTextPreview: View {
             )
 
             if isOverflowing {
-                HStack(spacing: 3) {
-                    Text("点击查看全文")
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                // 展开入口是独立 Button：嵌在外层正文 Button（进编辑页）的 label
+                // 内，SwiftUI 内层 Button 优先命中，点这里原地展开、点正文其余
+                // 区域仍进编辑页。
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(isExpanded ? String(localized: "收起") : String(localized: "点击查看全文"))
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .font(.holoCaption)
+                    .foregroundColor(.holoPrimary)
                 }
-                .font(.holoCaption)
-                .foregroundColor(.holoPrimary)
-                .accessibilityHidden(true)
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
             }
         }
         .onAppear {
@@ -289,6 +302,8 @@ struct ReadOnlyRichTextPreview: View {
     }
 
     private func updateOverflow() {
+        // 恒按收起态行数判定：isOverflowing = 内容超过预览行数上限，
+        // 展开态不需要复判（按钮文案由 isExpanded 分流）。
         guard availableWidth > 0, lineLimit > 0 else { return }
         isOverflowing = ReadOnlyRichTextLayoutMetrics.exceedsLineLimit(
             nodes: nodes,
