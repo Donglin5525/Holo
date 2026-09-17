@@ -612,20 +612,12 @@ struct MarkdownTextView: UIViewRepresentable {
             onCaretRectChange?(rect)
         }
 
-        /// 是否已接管系统编辑菜单交互
-        private var didReplaceEditMenuInteraction = false
-
-        func textViewDidBeginEditing(_ textView: UITextView) {
-            // 用自定义 delegate 的交互替换系统编辑菜单交互：
-            // 选区为完整 Token 时返回空菜单（含 AutoFill 等不走 canPerformAction 的注入项）
-            if #available(iOS 16.0, *), !didReplaceEditMenuInteraction {
-                didReplaceEditMenuInteraction = true
-                for interaction in textView.interactions where interaction is UIEditMenuInteraction {
-                    textView.removeInteraction(interaction)
-                }
-                textView.addInteraction(UIEditMenuInteraction(delegate: self))
-            }
-        }
+        // 编辑菜单用系统原生长按流程（flomo 同款：长按选中即弹 复制/剪切/粘贴）。
+        // 2026-07 曾在此处把系统 UIEditMenuInteraction 换成自定义 delegate 的实例
+        // （治 Token 误弹自动填充），iOS 26 上该替换让整个选字菜单再也弹不出来
+        // （真机「选中文字后复制粘贴弹不出来」事故根因）；Token 场景已由
+        // canPerformAction 过滤 + writingToolsBehavior/.none + inputAssistantItem
+        // 清空三道闸兜住，不再需要替换。
 
         func textViewDidEndEditing(_ textView: UITextView) {
             activeTrigger = nil
@@ -3510,70 +3502,5 @@ private final class SelfSizingTextView: UITextView {
         }
 
         super.paste(sender)
-    }
-}
-
-// MARK: - UIEditMenuInteractionDelegate（选区编辑菜单兜底）
-
-@available(iOS 16.0, *)
-extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
-
-    /// 选区编辑菜单：
-    /// - 完整 Token 选区 → 返回空菜单（与自定义 Token 菜单互斥）
-    /// - 普通文字选区 → 系统菜单（复制/剪切等）+ 追加「转为任务」
-    func editMenuInteraction(
-        _ interaction: UIEditMenuInteraction,
-        menuFor configuration: UIEditMenuConfiguration,
-        suggestedActions: [UIMenuElement]
-    ) -> UIMenu? {
-        guard let textView = interaction.view as? UITextView else { return nil }
-        let selection = textView.selectedRange
-        guard selection.length > 0 else { return nil }
-
-        let isTokenSelection = MarkdownTextView.tokenRanges(in: textView.attributedText).contains {
-            $0.location == selection.location && $0.length == selection.length
-        }
-        if isTokenSelection {
-            let isTaskMarker = MarkdownTextView.tokenRanges(in: textView.attributedText).contains { range in
-                guard range.location == selection.location,
-                      range.length == selection.length,
-                      let node = MarkdownTextView.makeTokenNode(
-                          from: textView.attributedText.attributes(at: range.location, effectiveRange: nil)
-                      ) else { return false }
-                if case .taskMark = node { return true }
-                return false
-            }
-            guard !isTaskMarker else {
-                // 任务附件没有独立正文，不能让系统复制出空字符串或 U+FFFC 占位符。
-                return UIMenu(children: [])
-            }
-
-            // 完整引用/标签仍提供复制；移除关系走点击 Token 后的 Holo 操作菜单。
-            let copyAction = UIAction(title: String(localized: "复制"), image: UIImage(systemName: "doc.on.doc")) { [weak textView] _ in
-                textView?.copy(nil)
-            }
-            return UIMenu(children: [copyAction])
-        }
-
-        // 在菜单构建时立刻捕获选区文字（闭包执行时 selectedRange 可能已被系统改变）
-        guard let attrSubstring = textView.attributedText?.attributedSubstring(from: selection),
-              !MarkdownTextView.visiblePlainText(
-                  from: MarkdownTextView.serializeNodes(from: attrSubstring)
-              ).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return UIMenu(children: suggestedActions)
-        }
-        let capturedText = MarkdownTextView.visiblePlainText(
-            from: MarkdownTextView.serializeNodes(from: attrSubstring)
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-        let visibleSelection = MarkdownTextView.visibleRange(
-            forStorageRange: selection,
-            in: textView.attributedText ?? NSAttributedString()
-        ) ?? selection
-
-        // 普通选区：在系统建议菜单后追加「转为任务」
-        let convertAction = UIAction(title: String(localized: "转为任务"), image: UIImage(systemName: "text.badge.checkmark")) { [weak self] _ in
-            self?.onConvertSelection?(capturedText, visibleSelection)
-        }
-        return UIMenu(children: suggestedActions + [convertAction])
     }
 }

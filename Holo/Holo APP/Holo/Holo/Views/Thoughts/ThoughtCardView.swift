@@ -165,14 +165,6 @@ struct ThoughtCardView: View {
                         if let onNavigate {
                             Button(String(localized: "编辑")) { onNavigate() }
                         }
-                        // 复制保底入口：收起态/短文没有选字入口，一键拷贝全文
-                        Button(String(localized: "拷贝正文")) {
-                            UIPasteboard.general.string = MarkdownTextView.accessibilityText(
-                                richJSON: thought.richContentJSON,
-                                fallbackPlainText: thought.content
-                            )
-                            HapticManager.light()
-                        }
                         Button(String(localized: "生成分享卡")) {
                             pendingMenuAction = .shareCard
                             showActionSheet = false
