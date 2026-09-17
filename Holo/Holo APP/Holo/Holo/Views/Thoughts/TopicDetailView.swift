@@ -166,10 +166,8 @@ struct TopicDetailView: View {
                 }
             }
             .fullScreenCover(item: $selectedThoughtId) { thoughtId in
-                ThoughtDetailView(
-                    thoughtId: thoughtId,
-                    thoughtRepository: ThoughtRepository(),
-                    showsDismissButton: true
+                ThoughtEditorView(
+                    editingThoughtId: thoughtId
                 )
                 .holoContentColumn()
             }

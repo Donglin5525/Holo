@@ -429,12 +429,13 @@ struct HomeView: View {
             }
         }
         // Deep Link / 小组件 - 记录想法
-        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容。
+        // 显式 onSave: 防止 trailing closure 绑到编辑器的其他可选闭包参数。
         .fullScreenCover(isPresented: $showThoughtEditor) {
             LazyView {
-                ThoughtEditorView {
+                ThoughtEditorView(onSave: {
                     NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-                }
+                })
                 .holoContentColumn()
             }
         }

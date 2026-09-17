@@ -25,7 +25,7 @@ let dynamicHorizontalChipSources = [
     "Holo/Holo APP/Holo/Holo/Views/AddTransaction/TransactionCategoryGrid.swift",
     "Holo/Holo APP/Holo/Holo/Views/Chat/QuickActionBar.swift",
     "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtCardView.swift",
-    "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtDetailView.swift",
+    "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtReferenceListView.swift",
     "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtEditorView.swift",
     "Holo/Holo APP/Holo/Holo/Views/MemoryGallery/Calendar/Detail/CalendarEventDetailSheet.swift"
 ]

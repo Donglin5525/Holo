@@ -19,6 +19,9 @@ private enum ThoughtLog {
     static func error(_ message: String, _ error: String) {
         logger.error("\(message): \(error)")
     }
+    static func info(_ message: String) {
+        logger.info("\(message)")
+    }
 }
 
 // MARK: - ThoughtEditorView
@@ -30,13 +33,19 @@ struct ThoughtEditorView: View {
 
     @Environment(\.dismiss) var dismiss
     private let thoughtRepository = ThoughtRepository()
+    /// 所属主题的查询与修改（「移入主题」就近使用，与主仓储同上下文）
+    private let topicRepository = TopicRepository()
 
     /// 保存完成回调
     var onSave: (() -> Void)?
     /// 编辑模式（传入已有想法 ID）
     var editingThoughtId: UUID? = nil
-    /// 由列表双击直达编辑时自动聚焦正文；从详情页菜单进入仍保持阅读优先。
+    /// 由列表双击直达编辑时自动聚焦正文；点卡片进入编辑器仍保持阅读优先。
     var autoFocusExistingThought: Bool = false
+    /// 从卡片「待确认」徽章进入时滚动到 AI 归类确认区（长笔记确认位在首屏之外）
+    var focusAIConfirmation: Bool = false
+    /// 非-nil 即宽屏右栏内联形态：完成键收起右栏而非关闭弹层，边缘右滑停用。
+    var onRequestClose: (() -> Void)? = nil
 
     // MARK: - Form State
     @State private var content: String = ""
@@ -60,8 +69,8 @@ struct ThoughtEditorView: View {
     @State private var initialRichJSON: String? = nil
     /// 候选面板数据层
     @StateObject private var suggestionViewModel = SuggestionPanelViewModel()
-    /// 「查看记录」跳转目标
-    @State private var navigateToThoughtId: UUID? = nil
+    /// 「查看记录」要打开的引用想法（sheet 打开对方编辑器）
+    @State private var viewReferenceThoughtId: UUID? = nil
 
     // MARK: - UI State
     @State private var showVoiceInput: Bool = false
@@ -81,6 +90,29 @@ struct ThoughtEditorView: View {
     // MARK: - 转为任务
     /// 提取确认面板的参数（用 item 模式确保弹窗拿到的参数是一次性写好的、自洽的）
     @State private var taskExtractionRequest: TaskExtractionRequest? = nil
+
+    // MARK: - 「…」菜单（承接原详情页能力）
+    /// 分享卡面板
+    @State private var showShareCard: Bool = false
+    /// 移入主题选择器
+    @State private var showTopicPicker: Bool = false
+    /// 引用关系列表（引用 / 被引用）
+    @State private var showReferenceList: Bool = false
+    /// 删除想法二次确认
+    @State private var showDeleteConfirm: Bool = false
+    /// 整理状态（决定「重新整理」是否显示；随编辑数据一并加载）
+    @State private var organizedStatus: String? = nil
+    /// 重新整理节流（防连点重复入队消耗配额）
+    @State private var retryInFlight: Bool = false
+    /// 已删除当前想法：onDisappear 的兜底保存必须跳过，否则删除后凭内容重建一条
+    @State private var didDeleteCurrentThought: Bool = false
+    /// 编辑数据是否加载完成（「待确认」滚动锚点等布局后动作的触发时机）
+    @State private var hasLoadedEditorData: Bool = false
+
+    /// 滚动锚点：AI 归类确认区
+    private enum EditorScrollAnchor {
+        static let aiTags = "editorAITagsSection"
+    }
 
     /// 转任务面板所需参数（content + sourceThought 一次性确定，避免 sheet 闭包读到中间态）
     private struct TaskExtractionRequest: Identifiable {
@@ -108,7 +140,10 @@ struct ThoughtEditorView: View {
     /// 新建模式暂存图：保留原始数据（落库走与编辑模式一致的 2048 压缩管线），
     /// preview 仅供缩略条展示，不再作为持久化来源。
     @State private var pendingImageItems: [PendingImageItem] = []
-    @State private var showAttachmentSourceChoice: Bool = false
+    /// 图片暂存「转正」在途标志：暂存已清空、附件尚未落库完成。
+    /// 此间草稿处于「看起来无内容」的中间态，自动保存不得按空草稿删除
+    /// （否则附件挂到已删除的想法上，界面刷新读到已失效对象直接崩溃）。
+    @State private var isUploadingPendingImages = false
     @State private var showAttachmentPhotoPicker: Bool = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
     @State private var showAttachmentCamera: Bool = false
@@ -133,52 +168,93 @@ struct ThoughtEditorView: View {
     // MARK: - Body
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.md) {
-                    // 内容编辑区（含光标吸附候选浮层）
-                    contentSection
-                    // AI 归类区域（只读回显）
-                    // V3 新 UI：AI 建议标签确认不进主路径（§4.1 删除清单），主题徽章由列表卡片承载
-                    if !ThoughtSemanticFeatureFlags.uiEnabled, !aiAssignments.isEmpty {
-                        aiTagsSection
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: HoloSpacing.md) {
+                        // 内容编辑区（含光标吸附候选浮层）
+                        contentSection
+                        // AI 归类区域（只读回显）
+                        // V3 新 UI：AI 建议标签确认不进主路径（§4.1 删除清单），主题徽章由列表卡片承载
+                        if !ThoughtSemanticFeatureFlags.uiEnabled, !aiAssignments.isEmpty {
+                            aiTagsSection
+                                .id(EditorScrollAnchor.aiTags)
+                        }
                     }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
                 }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
-            }
-            .background(Color.holoBackground)
-            // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isEditing ? String(localized: "编辑想法") : String(localized: "记录想法"))
-            .navigationBarTitleDisplayMode(.inline)
-            // 「查看记录」跳转：通过 navigationDestination 驱动（须在 NavigationStack 内部生效）
-            .navigationDestination(isPresented: Binding(
-                get: { navigateToThoughtId != nil },
-                set: { if !$0 { navigateToThoughtId = nil } }
-            )) {
-                ThoughtDetailView(
-                    thoughtId: navigateToThoughtId ?? UUID(),
-                    thoughtRepository: ThoughtRepository()
-                )
-            }
-            // 工具栏是编辑器卡片的一部分（见 contentSection 底部的 EditorFormatToolbar），
-            // 不需要 SwiftUI 层 safeAreaInset，也不依赖键盘附属条。
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: dismiss.callAsFunction) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .semibold))
-                            .frame(minWidth: 44, minHeight: 44)
+                .background(Color.holoBackground)
+                // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
+                .scrollDismissesKeyboard(.interactively)
+                .navigationTitle(isEditing ? String(localized: "编辑想法") : String(localized: "记录想法"))
+                .navigationBarTitleDisplayMode(.inline)
+                // 「待确认」徽章进入：数据就绪、区块渲染后滚到 AI 归类确认位
+                .onChange(of: hasLoadedEditorData) { _, loaded in
+                    scrollToConfirmationIfRequested(loaded, proxy: proxy)
+                }
+                // 工具栏是编辑器卡片的一部分（见 contentSection 底部的 EditorFormatToolbar），
+                // 不需要 SwiftUI 层 safeAreaInset，也不依赖键盘附属条。
+                // 「完成」已下沉到工具栏最右（✔/纸飞机），导航栏右上只放「…」操作菜单
+                // （新建未落库时不显示——没有可分享/重整/删除的对象）。
+                .toolbar {
+                    if currentThoughtId != nil {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            editorOptionsMenu
+                        }
                     }
-                    .accessibilityLabel(String(localized: "完成"))
-                    .buttonStyle(.plain)
-                    .foregroundColor(.holoTextSecondary)
                 }
             }
         }
         // 右滑退出：自动保存由 onDisappear 兜底，不再弹窗确认。
-        .swipeBackToDismiss(isEnabled: true) {
+        // 宽屏右栏内联形态没有「退出」语义，停用边缘手势。
+        .swipeBackToDismiss(isEnabled: onRequestClose == nil) {
             dismiss()
+        }
+        .sheet(isPresented: $showShareCard) {
+            if let thought = currentThoughtObject {
+                ThoughtShareSheet(thought: thought)
+            }
+        }
+        .sheet(isPresented: $showTopicPicker) {
+            if let thoughtId = currentThoughtId {
+                TopicPickerView(
+                    thoughtId: thoughtId,
+                    topicRepository: topicRepository,
+                    onAssigned: {
+                        ThoughtClassificationFeedbackStore.log(
+                            .topicChange, thoughtId: thoughtId, tagName: "",
+                            topicConfidence: currentThoughtObject?.topicConfidence
+                        )
+                        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                    },
+                    allowsRemove: true
+                )
+            }
+        }
+        .sheet(isPresented: $showReferenceList) {
+            if let thoughtId = currentThoughtId {
+                ThoughtReferenceListView(
+                    thoughtId: thoughtId,
+                    thoughtRepository: thoughtRepository
+                )
+            }
+        }
+        .confirmationDialog(
+            "删除这条想法？",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                deleteCurrentThought()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            // 单条删除已建批次进回收站（2026-09-06 拍板），30 天内可在最近删除自助恢复
+            Text(String(localized: "删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。"))
+        }
+        // @ 引用「查看记录」：sheet 打开对方想法的编辑器（阅读优先，不抢键盘）
+        .sheet(item: $viewReferenceThoughtId) { refId in
+            ThoughtEditorView(editingThoughtId: refId)
         }
         .sheet(item: $taskExtractionRequest) { request in
             ThoughtTaskExtractionSheet(
@@ -247,8 +323,10 @@ struct ThoughtEditorView: View {
         .onDisappear {
             // 兜底：退出时落库当前内容（防抖任务可能还没触发）。
             // cancel 旧任务避免 dismiss 后的竞争写入。
+            // 删除动作走 deleteCurrentThought，不能让兜底保存凭内容把已删想法重建一条。
             autoSaveTask?.cancel()
             autoSaveTask = nil
+            guard !didDeleteCurrentThought else { return }
             persistContent(shouldDismiss: false, notifyDataChange: true)
         }
         .onChange(of: content) { _, _ in
@@ -315,20 +393,12 @@ struct ThoughtEditorView: View {
             )
         }
         .fullScreenCover(isPresented: $showAttachmentGallery, onDismiss: nil) {
-            if let thought = currentEditingThought {
+            if let thought = currentThoughtObject {
                 ThoughtGalleryView(
                     attachments: thought.sortedAttachments,
                     startIndex: galleryStartIndex
                 )
             }
-        }
-        // 添加图片来源：用 .sheet 而非 .confirmationDialog。原因同上方 Token 菜单——
-        // confirmationDialog 呈现时会让 UITextView 失焦，弹层还没显示就被撤回，
-        // 表现为「第一次点图片按钮没反应，第二次（键盘已收起）才弹出来」。
-        .sheet(isPresented: $showAttachmentSourceChoice) {
-            attachmentSourceSheet
-                .presentationDetents([.height(185)])
-                .presentationDragIndicator(.visible)
         }
     }
 
@@ -361,6 +431,9 @@ struct ThoughtEditorView: View {
     private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) -> UUID? {
         // 无文字且无图片：不创建空记录。已创建过的草稿（draftThoughtId != nil）删除回退。
         if !hasContent {
+            // 图片转正在途：暂存列表刚清空、附件还没落库，「无内容」只是中间态，
+            // 草稿必须保留（曾因这里误删导致新建带图想法必崩）
+            guard !isUploadingPendingImages else { return nil }
             if let draftId = draftThoughtId {
                 try? thoughtRepository.hardDelete(draftId)
                 draftThoughtId = nil
@@ -430,6 +503,9 @@ struct ThoughtEditorView: View {
                 let imagesToUpload = pendingImageItems
                 if !imagesToUpload.isEmpty {
                     pendingImageItems = []
+                    // 清空暂存会触发 onChange(of: pendingImageItems) 的防抖自动保存，
+                    // 在途标志保证那次保存不会把刚落库的草稿当空草稿删除
+                    isUploadingPendingImages = true
                     Task { @MainActor in
                         var failedCount = 0
                         for item in imagesToUpload {
@@ -440,6 +516,9 @@ struct ThoughtEditorView: View {
                                 failedCount += 1
                             }
                         }
+                        // 附件落库完成：进编辑附件区展示（此前只清空暂存，缩略图会中途消失）
+                        refreshEditingAttachments()
+                        isUploadingPendingImages = false
                         if failedCount > 0 {
                             HoloToastCenter.shared.show(
                                 failedCount == imagesToUpload.count
@@ -591,15 +670,36 @@ struct ThoughtEditorView: View {
                     if showsColorPalette { showsColorPalette = false }
                     pendingEditorAction = .convertToTask
                 },
-                onAddImage: {
+                onCamera: {
                     if showsColorPalette { showsColorPalette = false }
-                    showAttachmentSourceChoice = true
+                    requestCameraAccess()
+                },
+                onPickFromLibrary: {
+                    if showsColorPalette { showsColorPalette = false }
+                    Task { @MainActor in
+                        // 相册读取权限是一次性前置申请：它是「iCloud 原图自动下载」的前提；
+                        // 被拒也不阻断选图，本地照片不受影响
+                        await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+                        showAttachmentPhotoPicker = true
+                    }
                 },
                 onVoiceInput: {
                     if showsColorPalette { showsColorPalette = false }
                     HapticManager.selection()
                     showVoiceInput = true
                 },
+                onDone: {
+                    if showsColorPalette { showsColorPalette = false }
+                    ThoughtLog.info("onDone: onRequestClose=\(onRequestClose != nil)")
+                    // 收起编辑器：弹层形态直接 dismiss（保存由 onDisappear 兜底）；
+                    // 宽屏右栏内联形态收起右栏，视图销毁时同样触发 onDisappear 兜底。
+                    if let onRequestClose {
+                        onRequestClose()
+                    } else {
+                        dismiss()
+                    }
+                },
+                isComposingSession: editingThoughtId == nil,
                 smartSummaryEnabled: $smartSummaryEnabled,
                 formatState: typingFormatState,
                 showsColorPalette: $showsColorPalette
@@ -833,6 +933,110 @@ struct ThoughtEditorView: View {
         aiAssignments = (try? thoughtRepository.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
     }
 
+    // MARK: - 「…」菜单（承接原详情页能力）
+
+    /// 导航栏右上操作菜单：分享卡 / 重新整理（条件） / 移入主题 / 查看引用 / 删除。
+    /// 「转为任务」不进菜单——工具栏已有等价按钮。
+    private var editorOptionsMenu: some View {
+        Menu {
+            Button {
+                showShareCard = true
+            } label: {
+                Label("生成分享卡", systemImage: "square.and.arrow.up")
+            }
+
+            // FR-05′：单条重新整理（failed/已整理均可；skipped 短文本无意义不显示）
+            if canRetryOrganization {
+                Button {
+                    retryOrganization()
+                } label: {
+                    Label("重新整理", systemImage: "arrow.clockwise")
+                }
+                .disabled(retryInFlight)
+            }
+
+            Button {
+                showTopicPicker = true
+            } label: {
+                Label("移入主题", systemImage: "folder")
+            }
+
+            Button {
+                showReferenceList = true
+            } label: {
+                Label("查看引用", systemImage: "link")
+            }
+
+            Button(role: .destructive) {
+                showDeleteConfirm = true
+            } label: {
+                Label("删除想法", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 18))
+                .foregroundColor(.holoTextPrimary)
+        }
+    }
+
+    /// skipped（<10 字）重试无意义不显示；failed / organized / disabled 均可手动重整
+    private var canRetryOrganization: Bool {
+        guard let status = organizedStatus else { return false }
+        return status != "skipped" && status != "pending" && status != "processing"
+    }
+
+    private func retryOrganization() {
+        guard let thoughtId = currentThoughtId, !retryInFlight else { return }
+        retryInFlight = true
+        defer { retryInFlight = false }
+
+        do {
+            try thoughtRepository.updateOrganizedStatus(thoughtId: thoughtId, status: "pending")
+        } catch {
+            ThoughtLog.error("重置整理状态失败", error.localizedDescription)
+            return
+        }
+        ThoughtClassificationFeedbackStore.log(
+            .retry, thoughtId: thoughtId, tagName: "",
+            topicConfidence: currentThoughtObject?.topicConfidence
+        )
+        organizedStatus = "pending"
+        // 状态先置 pending 再入队；旧 ai 建议保留展示，新结果写入时自然替换（方案 L-3）
+        ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thoughtId)
+    }
+
+    /// 删除当前想法：软删进 30 天回收站后关闭编辑器。
+    /// didDeleteCurrentThought 置位让 onDisappear 兜底保存跳过，防止删除后凭内容重建一条。
+    private func deleteCurrentThought() {
+        guard let thoughtId = currentThoughtId else { return }
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        didDeleteCurrentThought = true
+        do {
+            try thoughtRepository.delete(thoughtId)
+        } catch {
+            ThoughtLog.error("删除想法失败", error.localizedDescription)
+            didDeleteCurrentThought = false
+            return
+        }
+        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        onSave?()
+        if let onRequestClose {
+            onRequestClose()
+        } else {
+            dismiss()
+        }
+    }
+
+    /// 从「待确认」徽章进入时滚到 AI 归类区（数据就绪、区块已渲染后才有效）
+    private func scrollToConfirmationIfRequested(_ loaded: Bool, proxy: ScrollViewProxy) {
+        guard loaded, focusAIConfirmation else { return }
+        // 等本帧布局完成再滚，否则 scrollTo 找不到锚点
+        DispatchQueue.main.async {
+            proxy.scrollTo(EditorScrollAnchor.aiTags, anchor: .top)
+        }
+    }
+
     /// 引用区域已收敛：引用统一通过正文行内 @ 添加，见 v2 方案 §10.4
     /// Token 操作菜单（sheet 形态，自绘按钮）
     @ViewBuilder
@@ -884,9 +1088,9 @@ struct ThoughtEditorView: View {
                     tokenMenuButton(String(localized: "查看记录"), icon: "doc.text") {
                         selectedToken = nil
                         // 先让 Token 操作菜单完成收起，再推进导航状态；同一事务内同时改
-                        // sheet 和 navigationDestination，会被 UIKit 的弹层状态覆盖。
+                        // sheet 状态会被 UIKit 的弹层系统覆盖。
                         DispatchQueue.main.async {
-                            navigateToThoughtId = noteId
+                            viewReferenceThoughtId = noteId
                         }
                     }
                     tokenMenuButton(String(localized: "取消引用"), icon: "link.badge.minus", isDestructive: true) {
@@ -952,37 +1156,6 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 添加图片来源选择（拍照 / 从相册选择），样式对齐 Token 操作菜单
-    private var attachmentSourceSheet: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            Text("添加图片")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.top, HoloSpacing.sm)
-
-            Divider()
-                .padding(.vertical, 2)
-
-            VStack(spacing: 0) {
-                tokenMenuButton(String(localized: "拍照"), icon: "camera") {
-                    showAttachmentSourceChoice = false
-                    requestCameraAccess()
-                }
-                tokenMenuButton(String(localized: "从相册选择"), icon: "photo") {
-                    showAttachmentSourceChoice = false
-                    Task { @MainActor in
-                        // 相册读取权限是一次性前置申请：它是「iCloud 原图自动下载」的前提；
-                        // 被拒也不阻断选图，本地照片不受影响
-                        await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
-                        showAttachmentPhotoPicker = true
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, HoloSpacing.lg)
-    }
-
     /// 查看标签：保存当前内容后发筛选通知并退出
     private func viewTagThoughts(_ path: String) {
         autoSaveTask?.cancel()
@@ -1002,11 +1175,10 @@ struct ThoughtEditorView: View {
         return max(0, 9 - pendingImageItems.count)
     }
 
-    /// 当前编辑中的 Thought 对象（用于全屏浏览）
-    private var currentEditingThought: Thought? {
-        guard let thoughtId = editingThoughtId else { return nil }
-        let repo = ThoughtRepository()
-        return try? repo.fetchById(thoughtId)
+    /// 当前编辑中的 Thought 对象（草稿转正后也可取到；用于图库浏览、分享卡等）
+    private var currentThoughtObject: Thought? {
+        guard let thoughtId = currentThoughtId else { return nil }
+        return try? thoughtRepository.fetchById(thoughtId)
     }
 
     private var contentEditorMinimumHeight: CGFloat {
@@ -1143,6 +1315,8 @@ struct ThoughtEditorView: View {
             initialRichJSON = thought.richContentJSON
             // AI 归类标签只读回显（不写入行内标签，避免被 update 误处理）
             aiAssignments = (try? repo.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
+            // 「…」菜单的「重新整理」可见性依据
+            organizedStatus = thought.organizedStatus
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content
@@ -1156,6 +1330,7 @@ struct ThoughtEditorView: View {
                     thumbnailData: attachment.thumbnailData
                 )
             }
+            hasLoadedEditorData = true
         } catch {
             ThoughtLog.error("加载编辑数据失败", error.localizedDescription)
         }
@@ -1169,11 +1344,15 @@ struct ThoughtEditorView: View {
         Task { @MainActor in
             var failedCount = 0
             var permissionRequired = false
+            var limitedAccess = false
+            var cloudFailed = false
             for photo in photos {
                 let outcome = await PhotoLibraryImageLoader.loadImageData(from: photo)
                 guard case .data(let data) = outcome else {
                     failedCount += 1
                     if case .permissionRequired = outcome { permissionRequired = true }
+                    if case .limitedAccess = outcome { limitedAccess = true }
+                    if case .cloudDownloadFailed = outcome { cloudFailed = true }
                     continue
                 }
 
@@ -1205,7 +1384,7 @@ struct ThoughtEditorView: View {
                     }
                 }
             }
-            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count, permissionRequired: permissionRequired)
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
             selectedAttachmentPhotos = []
         }
     }
@@ -1262,7 +1441,8 @@ struct ThoughtEditorView: View {
 
     /// 刷新编辑模式的附件列表
     private func refreshEditingAttachments() {
-        guard let thoughtId = editingThoughtId,
+        // 新建模式的图片转正也会走到这里（草稿 id 在 draftThoughtId），不能用 editingThoughtId
+        guard let thoughtId = currentThoughtId,
               let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
         editingAttachments = thought.sortedAttachments.map { attachment in
             ThoughtAttachmentGridItem(

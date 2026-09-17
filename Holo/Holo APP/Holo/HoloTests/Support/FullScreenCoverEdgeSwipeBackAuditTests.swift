@@ -47,7 +47,6 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         "AttachmentGalleryView",   // 任务附件画廊
         "TaskSearchView",          // 任务搜索页
         "DailyKanbanView",         // 日看板
-        "ThoughtDetailView",       // 想法详情（全屏形态；push 形态由 showsDismissButton 条件关闭手势）
         "ThoughtGalleryView",      // 想法图片画廊
         "TopicDetailView",         // 主题详情
     ]

@@ -78,12 +78,14 @@ struct ThoughtsView: View {
             _ = try? topicRepository.pruneEmptyPresetTopics()
         }
         .swipeBackToDismiss(isEnabled: true, isResidentScreenRoot: true) { close() }
-        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容。
+        // 必须显式写 onSave: —— 编辑器有多个可选闭包参数，trailing closure 会绑错
+        // （实测绑到 onRequestClose，导致纸飞机退出失效、边缘手势被禁）。
         .fullScreenCover(isPresented: $showAddThought) {
-            ThoughtEditorView {
+            ThoughtEditorView(onSave: {
                 // 保存后刷新列表
                 NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-            }
+            })
             .holoContentColumn()
         }
         .sheet(isPresented: $showConvergence) {

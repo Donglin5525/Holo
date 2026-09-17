@@ -22,10 +22,9 @@ struct ThoughtCardView: View {
     // MARK: - Properties
 
     let thought: Thought
+    /// 点卡片进入编辑器（阅读与编辑合流后的唯一打开路径）
     var onNavigate: (() -> Void)?
-    /// 双击正文直接进入编辑器；单击仍保留阅读详情入口。
-    var onEdit: (() -> Void)?
-    /// 待确认徽章点按：直达详情页确认位（列表注入滚动意图；不传时回落 onNavigate）
+    /// 待确认徽章点按：直达编辑器 AI 确认位（列表注入滚动意图；不传时回落 onNavigate）
     var onConfirmNavigate: (() -> Void)? = nil
     var onTagTap: ((String) -> Void)?
     /// 更多操作：移入主题（可选，由列表页接主题选择器）
@@ -87,10 +86,8 @@ struct ThoughtCardView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .holoHover()
-        // 双击命中整张卡片，短文下方的留白也能直接进入编辑器；单击详情仍只由正文区域处理。
-        // 必须用 onTapGesture：highPriorityGesture 会抢先拦截子视图（「…」按钮、标签 chip）的单击，
-        // 导致这些按钮点按无反应（SwiftUI 手势竞争中子视图应优先）。
-        .onTapGesture(count: 2) { onEdit?() }
+        // 卡片根不再挂打开手势（详情页已下线）：正文区域自己处理单击进编辑器，
+        // 根手势若并存会与「…」按钮、标签 chip 抢单击。
         // 挂在卡片根（与「…」菜单不同锚点，避免连环弹层冲突）
         .confirmationDialog(
             "删除这条想法？",
@@ -163,6 +160,11 @@ struct ThoughtCardView: View {
                     .accessibilityLabel(String(localized: "更多操作"))
                     // 用独立 Button 隔断父卡片的打开手势；点菜单不能同时进入编辑器。
                     .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
+                        // 编辑兜底入口：正文触摸链路（Button 命中）万一再失效，
+                        // 历史想法仍有保底的编辑路径（2026-09-17 双击编辑丢失事故）
+                        if let onNavigate {
+                            Button(String(localized: "编辑")) { onNavigate() }
+                        }
                         Button(String(localized: "生成分享卡")) {
                             pendingMenuAction = .shareCard
                             showActionSheet = false
@@ -188,9 +190,9 @@ struct ThoughtCardView: View {
         }
     }
 
-    /// 是否存在至少一个可用的更多操作
+    /// 是否存在至少一个可用的更多操作（含「编辑」兜底入口）
     private var hasAvailableActions: Bool {
-        onMoveToTopic != nil || onArchive != nil || onRetryOrganize != nil || onDelete != nil
+        onNavigate != nil || onMoveToTopic != nil || onArchive != nil || onRetryOrganize != nil || onDelete != nil
     }
 
     // MARK: - 内容区域
@@ -198,40 +200,35 @@ struct ThoughtCardView: View {
     private var contentView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 内容渲染整体下沉到 ThoughtContentBody：它只依赖内容字符串本身，
-            // 点「…」弹菜单、整理队列状态变化等状态型重算不会触碰解码与排版
-            ThoughtContentBody(
+            // 点「…」弹菜单、整理队列状态变化等状态型重算不会触碰解码与排版。
+            // 正文入口用 Button 承载（2026-09-17 真机「无法编辑历史想法」事故修法）：
+            // 纯 onTapGesture 在 iOS 26 不响应触摸；且 Button 外严禁再包
+            // .accessibilityElement(children: .ignore)——实证会吞触摸（引用列表
+            // 同款教训），Button 自身已合并 label 子元素，无障碍信息直接挂在 Button 上。
+            // ⚠️ contentShape 必须声明在 label 内部（探针实证：label 内=命中，Button 外=0 命中）：
+            // 挂在 Button 外不参与 Button 自身的点击识别；正文 label 全是禁命中内容
+            // （禁交互 UITextView + 禁命中测宽层）时，Button 会因无可命中实体而整体失效。
+            Button {
+                onNavigate?()
+            } label: {
+                ThoughtContentBody(
+                    richJSON: thought.richContentJSON,
+                    fallbackPlainText: thought.content
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "想法内容"))
+            .accessibilityValue(MarkdownTextView.accessibilityText(
                 richJSON: thought.richContentJSON,
                 fallbackPlainText: thought.content
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            ))
+            .accessibilityHint(String(localized: "轻点编辑这条想法"))
 
             if !thought.sortedAttachments.isEmpty {
                 inlineAttachmentsView
             }
-        }
-        // 只读 UITextView 在卡片内不接管触摸，因此不能把“不可交互”泄漏成
-        // VoiceOver 的 disabled 元素。卡片正文本身是进入想法的主入口，显式暴露
-        // 同一份语义文本和按钮动作；底部标签仍保留各自的筛选操作。
-        // 朗读文本按内容字符串进程缓存（无需解码），重算时只是一次字典命中。
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "想法内容"))
-        .accessibilityValue(MarkdownTextView.accessibilityText(
-            richJSON: thought.richContentJSON,
-            fallbackPlainText: thought.content
-        ))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(String(localized: "单击查看详情，双击直接编辑"))
-        // 正文区域自带双击声明：双击时 SwiftUI 会先等双击窗口、不再触发下面的单击进详情，
-        // 保证「双击正文直接编辑」与「单击正文进详情」在同一区域共存。
-        .onTapGesture(count: 2) { onEdit?() }
-        .onTapGesture {
-            onNavigate?()
-        }
-        .accessibilityAction {
-            onNavigate?()
-        }
-        .accessibilityAction(named: String(localized: "直接编辑")) {
-            onEdit?()
         }
     }
 

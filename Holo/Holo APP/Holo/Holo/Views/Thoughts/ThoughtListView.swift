@@ -63,13 +63,10 @@ struct ThoughtListView: View {
     /// 待确认数量（banner 徽章用）
     @State private var pendingConfirmationCount: Int = 0
 
-    /// 选中的想法（用于进入详情）
+    /// 选中的想法（窄屏全屏进编辑器；宽屏内联右栏）
     @State private var selectedThoughtId: UUID? = nil
-    /// 从卡片「待确认」徽章进入详情时滚动到 AI 归纳确认区（普通点卡片进详情不滚动）
+    /// 从卡片「待确认」徽章进入编辑器时滚动到 AI 归类确认区（普通点卡片不滚动）
     @State private var selectedThoughtFocusConfirmation = false
-
-    /// 双击卡片直接进入编辑器
-    @State private var editingThoughtId: UUID? = nil
 
     /// 所有想法
     @State private var thoughts: [Thought] = []
@@ -115,9 +112,9 @@ struct ThoughtListView: View {
     @Environment(\.holoWindowWidth) private var thoughtWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(thoughtWindowWidth) }
 
-    /// 全屏详情 cover 的门控绑定：宽屏详情常驻右栏，cover 恒 nil 不弹；
-    /// 窄屏保持原有 item 语义（选中即全屏）
-    private var detailCoverBinding: Binding<UUID?> {
+    /// 全屏编辑器 cover 的门控绑定：宽屏编辑器常驻右栏，cover 恒 nil 不弹；
+    /// 窄屏保持 item 语义（选中即全屏进编辑器）
+    private var editorCoverBinding: Binding<UUID?> {
         Binding(
             get: { isWideLayout ? nil : selectedThoughtId },
             set: { newValue in
@@ -220,64 +217,32 @@ struct ThoughtListView: View {
                     },
                     onAIOrganize: { onAIOrganize() }
                 )
-            } else if isWideLayout {
-                // v2 设计稿③：左列表 + 右详情双栏（46:54），轻点卡片右栏即展详情
-                GeometryReader { geo in
-                    HStack(spacing: 0) {
-                        VStack(spacing: 0) {
-                            searchBarView
-                            aiOrganizationBanner
-                            filterBarView
-
-                            if filteredThoughts.isEmpty && hasLoadedOnce {
-                                emptyStateView
-                            } else {
-                                thoughtListView
-                            }
-                        }
-                        .frame(width: geo.size.width * 0.46)
-
-                        Rectangle()
-                            .fill(Color.holoBorder.opacity(0.4))
-                            .frame(width: 0.5)
-
-                        thoughtDetailPane
-                            .frame(width: geo.size.width * 0.54)
-                    }
-                }
             } else {
-                // 搜索栏
-                searchBarView
+                // 单列（窄/iPhone）与双栏（内容宽 ≥860）同一份结构：
+                // HoloListDetailSplit 窄档只渲染列表列，宽屏轻点卡片右栏即展详情
+                HoloListDetailSplit {
+                    VStack(spacing: 0) {
+                        searchBarView
+                        aiOrganizationBanner
+                        filterBarView
 
-                // AI 归纳状态条
-                aiOrganizationBanner
-
-                // 筛选栏
-                filterBarView
-
-                // 想法列表
-                if filteredThoughts.isEmpty && hasLoadedOnce {
-                    emptyStateView
-                } else {
-                    thoughtListView
+                        if filteredThoughts.isEmpty && hasLoadedOnce {
+                            emptyStateView
+                        } else {
+                            thoughtListView
+                        }
+                    }
+                } detail: {
+                    thoughtDetailPane
                 }
             }
         }
-        // 主列表先进入详情，阅读、引用关系与编辑入口保持同一条产品路径。
-        // 编辑器仍由详情页的「编辑」动作打开，避免列表入口绕过反向链接。
-        // 宽屏双栏下 cover 恒为 nil（详情常驻右栏），窄屏保持原全屏语义。
-        .fullScreenCover(item: detailCoverBinding, onDismiss: {
+        // 点卡片直达编辑器（详情页已下线，阅读与编辑合流到同一页面）。
+        // 窄屏全屏 cover、宽屏内联右栏，同一个选中态驱动；
+        // 编辑器内保存/删除通过通知与 onSave 回调刷新列表。
+        .fullScreenCover(item: editorCoverBinding, onDismiss: {
             selectedThoughtFocusConfirmation = false
         }) { thoughtId in
-            ThoughtDetailView(
-                thoughtId: thoughtId,
-                thoughtRepository: ThoughtRepository(),
-                showsDismissButton: true,
-                focusAIConfirmation: selectedThoughtFocusConfirmation
-            )
-            .holoContentColumn()
-        }
-        .fullScreenCover(item: $editingThoughtId) { thoughtId in
             ThoughtEditorView(
                 onSave: {
                     loadThoughts()
@@ -285,12 +250,12 @@ struct ThoughtListView: View {
                     loadUnprocessedCount()
                 },
                 editingThoughtId: thoughtId,
-                autoFocusExistingThought: true
+                focusAIConfirmation: selectedThoughtFocusConfirmation
             )
             .holoContentColumn()
         }
-        // ThoughtDetailView 点「问问 Holo」后通知关闭整个 fullScreenCover，
-        // 否则 cover 仍盖在 AI 页之上（dismiss 只能 pop 一层 NavigationStack）。
+        // 编辑器内发起的跨模块跳转（如「问问 Holo」）请求关闭整个 fullScreenCover，
+        // 否则 cover 仍盖在目标页之上（dismiss 只能 pop 一层 NavigationStack）。
         .onReceive(NotificationCenter.default.publisher(for: .holoRequestCloseThoughtEditor)) { _ in
             selectedThoughtId = nil
         }
@@ -359,7 +324,7 @@ struct ThoughtListView: View {
             }
         }
         .onChange(of: initialThoughtId) { _, newValue in
-            // 想法模块已常驻时，任务页再次跳转也要能打开新的详情。
+            // 想法模块已常驻时，任务页/小组件再次跳转也要能打开新的编辑器。
             if let newValue {
                 selectedThoughtId = newValue
             }
@@ -393,41 +358,45 @@ struct ThoughtListView: View {
             onAIOrganize()
         }
         .onChange(of: thoughts) { _, updatedThoughts in
-            // 宽屏双栏：选中的想法被删除后右栏退回引导位（详情内联模式 dismiss() 不生效）
+            // 宽屏双栏：选中的想法被删除后右栏退回引导位（编辑器内联模式 dismiss() 不生效）
             guard let selectedThoughtId,
                   !updatedThoughts.contains(where: { $0.id == selectedThoughtId }) else { return }
             self.selectedThoughtId = nil
         }
     }
 
-    // MARK: - 宽屏右栏详情（v2 设计稿③）
+    // MARK: - 宽屏右栏编辑器（v2 设计稿③）
 
     @ViewBuilder
     private var thoughtDetailPane: some View {
         if let thoughtId = selectedThoughtId {
-            ThoughtDetailView(
-                thoughtId: thoughtId,
-                thoughtRepository: ThoughtRepository(),
-                showsDismissButton: false,
-                focusAIConfirmation: selectedThoughtFocusConfirmation
+            ThoughtEditorView(
+                onSave: {
+                    loadThoughts()
+                    loadTags()
+                    loadUnprocessedCount()
+                },
+                editingThoughtId: thoughtId,
+                focusAIConfirmation: selectedThoughtFocusConfirmation,
+                onRequestClose: { selectedThoughtId = nil }
             )
-            // 切换想法重置阅读滚动位置
+            // 切换想法重建编辑器：滚动位置、光标与编辑态不跨想法残留
             .id(thoughtId)
         } else {
             detailPlaceholder
         }
     }
 
-    /// 无选中时的引导位（设计稿②：详情常驻，不留白板）
+    /// 无选中时的引导位（设计稿②：编辑器常驻，不留白板）
     private var detailPlaceholder: some View {
         VStack(spacing: HoloSpacing.sm) {
-            Image(systemName: "doc.text.magnifyingglass")
+            Image(systemName: "square.and.pencil")
                 .font(.system(size: 30))
                 .foregroundColor(.holoTextPlaceholder)
-            Text("选一条想法查看")
+            Text("选一条想法打开")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
-            Text("在左侧轻点卡片，详情会在这里展开")
+            Text("在左侧轻点卡片，在这里展开编辑")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextPlaceholder)
         }
@@ -1148,6 +1117,7 @@ struct ThoughtListView: View {
                                 .stroke(Color.holoDivider, lineWidth: 1)
                         )
                 }
+                .accessibilityLabel(String(localized: "筛选"))
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.sm)
@@ -1176,15 +1146,8 @@ struct ThoughtListView: View {
                                         selectedThoughtId = thought.id
                                     }
                                 },
-                                onEdit: {
-                                    // 双击识别晚于单击时，先撤销可能已经排队的详情 cover，
-                                    // 保证最终只呈现编辑器，不出现详情和编辑器叠层。
-                                    selectedThoughtId = nil
-                                    revealedThoughtId = nil
-                                    editingThoughtId = thought.id
-                                },
                                 onConfirmNavigate: {
-                                    // 待确认徽章：进详情并直达 AI 归纳确认位
+                                    // 待确认徽章：进编辑器并直达 AI 归类确认位
                                     revealedThoughtId = nil
                                     selectedThoughtFocusConfirmation = true
                                     selectedThoughtId = thought.id
@@ -1339,9 +1302,28 @@ struct ThoughtListView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
-            Text("点右下角 + 记录第一条想法")
+            Text("一闪而过的念头，都值得留下来")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+            // 空态行动按钮（激活方案 §3.2）：一键直达编辑器，替代「找右下角 +」
+            Button {
+                showAddThought = true
+            } label: {
+                Label(String(localized: "记录第一条想法"), systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 26)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.holoPrimary)
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("thoughtEmptyCta")
 
             if ICloudSyncStatusService.shared.isInitialSyncPending {
                 Text("正在从 iCloud 恢复数据，稍等片刻就会显示")
