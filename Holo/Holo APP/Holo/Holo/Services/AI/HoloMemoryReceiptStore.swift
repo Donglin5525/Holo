@@ -100,6 +100,14 @@ nonisolated struct HoloMemoryInboxSnapshot: Equatable, Sendable {
         if parts.isEmpty, hasUnreadMigrationSummary { return "已整理原有记忆" }
         return parts.joined(separator: " · ")
     }
+
+    /// 主动展示（胶囊/横幅）用的文案：收件箱下线后一律用一次性首启说明，
+    /// 不再把计数任务式地摆到首页与聊天（方案 §8.2）。
+    var presentationText: String {
+        HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled
+            ? HoloMemoryAttentionPolicy.firstNoticeText
+            : summaryText
+    }
 }
 
 extension Notification.Name {
@@ -197,6 +205,18 @@ nonisolated enum HoloMemoryReceiptStore {
         }
     }
 
+    /// 存量迁移（§14.3）：旧 needsConfirmation 未读回执标记已迁移，不再触发任何主动唤起；
+    /// 不产生新回执、不删除记录（审计保留）。
+    static func markLegacyConfirmationReceiptsMigrated(now: Date = Date()) {
+        mutate { receipts in
+            for index in receipts.indices
+            where receipts[index].adoptionKind == .needsConfirmation && receipts[index].handledAt == nil {
+                receipts[index].handledAt = now
+                receipts[index].readAt = receipts[index].readAt ?? now
+            }
+        }
+    }
+
     static func markHandled(memoryID: String, now: Date = Date()) {
         mutate { receipts in
             for index in receipts.indices where receipts[index].memoryIDs.contains(memoryID) {
@@ -207,7 +227,12 @@ nonisolated enum HoloMemoryReceiptStore {
     }
 
     static func shouldPresentSummary(now: Date = Date()) -> Bool {
-        guard !unreadWriteReceipts().isEmpty else { return false }
+        guard !presentationEligibleUnreadReceipts().isEmpty else { return false }
+        if HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled {
+            // P1（方案 §8.2）：每日胶囊改为一次性首启说明；旧 needsConfirmation 回执
+            // 不再驱动任何主动唤起，存量未读仅迁移期被动可见。
+            return !HoloMemoryAttentionPolicy.hasShownFirstNotice
+        }
         guard let last = UserDefaults.standard.object(forKey: lastPresentedAtKey) as? Date else {
             return true
         }
@@ -216,6 +241,16 @@ nonisolated enum HoloMemoryReceiptStore {
 
     static func markSummaryPresented(now: Date = Date()) {
         UserDefaults.standard.set(now, forKey: lastPresentedAtKey)
+        if HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled {
+            HoloMemoryAttentionPolicy.markFirstNoticeShown()
+        }
+    }
+
+    /// 有资格驱动主动展示的未读写回执：收件箱下线后 needsConfirmation 类不再计入。
+    private static func presentationEligibleUnreadReceipts() -> [HoloMemoryReceipt] {
+        let unread = unreadWriteReceipts()
+        guard HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled else { return unread }
+        return unread.filter { $0.adoptionKind != .needsConfirmation }
     }
 
     #if !HOLO_MEMORY_STANDALONE

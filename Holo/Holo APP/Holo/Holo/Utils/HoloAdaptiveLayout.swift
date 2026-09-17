@@ -33,19 +33,26 @@ enum HoloAdaptiveLayout {
         sizeClass == .regular
     }
 
-    // MARK: - v2 宽度断点（docs/ipad-adaptation/v2-plan.md 阶段 1）
+    // MARK: - v2 宽度断点（docs/ipad-adaptation/v2-plan.md 阶段 1；
+    // 2026-09-16 可用性改造升级为「内容宽」语义，见 plans/2026-09-16-Holo-iPad-完整可用性改造方案.md）
 
-    /// expanded 档阈值：12.9 横屏（1366）/ 11 寸横屏（1160）/ 12.9 竖屏（1024）达标，
-    /// 11 寸竖屏（834）与 iPhone 落在 compact/medium。
-    /// 达标即启用侧边栏骨架、模块内顶部切换、通铺布局。
-    static let expandedWidthThreshold: CGFloat = 1024
+    /// expanded 档阈值 = 双栏就绪线（360 列表 + 440 详情 + 60 间隔与内边距），
+    /// 与 `HoloLayoutPolicy.splitReadyWidth` 同值。
+    /// ⚠️ 语义变更：2026-09-16 起本函数的输入必须是 `holoContentWidth`（主内容区实得宽，
+    /// 已扣除侧边栏），禁止再传全窗口宽度——1024 窗口常驻侧边栏后仅 791.5，不得双栏。
+    /// iPhone 路径不注入 contentWidth（nil）→ 恒 false，手机端零变化。
+    /// 实测档位：11 寸横屏 1194 常驻（961.5）双栏；11 寸竖屏 834（601.5）单列；
+    /// 13 寸竖屏 1024 常驻（791.5）单列、用户收起侧边栏（963.5）后双栏。
+    static let expandedWidthThreshold: CGFloat = HoloLayoutPolicy.splitReadyWidth
 
-    /// 侧边栏宽度（v2 骨架，见设计稿 ipad-v2-0-skeleton-prototype.html）
+    /// 侧边栏宽度（v2 骨架；与 HoloLayoutPolicy 内的镜像常量必须同步修改）
     static let sidebarWidth: CGFloat = 232
 
-    static func isExpandedWidth(_ width: CGFloat?) -> Bool {
-        guard let width else { return false }
-        return width >= expandedWidthThreshold
+    /// expanded 判定：主内容实得宽度足以双栏。
+    /// 输入 nil（iPhone / 未注入）恒 false。
+    static func isExpandedWidth(_ contentWidth: CGFloat?) -> Bool {
+        guard let contentWidth else { return false }
+        return contentWidth >= expandedWidthThreshold
     }
 
     /// 实时窗口宽度。仅供快捷键命令、总线处理等**非视图**代码在事件瞬间读取；
@@ -70,15 +77,32 @@ private struct HoloWindowWidthKey: EnvironmentKey {
     static let defaultValue: CGFloat? = nil
 }
 
+/// 主内容区实得宽度环境键：由 ContentView 的模块宿主区注入
+/// （iPad = 窗口宽 − 侧边栏实占；iPhone 不注入）。
+/// 业务模块的 expanded / 双栏 / 列数 / 字号档判定只允许读它；
+/// `holoWindowWidth` 仅供外壳（侧边栏形态）与极少数全幅覆盖层使用。
+private struct HoloContentWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
 extension EnvironmentValues {
     /// 当前窗口宽度（pt）。未注入（理论上不会发生）时为 nil，按最窄档处理。
     var holoWindowWidth: CGFloat? {
         get { self[HoloWindowWidthKey.self] }
         set { self[HoloWindowWidthKey.self] = newValue }
     }
+
+    /// 主内容区实得宽度（pt）：业务模块布局只看它。
+    /// nil = iPhone / 非模块宿主上下文 → 所有 expanded 判定恒 false（手机零变化）。
+    /// sheet / fullScreenCover 继承呈现方的值，弹层内的档位与宿主一致。
+    var holoContentWidth: CGFloat? {
+        get { self[HoloContentWidthKey.self] }
+        set { self[HoloContentWidthKey.self] = newValue }
+    }
 }
 
-/// 三档宽度档位：compact（手机）/ medium（iPad 窄形态与竖屏）/ expanded（宽屏通铺）
+/// 三档宽度档位：compact（手机）/ medium（iPad 窄形态与竖屏）/ expanded（双栏就绪）
+/// 2026-09-16 起 width 参数应传 `holoContentWidth`（主内容实得宽）。
 enum HoloWidthTier {
     case compact
     case medium
@@ -235,42 +259,39 @@ struct HoloHoverModifier: ViewModifier {
     }
 }
 
-// MARK: - 列表-详情双栏容器（v2 设计稿范式：左 46% 列表 + 右 54% 详情）
+// MARK: - 列表-详情双栏容器（2026-09-16 可用性改造重写）
 
-/// expanded 档渲染「列表 | 详情」双栏（中间细分隔线），窄档只渲染列表，
-/// 详情交互语义由调用方按档位分流（想法/任务/知识树共用）。
+/// 双栏容器：由 `holoContentWidth`（主内容实得宽）决定单/双栏，
+/// 不再看全窗口宽度；双栏时列表栏按 `HoloLayoutPolicy.masterColumnWidth`
+/// 定宽（360–520pt 钳制），详情栏弹性撑满剩余。
+/// 窄档（含 iPhone 的 nil）只渲染列表，详情交互语义由调用方分流（sheet / 全屏）。
 struct HoloListDetailSplit<Master: View, Detail: View>: View {
-    @Environment(\.holoWindowWidth) private var windowWidth
+    @Environment(\.holoContentWidth) private var contentWidth
 
-    var masterFraction: CGFloat
-    var separator: Bool
+    var separator: Bool = true
     @ViewBuilder var master: () -> Master
     @ViewBuilder var detail: () -> Detail
 
-    init(masterFraction: CGFloat = 0.46,
-         separator: Bool = true,
+    init(separator: Bool = true,
          @ViewBuilder master: @escaping () -> Master,
          @ViewBuilder detail: @escaping () -> Detail) {
-        self.masterFraction = masterFraction
         self.separator = separator
         self.master = master
         self.detail = detail
     }
 
     var body: some View {
-        if HoloAdaptiveLayout.isExpandedWidth(windowWidth) {
-            GeometryReader { geo in
-                HStack(spacing: 0) {
-                    master()
-                        .frame(width: geo.size.width * masterFraction)
-                    if separator {
-                        Rectangle()
-                            .fill(Color.holoBorder.opacity(0.4))
-                            .frame(width: 0.5)
-                    }
-                    detail()
-                        .frame(width: geo.size.width * (1 - masterFraction))
+        if let contentWidth, HoloLayoutPolicy.isSplitReady(contentWidth: contentWidth) {
+            HStack(spacing: 0) {
+                master()
+                    .frame(width: HoloLayoutPolicy.masterColumnWidth(forSplitWidth: contentWidth))
+                if separator {
+                    Rectangle()
+                        .fill(Color.holoBorder.opacity(0.4))
+                        .frame(width: 0.5)
                 }
+                detail()
+                    .frame(maxWidth: .infinity)
             }
         } else {
             master()

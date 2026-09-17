@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-09-17] 点击 HoloAI 即闪退根治：ChatView 巨型视图树拆结构体边界 + 两处强制解包收口
+
+> 纯 iOS 零后端发版。真机 4 份 .ips 实锤定位；修复后模拟器全路径走查通过；真机复验待手机重连装包。
+
+### 修复
+- **进入 HoloAI 对话页即闪退（SIGSEGV 栈溢出）**：真机崩溃日志（09-17 01:24×3 + 08:41）全部为「Thread stack size exceeded due to excessive recursion」主线程栈溢出；atos 符号化 + 反汇编实锤根因——ChatView 把「消息滚动列表 + 空态 + 能力条 + 场景面板 + 输入栏」整棵内联在 body 的计算属性里，而 SwiftUI 计算属性不构成类型边界，整棵树的结构类型（编译器内部类型描述达数 KB）全部摊进 ChatView.Body；叠加 09-16 宽屏侧栏改造在外层又包了 HStack+padding 两层容器后，进入页面时 SwiftUI 元数据实例化（`__swift_instantiateConcreteTypeFromMangledNameV2` 按类型嵌套逐层递归）+ AttributeGraph 逐层下钻布局（每层约 12 个大栈帧）的合计递归深度超出主线程 1MB 栈上限。修复：拆出 `ChatContentColumn`（内容列：连接横幅/空态/能力条/场景面板/流式提示/输入栏/首屏 reveal）与 `ChatMessageListPane`（消息列表：滚动桥/历史分页/时间戳分隔/回底按钮/全部消息卡交互回弹）两道独立 struct 类型边界——父视图类型只引用类型名，嵌套深度到边界即止；滚动行为状态仍归 ChatView 单点持有、经 Binding 读写，交互行为零变化。两道边界禁止再内联回计算属性（已写入 AGENTS.md 质量红线）。
+- **顺带收口链路上两颗强制解包暗雷**：`HoloMemoryRuntime` 两处 `urls(for: .applicationSupportDirectory).first!` 改为非可选系统 API `URL.applicationSupportDirectory`（抽统一目录属性）；`HoloListDetailSplit` 本次新增强解包 `contentWidth!` 改 `if let` 拆包。
+
+### 过程与方法（可复用）
+- 真机包身份核实：Xcode 默认 DerivedData 09-17 00:41 构建（dylib UUID 与 .ips usedImages 完全匹配），排除装错包。
+- 崩溃日志直拉：pymobiledevice3 crash pull（CLI 位于 ~/Library/Python/3.11/bin/）→ .ips 解析 faultingThread → atos 按 UUID 匹配产物符号化 → 反汇编递归点读出被实例化的巨型类型名。
+- 模拟器（iPhone 17 全新装机 + iPad Pro 13 带数据，修复前代码）**不能复现**——证实该问题为「真机栈余量贴线」型：模拟器栈余量更大，既有的模拟器 QA 无法兜住此类问题，这是它此前漏网的直接原因；真机验收不可替代。
+- 意外发现（独立问题，本轮未修）：全新安装首次启动存在 CoreDataStack 三方锁死锁（主线程 prepareIfNeeded / 后台话题回填 waitUntilReady 持锁建容器 / loadPersistentStores 回调等锁，三方互等永久卡启动页；模拟器必现，QA 以一次性标记绕过验证），待单独立项修复。
+
+### 验证
+- 全量编译通过（Debug-iphonesimulator）。
+- 修复前包模拟器全路径走查不崩（iPhone 17 零数据 + iPad Pro 13 带数据，覆盖进页/发消息/回执卡/页签互切/宽窄布局）；修复后包 9 步行为回归全过（进页/停留 8 秒/记账回执确认/流式回复滚动跟随/「回到最新」按钮/对话报告互切草稿与滚动位置保留/退出重进/无障碍快照/输入框聚焦），全程零崩溃、新增 .ips 为 0；键盘弹出贴底行为无头模拟器无法弹出软键盘，留待真机顺手核一眼。
+- 真机复验：待东林手机重连后安装修复包点击 HoloAI 验证。
+
+---
+
 ## [2026-09-17] 「想法随机漫步」小组件排版收口：大卡自适应入库 + 行距/标签压线/文案三修
 
 > 纯 iOS 零后端发版。模拟器装包截图逐条验收通过（像素实测），中号卡与真机验收待做。

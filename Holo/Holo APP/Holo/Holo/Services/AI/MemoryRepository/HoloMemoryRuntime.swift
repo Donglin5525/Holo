@@ -15,6 +15,12 @@ final class HoloMemoryRuntime {
     private let logger = Logger(subsystem: "com.holo.app", category: "MemoryRuntime")
     private var cachedRepository: CoreDataHoloMemoryRepository?
 
+    /// 敏感字段目录（加密实体正文等）的统一落点
+    private static var memoryDirectoryURL: URL {
+        URL.applicationSupportDirectory
+            .appendingPathComponent("Holo/Memory", isDirectory: true)
+    }
+
     func repository() async throws -> CoreDataHoloMemoryRepository {
         if let cachedRepository { return cachedRepository }
 
@@ -32,14 +38,9 @@ final class HoloMemoryRuntime {
 
         await CoreDataStack.shared.waitUntilReady()
 
-        let memoryDirectory = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!
-            .appendingPathComponent("Holo/Memory", isDirectory: true)
         let controller = try HoloMemoryPersistenceController(
             mainContainer: CoreDataStack.shared.persistentContainer,
-            sensitiveDirectoryURL: memoryDirectory
+            sensitiveDirectoryURL: Self.memoryDirectoryURL
         )
         let repository = CoreDataHoloMemoryRepository(controller: controller)
         cachedRepository = repository
@@ -55,11 +56,7 @@ final class HoloMemoryRuntime {
 
         do {
             let repository = try await repository()
-            let memoryDirectory = FileManager.default.urls(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask
-            ).first!
-                .appendingPathComponent("Holo/Memory", isDirectory: true)
+            let memoryDirectory = Self.memoryDirectoryURL
             #if DEBUG
             let allowDestructiveRerun = true
             #else
