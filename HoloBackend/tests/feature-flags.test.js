@@ -32,7 +32,7 @@ test("订阅状态默认带 featureFlags（出厂默认值）", async () => {
   });
   assert.equal(response.status, 200);
   const json = await response.json();
-  assert.deepEqual(json.featureFlags, { agentDeepAnalysis: true });
+  assert.deepEqual(json.featureFlags, { agentDeepAnalysis: true, goalWorkshopV1: false });
 });
 
 test("admin 关闭开关后订阅状态立即下发 false（急停链路）", async () => {

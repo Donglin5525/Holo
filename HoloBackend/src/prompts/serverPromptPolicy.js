@@ -45,6 +45,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   personal_context_planning: "personal_context_planning",
   vision_extraction: "vision_extraction",
   matter_reconciliation: "matter_reconciliation",
+  goal_workshop: "goal_workshop",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，
@@ -73,6 +74,8 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   // 主题命名/摘要：输出用户直接阅读 → 多语言
   "thought_topic_name_v1",
   "thought_topic_summary_v1",
+  // 目标共创：question/options/plan 的 assistantText 与 question 文本用户直接阅读
+  "goal_workshop",
 ]);
 
 export function injectServerPrompt(purpose, messages, options = {}) {

@@ -44,6 +44,8 @@ const PROMPT_VERSIONS = {
   vision_extraction: 2,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
   matter_reconciliation: 1,
+  // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版
+  goal_workshop: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

@@ -304,6 +304,20 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_PERSONAL_CONTEXT_PLANNING_REQUESTS_PER_DAY ?? 60),
       },
     },
+    // 目标共创（2026-09-17 完整开发计划任务 3）：分阶段会话契约 JSON。
+    // 归 chat 额度池（app.js quotaTypeForPurpose），此处独立限流兜量。
+    goal_workshop: {
+      provider: process.env.HOLO_GOAL_WORKSHOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_GOAL_WORKSHOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_GOAL_WORKSHOP_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_GOAL_WORKSHOP_MAX_TOKENS ?? 4096),
+      // 草案生成是组合推演（定义+路径+行动+假设），low 档保结构化质量
+      reasoningEffort: process.env.HOLO_GOAL_WORKSHOP_REASONING_EFFORT ?? "low",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_GOAL_WORKSHOP_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_GOAL_WORKSHOP_REQUESTS_PER_DAY ?? 40),
+      },
+    },
     // Matter「进行中的事」对账（typed proposal 契约）：单轮小输出，与 planning 同模型档位但独立 purpose/计费。
     matter_reconciliation: {
       provider: process.env.HOLO_MATTER_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",

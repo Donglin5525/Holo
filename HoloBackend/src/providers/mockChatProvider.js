@@ -38,6 +38,9 @@ export function createMockChatProvider() {
       if (request.purpose === "thought_topic_summary_v1") {
         return mockThoughtTopicSummaryCompletion(request);
       }
+      if (request.purpose === "goal_workshop") {
+        return mockGoalWorkshopCompletion(request);
+      }
 
       return {
         id: "mock-chat-completion",
@@ -76,6 +79,75 @@ export function createMockChatProvider() {
         };
       }
     },
+  };
+}
+
+/**
+ * 目标共创契约 mock（开发/测试联调）：解析请求 JSON 并回声合法响应。
+ * 无真实语义——只保证 sessionID/revision 回显、operation→kind 映射与载荷互斥，
+ * 供路由/日志/额度链路测试；模型质量以 scripts/eval-goal-workshop.mjs 评测为准。
+ */
+function mockGoalWorkshopCompletion(request) {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(lastUserMessage(request.messages));
+  } catch {
+    parsed = {};
+  }
+  const base = {
+    schemaVersion: 1,
+    sessionID: parsed.sessionID ?? "00000000-0000-0000-0000-000000000000",
+    revision: typeof parsed.revision === "number" ? parsed.revision : 0,
+  };
+  const operation = parsed.operation ?? "understand";
+  if (operation === "propose_options") {
+    return wrap({ ...base, kind: "options", assistantText: "两条路给你选。",
+      question: null,
+      options: [
+        { id: "route-1", title: "先练会议听说", fit: "近期有真实会议", effort: "每天20分钟", tradeoff: "基础需边用边补", reason: "贴近当前用途" },
+        { id: "route-2", title: "先补语言基础", fit: "近期没有会议压力", effort: "每天20分钟", tradeoff: "进入真实会议较慢", reason: "先减少基础障碍" },
+      ],
+      recommendedOptionID: "route-1", plan: null, facts: null });
+  }
+  if (operation === "build_plan") {
+    return wrap({ ...base, kind: "plan", assistantText: "初稿好了，等你确认。",
+      question: null, options: null, recommendedOptionID: null,
+      plan: {
+        draft: {
+          id: "draft-1", title: "工作会议英语敢开口", summary: "围绕真实会议场景练习听说",
+          domain: "learning", iconEmoji: null,
+          desiredOutcome: "能在周会上完整表达一次观点", motivation: "跨团队沟通需要",
+          deadlineText: "2026-12-31",
+          tasks: [{ id: "task-1", isSelected: true, title: "本周内准备一次英文自我介绍", dueDateText: "2026-09-25", priority: 1, note: null }],
+          habits: [{ id: "habit-1", isSelected: true, name: "跟读会议录音", frequency: "daily", targetCount: 1, type: "checkIn", unit: null, targetValue: null, isBadHabit: false, successRule: "completeWhenDone" }],
+          missingInfoWarnings: [],
+        },
+        successEvidence: "连续四周在周会至少发言一次",
+        milestones: [{ id: "m-1", title: "完成首次英文发言", dateText: "2026-10-31" }],
+        firstActionID: "task-1",
+        assumptions: ["假设每周都有英文周会"],
+        reviewDate: "2026-10-15",
+      },
+      facts: null });
+  }
+  if (operation === "replan") {
+    return wrap({ ...base, kind: "question", assistantText: "先对齐变化点。",
+      question: { text: "这次想调整的是结果、期限、路径，还是暂时受阻？", whyItMatters: "四类变化对应完全不同的重规划动作" },
+      options: null, recommendedOptionID: null, plan: null, facts: null });
+  }
+  // understand
+  return wrap({ ...base, kind: "question", assistantText: "我理解你的想法了。",
+    question: { text: "这件事你最近一次真实场景是什么时候？", whyItMatters: "场景与频率决定路径取舍" },
+    options: null, recommendedOptionID: null, plan: null,
+    facts: [{ id: "f-1", text: "推断：用户有明确场景诉求", provenance: "inference" }] });
+}
+
+function wrap(content) {
+  return {
+    id: "mock-goal-workshop-completion",
+    provider: "mock",
+    model: "holo-mock",
+    choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(content) }, finish_reason: "stop" }],
   };
 }
 

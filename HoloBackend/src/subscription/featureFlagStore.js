@@ -6,6 +6,8 @@
 export const DEFAULT_FLAGS = {
   // 意图识别 query_analysis/flexible_data_query 走本地 Agent 的总闸（false=回到纯 chat 链路，急停用）
   agentDeepAnalysis: true,
+  // 目标共创 P0（2026-09-17 完整开发计划）：默认关，客户端入口/链路总闸；开闸才显示「一起想清楚」
+  goalWorkshopV1: false,
 };
 
 export function createFeatureFlagStore(db) {
