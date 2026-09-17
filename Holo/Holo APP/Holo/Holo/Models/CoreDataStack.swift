@@ -23,8 +23,11 @@ nonisolated class CoreDataStack {
 
     // MARK: - Thread-Safe Properties
 
-    /// 线程安全锁，保护 _persistentContainer 的读写
+    /// 线程安全锁，保护 _persistentContainer / _storeLoaded / continuations 的读写（只做瞬时状态存取，绝不在持锁期间调用 CoreData）
     private let lock = NSLock()
+
+    /// 仅序列化容器构建过程。锁序固定 buildLock → lock 单向获取，杜绝倒致死锁
+    private let buildLock = NSLock()
 
     /// 持久化容器（线程安全存储）
     nonisolated(unsafe) private var _persistentContainer: NSPersistentContainer?
@@ -36,15 +39,31 @@ nonisolated class CoreDataStack {
     nonisolated(unsafe) private var _storeLoadContinuations: [CheckedContinuation<Void, Never>] = []
 
     /// 持久化容器（线程安全延迟初始化）
-    /// 首次访问时创建容器并异步加载 store，不阻塞调用线程
+    /// 首次访问时创建容器并异步加载 store，不阻塞调用线程。
+    /// 构建期间不得持有 lock：store 加载完成回调需要拿 lock 置位 _storeLoaded，
+    /// 若构建线程持锁做 CoreData 工作（viewContext 配置会同步等装载队列），
+    /// 两条队列互等即死锁（2026-09-17 全新安装首启三方锁实锤）。
     nonisolated var persistentContainer: NSPersistentContainer {
         lock.lock()
         if let container = _persistentContainer {
             lock.unlock()
             return container
         }
+        lock.unlock()
+
+        // 并发首建由 buildLock 定唯一胜者；后来者二次检查后复用胜者容器
+        buildLock.lock()
+        defer { buildLock.unlock() }
+
+        lock.lock()
+        if let container = _persistentContainer {
+            lock.unlock()
+            return container
+        }
+        lock.unlock()
 
         let container = buildContainer()
+        lock.lock()
         _persistentContainer = container
         lock.unlock()
         return container
@@ -92,6 +111,11 @@ nonisolated class CoreDataStack {
                 let nsError = error as NSError
                 fatalError("Core Data 存储加载失败：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
             }
+            // store 装载完成后再配置主上下文：此时无进行中的装载，
+            // setter 不会同步等待 CoreData 内部队列（构建线程也不持任何锁）
+            container.viewContext.automaticallyMergesChangesFromParent = true
+            container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+
             guard let self else { return }
             self.lock.lock()
             self._storeLoaded = true
@@ -102,9 +126,6 @@ nonisolated class CoreDataStack {
                 continuation.resume()
             }
         }
-
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
 
         return container
     }
