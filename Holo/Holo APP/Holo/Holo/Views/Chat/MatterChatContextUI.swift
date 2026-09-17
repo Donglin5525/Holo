@@ -7,26 +7,28 @@
 //  - 自动更新回执：「✓ 已更新到「…」· 撤销」，几秒后自动消失
 //  - 歧义追问条：「你说的是东京还是京都？」，点选项即按用户语义更新
 //
+//  三个 UI 件为独立 struct（体积边界，2026-09-17 真机栈溢出二修）；
+//  动作与落库逻辑经闭包回调 ChatView，禁止内联回计算属性。
+//
 
 import SwiftUI
 
-extension ChatView {
+// MARK: - 顶部胶囊
 
-    // MARK: - 顶部胶囊
+struct MatterContextPill: View {
+    let context: HoloMatterConversationContext
+    let onExit: () -> Void
 
-    @MainActor
-    func matterContextPill(_ context: HoloMatterConversationContext) -> some View {
+    var body: some View {
         let title = HoloMatterRepository.shared.matter(id: context.matterID)?.title ?? ""
-        return HStack(spacing: 6) {
+        HStack(spacing: 6) {
             Image(systemName: "pin.circle.fill")
                 .font(.caption)
                 .foregroundStyle(Color.holoPrimary)
             Text(title)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
-            Button {
-                matterChatStore.exit()
-            } label: {
+            Button(action: onExit) {
                 Image(systemName: "xmark")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -42,11 +44,17 @@ extension ChatView {
         .padding(.top, 6)
         .transition(.opacity)
     }
+}
 
-    // MARK: - 自动更新回执
+// MARK: - 自动更新回执
 
-    @MainActor
-    func matterFeedbackToast(_ feedback: MatterChatContextStore.MatterFeedback) -> some View {
+struct MatterFeedbackToast: View {
+    let feedback: MatterChatContextStore.MatterFeedback
+    let onRevert: (UUID) -> Void
+    let onDismiss: () -> Void
+    let onAutoDismiss: () -> Void
+
+    var body: some View {
         HStack(alignment: .top, spacing: 7) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption)
@@ -63,18 +71,13 @@ extension ChatView {
             Spacer(minLength: 0)
             if let eventID = feedback.revertEventID {
                 Button(String(localized: "撤销")) {
-                    Task {
-                        try? await HoloMatterRepository.shared.revertEvent(eventID: eventID)
-                        matterChatStore.lastFeedback = nil
-                    }
+                    onRevert(eventID)
                 }
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.plain)
                 .foregroundStyle(.green)
             }
-            Button {
-                matterChatStore.lastFeedback = nil
-            } label: {
+            Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -94,21 +97,25 @@ extension ChatView {
         .task {
             // 无操作 6 秒自动收起
             try? await Task.sleep(nanoseconds: 6_000_000_000)
-            withAnimation { matterChatStore.lastFeedback = nil }
+            onAutoDismiss()
         }
     }
+}
 
-    // MARK: - 歧义追问
+// MARK: - 歧义追问
 
-    @MainActor
-    func matterAmbiguityBar(_ ambiguity: HoloMatterAmbiguity) -> some View {
+struct MatterAmbiguityBar: View {
+    let ambiguity: HoloMatterAmbiguity
+    let onResolve: (HoloMatterAmbiguityOption) -> Void
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(ambiguity.question)
                 .font(.caption.weight(.semibold))
             HStack(spacing: 8) {
                 ForEach(ambiguity.options) { option in
                     Button {
-                        resolveAmbiguity(ambiguity, option: option)
+                        onResolve(option)
                     } label: {
                         Text(option.title)
                             .font(.caption.weight(.semibold))
@@ -131,9 +138,14 @@ extension ChatView {
         .padding(.top, 6)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
+}
+
+// MARK: - 歧义消解（落库与回执，留在 ChatView 侧统筹 store 状态）
+
+extension ChatView {
 
     @MainActor
-    private func resolveAmbiguity(_ ambiguity: HoloMatterAmbiguity, option: HoloMatterAmbiguityOption) {
+    func resolveAmbiguity(_ ambiguity: HoloMatterAmbiguity, option: HoloMatterAmbiguityOption) {
         guard let matterContext = matterChatStore.active else { return }
         matterChatStore.pendingAmbiguity = nil
         guard let loopID = option.openLoopID else { return }

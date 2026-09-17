@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-09-17] 真机点 HoloAI 闪退二修：全部子件结构体化 + iPhone 免宽屏容器层；真机门禁测试上线
+
+> 一修（cf6684a83）在真机上不足：东林 11:09 从 Xcode 装入含一修的包（新 .ips 二进制 UUID 4E118CDE 实锤），11:11 仍同签名爆栈。二修后真机门禁两轮绿。纯 iOS 零后端发版。
+
+### 二轮根因认知
+- 不是单点「类型描述过深」，是**页面整体栈预算超标**：SwiftUI 沿容器层级按值复制整棵子树，页面的结构体体积 × 容器层数压过真机 1MB 主线程栈。一修拆掉的两道边界只消了类型元数据递归（新崩溃栈已无 swiftCore 帧，实证有效）但减重不足。
+- **真机主线程栈 1MB、模拟器（Mac 进程）8MB——此崩溃模拟器永远复现不了**；一修以模拟器绿灯为判据属无效验证，已立规约（AGENTS.md 红线：修复声明必须以同源环境门禁为准）。
+
+### 修复
+- **全部子件结构体化**：`ChatNavBar` / `ChatPageTabBar` / `ChatMemoryNoticeBar` / `ChatUnconfiguredView` / Matter 三状态件（`MatterContextPill` / `MatterFeedbackToast` / `MatterAmbiguityBar`，自 ChatView 扩展函数迁出）——计算属性会把子树的结构类型与按值体积摊进调用方每一层容器帧，只有 struct 是体积边界；动作经闭包回调 ChatView，行为不变。
+- **iPhone 免宽屏容器层**：body 的 HStack（内容列｜侧栏）仅在 isWideLayout 时包裹，iPhone/窄屏路径少两层容器级联。
+- 至此对话页无任何胖内联子树（叠加一修的 ChatContentColumn / ChatMessageListPane 边界）。
+
+### 真机门禁（新增，长期保留）
+- `HoloUITests/AICrashDeviceReproUITests`：真机自动进 AI 页 + 停留 + 退出重进 + 断言存活；聊天/入口链路改动必须真机门禁绿才允许交付。HoloUITests 是显式 PBXGroup，新测试文件已按四处挂载写入 pbxproj。
+
+### 验证
+- 真机门禁（东林 iPhone 17 Pro + 真实聊天数据）：两轮通过；门禁后设备崩溃清单零新增（最新记录仍为 11:11 一修包）。
+- 模拟器行为回归（防修坏）：授权引导页 / 导航栏 / 对话报告双 Tab 切换 / 发消息流式回复 / 关闭重进全过，零崩溃；Matter 三状态件无法直接造态，验证编译与运行不崩。
+
+---
+
 ## [2026-09-17] 全新安装首次启动永久卡死根治：CoreDataStack 三方锁死锁
 
 > 纯 iOS 零后端发版。同日闪退根修过程中由 QA 全新装机发现（模拟器 100% 必现）；修复后两轮全新安装走查 + 定向测试回归通过。

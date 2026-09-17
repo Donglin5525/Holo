@@ -59,10 +59,6 @@ struct ChatView: View {
 
     // MARK: 页内双 Tab（对话 / 报告）——设计文档 §4.1
 
-    private enum ChatPageTab {
-        case chat
-        case report
-    }
 
     @State private var selectedPageTab: ChatPageTab = .chat
     /// 报告 pane 首次切换才构建（聊天页性能保护），之后常驻不销毁
@@ -143,41 +139,20 @@ struct ChatView: View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
 
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    // 顶部导航栏
-                    chatNavBar
+            // 宽屏（iPad）才包 HStack 侧栏层；iPhone/窄屏不付这一层容器级联——
+            // 真机主线程仅 1MB 栈，容器层级与按值复制的视图体开销乘在每一层上
+            // （2026-09-17 真机栈溢出二修，见文件尾结构体边界注释）
+            if isWideLayout {
+                HStack(spacing: 0) {
+                    chatColumn
 
-                    // Matter 上下文胶囊（方案 §13.5）：可退出，退出后不再自动关联
-                    if let matterContext = matterChatStore.active {
-                        matterContextPill(matterContext)
-                    }
-                    if let feedback = matterChatStore.lastFeedback {
-                        matterFeedbackToast(feedback)
-                    }
-                    if let ambiguity = matterChatStore.pendingAmbiguity {
-                        matterAmbiguityBar(ambiguity)
-                    }
-
-                    if !consent.isGranted {
-                        // 未开启 AI 数据处理授权：首屏给出准确引导，避免误导性的「服务不可用」
-                        unconfiguredView
-                    } else if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
-                        // 已连接、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
-                        pageTabBar
-                        chatMemoryNoticeBar
-                        pageTabContent
-                    } else if !viewModel.isConfigured {
-                        // 服务不可用兜底
-                        unconfiguredView
+                    // 依据/报告侧栏（宽屏按需出现，方案 2B）
+                    if let panel = activeSidePanel {
+                        chatSidePanel(panel)
                     }
                 }
-                .padding(.bottom, keyboardOverlap)
-
-                // 依据/报告侧栏（宽屏按需出现，方案 2B）
-                if let panel = activeSidePanel {
-                    chatSidePanel(panel)
-                }
+            } else {
+                chatColumn
             }
         }
         // 关闭系统自动键盘避让（祖先链在 ZStack 常驻模式下已忽略键盘安全区，
@@ -393,195 +368,97 @@ struct ChatView: View {
 
     // MARK: - Navigation Bar
 
-    private var chatNavBar: some View {
-        HStack {
-            Button {
-                viewModel.clearContinuationDraft()
-                close()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoTextSecondary.opacity(0.1))
-                    .cornerRadius(16)
+    /// 对话页主列：导航栏 + Matter 状态件 + 授权门/内容区。
+    /// 子件全部为独立 struct（小体积引用进本列的结构类型），本列自身保持浅结构。
+    private var chatColumn: some View {
+        VStack(spacing: 0) {
+            // 顶部导航栏
+            ChatNavBar(
+                onClose: {
+                    viewModel.clearContinuationDraft()
+                    close()
+                },
+                onOpenSettings: { activeSheet = .aiSettings }
+            )
+
+            // Matter 上下文胶囊（方案 §13.5）：可退出，退出后不再自动关联
+            if let matterContext = matterChatStore.active {
+                MatterContextPill(context: matterContext, onExit: { matterChatStore.exit() })
+            }
+            if let feedback = matterChatStore.lastFeedback {
+                MatterFeedbackToast(
+                    feedback: feedback,
+                    onRevert: { eventID in
+                        Task {
+                            try? await HoloMatterRepository.shared.revertEvent(eventID: eventID)
+                            matterChatStore.lastFeedback = nil
+                        }
+                    },
+                    onDismiss: { matterChatStore.lastFeedback = nil },
+                    onAutoDismiss: {
+                        withAnimation { matterChatStore.lastFeedback = nil }
+                    }
+                )
+            }
+            if let ambiguity = matterChatStore.pendingAmbiguity {
+                MatterAmbiguityBar(
+                    ambiguity: ambiguity,
+                    onResolve: { option in resolveAmbiguity(ambiguity, option: option) }
+                )
             }
 
-            Spacer()
-
-            Text("HOLO AI")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
-            #if DEBUG
-            Button {
-                activeSheet = .aiSettings
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoTextSecondary.opacity(0.1))
-                    .cornerRadius(16)
+            if !consent.isGranted {
+                // 未开启 AI 数据处理授权：首屏给出准确引导，避免误导性的「服务不可用」
+                ChatUnconfiguredView(isGranted: false, onOpenConsent: { activeSheet = .aiConsent })
+            } else if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
+                // 已连接、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
+                ChatPageTabBar(
+                    selectedTab: $selectedPageTab,
+                    showsReportDot: reportViewModel.hasUnreadReport,
+                    onSelectReport: { switchToReportTab() },
+                    onSelectChat: { reportViewModel.markHidden() }
+                )
+                ChatMemoryNoticeBar(
+                    snapshot: memoryInboxSnapshot,
+                    memoryNotice: viewModel.memoryNotice,
+                    onTapPrimary: { handleMemoryNoticeTap() },
+                    onTapDismiss: { dismissMemoryNotice() }
+                )
+                pageTabContent
+            } else if !viewModel.isConfigured {
+                // 服务不可用兜底
+                ChatUnconfiguredView(isGranted: true, onOpenConsent: {})
             }
-            #else
-            Color.clear
-                .frame(width: 32, height: 32)
-            #endif
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
-        .background(Color.holoBackground)
-        .zIndex(1)
+        .padding(.bottom, keyboardOverlap)
     }
+
+    /// 记忆提示条主点击：回执已读 + 有待确认走确认队列，否则直达长廊
+    private func handleMemoryNoticeTap() {
+        HoloMemoryReceiptStore.markWriteReceiptsRead()
+        let hadPending = !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled
+            && (memoryInboxSnapshot?.pendingConfirmationCount ?? 0) > 0
+        memoryInboxSnapshot = nil
+        if hadPending {
+            showMemoryConfirmationQueue = true
+        } else {
+            DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
+        }
+    }
+
+    private func dismissMemoryNotice() {
+        HoloMemoryReceiptStore.markWriteReceiptsRead()
+        memoryInboxSnapshot = nil
+    }
+
 
     // MARK: - Unconfigured View
 
-    private var unconfiguredView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: consent.isGranted ? "bubble.left.and.bubble.right.fill" : "lock.shield.fill")
-                .font(.system(size: 60, weight: .light))
-                .foregroundColor(.holoPrimary)
-
-            Text("HOLO AI 对话")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
-
-            if consent.isGranted {
-                // 已授权但服务不可用：保留网络提示
-                Text("AI 服务暂时不可用\n请稍后重试或检查网络连接")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-                    .multilineTextAlignment(.center)
-            } else {
-                // 未授权：说明真实原因并提供开启入口
-                Text("你还未开启 AI 数据处理授权\n开启后即可使用")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-                    .multilineTextAlignment(.center)
-
-                Button {
-                    activeSheet = .aiConsent
-                } label: {
-                    Text("开启授权")
-                        .font(.holoBody.weight(.semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 12)
-                        .background(Color.holoPrimary, in: Capsule())
-                }
-            }
-        }
-        .padding()
-    }
 
     // MARK: - 页内双 Tab（对话 / 报告）
 
-    private var pageTabBar: some View {
-        HStack(spacing: 0) {
-            pageTabButton(.chat, title: String(localized: "对话"), showsDot: false)
-            pageTabButton(.report, title: String(localized: "报告"), showsDot: reportViewModel.hasUnreadReport)
-        }
-        .frame(width: 190)
-        .padding(3)
-        .background(Color.holoTextSecondary.opacity(0.09), in: Capsule())
-        .padding(.top, 2)
-        .padding(.bottom, 6)
-    }
 
-    /// 记忆收件箱/使用回执提示条：占位于 Tab 栏与内容区之间，随内容排版不遮挡消息。
-    /// 收件箱下线后只在首次形成有效记忆时出现一次（首启说明），点击直达长廊；
-    /// 回滚口径（开关关闭）恢复「有待确认先弹确认队列」的旧动线。
-    @ViewBuilder
-    private var chatMemoryNoticeBar: some View {
-        if let snapshot = memoryInboxSnapshot {
-            HStack(spacing: HoloSpacing.xs) {
-                Button {
-                    HoloMemoryReceiptStore.markWriteReceiptsRead()
-                    let hadPending = !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled
-                        && snapshot.pendingConfirmationCount > 0
-                    memoryInboxSnapshot = nil
-                    if hadPending {
-                        showMemoryConfirmationQueue = true
-                    } else {
-                        DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
-                    }
-                } label: {
-                    Label(snapshot.presentationText, systemImage: "brain.head.profile.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
-                }
-                .buttonStyle(.plain)
 
-                Button {
-                    HoloMemoryReceiptStore.markWriteReceiptsRead()
-                    memoryInboxSnapshot = nil
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
-                        .padding(5)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.leading, 14)
-            .padding(.trailing, 6)
-            .padding(.vertical, 7)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.horizontal, HoloSpacing.lg)
-            .padding(.bottom, 6)
-            .transition(.move(edge: .top).combined(with: .opacity))
-        } else if let notice = viewModel.memoryNotice {
-            Label(notice, systemImage: "brain.head.profile.fill")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.bottom, 6)
-                .transition(.move(edge: .top).combined(with: .opacity))
-        }
-    }
-
-    private func pageTabButton(_ tab: ChatPageTab, title: String, showsDot: Bool) -> some View {
-        let isSelected = selectedPageTab == tab
-        return Button {
-            guard selectedPageTab != tab else { return }
-            if tab == .report {
-                switchToReportTab()
-            } else {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    selectedPageTab = .chat
-                }
-                reportViewModel.markHidden()
-            }
-        } label: {
-            Text(title)
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(isSelected ? Color.holoCardBackground : .clear, in: Capsule())
-                .overlay(alignment: .topTrailing) {
-                    if showsDot {
-                        Circle()
-                            .fill(Color.holoPrimary)
-                            .frame(width: 7, height: 7)
-                            .offset(x: -6, y: 3)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
 
     /// 两 Tab 常驻不销毁（照搬记忆长廊 tabContent 模式）：
     /// 切走仅隐藏，聊天侧滚动位置与输入态跨切换存活。
@@ -1683,5 +1560,213 @@ private struct ChatMessageListPane: View {
               !viewModel.isLoadingEarlierSession else { return }
 
         _ = await viewModel.loadEarlierSession()
+    }
+}
+
+// MARK: - 对话页结构件（2026-09-17 真机栈溢出二修）
+//
+// 除 ChatContentColumn / ChatMessageListPane 两道内容边界外，导航栏、页签条、
+// 记忆提示条、授权引导页与 Matter 状态件也全部独立成 struct：计算属性会把整棵
+// 子树的结构类型与按值体积摊进调用方（SwiftUI 每层容器帧都会复制一份），
+// 只有 struct 才是体积边界。禁止把这批结构体内联回计算属性。
+
+/// 页内双 Tab（对话 / 报告）——设计文档 §4.1
+private enum ChatPageTab {
+    case chat
+    case report
+}
+
+/// 顶部导航栏：关闭 / 标题 / 设置入口（DEBUG）
+private struct ChatNavBar: View {
+    let onClose: () -> Void
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        HStack {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .cornerRadius(16)
+            }
+
+            Spacer()
+
+            Text("HOLO AI")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+
+            #if DEBUG
+            Button(action: onOpenSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .cornerRadius(16)
+            }
+            #else
+            Color.clear
+                .frame(width: 32, height: 32)
+            #endif
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .background(Color.holoBackground)
+        .zIndex(1)
+    }
+}
+
+/// 未授权 / 服务不可用引导页
+private struct ChatUnconfiguredView: View {
+    /// true=已授权但服务不可用（只提示）；false=未授权（给开启入口）
+    let isGranted: Bool
+    let onOpenConsent: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: isGranted ? "bubble.left.and.bubble.right.fill" : "lock.shield.fill")
+                .font(.system(size: 60, weight: .light))
+                .foregroundColor(.holoPrimary)
+
+            Text("HOLO AI 对话")
+                .font(.holoTitle)
+                .foregroundColor(.holoTextPrimary)
+
+            if isGranted {
+                // 已授权但服务不可用：保留网络提示
+                Text("AI 服务暂时不可用\n请稍后重试或检查网络连接")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                // 未授权：说明真实原因并提供开启入口
+                Text("你还未开启 AI 数据处理授权\n开启后即可使用")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .multilineTextAlignment(.center)
+
+                Button(action: onOpenConsent) {
+                    Text("开启授权")
+                        .font(.holoBody.weight(.semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 12)
+                        .background(Color.holoPrimary, in: Capsule())
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+/// 页内双 Tab（对话 / 报告）
+private struct ChatPageTabBar: View {
+    @Binding var selectedTab: ChatPageTab
+    let showsReportDot: Bool
+    /// 切到报告页（含已读标记与首次构建惰性初始化，由 ChatView 统筹）
+    let onSelectReport: () -> Void
+    /// 切回对话页后隐藏报告未读态
+    let onSelectChat: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            pageTabButton(.chat, title: String(localized: "对话"), showsDot: false)
+            pageTabButton(.report, title: String(localized: "报告"), showsDot: showsReportDot)
+        }
+        .frame(width: 190)
+        .padding(3)
+        .background(Color.holoTextSecondary.opacity(0.09), in: Capsule())
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+    }
+
+    private func pageTabButton(_ tab: ChatPageTab, title: String, showsDot: Bool) -> some View {
+        let isSelected = selectedTab == tab
+        return Button {
+            guard selectedTab != tab else { return }
+            if tab == .report {
+                onSelectReport()
+            } else {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    selectedTab = .chat
+                }
+                onSelectChat()
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.holoCardBackground : .clear, in: Capsule())
+                .overlay(alignment: .topTrailing) {
+                    if showsDot {
+                        Circle()
+                            .fill(Color.holoPrimary)
+                            .frame(width: 7, height: 7)
+                            .offset(x: -6, y: 3)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// 记忆收件箱/使用回执提示条：占位于 Tab 栏与内容区之间，随内容排版不遮挡消息。
+/// 收件箱下线后只在首次形成有效记忆时出现一次（首启说明），点击直达长廊；
+/// 回滚口径（开关关闭）恢复「有待确认先弹确认队列」的旧动线——口径与动作在 ChatView。
+private struct ChatMemoryNoticeBar: View {
+    let snapshot: HoloMemoryInboxSnapshot?
+    let memoryNotice: String?
+    let onTapPrimary: () -> Void
+    let onTapDismiss: () -> Void
+
+    var body: some View {
+        if let snapshot {
+            HStack(spacing: HoloSpacing.xs) {
+                Button(action: onTapPrimary) {
+                    Label(snapshot.presentationText, systemImage: "brain.head.profile.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextPrimary)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onTapDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(5)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+            .padding(.vertical, 7)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, 6)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        } else if let notice = memoryNotice {
+            Label(notice, systemImage: "brain.head.profile.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.holoTextPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 }
