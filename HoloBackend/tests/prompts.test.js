@@ -129,8 +129,8 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // 版本号（v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
-  assert.equal(prompt.version, 30);
+  // 版本号（v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
+  assert.equal(prompt.version, 31);
 
   // 缓存前缀治理（v29）：时间语境必须落在提示词最末尾，不允许回到开头/中部
   const timeIdx = prompt.content.indexOf("当前时间：");
@@ -144,7 +144,8 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   // 红线 6200（v30 新增 contextual_planning 意图后上调；v28 时为 5750）：v28 新增 3 意图后为 ~5679；v29 时间后置治理新增 [HOLO_INTENT_TIME_V29]
   // 语境段后为 ~5729（红线 5710→5750），结构变更允许重划红线并升版本。
   // 1cc30301b 财务项目一期补项目路由后为 ~6141（红线 5950→6200，当时漏调、发版闸门补记）。
-  assert.ok(prompt.content.length < 6200, `prompt 长度 ${prompt.content.length} 超过 6200`);
+  // 红线 6750（v31 多提醒槽位+绝对日期规则扩容 ~6630 后上调；v30 时为 6200）：功能扩容允许重划红线并升版本。
+  assert.ok(prompt.content.length < 6750, `prompt 长度 ${prompt.content.length} 超过 6750`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红

@@ -822,7 +822,7 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 30);
+  assert.equal(json.version, 31);
   assert.match(json.content, /短意图 Router/);
 });
 
