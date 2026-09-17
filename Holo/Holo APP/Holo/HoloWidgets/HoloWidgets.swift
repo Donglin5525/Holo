@@ -6,6 +6,7 @@
 //  共享设计语言见 HoloWidgetChrome.swift。
 //
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -554,6 +555,10 @@ private struct HoloFinanceView: View {
                             Text("\(category.name) \(category.amount.currencyText)")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(textSecondary)
+                                // 三个胶囊并排接近组件全宽：不钉单行时中间的胶囊文字会被
+                                // 压成两行（「数码/¥1,658.83」实锤），先缩字号禁折行
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                         }
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
@@ -668,7 +673,7 @@ private struct HoloThoughtMemoryProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetThoughtMemorySnapshot>>) -> Void) {
         let store = HoloWidgetSnapshotStore()
         let entitlement = store.readEntitlement() ?? .free()
-        let snapshot = entitlement.isPlusActive ? (store.readThoughtMemory() ?? sampleThought) : sampleThought
+        let snapshot = entitlement.isPlusActive ? (store.resolvedThoughtWalkItem() ?? sampleThought) : sampleThought
         let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 60 * 6))))
     }
@@ -693,13 +698,17 @@ private struct HoloThoughtMemoryView: View {
     var body: some View {
         Group {
             if entry.entitlement.isPlusActive {
-                Link(destination: entry.value.detailDeepLink) {
+                Group {
                     if family == .systemLarge {
                         thoughtLarge
                     } else {
                         thoughtMedium
                     }
                 }
+                // 整卡深链用 widgetURL 而非 Link：Link 内嵌 Button 时按钮点击会被整卡
+                // 链接吞掉（打卡/待办组件同款教训），widgetURL 与按钮天然平级，
+                // 系统规则为按钮点击优先、其余区域打开 widgetURL
+                .widgetURL(entry.value.detailDeepLink)
             } else {
                 HoloLockedWidgetView()
             }
@@ -714,15 +723,13 @@ private struct HoloThoughtMemoryView: View {
                     .font(.system(size: 13.5, weight: .bold))
                     .foregroundStyle(textPrimary)
                 Spacer()
-                Text("✦")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(quoteTint)
+                shuffleButton(iconSize: 13, frameSize: CGSize(width: 30, height: 22))
             }
 
             quoteMark(size: 24)
                 .padding(.top, 4)
 
-            Text(entry.value.displayText)
+            tagAwareBodyText(entry.value.displayText)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(textPrimary)
                 .lineSpacing(4)
@@ -751,9 +758,10 @@ private struct HoloThoughtMemoryView: View {
                         .font(.system(size: metrics.titleFontSize, weight: .bold))
                         .foregroundStyle(textPrimary)
                     Spacer()
-                    Text("✦")
-                        .font(.system(size: metrics.titleFontSize - 0.5, weight: .bold))
-                        .foregroundStyle(quoteTint)
+                    shuffleButton(
+                        iconSize: metrics.titleFontSize - 0.5,
+                        frameSize: CGSize(width: 32, height: 24)
+                    )
                 }
 
                 quoteMark(size: metrics.quoteMarkSize)
@@ -761,7 +769,7 @@ private struct HoloThoughtMemoryView: View {
 
                 Color.clear
                     .overlay(alignment: .topLeading) {
-                        Text(entry.value.displayText)
+                        tagAwareBodyText(entry.value.displayText)
                             .font(.system(size: metrics.bodyFontSize, weight: .semibold))
                             .foregroundStyle(textPrimary)
                             .lineSpacing(metrics.bodyLineSpacing)
@@ -851,6 +859,19 @@ private struct HoloThoughtMemoryView: View {
         }
     }
 
+    /// 「换一条」：点右上角随机换一条想法（HStack 单行内布局，不存在换行）。
+    /// 与习惯打卡按钮同一交互通道；按钮热区大于图标本身，置于整卡 Link 内时按钮点击优先。
+    private func shuffleButton(iconSize: CGFloat, frameSize: CGSize) -> some View {
+        Button(intent: HoloThoughtWalkShuffleIntent()) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: iconSize, weight: .bold))
+                .foregroundStyle(quoteTint)
+                .frame(width: frameSize.width, height: frameSize.height)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     /// 大号衬线引号：明信片的落款印记
     private func quoteMark(size: CGFloat) -> some View {
         Text("“")
@@ -861,8 +882,10 @@ private struct HoloThoughtMemoryView: View {
     }
 
     private func tagRow(fontSize: CGFloat) -> some View {
-        HStack(spacing: 6) {
-            ForEach(entry.value.tags.prefix(2), id: \.self) { tag in
+        // 正文里已高亮的行内标签不再重复列胶囊（与 App 内卡片同规则：真机反馈三处重复）
+        let inlineNames = Self.inlineTagNames(in: entry.value.displayText)
+        return HStack(spacing: 6) {
+            ForEach(entry.value.tags.filter { !inlineNames.contains($0) }.prefix(2), id: \.self) { tag in
                 Text("#\(tag)")
                     .font(.system(size: fontSize, weight: .semibold))
                     .foregroundStyle(quoteTint)
@@ -872,6 +895,51 @@ private struct HoloThoughtMemoryView: View {
                     .clipShape(Capsule())
             }
         }
+    }
+
+    // MARK: 行内 #标签（App 侧 InlineTagDetector 同源正则，widget target 不含该文件故本地复制）
+
+    private static let inlineTagRegex: NSRegularExpression = {
+        let pattern = "#[\\p{L}][\\p{L}\\p{N}_]*(/[\\p{L}\\p{N}_]+)*"
+        if let regex = try? NSRegularExpression(pattern: pattern) {
+            return regex
+        }
+        assertionFailure("小组件行内标签正则编译失败")
+        guard let fallback = try? NSRegularExpression(pattern: "^$") else {
+            preconditionFailure("NSRegularExpression init 不可用")
+        }
+        return fallback
+    }()
+
+    /// 正文按「普通文本 / 行内标签」切段：标签段以品牌色高亮，不再渲染成普通文本
+    private func tagAwareBodyText(_ text: String) -> Text {
+        let range = NSRange(text.startIndex..., in: text)
+        let matches = Self.inlineTagRegex.matches(in: text, range: range)
+        guard !matches.isEmpty else { return Text(text) }
+
+        var segments: [Text] = []
+        var cursor = text.startIndex
+        for match in matches {
+            guard let matchRange = Range(match.range, in: text) else { continue }
+            if matchRange.lowerBound > cursor {
+                segments.append(Text(String(text[cursor..<matchRange.lowerBound])))
+            }
+            segments.append(Text(String(text[matchRange])).foregroundColor(quoteTint))
+            cursor = matchRange.upperBound
+        }
+        if cursor < text.endIndex {
+            segments.append(Text(String(text[cursor...])))
+        }
+        return segments.reduce(Text(""), +)
+    }
+
+    private static func inlineTagNames(in text: String) -> Set<String> {
+        let range = NSRange(text.startIndex..., in: text)
+        return Set(inlineTagRegex.matches(in: text, range: range).compactMap { match in
+            Range(match.range, in: text).map {
+                String(text[$0]).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            }
+        })
     }
 
     private var timeSuffix: String {

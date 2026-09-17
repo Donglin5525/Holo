@@ -1194,6 +1194,18 @@ struct ThoughtListView: View {
                                 } label: {
                                     Label("移入主题", systemImage: "folder")
                                 }
+
+                                // 详情页下线后卡片上没有复制入口；正文选字又与这个
+                                // 长按菜单互斥（长按被菜单抢占），补「拷贝正文」兜全文复制
+                                Button {
+                                    UIPasteboard.general.string = MarkdownTextView.accessibilityText(
+                                        richJSON: thought.richContentJSON,
+                                        fallbackPlainText: thought.content
+                                    )
+                                    HapticManager.light()
+                                } label: {
+                                    Label("拷贝正文", systemImage: "doc.on.doc")
+                                }
                             }
                         },
                         onArchive: {

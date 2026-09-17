@@ -54,14 +54,14 @@ private struct HoloTodoWidgetView: View {
     var body: some View {
         Group {
             if entry.entitlement.isPlusActive {
-                Link(destination: URL(string: "holo://tasks")!) {
-                    if value.items.isEmpty {
-                        emptyState
-                    } else if family == .systemLarge {
-                        todoLarge
-                    } else {
-                        todoMedium
-                    }
+                // 勾选圆圈是独立交互按钮，不能与 Link 嵌套（外层 Link 会接管整卡命中，
+                // 点圆圈也变成拉起 App）。非按钮区域各自挂 Link 平级铺开。
+                if value.items.isEmpty {
+                    Link(destination: tasksURL) { emptyState }
+                } else if family == .systemLarge {
+                    todoLarge
+                } else {
+                    todoMedium
                 }
             } else {
                 HoloLockedWidgetView()
@@ -70,11 +70,13 @@ private struct HoloTodoWidgetView: View {
         .holoWidgetBackground(colorScheme: colorScheme)
     }
 
+    private var tasksURL: URL { URL(string: "holo://tasks")! }
+
     // MARK: Medium · 3 待办 + 1 已划掉
 
     private var todoMedium: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            Link(destination: tasksURL) { header }
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(leadingItems(3, includeCompleted: true)) { item in
                     todoRow(item)
@@ -89,7 +91,7 @@ private struct HoloTodoWidgetView: View {
 
     private var todoLarge: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            Link(destination: tasksURL) { header }
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(leadingItems(5, includeCompleted: true)) { item in
                     todoRow(item)
@@ -99,26 +101,28 @@ private struct HoloTodoWidgetView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 9) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(trackTint)
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [primaryTint, HoloWidgetBrand.primaryLight],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+            Link(destination: tasksURL) {
+                HStack(spacing: 9) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(trackTint)
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [primaryTint, HoloWidgetBrand.primaryLight],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 )
-                            )
-                            .frame(width: geo.size.width * progressRatio)
+                                .frame(width: geo.size.width * progressRatio)
+                        }
                     }
-                }
-                .frame(height: 5)
+                    .frame(height: 5)
 
-                Text(progressText)
-                    .font(.system(size: 10.5, weight: .bold))
-                    .foregroundStyle(textSecondary)
+                    Text(progressText)
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(textSecondary)
+                }
             }
             .padding(.top, 10)
             .overlay(alignment: .top) {
@@ -174,30 +178,37 @@ private struct HoloTodoWidgetView: View {
             }
             .buttonStyle(.plain)
 
-            Text(item.title)
-                .font(.system(size: family == .systemLarge ? 14 : 13, weight: item.isCompleted ? .medium : .semibold))
-                .foregroundStyle(item.isCompleted ? textSecondary.opacity(0.7) : textPrimary)
-                .strikethrough(item.isCompleted, color: textSecondary.opacity(0.6))
-                .lineLimit(1)
+            // 行文字等其余区域单独挂 Link：与勾选按钮平级，互不接管。
+            // 标题/占位/徽章必须包在显式 HStack 里：Link label 直接铺多个子视图时
+            // 系统不按一行排（iOS 26 实测逾期徽章掉到标题下一行互相叠压）
+            Link(destination: tasksURL) {
+                HStack(spacing: 6) {
+                    Text(item.title)
+                        .font(.system(size: family == .systemLarge ? 14 : 13, weight: item.isCompleted ? .medium : .semibold))
+                        .foregroundStyle(item.isCompleted ? textSecondary.opacity(0.7) : textPrimary)
+                        .strikethrough(item.isCompleted, color: textSecondary.opacity(0.6))
+                        .lineLimit(1)
 
-            if !item.isCompleted {
-                Spacer(minLength: 2)
-                if item.isOverdue {
-                    Text("逾期")
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundStyle(roseTint)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(roseTint.opacity(0.14))
-                        .clipShape(Capsule())
-                } else {
-                    Circle()
-                        .fill(HoloWidgetPriorityDot.color(priority: item.priority, colorScheme: colorScheme))
-                        .frame(width: 5, height: 5)
+                    if !item.isCompleted {
+                        Spacer(minLength: 2)
+                        if item.isOverdue {
+                            Text("逾期")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundStyle(roseTint)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(roseTint.opacity(0.14))
+                                .clipShape(Capsule())
+                        } else {
+                            Circle()
+                                .fill(HoloWidgetPriorityDot.color(priority: item.priority, colorScheme: colorScheme))
+                                .frame(width: 5, height: 5)
+                        }
+                    } else {
+                        Spacer(minLength: 2)
+                        Circle().fill(.clear).frame(width: 5, height: 5)
+                    }
                 }
-            } else {
-                Spacer(minLength: 2)
-                Circle().fill(.clear).frame(width: 5, height: 5)
             }
         }
     }
