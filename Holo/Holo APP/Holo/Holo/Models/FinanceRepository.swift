@@ -401,6 +401,17 @@ class FinanceRepository {
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
     
+    /// 是否存在任何已发生的交易（fetchLimit=1 存在性查询，口径与 getAllTransactions 一致）
+    func hasAnyTransaction() async throws -> Bool {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: Date()),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.fetchLimit = 1
+        return try context.count(for: request) > 0
+    }
+
     func getTransactions(for month: Date) async throws -> [Transaction] {
         let calendar = Calendar.current
         guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month)),

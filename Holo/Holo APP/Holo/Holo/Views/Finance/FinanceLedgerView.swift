@@ -502,8 +502,10 @@ struct FinanceLedgerView: View {
 
                 if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
                     EmptyStateView(
-                        isFirstRecord: calendarState.currentMonthExpense == 0
-                            && calendarState.currentMonthIncome == 0
+                        // 真·第一笔（全库无任何已发生交易）才走激活引导；老用户空天只留陈述句
+                        isFirstRecord: !calendarState.hasAnyTransaction,
+                        ctaTitle: String(localized: "记一笔"),
+                        ctaAction: { showAddTransaction = true }
                     )
                     .padding(.top, 40)
                 }

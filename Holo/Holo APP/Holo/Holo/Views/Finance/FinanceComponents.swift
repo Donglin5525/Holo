@@ -357,10 +357,13 @@ struct TransactionRowView: View {
 // MARK: - Empty State View
 
 /// 空状态视图
-/// isFirstRecord=true：本月还没有任何收支（真·第一笔）；
-/// false：只是选中那天没记录，不该再说「第一笔」。
+/// isFirstRecord=true：全库还没有任何已发生交易（真·第一笔），显示激活引导副文案 + CTA；
+/// false：只是选中那天没记录——老用户不需要被教怎么记账，只留一句陈述。
+/// ctaTitle+ctaAction 同时提供且为首笔时显示行动按钮，空态从陈述句变成一键直达的起点（激活方案 §3.2）。
 struct EmptyStateView: View {
     var isFirstRecord: Bool = true
+    var ctaTitle: String? = nil
+    var ctaAction: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
@@ -372,10 +375,30 @@ struct EmptyStateView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
-            Text(isFirstRecord ? String(localized: "点击 + 按钮记录第一笔交易") : String(localized: "点击 + 按钮记一笔"))
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
-                .multilineTextAlignment(.center)
+            if isFirstRecord {
+                Text(String(localized: "说一句话或手动记一笔，都可以开始"))
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+                    .multilineTextAlignment(.center)
+
+                if let ctaTitle, let ctaAction {
+                    Button(action: ctaAction) {
+                        Label(ctaTitle, systemImage: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 26)
+                            .padding(.vertical, 11)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.holoPrimary)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("financeEmptyCta")
+                }
+            }
         }
     }
 }

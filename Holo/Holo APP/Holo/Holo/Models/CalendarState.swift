@@ -61,6 +61,9 @@ class CalendarState: ObservableObject {
     @Published var currentMonthExpense: Decimal = 0
     @Published var currentMonthIncome: Decimal = 0
 
+    /// 全库是否存在任何已发生交易（false = 从未记过账的新用户，空态才显示激活引导）
+    @Published var hasAnyTransaction: Bool = true
+
     /// 上月同期对比值（nil 表示无数据）
     @Published var previousPeriodExpense: Decimal? = nil
     @Published var previousPeriodIncome: Decimal? = nil
@@ -148,6 +151,7 @@ class CalendarState: ObservableObject {
         await loadSelectedDayData()
         loadMonthlySummary()
         await loadPreviousPeriodComparison()
+        await loadHasAnyTransaction()
         isLoading = false
     }
     
@@ -192,11 +196,21 @@ class CalendarState: ObservableObject {
         await loadMonthSummaries(for: currentMonth)
         await loadSelectedDayData()
         await loadPreviousPeriodComparison()
+        await loadHasAnyTransaction()
     }
 
     /// 数据变更后刷新（通知处理器用，fire-and-forget）
     func refreshAfterDataChange() {
         Task { await refreshData() }
+    }
+
+    /// 刷新「是否记过账」标记（记下第一笔后翻转，空态引导随之消失）
+    private func loadHasAnyTransaction() async {
+        do {
+            hasAnyTransaction = try await repository.hasAnyTransaction()
+        } catch {
+            logger.error("查询是否存在交易失败: \(error)")
+        }
     }
     
     // MARK: - 月度汇总 & 环比
