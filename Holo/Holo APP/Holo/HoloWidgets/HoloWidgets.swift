@@ -646,6 +646,9 @@ struct HoloThoughtMemoryWidget: Widget {
         .configurationDisplayName("想法随机漫步")
         .description("从过往想法里带回一条关联回忆。")
         .supportedFamilies([.systemMedium, .systemLarge])
+        // 关闭系统默认内容留白：双层留白会把 medium 压得只剩一行正文；
+        // 视图内 padding(16) 已是完整边距
+        .contentMarginsDisabled()
     }
 }
 
@@ -716,79 +719,136 @@ private struct HoloThoughtMemoryView: View {
                     .foregroundStyle(quoteTint)
             }
 
-            quoteMark(size: 38)
-                .padding(.top, 6)
+            quoteMark(size: 24)
+                .padding(.top, 4)
 
             Text(entry.value.displayText)
-                .font(.system(size: 15.5, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(textPrimary)
+                .lineSpacing(4)
                 .lineLimit(3)
                 .minimumScaleFactor(0.8)
+                .layoutPriority(1)
 
-            Text(entry.value.createdAt.widgetDateText)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(textSecondary)
-                .padding(.top, 7)
-
-            tagRow
-                .padding(.top, 10)
+            HStack(spacing: 8) {
+                Text(entry.value.createdAt.widgetDateText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(textSecondary)
+                Spacer()
+                tagRow(fontSize: 10.5)
+            }
+            .padding(.top, 8)
         }
         .padding(16)
     }
 
     private var thoughtLarge: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("今天想起一条想法")
-                    .font(.system(size: 14.5, weight: .bold))
-                    .foregroundStyle(textPrimary)
-                Spacer()
-                Text("✦")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(quoteTint)
-            }
-
-            quoteMark(size: 56)
-                .padding(.top, 10)
-
-            Text(entry.value.displayText)
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(textPrimary)
-                .lineLimit(4)
-                .minimumScaleFactor(0.8)
-                .padding(.top, 4)
-
-            Text(entry.value.createdAt.widgetDateText + timeSuffix)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(textSecondary)
-                .padding(.top, 12)
-
-            tagRow
-                .padding(.top, 12)
-
-            Spacer(minLength: 0)
-
-            HStack {
-                if !entry.value.showsOriginalExcerpt {
-                    Text("原文已收好 · 隐私不出 App")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(textSecondary)
+        GeometryReader { geo in
+            let metrics = ThoughtMemoryMetrics(size: geo.size)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("今天想起一条想法")
+                        .font(.system(size: metrics.titleFontSize, weight: .bold))
+                        .foregroundStyle(textPrimary)
                     Spacer()
-                } else {
-                    Spacer()
+                    Text("✦")
+                        .font(.system(size: metrics.titleFontSize - 0.5, weight: .bold))
+                        .foregroundStyle(quoteTint)
                 }
-                Text("回到那天 →")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(quoteTint)
+
+                quoteMark(size: metrics.quoteMarkSize)
+                    .padding(.top, metrics.quoteTopPadding)
+
+                Color.clear
+                    .overlay(alignment: .topLeading) {
+                        Text(entry.value.displayText)
+                            .font(.system(size: metrics.bodyFontSize, weight: .semibold))
+                            .foregroundStyle(textPrimary)
+                            .lineSpacing(metrics.bodyLineSpacing)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .clipped()
+                    .mask {
+                        VStack(spacing: 0) {
+                            Rectangle()
+                            LinearGradient(
+                                colors: [.black, .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: metrics.bodyFontSize * 1.2 + metrics.bodyLineSpacing)
+                        }
+                    }
+                    .padding(.top, 4)
+
+                Text(entry.value.createdAt.widgetDateText + timeSuffix)
+                    .font(.system(size: metrics.captionFontSize, weight: .medium))
+                    .foregroundStyle(textSecondary)
+                    .padding(.top, metrics.blockSpacing)
+
+                tagRow(fontSize: metrics.tagFontSize)
+                    .padding(.top, metrics.blockSpacing)
+
+                HStack {
+                    if !entry.value.showsOriginalExcerpt {
+                        Text("原文已收好 · 隐私不出 App")
+                            .font(.system(size: metrics.captionFontSize - 1.5, weight: .medium))
+                            .foregroundStyle(textSecondary)
+                        Spacer()
+                    } else {
+                        Spacer()
+                    }
+                    Text("回到那一天 →")
+                        .font(.system(size: metrics.captionFontSize - 1, weight: .bold))
+                        .foregroundStyle(quoteTint)
+                }
+                // 分隔线画在页脚文字上方而非标签行底部：overlay 挂在含 padding 的
+                // 容器上，先内 padding 再 overlay 线才会离开标签、与文字各留间隙
+                .padding(.top, 8)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(HoloWidgetBrand.hairline(for: colorScheme))
+                        .frame(height: 0.8)
+                }
+                .padding(.top, metrics.blockSpacing)
             }
-            .padding(.top, 10)
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(HoloWidgetBrand.hairline(for: colorScheme))
-                    .frame(height: 0.8)
-            }
+            .padding(metrics.padding)
         }
-        .padding(16)
+    }
+
+    /// 按组件实际渲染尺寸（iOS 26 可拉伸）自适应的排版参数。
+    /// 基准 1.0 = 最大号 iPhone 大卡（≈360pt 宽）：iPhone 上字号恒为设计值，
+    /// 拉大的空间只用于多显示正文行数；仅 iPad 等明显更宽的画布才温和放大（各档钳制上限）。
+    /// 正文不按行数截断：正文区域（Color.clear）占满剩余空间、把日期/标签/页脚钉在底部；
+    /// 完整排版的正文贴图溢出后由 clipped 裁切，淡出带恒贴可见区底边。
+    private struct ThoughtMemoryMetrics {
+        let padding: CGFloat
+        let titleFontSize: CGFloat
+        let quoteMarkSize: CGFloat
+        let quoteTopPadding: CGFloat
+        let bodyFontSize: CGFloat
+        let bodyLineSpacing: CGFloat
+        let captionFontSize: CGFloat
+        let tagFontSize: CGFloat
+        let blockSpacing: CGFloat
+
+        init(size: CGSize) {
+            let scale = min(max(size.width / 360, 1), 2.3)
+            let titleScale = min(scale, 1.15)
+            let captionScale = min(scale, 1.2)
+
+            padding = 16 * min(scale, 1.3)
+            titleFontSize = 14.5 * titleScale
+            quoteMarkSize = 56 * min(scale, 1.3)
+            quoteTopPadding = 10 * min(scale, 1.2)
+            captionFontSize = 12 * captionScale
+            tagFontSize = 10.5 * captionScale
+            blockSpacing = 12 * min(scale, 1.3)
+            // 正文与其余组件的内容文字同一档（待办 13/14），变大只多显行数
+            bodyFontSize = 14 * min(scale, 1.1)
+            // 中文多行默认行距偏挤，按字号三成补行间空隙
+            bodyLineSpacing = bodyFontSize * 0.3
+        }
     }
 
     /// 大号衬线引号：明信片的落款印记
@@ -800,11 +860,11 @@ private struct HoloThoughtMemoryView: View {
             .clipped()
     }
 
-    private var tagRow: some View {
+    private func tagRow(fontSize: CGFloat) -> some View {
         HStack(spacing: 6) {
             ForEach(entry.value.tags.prefix(2), id: \.self) { tag in
                 Text("#\(tag)")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: fontSize, weight: .semibold))
                     .foregroundStyle(quoteTint)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
