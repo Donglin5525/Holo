@@ -1,6 +1,6 @@
 // 目标共创 purpose（2026-09-17 完整开发计划任务 3）：
-// 路由与契约回显、chat 额度池归属、Prompt 注册与版本、metadata_only 强制、
-// 多语言指令、goalWorkshopV1 开关默认关。mock 请求成功只证明链路，不证明模型质量。
+// 路由与契约回显、额度豁免（产品决策 2026-09-19：不占额度免费全量开放）、Prompt 注册与版本、
+// metadata_only 强制、多语言指令、goalWorkshopV1 开关默认关。mock 请求成功只证明链路，不证明模型质量。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -86,11 +86,15 @@ test("goal_workshop 路由可达且 mock 契约回显 sessionID/revision", async
   assert.ok(content.options.every((option) => option.tradeoff && option.fit && option.reason));
 });
 
-test("goal_workshop 计入 chat 额度池（X-Holo-Quota-Type=chat）", async () => {
+test("goal_workshop 不占额度（产品决策 2026-09-19：免费全量开放，无 X-Holo-Quota-Type）", async () => {
   const app = createTestApp();
   const response = await postWorkshop(app, "understand");
   assert.equal(response.status, 200);
-  assert.equal(response.headers.get("X-Holo-Quota-Type"), "chat");
+  assert.equal(
+    response.headers.get("X-Holo-Quota-Type"),
+    null,
+    "goal_workshop 不得记入任何额度池",
+  );
 });
 
 test("goal_workshop 限流桶独立兜量", () => {
@@ -103,8 +107,8 @@ test("goal_workshop 限流桶独立兜量", () => {
   assert.equal(typeof route.reasoningEffort, "string");
 });
 
-test("quotaTypeForPurpose 将 goal_workshop 归入 chat 池", () => {
-  // 通过配置与实现一致性间接锁定：matter_reconciliation 同款策略
+test("quotaTypeForPurpose：goal_workshop 已豁免额度（产品决策 2026-09-19）", () => {
+  // 通过配置与实现一致性间接锁定：route 仍在（限流兜量），额度归属已移除
   const config = loadConfig();
   assert.ok(config.routes.goal_workshop);
   assert.ok(config.routes.matter_reconciliation);
