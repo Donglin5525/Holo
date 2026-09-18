@@ -378,7 +378,13 @@ struct ChatView: View {
                     viewModel.clearContinuationDraft()
                     close()
                 },
-                onOpenSettings: { activeSheet = .aiSettings }
+                onOpenSettings: {
+                    // 设置按钮本体在 ChatNavBar 内为 DEBUG-only（正式包不显示）；
+                    // aiSettings case 同为 DEBUG-only，这里必须同步限定，否则 Release 编译失败
+                    #if DEBUG
+                    activeSheet = .aiSettings
+                    #endif
+                }
             )
 
             // Matter 上下文胶囊（方案 §13.5）：可退出，退出后不再自动关联
