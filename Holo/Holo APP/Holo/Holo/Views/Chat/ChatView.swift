@@ -168,6 +168,9 @@ struct ChatView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: memoryInboxSnapshot)
         .animation(.easeInOut(duration: 0.2), value: viewModel.memoryNotice)
+        .sheet(item: $viewModel.goalWorkshopLaunch) { launch in
+            GoalWorkshopFlowView(launch: launch)
+        }
         .sheet(isPresented: $showMemoryConfirmationQueue) {
             MemoryConfirmationQueueView()
         }

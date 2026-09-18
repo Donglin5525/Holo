@@ -128,6 +128,9 @@ final class ChatViewModel: ObservableObject {
     var latestGoalPlanningAssistantMessageID: UUID? {
         messages.last(where: { $0.role == "assistant" && $0.messageType == .goalPlanning })?.id
     }
+
+    /// 目标共创（一起想清楚）流程入口：开闸时旧「规划目标」入口指向同一会话
+    @Published var goalWorkshopLaunch: GoalWorkshopLaunch?
     @Published var goalDraftForReview: GoalDraft?
     @Published var showGoalDraftReview = false
     /// 周期回放选择 Sheet（从记忆长廊迁移而来）
@@ -3678,6 +3681,11 @@ final class ChatViewModel: ObservableObject {
     }
 
     func startGoalPlanning(seedText: String?) {
+        // 目标共创开闸时，旧入口直接指向新流程（同一会话）；关闸走原有链路
+        if HoloAIFeatureFlags.goalWorkshopEnabled {
+            goalWorkshopLaunch = .new(seedText: seedText)
+            return
+        }
         Task { @MainActor in
             await retryConfigurationLoadIfNeeded()
             await ensureChatRepositoryReady()

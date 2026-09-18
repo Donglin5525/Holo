@@ -71444,6 +71444,566 @@
         }
       }
     },
+    "下面是针对这个目标的调整建议，不会改动你的原目标": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggestions for this goal below — your original goal won't be changed."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下面是針對這個目標的調整建議，不會改動你的原目標"
+          }
+        }
+      }
+    },
+    "正在连接…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在連接…"
+          }
+        }
+      }
+    },
+    "看看有哪些路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Me the Paths"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看看有哪些路徑"
+          }
+        }
+      }
+    },
+    "正在想…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在想…"
+          }
+        }
+      }
+    },
+    "想清楚的事：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The goal: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想清楚的事：%@"
+          }
+        }
+      }
+    },
+    "按这条路径出草案": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft It with This Path"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按這條路徑出草案"
+          }
+        }
+      }
+    },
+    "正在按这条路径出草案，通常需要半分钟，写好会自动出现": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drafting with this path — usually takes about half a minute. It will appear here automatically."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在按這條路徑起草，通常需要半分鐘，寫好會自動出現"
+          }
+        }
+      }
+    },
+    "去确认这份草案": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review This Draft"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去確認這份草案"
+          }
+        }
+      }
+    },
+    "你说": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You said"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你說"
+          }
+        }
+      }
+    },
+    "这会儿服务太忙，进度已保存，稍等几分钟再继续。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The service is busy right now. Your progress is saved — try again in a few minutes."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這會兒服務太忙，進度已保存，稍等幾分鐘再繼續。"
+          }
+        }
+      }
+    },
+    "这场会话已失效，重新开始一场就好。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session is no longer available. Just start a new one."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這場會話已失效，重新開始一場就好。"
+          }
+        }
+      }
+    },
+    "上一条还在处理，稍等一下。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still working on the last one — hang on a moment."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一條還在處理，稍等一下。"
+          }
+        }
+      }
+    },
+    "Holo 这次没把结果想明白，你的进度都在。再试一次通常就好。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo couldn't make sense of the result this time. Your progress is intact — trying again usually works."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo 這次沒把結果想明白，你的進度都在。再試一次通常就好。"
+          }
+        }
+      }
+    },
+    "这场共创的思考次数用完了（保险丝保护，正常走完用不完）。点下面重新开始一场。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session used up its thinking budget (a safety fuse — a normal run won't hit it). Tap below to start fresh."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這場共創的思考次數用完了（保險絲保護，正常走完用不完）。點下面重新開始一場。"
+          }
+        }
+      }
+    },
+    "网络开小差了，进度已保存，稍后再试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network hiccup. Your progress is saved — try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路出了點狀況，進度已保存，稍後再試。"
+          }
+        }
+      }
+    },
+    "放弃这场，重新开始": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard and Start Over"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放棄這場，重新開始"
+          }
+        }
+      }
+    },
+    "聊清楚": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clarify"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊清楚"
+          }
+        }
+      }
+    },
+    "选路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paths"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選路徑"
+          }
+        }
+      }
+    },
+    "定草案": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定草案"
+          }
+        }
+      }
+    },
+    "你刚说：「%@」": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You said: “%@”"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你剛說：「%@」"
+          }
+        }
+      }
+    },
+    "Holo 正在想…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is thinking…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo 正在想…"
+          }
+        }
+      }
+    },
+    "期限": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deadline"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "期限"
+          }
+        }
+      }
+    },
+    "成功标准": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Success Looks Like"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成功標準"
+          }
+        }
+      }
+    },
+    "所选路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chosen Path"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選路徑"
+          }
+        }
+      }
+    },
+    "（未命名的心愿）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(An unnamed wish)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（未命名的心願）"
+          }
+        }
+      }
+    },
+    "正在想清楚": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clarifying"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在想清楚"
+          }
+        }
+      }
+    },
+    "在比较路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparing paths"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在比較路徑"
+          }
+        }
+      }
+    },
+    "已选路径，待出草案": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path picked — draft pending"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選路徑，待出草案"
+          }
+        }
+      }
+    },
+    "草案待确认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft awaiting review"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "草案待確認"
+          }
+        }
+      }
+    },
+    "已放弃": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discarded"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已放棄"
+          }
+        }
+      }
+    },
+    "和 Holo 一起想清楚第一个目标": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Think Through Your First Goal with Holo"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和 Holo 一起想清楚第一個目標"
+          }
+        }
+      }
+    },
+    "或让 HoloAI 直接规划": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Or let HoloAI plan it directly"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "或讓 HoloAI 直接規劃"
+          }
+        }
+      }
+    },
+    "一起想清楚怎么调整": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Think Through How to Adjust"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一起想清楚怎麼調整"
+          }
+        }
+      }
+    },
+    "把模糊的想法变成能走的目标": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn a vague idea into a goal you can walk"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把模糊的想法變成能走的目標"
+          }
+        }
+      }
+    },
+    "共创前需要先开启 AI 数据授权：在「设置 → HoloAI 数据授权」里打开，再回来继续就好。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Co-creation needs AI data consent first: turn it on in Settings → HoloAI Data Consent, then come back."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共創前需要先開啟 AI 資料授權：在「設定 → HoloAI 資料授權」裡打開，再回來繼續就好。"
+          }
+        }
+      }
+    },
     "返回重新选路径": {
       "localizations": {
         "zh-Hant": {

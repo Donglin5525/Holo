@@ -15,6 +15,11 @@ struct GoalDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var operationError: String?
     @State private var showEditForm = false
+
+    /// 目标共创·已有目标调整建议（P0 只给建议不写回）
+    @State private var goalWorkshopLaunch: GoalWorkshopLaunch?
+    /// 共创入口显隐随服务端开关即时刷新
+    @State private var workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
     @State private var showLinkManager = false
     @State private var showMetricLogSheet = false
 
@@ -63,6 +68,12 @@ struct GoalDetailView: View {
             Button("知道了", role: .cancel) {}
         } message: {
             Text(operationError ?? "")
+        }
+        .sheet(item: $goalWorkshopLaunch) { launch in
+            GoalWorkshopFlowView(launch: launch)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
+            workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
         }
         .sheet(isPresented: $showEditForm) {
             GoalEditSheet(goal: goal) {
@@ -455,6 +466,11 @@ struct GoalDetailView: View {
 
     private var actionSection: some View {
         VStack(spacing: HoloSpacing.sm) {
+            if workshopEnabled {
+                Button("一起想清楚怎么调整") {
+                    goalWorkshopLaunch = .existingGoalAdvice(goalID: goal.id, goalTitle: goal.title)
+                }
+            }
             Button("编辑目标") {
                 showEditForm = true
             }

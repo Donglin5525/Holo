@@ -159,6 +159,17 @@ final class HoloMemorySettings: ObservableObject {
         get { memoryAssistedAnsweringEnabled }
         set { memoryAssistedAnsweringEnabled = newValue }
     }
+    // MARK: - Goal Workshop（目标共创，2026-09-17 完整开发计划任务 5）
+
+    /// 目标共创「一起想清楚」总闸：本地默认关 + 服务端 goalWorkshopV1 控制。
+    /// 关闸时旧 AI 规划与手动创建行为不变，已保存 Goal 不受影响。
+    static var goalWorkshopEnabled: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("GOAL_WORKSHOP_FORCE_ON") { return true }
+        #endif
+        return HoloServerFeatureFlags.value("goalWorkshopV1", localDefault: false)
+    }
+
 
     // MARK: - Profile Snapshot Feature Flags
 
@@ -435,6 +446,17 @@ enum HoloAIFeatureFlags {
     }
     static var memoryShadowEvaluationEnabled: Bool {
         HoloMemoryOperationalControls.current().isShadowEvaluation
+    // MARK: - Goal Workshop（目标共创，2026-09-17 完整开发计划任务 5）
+
+    /// 目标共创「一起想清楚」总闸：本地默认关 + 服务端 goalWorkshopV1 控制。
+    /// 关闸时旧 AI 规划与手动创建行为不变，已保存 Goal 不受影响。
+    static var goalWorkshopEnabled: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("GOAL_WORKSHOP_FORCE_ON") { return true }
+        #endif
+        return HoloServerFeatureFlags.value("goalWorkshopV1", localDefault: false)
+    }
+
     }
 
     // MARK: - Profile Snapshot Feature Flags

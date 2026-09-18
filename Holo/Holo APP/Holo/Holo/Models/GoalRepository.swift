@@ -22,12 +22,15 @@ final class GoalRepository: ObservableObject {
 
     @Published private(set) var goals: [Goal] = []
 
-    private var context: NSManagedObjectContext {
-        CoreDataStack.shared.viewContext
+    private let context: NSManagedObjectContext
+
+    init(context: NSManagedObjectContext) {
+        self.context = context
+        registerCloudSyncRefreshIfNeeded()
     }
 
-    private init() {
-        registerCloudSyncRefreshIfNeeded()
+    private convenience init() {
+        self.init(context: CoreDataStack.shared.viewContext)
     }
 
     // MARK: - iCloud 远程变更刷新
@@ -273,6 +276,57 @@ final class GoalRepository: ObservableObject {
     }
 }
 
+// MARK: - 无保存构造器（原子提交事务内调用，§2.4）
+
+extension GoalRepository {
+
+    /// 构造任务并挂到目标：不保存、不发通知（保存成功后统一发）
+    @discardableResult
+    static func makeTask(from draft: GoalTaskDraft, goal: Goal, in context: NSManagedObjectContext) -> TodoTask {
+        let task = TodoTask.create(
+            in: context,
+            title: draft.title,
+            desc: draft.note,
+            list: nil,
+            priority: TaskPriority(rawValue: Int16(draft.priority ?? 1)) ?? .medium,
+            dueDate: GoalWorkshopCommitService.parseDay(draft.dueDateText),
+            isAllDay: true,
+            reminders: nil,
+            plannedStart: nil,
+            plannedEnd: nil
+        )
+        task.goal = goal
+        return task
+    }
+
+    /// 构造习惯并挂到目标：不保存、不入看板（保存成功后统一入）
+    @discardableResult
+    static func makeHabit(from draft: GoalHabitDraft, goal: Goal, in context: NSManagedObjectContext) -> Habit {
+        let request = NSFetchRequest<Habit>(entityName: "Habit")
+        let maxSortOrder = (try? context.count(for: request)) != nil
+            ? ((try? context.fetch(request))?.map { $0.sortOrder }.max() ?? -1)
+            : -1
+        let habit = Habit.create(
+            in: context,
+            name: draft.name,
+            icon: "target",
+            color: "#5B8CFF",
+            type: draft.type == "numeric" ? .numeric : .checkIn,
+            frequency: draft.resolvedFrequency,
+            targetCount: draft.targetCount,
+            targetValue: draft.targetValue,
+            unit: draft.unit,
+            aggregationType: .sum,
+            isBadHabit: draft.isBadHabit ?? (draft.successRule == HabitSuccessRule.stayBelowTarget.rawValue),
+            sortOrder: maxSortOrder + 1,
+            reminderMode: .follow,
+            reminderTime: (hour: 9, minute: 0)
+        )
+        habit.goal = goal
+        return habit
+    }
+}
+
 // MARK: - Draft Save
 
 struct GoalDraftSaveResult {
@@ -282,51 +336,36 @@ struct GoalDraftSaveResult {
 }
 
 extension GoalRepository {
+    /// 草案落库：单事务提交（Goal/任务/习惯一次 save），失败不落半套数据。
+    /// 旧手建与旧 AI 草案经此复用目标共创的原子提交（§2.4）。
     @discardableResult
     func saveDraft(
         _ draft: GoalDraft,
         allowAIContext: Bool,
         source: String = "holoAI"
     ) throws -> GoalDraftSaveResult {
-        let goal = try createGoal(from: draft, allowAIContext: allowAIContext, source: source)
-
-        var taskCount = 0
-        for taskDraft in draft.tasks where taskDraft.isSelected {
-            let task = try TodoRepository.shared.createTask(
-                title: taskDraft.title,
-                description: taskDraft.note,
-                priority: TaskPriority(rawValue: Int16(taskDraft.priority ?? 1)) ?? .medium,
-                dueDate: parseDate(taskDraft.dueDateText),
-                isAllDay: true
-            )
-            task.goal = goal
-            taskCount += 1
+        let receipt = try GoalWorkshopCommitService.performCommit(
+            draft: draft,
+            allowAIContext: allowAIContext,
+            source: source,
+            sourceSessionID: nil,
+            successEvidence: "",
+            assumptions: [],
+            selectedRouteTitle: nil,
+            in: context
+        )
+        // 幂等重放（同 sourceSessionID 已存在）：返回既有目标，不重复创建
+        guard !receipt.wasIdempotentReplay, let goal = findGoal(by: receipt.goalID) else {
+            if let goal = findGoal(by: receipt.goalID) {
+                return GoalDraftSaveResult(goal: goal, createdTaskCount: 0, createdHabitCount: 0)
+            }
+            throw GoalWorkshopCommitService.CommitError.saveFailed("保存后读取目标失败")
         }
-
-        var habitCount = 0
-        for habitDraft in draft.habits where habitDraft.isSelected {
-            let habit = try HabitRepository.shared.createHabit(
-                name: habitDraft.name,
-                icon: "target",
-                color: "#5B8CFF",
-                type: habitDraft.type == "numeric" ? .numeric : .checkIn,
-                frequency: habitDraft.resolvedFrequency,
-                targetCount: habitDraft.targetCount,
-                targetValue: habitDraft.targetValue,
-                unit: habitDraft.unit,
-                isBadHabit: habitDraft.isBadHabit ?? (habitDraft.successRule == HabitSuccessRule.stayBelowTarget.rawValue)
-            )
-            habit.goal = goal
-            habitCount += 1
-        }
-
-        goal.updatedAt = Date()
-        try context.save()
         TodoRepository.shared.loadActiveTasks()
         HabitRepository.shared.loadActiveHabits()
         loadGoals()
 
-        return GoalDraftSaveResult(goal: goal, createdTaskCount: taskCount, createdHabitCount: habitCount)
+        return GoalDraftSaveResult(goal: goal, createdTaskCount: receipt.createdTaskCount, createdHabitCount: receipt.createdHabitCount)
     }
 }
 

@@ -8,6 +8,13 @@
 //
 
 import Foundation
+import Combine
+
+/// 服务端开关落盘后的广播：开关值写在 UserDefaults 里不会触发 SwiftUI 重绘，
+/// 入口显隐类 UI（如目标页「一起想清楚」菜单）监听它即时刷新，避免冷启动拉到开关后菜单仍按旧值渲染
+extension Notification.Name {
+    static let holoServerFlagsDidUpdate = Notification.Name("holo_server_flags_did_update")
+}
 
 nonisolated enum HoloServerFeatureFlags {
     private static let prefix = "holo_server_flag_"
@@ -29,6 +36,7 @@ nonisolated enum HoloServerFeatureFlags {
         for (flag, value) in flags {
             defaults.set(value, forKey: prefix + flag)
         }
+        NotificationCenter.default.post(name: .holoServerFlagsDidUpdate, object: nil)
     }
 
     // MARK: - 已知开关
@@ -37,5 +45,12 @@ nonisolated enum HoloServerFeatureFlags {
     /// false = 急停（回到纯 chat 链路），与本地 agentRuntimeEnabled 是 AND 关系。
     static var agentDeepAnalysis: Bool {
         value("agentDeepAnalysis", localDefault: true)
+    }
+
+    /// 目标共创（一起想清楚）灰度开关：false = 走旧 AI 规划与手动创建。
+    /// 产品决策（2026-09-19 东林拍板）：开闸后该功能不占对话额度、免费用户全量开放，
+    /// 开关仅作线上急停用，不做任何付费档位门槛。
+    static var goalWorkshopV1: Bool {
+        value("goalWorkshopV1", localDefault: false)
     }
 }

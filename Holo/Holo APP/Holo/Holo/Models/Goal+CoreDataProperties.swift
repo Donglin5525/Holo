@@ -22,6 +22,8 @@ extension Goal {
     @NSManaged var updatedAt: Date
     @NSManaged var completedAt: Date?
     @NSManaged var source: String
+    /// 目标共创会话逻辑 ID（§2.4 幂等/归并依据）；手动创建与旧 AI 草案为 nil
+    @NSManaged var sourceSessionID: UUID?
     @NSManaged var allowAIContext: Bool
     @NSManaged var proactiveNudge: Bool
     @NSManaged var lastInsightSummary: String?

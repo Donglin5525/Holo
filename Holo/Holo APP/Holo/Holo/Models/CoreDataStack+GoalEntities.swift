@@ -86,6 +86,12 @@ extension CoreDataStack {
         source.isOptional = false
         source.defaultValue = "holoAI"
 
+        // 目标共创（§2.4）：Goal 的逻辑 ID——会话确认幂等与跨设备同义副本归并的依据
+        let sourceSessionID = NSAttributeDescription()
+        sourceSessionID.name = "sourceSessionID"
+        sourceSessionID.attributeType = .UUIDAttributeType
+        sourceSessionID.isOptional = true
+
         let allowAIContext = NSAttributeDescription()
         allowAIContext.name = "allowAIContext"
         allowAIContext.attributeType = .booleanAttributeType
@@ -160,6 +166,7 @@ extension CoreDataStack {
             proactiveNudge, lastInsightSummary,
             goalKind, metricUnit, targetValue, baselineValue, baselineDate,
             metricSource, sourceHabitId, ledgerScope,
+            sourceSessionID,
             goalSoftDelete.deletedAt, goalSoftDelete.deletedBatchId
         ]
         return goalEntity

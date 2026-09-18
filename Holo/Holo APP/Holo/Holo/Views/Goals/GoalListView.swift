@@ -19,6 +19,14 @@ struct GoalListView: View {
     /// 手动创建目标
     @State private var showManualCreate = false
 
+    /// 目标共创（一起想清楚）流程
+    @State private var goalWorkshopLaunch: GoalWorkshopLaunch?
+
+    /// 共创开闸与否随服务端开关即时刷新（订阅状态异步落地后菜单/入口要跟着变）
+    @State private var workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
+    /// 进行中的共创会话（顶部恢复条入口；「进度已保存」必须找得到回家的路）
+    @State private var resumableSession: GoalWorkshopSessionV1?
+
     /// 是否已完成首次加载（避免冷启动时空态先闪现、再被真实列表替换）
     @State private var hasLoadedOnce = false
 
@@ -34,14 +42,18 @@ struct GoalListView: View {
 
     /// 宽屏卡墙分档（通宵冲刺 D7）：expanded 档目标卡两两并排（每列 ≥340pt），
     /// 对齐知识树/习惯磁贴的通览口径；iPhone/竖屏单列不变
-    @Environment(\.holoWindowWidth) private var goalWindowWidth
+    @Environment(\.holoContentWidth) private var goalWindowWidth
     private var goalColumnCount: Int {
         HoloAdaptiveLayout.isExpandedWidth(goalWindowWidth) ? 2 : 1
     }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            Group {
+            VStack(spacing: HoloSpacing.md) {
+                if let resumableSession {
+                    resumeBanner(resumableSession)
+                }
+                Group {
                 if goalColumnCount > 1 {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: HoloSpacing.md), count: goalColumnCount), spacing: HoloSpacing.md) {
                         goalCards
@@ -51,10 +63,11 @@ struct GoalListView: View {
                         goalCards
                     }
                 }
+                }
+                .padding(HoloSpacing.lg)
+                // 通览型页面对齐长廊 920 口径（通宵冲刺 D7）；iPhone 直通
+                .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
             }
-            .padding(HoloSpacing.lg)
-            // 通览型页面对齐长廊 920 口径（通宵冲刺 D7）；iPhone 直通
-            .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
         }
         .background(Color.holoBackground)
         .navigationTitle("我的目标")
@@ -62,6 +75,13 @@ struct GoalListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    if workshopEnabled {
+                        Button {
+                            goalWorkshopLaunch = .new(seedText: nil)
+                        } label: {
+                            Label("一起想清楚", systemImage: "lightbulb")
+                        }
+                    }
                     Button {
                         onPlanGoal()
                     } label: {
@@ -77,6 +97,9 @@ struct GoalListView: View {
                 }
                 .accessibilityLabel(String(localized: "新建目标"))
             }
+        }
+        .sheet(item: $goalWorkshopLaunch) { launch in
+            GoalWorkshopFlowView(launch: launch)
         }
         .sheet(isPresented: $showManualCreate) {
             GoalManualCreateSheet(
@@ -103,6 +126,7 @@ struct GoalListView: View {
         }
         .onAppear {
             // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
+            refreshEntryState()
             guard CoreDataStack.shared.isReady else {
                 openPendingGoalIfNeeded()
                 return
@@ -116,6 +140,14 @@ struct GoalListView: View {
             await CoreDataStack.shared.waitUntilReady()
             repository.loadGoals()
             hasLoadedOnce = true
+            refreshEntryState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
+            refreshEntryState()
+        }
+        .onChange(of: goalWorkshopLaunch) { _, _ in
+            // 共创页关闭后回到本页：恢复条/入口显隐按最新状态刷新
+            refreshEntryState()
         }
         .onChange(of: pendingGoalDetailId) { _, _ in
             openPendingGoalIfNeeded()
@@ -128,6 +160,48 @@ struct GoalListView: View {
         } message: {
             Text(operationError ?? "")
         }
+    }
+
+    /// 入口显隐 + 恢复条状态统一刷新（onAppear/开关广播/共创页关闭三处共用）
+    private func refreshEntryState() {
+        workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
+        resumableSession = (try? GoalWorkshopStore.shared.listResumable())?.first
+    }
+
+    /// 进行中共创会话恢复条：「进度已保存」在目标页的可见出口
+    private func resumeBanner(_ session: GoalWorkshopSessionV1) -> some View {
+        Button {
+            goalWorkshopLaunch = .resume(sessionID: session.id)
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "lightbulb")
+                    .font(.system(size: 16))
+                    .foregroundColor(.holoPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("有一个想到一半的目标")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextPrimary)
+                    Text(session.originalText.isEmpty ? "（未命名的心愿）" : session.originalText)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text("继续")
+                    .font(.holoLabel)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoPrimary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoPrimary)
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: HoloRadius.md))
+        }
+        .buttonStyle(PlainButtonStyle())
+        .holoHover()
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.top, HoloSpacing.md)
     }
 
     @ViewBuilder
@@ -159,21 +233,44 @@ struct GoalListView: View {
             Text("还没有目标")
                 .font(.holoTitle)
                 .foregroundColor(.holoTextPrimary)
-            Text("让 HoloAI 帮你把想法拆成任务和习惯")
+            Text("把模糊的想法变成能走的目标")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
-            Button {
-                onPlanGoal()
-            } label: {
-                Text("让 HoloAI 规划目标")
-                    .font(.holoBody)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(Color.holoPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            if workshopEnabled {
+                Button {
+                    goalWorkshopLaunch = .new(seedText: nil)
+                } label: {
+                    Text("和 Holo 一起想清楚第一个目标")
+                        .font(.holoBody)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.holoPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
+                Button {
+                    onPlanGoal()
+                } label: {
+                    Text("或让 HoloAI 直接规划")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                        .underline()
+                }
+            } else {
+                Button {
+                    onPlanGoal()
+                } label: {
+                    Text("让 HoloAI 规划目标")
+                        .font(.holoBody)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.holoPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
             }
             Button {
                 showManualCreate = true

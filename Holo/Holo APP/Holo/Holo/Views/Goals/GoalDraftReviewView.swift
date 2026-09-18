@@ -8,22 +8,39 @@
 
 import SwiftUI
 
+/// 目标共创确认页附加上下文（§2.3 全字段确认）：成功证据可改、假设可删、里程碑展示
+struct GoalWorkshopReviewContext {
+    var session: GoalWorkshopSessionV1
+    var successEvidence: String
+    var assumptions: [String]
+}
+
 struct GoalDraftReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: GoalDraft
     @State private var allowAIContext = true
     @State private var showCancelConfirm = false
     @State private var isSaving = false
+    @State private var saveErrorText: String?
+    @State private var workshopSuccessEvidence: String
+    @State private var workshopAssumptions: [String]
+    @State private var deadlineDate: Date?
 
+    let workshopSession: GoalWorkshopSessionV1?
     let onCancel: () -> Void
     let onSaved: (GoalDraftSaveResult) -> Void
 
     init(
         draft: GoalDraft,
+        workshopContext: GoalWorkshopReviewContext? = nil,
         onCancel: @escaping () -> Void,
         onSaved: @escaping (GoalDraftSaveResult) -> Void
     ) {
         _draft = State(initialValue: draft)
+        _workshopSuccessEvidence = State(initialValue: workshopContext?.successEvidence ?? "")
+        _workshopAssumptions = State(initialValue: workshopContext?.assumptions ?? [])
+        _deadlineDate = State(initialValue: GoalWorkshopValidator.strictDayFormatter.date(from: draft.deadlineText ?? ""))
+        self.workshopSession = workshopContext?.session
         self.onCancel = onCancel
         self.onSaved = onSaved
     }
@@ -33,9 +50,23 @@ struct GoalDraftReviewView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
                     goalInfoCard
+                    outcomeCard
+                    if let workshopSession {
+                        workshopCard(for: workshopSession)
+                    }
+                    if !draft.missingInfoWarnings.isEmpty { warningsCard }
                     if !draft.tasks.isEmpty { tasksCard }
                     if !draft.habits.isEmpty { habitsCard }
                     aiContextCard
+                    if let saveErrorText {
+                        Label {
+                            Text(saveErrorText).font(.holoCaption)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                        }
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
@@ -137,6 +168,175 @@ struct GoalDraftReviewView: View {
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Outcome Card（期望结果/动机/期限——§1.2 缺口补齐）
+
+    private var outcomeCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            sectionHeader(icon: "sparkles", title: String(localized: "期望结果"))
+
+            CardDivider()
+
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Text("期望结果")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                TextField("达成后是什么样子（可选）", text: Binding(
+                    get: { draft.desiredOutcome ?? "" },
+                    set: { draft.desiredOutcome = $0.isEmpty ? nil : $0 }
+                ), axis: .vertical)
+                    .font(.holoCaption)
+                    .lineLimit(1...3)
+                    .padding(HoloSpacing.sm)
+                    .background(Color.holoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+            }
+
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Text("动机")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                TextField("为什么现在想做这件事（可选）", text: Binding(
+                    get: { draft.motivation ?? "" },
+                    set: { draft.motivation = $0.isEmpty ? nil : $0 }
+                ), axis: .vertical)
+                    .font(.holoCaption)
+                    .lineLimit(1...3)
+                    .padding(HoloSpacing.sm)
+                    .background(Color.holoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+            }
+
+            Toggle(isOn: Binding(
+                get: { deadlineDate != nil },
+                set: { deadlineDate = $0 ? Date() : nil }
+            )) {
+                Text("设置期限").font(.holoCaption)
+            }
+            .tint(.holoPrimary)
+
+            if let deadlineDate {
+                DatePicker("期限", selection: Binding(
+                    get: { deadlineDate },
+                    set: { self.deadlineDate = $0 }
+                ), displayedComponents: .date)
+                    .font(.holoCaption)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
+    }
+
+    // MARK: - Workshop Card（成功证据/路径代价/假设/里程碑/第一步）
+
+    private func workshopCard(for session: GoalWorkshopSessionV1) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            sectionHeader(icon: "checkmark.seal", title: String(localized: "怎么算成了"))
+
+            CardDivider()
+
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Text("成功证据（能观察到什么）")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                TextField("例如：连续四周在周会至少发言一次", text: $workshopSuccessEvidence, axis: .vertical)
+                    .font(.holoCaption)
+                    .lineLimit(1...3)
+                    .padding(HoloSpacing.sm)
+                    .background(Color.holoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+            }
+
+            if let selectedRouteID = session.selectedRouteID,
+               let route = session.routeOptions.first(where: { $0.id == selectedRouteID }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("所选路径：\(route.title)")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("这条路的代价：\(route.tradeoff)")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+
+            if !workshopAssumptions.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("关键假设（未确认信息，可删）")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                    ForEach(workshopAssumptions.indices, id: \.self) { index in
+                        HStack {
+                            Label {
+                                Text(workshopAssumptions[index]).font(.holoLabel)
+                            } icon: {
+                                Image(systemName: "exclamationmark.triangle")
+                            }
+                            Spacer()
+                            Button {
+                                workshopAssumptions.remove(at: index)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                        }
+                        .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+
+            if let plan = session.plan {
+                if !plan.milestones.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("里程碑").font(.holoLabel).foregroundColor(.holoTextSecondary)
+                        ForEach(plan.milestones) { milestone in
+                            HStack {
+                                Image(systemName: "flag").font(.holoLabel)
+                                Text(milestone.title).font(.holoLabel)
+                                Spacer()
+                                if let date = milestone.dateText {
+                                    Text(date).font(.holoTinyLabel).foregroundColor(.holoTextSecondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                if let first = plan.firstActionID,
+                   let title = plan.draft.tasks.first(where: { $0.id == first })?.title
+                   ?? plan.draft.habits.first(where: { $0.id == first })?.name {
+                    Label {
+                        Text("第一步：\(title)").font(.holoCaption)
+                    } icon: {
+                        Image(systemName: "shoe")
+                    }
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
+    }
+
+    // MARK: - Warnings Card（§1.2：missingInfoWarnings 必须展示）
+
+    private var warningsCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            sectionHeader(icon: "exclamationmark.triangle", title: String(localized: "待补充信息"))
+            CardDivider()
+            ForEach(draft.missingInfoWarnings, id: \.self) { warning in
+                Label {
+                    Text(warning).font(.holoCaption).foregroundColor(.holoTextSecondary)
+                } icon: {
+                    Image(systemName: "info.circle")
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
     }
 
     // MARK: - Tasks Card
@@ -348,14 +548,67 @@ struct GoalDraftReviewView: View {
     }
 
     private func save() {
-        isSaving = true
-        do {
-            let result = try GoalRepository.shared.saveDraft(draft, allowAIContext: allowAIContext)
-            GoalNotificationService.broadcastGoalDataChange()
-            onSaved(result)
-            dismiss()
-        } catch {
-            isSaving = false
+        guard !isSaving else { return }  // 双击确认防护
+        // 完整校验通过才可点（标题之外，共创会话还需成功证据非空、日期可解析）
+        if let workshopSession {
+            guard !workshopSuccessEvidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                saveErrorText = "先填「成功证据」：达成后你能观察到什么。"
+                return
+            }
         }
+        if let deadlineDate {
+            draft.deadlineText = GoalWorkshopSessionV1.dayString(from: deadlineDate)
+        } else {
+            draft.deadlineText = nil
+        }
+
+        isSaving = true
+        saveErrorText = nil
+        Task { @MainActor in
+            do {
+                let result: GoalDraftSaveResult
+                if let workshopSession {
+                    let input = GoalWorkshopCommitInput(
+                        session: workshopSession,
+                        draft: draft,
+                        successEvidence: workshopSuccessEvidence,
+                        assumptions: workshopAssumptions,
+                        allowAIContext: allowAIContext
+                    )
+                    let receipt = try await GoalWorkshopCommitService.shared.commitWorkshop(input)
+                    guard let goal = GoalRepository.shared.findGoal(by: receipt.goalID) else {
+                        throw GoalWorkshopCommitService.CommitError.saveFailed("保存后读取目标失败")
+                    }
+                    result = GoalDraftSaveResult(
+                        goal: goal,
+                        createdTaskCount: receipt.createdTaskCount,
+                        createdHabitCount: receipt.createdHabitCount
+                    )
+                } else {
+                    result = try GoalRepository.shared.saveDraft(draft, allowAIContext: allowAIContext)
+                }
+                GoalNotificationService.broadcastGoalDataChange()
+                onSaved(result)
+                dismiss()
+            } catch {
+                // 失败必须显示具体可操作错误，不静默吞掉；草案保留可重试
+                isSaving = false
+                saveErrorText = Self.describeSaveError(error)
+            }
+        }
+    }
+
+    private static func describeSaveError(_ error: Error) -> String {
+        if let commitError = error as? GoalWorkshopCommitService.CommitError {
+            switch commitError {
+            case .validation(let reason): return "没保存成功：\(reason)"
+            case .saveFailed(let reason): return "没保存成功：\(reason)。内容还在，稍后再试一次。"
+            case .sessionAlreadyApplied: return "这个目标已经保存过，不用重复保存。"
+            }
+        }
+        if let validationError = error as? GoalWorkshopValidationError {
+            return "没保存成功：日期或内容不合规（\(String(describing: validationError))）。"
+        }
+        return "没保存成功，内容还在，稍后再试一次。"
     }
 }
