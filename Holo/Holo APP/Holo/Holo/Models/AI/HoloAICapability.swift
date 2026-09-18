@@ -446,6 +446,8 @@ enum HoloAIFeatureFlags {
     }
     static var memoryShadowEvaluationEnabled: Bool {
         HoloMemoryOperationalControls.current().isShadowEvaluation
+    }
+
     // MARK: - Goal Workshop（目标共创，2026-09-17 完整开发计划任务 5）
 
     /// 目标共创「一起想清楚」总闸：本地默认关 + 服务端 goalWorkshopV1 控制。
@@ -457,7 +459,6 @@ enum HoloAIFeatureFlags {
         return HoloServerFeatureFlags.value("goalWorkshopV1", localDefault: false)
     }
 
-    }
 
     // MARK: - Profile Snapshot Feature Flags
 
