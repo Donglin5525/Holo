@@ -18,6 +18,9 @@ struct MessageBubbleView: View {
     let message: ChatMessageViewData
     let streamingText: String?
     let goalDraftForReview: GoalDraft?
+    /// 草案卡只允许落在最新一条 AI 规划消息上：否则草案就绪期间（含恢复场景）
+    /// 历史追问消息会全部渲染成草案卡
+    var latestGoalPlanningAssistantMessageID: UUID? = nil
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onFlexibleQueryTransactionTap: ((UUID) -> Void)? = nil
@@ -75,6 +78,7 @@ struct MessageBubbleView: View {
             && message.messageType == .goalPlanning
             && !message.isStreaming
             && goalDraftForReview != nil
+            && message.id == latestGoalPlanningAssistantMessageID
     }
 
     private var isUser: Bool {

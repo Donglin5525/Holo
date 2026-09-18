@@ -123,6 +123,11 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Goal Planning
 
     @Published private(set) var activeGoalPlanningSession: GoalPlanningSession?
+
+    /// 草案卡归属：最新一条 AI 规划消息。历史追问同属 goalPlanning 类型但不渲染卡。
+    var latestGoalPlanningAssistantMessageID: UUID? {
+        messages.last(where: { $0.role == "assistant" && $0.messageType == .goalPlanning })?.id
+    }
     @Published var goalDraftForReview: GoalDraft?
     @Published var showGoalDraftReview = false
     /// 周期回放选择 Sheet（从记忆长廊迁移而来）
@@ -179,6 +184,7 @@ final class ChatViewModel: ObservableObject {
         if hasFinishedSetup { return }
         bootstrapChatRepositoryIfNeeded()
         startAnalysisReconcileLoop()
+        restoreActiveGoalPlanningIfNeeded()
 
         if !usesInjectedProvider {
             provider = HoloBackendEnvironment.makeDefaultProvider()
@@ -813,14 +819,24 @@ final class ChatViewModel: ObservableObject {
         inputText = ""
         errorMessage = nil
 
-        // 目标规划分流
+        // 目标规划分流。会话可能因页面重建（切 Tab / 杀 App）丢失，先从持久化恢复：
+        // 恢复失败就当普通消息走路由，不再让回答掉进意图识别被误判成建任务（2026-09-18）
+        if activeGoalPlanningSession == nil, goalDraftForReview == nil {
+            restoreActiveGoalPlanningIfNeeded()
+        }
         if let session = activeGoalPlanningSession, session.status == .collecting {
             await handleGoalPlanningReply(text, session: session)
             return
         }
 
-        if let session = activeGoalPlanningSession, session.status == .draftReady {
-            errorMessage = String(localized: "目标草案正在等待确认，请先处理当前草案。")
+        if activeGoalPlanningSession?.status == .draftReady {
+            // 落到气泡告知：此分支此前只写 errorMessage（无界面消费点），用户看到的是
+            // 「发送没反应」（09-18 模拟器 QA 实锤）。输入文字放回输入框。
+            _ = chatRepo.addMessage(
+                role: "assistant",
+                content: String(localized: "目标草案正在等你确认。先处理上面的草案卡：点开可以查看、保存或重新生成。"),
+                messageType: .goalPlanning
+            )
             inputText = text
             return
         }
@@ -3645,6 +3661,21 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Goal Planning
 
+    /// 从持久化恢复进行中的目标问答（仅内存态缺失时）。
+    /// draftReady 态连带恢复草案，让页面重建后草案卡照常显示。
+    private func restoreActiveGoalPlanningIfNeeded() {
+        guard activeGoalPlanningSession == nil, goalDraftForReview == nil else { return }
+        guard let restored = GoalPlanningSessionStore.restore() else { return }
+        guard restored.session.status == .collecting || restored.session.status == .draftReady else {
+            GoalPlanningSessionStore.clear()
+            return
+        }
+        activeGoalPlanningSession = restored.session
+        if restored.session.status == .draftReady {
+            goalDraftForReview = restored.draftForReview
+        }
+    }
+
     func startGoalPlanning(seedText: String?) {
         Task { @MainActor in
             await retryConfigurationLoadIfNeeded()
@@ -3693,6 +3724,8 @@ final class ChatViewModel: ObservableObject {
                     maxTurns: planningMaxTurns
                 )
                 activeGoalPlanningSession = result.session
+                GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
+                GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
                 if let question = result.assistantText {
                     _ = chatRepo.addMessage(
                         role: "assistant",
@@ -3720,6 +3753,7 @@ final class ChatViewModel: ObservableObject {
                     // 额度按天重置是确定终态：会话不能继续占用聊天入口，
                     // 否则后续普通消息仍会被路由成规划回答、反复触发额度报错。
                     activeGoalPlanningSession = nil
+                    GoalPlanningSessionStore.clear()
                     _ = chatRepo.addMessage(
                         role: "assistant",
                         content: quotaError.userMessage,
@@ -3788,6 +3822,7 @@ final class ChatViewModel: ObservableObject {
                 // 同 startGoalPlanning：额度终态必须释放会话，让聊天入口回到普通对话，
                 // 不能让用户后续每条消息都被当成规划回答反复撞额度墙。
                 activeGoalPlanningSession = nil
+                GoalPlanningSessionStore.clear()
                 _ = chatRepo.addMessage(
                     role: "assistant",
                     content: quotaError.userMessage,
@@ -3812,6 +3847,7 @@ final class ChatViewModel: ObservableObject {
         activeGoalPlanningSession?.status = .cancelled
         goalDraftForReview = nil
         showGoalDraftReview = false
+        GoalPlanningSessionStore.clear()
         _ = chatRepo?.addMessage(
             role: "assistant",
             content: String(localized: "已取消这次目标规划。"),
@@ -3824,6 +3860,7 @@ final class ChatViewModel: ObservableObject {
         activeGoalPlanningSession?.status = .confirmed
         goalDraftForReview = nil
         showGoalDraftReview = false
+        GoalPlanningSessionStore.clear()
         activeGoalPlanningSession = nil
     }
 

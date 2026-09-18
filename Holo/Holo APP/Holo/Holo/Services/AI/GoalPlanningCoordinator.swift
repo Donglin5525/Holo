@@ -91,3 +91,44 @@ enum GoalPlanningError: LocalizedError {
         }
     }
 }
+
+/// 目标规划进行中会话的轻量持久化。
+/// 会话此前只存 ChatViewModel 内存，切 Tab / 杀 App 即丢——用户回来继续回答时
+/// 掉进普通聊天路由，被意图识别按字面判成建任务（2026-09-18 实锤事故）。
+/// 会话语义是「用户进行中的一场问答」，生命周期应独立于页面：落 UserDefaults，
+/// 恢复带时效，confirmed / cancelled / 额度终态即清。
+enum GoalPlanningSessionStore {
+    private static let key = "goal_planning_active_session_v1"
+
+    /// 恢复时效：超过该间隔的未完成问答作废，防止陈旧会话吞掉用户的新消息
+    static let staleInterval: TimeInterval = 2 * 60 * 60
+
+    private struct Envelope: Codable {
+        var session: GoalPlanningSession
+        var draftForReview: GoalDraft?
+        var lastActiveAt: Date
+    }
+
+    static func save(session: GoalPlanningSession, draftForReview: GoalDraft?) {
+        let envelope = Envelope(session: session, draftForReview: draftForReview, lastActiveAt: Date())
+        guard let data = try? JSONEncoder().encode(envelope) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    /// 读取未过期会话；过期或数据损坏视为无会话并清掉残留
+    static func restore() -> (session: GoalPlanningSession, draftForReview: GoalDraft?)? {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
+            return nil
+        }
+        guard Date().timeIntervalSince(envelope.lastActiveAt) < staleInterval else {
+            clear()
+            return nil
+        }
+        return (envelope.session, envelope.draftForReview)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}

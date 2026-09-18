@@ -1180,6 +1180,7 @@ private struct ChatMessageListPane: View {
                         message: message,
                         streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
                         goalDraftForReview: viewModel.goalDraftForReview,
+                        latestGoalPlanningAssistantMessageID: viewModel.latestGoalPlanningAssistantMessageID,
                         onIntentTagTap: { msg in
                             actions.onIntentTagTap(msg)
                         },

@@ -239,7 +239,7 @@ extension GoalDraft {
     }
 }
 
-struct GoalPlanningSession: Identifiable, Equatable {
+struct GoalPlanningSession: Identifiable, Equatable, Codable {
     /// 默认追问轮数上限（不含草案生成）。纯常量，nonisolated 供任意上下文引用。
     nonisolated static let defaultMaxTurns = 3
 
