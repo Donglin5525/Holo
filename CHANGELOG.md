@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-09-19] 聊完 HoloAI 后看板进度刷新闪退根治（真机 .ips 实锤）
+
+> 东林真机复现：装 1.0.6 收口包聊完 HoloAI 即闪退，首页顶部通知胶囊随之消失；模拟器五大入口走查与全量单测均无法复现（需设备特定数据状态）。devicectl systemCrashLogs 域拉取 .ips 定位。
+
+### 根因（两层叠加）
+- **去重器放行无身份键残渣行**：`deduplicatingRows` 对 `id` 为空的行（迁移事故/iCloud 同步残渣）采取「不参与去重、无条件保留」策略，坏行混入 `activeHabits`。设备有历史副本行，触发条件长期存在。
+- **进度刷新直读失效对象**：`getTodayCheckInProgress` 的 filter 直接读 `@NSManaged id`（非可选声明），对坏行/失效对象读到 nil 后 `UUID._unconditionallyBridgeFromObjectiveC` 强桥接 SIGTRAP（EXC_BREAKPOINT）。触发链：HoloAI 聊天落任务/记账 → `.todoDataDidChange` → 今日看板球 `DailyKanbanEntryButton.refreshProgress()`。胶囊消失为崩溃中断首页渲染的连带症状。
+
+### 修复
+- 去重器源头剔除无身份键的行（无 id = 无身份键 = 下游无法安全消费，保留只会毒害读路径）；全行有效且无重复时保持免拷贝快路径。
+- `getTodayCheckInProgress` 改 KVC 空值安全读（`value(forKey:) as? UUID`），失效行不计入进度；`map(\.id)` 同步改 `compactMap(entryID)`。
+
+### 验证
+- 东林真机复验：聊 HoloAI + 跨页切换不闪退，看板顶部胶囊恢复；习惯口径单测 7 条绿；修复后全量单测绿。
+
+---
+
 ## [2026-09-18] 目标规划问答断点续答根治 + 草案待确认期「发送没反应」修复
 
 > 东林真机实锤：点「规划目标」后回答 AI 追问（想早点睡），回答被误判成建任务直接弹「任务待确认」卡。后端 ai_call_logs 定位根因链：08:33 开始的目标问答，09:18 回答时会话状态已丢——会话只存页面内存，切 Tab / 杀 App 即丢；意图识别为单句判定无对话历史，把回答按字面判成 create_task(0.72)。纯 iOS 零后端发版。

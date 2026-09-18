@@ -137,7 +137,6 @@ class HabitRepository: ObservableObject {
     /// 上式的泛型版本，供打卡记录（HabitRecord）等同 id 重复会双计/错乱的子行使用。
     /// 本文件编译进小组件 target，算法自带实现，不引用主 App target 的 DuplicateRowFilter。
     static func deduplicatingRows<T: NSManagedObject>(_ rows: [T]) -> [T] {
-        guard rows.count > 1 else { return rows }
         var survivorById: [UUID: T] = [:]
         for row in rows {
             guard let id = row.value(forKey: "id") as? UUID else { continue }
@@ -149,9 +148,12 @@ class HabitRepository: ObservableObject {
                 survivorById[id] = row
             }
         }
+        // 无身份键的行 = 迁移事故/同步残渣，必须源头剔除：下游读 @NSManaged id 会
+        // 强桥接 nil 崩溃（2026-09-19 真机 .ips 实锤：看板进度刷新路径）。全部行
+        // 身份有效且无重复时结果与输入一致，保持免拷贝快路径。
         guard survivorById.count != rows.count else { return rows }
         return rows.filter { row in
-            guard let id = row.value(forKey: "id") as? UUID else { return true }
+            guard let id = row.value(forKey: "id") as? UUID else { return false }
             return survivorById[id] === row
         }
     }
@@ -1123,10 +1125,17 @@ class HabitRepository: ObservableObject {
             guard let visible = visibleHabitIds, !visible.isEmpty else { return nil }
             return Set(visible)
         }()
-        func isVisible(_ id: UUID) -> Bool { visibleSet?.contains(id) ?? true }
+        // 云端合并后 activeHabits 可能残留失效对象（加载时有效、持有期间被远程变更作废），
+        // 直接读 @NSManaged id 在失效时强桥接 nil 崩溃（2026-09-19 真机 .ips 实锤：
+        // 看板球刷新路径）；KVC 读 nil 安全，无身份键的行不计入进度。
+        func entryID(_ habit: Habit) -> UUID? { habit.value(forKey: "id") as? UUID }
+        func isVisible(_ id: UUID?) -> Bool {
+            guard let id else { return false }
+            return visibleSet?.contains(id) ?? true
+        }
 
-        let checkInHabits = activeHabits.filter { $0.isCheckInType && isVisible($0.id) }
-        let numericHabits = activeHabits.filter { $0.isNumericType && isVisible($0.id) }
+        let checkInHabits = activeHabits.filter { isVisible(entryID($0)) && $0.isCheckInType }
+        let numericHabits = activeHabits.filter { isVisible(entryID($0)) && $0.isNumericType }
 
         let total = checkInHabits.count + numericHabits.count
         guard total > 0 else { return (0, 0) }
@@ -1138,7 +1147,7 @@ class HabitRepository: ObservableObject {
 
         // 打卡型完成数：单次 distinct fetch
         let checkInCompleted = countCheckedHabits(
-            ids: checkInHabits.map(\.id), from: today, to: tomorrow
+            ids: checkInHabits.compactMap(entryID), from: today, to: tomorrow
         )
         // 数值型完成数：今日有记录即算（功能鼓励「保持记录」，与数值大小/是否达标无关）
         let numericCompleted = numericHabits.filter { hasTodayNumericRecord($0) }.count
