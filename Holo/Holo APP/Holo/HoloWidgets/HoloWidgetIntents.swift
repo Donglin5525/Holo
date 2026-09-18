@@ -111,3 +111,29 @@ struct HoloTodoToggleIntent: AppIntent {
         return .result()
     }
 }
+
+// MARK: - 想法随机漫步「换一条」
+
+struct HoloThoughtWalkShuffleIntent: AppIntent {
+    static let title: LocalizedStringResource = "换一条想法"
+    static let description = IntentDescription("随机换一条过往想法显示在桌面上。")
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        let store = HoloWidgetSnapshotStore()
+        guard let pool = store.readThoughtWalkPool(), !pool.items.isEmpty else { return .result() }
+
+        // 只在池内且不与当前显示条重复的候选里随机
+        let current = store.resolvedThoughtWalkItem()
+        let candidates = pool.items.filter { $0.thoughtId != current?.thoughtId }
+        guard let picked = candidates.randomElement() else { return .result() }
+
+        // 手选当天内有效：主 App 刷新候选池也不会弹回当日主推，次日自动恢复轮换
+        try? store.writeThoughtWalkSelection(
+            HoloWidgetThoughtWalkSelection(thoughtId: picked.thoughtId, date: Date())
+        )
+        WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.thoughtMemory.rawValue)
+        return .result()
+    }
+}

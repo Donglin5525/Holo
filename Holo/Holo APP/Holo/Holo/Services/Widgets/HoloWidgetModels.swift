@@ -19,6 +19,8 @@ nonisolated enum HoloWidgetSharedContainer {
     static let goalFileName = "widget_goal_snapshot.json"
     static let anniversaryFileName = "widget_anniversary_snapshot.json"
     static let entitlementFileName = "widget_entitlement.json"
+    static let thoughtWalkPoolFileName = "widget_thought_walk_pool.json"
+    static let thoughtWalkSelectionFileName = "widget_thought_walk_selection.json"
 }
 
 nonisolated struct HoloWidgetEntitlementSnapshot: Codable, Equatable {
@@ -225,6 +227,25 @@ nonisolated struct HoloWidgetThoughtMemorySnapshot: Codable, Equatable {
     }
 }
 
+/// 「想法随机漫步」候选池：主 App 预建的全部合格候选（摘要/标签/来源已解析），
+/// 小组件「换一条」只在池内轮换显示，不自行访问数据库。
+nonisolated struct HoloWidgetThoughtWalkSnapshot: Codable, Equatable {
+    let items: [HoloWidgetThoughtMemorySnapshot]
+    /// 当日主推下标（延续旧版按日期轮换口径，未手选时桌面显示不变）
+    let featuredIndex: Int
+    let updatedAt: Date
+}
+
+/// 用户点「换一条」的手选记录：当天内有效，次日自动恢复主推轮换
+nonisolated struct HoloWidgetThoughtWalkSelection: Codable, Equatable {
+    let thoughtId: UUID
+    let date: Date
+
+    func isActive(on date: Date, calendar: Calendar = .current) -> Bool {
+        calendar.isDate(self.date, inSameDayAs: date)
+    }
+}
+
 // MARK: - Habit（今日习惯）
 
 nonisolated struct HoloWidgetHabitSnapshot: Codable, Equatable {
@@ -323,8 +344,10 @@ nonisolated struct HoloWidgetTodoSnapshot: Codable, Equatable {
     /// 如 "8.20 周三"
     let dateText: String
     let updatedAt: Date
-
-    var pendingCount: Int { max(0, totalToday - completedToday) }
+    /// 未完成总数（今天到期 + 逾期，与 items 列表同口径）——标题「剩 N 项」与列表
+    /// 内容必须一致，否则全逾期日会出现「剩 0 项」配 3 条待办。var+默认值：旧快照
+    /// JSON 无此 key 时按 0 解码，进前台刷新后即修正。
+    var pendingCount: Int = 0
 
     static func empty(date: Date = Date()) -> HoloWidgetTodoSnapshot {
         HoloWidgetTodoSnapshot(completedToday: 0, totalToday: 0, items: [], dateText: "", updatedAt: date)
@@ -365,7 +388,8 @@ nonisolated struct HoloWidgetTodoSnapshot: Codable, Equatable {
                 )
             ],
             dateText: String(localized: "8.20 周三"),
-            updatedAt: date
+            updatedAt: date,
+            pendingCount: 3
         )
     }
 }

@@ -210,12 +210,14 @@ final class HoloWidgetSnapshotService {
     }
 
     func refreshThoughtMemorySnapshot(date: Date = Date()) {
-        guard let snapshot = buildThoughtMemorySnapshot(date: date) else { return }
-        try? store.writeThoughtMemory(snapshot)
+        guard let pool = buildThoughtWalkPool(date: date) else { return }
+        try? store.writeThoughtWalkPool(pool)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.thoughtMemory.rawValue)
     }
 
-    private func buildThoughtMemorySnapshot(date: Date) -> HoloWidgetThoughtMemorySnapshot? {
+    /// 候选池：合格想法全部入池（摘要/标签/来源逐条解析好），小组件「换一条」只在此池内轮换；
+    /// featuredIndex 延续旧版按日期轮换口径，未手选时桌面显示与旧版完全一致。
+    private func buildThoughtWalkPool(date: Date) -> HoloWidgetThoughtWalkSnapshot? {
         let repository = ThoughtRepository()
         let thoughts = (try? repository.fetchAll(limit: 120, sortBy: .createdAtDescending)) ?? []
         let candidates = thoughts
@@ -234,9 +236,22 @@ final class HoloWidgetSnapshotService {
         }
 
         let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
-        let selected = sorted[(dayOfYear - 1) % sorted.count]
+        let items = sorted.map { makeThoughtWalkItem(for: $0) }
+        return HoloWidgetThoughtWalkSnapshot(
+            items: items,
+            featuredIndex: (dayOfYear - 1) % items.count,
+            updatedAt: date
+        )
+    }
+
+    private func makeThoughtWalkItem(for selected: Thought) -> HoloWidgetThoughtMemorySnapshot {
         let tags = Array(selected.tagArray.map(\.name).prefix(2))
-        let excerpt = selected.plainContent.truncatedForWidget(maxLength: 72)
+        // 摘要剥掉内联标签：纯文本正文剥 # 后只剩裸标签词，与底部标签行重复；
+        // 标签一律由快照 tags 字段（标签行胶囊）统一展示
+        let excerpt = InlineTagDetector.removingInlineTags(from: selected.plainContent)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            // 上限需覆盖 iOS 26 拉大后的大尺寸卡片：正文区可容纳 100+ 字
+            .truncatedForWidget(maxLength: 220)
 
         return HoloWidgetThoughtMemorySnapshot(
             thoughtId: selected.id,
