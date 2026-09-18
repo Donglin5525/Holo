@@ -77,7 +77,18 @@ export function createQuotaActionLedgerStore(
           value.actionId,
         );
         if (existing) {
-          return { ...snapshot(value), allowed: true, duplicate: true, status: existing.status };
+          // 凭证字段（subjectId/quotaType/actionId）必须随返回值带回：
+          // 调用方（如云端执行器）会把返回值原样回传给 commit/release，
+          // 缺了标识字段 WHERE 全空匹配，commit 静默失效（2026-09-19 实锤：
+          // 云端深度分析完成后额度永远停留 reserved）。
+          return {
+            subjectId: value.subjectId,
+            actionId: value.actionId,
+            ...snapshot(value),
+            allowed: true,
+            duplicate: true,
+            status: existing.status,
+          };
         }
 
         const before = snapshot(value);
@@ -95,7 +106,14 @@ export function createQuotaActionLedgerStore(
           timestamp,
           timestamp,
         );
-        return { ...snapshot(value), allowed: true, duplicate: false, status: "reserved" };
+        return {
+          subjectId: value.subjectId,
+          actionId: value.actionId,
+          ...snapshot(value),
+          allowed: true,
+          duplicate: false,
+          status: "reserved",
+        };
       })();
     },
 
