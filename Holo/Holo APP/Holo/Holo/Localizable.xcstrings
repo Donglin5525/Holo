@@ -6915,6 +6915,22 @@
         }
       }
     },
+    "P0 阶段只给建议：下面的内容不会改动原目标，确认修改要等下一版": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "P0 preview only: nothing below changes the existing goal; confirming edits arrives in a later release"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "P0 階段只給建議：下面的內容不會改動原目標，確認修改要等下一版"
+          }
+        }
+      }
+    },
     "PLUS": {
       "localizations": {
         "en": {
@@ -8849,6 +8865,22 @@
         }
       }
     },
+    "一起想清楚": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Think It Through Together"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一起想清楚"
+          }
+        }
+      }
+    },
     "一闪而过的念头，都值得留下来": {},
     "七": {
       "localizations": {
@@ -10297,6 +10329,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "為了讓你鎖屏、離開 App 後分析和回放也能完成，Holo 會把本次所需的資料（如任務、帳目、習慣、想法、健康摘要）**加密上傳到雲端**完成處理。"
+          }
+        }
+      }
+    },
+    "为什么现在想做这件事（可选）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Why now? (optional)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為什麼現在想這件事（可選）"
           }
         }
       }
@@ -12885,6 +12933,22 @@
         }
       }
     },
+    "代价": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trade-off"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代價"
+          }
+        }
+      }
+    },
     "代表你当前阶段的状态，通常会保留数周到数月。": {
       "localizations": {
         "en": {
@@ -12913,6 +12977,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "以下資料將全部進入 30 天回收站，到期自動徹底刪除。帳號、訂閱、登入狀態與偏好設定不受影響；健康資料不受影響。"
+          }
+        }
+      }
+    },
+    "以下是调整建议，尚未修改原目标": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggestions only — the original goal is unchanged"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以下是調整建議，尚未修改原目標"
           }
         }
       }
@@ -13666,6 +13746,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "會自動歸屬到當前一級分類"
+          }
+        }
+      }
+    },
+    "会话已结束": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session has ended"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "會話已結束"
           }
         }
       }
@@ -14758,6 +14854,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "例如：招商銀行儲蓄卡"
+          }
+        }
+      }
+    },
+    "例如：连续四周在周会至少发言一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. speak up at least once in the weekly meeting, four weeks in a row"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：連續四週在週會至少發言一次"
           }
         }
       }
@@ -15980,6 +16092,22 @@
         }
       }
     },
+    "先跳过这个问题": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip this question for now"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先跳過這個問題"
+          }
+        }
+      }
+    },
     "免费": {
       "localizations": {
         "en": {
@@ -16750,6 +16878,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "關鍵事項都在等待外部結果"
+          }
+        }
+      }
+    },
+    "关键假设（未确认信息，可删）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key assumptions (unconfirmed, removable)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關鍵假設（未確認資訊，可刪）"
+          }
+        }
+      }
+    },
+    "关键假设（未确认信息，可改）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key assumptions (unconfirmed, editable)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關鍵假設（未確認資訊，可改）"
           }
         }
       }
@@ -18377,6 +18537,22 @@
         }
       }
     },
+    "删除习惯": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Habit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除習慣"
+          }
+        }
+      }
+    },
     "删除事件": {
       "localizations": {
         "en": {
@@ -18453,22 +18629,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除任務待確認"
-          }
-        }
-      }
-    },
-    "删除习惯": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete Habit"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除習慣"
           }
         }
       }
@@ -20420,6 +20580,22 @@
         }
       }
     },
+    "原来的说法": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What you originally said"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原來的說法"
+          }
+        }
+      }
+    },
     "原样重试这次追问": {
       "localizations": {
         "en": {
@@ -22151,6 +22327,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "含小睡"
+          }
+        }
+      }
+    },
+    "听你的，按「%@」来": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sounds good — going with “%@”"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聽你的，按「%@」來"
           }
         }
       }
@@ -29418,6 +29610,22 @@
         }
       }
     },
+    "已确认的事": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmed so far"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已確認的事"
+          }
+        }
+      }
+    },
     "已确认，AI 会记住你的判断": {
       "localizations": {
         "en": {
@@ -30160,6 +30368,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已選 %lld/%lld"
+          }
+        }
+      }
+    },
+    "已选「%@」": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected: “%@”"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選「%@」"
           }
         }
       }
@@ -34236,6 +34460,22 @@
         }
       }
     },
+    "成功证据（能观察到什么）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Evidence of success (what can be observed)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成功證據（能觀察到什麼）"
+          }
+        }
+      }
+    },
     "成功返回": {
       "localizations": {
         "en": {
@@ -34762,6 +35002,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "所選時間範圍內沒有足夠的可用資料，暫時無法形成可信結論。請確認資料許可權和記錄覆蓋後再試。"
+          }
+        }
+      }
+    },
+    "所选路径：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chosen path: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選路徑：%@"
           }
         }
       }
@@ -35473,6 +35729,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "把這一天說給 TA 聽"
+          }
+        }
+      }
+    },
+    "投入": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effort"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "投入"
           }
         }
       }
@@ -36384,6 +36656,22 @@
         }
       }
     },
+    "换个新的想法": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try a different idea"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "換個新的想法"
+          }
+        }
+      }
+    },
     "授权": {
       "localizations": {
         "en": {
@@ -36734,6 +37022,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "推測"
+          }
+        }
+      }
+    },
+    "推荐": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recommended"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推薦"
           }
         }
       }
@@ -42407,6 +42711,22 @@
         }
       }
     },
+    "更准确的说法是…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A more accurate way to put it…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更準確的說法是…"
+          }
+        }
+      }
+    },
     "更多操作": {
       "localizations": {
         "en": {
@@ -43564,6 +43884,22 @@
         }
       }
     },
+    "有%@走得通的路，代价各不相同：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are %@ viable paths, each with different trade-offs:"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有%@走得通的路，代價各不相同："
+          }
+        }
+      }
+    },
     "有一个习惯节奏被稳稳接住": {
       "localizations": {
         "en": {
@@ -43576,6 +43912,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "有一個習慣節奏被穩穩接住"
+          }
+        }
+      }
+    },
+    "有一个想到一半的目标": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A half-formed goal"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有一個想到一半的目標"
           }
         }
       }
@@ -52525,6 +52877,22 @@
         }
       }
     },
+    "目标已保存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goal saved"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標已保存"
+          }
+        }
+      }
+    },
     "目标已创建": {
       "localizations": {
         "en": {
@@ -54876,6 +55244,22 @@
       }
     },
     "第一条记录完成 🎉": {},
+    "第一步：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First step: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一步：%@"
+          }
+        }
+      }
+    },
     "第三": {
       "localizations": {
         "en": {
@@ -55535,6 +55919,22 @@
         }
       }
     },
+    "纠正": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "糾正"
+          }
+        }
+      }
+    },
     "纠正口径": {
       "localizations": {
         "en": {
@@ -55579,6 +55979,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "糾正記憶"
+          }
+        }
+      }
+    },
+    "纠正这条": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct this"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "糾正這條"
           }
         }
       }
@@ -57515,6 +57931,7 @@
         }
       }
     },
+    "草案": {},
     "草稿": {},
     "草稿和暂存的证据图会被删除，且不会记账。": {},
     "获取标准 CSV 模板文件": {
@@ -59188,6 +59605,7 @@
         }
       }
     },
+    "记账结果": {},
     "设为默认": {
       "localizations": {
         "en": {
@@ -59360,6 +59778,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定時間、提醒"
+          }
+        }
+      }
+    },
+    "设置期限": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set a deadline"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定期限"
           }
         }
       }
@@ -60314,6 +60748,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "說話，是和 Holo 相處最省力的方式"
+          }
+        }
+      }
+    },
+    "说说你的情况…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell me about your situation…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "說說你的情況…"
           }
         }
       }
@@ -62965,6 +63415,22 @@
         }
       }
     },
+    "达成后是什么样子（可选）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What it looks like when achieved (optional)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "達成後是什麼樣子（可選）"
+          }
+        }
+      }
+    },
     "达标型": {
       "localizations": {
         "en": {
@@ -63672,6 +64138,22 @@
         }
       }
     },
+    "返回换条路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to pick another path"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回換條路徑"
+          }
+        }
+      }
+    },
     "返回时自动保存 · 无需点「保存」按钮": {
       "localizations": {
         "en": {
@@ -63684,6 +64166,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "返回時自動儲存 · 無需點「儲存」按鈕"
+          }
+        }
+      }
+    },
+    "返回重新选路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to choose a path"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回重新選路徑"
           }
         }
       }
@@ -65959,6 +66457,22 @@
         }
       }
     },
+    "这条路的代价：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trade-off of this path: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這條路的代價：%@"
+          }
+        }
+      }
+    },
     "这次个性化规划没有完成": {
       "localizations": {
         "en": {
@@ -67019,6 +67533,22 @@
         }
       }
     },
+    "适合": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適合"
+          }
+        }
+      }
+    },
     "选「用于个人对账」，接收邮箱": {
       "localizations": {
         "en": {
@@ -67641,6 +68171,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇帳戶"
+          }
+        }
+      }
+    },
+    "选这条": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose this"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選這條"
           }
         }
       }
@@ -71040,550 +71586,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "🔥%@"
-          }
-        }
-      }
-    },
-    "P0 阶段只给建议：下面的内容不会改动原目标，确认修改要等下一版": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "P0 階段只給建議：下面的內容不會改動原目標，確認修改要等下一版"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "P0 preview only: nothing below changes the existing goal; confirming edits arrives in a later release"
-          }
-        }
-      }
-    },
-    "一起想清楚": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一起想清楚"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Think It Through Together"
-          }
-        }
-      }
-    },
-    "为什么现在想做这件事（可选）": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "為什麼現在想這件事（可選）"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Why now? (optional)"
-          }
-        }
-      }
-    },
-    "代价": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "代價"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trade-off"
-          }
-        }
-      }
-    },
-    "以下是调整建议，尚未修改原目标": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以下是調整建議，尚未修改原目標"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suggestions only — the original goal is unchanged"
-          }
-        }
-      }
-    },
-    "会话已结束": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "會話已結束"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This session has ended"
-          }
-        }
-      }
-    },
-    "例如：连续四周在周会至少发言一次": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "例如：連續四週在週會至少發言一次"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "e.g. speak up at least once in the weekly meeting, four weeks in a row"
-          }
-        }
-      }
-    },
-    "先跳过这个问题": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先跳過這個問題"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip this question for now"
-          }
-        }
-      }
-    },
-    "关键假设（未确认信息，可删）": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "關鍵假設（未確認資訊，可刪）"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Key assumptions (unconfirmed, removable)"
-          }
-        }
-      }
-    },
-    "关键假设（未确认信息，可改）": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "關鍵假設（未確認資訊，可改）"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Key assumptions (unconfirmed, editable)"
-          }
-        }
-      }
-    },
-    "原来的说法": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "原來的說法"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What you originally said"
-          }
-        }
-      }
-    },
-    "已确认的事": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已確認的事"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Confirmed so far"
-          }
-        }
-      }
-    },
-    "成功证据（能观察到什么）": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "成功證據（能觀察到什麼）"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Evidence of success (what can be observed)"
-          }
-        }
-      }
-    },
-    "投入": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "投入"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Effort"
-          }
-        }
-      }
-    },
-    "换个新的想法": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "換個新的想法"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try a different idea"
-          }
-        }
-      }
-    },
-    "推荐": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "推薦"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recommended"
-          }
-        }
-      }
-    },
-    "更准确的说法是…": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更準確的說法是…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A more accurate way to put it…"
-          }
-        }
-      }
-    },
-    "有一个想到一半的目标": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有一個想到一半的目標"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A half-formed goal"
-          }
-        }
-      }
-    },
-    "目标已保存": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目標已保存"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Goal saved"
-          }
-        }
-      }
-    },
-    "纠正": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "糾正"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Correct"
-          }
-        }
-      }
-    },
-    "纠正这条": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "糾正這條"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Correct this"
-          }
-        }
-      }
-    },
-    "设置期限": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定期限"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set a deadline"
-          }
-        }
-      }
-    },
-    "说说你的情况…": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "說說你的情況…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tell me about your situation…"
-          }
-        }
-      }
-    },
-    "达成后是什么样子（可选）": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "達成後是什麼樣子（可選）"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What it looks like when achieved (optional)"
-          }
-        }
-      }
-    },
-    "返回换条路径": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "返回換條路徑"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to pick another path"
-          }
-        }
-      }
-    },
-    "返回重新选路径": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "返回重新選路徑"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to choose a path"
-          }
-        }
-      }
-    },
-    "适合": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "適合"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fit"
-          }
-        }
-      }
-    },
-    "选这条": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選這條"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose this"
-          }
-        }
-      }
-    },
-    "听你的，按「%@」来": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "聽你的，按「%@」來"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sounds good — going with “%@”"
-          }
-        }
-      }
-    },
-    "第一步：%@": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "第一步：%@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "First step: %@"
-          }
-        }
-      }
-    },
-    "已选「%@」": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已選「%@」"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected: “%@”"
-          }
-        }
-      }
-    },
-    "所选路径：%@": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所選路徑：%@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chosen path: %@"
-          }
-        }
-      }
-    },
-    "这条路的代价：%@": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這條路的代價：%@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trade-off of this path: %@"
-          }
-        }
-      }
-    },
-    "有%@走得通的路，代价各不相同：": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有%@走得通的路，代價各不相同："
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "There are %@ viable paths, each with different trade-offs:"
           }
         }
       }
