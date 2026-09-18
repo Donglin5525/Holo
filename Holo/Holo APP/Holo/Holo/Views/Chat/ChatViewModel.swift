@@ -832,10 +832,11 @@ final class ChatViewModel: ObservableObject {
         if activeGoalPlanningSession?.status == .draftReady {
             // 落到气泡告知：此分支此前只写 errorMessage（无界面消费点），用户看到的是
             // 「发送没反应」（09-18 模拟器 QA 实锤）。输入文字放回输入框。
+            // 保持默认 .normal 类型：goalPlanning 类型会撞草案卡归属条件（最新一条 AI
+            // 规划消息），拦截一次堆一张卡（09-18 QA 复验实锤）。
             _ = chatRepo.addMessage(
                 role: "assistant",
-                content: String(localized: "目标草案正在等你确认。先处理上面的草案卡：点开可以查看、保存或重新生成。"),
-                messageType: .goalPlanning
+                content: String(localized: "目标草案正在等你确认。先处理上面的草案卡：点开可以查看、保存或重新生成。")
             )
             inputText = text
             return
