@@ -18329,6 +18329,22 @@
         }
       }
     },
+    "删除“%@”？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete “%@”?"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除「%@」？"
+          }
+        }
+      }
+    },
     "删除主题": {
       "localizations": {
         "en": {
@@ -18437,6 +18453,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除任務待確認"
+          }
+        }
+      }
+    },
+    "删除习惯": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Habit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除習慣"
           }
         }
       }

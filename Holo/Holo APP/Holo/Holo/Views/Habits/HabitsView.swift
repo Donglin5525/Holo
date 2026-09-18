@@ -49,10 +49,10 @@ struct HabitsView: View {
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
     /// 当前窗口宽度（v2 断点判断用）
-    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.holoContentWidth) private var holoContentWidth
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
-        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+        HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
     }
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
@@ -235,8 +235,8 @@ struct HabitListView: View {
     @Binding var requestedHabitId: UUID?
     @StateObject private var repository = HabitRepository.shared
 
-    /// 习惯列表（本地缓存，避免直接绑定 @MainActor 单例）
-    @State private var habits: [Habit] = []
+    /// 磁贴墙条目（id 已快照，ForEach 过渡帧不触碰 Core Data 对象）
+    @State private var tileItems: [HabitTileItem] = []
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
     /// 本周点阵预缓存（habitId -> 逐日完成情况），磁贴渲染不单独查库
@@ -256,21 +256,20 @@ struct HabitListView: View {
     /// 待执行操作（在 onDismiss 中执行，确保 sheet 完全销毁后再操作 Core Data）
     @State private var pendingAction: PendingHabitAction? = nil
 
-    /// 磁贴墙列数：v2 宽屏按可用宽度自适应（每块磁贴至少约 240pt，最多 4 列），
+    /// 磁贴墙列数：宽屏按可用宽度自适应（每块磁贴至少约 240pt，最多 4 列），
     /// 窄屏/手机保持两列——修复 12.9 寸横屏下磁贴稀疏（空态 2+1 排布）的松散感
-    @Environment(\.holoWindowWidth) private var tileWindowWidth
+    @Environment(\.holoContentWidth) private var tileWindowWidth
     private var tileColumns: [GridItem] {
         let spacing = HoloSpacing.md
-        let width = tileWindowWidth ?? 0
-        guard width >= HoloAdaptiveLayout.expandedWidthThreshold else {
+        // holoContentWidth 已扣除侧边栏，这里只扣内容左右边距
+        let width = (tileWindowWidth ?? 0) - 48
+        guard width >= HoloLayoutPolicy.splitReadyWidth else {
             return [
                 GridItem(.flexible(), spacing: spacing),
                 GridItem(.flexible(), spacing: spacing)
             ]
         }
-        // 可用宽 ≈ 窗口 - 侧边栏(232) - 内容左右边距(48)
-        let available = width - HoloAdaptiveLayout.sidebarWidth - 48
-        let count = max(2, min(4, Int(available / 240)))
+        let count = max(2, min(4, Int(width / 240)))
         return Array(repeating: GridItem(.flexible(), spacing: spacing), count: count)
     }
 
@@ -290,18 +289,18 @@ struct HabitListView: View {
                         )
                     }
 
-                    if habits.isEmpty && hasLoadedOnce {
+                    if tileItems.isEmpty && hasLoadedOnce {
                         emptyStateView
                     } else {
                         LazyVGrid(columns: tileColumns, spacing: HoloSpacing.md) {
-                            ForEach(Array(habits.enumerated()), id: \.element.id) { index, habit in
+                            ForEach(tileItems) { item in
                                 HabitTileView(
-                                    habit: habit,
-                                    index: index,
-                                    weekPattern: weekPatterns[habit.id] ?? [],
+                                    habit: item.habit,
+                                    index: item.index,
+                                    weekPattern: weekPatterns[item.id] ?? [],
                                     waveToken: waveToken,
-                                    onOpenDetail: { selectedHabit = HabitSelection(id: habit.id) },
-                                    onEdit: { editTarget = habit }
+                                    onOpenDetail: { selectedHabit = HabitSelection(id: item.id) },
+                                    onEdit: { editTarget = item.habit }
                                 )
                             }
                         }
@@ -358,8 +357,8 @@ struct HabitListView: View {
             }
             selectedHabit = nil
         }) { selection in
-            if let habit = habits.first(where: { $0.id == selection.id }) {
-                HabitDetailView(habit: habit, onWillDelete: { action in
+            if let item = tileItems.first(where: { $0.id == selection.id }) {
+                HabitDetailView(habit: item.habit, onWillDelete: { action in
                     pendingAction = action
                     selectedHabit = nil
                 })
@@ -374,16 +373,18 @@ struct HabitListView: View {
 
     private func loadHabits() {
         // 必须同步执行：@Published activeHabits 更新会触发 objectWillChange，
-        // 导致 SwiftUI 重渲染。如果用 Task 延迟更新 habits 数组，
+        // 导致 SwiftUI 重渲染。如果用 Task 延迟更新 tileItems 数组，
         // 重渲染时 ForEach 会用旧数组（含已删除的 Core Data 对象）→ 崩溃
         if !repository.isReady {
-            habits = []
+            tileItems = []
             todayProgress = (0, 0)
             weekPatterns = [:]
             return
         }
 
-        habits = repository.activeHabits
+        tileItems = repository.activeHabits.enumerated().map { index, habit in
+            HabitTileItem(id: habit.id, habit: habit, index: index)
+        }
         let newProgress = repository.getTodayCheckInProgress()
         // 「从未全部完成 → 全部完成」的跳变触发庆祝波浪（仅一次）
         if newProgress.total > 0,
@@ -400,7 +401,7 @@ struct HabitListView: View {
 
     private func openRequestedHabitIfNeeded() {
         guard let requestedHabitId else { return }
-        if habits.contains(where: { $0.id == requestedHabitId }) {
+        if tileItems.contains(where: { $0.id == requestedHabitId }) {
             selectedHabit = HabitSelection(id: requestedHabitId)
             self.requestedHabitId = nil
         } else if hasLoadedOnce {

@@ -4,7 +4,7 @@
 //
 //  习惯磁贴 —— 打卡页磁贴墙的基本单元
 //  点磁贴 = 主记录动作（打卡型勾选 / 计数类 +1 / 测量类弹记录键盘）
-//  长按 = 快捷菜单（数值型撤销今日最近一笔 / 查看详情 / 编辑）
+//  长按 = 快捷菜单（数值型撤销今日最近一笔 / 查看详情 / 编辑 / 删除习惯）
 //  两态：未完成 = 习惯色淡底；完成 = 实底反白 + 勾徽章，点亮时颜色圆形扩散
 //
 
@@ -49,6 +49,9 @@ struct HabitTileView: View {
     @State private var checkInNoteText: String = ""
     /// 测量类「撤销」确认弹窗（与原卡片的确认行为一致）
     @State private var showUndoConfirm: Bool = false
+    /// 长按菜单「删除习惯」确认弹窗（名字在点菜单时快照，弹窗展示期间不触碰 habit 对象）
+    @State private var showDeleteConfirm: Bool = false
+    @State private var deleteTargetName: String = ""
     /// 坏习惯超标提示文案是否可见（3 秒自动消失，复刻原卡片）
     @State private var showOverLimitWarning: Bool = false
     /// 点亮扩散动画进行中（结束后背景切实底，移除扩散圆）
@@ -102,6 +105,16 @@ struct HabitTileView: View {
                 }
                 Button("取消", role: .cancel) {}
             }
+            // 与详情页删除确认同用 alert：取消按钮显式渲染（confirmationDialog 在
+            // iOS 26 会把 cancel 省略成点外部关闭，两个入口样式需一致）
+            .alert("删除“\(deleteTargetName)”？", isPresented: $showDeleteConfirm) {
+                Button("取消", role: .cancel) {}
+                Button("删除", role: .destructive) {
+                    deleteHabit()
+                }
+            } message: {
+                Text("删除后将无法恢复，包括所有记录数据。")
+            }
             .onAppear {
                 cachedHabitId = habit.id
                 loadStatus()
@@ -126,6 +139,8 @@ struct HabitTileView: View {
 
     private var tileContent: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // 图标行高钉死：SF Symbol/emoji/自定义资产三种图标固有高度不一（26~31pt），
+            // 不钉死会让名字行的起点在并排卡之间高低不齐
             HStack(alignment: .top) {
                 tileIcon
 
@@ -135,6 +150,7 @@ struct HabitTileView: View {
                     checkBadge
                 }
             }
+            .frame(height: 30, alignment: .top)
 
             nameRow
 
@@ -201,12 +217,34 @@ struct HabitTileView: View {
         )
     }
 
+    /// 名字行：名字是主信息不许截断，徽章是从属信息。窄卡空间不足时按
+    /// 「火焰+累计 → 火焰 → 全部让位」渐进降级，而不是把名字挤成省略号
     private var nameRow: some View {
-        HStack(spacing: 5) {
-            Text(habit.name)
-                .font(.system(size: 14, weight: .semibold))
-                .lineLimit(1)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 5) {
+                habitNameText
+                streakBadge
+                lifetimeBadge
+            }
 
+            HStack(spacing: 5) {
+                habitNameText
+                streakBadge
+            }
+
+            habitNameText
+        }
+        .foregroundColor(isCompleted ? .white : .holoTextPrimary)
+    }
+
+    private var habitNameText: some View {
+        Text(habit.name)
+            .font(.system(size: 14, weight: .semibold))
+            .lineLimit(1)
+    }
+
+    private var streakBadge: some View {
+        Group {
             if streakInfo.value > 0 {
                 HStack(spacing: 1) {
                     Image(systemName: "flame.fill")
@@ -217,8 +255,12 @@ struct HabitTileView: View {
                 .opacity(0.85)
                 .fixedSize()
             }
+        }
+    }
 
-            // 累计总账徽章（永不归零）：坏习惯/测量类为 nil 不显示，0 不显示与火焰口径一致
+    private var lifetimeBadge: some View {
+        // 累计总账徽章（永不归零）：坏习惯/测量类为 nil 不显示，0 不显示与火焰口径一致
+        Group {
             if let lifetimeTotal, lifetimeTotal > 0 {
                 Text(String(localized: "累计\(habit.formatValue(lifetimeTotal))次"))
                     .font(.system(size: 9, weight: .semibold))
@@ -226,7 +268,6 @@ struct HabitTileView: View {
                     .fixedSize()
             }
         }
-        .foregroundColor(isCompleted ? .white : .holoTextPrimary)
     }
 
     /// 副标题：信息只在偏离默认时出现（每日习惯不显示频率）
@@ -610,6 +651,15 @@ struct HabitTileView: View {
                     Label("编辑", systemImage: "pencil")
                 }
             }
+
+            Divider()
+
+            Button(role: .destructive) {
+                deleteTargetName = habit.name
+                showDeleteConfirm = true
+            } label: {
+                Label("删除习惯", systemImage: "trash")
+            }
         }
     }
 
@@ -811,6 +861,17 @@ struct HabitTileView: View {
 
     // MARK: - 撤销（长按菜单，数值型）
 
+    // MARK: - 删除（长按菜单）
+
+    private func deleteHabit() {
+        do {
+            try HabitRepository.shared.deleteHabitById(habit.id)
+            HapticManager.light()
+        } catch {
+            logger.error("删除习惯失败: \(error)")
+        }
+    }
+
     private func undoLatestRecord() {
         do {
             let removed = try HabitRepository.shared.removeLatestTodayRecord(for: habit)
@@ -855,6 +916,15 @@ struct HabitTileView: View {
             retroEligibleCount = repo.retroactiveEligibleDays(for: habit).count
         }
     }
+}
+
+/// 磁贴墙 ForEach 的稳定条目：id 在构建时快照成纯值。SwiftUI 过渡帧（如删除
+/// 最后一个习惯后 LazyVGrid 析构）会对旧条目重新求 id，直接读 @NSManaged 的
+/// Habit.id 在对象已删除时是 nil 强桥接崩溃（2026-09-18 模拟器 SIGTRAP 实锤）
+struct HabitTileItem: Identifiable {
+    let id: UUID
+    let habit: Habit
+    let index: Int
 }
 
 // MARK: - 今日进度头（磁贴墙公共组件）

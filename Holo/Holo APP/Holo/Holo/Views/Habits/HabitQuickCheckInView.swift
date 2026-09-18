@@ -18,7 +18,7 @@ struct HabitQuickCheckInView: View {
     // MARK: - Properties
 
     @StateObject private var repository = HabitRepository.shared
-    @State private var habits: [Habit] = []
+    @State private var tileItems: [HabitTileItem] = []
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
     /// 本周点阵预缓存（habitId -> 逐日完成情况）
     @State private var weekPatterns: [UUID: [Bool]] = [:]
@@ -51,7 +51,7 @@ struct HabitQuickCheckInView: View {
                     }
 
                     // 习惯磁贴墙
-                    if habits.isEmpty {
+                    if tileItems.isEmpty {
                         emptyStateView
                     } else {
                         tileWall
@@ -95,8 +95,8 @@ struct HabitQuickCheckInView: View {
                 loadHabits()
             }
             .sheet(item: $selectedHabit) { selection in
-                if let habit = habits.first(where: { $0.id == selection.id }) {
-                    HabitDetailView(habit: habit)
+                if let item = tileItems.first(where: { $0.id == selection.id }) {
+                    HabitDetailView(habit: item.habit)
                 } else {
                     ProgressView("加载中...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -109,13 +109,13 @@ struct HabitQuickCheckInView: View {
 
     private var tileWall: some View {
         LazyVGrid(columns: tileColumns, spacing: HoloSpacing.md) {
-            ForEach(Array(habits.enumerated()), id: \.element.id) { index, habit in
+            ForEach(tileItems) { item in
                 HabitTileView(
-                    habit: habit,
-                    index: index,
-                    weekPattern: weekPatterns[habit.id] ?? [],
+                    habit: item.habit,
+                    index: item.index,
+                    weekPattern: weekPatterns[item.id] ?? [],
                     waveToken: waveToken,
-                    onOpenDetail: { selectedHabit = HabitSelection(id: habit.id) }
+                    onOpenDetail: { selectedHabit = HabitSelection(id: item.id) }
                 )
             }
         }
@@ -144,12 +144,14 @@ struct HabitQuickCheckInView: View {
 
     private func loadHabits() {
         guard repository.isReady else {
-            habits = []
+            tileItems = []
             todayProgress = (0, 0)
             weekPatterns = [:]
             return
         }
-        habits = repository.activeHabits
+        tileItems = repository.activeHabits.enumerated().map { index, habit in
+            HabitTileItem(id: habit.id, habit: habit, index: index)
+        }
         let newProgress = repository.getTodayCheckInProgress()
         // 「从未全部完成 → 全部完成」的跳变触发庆祝波浪（仅一次）
         if newProgress.total > 0,
