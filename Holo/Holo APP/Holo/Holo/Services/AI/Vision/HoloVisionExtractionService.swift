@@ -96,8 +96,16 @@ struct HoloVisionTransaction: Decodable {
     let categoryCandidate: String?
     let normalizedCategoryCandidate: String?
     let semanticCategoryHint: String?
+    // ---- v3 逐笔新增：该笔自己的支付渠道（契约 2026-09-19，一图多笔渠道可能不同）----
+    /// 旧服务端无此字段 → nil，账户解析回落整单顶层渠道
+    let paymentChannel: String?
 
     var isIncome: Bool { type == "income" }
+
+    /// 逐笔渠道优先，回落整单顶层渠道（v3 前的旧行为）
+    func effectivePaymentChannel(fallback: String?) -> String? {
+        paymentChannel ?? fallback
+    }
 }
 
 struct HoloVisionGuard: Decodable {

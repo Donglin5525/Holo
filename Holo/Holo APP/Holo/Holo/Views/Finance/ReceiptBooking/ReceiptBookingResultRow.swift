@@ -130,15 +130,20 @@ struct ReceiptBookingResultRow: View {
     }
 
     private func undo() {
-        guard let transactionID = result.transactionID else { return }
+        // 2026-09-19 一图多笔：整批撤销——主笔 + additional 全删；任一缺失不阻断其余
+        let ids = ([result.transactionID].compactMap { $0 } + (result.additionalTransactionIDs ?? []))
+        guard !ids.isEmpty else { return }
         let repo = FinanceRepository.shared
-        guard let transaction = repo.findTransaction(by: transactionID) else {
+        let transactions = ids.compactMap { repo.findTransaction(by: $0) }
+        guard !transactions.isEmpty else {
             undoErrorMessage = String(localized: "没有找到这笔交易，可能已经被删除。")
             return
         }
         Task { @MainActor in
             do {
-                try await repo.deleteTransaction(transaction)
+                for transaction in transactions {
+                    try await repo.deleteTransaction(transaction)
+                }
                 await ReceiptBookingResultStore.shared.markUndone(resultID: result.id)
                 undoneLocally = true
                 onChanged()

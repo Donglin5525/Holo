@@ -438,198 +438,6 @@ final class ReceiptBookingCoordinator {
         }
     }
 
-    /// 复核确认卡的建议科目展示名（完整分类链；不落库）
-    func suggestCategoryTitle(for draft: ReceiptBookingResultStore.StoredDraft) async -> String {
-        let type: TransactionType = draft.typeIsIncome ? .income : .expense
-        let category = try? await FinanceTransactionDraftResolver.shared.matchCategory(
-            primaryCategory: nil,
-            subCategory: nil,
-            categoryCandidate: draft.categoryCandidate,
-            normalizedCategoryCandidate: draft.normalizedCategoryCandidate,
-            semanticCategoryHint: draft.semanticCategoryHint,
-            note: draft.note ?? draft.merchant ?? "",
-            type: type
-        )
-        guard let category else {
-            return String(localized: "待分类")
-        }
-        let names = FinanceRepository.shared.resolveCategoryNames(from: category)
-        return [names.primary, names.sub].compactMap { $0 }.joined(separator: "/")
-    }
-
-    // MARK: - 复核确认共享入口（§25.2：快捷指令确认卡与 App 内复核页共用，不另写保存代码）
-
-    /// 从已存储草案重建纯值草案并原子落账。
-    /// 分类重走完整链；账户按「固定有效→通道解析→默认」；项目按草案配置重放。
-    func confirmReviewDraft(draft: ReceiptBookingResultStore.StoredDraft) async -> ReceiptBookingOutcome {
-        let repo = FinanceRepository.shared
-        let resolver = FinanceTransactionDraftResolver.shared
-        let typeIsIncome = draft.typeIsIncome
-        let type: TransactionType = typeIsIncome ? .income : .expense
-
-        // 日期
-        var date = Date()
-        if let dateText = draft.dateText {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.dateFormat = "yyyy-MM-dd"
-            if let parsed = formatter.date(from: dateText) { date = parsed }
-        }
-
-        // 科目（完整分类链，与自动写同一条）
-        let note = draft.note ?? draft.merchant
-        let category: Category?
-        do {
-            category = try await resolver.matchCategory(
-                primaryCategory: nil,
-                subCategory: nil,
-                categoryCandidate: draft.categoryCandidate,
-                normalizedCategoryCandidate: draft.normalizedCategoryCandidate,
-                semanticCategoryHint: draft.semanticCategoryHint,
-                note: note ?? "",
-                type: type
-            )
-        } catch {
-            category = nil
-        }
-        let finalCategory = category ?? repo.ensurePendingCategory(type: type)
-        let names = repo.resolveCategoryNames(from: finalCategory)
-
-        // 账户：快捷指令固定账户仍有效 → 用它；否则按通道解析（建议账户）→ 默认兜底
-        let accountID: UUID
-        var usedDefaultAccount = false
-        if draft.accountChoiceRaw.hasPrefix("account:"),
-           let fixedID = UUID(uuidString: String(draft.accountChoiceRaw.dropFirst("account:".count))),
-           let account = repo.findAccount(by: fixedID),
-           !account.isArchived, account.deletedAt == nil {
-            accountID = fixedID
-        } else {
-            switch resolver.resolveAccount(channel: draft.paymentChannel, choice: .automatic) {
-            case .resolved(let id, _, let isDefault):
-                accountID = id
-                usedDefaultAccount = isDefault
-            case .fixedUnavailable, .noAccountAvailable:
-                return .failed(ReceiptBookingFailure(
-                    reason: .failureNotConfigured,
-                    retryable: false,
-                    userMessage: String(localized: "请先打开 Holo 创建账户")
-                ))
-            }
-        }
-        let accountName = repo.findAccount(by: accountID)?.name ?? ""
-
-        // 项目：按草案配置重放（收入不挂项目，与门禁口径一致）
-        let projectChoice: ReceiptProjectChoice
-        switch draft.projectChoiceRaw {
-        case "project:explicit":
-            projectChoice = .explicitTextMatch
-        case let raw where raw.hasPrefix("project:"):
-            if let id = UUID(uuidString: String(raw.dropFirst("project:".count))) {
-                projectChoice = .fixed(id)
-            } else {
-                projectChoice = .noProject
-            }
-        default:
-            projectChoice = .noProject
-        }
-        let projectResolution = FinanceProjectRepository.shared.activeProjects().isEmpty
-            ? (resolution: ReceiptProjectResolution.none, dateOutsideRange: false, incomeConflict: false)
-            : resolver.resolveProject(
-                choice: projectChoice,
-                caption: nil,
-                imageCandidateTexts: [draft.merchant, note],
-                transactionDate: date,
-                typeIsIncome: typeIsIncome
-            )
-        let projectID: UUID?
-        let projectName: String?
-        if case .resolved(let pid, let pname) = projectResolution.resolution, !typeIsIncome {
-            projectID = pid
-            projectName = pname
-        } else {
-            projectID = nil
-            projectName = nil
-        }
-
-        guard let amount = Self.decimal(fromText: draft.amountText), amount > 0 else {
-            return .failed(ReceiptBookingFailure(
-                reason: .rejectInvalidImage, retryable: false,
-                userMessage: String(localized: "金额无效，请打开 Holo 手动确认这笔。")
-            ))
-        }
-
-        let draftToCommit = ResolvedTransactionDraft(
-            itemKey: draft.itemKey,
-            amount: amount,
-            typeIsIncome: typeIsIncome,
-            date: date,
-            dateInferredFromCapture: draft.dateText == nil,
-            note: note,
-            remark: nil,
-            categoryID: finalCategory.id,
-            categoryPrimaryName: names.primary,
-            categorySubName: names.sub,
-            categoryIsPendingFallback: category == nil,
-            accountID: accountID,
-            accountName: accountName,
-            usedDefaultAccount: usedDefaultAccount,
-            financeProjectID: projectID,
-            financeProjectName: projectName,
-            amountOriginalText: draft.amountOriginalText,
-            paymentStatusOriginalText: draft.paymentStatusOriginalText,
-            paymentChannelOriginalText: draft.paymentChannel,
-            confidenceAmount: nil,
-            confidenceDirection: nil,
-            confidencePaymentStatus: nil,
-            confidenceDate: nil,
-            imageDigest: draft.sourceKey,
-            sourceKey: draft.sourceKey,
-            schemaVersion: 2,
-            aiCandidate: draft.categoryCandidate
-        )
-
-        do {
-            let result = try FinanceTransactionCommandService.shared.commit(draft: draftToCommit, postNotification: true)
-            // 处理完成：删草案（JSON+证据）
-            Self.discardDraftFiles(draftID: draft.id)
-            await ReceiptBookingResultStore.shared.append(result: .init(
-                id: UUID(), createdAt: Date(),
-                kind: result.created ? .booked : .duplicate, reasonCode: nil,
-                summaryText: result.created
-                    ? String(localized: "复核入账 ¥\(draft.amountText)")
-                    : String(localized: "这笔已经记过：¥\(draft.amountText)"),
-                transactionID: result.transactionID,
-                draftID: nil, undoToken: result.created ? UUID() : nil,
-                usedDefaultAccount: usedDefaultAccount, undoneAt: nil
-            ))
-            if result.created {
-                return .booked(Self.makeReceipt(
-                    amountText: draft.amountText,
-                    categoryPath: [names.primary, names.sub].compactMap { $0 }.joined(separator: "/"),
-                    accountName: accountName,
-                    projectName: projectName,
-                    usedDefaultAccount: usedDefaultAccount,
-                    categoryNeedsConfirmation: category == nil,
-                    dateInferredFromCapture: false,
-                    transactionID: result.transactionID,
-                    sourceKey: draft.sourceKey,
-                    itemKey: draft.itemKey,
-                    undoToken: UUID()
-                ))
-            }
-            return .duplicate(Self.makeReceipt(
-                for: repo.findTransaction(by: result.transactionID),
-                sourceKey: draft.sourceKey,
-                itemKey: draft.itemKey,
-                undoToken: nil
-            ))
-        } catch {
-            return .failed(ReceiptBookingFailure(
-                reason: .failureServer, retryable: true,
-                userMessage: String(localized: "记账没有成功，请重试")
-            ))
-        }
-    }
 
     /// 删除草案 JSON 与证据 JPEG（确认/放弃后），并撤回该草案押后/已投递的待复核提醒
     nonisolated static func discardDraftFiles(draftID: UUID) {
@@ -689,23 +497,38 @@ final class ReceiptBookingCoordinator {
         capturedAt: Date,
         sourceKey: String
     ) -> ReceiptReviewSnapshot {
-        let tx = understanding.transactions.first
+        // 2026-09-19 一图多笔：全部笔逐笔快照，每笔独立幂等键/渠道/日期/分类候选，
+        // 字段低置信转成逐笔警示（阈值与自动写门禁同源）
+        let items = understanding.transactions.enumerated().map { index, tx -> ReceiptReviewItemSnapshot in
+            var notes: [ReceiptBookingReason] = []
+            let confidence = tx.confidence
+            if (confidence?.amount ?? -1) < ReceiptBookingPolicyThresholds.amount {
+                notes.append(.reviewAmountLowConfidence)
+            }
+            if (confidence?.direction ?? -1) < ReceiptBookingPolicyThresholds.direction {
+                notes.append(.reviewDirectionLowConfidence)
+            }
+            return ReceiptReviewItemSnapshot(
+                itemKey: ReceiptBookingIdempotency.itemKey(index: index),
+                amountText: formatAmount(decimal(from: tx.amount)),
+                typeIsIncome: tx.isIncome,
+                dateText: tx.date ?? understanding.paidAt,
+                note: tx.note,
+                paymentChannel: tx.effectivePaymentChannel(fallback: understanding.paymentChannel),
+                amountOriginalText: tx.amountOriginalText,
+                categoryCandidate: tx.categoryCandidate,
+                normalizedCategoryCandidate: tx.normalizedCategoryCandidate,
+                semanticCategoryHint: tx.semanticCategoryHint,
+                reviewNotes: notes
+            )
+        }
         return ReceiptReviewSnapshot(
             draftID: UUID(),
             reasons: reasons,
-            amountText: tx.map { formatAmount(decimal(from: $0.amount)) } ?? "",
-            typeIsIncome: tx?.isIncome ?? false,
+            items: items,
             merchant: understanding.merchant,
-            dateText: tx?.date ?? understanding.paidAt,
-            note: tx?.note,
-            paymentChannel: understanding.paymentChannel,
-            amountOriginalText: tx?.amountOriginalText ?? understanding.amountOriginalText,
             paymentStatusOriginalText: understanding.paymentStatusOriginalText,
-            categoryCandidate: tx?.categoryCandidate,
-            normalizedCategoryCandidate: tx?.normalizedCategoryCandidate,
-            semanticCategoryHint: tx?.semanticCategoryHint,
             sourceKey: sourceKey,
-            itemKey: ReceiptBookingIdempotency.itemKey(index: 0),
             createdAt: capturedAt
         )
     }

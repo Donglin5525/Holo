@@ -37,13 +37,33 @@ actor ReceiptBookingResultStore {
         /// 展示摘要（已记 ¥xx · 商户 · 分类 · 账户）
         var summaryText: String?
         var transactionID: UUID?
+        /// 多笔整批确认时的其余笔（2026-09-19；撤销整批撤）
+        var additionalTransactionIDs: [UUID]?
         var draftID: UUID?
         var undoToken: UUID?
         var usedDefaultAccount: Bool
         var undoneAt: Date?
     }
 
+    /// 逐笔草案条目（2026-09-19 一图多笔）：一张图一个 StoredDraft，内含全部待确认笔
+    struct StoredDraftItem: Codable, Sendable, Equatable {
+        let itemKey: String
+        let amountText: String
+        let typeIsIncome: Bool
+        let dateText: String?
+        let note: String?
+        let paymentChannel: String?
+        let amountOriginalText: String?
+        let categoryCandidate: String?
+        let normalizedCategoryCandidate: String?
+        let semanticCategoryHint: String?
+        /// 逐笔警示原因码（金额/方向低置信），确认页该笔卡片提示
+        let reviewNotes: [String]?
+    }
+
     /// 待复核草案：只存必要纯值字段（方案 §25.1）
+    /// 顶层单笔字段保留：旧格式文件（单笔）兼容读取 + 新文件冗余写第一笔作列表摘要。
+    /// 多笔真相在 items；读侧一律走 effectiveItems。
     struct StoredDraft: Codable, Sendable, Identifiable {
         let id: UUID
         let createdAt: Date
@@ -67,6 +87,29 @@ actor ReceiptBookingResultStore {
         let accountChoiceRaw: String
         let projectChoiceRaw: String
         let modeRaw: String
+        /// 逐笔条目（新格式；旧格式文件无此键 decode 为 nil）
+        let items: [StoredDraftItem]?
+
+        /// 全部待确认笔：新格式读 items；旧格式从顶层单笔字段合成一条
+        var effectiveItems: [StoredDraftItem] {
+            if let items, !items.isEmpty { return items }
+        return [StoredDraftItem(
+            itemKey: itemKey,
+            amountText: amountText,
+            typeIsIncome: typeIsIncome,
+            dateText: dateText,
+            note: note,
+            paymentChannel: paymentChannel,
+            amountOriginalText: amountOriginalText,
+            categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
+            reviewNotes: nil
+        )]
+        }
+
+        /// 列表行摘要：多笔显示「N 笔 · 合计」（同向时）
+        var itemCount: Int { effectiveItems.count }
     }
 
     // MARK: - 目录
@@ -107,7 +150,9 @@ actor ReceiptBookingResultStore {
         writeAtomically(results, to: url)
     }
 
-    /// 保存待复核草案 + 受保护压缩证据图（7 天过期）
+    /// 保存待复核草案 + 受保护压缩证据图（7 天过期）。
+    /// 多笔（2026-09-19）：snapshot.items 全量落 items；顶层单笔字段冗余写第一笔
+    /// （兼容旧读方与列表摘要）。itemKey 参数为旧签名遗留，取首笔键，仅作兜底。
     func saveReviewDraft(
         snapshot: ReceiptReviewSnapshot,
         choices: (accountRaw: String, projectRaw: String, modeRaw: String),
@@ -116,27 +161,45 @@ actor ReceiptBookingResultStore {
         evidenceJPEG: Data?
     ) {
         guard let url = draftURL(snapshot.draftID) else { return }
+        let items = snapshot.items.map { item in
+            StoredDraftItem(
+                itemKey: item.itemKey,
+                amountText: item.amountText,
+                typeIsIncome: item.typeIsIncome,
+                dateText: item.dateText,
+                note: item.note,
+                paymentChannel: item.paymentChannel,
+                amountOriginalText: item.amountOriginalText,
+                categoryCandidate: item.categoryCandidate,
+                normalizedCategoryCandidate: item.normalizedCategoryCandidate,
+                semanticCategoryHint: item.semanticCategoryHint,
+                reviewNotes: item.reviewNotes.map(\.rawValue)
+            )
+        }
+        let primary = items.first
+        let legacySnapshotFields = snapshot.primaryItem
         let draft = StoredDraft(
             id: snapshot.draftID,
             createdAt: snapshot.createdAt,
             reasons: snapshot.reasons.map(\.rawValue),
-            amountText: snapshot.amountText,
-            typeIsIncome: snapshot.typeIsIncome,
+            amountText: primary?.amountText ?? "",
+            typeIsIncome: primary?.typeIsIncome ?? false,
             merchant: snapshot.merchant,
-            dateText: snapshot.dateText,
-            note: snapshot.note,
-            paymentChannel: snapshot.paymentChannel,
-            amountOriginalText: snapshot.amountOriginalText,
+            dateText: primary?.dateText,
+            note: primary?.note,
+            paymentChannel: primary?.paymentChannel,
+            amountOriginalText: primary?.amountOriginalText,
             paymentStatusOriginalText: snapshot.paymentStatusOriginalText,
-            categoryCandidate: snapshot.categoryCandidate,
-            normalizedCategoryCandidate: snapshot.normalizedCategoryCandidate,
-            semanticCategoryHint: snapshot.semanticCategoryHint,
+            categoryCandidate: legacySnapshotFields?.categoryCandidate,
+            normalizedCategoryCandidate: legacySnapshotFields?.normalizedCategoryCandidate,
+            semanticCategoryHint: legacySnapshotFields?.semanticCategoryHint,
             imageType: "",
             sourceKey: sourceKey,
-            itemKey: itemKey,
+            itemKey: primary?.itemKey ?? itemKey,
             accountChoiceRaw: choices.accountRaw,
             projectChoiceRaw: choices.projectRaw,
-            modeRaw: choices.modeRaw
+            modeRaw: choices.modeRaw,
+            items: items
         )
         writeAtomically(draft, to: url)
         if let evidenceJPEG,

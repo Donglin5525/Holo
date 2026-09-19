@@ -39,6 +39,7 @@ struct ReceiptReviewListView: View {
                         NavigationLink(value: draft.id) {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
+                                    // 2026-09-19 一图多笔：行摘要展示首笔金额 + 笔数徽标
                                     Text(draft.amountText.isEmpty ? "—" : "¥\(draft.amountText)")
                                         .font(.headline)
                                     Text(draft.typeIsIncome ? "收入" : "支出")
@@ -47,6 +48,14 @@ struct ReceiptReviewListView: View {
                                         .padding(.vertical, 1)
                                         .background(Capsule().fill((draft.typeIsIncome ? Color.green : Color.orange).opacity(0.15)))
                                         .foregroundStyle(draft.typeIsIncome ? .green : .orange)
+                                    if draft.itemCount > 1 {
+                                        Text("\(draft.itemCount) 笔")
+                                            .font(.caption)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 1)
+                                            .background(Capsule().fill(Color.holoPrimary.opacity(0.12)))
+                                            .foregroundStyle(Color.holoPrimary)
+                                    }
                                 }
                                 if let merchant = draft.merchant, !merchant.isEmpty {
                                     Text(merchant).font(.subheadline).foregroundStyle(.secondary)

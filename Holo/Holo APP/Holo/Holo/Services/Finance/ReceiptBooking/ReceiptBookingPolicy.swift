@@ -66,20 +66,24 @@ enum ReceiptBookingPolicy {
         input: ReceiptBookingPolicyInput,
         mode: ReceiptBookingMode
     ) -> ReceiptBookingPolicyDecision {
-        // ---- 拒绝类（非消费凭证 / 未完成支付 / 外币）----
-        guard input.transactions.count == 1 else {
-            if input.transactions.isEmpty {
-                return .reject(decideRejectForEmptyTransactions(input: input))
-            }
-            return .needsReview([.reviewMultipleTransactions])
-        }
-
+        // ---- 拒绝类最先判（非消费凭证 / 外币）----
+        // 2026-09-19 一图多笔：原先笔数检查在前，多笔的外币图会被转复核而不是拒绝。
+        // 拒绝语义与笔数无关，必须先于分流；多笔交易数组的完整性由服务端护栏保证。
         if let reason = decideRejectForImageType(input.imageType) {
             return .reject(reason)
         }
         // 币种双保险：服务端护栏之外，客户端再验一次（金额原文外币已在服务端拦截）
         if let currency = input.currency, currency != "CNY" {
             return .reject(.rejectForeignCurrency)
+        }
+
+        // ---- 笔数分流：0 笔按状态/图型给拒绝码；多笔一律人工逐笔确认 ----
+        // （多笔不自动写：金额多错账成本高；确认卡一次承载全部笔，交互成本一笔）
+        guard input.transactions.count == 1 else {
+            if input.transactions.isEmpty {
+                return .reject(decideRejectForEmptyTransactions(input: input))
+            }
+            return .needsReview([.reviewMultipleTransactions])
         }
 
         // ---- 复核类（风险场景一律不自动写）----

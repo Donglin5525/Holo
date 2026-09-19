@@ -113,27 +113,53 @@ struct ReceiptBookingReceipt: Sendable {
     let createdAt: Date
 }
 
-/// 待复核快照：只存必要纯值字段，不存图片与完整 OCR 正文（方案 §25.1）
-struct ReceiptReviewSnapshot: Sendable, Equatable {
-    let draftID: UUID
-    let reasons: [ReceiptBookingReason]
+/// 逐笔复核快照（2026-09-19 一图多笔）：每笔独立幂等键与解析上下文。
+/// 账户/科目/项目最终解析在复核确认时按笔完成。
+struct ReceiptReviewItemSnapshot: Sendable, Equatable {
+    /// 稳定条目键（transaction:0/1/…），复核确认与自动写共用（§25.2）
+    let itemKey: String
     let amountText: String
     let typeIsIncome: Bool
-    let merchant: String?
+    /// 票面日期（逐笔；缺了回落整单 paidAt）
     let dateText: String?
     let note: String?
+    /// 该笔自己的支付渠道（v3 契约；缺了回落整单顶层渠道）
     let paymentChannel: String?
     /// 金额原文证据（复核页展示，方案 §7：原文必须保留）
     let amountOriginalText: String?
-    let paymentStatusOriginalText: String?
     /// 分类语义候选（复核确认重走分类链）
     let categoryCandidate: String?
     let normalizedCategoryCandidate: String?
     let semanticCategoryHint: String?
-    /// 幂等键（复核确认与自动写共用，§25.2）
+    /// 逐笔警示（金额/方向低置信等），确认页在该笔卡片上提示
+    let reviewNotes: [ReceiptBookingReason]
+}
+
+/// 待复核快照：一张图一个草案，内含全部待确认笔；只存必要纯值字段，
+/// 不存图片与完整 OCR 正文（方案 §25.1）
+struct ReceiptReviewSnapshot: Sendable, Equatable {
+    let draftID: UUID
+    /// 整单级原因（reviewMultipleTransactions/账户选择失效等）
+    let reasons: [ReceiptBookingReason]
+    /// 全部待确认笔（2026-09-19 一图多笔，上限 10）
+    let items: [ReceiptReviewItemSnapshot]
+    let merchant: String?
+    let paymentStatusOriginalText: String?
+    /// 幂等来源键（复核确认与自动写共用，§25.2）
     let sourceKey: String
-    let itemKey: String
     let createdAt: Date
+
+    var primaryItem: ReceiptReviewItemSnapshot? { items.first }
+
+    /// 合计金额文本：仅当全部笔同向时有意义；混合方向返回 nil
+    var uniformTotalAmountText: String? {
+        guard let first = items.first, !items.isEmpty else { return nil }
+        guard items.allSatisfy({ $0.typeIsIncome == first.typeIsIncome }) else { return nil }
+        let total = items.reduce(Decimal(0)) {
+            $0 + (ReceiptBookingCoordinator.decimal(fromText: $1.amountText) ?? 0)
+        }
+        return ReceiptBookingCoordinator.formatAmount(total)
+    }
 }
 
 struct ReceiptBookingFailure: Sendable, Equatable {
@@ -156,7 +182,7 @@ enum ReceiptBookingOutcome: Sendable {
 
 /// 分类/账户/项目解析完成、尚未写库的草案。金额一律 Decimal，禁 Double。
 struct ResolvedTransactionDraft: Sendable, Equatable {
-    /// 稳定条目键（M1 自动提交只允许单笔 → transaction:0）
+    /// 稳定条目键（transaction:0/1/…；多笔复核确认时逐笔一个键）
     let itemKey: String
     let amount: Decimal
     let typeIsIncome: Bool

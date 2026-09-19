@@ -165,6 +165,14 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
         case .duplicate(let receipt):
             return String(localized: "这张图已经记过：\(receipt.summaryText)")
         case .needsReview(let snapshot):
+            // 2026-09-19 一图多笔：多笔给逐单清点文案；Intent dialog 对长度敏感，
+            // 只说笔数+合计，不逐笔展开
+            if snapshot.items.count > 1 {
+                if let total = snapshot.uniformTotalAmountText {
+                    return String(localized: "识别到 \(snapshot.items.count) 笔支出，共 ¥\(total)，未自动入账。打开 Holo 逐笔确认。")
+                }
+                return String(localized: "识别到 \(snapshot.items.count) 笔收支，未自动入账。打开 Holo 逐笔确认。")
+            }
             if let reason = snapshot.reasons.first {
                 return reviewText(for: reason)
             }

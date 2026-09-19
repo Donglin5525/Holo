@@ -6,6 +6,8 @@
 //  视觉对齐 Holo 设计系统（2026-09-15 东林反馈：弃用 Form 默认样式、补科目行）。
 //  确认落账走同一个 FinanceTransactionCommandService（与自动写/快捷指令确认卡共用），
 //  来源键沿用草案 → 幂等不重复入账。
+//  2026-09-19 一图多笔：一张确认卡承载全部笔，逐笔编辑/可剔除、逐笔账户按
+//  各自支付渠道预填、一次确认整批落账（部分重复命中不算失败）。
 //
 
 import SwiftUI
@@ -16,18 +18,29 @@ struct ReceiptReviewDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var amountText: String = ""
-    @State private var typeIsIncome = false
-    @State private var date = Date()
-    @State private var note = ""
+    /// 逐笔编辑状态（一图多笔；旧单笔草稿 effectiveItems 合成一条）
+    private struct ItemEditState: Identifiable {
+        let id: String   // itemKey
+        let title: String
+        let item: ReceiptBookingResultStore.StoredDraftItem
+        var included = true
+        var amountText: String
+        var typeIsIncome: Bool
+        var date = Date()
+        var note = ""
+        var selectedAccountID: UUID?
+        var selectedProjectID: UUID?
+        /// 科目：nil = 跟随 AI 解析（完整分类链）；选中后以用户选择为准
+        var selectedCategoryID: UUID?
+        var suggestedCategoryTitle = ""
+        var suggestedCategoryTask: Task<Void, Never>?
+    }
+
+    @State private var itemStates: [ItemEditState] = []
     @State private var accounts: [Account] = []
     @State private var projects: [FinanceProject] = []
-    @State private var selectedAccountID: UUID?
-    @State private var selectedProjectID: UUID?
-    /// 科目：nil = 跟随 AI 解析（完整分类链）；选中后以用户选择为准
-    @State private var selectedCategoryID: UUID?
-    @State private var suggestedCategoryTitle = ""
-    @State private var categoriesByType: [Holo.Category] = []
+    @State private var expenseCategories: [Holo.Category] = []
+    @State private var incomeCategories: [Holo.Category] = []
     @State private var evidenceImage: UIImage?
     @State private var evidenceExpanded = false
     @State private var isCommitting = false
@@ -37,11 +50,11 @@ struct ReceiptReviewDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                amountCard
+                summaryCard
                 reasonCard
-                categoryCard
-                accountProjectCard
-                dateNoteCard
+                ForEach($itemStates) { $state in
+                    itemCard(for: $state)
+                }
                 if evidenceImage != nil {
                     evidenceCard
                 }
@@ -60,7 +73,7 @@ struct ReceiptReviewDetailView: View {
             Color(UIColor.systemGroupedBackground)
                 .ignoresSafeArea()
         )
-        .navigationTitle(Text("确认这笔账"))
+        .navigationTitle(itemStates.count > 1 ? Text("确认这几笔账") : Text("确认这笔账"))
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             actionButtons
@@ -87,14 +100,32 @@ struct ReceiptReviewDetailView: View {
             Text("草稿和暂存的证据图会被删除，且不会记账。")
         }
         .onAppear(perform: load)
-        .onChange(of: typeIsIncome) { _, isIncome in
-            selectedCategoryID = nil
-            if isIncome { selectedProjectID = nil }
-            refreshCategoryOptions()
+        .onDisappear {
+            for index in itemStates.indices {
+                itemStates[index].suggestedCategoryTask?.cancel()
+            }
         }
     }
 
     // MARK: - 卡片
+
+    /// 汇总：多笔显示笔数与同向合计
+    private var summaryCard: some View {
+        card {
+            HStack {
+                Text(itemCountText)
+                    .font(.holoBody.weight(.semibold))
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+                if let total = uniformTotalText {
+                    Text("¥\(total)")
+                        .font(.title3.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundColor(.holoTextPrimary)
+                }
+            }
+        }
+    }
 
     /// 触发原因 + 票面证据
     private var reasonCard: some View {
@@ -106,13 +137,6 @@ struct ReceiptReviewDetailView: View {
                     Text(reviewReasonText)
                         .font(.subheadline)
                         .foregroundStyle(Color.primary)
-                }
-                if let original = draft.amountOriginalText, !original.isEmpty {
-                    HStack {
-                        Text("票面金额原文").font(.footnote).foregroundStyle(.secondary)
-                        Spacer()
-                        Text(original).font(.footnote).monospacedDigit()
-                    }
                 }
             }
         }
@@ -140,126 +164,165 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    /// 金额与收支方向
-    private var amountCard: some View {
+    /// 单笔编辑卡：可剔除 + 金额/方向/科目/账户/项目/日期/备注
+    private func itemCard(for state: Binding<ItemEditState>) -> some View {
         card {
             VStack(alignment: .leading, spacing: 12) {
-                Text("金额与收支方向").font(.holoLabel).foregroundColor(.holoTextSecondary)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("¥").font(.title2.weight(.semibold))
-                    TextField("0.00", text: $amountText)
-                        .font(.system(.title, design: .rounded).weight(.bold))
-                        .keyboardType(.decimalPad)
-                        .monospacedDigit()
+                HStack {
+                    Text(state.wrappedValue.title)
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                    Spacer()
+                    Toggle("不记这笔", isOn: state.included)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .tint(.holoPrimary)
+                        .disabled(isCommitting)
                 }
-                Picker("方向", selection: $typeIsIncome) {
-                    Text("支出").tag(false)
-                    Text("收入").tag(true)
+
+                if state.wrappedValue.included {
+                if let notes = state.wrappedValue.item.reviewNotes, !notes.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.orange)
+                        Text(itemReviewNotesText(notes))
+                            .font(.caption)
+                            .foregroundStyle(Color.orange)
+                    }
                 }
-                .pickerStyle(.segmented)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("¥").font(.title2.weight(.semibold))
+                        TextField("0.00", text: state.amountText)
+                            .font(.system(.title, design: .rounded).weight(.bold))
+                            .keyboardType(.decimalPad)
+                            .monospacedDigit()
+                    }
+                    Picker("方向", selection: state.typeIsIncome) {
+                        Text("支出").tag(false)
+                        Text("收入").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: state.wrappedValue.typeIsIncome) { _, _ in
+                        state.wrappedValue.selectedCategoryID = nil
+                        if state.wrappedValue.typeIsIncome { state.wrappedValue.selectedProjectID = nil }
+                        refreshCategorySuggestion(index: itemIndex(of: state.wrappedValue.id))
+                    }
+                    if let original = state.wrappedValue.item.amountOriginalText, !original.isEmpty {
+                        HStack {
+                            Text("票面金额原文").font(.footnote).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(original).font(.footnote).monospacedDigit()
+                        }
+                    }
+
+                    Divider()
+
+                    categoryRow(for: state)
+
+                    Divider()
+
+                    accountRow(for: state)
+
+                    Divider()
+
+                    projectRow(for: state)
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        DatePicker("日期", selection: state.date, displayedComponents: .date)
+                            .font(.holoBody)
+                        TextField("备注", text: state.note)
+                            .font(.holoBody)
+                    }
+                }
             }
         }
     }
 
-    /// 科目（AI 建议预填，可点改）
-    private var categoryCard: some View {
-        card {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("科目").font(.holoLabel).foregroundColor(.holoTextSecondary)
-                Menu {
-                    ForEach(topCategories, id: \.id) { top in
-                        Menu(top.name) {
-                            ForEach(subCategories(of: top), id: \.id) { sub in
-                                Button(sub.name) {
-                                    selectedCategoryID = sub.id
-                                }
+    /// 科目行（AI 建议预填，可点改）
+    private func categoryRow(for state: Binding<ItemEditState>) -> some View {
+        let categories = state.wrappedValue.typeIsIncome ? incomeCategories : expenseCategories
+        return HStack {
+            Text("科目").font(.holoBody).foregroundColor(.holoTextPrimary)
+            Spacer()
+            Menu {
+                ForEach(topLevelCategories(in: categories), id: \.id) { top in
+                    Menu(top.name) {
+                        ForEach(subCategories(of: top, in: categories), id: \.id) { sub in
+                            Button(sub.name) {
+                                state.wrappedValue.selectedCategoryID = sub.id
                             }
                         }
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "tag")
-                            .foregroundStyle(Color.holoPrimary)
-                        Text(currentCategoryTitle)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption)
-                            .foregroundColor(.holoTextSecondary)
-                    }
                 }
-                if selectedCategoryID == nil {
-                    Text("已按你的记账习惯自动预填，可点改")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(currentCategoryTitle(for: state.wrappedValue, categories: categories))
+                        .foregroundColor(.holoTextPrimary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.holoTextSecondary)
                 }
             }
         }
     }
 
-    /// 账户与项目
-    private var accountProjectCard: some View {
-        card {
-            VStack(spacing: 12) {
+    /// 账户行：预填=逐笔渠道解析（各笔渠道可能不同），可点改
+    private func accountRow(for state: Binding<ItemEditState>) -> some View {
+        HStack {
+            Text("账户").font(.holoBody).foregroundColor(.holoTextPrimary)
+            Spacer()
+            Menu {
+                ForEach(accounts, id: \.id) { account in
+                    Button(account.name) {
+                        state.wrappedValue.selectedAccountID = account.id
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(currentAccountName(for: state.wrappedValue))
+                        .foregroundColor(.holoTextPrimary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+        }
+    }
+
+    /// 项目行：支出可挂，收入不挂
+    private func projectRow(for state: Binding<ItemEditState>) -> some View {
+        Group {
+            if state.wrappedValue.typeIsIncome {
                 HStack {
-                    Text("账户").font(.holoBody).foregroundColor(.holoTextPrimary)
+                    Text("项目").font(.holoBody).foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Text("收入不挂项目")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack {
+                    Text("项目").font(.holoBody).foregroundColor(.holoTextPrimary)
                     Spacer()
                     Menu {
-                        ForEach(accounts, id: \.id) { account in
-                            Button(account.name) {
-                                selectedAccountID = account.id
-                            }
+                        Button("不挂项目") { state.wrappedValue.selectedProjectID = nil }
+                        ForEach(projects, id: \.id) { project in
+                            Button(project.name) { state.wrappedValue.selectedProjectID = project.id }
                         }
                     } label: {
                         HStack(spacing: 4) {
-                            Text(currentAccountName).foregroundColor(.holoTextPrimary)
+                            Text(currentProjectName(for: state.wrappedValue))
+                                .foregroundColor(.holoTextPrimary)
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.caption)
                                 .foregroundColor(.holoTextSecondary)
                         }
                     }
                 }
-                Divider()
-                if typeIsIncome {
-                    HStack {
-                        Text("项目").font(.holoBody).foregroundColor(.holoTextPrimary)
-                        Spacer()
-                        Text("收入不挂项目")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    HStack {
-                        Text("项目").font(.holoBody).foregroundColor(.holoTextPrimary)
-                        Spacer()
-                        Menu {
-                            Button("不挂项目") { selectedProjectID = nil }
-                            ForEach(projects, id: \.id) { project in
-                                Button(project.name) { selectedProjectID = project.id }
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text(currentProjectName).foregroundColor(.holoTextPrimary)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption)
-                                    .foregroundColor(.holoTextSecondary)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// 日期与备注
-    private var dateNoteCard: some View {
-        card {
-            VStack(alignment: .leading, spacing: 12) {
-                DatePicker("日期", selection: $date, displayedComponents: .date)
-                    .font(.holoBody)
-                TextField("备注", text: $note)
-                    .font(.holoBody)
             }
         }
     }
@@ -273,7 +336,7 @@ struct ReceiptReviewDetailView: View {
                     if isCommitting {
                         ProgressView().tint(.white)
                     }
-                    Text("确认记账")
+                    Text(commitButtonTitle)
                         .font(.holoBody.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -316,45 +379,75 @@ struct ReceiptReviewDetailView: View {
 
     // MARK: - 派生状态
 
-    private var amountIsValid: Bool {
-        (ReceiptBookingCoordinator.decimal(fromText: amountText) ?? 0) > 0
+    private var includedStates: [ItemEditState] {
+        itemStates.filter(\.included)
+    }
+
+    private var itemCountText: String {
+        includedStates.count == 1
+            ? String(localized: "1 笔待确认")
+            : String(localized: "\(includedStates.count) 笔待确认")
+    }
+
+    private var uniformTotalText: String? {
+        let included = includedStates
+        guard let first = included.first, !included.isEmpty else { return nil }
+        guard included.allSatisfy({ $0.typeIsIncome == first.typeIsIncome }) else { return nil }
+        let total = included.reduce(Decimal(0)) {
+            $0 + (ReceiptBookingCoordinator.decimal(fromText: $1.amountText) ?? 0)
+        }
+        return ReceiptBookingCoordinator.formatAmount(total)
+    }
+
+    private var commitButtonTitle: String {
+        let count = includedStates.count
+        return count == 1 ? String(localized: "确认记账") : String(localized: "确认记 \(count) 笔")
     }
 
     private var canCommit: Bool {
-        amountIsValid && selectedAccountID != nil
+        let included = includedStates
+        guard !included.isEmpty else { return false }
+        return included.allSatisfy { state in
+            (ReceiptBookingCoordinator.decimal(fromText: state.amountText) ?? 0) > 0
+                && state.selectedAccountID != nil
+        }
     }
 
-    private var topCategories: [Holo.Category] {
-        categoriesByType.filter { $0.isTopLevel }
+    private func topLevelCategories(in categories: [Holo.Category]) -> [Holo.Category] {
+        categories.filter { $0.isTopLevel }
     }
 
-    private func subCategories(of top: Holo.Category) -> [Holo.Category] {
-        categoriesByType.filter { !$0.isTopLevel && $0.parentId == top.id }
+    private func subCategories(of top: Holo.Category, in categories: [Holo.Category]) -> [Holo.Category] {
+        categories.filter { !$0.isTopLevel && $0.parentId == top.id }
     }
 
     /// 当前生效科目名：用户改选 > AI 解析建议
-    private var currentCategoryTitle: String {
-        if let selectedCategoryID,
-           let selected = categoriesByType.first(where: { $0.id == selectedCategoryID }) {
+    private func currentCategoryTitle(for state: ItemEditState, categories: [Holo.Category]) -> String {
+        if let selectedCategoryID = state.selectedCategoryID,
+           let selected = categories.first(where: { $0.id == selectedCategoryID }) {
             return selected.name
         }
-        return suggestedCategoryTitle.isEmpty ? String(localized: "正在匹配科目…") : suggestedCategoryTitle
+        return state.suggestedCategoryTitle.isEmpty ? String(localized: "正在匹配科目…") : state.suggestedCategoryTitle
     }
 
-    private var currentAccountName: String {
-        if let selectedAccountID,
+    private func currentAccountName(for state: ItemEditState) -> String {
+        if let selectedAccountID = state.selectedAccountID,
            let account = accounts.first(where: { $0.id == selectedAccountID }) {
             return account.name
         }
         return String(localized: "自动识别")
     }
 
-    private var currentProjectName: String {
-        if let selectedProjectID,
+    private func currentProjectName(for state: ItemEditState) -> String {
+        if let selectedProjectID = state.selectedProjectID,
            let project = projects.first(where: { $0.id == selectedProjectID }) {
             return project.name
         }
         return String(localized: "不挂项目")
+    }
+
+    private func itemIndex(of itemKey: String) -> Int? {
+        itemStates.firstIndex { $0.id == itemKey }
     }
 
     private var reviewReasonText: String {
@@ -362,7 +455,8 @@ struct ReceiptReviewDetailView: View {
             return String(localized: "这笔账需要你确认。")
         }
         switch reason {
-        case .reviewMultipleTransactions: return String(localized: "图里有多笔交易，先确认这一笔，其余请在账本手动记。")
+        case .reviewMultipleTransactions:
+            return String(localized: "图里有多笔交易，都留在这张确认卡里了，勾掉不想记的、核对金额后一次入账。")
         case .reviewAmountLowConfidence, .reviewAmountConflict: return String(localized: "金额没认准，请核对。")
         case .reviewDirectionLowConfidence: return String(localized: "收支方向不确定，请选择。")
         case .reviewPaymentStatusLowConfidence: return String(localized: "支付状态不确定。")
@@ -379,50 +473,83 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
+    private func itemReviewNotesText(_ notes: [String]) -> String {
+        let parts = notes.compactMap { ReceiptBookingReason(rawValue: $0) }.map { reason -> String in
+            switch reason {
+            case .reviewAmountLowConfidence, .reviewAmountConflict:
+                return String(localized: "金额没认准")
+            case .reviewDirectionLowConfidence:
+                return String(localized: "方向不确定")
+            default:
+                return String(localized: "请核对")
+            }
+        }
+        return parts.joined(separator: "、")
+    }
+
     // MARK: - 数据
 
     private func load() {
-        amountText = draft.amountText
-        typeIsIncome = draft.typeIsIncome
-        note = draft.note ?? ""
-        if let dateText = draft.dateText {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.dateFormat = "yyyy-MM-dd"
-            if let parsed = formatter.date(from: dateText) {
-                date = parsed
-            }
-        }
         let repo = FinanceRepository.shared
         accounts = repo.getAccounts(includeArchived: false)
         projects = FinanceProjectRepository.shared.activeProjects()
 
-        // 账户建议（§25.2）：固定账户仍有效则预填；否则按识别通道解析；再落默认
-        if selectedAccountID == nil {
-            var suggested: UUID?
-            if draft.accountChoiceRaw.hasPrefix("account:"),
-               let fixedID = UUID(uuidString: String(draft.accountChoiceRaw.dropFirst("account:".count))),
-               let account = repo.findAccount(by: fixedID),
-               !account.isArchived, account.deletedAt == nil {
-                suggested = fixedID
-            }
-            if suggested == nil {
-                switch FinanceTransactionDraftResolver.shared.resolveAccount(
-                    channel: draft.paymentChannel, choice: .automatic
-                ) {
-                case .resolved(let id, _, _):
-                    suggested = id
-                case .fixedUnavailable, .noAccountAvailable:
-                    break
+        itemStates = draft.effectiveItems.enumerated().map { itemIndex, item in
+            var state = ItemEditState(
+                id: item.itemKey,
+                title: String(localized: "第 \(itemIndex + 1) 笔"),
+                item: item,
+                amountText: item.amountText,
+                typeIsIncome: item.typeIsIncome
+            )
+            if let dateText = item.dateText {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = "yyyy-MM-dd"
+                if let parsed = formatter.date(from: dateText) {
+                    state.date = parsed
                 }
             }
-            selectedAccountID = suggested ?? repo.getDefaultAccountSync()?.id ?? accounts.first?.id
-        }
-        if selectedProjectID == nil, draft.projectChoiceRaw.hasPrefix("project:") {
-            selectedProjectID = UUID(uuidString: String(draft.projectChoiceRaw.dropFirst("project:".count)))
+            state.note = item.note ?? ""
+            // 账户建议（§25.2）：固定账户仍有效则整单预填；否则按该笔自己的渠道解析；再落默认
+            if state.selectedAccountID == nil {
+                var suggested: UUID?
+                if draft.accountChoiceRaw.hasPrefix("account:"),
+                   let fixedID = UUID(uuidString: String(draft.accountChoiceRaw.dropFirst("account:".count))),
+                   let account = repo.findAccount(by: fixedID),
+                   !account.isArchived, account.deletedAt == nil {
+                    suggested = fixedID
+                }
+                if suggested == nil {
+                    switch FinanceTransactionDraftResolver.shared.resolveAccount(
+                        channel: item.paymentChannel, choice: .automatic
+                    ) {
+                    case .resolved(let id, _, _):
+                        suggested = id
+                    case .fixedUnavailable, .noAccountAvailable:
+                        break
+                    }
+                }
+                state.selectedAccountID = suggested ?? repo.getDefaultAccountSync()?.id ?? accounts.first?.id
+            }
+            // 固定项目传给支出笔预填；收入笔不挂
+            if !item.typeIsIncome, state.selectedProjectID == nil,
+               draft.projectChoiceRaw.hasPrefix("project:"),
+               let projectID = UUID(uuidString: String(draft.projectChoiceRaw.dropFirst("project:".count))),
+               projects.contains(where: { $0.id == projectID }) {
+                state.selectedProjectID = projectID
+            }
+            return state
         }
 
-        refreshCategoryOptions()
+        // 科目选项两套（支出/收入）异步拉取；建议标题由 refreshCategorySuggestion 独立跑
+        Task { @MainActor in
+            expenseCategories = (try? await repo.getCategories(by: .expense)) ?? []
+            incomeCategories = (try? await repo.getCategories(by: .income)) ?? []
+        }
+        for index in itemStates.indices {
+            refreshCategorySuggestion(index: index)
+        }
         // 本机暂存的复核证据图（确认/删除后随之删除）
         if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id),
            let data = try? Data(contentsOf: url) {
@@ -430,30 +557,35 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    private func refreshCategoryOptions() {
-        let type: TransactionType = typeIsIncome ? .income : .expense
-        suggestedCategoryTitle = ""
-        Task { @MainActor in
+    /// 科目建议：逐笔走完整分类链（学习映射→标准→自定义→别名→语义）
+    private func refreshCategorySuggestion(index: Int?) {
+        guard let index else { return }
+        let state = itemStates[index]
+        state.suggestedCategoryTask?.cancel()
+        let type: TransactionType = state.typeIsIncome ? .income : .expense
+        let task = Task { @MainActor in
             let repo = FinanceRepository.shared
-            categoriesByType = (try? await repo.getCategories(by: type)) ?? []
             let category = try? await FinanceTransactionDraftResolver.shared.matchCategory(
                 primaryCategory: nil,
                 subCategory: nil,
-                categoryCandidate: draft.categoryCandidate,
-                normalizedCategoryCandidate: draft.normalizedCategoryCandidate,
-                semanticCategoryHint: draft.semanticCategoryHint,
-                note: note.isEmpty ? (draft.merchant ?? draft.note ?? "") : note,
+                categoryCandidate: state.item.categoryCandidate,
+                normalizedCategoryCandidate: state.item.normalizedCategoryCandidate,
+                semanticCategoryHint: state.item.semanticCategoryHint,
+                note: state.note.isEmpty ? (state.item.note ?? draft.merchant ?? "") : state.note,
                 type: type
             )
-            suggestedCategoryTitle = category?.name ?? String(localized: "待分类")
+            guard !Task.isCancelled, let index = itemIndex(of: state.id) else { return }
+            itemStates[index].suggestedCategoryTitle = category?.name ?? String(localized: "待分类")
         }
+        itemStates[index].suggestedCategoryTask = task
+        itemStates[index].suggestedCategoryTitle = ""
     }
 
-    // MARK: - 确认（走公共 CommandService，§25.2）
+    // MARK: - 确认（走公共 CommandService，§25.2；逐笔提交整批完成）
 
     private func confirm() {
-        guard let amount = ReceiptBookingCoordinator.decimal(fromText: amountText), amount > 0 else { return }
-        guard let accountID = selectedAccountID else { return }
+        let included = includedStates
+        guard !included.isEmpty else { return }
         isCommitting = true
         errorMessage = nil
 
@@ -461,84 +593,118 @@ struct ReceiptReviewDetailView: View {
             defer { isCommitting = false }
             let repo = FinanceRepository.shared
             let resolver = FinanceTransactionDraftResolver.shared
+            var committedIDs: [UUID] = []
+            var duplicateCount = 0
+            var failureCount = 0
 
-            // 科目：用户改选 > 完整分类链重解析 > 待分类
-            let category: Holo.Category?
-            if let selectedCategoryID {
-                category = repo.findCategory(by: selectedCategoryID)
-            } else {
+            for item in included {
+                guard let amount = ReceiptBookingCoordinator.decimal(fromText: item.amountText), amount > 0,
+                      let accountID = item.selectedAccountID else {
+                    failureCount += 1
+                    continue
+                }
+
+                // 科目：用户改选 > 完整分类链重解析 > 待分类
+                let categories = item.typeIsIncome ? incomeCategories : expenseCategories
+                let category: Holo.Category?
+                if let selectedCategoryID = item.selectedCategoryID {
+                    category = repo.findCategory(by: selectedCategoryID)
+                } else {
+                    do {
+                        category = try await resolver.matchCategory(
+                            primaryCategory: nil,
+                            subCategory: nil,
+                            categoryCandidate: item.item.categoryCandidate,
+                            normalizedCategoryCandidate: item.item.normalizedCategoryCandidate,
+                            semanticCategoryHint: item.item.semanticCategoryHint,
+                            note: item.note.isEmpty ? (item.item.note ?? draft.merchant ?? "") : item.note,
+                            type: item.typeIsIncome ? .income : .expense
+                        )
+                    } catch {
+                        category = nil
+                    }
+                }
+                let finalCategory: Holo.Category = category ?? repo.ensurePendingCategory(type: item.typeIsIncome ? .income : .expense)
+                let names = repo.resolveCategoryNames(from: finalCategory)
+                let accountName = repo.findAccount(by: accountID)?.name ?? ""
+
+                let draftToCommit = ResolvedTransactionDraft(
+                    itemKey: item.id,
+                    amount: amount,
+                    typeIsIncome: item.typeIsIncome,
+                    date: item.date,
+                    dateInferredFromCapture: item.item.dateText == nil,
+                    note: item.note.isEmpty ? item.item.note : item.note,
+                    remark: nil,
+                    categoryID: finalCategory.id,
+                    categoryPrimaryName: names.primary,
+                    categorySubName: names.sub,
+                    categoryIsPendingFallback: category == nil,
+                    accountID: accountID,
+                    accountName: accountName,
+                    usedDefaultAccount: repo.getDefaultAccountSync()?.id == accountID,
+                    financeProjectID: item.selectedProjectID,
+                    financeProjectName: projects.first(where: { $0.id == item.selectedProjectID })?.name,
+                    amountOriginalText: item.item.amountOriginalText,
+                    paymentStatusOriginalText: draft.paymentStatusOriginalText,
+                    paymentChannelOriginalText: item.item.paymentChannel,
+                    confidenceAmount: nil,
+                    confidenceDirection: nil,
+                    confidencePaymentStatus: nil,
+                    confidenceDate: nil,
+                    imageDigest: draft.sourceKey,
+                    sourceKey: draft.sourceKey,
+                    schemaVersion: 2,
+                    aiCandidate: item.item.categoryCandidate
+                )
+
                 do {
-                    category = try await resolver.matchCategory(
-                        primaryCategory: nil,
-                        subCategory: nil,
-                        categoryCandidate: draft.categoryCandidate,
-                        normalizedCategoryCandidate: draft.normalizedCategoryCandidate,
-                        semanticCategoryHint: draft.semanticCategoryHint,
-                        note: note.isEmpty ? (draft.merchant ?? draft.note ?? "") : note,
-                        type: typeIsIncome ? .income : .expense
-                    )
+                    let result = try FinanceTransactionCommandService.shared.commit(draft: draftToCommit, postNotification: false)
+                    if result.created {
+                        // 只有本次新建的笔才有撤销权；幂等命中的是账本里已存在的交易，不能撤
+                        committedIDs.append(result.transactionID)
+                    } else {
+                        duplicateCount += 1
+                    }
                 } catch {
-                    category = nil
+                    failureCount += 1
                 }
             }
-            let finalCategory: Holo.Category = category ?? repo.ensurePendingCategory(type: typeIsIncome ? .income : .expense)
-            let names = repo.resolveCategoryNames(from: finalCategory)
-            let accountName = repo.findAccount(by: accountID)?.name ?? ""
 
-            let draftToCommit = ResolvedTransactionDraft(
-                itemKey: draft.itemKey,
-                amount: amount,
-                typeIsIncome: typeIsIncome,
-                date: date,
-                dateInferredFromCapture: draft.dateText == nil,
-                note: note.isEmpty ? draft.note : note,
-                remark: nil,
-                categoryID: finalCategory.id,
-                categoryPrimaryName: names.primary,
-                categorySubName: names.sub,
-                categoryIsPendingFallback: category == nil,
-                accountID: accountID,
-                accountName: accountName,
-                usedDefaultAccount: repo.getDefaultAccountSync()?.id == accountID,
-                financeProjectID: selectedProjectID,
-                financeProjectName: projects.first(where: { $0.id == selectedProjectID })?.name,
-                amountOriginalText: draft.amountOriginalText,
-                paymentStatusOriginalText: draft.paymentStatusOriginalText,
-                paymentChannelOriginalText: draft.paymentChannel,
-                confidenceAmount: nil,
-                confidenceDirection: nil,
-                confidencePaymentStatus: nil,
-                confidenceDate: nil,
-                imageDigest: draft.sourceKey,
-                sourceKey: draft.sourceKey,
-                schemaVersion: 2,
-                aiCandidate: draft.categoryCandidate
-            )
+            guard !committedIDs.isEmpty || duplicateCount > 0 else {
+                errorMessage = String(localized: "保存失败，请稍后重试。")
+                return
+            }
 
-            do {
-                let result = try FinanceTransactionCommandService.shared.commit(draft: draftToCommit, postNotification: true)
-                await ReceiptBookingResultStore.shared.append(result: .init(
-                    id: UUID(), createdAt: Date(),
-                    kind: result.created ? .booked : .duplicate, reasonCode: nil,
-                    summaryText: result.created
-                        ? String(localized: "复核入账 ¥\(amountText)")
-                        : String(localized: "这笔已经记过：¥\(amountText)"),
-                    transactionID: result.transactionID,
-                    draftID: nil, undoToken: result.created ? UUID() : nil,
-                    usedDefaultAccount: repo.getDefaultAccountSync()?.id == accountID, undoneAt: nil
-                ))
-                ReceiptBookingCoordinator.discardDraftFiles(draftID: draft.id)
-                onFinished()
-                dismiss()
-                // 弹层收起动画后再广播一次：账本/账户页监听 .financeDataDidChange 即时重算汇总
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 400_000_000)
-                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-                }
-            } catch {
-                errorMessage = String(localized: "保存失败：\(error.localizedDescription)")
+            await ReceiptBookingResultStore.shared.append(result: .init(
+                id: UUID(), createdAt: Date(),
+                kind: .booked, reasonCode: nil,
+                summaryText: summaryText(for: committedIDs.count, duplicates: duplicateCount),
+                transactionID: committedIDs.first,
+                additionalTransactionIDs: committedIDs.count > 1 ? Array(committedIDs.dropFirst()) : nil,
+                draftID: nil,
+                undoToken: committedIDs.isEmpty ? nil : UUID(),
+                usedDefaultAccount: false, undoneAt: nil
+            ))
+            ReceiptBookingCoordinator.discardDraftFiles(draftID: draft.id)
+            onFinished()
+            dismiss()
+            // 弹层收起动画后再广播一次：账本/账户页监听 .financeDataDidChange 即时重算汇总
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
         }
+    }
+
+    private func summaryText(for committedCount: Int, duplicates: Int) -> String {
+        if committedCount == 1 && duplicates == 0 {
+            return String(localized: "复核入账 1 笔")
+        }
+        if duplicates == 0 {
+            return String(localized: "复核入账 \(committedCount) 笔")
+        }
+        return String(localized: "复核入账 \(committedCount) 笔，\(duplicates) 笔已记过")
     }
 
     private func deleteDraft() {
@@ -547,7 +713,8 @@ struct ReceiptReviewDetailView: View {
             await ReceiptBookingResultStore.shared.append(result: .init(
                 id: UUID(), createdAt: Date(), kind: .rejected, reasonCode: nil,
                 summaryText: String(localized: "已删除一条待复核记录"), transactionID: nil,
-                draftID: nil, undoToken: nil, usedDefaultAccount: false, undoneAt: nil
+                additionalTransactionIDs: nil, draftID: nil, undoToken: nil,
+                usedDefaultAccount: false, undoneAt: nil
             ))
         }
         onFinished()

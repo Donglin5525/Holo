@@ -366,12 +366,34 @@ final class ReceiptBookingKernelTests: XCTestCase {
 
         let review = RecognizeAndBookReceiptIntent.text(for: .needsReview(ReceiptReviewSnapshot(
             draftID: UUID(), reasons: [.reviewMultipleTransactions],
-            amountText: "", typeIsIncome: false, merchant: nil, dateText: nil,
-            note: nil, paymentChannel: nil, amountOriginalText: nil,
-            paymentStatusOriginalText: nil, categoryCandidate: nil,
-            normalizedCategoryCandidate: nil, semanticCategoryHint: nil,
-            sourceKey: "k", itemKey: "transaction:0", createdAt: Date())))
+            items: [ReceiptReviewItemSnapshot(
+                itemKey: "transaction:0", amountText: "19.90", typeIsIncome: false,
+                dateText: nil, note: nil, paymentChannel: nil, amountOriginalText: nil,
+                categoryCandidate: nil, normalizedCategoryCandidate: nil,
+                semanticCategoryHint: nil, reviewNotes: []
+            )],
+            merchant: nil, paymentStatusOriginalText: nil,
+            sourceKey: "k", createdAt: Date())))
         XCTAssertTrue(review.contains("未入账"), "复核文案不得说「成功」")
+    }
+
+    func testMultipleTransactionSnapshotTextMentionsCount() {
+        // 2026-09-19 一图多笔：快捷指令回执必须说清笔数与合计，不再只提第一笔
+        let items = (0..<2).map { index in
+            ReceiptReviewItemSnapshot(
+                itemKey: "transaction:\(index)", amountText: index == 0 ? "71.77" : "183.00",
+                typeIsIncome: false, dateText: nil, note: nil, paymentChannel: nil,
+                amountOriginalText: nil, categoryCandidate: nil,
+                normalizedCategoryCandidate: nil, semanticCategoryHint: nil, reviewNotes: []
+            )
+        }
+        let outcome = ReceiptBookingOutcome.needsReview(ReceiptReviewSnapshot(
+            draftID: UUID(), reasons: [.reviewMultipleTransactions], items: items,
+            merchant: "蒙自源", paymentStatusOriginalText: nil,
+            sourceKey: "k", createdAt: Date()))
+        let text = RecognizeAndBookReceiptIntent.text(for: outcome)
+        XCTAssertTrue(text.contains("2"), "多笔回执必须说清笔数")
+        XCTAssertTrue(text.contains("254.77"), "同向多笔回执必须给合计")
     }
 
     // MARK: - 结果存储往返（§25.1）
@@ -381,12 +403,15 @@ final class ReceiptBookingKernelTests: XCTestCase {
         let draftID = UUID()
         let snapshot = ReceiptReviewSnapshot(
             draftID: draftID, reasons: [.reviewAmountLowConfidence],
-            amountText: "19.90", typeIsIncome: false, merchant: "瑞幸咖啡",
-            dateText: "2026-09-15", note: nil, paymentChannel: "微信支付",
-            amountOriginalText: "¥19.90", paymentStatusOriginalText: "支付成功",
-            categoryCandidate: "瑞幸咖啡", normalizedCategoryCandidate: "咖啡",
-            semanticCategoryHint: "餐饮", sourceKey: "vision:v2:test", itemKey: "transaction:0",
-            createdAt: Date()
+            items: [ReceiptReviewItemSnapshot(
+                itemKey: "transaction:0", amountText: "19.90", typeIsIncome: false,
+                dateText: "2026-09-15", note: nil, paymentChannel: "微信支付",
+                amountOriginalText: "¥19.90", categoryCandidate: "瑞幸咖啡",
+                normalizedCategoryCandidate: "咖啡", semanticCategoryHint: "餐饮",
+                reviewNotes: [.reviewAmountLowConfidence]
+            )],
+            merchant: "瑞幸咖啡", paymentStatusOriginalText: "支付成功",
+            sourceKey: "vision:v2:test", createdAt: Date()
         )
         await store.saveReviewDraft(
             snapshot: snapshot,
@@ -399,14 +424,73 @@ final class ReceiptBookingKernelTests: XCTestCase {
         let drafts = store.loadDrafts()
         let loaded = drafts.first(where: { $0.id == draftID })
         XCTAssertNotNil(loaded, "草案必须能读回")
-        XCTAssertEqual(loaded?.amountText, "19.90")
-        XCTAssertEqual(loaded?.categoryCandidate, "瑞幸咖啡")
+        XCTAssertEqual(loaded?.amountText, "19.90", "顶层摘要字段冗余首笔（列表行用）")
+        XCTAssertEqual(loaded?.effectiveItems.count, 1)
+        XCTAssertEqual(loaded?.effectiveItems.first?.categoryCandidate, "瑞幸咖啡")
         XCTAssertEqual(loaded?.sourceKey, "vision:v2:test")
 
         // 清理测试草案
         ReceiptBookingResultStore.shared.purgeExpired(now: Date().addingTimeInterval(8 * 24 * 3600))
         let after = store.loadDrafts().first(where: { $0.id == draftID })
         XCTAssertNil(after, "过期清理必须移除草案")
+    }
+
+    // MARK: - 一图多笔（2026-09-19）
+
+    func testMultiTransactionRejectChecksRunBeforeCountSplit() {
+        // 多笔的外币图必须走拒绝而不是转复核（拒绝语义与笔数无关）
+        let two = [
+            ReceiptBookingPolicyTransaction(amount: 8, typeIsIncome: false, confidenceAmount: 0.99, confidenceDirection: 0.99, confidencePaymentStatus: 0.99),
+            ReceiptBookingPolicyTransaction(amount: 25.5, typeIsIncome: false, confidenceAmount: 0.99, confidenceDirection: 0.99, confidencePaymentStatus: 0.99),
+        ]
+        let decision = ReceiptBookingPolicy.evaluate(
+            input: makeInput(imageType: "receipt", currency: "USD", transactions: two), mode: .autoWhenSafe
+        )
+        XCTAssertEqual(decision, .reject(.rejectForeignCurrency))
+    }
+
+    func testLegacyDraftJSONBackwardCompatibility() throws {
+        // 旧格式 JSON（顶层单笔、无 items 键，createdAt 为默认 timeIntervalSinceReferenceDate）
+        let draftID = UUID()
+        let legacy = """
+        {"id":"\(draftID.uuidString)","createdAt":7200.0,"reasons":[],"amountText":"19.90",
+        "typeIsIncome":false,"merchant":null,"dateText":null,"note":null,"paymentChannel":null,
+        "amountOriginalText":null,"paymentStatusOriginalText":null,"categoryCandidate":null,
+        "normalizedCategoryCandidate":null,"semanticCategoryHint":null,"imageType":"",
+        "sourceKey":"vision:v2:legacy","itemKey":"transaction:0","accountChoiceRaw":"account:auto",
+        "projectChoiceRaw":"project:none","modeRaw":"alwaysReview"}
+        """
+        let draft = try JSONDecoder().decode(ReceiptBookingResultStore.StoredDraft.self, from: Data(legacy.utf8))
+        XCTAssertEqual(draft.id, draftID)
+        XCTAssertEqual(draft.effectiveItems.count, 1, "旧格式必须合成单条有效条目")
+        XCTAssertEqual(draft.effectiveItems.first?.itemKey, "transaction:0")
+        XCTAssertEqual(draft.effectiveItems.first?.amountText, "19.90")
+    }
+
+    func testUniformTotalOnlyForSameDirection() {
+        func item(index: Int, amount: String, income: Bool) -> ReceiptReviewItemSnapshot {
+            ReceiptReviewItemSnapshot(
+                itemKey: "transaction:\(index)", amountText: amount, typeIsIncome: income,
+                dateText: nil, note: nil, paymentChannel: nil, amountOriginalText: nil,
+                categoryCandidate: nil, normalizedCategoryCandidate: nil,
+                semanticCategoryHint: nil, reviewNotes: []
+            )
+        }
+        let sameDirection = ReceiptReviewSnapshot(
+            draftID: UUID(), reasons: [], items: [
+                item(index: 0, amount: "71.77", income: false),
+                item(index: 1, amount: "183.00", income: false),
+            ],
+            merchant: nil, paymentStatusOriginalText: nil, sourceKey: "k", createdAt: Date())
+        XCTAssertEqual(sameDirection.uniformTotalAmountText, "254.77", "同向合计")
+
+        let mixed = ReceiptReviewSnapshot(
+            draftID: UUID(), reasons: [], items: [
+                item(index: 0, amount: "71.77", income: false),
+                item(index: 1, amount: "10.00", income: true),
+            ],
+            merchant: nil, paymentStatusOriginalText: nil, sourceKey: "k", createdAt: Date())
+        XCTAssertNil(mixed.uniformTotalAmountText, "混合方向不给合计（口径歧义）")
     }
 
     func testConcurrentCommitsProduceSingleTransaction() async throws {
@@ -443,12 +527,14 @@ final class ReceiptBookingKernelTests: XCTestCase {
     private func makeSnapshot(draftID: UUID = UUID()) -> ReceiptReviewSnapshot {
         ReceiptReviewSnapshot(
             draftID: draftID, reasons: [.reviewAmountLowConfidence],
-            amountText: "19.90", typeIsIncome: false, merchant: "瑞幸咖啡",
-            dateText: nil, note: nil, paymentChannel: "微信支付",
-            amountOriginalText: "¥19.90", paymentStatusOriginalText: "支付成功",
-            categoryCandidate: nil, normalizedCategoryCandidate: nil,
-            semanticCategoryHint: nil, sourceKey: "vision:v2:test", itemKey: "transaction:0",
-            createdAt: Date()
+            items: [ReceiptReviewItemSnapshot(
+                itemKey: "transaction:0", amountText: "19.90", typeIsIncome: false,
+                dateText: nil, note: nil, paymentChannel: "微信支付",
+                amountOriginalText: "¥19.90", categoryCandidate: nil,
+                normalizedCategoryCandidate: nil, semanticCategoryHint: nil, reviewNotes: []
+            )],
+            merchant: "瑞幸咖啡", paymentStatusOriginalText: "支付成功",
+            sourceKey: "vision:v2:test", createdAt: Date()
         )
     }
 
