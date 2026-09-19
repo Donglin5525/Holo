@@ -523,10 +523,12 @@ extension Category {
         // 空库 = 新用户，按当前 App 语言固化
         SeedLanguage.resolveSeedLanguage(hasExistingSeedData: !all.isEmpty)
 
-        // 若已有二级分类，检查是否缺失分类并补充
+        // 老用户（已有二级分类）：种子是初始模板而非持续强制的系统清单——
+        // 不再按缺失项补齐，用户删除过的预设分类不得复活（分类删除治理方案 D5/Phase4）。
+        // 系统分类（余额调整）是运行不变量，仍然确保存在。
         let hasSubCategory = all.contains { $0.parentId != nil }
         if hasSubCategory {
-            seedMissingCategories(in: context, existing: all)
+            seedSystemCategories(in: context)
             return
         }
 
@@ -600,148 +602,10 @@ extension Category {
        - context: Core Data 上下文
        - existing: 已有的分类列表
      */
-    private static func seedMissingCategories(
-        in context: NSManagedObjectContext,
-        existing: [Category]
-    ) {
-        // 构建现有分类的名称集合（按类型分组）
-        let existingExpenseNames = Set(
-            existing.filter { $0.type == TransactionType.expense.rawValue }
-                .map { $0.name }
-        )
-        let existingIncomeNames = Set(
-            existing.filter { $0.type == TransactionType.income.rawValue }
-                .map { $0.name }
-        )
+    // 按缺失项补齐预设分类的补种逻辑已移除（分类删除治理方案 D5/Phase4）：
+    // 种子是初始模板而非持续强制的系统清单，用户删除过的预设分类不得复活。
+    // 老用户路径只保留 seedSystemCategories（运行不变量）。
 
-        var hasChanges = false
-
-        // 检查并补充支出分类
-        for group in expenseHierarchy {
-            // 检查一级分类是否存在
-            if !existingExpenseNames.contains(group.name) {
-                let parentIcon = parentIconMapping[group.name] ?? group.children.first?.icon ?? "questionmark.circle"
-                let parent = create(
-                    in: context,
-                    name: group.name,
-                    icon: parentIcon,
-                    color: group.color,
-                    type: TransactionType.expense.rawValue,
-                    isDefault: true,
-                    sortOrder: Int16(existing.filter { $0.type == TransactionType.expense.rawValue && $0.parentId == nil }.count),
-                    parentId: nil
-                )
-                hasChanges = true
-
-                // 创建子分类
-                for (idx, child) in group.children.enumerated() {
-                    _ = create(
-                        in: context,
-                        name: child.name,
-                        icon: child.icon,
-                        color: group.color,
-                        type: TransactionType.expense.rawValue,
-                        isDefault: true,
-                        sortOrder: Int16(idx),
-                        parentId: parent.id
-                    )
-                }
-            } else {
-                // 一级分类存在，检查子分类是否缺失
-                let parent = existing.first { $0.name == group.name && $0.parentId == nil }
-                if let parent = parent {
-                    let existingChildNames = Set(
-                        existing.filter { $0.parentId == parent.id }
-                            .map { $0.name }
-                    )
-                    for (idx, child) in group.children.enumerated() {
-                        if !existingChildNames.contains(child.name) {
-                            _ = create(
-                                in: context,
-                                name: child.name,
-                                icon: child.icon,
-                                color: group.color,
-                                type: TransactionType.expense.rawValue,
-                                isDefault: true,
-                                sortOrder: Int16(idx),
-                                parentId: parent.id
-                            )
-                            hasChanges = true
-                        }
-                    }
-                }
-            }
-        }
-
-        // 检查并补充收入分类
-        for group in incomeHierarchy {
-            if !existingIncomeNames.contains(group.name) {
-                let parentIcon = parentIconMapping[group.name] ?? group.children.first?.icon ?? "questionmark.circle"
-                let parent = create(
-                    in: context,
-                    name: group.name,
-                    icon: parentIcon,
-                    color: group.color,
-                    type: TransactionType.income.rawValue,
-                    isDefault: true,
-                    sortOrder: Int16(existing.filter { $0.type == TransactionType.income.rawValue && $0.parentId == nil }.count),
-                    parentId: nil
-                )
-                hasChanges = true
-
-                for (idx, child) in group.children.enumerated() {
-                    _ = create(
-                        in: context,
-                        name: child.name,
-                        icon: child.icon,
-                        color: group.color,
-                        type: TransactionType.income.rawValue,
-                        isDefault: true,
-                        sortOrder: Int16(idx),
-                        parentId: parent.id
-                    )
-                }
-            } else {
-                let parent = existing.first { $0.name == group.name && $0.parentId == nil }
-                if let parent = parent {
-                    let existingChildNames = Set(
-                        existing.filter { $0.parentId == parent.id }
-                            .map { $0.name }
-                    )
-                    for (idx, child) in group.children.enumerated() {
-                        if !existingChildNames.contains(child.name) {
-                            _ = create(
-                                in: context,
-                                name: child.name,
-                                icon: child.icon,
-                                color: group.color,
-                                type: TransactionType.income.rawValue,
-                                isDefault: true,
-                                sortOrder: Int16(idx),
-                                parentId: parent.id
-                            )
-                            hasChanges = true
-                        }
-                    }
-                }
-            }
-        }
-
-        if hasChanges {
-            try? context.save()
-        }
-
-        // 迁移旧 icon_ 图标到 SF Symbol
-        migrateLegacyIcons(in: context)
-    }
-    
-    /**
-     根据层级定义批量创建一级 + 二级分类
-     - Parameters:
-       - hierarchy: 层级分类定义数组
-       - type: 交易类型 rawValue
-       - context: Core Data 上下文
-     */
     private static func seedHierarchy(
         _ hierarchy: [CategoryGroupDef],
         type: String,

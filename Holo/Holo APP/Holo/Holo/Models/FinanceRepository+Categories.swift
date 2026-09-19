@@ -8,6 +8,10 @@
 import Foundation
 import CoreData
 
+// 分类删除的统一入口已迁移至 FinanceRepository+CategoryDeletion.swift：
+// 预检（categoryDeletionImpact）+ 原子执行（executeCategoryDeletion），
+// 用户可见删除一律软删除进回收站批次，旧的物理删除路径已废弃（开发方案 §5）。
+
 extension FinanceRepository {
 
     // MARK: - Category Operations
@@ -200,64 +204,61 @@ extension FinanceRepository {
         try context.save()
     }
     
-    func deleteCategory(_ category: Category) async throws {
-        // 防御：对象已被删除则直接返回
-        guard !category.isDeleted else { return }
-
-        // 清理该分类的预算记录
-        Budget.deleteForCategory(category.id, in: context)
-
-        // 检查该分类本身是否被交易使用
-        let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "category == %@", category)
-        if try context.count(for: request) > 0 {
-            throw FinanceError.categoryInUse
-        }
-
-        // 检查子分类是否被交易使用，并收集未使用的子分类
+    /// 该分类及其全部二级子分类（含 iCloud 重复行）的 id
+    private func categoryIdFamily(of category: Category) throws -> [UUID] {
+        var ids = [category.id]
         let subRequest = Category.fetchRequest()
         subRequest.predicate = NSPredicate(format: "parentId == %@", category.id as CVarArg)
-        let subCategories = try context.fetch(subRequest)
-
-        for sub in subCategories {
-            // 清理子分类的预算记录
-            Budget.deleteForCategory(sub.id, in: context)
-
-            let txRequest = Transaction.fetchRequest()
-            txRequest.predicate = NSPredicate(format: "category == %@", sub)
-            if try context.count(for: txRequest) > 0 {
-                throw FinanceError.categoryInUse
-            }
-            context.delete(sub)
-        }
-
-        context.delete(category)
-        try context.save()
-
-        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        ids += try context.fetch(subRequest).map { $0.id }
+        return ids
     }
 
-    /// 批量清理非预设分类（导入时自动创建的）
+    /// 仍然有效（未进回收站）且挂在该分类或其二级子分类上的记账明细。
+    /// 按 categoryId 匹配而非关系匹配：iCloud 同步会为同一分类产生重复行，
+    /// 按关系匹配会漏掉挂在重复行上的明细，造成「明细明明删光了却提示分类被占用」。
+    func liveTransactions(referencing category: Category) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "category.id IN %@", try categoryIdFamily(of: category)),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        return try context.fetch(request)
+    }
+
+    /// 批量清理导入时自动创建的分类（importBatchId 标记）。
+    /// 入口在「设置 → 数据管理」；被有效交易占用的分类跳过。
     /// - Returns: (已删除数量, 跳过数量-被交易使用)
     func cleanupImportedCategories() async throws -> (deleted: Int, skipped: Int) {
-        // 获取所有非预设分类
         let request = Category.fetchRequest()
-        request.predicate = NSPredicate(format: "isDefault == NO")
-        let nonDefaultCategories = try context.fetch(request)
+        request.predicate = NSPredicate(format: "importBatchId != nil")
+        let importedCategories = try context.fetch(request)
 
         var deleted = 0
         var skipped = 0
 
-        for category in nonDefaultCategories {
-            // 检查是否被交易使用
+        for category in importedCategories {
+            // 检查是否被有效交易使用（软删明细不占位，与单删口径一致）
             let txRequest = Transaction.fetchRequest()
-            txRequest.predicate = NSPredicate(format: "category == %@", category)
+            txRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "category.id == %@", category.id as CVarArg),
+                NSPredicate(format: "deletedAt == nil")
+            ])
             let inUse = try context.count(for: txRequest) > 0
 
             if inUse {
                 skipped += 1
             } else {
-                context.delete(category)
+                // 清理同样走软删除批次，可从回收站恢复
+                let batch = RecycleBinService.makeSingleItemBatch(
+                    module: .finance,
+                    summary: String(localized: "清理导入分类「\(category.name)」"),
+                    context: context
+                )
+                let rowRequest = Category.fetchRequest()
+                rowRequest.predicate = NSPredicate(format: "id == %@", category.id as CVarArg)
+                for row in try context.fetch(rowRequest) {
+                    row.markDeleted(batchId: batch.id)
+                }
                 deleted += 1
             }
         }

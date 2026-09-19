@@ -10,6 +10,8 @@
 		0009867F6020999D115D66EB /* HoloLegacyMemoryStoreRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E45E5C115F57CB16E57702 /* HoloLegacyMemoryStoreRegressionTests.swift */; };
 		01F117E5D9D90390C108F5B8 /* AnalysisReadableTextParserStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A66C7B7E7EFB79D2835DAE6 /* AnalysisReadableTextParserStandaloneTests.swift */; };
 		05E6BDB9A31A2917C3E1FF4A /* CategorySFSymbolMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BA5FCE08E6665577909450 /* CategorySFSymbolMapperTests.swift */; };
+CDC1A12F6A4C1E9D2B00002 /* CategoryDeletionIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */; };
+CDB1A12F6A4C1E9D2B00002 /* CategoryDeletionPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */; };
 		0618B03FAEAC3042AD14DE8E /* HoloAgentEvidencePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BC30B12BDAB62E233B4E0B /* HoloAgentEvidencePolicyTests.swift */; };
 		07078BE6373A6B6FD4390565 /* HoloAgentDebugExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7FF785274FA44D4A16F521 /* HoloAgentDebugExporterTests.swift */; };
 		0773DB32DE0B0672FBC17769 /* GoalWorkshopModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CCB941D00AFDF85C22A3EE1 /* GoalWorkshopModels.swift */; };
@@ -496,6 +498,8 @@
 		7011419154C5089AC4D0687C /* HoloToolExecutorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloToolExecutorTests.swift; sourceTree = "<group>"; };
 		7063907984713A97F9EA0050 /* HoloEvidenceLedgerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloEvidenceLedgerTests.swift; sourceTree = "<group>"; };
 		70BA5FCE08E6665577909450 /* CategorySFSymbolMapperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategorySFSymbolMapperTests.swift; sourceTree = "<group>"; };
+CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryDeletionIntegrationTests.swift; sourceTree = "<group>"; };
+CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryDeletionPolicyStandaloneTests.swift; sourceTree = "<group>"; };
 		71F1867B9497E6B6252965F9 /* HoloMemoryQueryRouterStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryQueryRouterStandaloneTests.swift; sourceTree = "<group>"; };
 		72B9CAF239FD35D854D2D22D /* HoloMemoryReceiptCompatibilityStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryReceiptCompatibilityStandaloneTests.swift; sourceTree = "<group>"; };
 		76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryOrphanCleanupTests.swift; sourceTree = "<group>"; };
@@ -1255,6 +1259,8 @@
 			isa = PBXGroup;
 			children = (
 				70BA5FCE08E6665577909450 /* CategorySFSymbolMapperTests.swift */,
+				CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */,
+				CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */,
 				95619DFE0EBA0EEF490770AA /* ChatCardDataTests.swift */,
 				8CDBA4E276B54BCF52A416D0 /* FlexibleQueryChatCardDataTests.swift */,
 				E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */,
@@ -1672,6 +1678,8 @@
 				BE20105F70C8E7B0F404ADE1 /* CategoryIconCatalogTests.swift in Sources */,
 				8320633620C698BB376B85AA /* HorizontalGestureLockTests.swift in Sources */,
 				05E6BDB9A31A2917C3E1FF4A /* CategorySFSymbolMapperTests.swift in Sources */,
+				CDC1A12F6A4C1E9D2B00002 /* CategoryDeletionIntegrationTests.swift in Sources */,
+				CDB1A12F6A4C1E9D2B00002 /* CategoryDeletionPolicyStandaloneTests.swift in Sources */,
 				A0E17C0866831CC93970FDBB /* HabitFocusSummaryTests.swift in Sources */,
 				6B0AB06A16AC15CD9EEE7E32 /* HoloEpisodicMemoryStoreTests.swift in Sources */,
 				1D9E82E735A6F6B42C6616F5 /* HoloLongTermMemoryStoreTests.swift in Sources */,

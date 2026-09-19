@@ -19,6 +19,9 @@ struct DataManagementView: View {
     @State private var isLoadingCounts = true
     @State private var showRecycleBin = false
     @State private var showClearAllConfirm = false
+    @State private var showCleanupImportedConfirm = false
+    @State private var isCleaningImported = false
+    @State private var cleanupResultText: String?
     @State private var recycleBatchCount = 0
 
     var body: some View {
@@ -52,6 +55,15 @@ struct DataManagementView: View {
             Task { await reloadData() }
         }) {
             ClearAllDataConfirmSheet(moduleCounts: moduleCounts)
+        }
+        // 清理导入分类（从分类管理页迁入；只处理导入时自动创建的分类，D2）
+        .confirmationDialog("清理导入分类", isPresented: $showCleanupImportedConfirm, titleVisibility: .visible) {
+            Button("清理", role: .destructive) {
+                Task { await cleanupImportedCategories() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将删除所有导入账单时自动创建的分类，已被交易使用的分类会保留。删除后 30 天内可在最近删除中恢复。")
         }
     }
 
@@ -168,6 +180,47 @@ struct DataManagementView: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
+            // 清理导入分类：文字行入口（从分类管理页右上角迁入，D2）
+            Button {
+                showCleanupImportedConfirm = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.orange.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "square.and.arrow.down.on.square")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("清理导入分类")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("删除导入账单时自动创建的空分类，被使用的会保留")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer()
+
+                    if isCleaningImported {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+
             Button {
                 showClearAllConfirm = true
             } label: {
@@ -218,6 +271,22 @@ struct DataManagementView: View {
         await RecycleBinService.shared.reloadBatches()
         recycleBatchCount = RecycleBinService.shared.batches.count
         isLoadingCounts = false
+    }
+
+    private func cleanupImportedCategories() async {
+        isCleaningImported = true
+        defer { isCleaningImported = false }
+        do {
+            let result = try await FinanceRepository.shared.cleanupImportedCategories()
+            if result.deleted > 0 {
+                HoloToastCenter.shared.show(String(localized: "已清理 \(result.deleted) 个导入分类\(result.skipped > 0 ? "，\(result.skipped) 个因被使用而保留" : "")"), type: .success)
+            } else {
+                HoloToastCenter.shared.show(String(localized: "没有可清理的导入分类"), type: .info)
+            }
+            await reloadData()
+        } catch {
+            HoloToastCenter.shared.show(String(localized: "清理失败：\(error.localizedDescription)"), type: .error)
+        }
     }
 }
 

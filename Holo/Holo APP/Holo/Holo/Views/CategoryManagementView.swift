@@ -16,6 +16,9 @@ struct CategoryManagementView: View {
     @Environment(\.dismiss) var dismiss
     private let repository = FinanceRepository.shared
     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryManagement")
+
+    /// 以弹层（sheet）方式打开时显示「完成」关闭按钮；被 push 进入时保持系统返回
+    var showsDoneButton: Bool = false
     
     @State private var transactionType: TransactionType = .expense
     @State private var topLevelCategories: [Category] = []
@@ -25,10 +28,18 @@ struct CategoryManagementView: View {
     @State private var editingCategory: Category?
     @State private var categoryToDelete: Category?
     @State private var showDeleteConfirmation = false
+    /// 删除影响预检快照（纯值，弹层与执行都不持有可失效的托管对象）
+    @State private var deletionSnapshot: CategoryDeletionImpactSnapshot?
+    @State private var showDeletionImpact = false
+    /// 被删分类的展示快照（删除执行后源对象失效，弹层渲染只读这些值）
+    @State private var deleteDisplayName = ""
+    @State private var deleteDisplayIcon = ""
+    @State private var deleteDisplayColor = Color.holoPrimary
+    @State private var deleteDisplayType = TransactionType.expense
+    /// 简单确认页的说明文案（无引用分类）
+    @State private var deleteConfirmSummary = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var showCleanupConfirmation = false
-    @State private var cleanupResult: (deleted: Int, skipped: Int)?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -48,15 +59,8 @@ struct CategoryManagementView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: HoloSpacing.sm) {
-                    // 清理导入分类按钮
-                    Button {
-                        showCleanupConfirmation = true
-                    } label: {
-                        Image(systemName: "broom")
-                            .font(.system(size: 18))
-                            .foregroundColor(.orange)
-                    }
-                    // 新增一级分类按钮
+                    // 新增一级分类按钮（右上角只保留新增；删除从具体分类行侧滑发起，
+                    // 清理导入分类入口已挪至「设置 → 数据管理」）
                     Button {
                         openAddTopLevelCategory()
                     } label: {
@@ -64,6 +68,12 @@ struct CategoryManagementView: View {
                             .font(.system(size: 22))
                             .foregroundColor(.holoPrimary)
                     }
+                }
+            }
+            // 「完成」是主动作，放在导航栏最右（声明顺序决定同侧多个按钮的左右排列）
+            if showsDoneButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
                 }
             }
         }
@@ -75,6 +85,38 @@ struct CategoryManagementView: View {
         .sheet(item: $editingCategory) { category in
             EditCategorySheet(category: category) {
                 Task { await loadData() }
+            }
+        }
+        // 有引用分类的影响处理页：二级走明细去向页，一级走子分类去向页（纯值快照）
+        .sheet(isPresented: $showDeletionImpact) {
+            if let snapshot = deletionSnapshot {
+                if snapshot.isSecondary {
+                    CategoryDeletionImpactView(
+                        snapshot: snapshot,
+                        sourceName: deleteDisplayName,
+                        sourceIcon: deleteDisplayIcon,
+                        sourceColor: deleteDisplayColor,
+                        sourceType: deleteDisplayType
+                    ) {
+                        HoloToastCenter.shared.show(String(localized: "已删除，30 天内可从最近删除恢复"), type: .success)
+                        categoryToDelete = nil
+                        deletionSnapshot = nil
+                        Task { await loadData() }
+                    }
+                } else {
+                    PrimaryCategoryDispositionView(
+                        snapshot: snapshot,
+                        sourceName: deleteDisplayName,
+                        sourceIcon: deleteDisplayIcon,
+                        sourceColor: deleteDisplayColor,
+                        sourceType: deleteDisplayType
+                    ) {
+                        HoloToastCenter.shared.show(String(localized: "已删除，30 天内可从最近删除恢复"), type: .success)
+                        categoryToDelete = nil
+                        deletionSnapshot = nil
+                        Task { await loadData() }
+                    }
+                }
             }
         }
         .onChange(of: editingCategory) { _, _ in
@@ -92,47 +134,18 @@ struct CategoryManagementView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .alert("确认删除", isPresented: $showDeleteConfirmation) {
+        .alert(String(localized: "删除「\(deleteDisplayName)」"), isPresented: $showDeleteConfirmation) {
             Button("取消", role: .cancel) {
                 categoryToDelete = nil
+                deletionSnapshot = nil
             }
             Button("删除", role: .destructive) {
-                if let cat = categoryToDelete {
-                    confirmDelete(cat)
-                }
-                categoryToDelete = nil
+                confirmSimpleDelete()
             }
         } message: {
-            if let cat = categoryToDelete {
-                let hasSubs = (subCategoriesMap[cat.id]?.count ?? 0) > 0
-                Text(hasSubs
-                    ? String(localized: "删除后无法恢复。该分类及其 \(subCategoriesMap[cat.id]?.count ?? 0) 个子分类将被一并删除；若已被交易使用，将无法删除。")
-                    : String(localized: "删除后无法恢复；若该分类已被交易使用，将无法删除。"))
-            } else {
-                Text("删除后无法恢复。")
-            }
-        }
-        // 清理导入分类确认
-        .confirmationDialog("清理导入分类", isPresented: $showCleanupConfirmation, titleVisibility: .visible) {
-            Button("清理", role: .destructive) {
-                Task { await cleanupImportedCategories() }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("将删除所有导入时自动创建的分类（非预设分类），已被交易使用的分类会被保留。")
-        }
-        // 清理结果提示
-        .alert("清理完成", isPresented: Binding(
-            get: { cleanupResult != nil },
-            set: { if !$0 { cleanupResult = nil } }
-        )) {
-            Button("确定") { cleanupResult = nil }
-        } message: {
-            if let result = cleanupResult {
-                Text("已删除 \(result.deleted) 个分类\(result.skipped > 0 ? "，\(result.skipped) 个因被使用而保留" : "")")
-            } else {
-                Text("")
-            }
+            Text(deleteConfirmSummary.isEmpty
+                ? String(localized: "删除后 30 天内可在最近删除中恢复。")
+                : deleteConfirmSummary)
         }
         .task {
             await loadData()
@@ -194,10 +207,9 @@ struct CategoryManagementView: View {
                         }
                         .tint(.holoPrimary)
                     }
-                    if !parent.isDefault && !parent.isSystem {
+                    if !parent.isSystem {
                         Button(role: .destructive) {
-                            categoryToDelete = parent
-                            showDeleteConfirmation = true
+                            Task { await prepareDelete(parent) }
                         } label: {
                             Label("删除", systemImage: "trash")
                         }
@@ -310,19 +322,8 @@ struct CategoryManagementView: View {
                 }
             }
         }
-        .alert("确认删除", isPresented: $showDeleteConfirmation) {
-            Button("取消", role: .cancel) {
-                categoryToDelete = nil
-            }
-            Button("删除", role: .destructive) {
-                if let cat = categoryToDelete {
-                    confirmDelete(cat)
-                }
-                categoryToDelete = nil
-            }
-        } message: {
-            Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
-        }
+        // 删除确认弹窗统一挂在根页：本页曾重复挂载同一 showDeleteConfirmation，
+        // 双 alert 会触发双次执行（先成功后 notFound），造成「假成功」与错误弹窗
     }
 
     @ViewBuilder
@@ -395,10 +396,9 @@ struct CategoryManagementView: View {
                             }
                             .tint(.holoPrimary)
                         }
-                        if !child.isDefault && !child.isSystem {
+                        if !child.isSystem {
                             Button(role: .destructive) {
-                                categoryToDelete = child
-                                showDeleteConfirmation = true
+                                Task { await prepareDelete(child) }
                             } label: {
                                 Label("删除", systemImage: "trash")
                             }
@@ -434,40 +434,82 @@ struct CategoryManagementView: View {
         showAddCategory = true
     }
     
-    private func confirmDelete(_ category: Category) {
-        // 防御：对象已被删除则跳过
-        guard !category.isDeleted else {
-            categoryToDelete = nil
-            showDeleteConfirmation = false
-            return
-        }
-        // ⚠️ 先从本地数据中移除，避免 context.save() 后 SwiftUI 渲染已删除的 NSManagedObject
-        // EXC_BREAKPOINT 根因：context.save() 将对象从 store 删除，但数组仍持有引用
-        topLevelCategories.removeAll { $0.objectID == category.objectID }
-        if category.isTopLevel {
-            subCategoriesMap.removeValue(forKey: category.id)
-        } else if let parentId = category.parentId {
-            subCategoriesMap[parentId]?.removeAll { $0.objectID == category.objectID }
-        }
-        Task {
-            do {
-                try await repository.deleteCategory(category)
-            } catch {
-                errorMessage = error.localizedDescription
+    /// 删除入口：先跑统一预检（引用全景 + 版本指纹），再按引用情况分流——
+    /// 无引用走简单确认，有引用走影响处理页（方案 §3）
+    private func prepareDelete(_ category: Category) async {
+        do {
+            let snapshot = try await repository.categoryDeletionImpact(categoryID: category.id)
+            categoryToDelete = category
+            deletionSnapshot = snapshot
+            // ⚠️ 趁对象仍有效先把展示内容拷成值快照，删除执行后源对象会失效
+            deleteDisplayName = category.name
+            deleteDisplayIcon = category.icon
+            deleteDisplayColor = category.swiftUIColor
+            deleteDisplayType = category.transactionType
+            if snapshot.requiresImpactFlow {
+                showDeletionImpact = true
+            } else {
+                if snapshot.scope == .primary, !snapshot.childCategories.isEmpty {
+                    deleteConfirmSummary = String(localized: "将同时删除 \(snapshot.childCategories.count) 个空子分类。删除后 30 天内可在最近删除中恢复。")
+                } else {
+                    deleteConfirmSummary = ""
+                }
+                showDeleteConfirmation = true
             }
-            categoryToDelete = nil
-            await loadData()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
-    /// 清理导入时自动创建的非预设分类
-    private func cleanupImportedCategories() async {
-        do {
-            let result = try await repository.cleanupImportedCategories()
-            cleanupResult = result
+    /// 无引用分类的简单确认：直接软删除进回收站（空子分类分组逐个入批）
+    private func confirmSimpleDelete() {
+        guard let snapshot = deletionSnapshot else {
+            categoryToDelete = nil
+            return
+        }
+        let disposition: CategoryDeletionDisposition
+        if snapshot.isSecondary {
+            disposition = .secondary(.deleteWithReferences)
+        } else {
+            let dispositions = Dictionary(
+                uniqueKeysWithValues: snapshot.childCategories.map {
+                    ($0.id, SecondaryCategoryDisposition.deleteWithReferences)
+                }
+            )
+            disposition = .primary(.disposeChildren(dispositions))
+        }
+        performDelete(disposition: disposition)
+    }
+
+    /// 统一执行入口：ID + 值指令 + 版本指纹，不跨弹层持有托管对象。
+    /// 本地列表只在执行成功后才移除——失败时保持数据可见，避免「假成功」
+    /// （曾实证：先移除后失败，用户以为删掉了，冷启动数据又回来）。
+    private func performDelete(disposition: CategoryDeletionDisposition) {
+        guard let snapshot = deletionSnapshot else { return }
+        let command = CategoryDeletionCommand(
+            sourceCategoryID: snapshot.sourceCategoryID,
+            expectedRevision: snapshot.sourceRevision,
+            disposition: disposition
+        )
+        Task {
+            do {
+                try await repository.executeCategoryDeletion(command)
+                if let category = categoryToDelete {
+                    topLevelCategories.removeAll { $0.id == category.id }
+                    if category.isTopLevel {
+                        subCategoriesMap.removeValue(forKey: category.id)
+                    } else if let parentId = category.parentId {
+                        subCategoriesMap[parentId]?.removeAll { $0.id == category.id }
+                    }
+                }
+                HoloToastCenter.shared.show(String(localized: "已删除，30 天内可从最近删除恢复"), type: .success)
+            } catch {
+                Self.logger.error("分类删除执行失败 id=\(snapshot.sourceCategoryID, privacy: .public)：\(error.localizedDescription)")
+                errorMessage = error.localizedDescription
+            }
+            categoryToDelete = nil
+            deletionSnapshot = nil
             await loadData()
-        } catch {
-            errorMessage = String(localized: "清理失败：\(error.localizedDescription)")
         }
     }
     

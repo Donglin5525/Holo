@@ -20,7 +20,8 @@ extension FinanceRepository {
         let req = Transaction.fetchRequest()
         req.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "date >= %@ AND date < %@", dayStart as NSDate, dayEnd as NSDate),
-            FinanceTransactionOccurrencePolicy.occurredPredicate()
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
         ])
         req.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return try context.fetch(req)
@@ -52,7 +53,8 @@ extension FinanceRepository {
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate),
-            FinanceTransactionOccurrencePolicy.occurredPredicate()
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
         // 调用方逐笔读分类与账户；不预取会触发每笔一次的关系惰性加载（N+1 查询），
@@ -69,7 +71,8 @@ extension FinanceRepository {
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate),
             FinanceTransactionOccurrencePolicy.occurredPredicate(),
-            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate(),
+            NSPredicate(format: "deletedAt == nil")
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
         request.relationshipKeyPathsForPrefetching = ["category", "account"]

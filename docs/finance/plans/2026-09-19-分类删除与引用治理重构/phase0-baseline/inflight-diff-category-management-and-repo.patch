@@ -1,0 +1,562 @@
+diff --git a/Holo/Holo APP/Holo/Holo/Models/FinanceRepository+Categories.swift b/Holo/Holo APP/Holo/Holo/Models/FinanceRepository+Categories.swift
+index 3678628bd..9cd818e33 100644
+--- a/Holo/Holo APP/Holo/Holo/Models/FinanceRepository+Categories.swift	
++++ b/Holo/Holo APP/Holo/Holo/Models/FinanceRepository+Categories.swift	
+@@ -8,6 +8,14 @@
+ import Foundation
+ import CoreData
+ 
++/// 删除分类时，名下记账明细的处理方式
++enum CategoryTransactionHandling {
++    /// 明细转移到目标分类（记账记录保留，仅更换归属）
++    case moveTo(Category)
++    /// 明细与分类一并删除
++    case deleteAlong
++}
++
+ extension FinanceRepository {
+ 
+     // MARK: - Category Operations
+@@ -200,38 +208,62 @@ extension FinanceRepository {
+         try context.save()
+     }
+     
+-    func deleteCategory(_ category: Category) async throws {
++    /// 该分类及其全部二级子分类（含 iCloud 重复行）的 id
++    private func categoryIdFamily(of category: Category) throws -> [UUID] {
++        var ids = [category.id]
++        let subRequest = Category.fetchRequest()
++        subRequest.predicate = NSPredicate(format: "parentId == %@", category.id as CVarArg)
++        ids += try context.fetch(subRequest).map { $0.id }
++        return ids
++    }
++
++    /// 仍然有效（未进回收站）且挂在该分类或其二级子分类上的记账明细。
++    /// 按 categoryId 匹配而非关系匹配：iCloud 同步会为同一分类产生重复行，
++    /// 按关系匹配会漏掉挂在重复行上的明细，造成「明细明明删光了却提示分类被占用」。
++    func liveTransactions(referencing category: Category) async throws -> [Transaction] {
++        let request = Transaction.fetchRequest()
++        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
++            NSPredicate(format: "category.id IN %@", try categoryIdFamily(of: category)),
++            NSPredicate(format: "deletedAt == nil")
++        ])
++        return try context.fetch(request)
++    }
++
++    /// 删除分类。名下有效明细按用户选择先转移或一并删除；
++    /// 分类与子分类按 id 清除全部行（含 iCloud 重复行），只删单行会留下同 id 幽灵行继续占位。
++    func deleteCategory(_ category: Category, transactionHandling: CategoryTransactionHandling) async throws {
+         // 防御：对象已被删除则直接返回
+         guard !category.isDeleted else { return }
+ 
+-        // 清理该分类的预算记录
++        // 清理该分类及其子分类的预算记录
+         Budget.deleteForCategory(category.id, in: context)
++        for subId in try categoryIdFamily(of: category).dropFirst() {
++            Budget.deleteForCategory(subId, in: context)
++        }
+ 
+-        // 检查该分类本身是否被交易使用
+-        let request = Transaction.fetchRequest()
+-        request.predicate = NSPredicate(format: "category == %@", category)
+-        if try context.count(for: request) > 0 {
+-            throw FinanceError.categoryInUse
++        // 名下仍有效的明细按用户选择处理
++        let transactions = try await liveTransactions(referencing: category)
++        switch transactionHandling {
++        case .moveTo(let target):
++            for tx in transactions { tx.category = target }
++        case .deleteAlong:
++            for tx in transactions { context.delete(tx) }
+         }
+ 
+-        // 检查子分类是否被交易使用，并收集未使用的子分类
++        // 删除全部子分类行（含重复行与软删行）
+         let subRequest = Category.fetchRequest()
+         subRequest.predicate = NSPredicate(format: "parentId == %@", category.id as CVarArg)
+-        let subCategories = try context.fetch(subRequest)
+-
+-        for sub in subCategories {
+-            // 清理子分类的预算记录
+-            Budget.deleteForCategory(sub.id, in: context)
+-
+-            let txRequest = Transaction.fetchRequest()
+-            txRequest.predicate = NSPredicate(format: "category == %@", sub)
+-            if try context.count(for: txRequest) > 0 {
+-                throw FinanceError.categoryInUse
+-            }
++        for sub in try context.fetch(subRequest) {
+             context.delete(sub)
+         }
+ 
+-        context.delete(category)
++        // 删除该分类 id 的全部行
++        let selfRequest = Category.fetchRequest()
++        selfRequest.predicate = NSPredicate(format: "id == %@", category.id as CVarArg)
++        for row in try context.fetch(selfRequest) {
++            context.delete(row)
++        }
++
+         try context.save()
+ 
+         NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+@@ -249,9 +281,12 @@ extension FinanceRepository {
+         var skipped = 0
+ 
+         for category in nonDefaultCategories {
+-            // 检查是否被交易使用
++            // 检查是否被有效交易使用（软删明细不占位，与单删口径一致）
+             let txRequest = Transaction.fetchRequest()
+-            txRequest.predicate = NSPredicate(format: "category == %@", category)
++            txRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
++                NSPredicate(format: "category.id == %@", category.id as CVarArg),
++                NSPredicate(format: "deletedAt == nil")
++            ])
+             let inUse = try context.count(for: txRequest) > 0
+ 
+             if inUse {
+diff --git a/Holo/Holo APP/Holo/Holo/Views/CategoryManagementView.swift b/Holo/Holo APP/Holo/Holo/Views/CategoryManagementView.swift
+index 635d7bcbe..ffd3b71df 100644
+--- a/Holo/Holo APP/Holo/Holo/Views/CategoryManagementView.swift	
++++ b/Holo/Holo APP/Holo/Holo/Views/CategoryManagementView.swift	
+@@ -16,6 +16,9 @@ struct CategoryManagementView: View {
+     @Environment(\.dismiss) var dismiss
+     private let repository = FinanceRepository.shared
+     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryManagement")
++
++    /// 以弹层（sheet）方式打开时显示「完成」关闭按钮；被 push 进入时保持系统返回
++    var showsDoneButton: Bool = false
+     
+     @State private var transactionType: TransactionType = .expense
+     @State private var topLevelCategories: [Category] = []
+@@ -25,6 +28,15 @@ struct CategoryManagementView: View {
+     @State private var editingCategory: Category?
+     @State private var categoryToDelete: Category?
+     @State private var showDeleteConfirmation = false
++    /// 弹层明细的值快照：删除执行后源对象会失效，弹层渲染只读快照（防「对象已删 UI 仍在渲染」崩溃族）
++    @State private var usagePreviews: [CategoryDeleteTransactionPreview] = []
++    @State private var deleteSheetName = ""
++    @State private var deleteSheetIcon = ""
++    @State private var deleteSheetColor = Color.holoPrimary
++    @State private var deleteSheetType = TransactionType.expense
++    @State private var showDeleteOptions = false
++    /// 被删分类及其子分类的 id，转移目标候选里要排除
++    @State private var doomedFamilyIds: Set<UUID> = []
+     @State private var isLoading = false
+     @State private var errorMessage: String?
+     @State private var showCleanupConfirmation = false
+@@ -48,11 +60,12 @@ struct CategoryManagementView: View {
+         .toolbar {
+             ToolbarItem(placement: .navigationBarTrailing) {
+                 HStack(spacing: HoloSpacing.sm) {
+-                    // 清理导入分类按钮
++                    // 清理导入分类按钮（批量删除无用分类，与设置页数据管理同用 trash 语义；
++                    // 勿用 "broom"——SF Symbols 无此图标名，iOS 26 渲染时直接崩溃）
+                     Button {
+                         showCleanupConfirmation = true
+                     } label: {
+-                        Image(systemName: "broom")
++                        Image(systemName: "trash")
+                             .font(.system(size: 18))
+                             .foregroundColor(.orange)
+                     }
+@@ -66,6 +79,12 @@ struct CategoryManagementView: View {
+                     }
+                 }
+             }
++            // 「完成」是主动作，放在导航栏最右（声明顺序决定同侧多个按钮的左右排列）
++            if showsDoneButton {
++                ToolbarItem(placement: .topBarTrailing) {
++                    Button("完成") { dismiss() }
++                }
++            }
+         }
+         .sheet(isPresented: $showAddCategory) {
+             AddCategorySheet(parentId: addCategoryParentId, type: transactionType) {
+@@ -77,6 +96,21 @@ struct CategoryManagementView: View {
+                 Task { await loadData() }
+             }
+         }
++        // 名下仍有明细时的删除弹层：列明明细，由用户决定明细去向（只读值快照）
++        .sheet(isPresented: $showDeleteOptions) {
++            CategoryDeleteOptionsSheet(
++                categoryName: deleteSheetName,
++                categoryIcon: deleteSheetIcon,
++                categoryColor: deleteSheetColor,
++                categoryType: deleteSheetType,
++                transactions: usagePreviews,
++                excludedCategoryIds: doomedFamilyIds
++            ) { handling in
++                if let cat = categoryToDelete {
++                    performDelete(cat, handling: handling)
++                }
++            }
++        }
+         .onChange(of: editingCategory) { _, _ in
+             categoryToDelete = nil
+             showDeleteConfirmation = false
+@@ -106,8 +140,8 @@ struct CategoryManagementView: View {
+             if let cat = categoryToDelete {
+                 let hasSubs = (subCategoriesMap[cat.id]?.count ?? 0) > 0
+                 Text(hasSubs
+-                    ? String(localized: "删除后无法恢复。该分类及其 \(subCategoriesMap[cat.id]?.count ?? 0) 个子分类将被一并删除；若已被交易使用，将无法删除。")
+-                    : String(localized: "删除后无法恢复；若该分类已被交易使用，将无法删除。"))
++                    ? String(localized: "删除后无法恢复。该分类及其 \(subCategoriesMap[cat.id]?.count ?? 0) 个子分类将被一并删除。")
++                    : String(localized: "删除后无法恢复。"))
+             } else {
+                 Text("删除后无法恢复。")
+             }
+@@ -196,8 +230,7 @@ struct CategoryManagementView: View {
+                     }
+                     if !parent.isDefault && !parent.isSystem {
+                         Button(role: .destructive) {
+-                            categoryToDelete = parent
+-                            showDeleteConfirmation = true
++                            Task { await prepareDelete(parent) }
+                         } label: {
+                             Label("删除", systemImage: "trash")
+                         }
+@@ -321,7 +354,7 @@ struct CategoryManagementView: View {
+                 categoryToDelete = nil
+             }
+         } message: {
+-            Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
++            Text("删除后无法恢复。")
+         }
+     }
+ 
+@@ -397,8 +430,7 @@ struct CategoryManagementView: View {
+                         }
+                         if !child.isDefault && !child.isSystem {
+                             Button(role: .destructive) {
+-                                categoryToDelete = child
+-                                showDeleteConfirmation = true
++                                Task { await prepareDelete(child) }
+                             } label: {
+                                 Label("删除", systemImage: "trash")
+                             }
+@@ -434,7 +466,51 @@ struct CategoryManagementView: View {
+         showAddCategory = true
+     }
+     
++    /// 删除入口：名下无明细走确认弹窗；有明细走「明细处理」弹层，由用户决定去向
++    private func prepareDelete(_ category: Category) async {
++        do {
++            let transactions = try await repository.liveTransactions(referencing: category)
++            categoryToDelete = category
++            if transactions.isEmpty {
++                usagePreviews = []
++                showDeleteConfirmation = true
++            } else {
++                // ⚠️ 趁对象仍有效先把展示内容拷成值快照，删除执行后源对象会失效
++                usagePreviews = DuplicateRowFilter.deduplicatingCopies(transactions)
++                    .sorted { $0.date > $1.date }
++                    .map { tx in
++                        CategoryDeleteTransactionPreview(
++                            id: tx.objectID,
++                            title: tx.note ?? tx.remark ?? String(localized: "无备注"),
++                            dateText: CategoryDeleteTransactionPreview.dateText(for: tx.date),
++                            installmentText: tx.installmentLabel,
++                            amountText: tx.formattedAmountWithSign,
++                            signedAmount: tx.amountAsDecimal
++                        )
++                    }
++                deleteSheetName = category.name
++                deleteSheetIcon = category.icon
++                deleteSheetColor = category.swiftUIColor
++                deleteSheetType = category.transactionType
++                var familyIds: Set<UUID> = [category.id]
++                if category.isTopLevel {
++                    // 一级分类：子分类也要从转移候选里排除
++                    let subs = try await repository.getSubCategories(parentId: category.id)
++                    familyIds.formUnion(subs.map { $0.id })
++                }
++                doomedFamilyIds = familyIds
++                showDeleteOptions = true
++            }
++        } catch {
++            errorMessage = error.localizedDescription
++        }
++    }
++
+     private func confirmDelete(_ category: Category) {
++        performDelete(category, handling: .deleteAlong)
++    }
++
++    private func performDelete(_ category: Category, handling: CategoryTransactionHandling) {
+         // 防御：对象已被删除则跳过
+         guard !category.isDeleted else {
+             categoryToDelete = nil
+@@ -451,11 +527,13 @@ struct CategoryManagementView: View {
+         }
+         Task {
+             do {
+-                try await repository.deleteCategory(category)
++                try await repository.deleteCategory(category, transactionHandling: handling)
+             } catch {
+                 errorMessage = error.localizedDescription
+             }
+             categoryToDelete = nil
++            usagePreviews = []
++            doomedFamilyIds = []
+             await loadData()
+         }
+     }
+@@ -736,6 +814,257 @@ struct EditCategorySheet: View {
+     }
+ }
+ 
++// MARK: - Category Delete Options Sheet
++
++/// 弹层明细的值快照：删除执行后源 Transaction 对象会失效，
++/// 弹层只渲染这里的值，杜绝「已删对象仍在 SwiftUI 渲染」的强桥接崩溃
++struct CategoryDeleteTransactionPreview: Identifiable {
++    let id: NSManagedObjectID
++    let title: String
++    let dateText: String
++    let installmentText: String?
++    /// 带符号金额文案（如 -¥20.00）
++    let amountText: String
++    /// 合计用原始数值
++    let signedAmount: Decimal
++
++    static let dateFormatter: DateFormatter = {
++        let formatter = DateFormatter()
++        formatter.dateFormat = "yyyy/M/d"
++        return formatter
++    }()
++
++    static func dateText(for date: Date) -> String {
++        dateFormatter.string(from: date)
++    }
++}
++
++/// 删除仍被明细占用的分类时弹出：列出名下明细，由用户决定「转移」还是「一并删除」
++struct CategoryDeleteOptionsSheet: View {
++    @Environment(\.dismiss) private var dismiss
++    private let repository = FinanceRepository.shared
++
++    /// 被删分类的展示快照（源对象删除后仍可安全渲染）
++    let categoryName: String
++    let categoryIcon: String
++    let categoryColor: Color
++    /// 候选目标与被删分类同类型
++    let categoryType: TransactionType
++    /// 已去重、按日期倒序的明细值快照
++    let transactions: [CategoryDeleteTransactionPreview]
++    /// 转移目标候选需排除的 id（被删分类及其子分类）
++    let excludedCategoryIds: Set<UUID>
++    let onConfirm: (CategoryTransactionHandling) -> Void
++
++    private enum HandlingOption { case move, deleteAlong }
++
++    @State private var option: HandlingOption = .move
++    @State private var targetCategory: Category?
++    @State private var candidates: [(category: Category, parentName: String?)] = []
++
++    /// 预览最多展示条数，超出折叠（处理方式对全部明细生效）
++    private static let previewLimit = 100
++
++    private var totalAmountText: String {
++        let total = transactions.reduce(Decimal(0)) { $0 + $1.signedAmount }
++        return NumberFormatter.currency.string(from: NSDecimalNumber(decimal: abs(total))) ?? ""
++    }
++
++    var body: some View {
++        NavigationStack {
++            List {
++                Section {
++                    HStack(spacing: HoloSpacing.md) {
++                        CategoryIconBadge(iconName: categoryIcon, color: categoryColor, diameter: 40)
++                        VStack(alignment: .leading, spacing: 2) {
++                            Text(String(localized: "该分类下还有 \(transactions.count) 笔记账明细"))
++                                .font(.holoBody)
++                            Text(String(localized: "合计金额 \(totalAmountText)，删除前请先选择明细的去向"))
++                                .font(.holoCaption)
++                                .foregroundColor(.holoTextSecondary)
++                        }
++                    }
++                }
++
++                Section(String(localized: "明细处理方式")) {
++                    optionRow(
++                        .move,
++                        title: String(localized: "明细转移到其他分类"),
++                        subtitle: String(localized: "保留记账记录，仅更换归属分类")
++                    )
++                    if option == .move {
++                        NavigationLink {
++                            CategoryTargetPickerView(candidates: candidates, selection: $targetCategory)
++                        } label: {
++                            HStack {
++                                Text(String(localized: "转移到"))
++                                    .foregroundColor(.holoTextPrimary)
++                                Spacer()
++                                Text(targetCategory?.name ?? String(localized: "请选择"))
++                                    .foregroundColor(targetCategory == nil ? .holoTextPlaceholder : .holoTextSecondary)
++                            }
++                        }
++                    }
++                    optionRow(
++                        .deleteAlong,
++                        title: String(localized: "连同明细一起删除"),
++                        subtitle: String(localized: "\(transactions.count) 笔明细将同时删除，无法恢复")
++                    )
++                }
++
++                Section(String(localized: "明细预览（共 \(transactions.count) 笔）")) {
++                    ForEach(transactions.prefix(Self.previewLimit)) { tx in
++                        transactionRow(tx)
++                    }
++                    if transactions.count > Self.previewLimit {
++                        Text(String(localized: "仅显示最近 \(Self.previewLimit) 笔，其余明细按相同方式处理"))
++                            .font(.holoCaption)
++                            .foregroundColor(.holoTextSecondary)
++                    }
++                }
++            }
++            .navigationTitle(String(localized: "删除「\(categoryName)」"))
++            .navigationBarTitleDisplayMode(.inline)
++            .toolbar {
++                ToolbarItem(placement: .cancellationAction) {
++                    Button(String(localized: "取消")) { dismiss() }
++                }
++                ToolbarItem(placement: .confirmationAction) {
++                    Button(String(localized: "删除"), role: .destructive) {
++                        // ⚠️ 先关弹层再执行删除：删除会让源对象失效，弹层不能再参与渲染
++                        dismiss()
++                        switch option {
++                        case .move:
++                            guard let target = targetCategory else { return }
++                            onConfirm(.moveTo(target))
++                        case .deleteAlong:
++                            onConfirm(.deleteAlong)
++                        }
++                    }
++                    .disabled(option == .move && targetCategory == nil)
++                }
++            }
++            .task {
++                await loadCandidates()
++            }
++        }
++    }
++
++    private func optionRow(_ value: HandlingOption, title: String, subtitle: String) -> some View {
++        Button {
++            option = value
++        } label: {
++            HStack {
++                VStack(alignment: .leading, spacing: 2) {
++                    Text(title)
++                        .font(.holoBody)
++                        .foregroundColor(.holoTextPrimary)
++                    Text(subtitle)
++                        .font(.holoCaption)
++                        .foregroundColor(.holoTextSecondary)
++                }
++                Spacer()
++                Image(systemName: option == value ? "checkmark.circle.fill" : "circle")
++                    .font(.system(size: 20))
++                    .foregroundColor(option == value ? .holoPrimary : .holoTextPlaceholder)
++            }
++        }
++        .buttonStyle(.plain)
++    }
++
++    private func transactionRow(_ tx: CategoryDeleteTransactionPreview) -> some View {
++        HStack {
++            VStack(alignment: .leading, spacing: 2) {
++                Text(tx.title)
++                    .font(.holoBody)
++                    .foregroundColor(.holoTextPrimary)
++                HStack(spacing: 4) {
++                    Text(tx.dateText)
++                    if let label = tx.installmentText {
++                        Text(label)
++                    }
++                }
++                .font(.holoCaption)
++                .foregroundColor(.holoTextSecondary)
++            }
++            Spacer()
++            Text(tx.amountText)
++                .font(.holoBody)
++                .foregroundColor(.holoTextPrimary)
++        }
++    }
++
++    /// 候选目标：同类型、不在被删家族内的分类；「待分类」置顶并作为默认选中
++    @MainActor
++    private func loadCandidates() async {
++        // 「待分类」是转移的默认去处，尚未被创建过时先补齐（应用内既定不变量）
++        _ = repository.ensurePendingCategory(type: categoryType)
++        guard let all = try? await repository.getAllCategories() else { return }
++        // iCloud 副本天然重复 id，聚合必须 uniquingKeysWith
++        let nameById = Dictionary(all.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
++        let sameType = all.filter {
++            $0.transactionType == categoryType
++                && !excludedCategoryIds.contains($0.id)
++                && (!$0.isSystem || $0.name == FinancePendingCategory.currentName)
++        }
++        candidates = sameType
++            .map { cat in (category: cat, parentName: cat.parentId.flatMap { nameById[$0] }) }
++            .sorted { lhs, rhs in
++                let lPending = lhs.category.name == FinancePendingCategory.currentName
++                let rPending = rhs.category.name == FinancePendingCategory.currentName
++                if lPending != rPending { return lPending }
++                let lParent = lhs.parentName ?? ""
++                let rParent = rhs.parentName ?? ""
++                if lParent != rParent { return lParent < rParent }
++                return lhs.category.name < rhs.category.name
++            }
++        if targetCategory == nil {
++            targetCategory = sameType.first { $0.name == FinancePendingCategory.currentName }
++        }
++    }
++}
++
++/// 转移目标选择页：点选即回填并返回
++private struct CategoryTargetPickerView: View {
++    @Environment(\.dismiss) private var dismiss
++
++    let candidates: [(category: Category, parentName: String?)]
++    @Binding var selection: Category?
++
++    var body: some View {
++        List {
++            ForEach(candidates, id: \.category.objectID) { item in
++                Button {
++                    selection = item.category
++                    dismiss()
++                } label: {
++                    HStack {
++                        CategoryIconBadge(category: item.category, diameter: 32)
++                        VStack(alignment: .leading, spacing: 2) {
++                            Text(item.category.name)
++                                .font(.holoBody)
++                                .foregroundColor(.holoTextPrimary)
++                            if let parentName = item.parentName {
++                                Text(String(localized: "属于「\(parentName)」"))
++                                    .font(.holoCaption)
++                                    .foregroundColor(.holoTextSecondary)
++                            }
++                        }
++                        Spacer()
++                        if selection?.id == item.category.id {
++                            Image(systemName: "checkmark")
++                                .foregroundColor(.holoPrimary)
++                        }
++                    }
++                }
++                .buttonStyle(.plain)
++            }
++        }
++        .navigationTitle(String(localized: "选择目标分类"))
++        .navigationBarTitleDisplayMode(.inline)
++    }
++}
++
+ // MARK: - Category Identifiable
+ 
+ extension Category: Identifiable {}

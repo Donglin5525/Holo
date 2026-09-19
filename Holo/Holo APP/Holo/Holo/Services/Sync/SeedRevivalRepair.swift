@@ -94,8 +94,10 @@ enum SeedRevivalRepair {
         if hasPreexistingTransaction {
             let keepNames = Self.defaultCategoryNames
             for category in categories {
+                // 只清本次误种的种子行（isDefault == true）；
+                // 用户自建的同名分类（isDefault == false）有真实创建意图，保留
                 guard keepNames.contains(category.name),
-                      !category.isDefault,
+                      category.isDefault,
                       !category.isSystem,
                       (category.transactions ?? []).isEmpty,
                       !categories.contains(where: { $0.parentId == category.id }),

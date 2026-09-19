@@ -817,6 +817,10 @@ enum FinanceError: LocalizedError {
     case categoryInUse
     case saveFailed
     case subCategoryRequired
+    /// 分类删除提交时版本指纹不一致：处理页打开期间数据已被更改
+    case staleCategoryDeletion
+    /// 分类删除提交时存在未决策的冲突（预算冲突/同名子分类冲突/去向缺失）
+    case categoryDeletionBlocked
 
     var errorDescription: String? {
         switch self {
@@ -825,6 +829,8 @@ enum FinanceError: LocalizedError {
         case .categoryInUse: return "该分类正在使用中，无法删除"
         case .saveFailed: return "保存失败"
         case .subCategoryRequired: return "记账必须选择二级分类"
+        case .staleCategoryDeletion: return "分类数据已发生变化，请返回后重新删除"
+        case .categoryDeletionBlocked: return "存在未处理的冲突，请先完成全部选择"
         }
     }
 }
