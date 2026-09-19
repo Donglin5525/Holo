@@ -11,6 +11,7 @@ import SwiftUI
 
 struct HealthDateNavigator: View {
     @Binding var selectedDate: Date
+    @State private var showCalendar = false
 
     var body: some View {
         ZStack {
@@ -27,12 +28,7 @@ struct HealthDateNavigator: View {
                     navigateDate(-1)
                 }
 
-                Text(dateDisplayText)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .frame(minWidth: 118)
+                dateButton
 
                 navigationButton(
                     systemName: "chevron.right",
@@ -50,6 +46,31 @@ struct HealthDateNavigator: View {
                     .stroke(Color.holoBorder.opacity(0.7), lineWidth: 1)
             )
         }
+        .sheet(isPresented: $showCalendar) {
+            HealthDatePickerSheet(selectedDate: $selectedDate)
+        }
+    }
+
+    /// 日期文案：点击弹出日历，支持跨月/跨年直接跳转历史日期
+    private var dateButton: some View {
+        Button {
+            showCalendar = true
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+                Text(dateDisplayText)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(minWidth: 118)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func navigationButton(
@@ -106,13 +127,79 @@ struct HealthDateNavigator: View {
     }
 
     private func navigateDate(_ direction: Int) {
+        guard let newDate = Self.steppedDate(from: selectedDate, forward: direction > 0) else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedDate = newDate
+        }
+    }
+
+    /// 按天步进的统一边界规则（箭头 / 日历 / 左右滑动切天共用）：不允许越过今天，越界返回 nil
+    static func steppedDate(from date: Date, forward: Bool) -> Date? {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        guard let newDate = calendar.date(byAdding: .day, value: direction, to: selectedDate),
-              newDate <= today else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
-            selectedDate = calendar.startOfDay(for: newDate)
+        guard let newDate = calendar.date(byAdding: .day, value: forward ? 1 : -1, to: date),
+              newDate <= today else { return nil }
+        return calendar.startOfDay(for: newDate)
+    }
+}
+
+// MARK: - HealthDatePickerSheet
+
+/// 按天跳转日历弹层：点选任意历史日期立即生效并关闭，未来日期置灰不可选
+private struct HealthDatePickerSheet: View {
+    @Binding var selectedDate: Date
+    @Environment(\.dismiss) private var dismiss
+
+    /// 点选即提交：与箭头/滑动切天共用同一条 selectedDate 写入路径，触发统一的 onChange 重载
+    private var pickerSelection: Binding<Date> {
+        Binding(
+            get: { selectedDate },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectedDate = Calendar.current.startOfDay(for: newValue)
+                }
+                dismiss()
+            }
+        )
+    }
+
+    private var selectableRange: ClosedRange<Date> {
+        let lowerBound = Calendar.current.date(byAdding: .year, value: -10, to: Date())
+            ?? Date(timeIntervalSinceNow: -10 * 365 * 24 * 3600)
+        return lowerBound...Date()
+    }
+
+    var body: some View {
+        NavigationStack {
+            DatePicker(
+                "",
+                selection: pickerSelection,
+                in: selectableRange,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, HoloSpacing.md)
+            .navigationTitle("选择日期")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedDate = Calendar.current.startOfDay(for: Date())
+                        }
+                        dismiss()
+                    } label: {
+                        Text("今天")
+                            .foregroundColor(.holoPrimary)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
         }
+        .presentationDetents([.height(400)])
+        .presentationDragIndicator(.visible)
     }
 }
 

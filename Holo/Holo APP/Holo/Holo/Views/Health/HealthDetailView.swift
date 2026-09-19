@@ -24,6 +24,8 @@ struct HealthDetailView: View {
     @State private var hourlySteps: HourlyStepsData?
     @State private var workoutSessions: [WorkoutSessionData] = []
     @State private var selectedSession: WorkoutSessionData?
+    /// 左右滑动切天的实时手势标记：快速轻扫时点击回调需同步读取，防止误触进运动详情
+    @State private var daySwipeState = DaySwipeGestureState()
 
     private var metric: HealthMetricSnapshot {
         HealthMetricSnapshot(type: type, value: currentValue, availability: currentAvailability)
@@ -33,48 +35,57 @@ struct HealthDetailView: View {
         VStack(spacing: 0) {
             detailHeader
 
-            ScrollView(showsIndicators: false) {
-                // 阅读动线：当日大环 → 当日结构（为什么）→ 周统计 → 周趋势 → 解读（洞察/关联），
-                // 同粒度内容相邻，避免日/周来回跳
-                VStack(spacing: HoloSpacing.md) {
-                    bigRingCard
+            // 左右滑动切天（与看板页共用容器）：左缘 24pt 让位给右滑返回手势
+            DaySwipeContainer(
+                state: daySwipeState,
+                onDayChange: { forward in switchDay(forward: forward) },
+                canSwipeForward: !Calendar.current.isDateInToday(selectedDate),
+                edgeExclusionWidth: 24
+            ) {
+                ScrollView(showsIndicators: false) {
+                    // 阅读动线：当日大环 → 当日结构（为什么）→ 周统计 → 周趋势 → 解读（洞察/关联），
+                    // 同粒度内容相邻，避免日/周来回跳
+                    VStack(spacing: HoloSpacing.md) {
+                        bigRingCard
 
-                    if type == .sleep {
-                        // 阶段三态：有分期=总量卡+时间轴卡；无分期但有时长=引导卡；无数据=不显示
-                        if let sleepDetail, sleepDetail.hasStageData {
-                            SleepStagesCard(detail: sleepDetail)
-                            if let sleepTimeline {
-                                SleepTimelineCard(timeline: sleepTimeline, detail: sleepDetail)
-                            }
-                        } else if let sleepDetail, sleepDetail.totalHours > 0 {
-                            SleepStageGuideCard()
-                        }
-                    }
-
-                    if type == .steps, let hourlySteps {
-                        DailyActivityPatternCard(hourly: hourlySteps)
-                    }
-
-                    if type == .workout {
-                        if workoutSessions.isEmpty {
-                            workoutEmptyCard
-                        } else {
-                            WorkoutSessionListCard(sessions: workoutSessions) { session in
-                                selectedSession = session
+                        if type == .sleep {
+                            // 阶段三态：有分期=总量卡+时间轴卡；无分期但有时长=引导卡；无数据=不显示
+                            if let sleepDetail, sleepDetail.hasStageData {
+                                SleepStagesCard(detail: sleepDetail)
+                                if let sleepTimeline {
+                                    SleepTimelineCard(timeline: sleepTimeline, detail: sleepDetail)
+                                }
+                            } else if let sleepDetail, sleepDetail.totalHours > 0 {
+                                SleepStageGuideCard()
                             }
                         }
+
+                        if type == .steps, let hourlySteps {
+                            DailyActivityPatternCard(hourly: hourlySteps)
+                        }
+
+                        if type == .workout {
+                            if workoutSessions.isEmpty {
+                                workoutEmptyCard
+                            } else {
+                                WorkoutSessionListCard(sessions: workoutSessions) { session in
+                                    guard !daySwipeState.isSwiping else { return }
+                                    selectedSession = session
+                                }
+                            }
+                        }
+
+                        statsSection
+
+                        trendSection
+
+                        insightSection
+                        relatedSection
                     }
-
-                    statsSection
-
-                    trendSection
-
-                    insightSection
-                    relatedSection
+                    .padding(HoloSpacing.md)
+                    // 纵读详情页在 iPad 限宽居中（通宵冲刺 D1，B-P1-3）；iPhone 直通
+                    .holoContentColumn(paintsBackground: false)
                 }
-                .padding(HoloSpacing.md)
-                // 纵读详情页在 iPad 限宽居中（通宵冲刺 D1，B-P1-3）；iPhone 直通
-                .holoContentColumn(paintsBackground: false)
             }
         }
         .background(Color.holoBackground)
@@ -528,6 +539,14 @@ struct HealthDetailView: View {
         isLoading = true
         weeklyData = await repository.fetchWeeklyData(for: type, endingOn: selectedDate)
         isLoading = false
+    }
+
+    /// 左右滑动切天：与看板页、日期胶囊共用同一条边界规则（不越过今天）
+    private func switchDay(forward: Bool) {
+        guard let newDate = HealthDateNavigator.steppedDate(from: selectedDate, forward: forward) else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedDate = newDate
+        }
     }
 
 }

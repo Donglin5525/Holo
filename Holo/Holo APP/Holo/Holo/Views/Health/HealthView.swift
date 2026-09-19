@@ -26,6 +26,8 @@ struct HealthView: View {
     @State private var trendMetric: HealthMetricType = .sleep
     @State private var isRefreshing = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    /// 左右滑动切天的实时手势标记：快速轻扫时点击回调需同步读取，防止误触进详情/弹层
+    @State private var daySwipeState = DaySwipeGestureState()
     @State private var dayData = HealthDayData()
     @State private var insightViewModel = HealthInsightViewModel()
     @State private var selectedEvidenceInsight: GeneratedHealthInsight?
@@ -123,46 +125,54 @@ struct HealthView: View {
     private var healthContent: some View {
         VStack(spacing: 0) {
             headerView
-            ScrollView(showsIndicators: false) {
-                Group {
-                    if isExpandedWidth {
-                        // v2 宽屏双栏：左=今天的数据（三环/指标/体征），右=解读与趋势（洞察/趋势/闭环）
-                        HStack(alignment: .top, spacing: HoloSpacing.md) {
+            // 左右滑动切天（与账本页共用容器）：左缘 24pt 让位给右滑返回手势
+            DaySwipeContainer(
+                state: daySwipeState,
+                onDayChange: { forward in switchDay(forward: forward) },
+                canSwipeForward: !Calendar.current.isDateInToday(selectedDate),
+                edgeExclusionWidth: 24
+            ) {
+                ScrollView(showsIndicators: false) {
+                    Group {
+                        if isExpandedWidth {
+                            // v2 宽屏双栏：左=今天的数据（三环/指标/体征），右=解读与趋势（洞察/趋势/闭环）
+                            HStack(alignment: .top, spacing: HoloSpacing.md) {
+                                VStack(spacing: HoloSpacing.md) {
+                                    heroCard
+                                    metricSummaryRow
+                                    vitalsEntry
+                                    if shouldShowDataSourceCard {
+                                        dataSourceCard
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                VStack(spacing: HoloSpacing.md) {
+                                    coreInsightCard
+                                    weeklyTrendCard
+                                    lifestyleInsightCard
+                                    healthFootnote
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        } else {
+                            // 阅读动线（睡眠优先）：今天怎么样(三环) → 各项具体(指标) → Holo 怎么看(洞察)
+                            // → 最近趋势 → 跨域关联 → 身体状态入口；系统信息只在异常时出现
                             VStack(spacing: HoloSpacing.md) {
                                 heroCard
                                 metricSummaryRow
+                                coreInsightCard
+                                weeklyTrendCard
+                                lifestyleInsightCard
                                 vitalsEntry
                                 if shouldShowDataSourceCard {
                                     dataSourceCard
                                 }
-                            }
-                            .frame(maxWidth: .infinity)
-                            VStack(spacing: HoloSpacing.md) {
-                                coreInsightCard
-                                weeklyTrendCard
-                                lifestyleInsightCard
                                 healthFootnote
                             }
-                            .frame(maxWidth: .infinity)
-                        }
-                    } else {
-                        // 阅读动线（睡眠优先）：今天怎么样(三环) → 各项具体(指标) → Holo 怎么看(洞察)
-                        // → 最近趋势 → 跨域关联 → 身体状态入口；系统信息只在异常时出现
-                        VStack(spacing: HoloSpacing.md) {
-                            heroCard
-                            metricSummaryRow
-                            coreInsightCard
-                            weeklyTrendCard
-                            lifestyleInsightCard
-                            vitalsEntry
-                            if shouldShowDataSourceCard {
-                                dataSourceCard
-                            }
-                            healthFootnote
                         }
                     }
+                    .padding(HoloSpacing.md)
                 }
-                .padding(HoloSpacing.md)
             }
         }
         .background(Color.holoBackground)
@@ -324,6 +334,7 @@ struct HealthView: View {
     /// 身体状态窄入口（二期方案 A）：三指标行下方、数据源卡上方。
     private var vitalsEntry: some View {
         Button {
+            guard !daySwipeState.isSwiping else { return }
             showVitals = true
         } label: {
             HStack(spacing: HoloSpacing.md) {
@@ -378,6 +389,7 @@ struct HealthView: View {
         ) {
             ForEach(snapshot.metrics) { metric in
                 Button {
+                    guard !daySwipeState.isSwiping else { return }
                     selectedMetric = metric.type
                 } label: {
                     metricSummaryChip(metric)
@@ -485,7 +497,7 @@ struct HealthView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             // 部分连接时点按跳转系统设置，引导用户补全健康权限
-            guard repository.dataSourceState == .partiallyConnected else { return }
+            guard !daySwipeState.isSwiping, repository.dataSourceState == .partiallyConnected else { return }
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
@@ -502,6 +514,7 @@ struct HealthView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
+            guard !daySwipeState.isSwiping else { return }
             if let generated = insightViewModel.snapshot?.coreInsight {
                 selectedEvidenceInsight = generated
             }
@@ -551,6 +564,7 @@ struct HealthView: View {
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
+                            guard !daySwipeState.isSwiping else { return }
                             if let generated = row.generated {
                                 selectedEvidenceInsight = generated
                             }
@@ -625,6 +639,7 @@ struct HealthView: View {
                 trendPicker
                 Spacer()
                 Button {
+                    guard !daySwipeState.isSwiping else { return }
                     selectedMetric = trendMetric
                 } label: {
                     Text("详情")
@@ -644,6 +659,7 @@ struct HealthView: View {
         HStack(spacing: 6) {
             ForEach([HealthMetricType.sleep, .steps, .workout], id: \.self) { metric in
                 Button {
+                    guard !daySwipeState.isSwiping else { return }
                     trendMetric = metric
                 } label: {
                     Text(metric.displayName)
@@ -764,6 +780,14 @@ struct HealthView: View {
         weeklySleepData = await repository.fetchWeeklyData(for: .sleep, endingOn: selectedDate)
         weeklyStepsData = await repository.fetchWeeklyData(for: .steps, endingOn: selectedDate)
         weeklyWorkoutData = await repository.fetchWeeklyData(for: .workout, endingOn: selectedDate)
+    }
+
+    /// 左右滑动切天：与日期胶囊共用同一条边界规则（不越过今天）
+    private func switchDay(forward: Bool) {
+        guard let newDate = HealthDateNavigator.steppedDate(from: selectedDate, forward: forward) else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedDate = newDate
+        }
     }
 
     @MainActor

@@ -662,23 +662,31 @@ private struct OperationMessage: Equatable {
     let isError: Bool
 }
 
-/// 日切换滑动容器：把手势状态（偏移量/滑动中标记）隔离在子视图，
+/// 日切换滑动容器（账本交易列表与健康看板/详情页共用）：
+/// 把手势状态（偏移量/滑动中标记）隔离在子视图，
 /// 拖动期间的每帧写入只失效本容器，不再重算整页 body
 /// （账单页头部、汇总卡、列表此前都跟着每帧陪跑，行多时横滑跟手性下降）。
 ///
 /// `state` 是父视图持有的引用对象：isSwiping 的 @State 写入要等重绘才对
 /// allowsHitTesting 生效，快速轻扫（下探-横移-抬起挤在同一两帧）时点击回调
 /// 会抢在重绘前执行，所以点击方必须同步读 `state.isSwiping` 兜底。
-private struct DaySwipeContainer<Content: View>: View {
-    /// 实时滑动标记（供账单行点击回调同步读取）
+struct DaySwipeContainer<Content: View>: View {
+    /// 实时滑动标记（供行点击回调同步读取）
     let state: DaySwipeGestureState
     /// 提交切换回调：forward = 左滑切到后一天
     let onDayChange: (Bool) -> Void
+    /// 左滑切向未来方向是否放行：健康页封顶今天（今天再左滑只回弹），账本页恒放行
+    var canSwipeForward: Bool = true
+    /// 起点落在容器左缘该宽度内的拖动不参与切天：健康页整页挂着右滑返回手势
+    /// （只接管屏幕左缘约 20pt），左缘起步的横向拖动留给返回，避免一次拖动既切天又返回
+    var edgeExclusionWidth: CGFloat = 0
     @ViewBuilder let content: () -> Content
 
     @State private var offset: CGFloat = 0
     @State private var isSwiping = false
     @State private var gestureLock = HorizontalGestureLock()
+    /// 本次拖动起点已落在左缘排除带内：整段拖动让位给边缘返回手势
+    @State private var edgeExcluded = false
 
     var body: some View {
         content()
@@ -688,6 +696,11 @@ private struct DaySwipeContainer<Content: View>: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 15)
                     .onChanged { value in
+                        if edgeExcluded { return }
+                        if value.startLocation.x < edgeExclusionWidth {
+                            edgeExcluded = true
+                            return
+                        }
                         switch gestureLock.update(translation: value.translation) {
                         case .horizontal:
                             isSwiping = true
@@ -701,8 +714,11 @@ private struct DaySwipeContainer<Content: View>: View {
                         }
                     }
                     .onEnded { value in
-                        defer { gestureLock.reset() }
-                        guard gestureLock.axis == .horizontal else {
+                        defer {
+                            gestureLock.reset()
+                            edgeExcluded = false
+                        }
+                        guard !edgeExcluded, gestureLock.axis == .horizontal else {
                             endSwipe()
                             offset = 0
                             return
@@ -710,13 +726,15 @@ private struct DaySwipeContainer<Content: View>: View {
 
                         let threshold: CGFloat = 50
                         if value.translation.width < -threshold {
-                            performDaySwipe(forward: true)
+                            if canSwipeForward {
+                                performDaySwipe(forward: true)
+                            } else {
+                                bounceBack()
+                            }
                         } else if value.translation.width > threshold {
                             performDaySwipe(forward: false)
                         } else {
-                            withAnimation(.spring(response: 0.3)) { offset = 0 }
-                            endSwipe()
-                            isSwiping = false
+                            bounceBack()
                         }
                     }
             )
@@ -725,6 +743,13 @@ private struct DaySwipeContainer<Content: View>: View {
     /// 滑动收尾：清实时标记（渲染用的 isSwiping 由各自分支按需复位）
     private func endSwipe() {
         state.isSwiping = false
+    }
+
+    /// 未过阈值的回弹（含未来方向被封顶时的左滑）
+    private func bounceBack() {
+        withAnimation(.spring(response: 0.3)) { offset = 0 }
+        endSwipe()
+        isSwiping = false
     }
 
     /// 执行日期切换动画
