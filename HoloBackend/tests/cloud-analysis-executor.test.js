@@ -348,8 +348,17 @@ test("执行器全循环：need_tools→工具结果→final_claims→完成即�
       claims: [{
         summary: "本月餐饮 102 元",
         displayText: "本月餐饮支出合计 102 元",
-        metricAssertions: [],
-        evidenceIDs: ["finance.transactions#0"],
+        // P0 交付核验：数字断言须引用本轮 Ledger 的 canonical metricKey 且数值对上
+        // （餐饮 32+42+28=-102；中文分组 sanitize 后为 __）
+        metricAssertions: [{
+          metricKey: "dynamic.finance_transactions.cat_total.__",
+          value: -102,
+          baselineValue: null,
+          unit: "元",
+          comparison: "餐饮",
+          evidenceIDs: [],
+        }],
+        evidenceIDs: ["dynamic-finance_transactions.cat_total.__"],
         type: "change",
         confidence: 0.8,
         interpretation: "餐饮集中在晚间，像是下班后不想做饭的节奏",
@@ -420,7 +429,13 @@ test("执行器：静态块直读 + 未知数据集返回可解释错误", async
         { id: "t2", tool: "finance", query: "dynamic_query", parameters: { dynamicPlan: { source: "no.such.dataset", filters: [], groupBy: [], aggregations: [{ id: "a", operation: "count" }], derivations: [] } } },
       ],
     }),
-    agentJson("final_claims", { claims: [] }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "档案与账务数据源均可读取",
+        metricAssertions: [],
+        evidenceIDs: [],
+      }],
+    }),
   ]);
   const { store, executor } = makeExecutor(provider);
   const task = store.create({ deviceId: "d", question: "q" });
@@ -626,8 +641,15 @@ test("执行器：聚合+行明细混合查询→final result.evidence 回传 me
       claims: [{
         summary: "音乐 3436 元",
         displayText: "音乐类支出 3436 元，其中 3316 元是一笔「TIMA音乐盛典」购票",
-        metricAssertions: [],
-        evidenceIDs: [],
+        metricAssertions: [{
+          metricKey: "dynamic.finance_transactions.cat_sum.__",
+          value: 3436,
+          baselineValue: null,
+          unit: "元",
+          comparison: "音乐",
+          evidenceIDs: [],
+        }],
+        evidenceIDs: ["dynamic-finance_transactions.cat_sum.__"],
       }],
     }),
   ]);
@@ -683,7 +705,11 @@ function makeRecordingLedger({ allowed = true } = {}) {
 }
 
 test("deep_analysis：额度预订-提交（同池 deepAnalysis，actionId 幂等）", async () => {
-  const provider = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{ displayText: "支出整体平稳", metricAssertions: [], evidenceIDs: [] }],
+    }),
+  ]);
   const quota = makeRecordingLedger();
   const pushes = [];
   const { store, executor } = makeExecutor(provider, {
@@ -779,6 +805,289 @@ test("deep_analysis：完成落库前被取消→cancelled，不提交额度、�
   assert.equal(pushes.length, 0);
   assert.equal(quota.calls.commit, 0);
   assert.equal(quota.calls.release, 1);
+});
+
+// —— 2026-09-19 P0 正确性门（深度分析提示词与证据链落地方案 任务1）——
+// 三个实锤事故的失败先行测试：①「8月+9月查9月」混窗 ②空 claims 照样 completed
+// ③数值/引用与工具 Ledger 错配。修复前这些用例必须红，修复后全绿。
+
+const sec = (iso) => Math.floor(Date.parse(iso) / 1000);
+
+const AUG_SEP_SNAPSHOT = {
+  version: 1,
+  generatedAt: "2026-09-20T00:00:00Z",
+  historyDays: 180,
+  datasets: {
+    "finance.transactions": {
+      fields: [
+        { name: "date", type: "date" },
+        { name: "category", type: "text" },
+        { name: "amount", type: "number", unit: "元" },
+      ],
+      rows: [
+        { id: "a1", occurredAt: "2026-08-05", date: "2026-08-05", category: "外卖", amount: -10 },
+        { id: "s1", occurredAt: "2026-09-05", date: "2026-09-05", category: "外卖", amount: -20 },
+        { id: "s2", occurredAt: "2026-09-15", date: "2026-09-15", category: "餐饮", amount: -30 },
+        // 未来分期（越过快照截止 2026-09-20）：不得进入已发生的历史结论
+        { id: "f1", occurredAt: "2026-10-01", date: "2026-10-01", category: "外卖", amount: -40 },
+      ],
+    },
+  },
+};
+
+test("引擎 P0：九月问题只算九月（timeRange 过滤 + 按月分组不合并全窗口）", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const result = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    timeRange: { label: "九月", start: sec("2026-09-01"), end: sec("2026-10-01") },
+    groupBy: [{ type: "month" }],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [],
+  }, AUG_SEP_SNAPSHOT, { toolRequestID: "t", tool: "finance" });
+  assert.equal(result.status, "success");
+  // 只有 2026-09 桶（-20-30=-50）；八月与未来行都必须被排除
+  assert.deepEqual(
+    result.metrics.map((m) => [m.comparison, m.value]),
+    [["2026-09", -50]],
+  );
+});
+
+test("引擎 P0：请求窗口越过快照截止时截断，未来分期不进历史", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const result = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    timeRange: { label: "八月至今后", start: sec("2026-08-01"), end: sec("2026-11-01") },
+    groupBy: [{ type: "month" }],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [],
+  }, AUG_SEP_SNAPSHOT);
+  assert.equal(result.status, "success");
+  assert.deepEqual(
+    result.metrics.map((m) => [m.comparison, m.value]),
+    [["2026-08", -10], ["2026-09", -50]],
+  );
+});
+
+test("引擎 P0：baseline 自动前移 + difference/percentageChange 确定性派生", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const result = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    timeRange: { label: "九月", start: sec("2026-09-01"), end: sec("2026-10-01") },
+    groupBy: [],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [
+      { id: "diff", operation: "difference", metricID: "total", unit: "元" },
+      { id: "pct", operation: "percentageChange", metricID: "total", unit: "比例" },
+    ],
+  }, AUG_SEP_SNAPSHOT);
+  assert.equal(result.status, "success");
+  const byKey = Object.fromEntries(result.metrics.map((m) => [m.metricKey, m]));
+  const total = byKey["dynamic.finance_transactions.total.all"];
+  assert.equal(total.value, -50);
+  // 对照窗=同长度前移（8月2日~9月1日，含 8-5 一笔 -10）
+  assert.equal(total.baselineValue, -10);
+  assert.equal(byKey["dynamic.finance_transactions.diff.all"].value, -40);
+  assert.equal(byKey["dynamic.finance_transactions.pct.all"].value, -4);
+});
+
+test("引擎 P0：perDay 按自然日数均摊（30 天窗口 2 笔 → 0.0667）", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const result = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    timeRange: { label: "九月", start: sec("2026-09-01"), end: sec("2026-10-01") },
+    groupBy: [],
+    aggregations: [{ id: "n", operation: "count" }],
+    derivations: [{ id: "daily", operation: "perDay", metricID: "n", unit: "笔" }],
+  }, AUG_SEP_SNAPSHOT);
+  const byKey = Object.fromEntries(result.metrics.map((m) => [m.metricKey, m]));
+  assert.equal(byKey["dynamic.finance_transactions.daily.all"].value, 0.0667);
+});
+
+test("引擎 P0：时间窗内无数据时空结论可解释（含窗口诊断信息）", () => {
+  const engine = createCloudAnalysisQueryEngine();
+  const result = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    timeRange: { label: "七月", start: sec("2026-07-01"), end: sec("2026-08-01") },
+    groupBy: [],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [],
+  }, AUG_SEP_SNAPSHOT);
+  assert.equal(result.status, "empty");
+  assert.ok(result.warnings[0].message.includes("2026-07-01"), "空结论说明时间窗");
+  assert.ok(result.warnings[0].message.includes("共 4 行"), "空结论说明数据集规模");
+});
+
+test("交付核验：空 claims 修复一轮仍空 → 诚实 failed（不包装成完成）", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", { claims: [] }),
+    agentJson("final_claims", { claims: [] }),
+  ]);
+  const quota = makeRecordingLedger();
+  const pushes = [];
+  const { store, executor } = makeExecutor(provider, {
+    quotaLedger: quota,
+    entitlementResolver: RESOLVER,
+    pushNotifier: { notifyTaskCompleted: async () => pushes.push(1) },
+  });
+  const task = store.create({ deviceId: "d-empty", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  // 一次原始 + 一次核验修复轮，之后诚实失败
+  assert.equal(provider.calls.length, 2);
+  assert.equal(quota.calls.commit, 0);
+  assert.equal(quota.calls.release, 1);
+  assert.equal(pushes.length, 0, "未交付不得推「分析完成」");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `失败原因须诚实可解释，实际：${failure}`);
+});
+
+test("交付核验：数字断言与 Ledger 对不上 → 剥离该断言并记 warning（降级不放行编数）", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "本月总支出 999 元",
+        metricAssertions: [{
+          metricKey: "dynamic.finance_transactions.total.all",
+          value: -999,
+          baselineValue: null,
+          unit: "元",
+          comparison: null,
+          evidenceIDs: [],
+        }],
+        evidenceIDs: ["dynamic.finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-mismatch", question: "本月花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  // 真实总额 -319，断言 -999 对不上：断言被剥离，claim 因仍有合法引用而降级保留
+  assert.equal(result.claims.length, 1);
+  assert.equal(result.claims[0].metricAssertions.length, 0);
+  assert.ok(result.warnings.some((w) => w.startsWith("METRIC_MISMATCH")), "须记录对账失败警告");
+});
+
+test("交付核验：narrativeSummary 出现 Ledger 不支持的数字 → 清空该字段（iOS 有回退不丢事实）", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      narrativeSummary: "这个月总支出 880 元，主要集中在餐饮。",
+      claims: [{
+        displayText: "本月总支出 319 元",
+        metricAssertions: [{
+          metricKey: "dynamic.finance_transactions.total.all",
+          value: -319,
+          baselineValue: null,
+          unit: "元",
+          comparison: null,
+          evidenceIDs: [],
+        }],
+        evidenceIDs: ["dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-narrative", question: "本月花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.narrativeSummary, null, "编数叙事必须清空");
+  assert.ok(result.warnings.some((w) => w.startsWith("NARRATIVE_INCONSISTENT")));
+  // claim 本体数字与断言一致，保留
+  assert.equal(result.claims.length, 1);
+  assert.equal(result.claims[0].metricAssertions.length, 1);
+});
+
+test("冻结任务：快照带 answerTask 时注入场景/范围/清单；旧客户端退化为保守默认", async () => {
+  const rangeStart = sec("2026-08-20");
+  const rangeEnd = sec("2026-09-19");
+  const taskSnapshot = {
+    ...AUG_SEP_SNAPSHOT,
+    answerTask: {
+      scenarioID: "finance",
+      userQuestion: "最近的钱主要花在了哪里？",
+      questionKind: "diagnosis",
+      primaryTimeRange: { label: "最近30天", start: rangeStart, end: rangeEnd },
+      answerChecklist: ["总支出与结构", "大额支出归因"],
+    },
+  };
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{ displayText: "支出以餐饮外卖为主", metricAssertions: [], evidenceIDs: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-task", question: "最近的钱主要花在了哪里？" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(taskSnapshot) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const systemPrompt = provider.calls[0].messages[0].content;
+  assert.ok(systemPrompt.includes("本轮冻结任务"), "system prompt 须含冻结任务段");
+  assert.ok(systemPrompt.includes("场景：finance"));
+  assert.ok(systemPrompt.includes("diagnosis"));
+  assert.ok(systemPrompt.includes("最近30天"));
+  assert.ok(systemPrompt.includes("总支出与结构"), "回答清单注入");
+  assert.ok(systemPrompt.includes("快照窗口"), "目录须声明快照窗口与 Unix 秒");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.deepEqual(result.taskRange, { label: "最近30天", start: rangeStart, end: rangeEnd });
+  assert.equal(result.snapshotCutoffAt, "2026-09-20T00:00:00Z");
+
+  // 旧客户端：无 answerTask → 保守默认任务（问题原话 + 快照截止），行为不回归
+  const legacyProvider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{ displayText: "支出以餐饮为主", metricAssertions: [], evidenceIDs: [] }],
+    }),
+  ]);
+  const legacy = makeExecutor(legacyProvider);
+  const legacyTask = legacy.store.create({ deviceId: "d-legacy", question: "分析我的支出" });
+  legacy.store.attachSnapshot({ id: legacyTask.id, snapshot: JSON.stringify(AUG_SEP_SNAPSHOT) });
+  assert.equal(await legacy.executor.run(legacyTask.id), "completed");
+  const legacyPrompt = legacyProvider.calls[0].messages[0].content;
+  assert.ok(legacyPrompt.includes("用户问题（原话）：分析我的支出"));
+  assert.ok(!legacyPrompt.includes("场景："));
+  const legacyResult = JSON.parse(legacy.store.getDecrypted(legacyTask.id, ["result"]).result);
+  assert.equal(legacyResult.taskRange, null);
 });
 
 // —— 个人情境规划（context_plan）单轮生成（2026-09-09 方案 §5.3）——

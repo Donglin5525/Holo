@@ -18,6 +18,204 @@ import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAn
 const MAX_LLM_ROUNDS = 12;
 const MAX_PROVIDER_RETRIES = 3;
 
+/** 与查询引擎同构的 sanitize（metricKey/rows 证据 ID 的规范段）。 */
+function sanitizeToken(value) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "_");
+}
+
+/**
+ * 冻结回答任务（AnalysisAnswerTaskV1 的服务端归一化，2026-09-19 方案任务2）。
+ * 客户端在快照 JSON 顶层附带 answerTask（scenarioID/问题类型/主时间范围等）；
+ * 旧客户端不附带时按保守默认任务运行，不破坏旧协议。字段缺省用 unknown/空，
+ * 不让模型补猜——任务范围由代码冻结，模型只负责在范围内工作。
+ */
+function normalizeAnswerTask(snapshot, fallbackQuestion) {
+  const raw = snapshot?.answerTask;
+  const cutoffISO = snapshot?.generatedAt ?? null;
+  const questionKindWhitelist = new Set(["fact", "comparison", "diagnosis", "correlation", "decision", "general"]);
+  const task = {
+    scenarioID: typeof raw?.scenarioID === "string" && raw.scenarioID ? raw.scenarioID : null,
+    userQuestion: typeof raw?.userQuestion === "string" && raw.userQuestion.trim()
+      ? raw.userQuestion.trim()
+      : fallbackQuestion,
+    questionKind: questionKindWhitelist.has(raw?.questionKind) ? raw.questionKind : "general",
+    primaryTimeRange: null,
+    snapshotCutoffAt: cutoffISO,
+    requestedDomains: Array.isArray(raw?.requestedDomains)
+      ? raw.requestedDomains.filter((d) => typeof d === "string")
+      : [],
+    answerChecklist: Array.isArray(raw?.answerChecklist)
+      ? raw.answerChecklist.filter((item) => typeof item === "string" && item.trim())
+      : [],
+  };
+  const range = raw?.primaryTimeRange;
+  const toMs = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    if (n >= 1e11) return n;
+    if (n >= 1e8) return n * 1000;
+    return null;
+  };
+  const startMs = toMs(range?.start);
+  const endMs = toMs(range?.end);
+  if (startMs != null && endMs != null && startMs < endMs) {
+    task.primaryTimeRange = {
+      label: typeof range.label === "string" ? range.label : "分析范围",
+      startMs,
+      endMs,
+    };
+  }
+  return task;
+}
+
+/** 冻结任务段文案（拼进 system prompt）：用户可见问题原样保留，范围/类型/清单
+ * 由代码声明，模型不得改写。旧客户端无 answerTask 时退化为最小任务（仅问题+
+ * 快照截止），行为与旧版一致。 */
+function buildFrozenTaskBlock(task, availableSources) {
+  const fmt = (ms) => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
+  const lines = [
+    "【本轮冻结任务（系统生成，范围不得改写）】",
+    `用户问题（原话）：${task.userQuestion}`,
+    `问题类型：${task.questionKind}`,
+  ];
+  if (task.scenarioID) lines.push(`场景：${task.scenarioID}`);
+  if (task.primaryTimeRange) {
+    lines.push(`主时间范围：${fmt(task.primaryTimeRange.startMs)} 至 ${fmt(task.primaryTimeRange.endMs)}（${task.primaryTimeRange.label}；Unix 秒 ${Math.floor(task.primaryTimeRange.startMs / 1000)}-${Math.floor(task.primaryTimeRange.endMs / 1000)}；dynamicPlan.timeRange 优先引用此范围）`);
+  }
+  if (task.snapshotCutoffAt) lines.push(`快照截止：${task.snapshotCutoffAt}（历史查询不得越过）`);
+  if (task.availableSourcesHint) lines.push(`可用数据源：${task.availableSourcesHint}`);
+  else if (availableSources.length > 0) lines.push(`可用数据源：${availableSources.join("、")}`);
+  if (task.answerChecklist.length > 0) {
+    lines.push(`回答清单（逐项回答，缺证据的项明确说不能判断）：${task.answerChecklist.map((item, i) => `(${i + 1})${item}`).join("；")}`);
+  }
+  return lines.join("\n");
+}
+
+/** 数值一致性核验用的数字提取：忽略个位数与年份（1900-2099），其余须能在
+ * 已核验数字集合中找到（±2% 或 ×100/÷100 的百分比换算），否则视为叙事编数。 */
+function extractCheckableNumbers(text) {
+  const matches = String(text ?? "").match(/\d+(?:\.\d+)?/g) ?? [];
+  const numbers = [];
+  for (const match of matches) {
+    const value = Number(match);
+    if (!Number.isFinite(value)) continue;
+    if (value < 10) continue;
+    const asInt = Math.round(value);
+    if (Number.isInteger(value) && asInt >= 1900 && asInt <= 2099 && match.length === 4) continue;
+    numbers.push(value);
+  }
+  return numbers;
+}
+
+function numberMatchesAllowed(value, allowed) {
+  for (const allowedValue of allowed) {
+    if (Math.abs(Math.abs(value) - Math.abs(allowedValue)) <= Math.max(0.05, Math.abs(allowedValue) * 0.02)) return true;
+    if (Math.abs(value * 100 - allowedValue) <= Math.max(0.05, Math.abs(allowedValue) * 0.02)) return true;
+    if (Math.abs(value - allowedValue * 100) <= Math.max(0.05, Math.abs(allowedValue) * 0.02)) return true;
+  }
+  return false;
+}
+
+/**
+ * 交付核验（2026-09-19 方案任务1 §3.4）：final_claims 落库/提交额度/推送「完成」
+ * 之前的云端专用闸门。「JSON 合法」不等于「可交付」：
+ * - 空 claims 不允许完成（可解释缺口必须以 claim 形式说出，或走诚实失败）；
+ * - 每条数字断言必须与本次工具 Ledger 一致（metricKey 存在 + 数值对上），
+ *   对不上的断言降级剥离并记 warning，不回退为「整个证据池都当依据」；
+ * - 引用不存在的 evidence ID 直接剥离；
+ * - title/narrativeSummary/keyInsight 出现 Ledger 与 claims 都不支持的数字时清空
+ *   该叙事字段（iOS 端有 claims 拼接回退，不丢事实）。
+ * 返回 { claims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
+ */
+function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
+  const warnings = [];
+  const ledgerHasMetrics = metricLedger.size > 0;
+  // 同 metricKey 可能对应多个分组（中文分组 sanitize 撞名），断言与任一分组值对上即通过
+  const ledgerByMetricKey = new Map();
+  for (const entry of metricLedger.values()) {
+    if (!ledgerByMetricKey.has(entry.metricKey)) ledgerByMetricKey.set(entry.metricKey, []);
+    ledgerByMetricKey.get(entry.metricKey).push(entry);
+  }
+  const claims = [];
+  for (const claim of output.claims ?? []) {
+    const sanitized = { ...claim };
+    // 数字断言逐条对账
+    const keptAssertions = [];
+    for (const assertion of sanitized.metricAssertions ?? []) {
+      const candidates = ledgerByMetricKey.get(assertion.metricKey) ?? [];
+      if (candidates.length === 0) {
+        warnings.push(`METRIC_UNKNOWN:${assertion.metricKey}`);
+        continue;
+      }
+      const valueOk = assertion.value == null
+        || candidates.some((c) => Math.abs(assertion.value - c.value) <= Math.max(0.05, Math.abs(c.value) * 0.02));
+      const baselineOk = assertion.baselineValue == null
+        || candidates.some((c) => c.baselineValue == null
+          || Math.abs(assertion.baselineValue - c.baselineValue) <= Math.max(0.05, Math.abs(c.baselineValue) * 0.02));
+      if (!valueOk || !baselineOk) {
+        warnings.push(`METRIC_MISMATCH:${assertion.metricKey}`);
+        continue;
+      }
+      keptAssertions.push(assertion);
+    }
+    sanitized.metricAssertions = keptAssertions;
+    // 引用剥离：不在本轮证据池的 ID 一律剔除
+    if (Array.isArray(sanitized.evidenceIDs) && sanitized.evidenceIDs.length > 0) {
+      const keptIDs = sanitized.evidenceIDs.filter((id) => validEvidenceIDs.has(id));
+      if (keptIDs.length !== sanitized.evidenceIDs.length) {
+        warnings.push(`EVIDENCE_DROPPED:${sanitized.id ?? "claim"}`);
+      }
+      sanitized.evidenceIDs = keptIDs;
+    }
+    const hasAssertion = (sanitized.metricAssertions ?? []).length > 0;
+    const hasEvidence = (sanitized.evidenceIDs ?? []).length > 0;
+    const text = `${sanitized.displayText ?? ""}${sanitized.summary ?? ""}`;
+    // 已有工具证据的会话里，含数字的 claim 既无断言也无引用 = 未经核验的数字，
+    // 剥离（定性 claim 保留）。整场没查到任何指标的会话按降级保留并警告。
+    if (ledgerHasMetrics && !hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
+      warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
+      continue;
+    }
+    claims.push(sanitized);
+  }
+  if (ledgerHasMetrics === false && claims.length > 0) {
+    warnings.push("NO_TOOL_EVIDENCE");
+  }
+
+  // 叙事字段数字一致性：只允许出现 claims 文本/断言/Ledger 支持的数字
+  const allowedNumbers = [];
+  for (const metric of metricLedger.values()) {
+    allowedNumbers.push(metric.value);
+    if (metric.baselineValue != null) allowedNumbers.push(metric.baselineValue);
+  }
+  for (const claim of claims) {
+    allowedNumbers.push(...extractCheckableNumbers(claim.displayText), ...extractCheckableNumbers(claim.summary));
+    for (const assertion of claim.metricAssertions ?? []) {
+      if (assertion.value != null) allowedNumbers.push(assertion.value);
+      if (assertion.baselineValue != null) allowedNumbers.push(assertion.baselineValue);
+    }
+  }
+  const narrativeFields = ["title", "narrativeSummary", "keyInsight"];
+  for (const field of narrativeFields) {
+    const text = output[field];
+    if (typeof text !== "string" || !text.trim()) continue;
+    const badNumbers = extractCheckableNumbers(text).filter((n) => !numberMatchesAllowed(n, allowedNumbers));
+    if (badNumbers.length > 0) {
+      warnings.push(`NARRATIVE_INCONSISTENT:${field}`);
+      output[field] = null;
+    }
+  }
+
+  return {
+    claims,
+    warnings: [...new Set(warnings)],
+    title: output.title ?? null,
+    narrativeSummary: output.narrativeSummary ?? null,
+    keyInsight: output.keyInsight ?? null,
+    emptyClaims: claims.length === 0,
+  };
+}
+
 export function createCloudAnalysisExecutor({
   taskStore,
   providers,
@@ -484,37 +682,55 @@ export function createCloudAnalysisExecutor({
         reservation = attempt;
       }
 
+      // 冻结回答任务：客户端快照顶层 answerTask（P1 起）或保守默认任务（旧客户端）。
+      // 范围/类型/清单由代码声明进 system prompt，模型不得改写——「用户改写问句
+      // 仍保留所选场景」与「九月只算九月」的同一真相源。
+      const answerTask = normalizeAnswerTask(snapshot, task.question);
       const messages = [];
       const systemPrompted = injectServerPrompt("agent_loop", [
         { role: "user", content: task.question },
       ]);
+      const datasetNames = Object.keys(snapshot.datasets ?? {});
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}`,
+        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames)}`,
       });
       messages.push({ role: "user", content: task.question });
 
       // 证据池：跨轮次累积模型查得的指标与行样本，final_claims 时随结果回传设备
       // （iOS 端据此渲染「依据」与数据样例；2026-08-31 验收：此前结果只带 claims，
       // 设备端证据区块永远为空）。metric 按 metricKey 去重，rows 按数据集保留最新一次取样。
+      // P0 起 metric 记录 baselineValue/comparison，validEvidenceIDs 收集本轮全部
+      // canonical 引用（metricKey + 事件 ID + rows 样本 ID），交付核验按它对账。
       const metricEvidence = new Map();
       const rowsEvidence = new Map();
+      const validEvidenceIDs = new Set();
 
       function collectEvidence(toolRequests, toolResults) {
         toolResults.forEach((result, index) => {
           if (result.status !== "success") return;
           for (const metric of result.metrics ?? []) {
-            if (!metric?.metricKey || metricEvidence.has(metric.metricKey)) continue;
-            metricEvidence.set(metric.metricKey, {
+            if (!metric?.metricKey) continue;
+            // 复合键防中文分组撞名：餐饮/交通等 sanitize 后同为 "__"，按裸 metricKey
+            // 去重会把除首组外的分组证据全丢（生产分类多为中文，实锤命中）。
+            const poolKey = `${metric.metricKey}|${metric.comparison ?? "all"}`;
+            if (metricEvidence.has(poolKey)) continue;
+            metricEvidence.set(poolKey, {
               kind: "metric",
               metricKey: metric.metricKey,
               dataset: metric.dataset ?? null,
               group: metric.comparison ?? null,
               value: metric.value,
               unit: metric.unit ?? null,
+              baselineValue: metric.baselineValue ?? null,
               formula: metric.formula ?? null,
               sourceCount: Array.isArray(metric.sourceRecordIDs) ? metric.sourceRecordIDs.length : 0,
             });
+            validEvidenceIDs.add(metric.metricKey);
+            validEvidenceIDs.add(`dynamic-${metric.metricKey}`);
+          }
+          for (const event of result.events ?? []) {
+            if (typeof event?.id === "string" && event.id) validEvidenceIDs.add(event.id);
           }
           const request = toolRequests[index];
           if (request?.tool === "snapshot_rows" && Array.isArray(result.events)) {
@@ -532,6 +748,10 @@ export function createCloudAnalysisExecutor({
         const rows = [...rowsEvidence.values()].slice(-4);
         return [...metrics, ...rows];
       }
+
+      // 交付核验只给一次修复轮：第一次 final_claims 不过核验时把具体问题喂回
+      // 模型重发；第二次仍空 claims 则诚实失败（不包装成普通完成）。
+      let deliveryRepairUsed = false;
 
       for (let round = 1; round <= maxRounds; round += 1) {
         // 取消检查点：取消即整行删除（cancel 是 DELETE），每轮调用模型前查一次，
@@ -575,15 +795,46 @@ export function createCloudAnalysisExecutor({
         log(`轮次 ${round}/${maxRounds} taskId=${taskId} status=${output.status} claims=${(output.claims ?? []).length}${requestedTools ? ` tools=${requestedTools}` : ""}`);
 
         if (output.status === "final_claims") {
+          // 交付核验（§3.4）：空 claims 不允许完成；数字断言/引用对不上 Ledger 的
+          // 降级剥离并记 warning；叙事字段编数清空。「JSON 合法」不等于「可交付」。
+          const verified = verifyDelivery(output, {
+            metricLedger: metricEvidence,
+            validEvidenceIDs,
+          });
+          if (verified.emptyClaims && !deliveryRepairUsed) {
+            deliveryRepairUsed = true;
+            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（空 claims），请求重发`);
+            messages.push({ role: "assistant", content: validation.content });
+            messages.push({
+              role: "user",
+              content: "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。",
+            });
+            continue;
+          }
+          if (verified.emptyClaims) {
+            if (reservation) quotaLedger.release(reservation);
+            taskStore.fail({ id: taskId, reason: "模型未能产出可核验的结论（无 claim），请换个问法或稍后重试" });
+            return "failed";
+          }
           const result = {
-            title: output.title ?? null,
+            title: verified.title,
             // v17/v21 叙事字段（温暖陪伴 P0 契约止损）：Validator 已规范化门控，
-            // 此前落库丢弃导致设备端只能拼「发现 N/分号」——温度在这层丢失
-            narrativeSummary: output.narrativeSummary ?? null,
-            keyInsight: output.keyInsight ?? null,
-            claims: output.claims ?? [],
+            // 此前落库丢弃导致设备端只能拼「发现 N/分号」——温度在这层丢失。
+            // 交付核验只清空与 Ledger 冲突的编数字段，不另造叙事。
+            narrativeSummary: verified.narrativeSummary,
+            keyInsight: verified.keyInsight,
+            claims: verified.claims,
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),
+            warnings: verified.warnings,
+            snapshotCutoffAt: answerTask.snapshotCutoffAt,
+            taskRange: answerTask.primaryTimeRange
+              ? {
+                label: answerTask.primaryTimeRange.label,
+                start: Math.floor(answerTask.primaryTimeRange.startMs / 1000),
+                end: Math.floor(answerTask.primaryTimeRange.endMs / 1000),
+              }
+              : null,
             completedAt: new Date().toISOString(),
             engine: "cloud-m2a",
           };
@@ -596,7 +847,7 @@ export function createCloudAnalysisExecutor({
           }
           if (reservation) quotaLedger.commit(reservation);
           pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看" });
-          log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}`);
+          log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}${verified.warnings.length ? ` warnings=${verified.warnings.join(",")}` : ""}`);
           return "completed";
         }
 

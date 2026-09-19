@@ -1,5 +1,5 @@
 /**
- * 云端分析 dynamicPlan 查询引擎（二期 M2a；2026-08-31 对齐修订）
+ * 云端分析 dynamicPlan 查询引擎（二期 M2a；2026-08-31 对齐修订；2026-09-19 P0 正确性门）
  * 在快照数据集上执行与 iOS 端同协议的声明式查询。
  *
  * 【对齐修订（两轮自审第二轮发现）】输出结构必须与 iOS HoloDynamicQueryEngine
@@ -13,14 +13,73 @@
  * - 顶层为 HoloDataToolResult 同构：{toolRequestID, tool, status, coverage, metrics, events, warnings, error}
  * - 错误也走同构结构（status=error + error{code,message,recoverable}），不另造包装
  *
- * M2a 能力边界：expression/linearTrend/coverage/baseline 派生按可恢复错误返回，
- * 模型按协议换路。
+ * 【2026-09-19 P0 正确性门（深度分析提示词与证据链落地方案 任务1）】
+ * 此前引擎只对 groupBy.type=field 分组、完全不消费 plan.timeRange、静默丢弃
+ * derivations 与 baseline——「查九月混进八月」「按月比较变成全窗口总计」「对比
+ * 派生静默消失」三个实锤缺口的根治，全部与 iOS HoloDataTool 同构：
+ * - timeRange 真过滤：先按行时间落窗过滤再聚合，半开区间 [start,end)；
+ *   end=min(请求end, 快照截止)，未来数据不进历史结论。start/end 接受 Unix
+ *   秒或毫秒（≥1e11 视为毫秒），桶与范围标签都从冻结窗口生成。
+ * - 分组补全：day/week/month/weekend 此前静默落进 "all" 桶，现输出
+ *   yyyy-MM-dd / yyyy-Www（ISO 周）/ yyyy-MM / weekend|weekday / 字段值。
+ * - baseline 与派生落地：baseline 为对照窗口（模型未填且派生需要时自动取
+ *   同长度前移窗口，iOS HoloDynamicQueryRangeResolver 同构）；
+ *   difference/ratio/percentageChange/rate/perDay 确定性计算（此前静默丢弃）。
+ * - expression/linearTrend/coverage 维持 NOT_SUPPORTED（能力目录同步声明，
+ * 不靠报错文本之外的任何暗示）。
  *
  * 【_search 虚拟字段（2026-09-09 根治）】提示词 v19 教模型用 _search 做跨字段
  * 关键词检索，但该字段从未在任何引擎实现，云端静默返回空导致「账里没记录」
  * 误报。现实现为「目录声明为 text 的全部字段拼接匹配」，并新增未知字段校验：
  * 未声明字段一律返回 UNKNOWN_FIELD（可恢复），不再静默当空值。
  */
+
+/** 行时间戳（毫秒）。occurredAt 是快照组装器保证的身份证字段；旧测试夹具与
+ * 早期快照可能只有 date 字段，按声明字段兜底。无法解析返回 null。 */
+function rowTimeMs(row) {
+  const raw = row?.occurredAt ?? row?.date ?? null;
+  if (raw == null) return null;
+  const parsed = Date.parse(String(raw));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** 模型给出的时间戳归一到毫秒：≥1e11 视为毫秒（2001-09 起），否则视为 Unix 秒。
+ * 量纲不可信（<1e8，早于 1973）返回 null，交给调用方按「无窗口」处理。 */
+function timestampToMs(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 1e11) return n;
+  if (n >= 1e8) return n * 1000;
+  return null;
+}
+
+/** ISO 周键 yyyy-Www（与 iOS calendar.dateComponents([yearForWeekOfYear, weekOfYear]) 同构）。 */
+function isoWeekKey(date) {
+  const d = new Date(date);
+  const day = d.getUTCDay() || 7; // 1..7 = 周一..周日
+  d.setUTCDate(d.getUTCDate() + 4 - day); // 本 ISO 周的周四
+  const year = d.getUTCFullYear();
+  const week = Math.ceil(((d.getTime() - Date.UTC(year, 0, 1)) / 86_400_000 + 1) / 7);
+  return `${String(year).padStart(4, "0")}-W${String(week).padStart(2, "0")}`;
+}
+
+/** 行 → 分组键（与 iOS HoloDataTool.buckets 同构）。 */
+function bucketKeyFor(row, grouping) {
+  if (!grouping || grouping.type !== "field") {
+    const time = rowTimeMs(row);
+    if (time == null) return "unknown";
+    const date = new Date(time);
+    const iso = date.toISOString().slice(0, 10);
+    switch (grouping?.type) {
+      case "day": return iso;
+      case "week": return isoWeekKey(date);
+      case "month": return iso.slice(0, 7);
+      case "weekend": return (date.getUTCDay() === 0 || date.getUTCDay() === 6) ? "weekend" : "weekday";
+      default: return "all";
+    }
+  }
+  return String(row[grouping.field] ?? "unknown");
+}
 
 export function createCloudAnalysisQueryEngine() {
 
@@ -123,11 +182,13 @@ export function createCloudAnalysisQueryEngine() {
     const numbers = values.map(coerceNumber).filter((v) => v != null);
     switch (operation) {
       case "count": return values.length;
-      case "sum": return numbers.reduce((a, b) => a + b, 0);
+      // 空集合不产指标（iOS 同构：sum([])=nil 而非 0——「窗口内没数据」与「合计为零」
+      // 是两件事，0 会造出精确但错误的数字）
+      case "sum": return numbers.length > 0 ? numbers.reduce((a, b) => a + b, 0) : null;
       case "average": return numbers.length > 0 ? numbers.reduce((a, b) => a + b, 0) / numbers.length : null;
       case "min": return numbers.length > 0 ? Math.min(...numbers) : null;
       case "max": return numbers.length > 0 ? Math.max(...numbers) : null;
-      case "distinctCount": return new Set(values.map((v) => String(v))).size;
+      case "distinctCount": return values.length > 0 ? new Set(values.map((v) => String(v))).size : null;
       default: return null;
     }
   }
@@ -215,6 +276,39 @@ export function createCloudAnalysisQueryEngine() {
     return parts.join(" ");
   }
 
+  /** 归一化 timeRange/baseline 为毫秒窗口；字段缺失或量纲不可信返回 null。 */
+  function windowOf(range) {
+    if (!range || typeof range !== "object") return null;
+    const startMs = timestampToMs(range.start);
+    const endMs = timestampToMs(range.end);
+    if (startMs == null || endMs == null || startMs >= endMs) return null;
+    return { label: typeof range.label === "string" ? range.label : "", startMs, endMs };
+  }
+
+  /** 快照截止：iOS 组装器的 generatedAt（ISO8601）。历史查询不得越过它。 */
+  function snapshotCutoffMs(snapshot) {
+    const parsed = Date.parse(snapshot?.generatedAt ?? "");
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  /** 窗口的可读描述（错误/警告文案用）。 */
+  function describeWindow(window) {
+    if (!window) return "无";
+    const fmt = (ms) => new Date(ms).toISOString().slice(0, 10);
+    return `${fmt(window.startMs)}~${fmt(window.endMs)}${window.label ? `（${window.label}）` : ""}`;
+  }
+
+  /** 派生需要对照窗而模型未填时，自动取同长度前移窗口（iOS baselineIfNeeded 同构）。 */
+  function autoBaselineWindow(plan) {
+    if (windowOf(plan.baseline)) return windowOf(plan.baseline);
+    const needsBaseline = (plan.derivations ?? []).some((d) =>
+      ["difference", "ratio", "percentageChange"].includes(d?.operation));
+    const current = windowOf(plan.timeRange);
+    if (!needsBaseline || !current) return null;
+    const duration = current.endMs - current.startMs;
+    return { label: "前一对比期", startMs: current.startMs - duration, endMs: current.startMs };
+  }
+
   /**
    * 执行一条 dynamicPlan，返回 iOS HoloDataToolResult 同构结构。
    */
@@ -223,15 +317,14 @@ export function createCloudAnalysisQueryEngine() {
     const tool = context.tool ?? plan.source ?? "unknown";
     const dataset = snapshot?.datasets?.[plan.source];
 
-    const unsupported = (plan.baseline ? "baseline" : null)
-      ?? (plan.derivations ?? []).map((d) => d.operation)
-        .find((op) => ["expression", "linearTrend", "coverage"].includes(op));
+    const unsupported = (plan.derivations ?? []).map((d) => d.operation)
+      .find((op) => ["expression", "linearTrend", "coverage"].includes(op));
     if (unsupported) {
       return toolResultEnvelope(toolRequestID, tool, {
         status: "error",
         error: {
           code: "NOT_SUPPORTED_BY_CLOUD",
-          message: `云端暂不支持 ${unsupported}，请改用基础聚合（count/sum/average/min/max/distinctCount）组合完成分析`,
+          message: `云端暂不支持 ${unsupported}，请改用基础聚合（count/sum/average/min/max/distinctCount）+ 分组/时间窗组合完成分析`,
           recoverable: true,
         },
       });
@@ -262,25 +355,49 @@ export function createCloudAnalysisQueryEngine() {
       rows = rows.filter((row) => filterPasses(row, filter, searchFields));
     }
 
-    // 分组（iOS 语义：单分组维度；无分组 = "all" 桶）
+    // 时间过滤（P0 核心）：先过滤再聚合；end=min(请求end, 快照截止)，未来数据
+    // （未发生分期/待办）不得进入已发生的历史结论。无 timeRange = 不过滤
+    // （旧协议兼容，快照本身已限 180 天窗）。
+    // baseSource = 字段过滤后、时间过滤前的行——对照窗口从它筛，否则当前窗
+    // 先把对照期行滤掉，baseline 永远为空。
+    const cutoffMs = snapshotCutoffMs(snapshot);
+    const currentWindow = windowOf(plan.timeRange);
+    const baseSource = rows;
+    if (currentWindow) {
+      const effectiveEnd = cutoffMs != null ? Math.min(currentWindow.endMs, cutoffMs) : currentWindow.endMs;
+      rows = rows.filter((row) => {
+        const t = rowTimeMs(row);
+        return t != null && t >= currentWindow.startMs && t < effectiveEnd;
+      });
+    }
+    const baselineWindow = autoBaselineWindow(plan);
+    let baselineRows = [];
+    if (baselineWindow) {
+      const baselineEnd = cutoffMs != null ? Math.min(baselineWindow.endMs, cutoffMs) : baselineWindow.endMs;
+      baselineRows = baseSource.filter((row) => {
+        const t = rowTimeMs(row);
+        return t != null && t >= baselineWindow.startMs && t < baselineEnd;
+      });
+    }
+
+    // 分组（iOS 语义：单分组维度；无分组 = "all" 桶；day/week/month/weekend/field 全支持）
     const grouping = plan.groupBy?.[0];
-    let buckets;
-    if (!grouping || grouping.type !== "field" || !grouping.field) {
-      buckets = [{ key: "all", rows }];
-    } else {
+    const bucketOf = (sourceRows) => {
+      if (!grouping) return [{ key: "all", rows: sourceRows }];
       const byKey = new Map();
-      for (const row of rows) {
-        const key = String(row[grouping.field] ?? "unknown");
+      for (const row of sourceRows) {
+        const key = bucketKeyFor(row, grouping);
         if (!byKey.has(key)) byKey.set(key, []);
         byKey.get(key).push(row);
       }
-      buckets = [...byKey.entries()]
+      return [...byKey.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([key, bucketRows]) => ({ key, rows: bucketRows }));
-    }
+    };
+    const buckets = bucketOf(rows);
+    const baselineBuckets = new Map(bucketOf(baselineRows).map((b) => [b.key, b.rows]));
 
     const metrics = [];
-    const events = [];
     for (const bucket of buckets) {
       for (const agg of plan.aggregations ?? []) {
         let target = bucket.rows;
@@ -291,6 +408,15 @@ export function createCloudAnalysisQueryEngine() {
           ? target.length
           : aggregate(agg.operation, target.map((row) => row[agg.field]));
         if (value == null) continue;
+        let baselineTarget = baselineBuckets.get(bucket.key) ?? [];
+        for (const filter of agg.filters ?? []) {
+          baselineTarget = baselineTarget.filter((row) => filterPasses(row, filter, searchFields));
+        }
+        const baselineValue = baselineWindow && baselineTarget.length > 0
+          ? (agg.operation === "count"
+            ? baselineTarget.length
+            : aggregate(agg.operation, baselineTarget.map((row) => row[agg.field])))
+          : null;
         const metricKey = `dynamic.${sanitize(plan.source)}.${sanitize(agg.id)}.${sanitize(bucket.key)}`;
         const formula = `${agg.operation}(${agg.field ?? "rows"})`;
         const sourceRecordIDs = target.slice(0, plan.evidenceLimit ?? 20).map((row) => String(row.id ?? ""));
@@ -299,7 +425,7 @@ export function createCloudAnalysisQueryEngine() {
           dataset: plan.source,
           value: rounded(value),
           unit: agg.unit ?? null,
-          baselineValue: null,
+          baselineValue: baselineValue != null ? rounded(baselineValue) : null,
           comparison: bucket.key === "all" ? null : bucket.key,
           formula,
           sourceRecordIDs,
@@ -307,24 +433,100 @@ export function createCloudAnalysisQueryEngine() {
       }
     }
 
+    // 派生（iOS HoloDataTool.derive 同构）：difference/ratio/percentageChange/rate/perDay
+    const derivationMetrics = [];
+    for (const derivation of plan.derivations ?? []) {
+      const matching = metrics.filter((m) => m.metricKey.includes(`.${sanitize(derivation.metricID)}.`));
+      for (const metric of matching) {
+        let value = null;
+        let formula = "";
+        switch (derivation.operation) {
+          case "difference":
+            if (metric.baselineValue != null) {
+              value = (metric.value ?? 0) - metric.baselineValue;
+              formula = "current - baseline";
+            }
+            break;
+          case "ratio": {
+            const denominator = derivation.denominatorMetricID
+              ? metrics.find((m) => m.metricKey.includes(`.${sanitize(derivation.denominatorMetricID)}.`))?.value
+              : metric.baselineValue;
+            if (denominator != null && denominator !== 0) {
+              value = (metric.value ?? 0) / denominator;
+              formula = "numerator / denominator";
+            }
+            break;
+          }
+          case "percentageChange":
+            if (metric.baselineValue != null && metric.baselineValue !== 0) {
+              value = ((metric.value ?? 0) - metric.baselineValue) / Math.abs(metric.baselineValue);
+              formula = "(current - baseline) / abs(baseline)";
+            }
+            break;
+          case "rate": {
+            const denominator = derivation.denominatorMetricID
+              ? metrics.find((m) => m.metricKey.includes(`.${sanitize(derivation.denominatorMetricID)}.`))?.value
+              : null;
+            if (denominator != null && denominator !== 0) {
+              value = (metric.value ?? 0) / denominator;
+              formula = "count / total";
+            }
+            break;
+          }
+          case "perDay": {
+            const window = windowOf(plan.timeRange);
+            if (window) {
+              const days = Math.max(1, Math.round((window.endMs - window.startMs) / 86_400_000));
+              value = (metric.value ?? 0) / days;
+              formula = `value / calendar_days(${days})`;
+            }
+            break;
+          }
+          default:
+            break;
+        }
+        if (value == null) continue;
+        const group = metric.comparison ?? "all";
+        derivationMetrics.push({
+          metricKey: `dynamic.${sanitize(plan.source)}.${sanitize(derivation.id)}.${sanitize(group)}`,
+          dataset: plan.source,
+          value: rounded(value),
+          unit: derivation.unit ?? null,
+          baselineValue: null,
+          comparison: metric.comparison,
+          formula,
+          sourceRecordIDs: metric.sourceRecordIDs,
+        });
+      }
+    }
+    metrics.push(...derivationMetrics);
+
+    const events = [];
     for (const metric of metrics) {
       const group = metric.comparison ? `（${metric.comparison}）` : "";
+      const baselineText = metric.baselineValue != null ? `；对照 ${metric.baselineValue}` : "";
       const valueText = metric.value != null ? String(metric.value) : "无值";
       events.push({
         id: `dynamic-${metric.metricKey}`,
         metricKey: metric.metricKey,
         metricValue: metric.value,
         dataset: plan.source,
-        excerpt: `动态计算 ${metric.metricKey}${group}：${valueText} ${metric.unit ?? ""}；公式：${metric.formula}；来源 ${metric.sourceRecordIDs.length} 条`,
+        excerpt: `动态计算 ${metric.metricKey}${group}：${valueText} ${metric.unit ?? ""}${baselineText}；公式：${metric.formula}；来源 ${metric.sourceRecordIDs.length} 条`,
         formula: metric.formula,
         sourceRecordIDs: metric.sourceRecordIDs,
       });
     }
 
     if (metrics.length === 0) {
+      // 空结论必须可解释：说清时间窗内多少行、数据集总共多少行、快照截止在哪，
+      // 模型才能区分「真没数据」与「时间窗不对」——这是 P0「缺口可解释」的引擎侧。
+      const totalRows = dataset.rows?.length ?? 0;
+      const windowNote = currentWindow
+        ? `；时间窗 ${describeWindow(currentWindow)} 内 0 行（数据集共 ${totalRows} 行，快照截止 ${cutoffMs != null ? new Date(cutoffMs).toISOString().slice(0, 10) : "未知"}）`
+        : "";
       return toolResultEnvelope(toolRequestID, tool, {
         status: "empty",
-        warnings: [{ code: "NO_MATCHING_DATA", message: "过滤后没有匹配的数据行" }],
+        warnings: [{ code: "NO_MATCHING_DATA", message: `过滤后没有匹配的数据行${windowNote}` }],
       });
     }
 
@@ -354,7 +556,11 @@ export function createCloudAnalysisQueryEngine() {
   return { execute, sampleRows };
 }
 
-/** 从快照生成云端工具目录（模型可用的数据集+字段说明），替代 iOS 端 toolDescriptions。 */
+/**
+ * 从快照生成云端工具目录（模型可用的数据集+字段说明），替代 iOS 端 toolDescriptions。
+ * P0 起，目录同时是「能力与边界同一真相源」：明确列出已支持/未支持的能力与
+ * 快照时间窗（含可直接复制的 Unix 秒），不靠后置文本覆盖前文相反命令。
+ */
 export function buildCloudToolCatalog(snapshot) {
   const lines = [];
   const datasets = snapshot?.datasets ?? {};
@@ -371,11 +577,28 @@ export function buildCloudToolCatalog(snapshot) {
   if (statics.length > 0) {
     lines.push(`（预取静态块：${statics.join("、 ")}——query 用同名 tool 名直接取）`);
   }
+
+  const cutoffMs = Date.parse(snapshot?.generatedAt ?? "");
+  const cutoffISO = Number.isFinite(cutoffMs) ? new Date(cutoffMs).toISOString() : null;
+  const historyDays = Number.isFinite(Number(snapshot?.historyDays)) ? Number(snapshot?.historyDays) : null;
+  const windowLines = [];
+  if (cutoffISO && historyDays) {
+    const startMs = cutoffMs - historyDays * 86_400_000;
+    const sec = (ms) => Math.floor(ms / 1000);
+    windowLines.push(
+      `快照窗口：${new Date(startMs).toISOString().slice(0, 10)} 起，截止 ${cutoffISO}（generatedAt）。`,
+      `dynamicPlan.timeRange/baseline 的 start/end 用 Unix 秒：本窗口可直接引用 start=${sec(startMs)}、end=${sec(cutoffMs)}；查询不得超出快照窗口，超出部分没有数据。行时间取 occurredAt 字段。`,
+    );
+  }
   lines.push(
+    "云端能力（已支持）：dynamicPlan 基础聚合 count/sum/average/min/max/distinctCount；字段过滤（含 _search 跨字段关键词）；分组 groupBy 单维 type=field/day/week/month/weekend；timeRange 时间过滤（先过滤再聚合，未来数据不进历史结论）；baseline 对照窗口与派生 difference/ratio/percentageChange/rate/perDay（需要对比而未填 baseline 时系统自动取同长度前移窗口）。",
+    "云端能力（未支持，请求即报错换路）：expression/linearTrend/coverage 派生；cross_domain.aligned_analysis；未预取的固定 query；快照窗口外的时间段。跨域问题请分别查询两个数据集的同期分组指标后并列对照，只能表述「同一段时间都变化/并发」，不得表述因果或已对齐的统计关联。",
     "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
     'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',
     "返回匹配行的人话摘录（含备注、内容原文）。例：查音乐分类最大 3 笔支出 → filters:[{field:\"category\",operation:\"equal\",value:{text:\"音乐\"}}], sortBy:\"amount\", sortDirection:\"descending\", limit:3。",
     '关键词跨字段筛选（商品名/品牌/备注词，如"猫砂""烟"）用 _search 虚拟字段，会同时匹配目录中全部文本字段：filters:[{field:"_search",operation:"contains",value:{type:"text",text:"猫砂"}}]。',
   );
-  return `云端工具目录（数据来自设备快照，仅覆盖快照时间窗）：\n${lines.join("\n")}`;
+  const capabilityBlock = lines.join("\n");
+  if (windowLines.length === 0) return `云端工具目录（数据来自设备快照，仅覆盖快照时间窗）：\n${capabilityBlock}`;
+  return `云端工具目录（数据来自设备快照，仅覆盖快照时间窗）：\n${windowLines.join("\n")}\n${capabilityBlock}`;
 }

@@ -27,7 +27,7 @@ const PROMPT_VERSIONS = {
   thought_organize_a: 1,
   thought_organize_r: 1,
   thought_organize_b: 1,
-  agent_loop: 21,                  // v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
+  agent_loop: 22,                  // v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
@@ -57,6 +57,7 @@ const PROMPT_CONTRACT_APPENDICES = {
     defaultPrompts._agent_loop_v15_contract,
     defaultPrompts._agent_loop_v16_contract,
     defaultPrompts._agent_loop_v21_contract,
+    defaultPrompts._agent_loop_v22_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],
