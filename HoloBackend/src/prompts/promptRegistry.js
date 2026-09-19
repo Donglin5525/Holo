@@ -41,7 +41,9 @@ const PROMPT_VERSIONS = {
   // 外币少样本示例是精度关键，改 prompt 前先跑评测。
   // v2（2026-09-14 图片快捷指令自动记账方案 §26）：schemaVersion/paymentStatus/
   // paymentStatusOriginalText/逐笔 amountOriginalText/字段级 confidence/分类语义候选。
-  vision_extraction: 2,
+  // v3（2026-09-19 一图多笔）：逐笔 paymentChannel——微信支付服务通知流同图两笔
+  // 渠道不同（信用卡/零钱）实证，账户需逐笔匹配；契约同步 bump UNDERSTANDING_SCHEMA_VERSION=3。
+  vision_extraction: 3,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
   matter_reconciliation: 1,
   // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版

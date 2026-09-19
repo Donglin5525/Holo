@@ -9,7 +9,10 @@ export const FOREIGN_MONEY_PATTERN = /[$€£]|USD|EUR|GBP|JPY|HKD|NT\$/i;
 // v2（docs/finance/plans/2026-09-14-Holo图片账单快捷指令自动记账完整方案.md §7/§26）：
 // 为「自动落账」升级契约——支付状态 + 逐笔字段级置信度 + 分类语义候选。
 // v1 字段全部保留（旧客户端兼容）；新客户端对缺失新字段一律按不可自动写处理。
-export const UNDERSTANDING_SCHEMA_VERSION = 2;
+// v3（2026-09-19）：一图多笔各笔支付渠道可能不同（微信支付服务通知流实证：
+// 同图两笔分别为信用卡/零钱）——transactions 每笔新增 paymentChannel，
+// 顶层字段保留作整单回落。纯加字段，v2 客户端忽略未知键零破坏。
+export const UNDERSTANDING_SCHEMA_VERSION = 3;
 
 export const PAYMENT_STATUSES = [
   "completed",
@@ -139,7 +142,9 @@ export function normalizeUnderstanding(raw) {
         date: clampDate(transaction?.date),
         // v2 逐笔新增：金额原文、字段级置信度、分类语义候选。
         // 分类只给语义候选，禁止模型输出用户账本里的分类名/ID（最终匹配在 iOS 本地完成）。
+        // v3 逐笔新增：该笔自己的支付渠道（多笔渠道可能不同），iOS 逐笔匹配账户。
         amountOriginalText: clampString(transaction?.amountOriginalText, 60),
+        paymentChannel: clampString(transaction?.paymentChannel, 40),
         confidence: normalizeTransactionConfidence(transaction?.confidence),
         categoryCandidate: clampString(transaction?.categoryCandidate, 120),
         normalizedCategoryCandidate: clampString(transaction?.normalizedCategoryCandidate, 120),

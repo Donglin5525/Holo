@@ -201,6 +201,7 @@ test("v2：完整 v2 输出透传——schemaVersion/paymentStatus/字段级 con
       note: "瑞幸咖啡",
       date: "2026-09-14",
       amountOriginalText: "¥19.90",
+      paymentChannel: "微信支付",
       confidence: { amount: 0.99, direction: 0.99, paymentStatus: 0.99, date: 0.94, merchant: 0.96, paymentChannel: 0.93 },
       categoryCandidate: "瑞幸咖啡",
       normalizedCategoryCandidate: "咖啡",
@@ -208,11 +209,12 @@ test("v2：完整 v2 输出透传——schemaVersion/paymentStatus/字段级 con
     }],
   });
   assert.deepEqual(guards, []);
-  assert.equal(understanding.schemaVersion, 2, "v2 输出必须带 schemaVersion");
+  assert.equal(understanding.schemaVersion, 3, "v3 输出必须带 schemaVersion");
   assert.equal(understanding.paymentStatus, "completed");
   assert.equal(understanding.paymentStatusOriginalText, "支付成功");
   const tx = understanding.transactions[0];
   assert.equal(tx.amountOriginalText, "¥19.90");
+  assert.equal(tx.paymentChannel, "微信支付", "v3 逐笔渠道必须透传");
   assert.equal(tx.confidence.amount, 0.99);
   assert.equal(tx.confidence.direction, 0.99);
   assert.equal(tx.confidence.paymentStatus, 0.99);
@@ -232,10 +234,11 @@ test("v2：v1 旧输出（无新字段）兼容透传，旧字段原样保留", 
     transactions: [{ type: "expense", amount: 98.6, note: "盒马鲜生", date: "2026-09-01" }],
   });
   assert.deepEqual(guards, [], "缺省新字段是合法 v1 输入，不算护栏改写");
-  assert.equal(understanding.schemaVersion, 2);
+  assert.equal(understanding.schemaVersion, 3);
   assert.equal(understanding.paymentStatus, "unknown", "v1 无支付状态 → unknown（客户端转复核）");
   assert.equal(understanding.paymentStatusOriginalText, null);
   assert.equal(understanding.transactions[0].amountOriginalText, null);
+  assert.equal(understanding.transactions[0].paymentChannel, null, "v1 输入无逐笔渠道 → null");
   assert.equal(understanding.transactions[0].confidence.amount, null, "缺失字段置信度为 null（不可自动写）");
   assert.equal(understanding.transactions[0].categoryCandidate, null);
   assert.equal(understanding.transactions[0].amount, 98.6, "旧字段不变");
@@ -333,4 +336,68 @@ test("v2：HOLO_VISION_AUTO_COMMIT_ALLOWED=true 时总闸打开（灰度通道�
     if (prev === undefined) delete process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED;
     else process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED = prev;
   }
+});
+
+// ===== v3 契约（2026-09-19 一图多笔）：逐笔 paymentChannel =====
+// 动机实证：微信支付服务通知流一张截图两笔交易，分别为信用卡/零钱支付——
+// 顶层单一渠道会把两笔归到同一账户，账户必须逐笔匹配。
+
+test("v3：一图多笔不同渠道各自保留（动机场景：信用卡+零钱）", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "payment_screenshot",
+    confidence: 0.9,
+    paymentStatus: "completed",
+    merchant: "蒙自源",
+    paymentChannel: null,
+    transactions: [
+      {
+        type: "expense", amount: 71.77, note: "蒙自源", date: "2026-09-13",
+        amountOriginalText: "¥71.77", paymentChannel: "中信银行信用卡7770",
+      },
+      {
+        type: "expense", amount: 183, note: "微信", date: "2026-09-13",
+        amountOriginalText: "¥183.00", paymentChannel: "零钱",
+      },
+    ],
+  });
+  assert.deepEqual(guards, []);
+  assert.equal(understanding.schemaVersion, 3);
+  assert.equal(understanding.transactions.length, 2);
+  assert.equal(understanding.transactions[0].paymentChannel, "中信银行信用卡7770");
+  assert.equal(understanding.transactions[1].paymentChannel, "零钱", "逐笔渠道禁止互相覆盖");
+});
+
+test("v3：逐笔渠道钳制——超长截断/非字符串与空白为 null", () => {
+  const { understanding } = normalizeUnderstanding({
+    imageType: "payment_screenshot",
+    paymentStatus: "completed",
+    transactions: [
+      { type: "expense", amount: 1, paymentChannel: "x".repeat(50) },
+      { type: "expense", amount: 2, paymentChannel: 12345 },
+      { type: "expense", amount: 3, paymentChannel: "   " },
+      { type: "expense", amount: 4 },
+    ],
+  });
+  assert.equal(understanding.transactions[0].paymentChannel.length, 40, "超长截到 40");
+  assert.equal(understanding.transactions[1].paymentChannel, null, "非字符串为 null");
+  assert.equal(understanding.transactions[2].paymentChannel, null, "纯空白为 null");
+  assert.equal(understanding.transactions[3].paymentChannel, null, "缺失为 null");
+});
+
+test("v3：vision_extraction prompt 升 v3——逐笔渠道要求与示例字段", () => {
+  const prompt = getPrompt("vision_extraction");
+  assert.ok(prompt.version >= 3, "prompt 基线必须升到 v3");
+  assert.ok(
+    prompt.content.includes("每笔必须各带自己的 paymentChannel"),
+    "prompt 必须要求逐笔渠道",
+  );
+  assert.ok(
+    prompt.content.includes('"schemaVersion": 3') || prompt.content.includes('"schemaVersion":3'),
+    "prompt 必须声明 schemaVersion 3",
+  );
+  assert.ok(
+    prompt.content.includes('"paymentChannel":"微信支付"'),
+    "主示例 transactions 条目必须带逐笔渠道字段",
+  );
+  assert.ok(prompt.content.includes("【货币判定示例】"), "外币少样本示例不得删除");
 });
