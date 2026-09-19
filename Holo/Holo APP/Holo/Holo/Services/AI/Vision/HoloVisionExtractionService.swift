@@ -243,16 +243,44 @@ final class HoloVisionExtractionService {
         precompressedJPEG: Data? = nil
     ) async throws -> ExtractionOutcome {
         do {
-            return try await runExtraction(rawImageData: rawImageData, caption: caption, precompressedJPEG: precompressedJPEG, aggressive: false)
+            return try await runExtractionWithServerRetry(
+                rawImageData: rawImageData, caption: caption, precompressedJPEG: precompressedJPEG
+            )
         } catch let error as APIError {
             guard case .httpError(let statusCode, _) = error, statusCode == 413 else {
                 throw error
             }
             do {
-                return try await runExtraction(rawImageData: rawImageData, caption: caption, precompressedJPEG: nil, aggressive: true)
+                return try await runExtractionWithServerRetry(
+                    rawImageData: rawImageData, caption: caption, precompressedJPEG: nil, aggressive: true
+                )
             } catch APIError.httpError(413, _) {
                 throw VisionError(userMessage: String(localized: "这张图太大了，处理不了。换一张小一点的试试。"))
             }
+        }
+    }
+
+    /// 服务端瞬时失败（502/503/504：上游模型偶发坏输出、网关抖动）自动重试一次。
+    /// 14 天生产实测失败率 ~8%，失败单次白等 15-20s 且快捷指令场景用户只能手走全流程；
+    /// 429 限流不重试（立即重打必然仍被限）。
+    private func runExtractionWithServerRetry(
+        rawImageData: Data,
+        caption: String?,
+        precompressedJPEG: Data?,
+        aggressive: Bool = false
+    ) async throws -> ExtractionOutcome {
+        do {
+            return try await runExtraction(
+                rawImageData: rawImageData, caption: caption, precompressedJPEG: precompressedJPEG, aggressive: aggressive
+            )
+        } catch let error as APIError {
+            guard case .httpError(let statusCode, _) = error,
+                  statusCode == 502 || statusCode == 503 || statusCode == 504 else {
+                throw error
+            }
+            return try await runExtraction(
+                rawImageData: rawImageData, caption: caption, precompressedJPEG: precompressedJPEG, aggressive: aggressive
+            )
         }
     }
 
