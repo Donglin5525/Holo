@@ -146,6 +146,7 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createChatEntities())
         entities.append(contentsOf: createSyncEntities())
         entities.append(createUserPreferenceEntity())
+        entities.append(createUserAvatarEntity())
         // 分类学习（映射 + 归纳规则）：原先只存 UserDefaults，卸载即丢，迁入同步实体
         entities.append(createCategoryMappingRecordEntity())
         entities.append(createCategoryInductionRuleEntity())

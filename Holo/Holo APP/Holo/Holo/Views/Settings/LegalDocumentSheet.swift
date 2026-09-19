@@ -154,7 +154,7 @@ enum LegalHTMLTemplates {
     <body>
 
     <h1>Holo 隐私政策</h1>
-    <p class="meta">最后更新日期：2026 年 8 月 13 日<br>生效日期：2026 年 8 月 13 日</p>
+    <p class="meta">最后更新日期：2026 年 9 月 19 日<br>生效日期：2026 年 9 月 19 日</p>
 
     <p>欢迎使用 Holo（以下简称"本应用"）。我们深知个人数据的重要性，并致力于保护您的隐私。本隐私政策旨在向您说明我们如何收集、使用、存储和保护您的信息。</p>
 
@@ -167,6 +167,7 @@ enum LegalHTMLTemplates {
     <h3>1.1 您主动提供的信息</h3>
     <ul>
         <li><strong>账户信息</strong>：当您使用"通过 Apple 登录"时，我们会收到您的 Apple ID 关联邮箱地址和唯一用户标识符。您可以选择隐藏邮箱地址。</li>
+        <li><strong>个人资料头像</strong>：当您主动选择照片或拍照设置头像时，Holo 只保存您确认裁剪后的头像，不保存原始照片及其位置等元数据。头像存储在您的设备本地和您的个人 iCloud 中，不会发送给 AI 服务或 Holo 后端。</li>
         <li><strong>财务记录</strong>：您手动输入的记账数据，包括金额、分类、账户、日期和备注。这些数据存储在您的设备本地和您的 iCloud 中。</li>
         <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠、站立、运动时长等健康数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>
         <li><strong>健康相关 AI 处理</strong>：当您使用需要健康上下文的 AI 功能时，必要的健康摘要会在您同意 AI 数据处理后通过 Holo 后端发送给第三方 AI 服务；健康领域的 AI 派生记忆只保存在本机。</li>
@@ -194,6 +195,7 @@ enum LegalHTMLTemplates {
         <thead><tr><th>数据类型</th><th>使用目的</th></tr></thead>
         <tbody>
             <tr><td>Apple ID 信息</td><td>用户身份认证与登录</td></tr>
+            <tr><td>个人资料头像</td><td>在设置、个人页和 Holo AI 对话中识别您的身份</td></tr>
             <tr><td>财务记录</td><td>记账功能、数据统计与展示</td></tr>
             <tr><td>健康数据（只读）</td><td>健康数据展示、趋势分析与经授权的 AI 洞察</td></tr>
             <tr><td>习惯与待办数据</td><td>习惯追踪与任务管理功能</td></tr>
@@ -211,7 +213,7 @@ enum LegalHTMLTemplates {
     <p>App Store 正式版不会在设备上另存 AI 原始请求、完整上下文或完整响应日志。</p>
 
     <h3>3.2 iCloud 同步</h3>
-    <p>在您登录 iCloud 并启用同步后，您的 Holo 本地记录和普通 AI 派生记忆会通过 Apple CloudKit 在您的设备之间同步。数据传输和存储均受 Apple 的加密保护。我们<strong>无法访问</strong>您 iCloud 中的用户数据。Holo 不会将从 Apple HealthKit 读取的原始健康数据、健康派生记忆或包含健康来源的综合记忆写入或同步到 Holo 的 iCloud 数据库。</p>
+    <p>在您登录 iCloud 并启用同步后，您的 Holo 本地记录、个人资料头像和普通 AI 派生记忆会通过 Apple CloudKit 在您的设备之间同步。数据传输和存储均受 Apple 的加密保护。我们<strong>无法访问</strong>您 iCloud 中的用户数据。Holo 不会将从 Apple HealthKit 读取的原始健康数据、健康派生记忆或包含健康来源的综合记忆写入或同步到 Holo 的 iCloud 数据库。</p>
 
     <h3>3.3 服务器端处理</h3>
     <ul>
@@ -238,6 +240,7 @@ enum LegalHTMLTemplates {
     <h2>五、您的权利</h2>
     <ul>
         <li><strong>访问数据</strong>：您可随时在应用内查看所有已存储的个人数据。</li>
+        <li><strong>更换或移除头像</strong>：您可随时在“个人资料”中更换或移除头像，移除意图会同步到您的其他设备。</li>
         <li><strong>删除数据</strong>：您可以在设置中选择"删除账号与数据"。</li>
         <li><strong>撤销授权</strong>：您可以在设备"设置"→"隐私与安全性"中随时撤销各项权限。</li>
     </ul>

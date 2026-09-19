@@ -27,7 +27,7 @@ struct SettingsView: View {
 
         var title: String {
             switch self {
-            case .nickname: return String(localized: "昵称")
+            case .nickname: return String(localized: "个人资料")
             case .darkMode: return String(localized: "外观")
             case .iCloudSync: return String(localized: "iCloud 同步")
             case .calendar: return String(localized: "日历")
@@ -43,7 +43,7 @@ struct SettingsView: View {
 
         var icon: String {
             switch self {
-            case .nickname: return "person.crop.square"
+            case .nickname: return "person.crop.circle"
             case .darkMode: return "moon.fill"
             case .iCloudSync: return "icloud.fill"
             case .calendar: return "calendar"
@@ -103,9 +103,7 @@ struct SettingsView: View {
     @State private var appLockUnavailableMessage: String?
     /// 开启验证（弹系统验证框）期间用户是否仍意图开启；防止验证回调晚到时覆盖用户已拨回的开关
     @State private var appLockEnablePending = false
-    // 昵称修改弹窗
-    @State private var showNicknameEditor = false
-    @State private var nicknameDraft = ""
+    @State private var showUserProfileEditor = false
 
     // 宽屏双栏：当前选中的分组
     @State private var selectedSection: SettingsSection = .nickname
@@ -161,12 +159,8 @@ struct SettingsView: View {
         } message: {
             Text("这会删除本机 Holo 数据、附件、AI 记忆、缓存和登录状态。已同步到 iCloud 的 Holo 数据会在系统同步后尝试删除；如果设备离线，删除同步可能延后。")
         }
-        .alert("怎么称呼你", isPresented: $showNicknameEditor) {
-            TextField("昵称", text: $nicknameDraft)
-            Button("取消", role: .cancel) {}
-            Button("保存") { saveNickname() }
-        } message: {
-            Text("保存后随 iCloud 同步，卸载重装也能找回来")
+        .sheet(isPresented: $showUserProfileEditor) {
+            UserProfileEditorView()
         }
     }
 
@@ -194,7 +188,7 @@ struct SettingsView: View {
                 // 用户信息卡片
                 userInfoCard
 
-                // 昵称（首页问候怎么称呼你，随 iCloud 同步）
+                // 个人资料（头像 + 昵称，随 iCloud 同步）
                 nicknameSection
 
                 // 深色模式设置
@@ -311,7 +305,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 昵称
+    // MARK: - 个人资料
 
     private var nicknameSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -320,26 +314,29 @@ struct SettingsView: View {
                     .font(.system(size: 18))
                     .foregroundColor(.holoPrimary)
 
-                Text("昵称")
+                Text("个人资料")
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
             }
 
             Button {
-                nicknameDraft = userName
-                showNicknameEditor = true
+                showUserProfileEditor = true
             } label: {
                 HStack(spacing: HoloSpacing.md) {
-                    Text("怎么称呼你")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                    UserAvatarView(size: 56, showsSignedInBadge: authService.isSignedIn)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("更换头像或昵称")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                    }
 
                     Spacer()
-
-                    Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
@@ -355,25 +352,12 @@ struct SettingsView: View {
         }
     }
 
-    /// 改名走统一出口：本地立即生效 + 同步表上行 iCloud（与引导页/个人页同通道）
-    private func saveNickname() {
-        UserPreferenceRepository.shared.setDisplayName(nicknameDraft)
-    }
-
     // MARK: - 用户信息卡片
 
     private var userInfoCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.md) {
-                ZStack {
-                    Circle()
-                        .fill(authService.isSignedIn ? Color.holoPrimary.opacity(0.1) : Color.holoTextSecondary.opacity(0.1))
-                        .frame(width: 56, height: 56)
-
-                    Image(systemName: authService.isSignedIn ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
-                        .font(.system(size: 26, weight: .medium))
-                        .foregroundColor(authService.isSignedIn ? .holoPrimary : .holoTextSecondary)
-                }
+                UserAvatarView(size: 56, showsSignedInBadge: authService.isSignedIn)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(authService.session?.displayName ?? UserDisplayNameSettings.displayOrPlaceholder(userName))
@@ -1507,6 +1491,7 @@ struct SettingsView: View {
             let result = try await AccountDataDeletionService.shared.deleteAccountAndLocalData()
             // 2. 撤销 Apple 凭证并清除内存中的登录态
             await authService.markAccountDeleted()
+            UserAvatarRepository.shared.resetPublishedStateAfterAccountDeletion()
             accountDataDeletionMessage = String(localized: "已删除 \(result.deletedObjectCount) 条本机记录；iCloud 删除同步由系统继续处理。")
             await storageService.calculateCacheSize()
         } catch {

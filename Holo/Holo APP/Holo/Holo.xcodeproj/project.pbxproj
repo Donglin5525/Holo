@@ -223,6 +223,8 @@
 		A1D01D10000000000000000037 /* Topic+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000036 /* Topic+CoreDataClass.swift */; };
 		A1D01D10000000000000000039 /* RecycleBinBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000038 /* RecycleBinBatch.swift */; };
 		A1D01D10000000000000000051 /* CoreDataStack+UserPreferenceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000050 /* CoreDataStack+UserPreferenceEntity.swift */; };
+		A1D01D20000000000000000002 /* CoreDataStack+UserAvatarEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D20000000000000000001 /* CoreDataStack+UserAvatarEntity.swift */; };
+		A1D01D20000000000000000004 /* UserAvatarEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D20000000000000000003 /* UserAvatarEntity.swift */; };
 		A1D01D10000000000000000053 /* CoreDataStack+MemoryInsightEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000052 /* CoreDataStack+MemoryInsightEntity.swift */; };
 		A1D01D10000000000000000055 /* CoreDataStack+MemoryInsightFeedbackEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000054 /* CoreDataStack+MemoryInsightFeedbackEntity.swift */; };
 		A1D01D10000000000000000057 /* HoloEntitlementState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000056 /* HoloEntitlementState.swift */; };
@@ -340,6 +342,7 @@
 		F38D3889CE87698AECF36EAF /* GoalWorkshopStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69443339474AF4E0071C08EA /* GoalWorkshopStoreTests.swift */; };
 		F40EF4AD4070679E31983D42 /* HoloAgentAnswerPresentationStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29C92BC6D47B3DA2EB9D7F56 /* HoloAgentAnswerPresentationStandaloneTests.swift */; };
 		F56401A963F00CC2E5CF683A /* UserDisplayNameSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */; };
+		A1D01D30000000000000000002 /* UserAvatarFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D30000000000000000001 /* UserAvatarFeatureTests.swift */; };
 		F5846726F7A37ECB5DBB5049 /* ThoughtOrganizationBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B5A27F34F962AF28839320 /* ThoughtOrganizationBatchTests.swift */; };
 		F6804A1C4E46CF4790373A71 /* HoloHabitToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371AC1CB73E45FA0F14D5920 /* HoloHabitToolTests.swift */; };
 		F755253A916BDD01DE62D188 /* HealthInsightCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */; };
@@ -622,6 +625,8 @@
 		A1D01D10000000000000000036 /* Topic+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Topic+CoreDataClass.swift"; path = "Holo/Models/Topic+CoreDataClass.swift"; sourceTree = "<group>"; };
 		A1D01D10000000000000000038 /* RecycleBinBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecycleBinBatch.swift; path = Holo/Models/RecycleBinBatch.swift; sourceTree = "<group>"; };
 		A1D01D10000000000000000050 /* CoreDataStack+UserPreferenceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+UserPreferenceEntity.swift"; path = "Holo/Models/CoreDataStack+UserPreferenceEntity.swift"; sourceTree = "<group>"; };
+		A1D01D20000000000000000001 /* CoreDataStack+UserAvatarEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+UserAvatarEntity.swift"; path = "Holo/Models/CoreDataStack+UserAvatarEntity.swift"; sourceTree = "<group>"; };
+		A1D01D20000000000000000003 /* UserAvatarEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = UserAvatarEntity.swift; path = Holo/Models/UserAvatarEntity.swift; sourceTree = "<group>"; };
 		A1D01D10000000000000000052 /* CoreDataStack+MemoryInsightEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+MemoryInsightEntity.swift"; path = "Holo/Models/CoreDataStack+MemoryInsightEntity.swift"; sourceTree = "<group>"; };
 		A1D01D10000000000000000054 /* CoreDataStack+MemoryInsightFeedbackEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+MemoryInsightFeedbackEntity.swift"; path = "Holo/Models/CoreDataStack+MemoryInsightFeedbackEntity.swift"; sourceTree = "<group>"; };
 		A1D01D10000000000000000056 /* HoloEntitlementState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloEntitlementState.swift; path = Holo/Services/Subscription/HoloEntitlementState.swift; sourceTree = "<group>"; };
@@ -671,6 +676,7 @@
 		BC7FF785274FA44D4A16F521 /* HoloAgentDebugExporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentDebugExporterTests.swift; sourceTree = "<group>"; };
 		BD9072B04A04CEFFDFC02564 /* HoloMemoryAccessPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryAccessPolicyStandaloneTests.swift; sourceTree = "<group>"; };
 		BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserDisplayNameSettingsTests.swift; sourceTree = "<group>"; };
+		A1D01D30000000000000000001 /* UserAvatarFeatureTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserAvatarFeatureTests.swift; sourceTree = "<group>"; };
 		BE02A2C3D4E5F60718293A4B /* HealthPhase2WalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthPhase2WalkthroughUITests.swift; sourceTree = "<group>"; };
 		C07E22020000000000000001 /* HabitRepositoryCalendarTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitRepositoryCalendarTests.swift; sourceTree = "<group>"; };
 		C08747A667360E9485FB9443 /* HoloAgentPersistenceStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentPersistenceStoreTests.swift; sourceTree = "<group>"; };
@@ -929,6 +935,7 @@
 				056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */,
 				A17F5D3E8B4C21906FDAE743 /* HealthWorkoutTests.swift */,
 				BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */,
+				A1D01D30000000000000000001 /* UserAvatarFeatureTests.swift */,
 				5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */,
 				DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */,
 				A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */,
@@ -1061,6 +1068,8 @@
 				A1D01D10000000000000000036 /* Topic+CoreDataClass.swift */,
 				A1D01D10000000000000000038 /* RecycleBinBatch.swift */,
 				A1D01D10000000000000000050 /* CoreDataStack+UserPreferenceEntity.swift */,
+				A1D01D20000000000000000001 /* CoreDataStack+UserAvatarEntity.swift */,
+				A1D01D20000000000000000003 /* UserAvatarEntity.swift */,
 				A1D01D10000000000000000052 /* CoreDataStack+MemoryInsightEntity.swift */,
 				A1D100000000000000000045 /* HoloSubscriptionProducts.swift */,
 				A1D01D10000000000000000054 /* CoreDataStack+MemoryInsightFeedbackEntity.swift */,
@@ -1689,6 +1698,7 @@
 				AD4F6BC8E7A2C5D9F3B64EA7 /* ActivityDistributionAnalyzerTests.swift in Sources */,
 				E5444C61B3E038D356727F9F /* HealthInsightGenerationModelsTests.swift in Sources */,
 				F56401A963F00CC2E5CF683A /* UserDisplayNameSettingsTests.swift in Sources */,
+				A1D01D30000000000000000002 /* UserAvatarFeatureTests.swift in Sources */,
 				51913135397791F2CFC1DC2B /* ConvergenceRejectionRepositoryTests.swift in Sources */,
 				F755253A916BDD01DE62D188 /* HealthInsightCacheTests.swift in Sources */,
 				3D200032255A8EF3DF19CD1F /* HealthInsightContextBuilderTests.swift in Sources */,
@@ -1912,6 +1922,8 @@
 				A1D01D10000000000000000037 /* Topic+CoreDataClass.swift in Sources */,
 				A1D01D10000000000000000039 /* RecycleBinBatch.swift in Sources */,
 				A1D01D10000000000000000051 /* CoreDataStack+UserPreferenceEntity.swift in Sources */,
+				A1D01D20000000000000000002 /* CoreDataStack+UserAvatarEntity.swift in Sources */,
+				A1D01D20000000000000000004 /* UserAvatarEntity.swift in Sources */,
 				A1D100000000000000000046 /* HoloSubscriptionProducts.swift in Sources */,
 				A1D01D10000000000000000053 /* CoreDataStack+MemoryInsightEntity.swift in Sources */,
 				A1D01D10000000000000000055 /* CoreDataStack+MemoryInsightFeedbackEntity.swift in Sources */,
@@ -2155,7 +2167,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
-				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
+				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以拍摄头像或任务附件照片";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
@@ -2210,7 +2222,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
-				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
+				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以拍摄头像或任务附件照片";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";

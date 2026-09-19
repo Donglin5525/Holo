@@ -408,14 +408,7 @@ struct MessageBubbleView: View {
     }
 
     private var userAvatar: some View {
-        Circle()
-            .fill(Color.holoTextSecondary.opacity(0.15))
-            .frame(width: 32, height: 32)
-            .overlay {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(.holoTextSecondary)
-            }
+        UserAvatarView(size: 32)
     }
 
     // MARK: - Bubble Content
