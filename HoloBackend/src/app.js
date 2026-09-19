@@ -1393,6 +1393,11 @@ export function createApp(overrides = {}) {
         model: route.model,
         temperature: route.temperature,
         maxTokens: route.maxTokens,
+        // 2026-09-20 性能根治：此处此前漏传 reasoningEffort，env 配的
+        // HOLO_VISION_EXTRACTION_REASONING_EFFORT=none 从未到达供应商，
+        // 推理模型全速思考（生产实锤单次 reasoning 985-3177 token，耗时 15-26s；
+        // 上游 A/B 实测 none 生效：思考归零、答案正确）。
+        reasoningEffort: route.reasoningEffort,
         clientSignal: context.req.raw.signal,
       });
       const content = result?.choices?.[0]?.message?.content ?? "";
