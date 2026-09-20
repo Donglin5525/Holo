@@ -3,8 +3,10 @@
 //  Holo
 //
 //  「轴」档的分钟 ↔ 像素双向映射（独立于 View 的纯逻辑，供单测锁定）：
-//  展开态全天线性；折叠态凌晨 0–7 压成一条摘要带（带内不渲染块），白天段正常比例。
-//  所有块的落点/高度、拖拽换算、选区吸附共用这一套映射，保证「高度 = 时长」在白天段恒成立。
+//  展开态全天行序列；折叠态凌晨 0–7 压成一条摘要带（带内不渲染块）。
+//  行高度按内容自适应：有条目覆盖的小时行保高，空档行压缩——条目稀疏的一天
+//  也能一屏看全（2026-09-20「单任务日整页空旷」）。空白时段整段仍是可排区，
+//  拖拽/吸附换算按锚点所在行的压缩比折算，块「高度 = 时长 × 所在行比例」恒成立。
 //
 
 import CoreGraphics
@@ -12,9 +14,13 @@ import CoreGraphics
 struct TimelineAxisLayout {
 
     let collapseMorning: Bool
+    /// 有条目覆盖的小时行集合：行保高；集合外的行压缩为空档行
+    let busyHours: Set<Int>
 
-    /// 白天段每小时像素高度
+    /// 忙碌小时行像素高度
     static let hourHeight: CGFloat = 56
+    /// 空档小时行像素高度（约为忙碌行的 1/3，把条目稀疏的一天收进一屏）
+    static let idleHourHeight: CGFloat = 20
     /// 刻度列宽
     static let gutterWidth: CGFloat = 46
     /// 凌晨折叠段终点（分钟）
@@ -22,41 +28,71 @@ struct TimelineAxisLayout {
     /// 凌晨折叠带高度
     static let morningBandHeight: CGFloat = 38
 
-    // MARK: - 高度与映射
+    init(collapseMorning: Bool, busyHours: Set<Int> = []) {
+        self.collapseMorning = collapseMorning
+        self.busyHours = busyHours
+    }
+
+    /// 可滚动的小时行范围（折叠态凌晨收进摘要带，不参与行序列）
+    private var hourRange: Range<Int> { collapseMorning ? 7..<24 : 0..<24 }
+
+    /// 全天行保高（空态画布口径：轴上没有任何条目时不压缩，保留整屏拖拽建任务的区域）
+    static func fullBusyHours(collapseMorning: Bool) -> Set<Int> {
+        collapseMorning ? Set(7..<24) : Set(0..<24)
+    }
+
+    // MARK: - 行与映射
+
+    /// 小时行高度：有条目保高，空档压缩
+    func rowHeight(hour: Int) -> CGFloat {
+        busyHours.contains(hour) ? Self.hourHeight : Self.idleHourHeight
+    }
 
     /// 轴内容总高度
     var contentHeight: CGFloat {
-        collapseMorning
-            ? Self.morningBandHeight + (24 - 7) * Self.hourHeight
-            : 24 * Self.hourHeight
+        let rows = hourRange.reduce(0) { $0 + rowHeight(hour: $1) }
+        return collapseMorning ? Self.morningBandHeight + rows : rows
     }
 
-    /// 分钟 → y 坐标
+    /// 分钟 → y 坐标（行序列上前缀高度 + 行内线性）
     func y(minute: CGFloat) -> CGFloat {
-        if !collapseMorning { return minute / 60 * Self.hourHeight }
-        if minute <= Self.morningEndMinute {
+        if collapseMorning, minute <= Self.morningEndMinute {
             return minute / Self.morningEndMinute * Self.morningBandHeight
         }
-        return Self.morningBandHeight + (minute - Self.morningEndMinute) / 60 * Self.hourHeight
+        let clamped = min(max(minute, 0), 24 * 60)
+        let hour = min(Int(clamped) / 60, 23)
+        var top: CGFloat = collapseMorning ? Self.morningBandHeight : 0
+        for row in hourRange where row < hour { top += rowHeight(hour: row) }
+        let inRow = (clamped - CGFloat(hour * 60)) / 60 * rowHeight(hour: hour)
+        return top + inRow
     }
 
-    /// y 坐标 → 分钟（拖拽换算逆映射）
+    /// y 坐标 → 分钟（拖拽换算逆映射；行序列反向扫，行内线性反解）
     func minute(y: CGFloat) -> CGFloat {
-        if !collapseMorning { return y / Self.hourHeight * 60 }
-        if y <= Self.morningBandHeight {
+        if collapseMorning, y <= Self.morningBandHeight {
             return y / Self.morningBandHeight * Self.morningEndMinute
         }
-        return Self.morningEndMinute + (y - Self.morningBandHeight) / Self.hourHeight * 60
+        var remaining = y - (collapseMorning ? Self.morningBandHeight : 0)
+        var hour = hourRange.lowerBound
+        while hour < 23 {
+            let height = rowHeight(hour: hour)
+            if remaining <= height { break }
+            remaining -= height
+            hour += 1
+        }
+        let height = rowHeight(hour: hour)
+        return CGFloat(hour * 60) + min(max(remaining / height, 0), 1) * 60
     }
 
     // MARK: - 交互换算
 
-    /// 1 像素折合多少分钟（按锚点所在段：白天正常、折叠带内按压缩比）
+    /// 1 像素折合多少分钟（按锚点所在行：忙碌行、空档行、折叠带各按自身比例）
     func minutesPerPoint(aroundMinute anchor: CGFloat) -> CGFloat {
-        if !collapseMorning || anchor >= Self.morningEndMinute {
-            return 60 / Self.hourHeight
+        if collapseMorning, anchor < Self.morningEndMinute {
+            return Self.morningEndMinute / Self.morningBandHeight
         }
-        return Self.morningEndMinute / Self.morningBandHeight
+        let hour = min(Int(anchor) / 60, 23)
+        return 60 / rowHeight(hour: hour)
     }
 
     /// 15 分钟吸附；折叠态凌晨不可排（与周档口径一致）：下限收到 7 点
@@ -70,6 +106,13 @@ struct TimelineAxisLayout {
 
     /// 完全落在折叠段的块隐藏（计数进摘要带）
     func isMorningHidden(endMinute: CGFloat) -> Bool {
+        Self.isMorningHidden(collapseMorning: collapseMorning, endMinute: endMinute)
+    }
+
+    /// 视图在「忙碌行判定」中过滤凌晨块必须走这个 static 版本：
+    /// axisLayout 实例由忙碌行集合构造，而忙碌行集合又依赖可见块列表，
+    /// 若过滤经由实例方法会形成 计算属性互相引用 的无限递归（栈溢出，2026-09-20 实锤）。
+    static func isMorningHidden(collapseMorning: Bool, endMinute: CGFloat) -> Bool {
         collapseMorning && endMinute <= Self.morningEndMinute
     }
 
@@ -98,5 +141,22 @@ struct TimelineAxisLayout {
             }
         }
         return (lanes, max(laneEndMinutes.count, 1))
+    }
+
+    /// 任务泳道区域的宽度分配：宽度跟着实际内容走——
+    /// 一侧没有条目时不占位（另一侧独占全部可用宽），两侧都有才按泳道数比例分。
+    /// 单任务独占时因此撑满全宽，而不是被空日程组按「对半兜底」砍掉一半。
+    static func taskRegionWidth(
+        available: CGFloat,
+        taskItemCount: Int,
+        scheduleItemCount: Int,
+        taskLaneCount: Int,
+        scheduleLaneCount: Int
+    ) -> CGFloat {
+        if taskItemCount == 0 { return 0 }
+        if scheduleItemCount == 0 { return available }
+        let total = CGFloat(taskLaneCount + scheduleLaneCount)
+        guard total > 0 else { return available }
+        return available * CGFloat(taskLaneCount) / total
     }
 }

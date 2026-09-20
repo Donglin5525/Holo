@@ -5,10 +5,13 @@
 //  记忆长廊「轴」档（三期）：0–24 纵向刻度，任务/日程两组多泳道同轴回放
 //  组内时间重叠的条目各占一条泳道，宽度按两组泳道数比例分配（1:1 退化为对半）；
 //  左组=带时间段的任务（含已完成，带计划/实际对比），右组=系统日程（按需拉取，不限活跃窗口）。
-//  拖拽反写：空白处长按拖出选区直接建带时间段任务（15 分钟吸附）；拖任务块上下缘调整时间段。
+//  拖拽反写：空白处长按拖出选区直接建带时间段任务（15 分钟吸附）；拖任务块上下缘调整时间段；
+//  长按块本体悬停后整体拖到其他时间（保持时长平移）。
 //
 //  交互分层原则：默认一切触摸都给滚动；建任务/调时间必须「几乎静止」长按成立（震动提示）
 //  后才接管手指——手指只要开始移动就立刻让位给滚动，慢速浏览时间轴永远不会被建任务劫持。
+//  同一块上三种长按时长错开：上下缘调时 0.4s 先成立、块本体移动 0.55s 让位，
+//  同一根手指按在不同区域只触发一种操作。
 //  凌晨 0–7 默认折叠成一条摘要带（与周档同一交互语言），表头可展开收起，偏好持久化。
 //  打开自动定位到「现在」（今天）或首个事件前一小时（历史日）；今天右上角常驻「此刻」回正。
 //
@@ -30,6 +33,10 @@ struct TimelineReplayView: View {
     @State private var newTaskDraft: PlannedRangeDraft?
     /// 边缘调整中的实时预览（taskId → 调整后范围）
     @State private var resizePreview: [UUID: (start: Date, end: Date)] = [:]
+    /// 整体移动中的实时预览（taskId → 移动后范围；保持时长平移）
+    @State private var movePreview: [UUID: (start: Date, end: Date)] = [:]
+    /// 块本体长按已成立（整体移动中）：与建任务/调边缘共用同一条「临时锁滚动」通道
+    @State private var isMovingTask = false
     /// 空白长按已成立、选区尚未拖出：给「可拖动」提示条
     @State private var isPressArmed = false
     /// 任务块边缘长按已成立（调整时间段中）：与建任务共用同一条「临时锁滚动」通道
@@ -60,8 +67,28 @@ struct TimelineReplayView: View {
     private var calendar: Calendar { Calendar.current }
     private var isToday: Bool { calendar.isDateInToday(focusedDate) }
 
-    /// 分钟 ↔ 像素映射（折叠/展开两态；详见 TimelineAxisLayout）
-    private var axisLayout: TimelineAxisLayout { TimelineAxisLayout(collapseMorning: collapseMorning) }
+    /// 分钟 ↔ 像素映射（折叠/展开两态；空档行压缩；详见 TimelineAxisLayout）
+    private var axisLayout: TimelineAxisLayout {
+        TimelineAxisLayout(collapseMorning: collapseMorning, busyHours: effectiveBusyHours)
+    }
+
+    /// 有条目覆盖的小时行集合，决定该行保高还是压缩；
+    /// 轴上没有任何条目时不压缩（空态保留整屏拖拽建任务的画布）
+    private var effectiveBusyHours: Set<Int> {
+        var busy: Set<Int> = []
+        func markHours(from start: Date, to end: Date) {
+            let startMinuteValue = minute(of: start)
+            let endMinuteValue = minute(of: end)
+            guard endMinuteValue > startMinuteValue else { return }
+            let first = max(Int(startMinuteValue / 60), collapseMorning ? 7 : 0)
+            let last = min(Int((endMinuteValue - 0.001) / 60), 23)
+            guard first <= last else { return }
+            for hour in first...last { busy.insert(hour) }
+        }
+        for task in visibleTimedTasks { markHours(from: effectiveStart(task), to: effectiveEnd(task)) }
+        for item in visibleSchedules { markHours(from: item.startDate, to: item.endDate) }
+        return busy.isEmpty ? TimelineAxisLayout.fullBusyHours(collapseMorning: collapseMorning) : busy
+    }
 
     private func minute(of date: Date) -> CGFloat {
         CGFloat(calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date))
@@ -83,9 +110,13 @@ struct TimelineReplayView: View {
                     // 折叠切换后总高度变化，滚动位置会飘：重新锚回当前关注点
                     scrollToInitialAnchor(proxy)
                 }
-                .onChange(of: newTaskDraft == nil) { _, isClosed in
-                    // 建任务表单关闭后轴上的块要即时反映保存/删除结果（@State 不随库自动刷新）
-                    if isClosed { loadData() }
+                .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
+                    // 任务增删改的唯一失效信号：详情页删除、任务列表删除、其他设备云同步删
+                    // 都汇聚到这条广播，轴上的块随重拉即时消失/更新。
+                    // 手势交互中（调边缘/移动/建任务选区）不打断预览——松手 commit 会再发
+                    // 一次通知，此处自然补刷。
+                    guard !isPressArmed, !isEdgeResizing, !isMovingTask, dragDraft == nil else { return }
+                    loadData()
                 }
                 .sheet(item: $selectedSchedule) { item in
                     ScheduleDetailSheet(item: item)
@@ -151,8 +182,14 @@ struct TimelineReplayView: View {
                     let schedulePlan = TimelineAxisLayout.assignLanes(spans: visibleSchedules.map {
                         ($0.id, minute(of: $0.startDate), minute(of: $0.endDate))
                     })
-                    let taskRegionWidth = available * CGFloat(taskPlan.laneCount)
-                        / CGFloat(taskPlan.laneCount + schedulePlan.laneCount)
+                    // 宽度跟着内容走：一侧无条目不占位，单任务独占时撑满全宽
+                    let taskRegionWidth = TimelineAxisLayout.taskRegionWidth(
+                        available: available,
+                        taskItemCount: visibleTimedTasks.count,
+                        scheduleItemCount: visibleSchedules.count,
+                        taskLaneCount: taskPlan.laneCount,
+                        scheduleLaneCount: schedulePlan.laneCount
+                    )
                     let scheduleRegionWidth = available - taskRegionWidth
                     let taskLaneWidth = taskRegionWidth / CGFloat(taskPlan.laneCount)
                     let scheduleLaneWidth = scheduleRegionWidth / CGFloat(schedulePlan.laneCount)
@@ -202,23 +239,29 @@ struct TimelineReplayView: View {
             // 实测 SwiftUI 的 LongPress+Drag 序列手势无论挂 highPriority 还是 simultaneous，
             // 在 iOS 26 上都会压制 ScrollView 的滚动通道（快慢滑动全部失效）；
             // UIKit 长按识别器与滚动 pan 天然并行，手指一动长按即失败、滚动不受影响。
-            .scrollDisabled(isPressArmed || isEdgeResizing)
+            .scrollDisabled(isPressArmed || isEdgeResizing || isMovingTask)
         }
         .overlay(alignment: .top) {
             topOverlay(proxy: proxy)
         }
     }
 
-    /// 折叠态隐藏完全落在凌晨段的块（计数进摘要带）；跨界块保留白天部分
+    /// 折叠态隐藏完全落在凌晨段的块（计数进摘要带）；跨界块保留白天部分。
+    /// 凌晨过滤走 TimelineAxisLayout 的 static 版本：本属性参与 busyHours 计算，
+    /// 而 busyHours 又是 axisLayout 的构造参数，经实例方法会绕回 axisLayout 成环。
     private var visibleTimedTasks: [TodoTask] {
         guard collapseMorning else { return timedTasks }
-        return timedTasks.filter { !axisLayout.isMorningHidden(endMinute: minute(of: effectiveEnd($0))) }
+        return timedTasks.filter {
+            !TimelineAxisLayout.isMorningHidden(collapseMorning: true, endMinute: minute(of: effectiveEnd($0)))
+        }
     }
 
     private var visibleSchedules: [ScheduleItem] {
         let timed = schedules.filter { !$0.isAllDay }
         guard collapseMorning else { return timed }
-        return timed.filter { !axisLayout.isMorningHidden(endMinute: minute(of: $0.endDate)) }
+        return timed.filter {
+            !TimelineAxisLayout.isMorningHidden(collapseMorning: true, endMinute: minute(of: $0.endDate))
+        }
     }
 
     /// 与凌晨段（0–7 点）相交的任务与日程条数（摘要带口径）
@@ -280,8 +323,8 @@ struct TimelineReplayView: View {
                 if isFirstHour { toggleMorning() }
             }
         }
-        .frame(height: TimelineAxisLayout.hourHeight)
-        .id(hour)
+            .frame(height: axisLayout.rowHeight(hour: hour))
+            .id(hour)
     }
 
     /// 凌晨折叠摘要带：与凌晨相交的条数 + 展开入口
@@ -516,10 +559,19 @@ struct TimelineReplayView: View {
         }
     }
 
-    /// 今天=当前小时；历史日=首个事件前一小时（无事件则上午 9 点）
+    /// 今天=当前小时；但当前时刻附近（±1 小时）没有条目时锚到当天首个条目——
+    /// 稀疏的一天打开就看到内容，而不是停在压缩后的空档行上；历史日=首个事件前一小时
+    /// （无事件则上午 9 点）
     private func initialAnchorHour() -> Int {
         if isToday {
-            return calendar.component(.hour, from: Date())
+            let nowHour = calendar.component(.hour, from: Date())
+            let nowMinuteValue = CGFloat(nowHour * 60)
+            let hasNearbyEntry =
+                visibleTimedTasks.contains { abs(minute(of: effectiveStart($0)) - nowMinuteValue) <= 60 } ||
+                visibleSchedules.contains { abs(minute(of: $0.startDate) - nowMinuteValue) <= 60 }
+            if hasNearbyEntry {
+                return nowHour
+            }
         }
         let starts = timedTasks.compactMap { $0.plannedStart }
             + schedules.filter { !$0.isAllDay }.map { $0.startDate }
@@ -532,11 +584,11 @@ struct TimelineReplayView: View {
     // MARK: - 任务块（左泳道，含边缘调整）
 
     private func effectiveStart(_ task: TodoTask) -> Date {
-        resizePreview[task.id]?.start ?? task.plannedStart ?? Date()
+        resizePreview[task.id]?.start ?? movePreview[task.id]?.start ?? task.plannedStart ?? Date()
     }
 
     private func effectiveEnd(_ task: TodoTask) -> Date {
-        resizePreview[task.id]?.end ?? task.plannedEnd ?? Date()
+        resizePreview[task.id]?.end ?? movePreview[task.id]?.end ?? task.plannedEnd ?? Date()
     }
 
     @ViewBuilder
@@ -546,6 +598,7 @@ struct TimelineReplayView: View {
         let topY = axisLayout.laneYTop(startMinute: minute(of: start))
         let height = max(30, axisLayout.y(minute:minute(of: end)) - topY)
         let isResizing = resizePreview[task.id] != nil
+        let isMoving = movePreview[task.id] != nil
 
         VStack(alignment: .leading, spacing: 2) {
             Text(task.title)
@@ -579,10 +632,11 @@ struct TimelineReplayView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(
-                    isResizing ? Color.holoPrimary : (task.completed ? Color.holoSuccess.opacity(0.4) : Color.holoPrimary.opacity(0.55)),
-                    lineWidth: isResizing ? 1.8 : 1
+                    isResizing || isMoving ? Color.holoPrimary : (task.completed ? Color.holoSuccess.opacity(0.4) : Color.holoPrimary.opacity(0.55)),
+                    lineWidth: isResizing || isMoving ? 1.8 : 1
                 )
         )
+        .shadow(color: .holoPrimary.opacity(isMoving ? 0.25 : 0), radius: isMoving ? 10 : 0)
         // 调整中的边缘强调线：把「正在拖哪条边」画出来
         .overlay(alignment: .top) {
             if isResizing {
@@ -601,6 +655,29 @@ struct TimelineReplayView: View {
             }
         }
         .onTapGesture { openTask(task) }
+        // 整体移动（长按 0.55s 悬停震动后接管；保持时长平移；15 分钟吸附；同天内夹取）。
+        // 时长比上下缘调时把手（0.4s）长：按在边缘时把手先成立，本体让位（guard isEdgeResizing），
+        // 同一根手指不会同时触发「调长短」和「移动」。
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.55, maximumDistance: 8).sequenced(before: DragGesture(minimumDistance: 8))
+                .onChanged { value in
+                    switch value {
+                    case .first(true):
+                        guard !isEdgeResizing else { return }
+                        HapticManager.light()
+                        isMovingTask = true
+                    case .second(true, let drag?):
+                        guard !isEdgeResizing else { return }
+                        applyMove(task, translationY: drag.translation.height)
+                    default:
+                        break
+                    }
+                }
+                .onEnded { _ in
+                    isMovingTask = false
+                    commitMove(task)
+                }
+        )
         // 上下缘调整（长按 0.4s 有震动反馈后接管；15 分钟吸附；同天内夹取）
         .overlay(alignment: .top) {
             edgeHandle(task, edge: .top).frame(height: 14)
@@ -642,11 +719,11 @@ struct TimelineReplayView: View {
         let delta: TimeInterval
         if edge == .top {
             anchorMinute = minute(of: original.0)
-            delta = TimeInterval(translationY * axisLayout.minutesPerPoint(aroundMinute: anchorMinute))
+            delta = TimeInterval(translationY * axisLayout.minutesPerPoint(aroundMinute: anchorMinute)) * 60
             start = clampToDay(snap(original.0.addingTimeInterval(delta)), after: nil, before: end)
         } else {
             anchorMinute = minute(of: original.1)
-            delta = TimeInterval(translationY * axisLayout.minutesPerPoint(aroundMinute: anchorMinute))
+            delta = TimeInterval(translationY * axisLayout.minutesPerPoint(aroundMinute: anchorMinute)) * 60
             end = clampToDay(snap(original.1.addingTimeInterval(delta)), after: start, before: nil)
         }
         guard TodoTask.isValidPlannedRange(start, end) else { return }
@@ -656,6 +733,33 @@ struct TimelineReplayView: View {
     private func commitResize(_ task: TodoTask) {
         guard let preview = resizePreview[task.id] else { return }
         resizePreview[task.id] = nil
+        try? TodoRepository.shared.updateTask(
+            task,
+            plannedTime: .set(start: preview.start, end: preview.end)
+        )
+        HapticManager.medium()
+    }
+
+    // MARK: - 整体移动（长按悬停后拖到其他时间）
+
+    private func applyMove(_ task: TodoTask, translationY: CGFloat) {
+        let original = (task.plannedStart ?? Date(), task.plannedEnd ?? Date())
+        let duration = original.1.timeIntervalSince(original.0)
+        let anchorMinute = minute(of: original.0)
+        let delta = TimeInterval(translationY * axisLayout.minutesPerPoint(aroundMinute: anchorMinute)) * 60
+        let dayStart = calendar.startOfDay(for: focusedDate)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        // 时长恒定：新起点夹在 [当天零点, 当天结束-时长] 内，块完整留在同一天
+        let latestStart = dayEnd.addingTimeInterval(-duration)
+        let newStart = min(max(snap(original.0.addingTimeInterval(delta)), dayStart), latestStart)
+        let newEnd = newStart.addingTimeInterval(duration)
+        guard TodoTask.isValidPlannedRange(newStart, newEnd) else { return }
+        movePreview[task.id] = (start: newStart, end: newEnd)
+    }
+
+    private func commitMove(_ task: TodoTask) {
+        guard let preview = movePreview[task.id] else { return }
+        movePreview[task.id] = nil
         try? TodoRepository.shared.updateTask(
             task,
             plannedTime: .set(start: preview.start, end: preview.end)
