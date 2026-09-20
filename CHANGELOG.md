@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-09-20] 1.0.8 启动页缓存升级：新视觉覆盖安装即时生效
+
+> 纯 iOS 启动页与版本配置调整，无 HoloBackend 发版；同 Bundle ID 覆盖安装，不删除或迁移用户数据。
+
+### 改进
+- **启动页缓存版本升级**：新增 `LaunchScreenV2` 并让 Debug / Release 统一引用，避免 iOS 长期复用旧启动页快照；新绘制的启动图和「你的人生数据库」文案可在覆盖安装后刷新。
+- **数据安全与包体控制**：Bundle ID 保持 `com.tangyuxuan.holo-app`；版本升级为 1.0.8（29），主 App 与小组件构建号保持一致；图片继续复用单一资产，不重复增加约 2 MB 内容。
+
+### 验证
+- `LaunchScreenV2` 已通过 Interface Builder 编译，Asset Catalog 编译通过，generic iOS Debug 完整构建成功；最终 App 包确认启动页标识为 `LaunchScreenV2`、Bundle ID 未变、主 App 与小组件构建号均为 29。
+- 全程未卸载或删除真机 App；真机当前不可用，覆盖安装与冷启动视觉待设备连接并解锁后完成。
+
+---
+
 ## [2026-09-20] 启动页视觉重绘：移除头部杂乱装饰并统一品牌文案
 
 > 纯 iOS 启动页静态资源调整，无 HoloBackend 发版。
