@@ -35,7 +35,10 @@ const PROMPT_VERSIONS = {
   personal_context_extraction: 1,
   personal_context_verification: 1,
   personal_context_request: 1,
-  personal_context_planning: 1,
+  // v2（2026-09-21 Matter 战略收敛 §6.1）：生成收缩——资格线（跨天/多步/影响下一步，否则纯建议不拆步）、
+  // goalSummary 4–16 字事项名、answerText ≤80 字、可执行项 3–7 条、task/unknown 互斥、
+  // dependencyEdges 固定空数组、无锚点不造日期、未核验不称结论。
+  personal_context_planning: 2,
   // 截图识别记账（2026-09-09 方案 §5）：视觉抽取理解单。内容与
   // scripts/eval-vision-extraction.mjs 的 PROMPT 常量同源（M0 五轮评测 24/24 定稿），
   // 外币少样本示例是精度关键，改 prompt 前先跑评测。
