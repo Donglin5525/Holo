@@ -233,6 +233,10 @@ class HabitRepository: ObservableObject {
     /// 更新习惯
     func updateHabit(_ habit: Habit, updates: HabitUpdates) throws {
         if !isReady { setup() }
+        if let type = updates.type, type.rawValue != habit.type {
+            habit.type = type.rawValue
+            bridgeRecordsForTypeChange(habit, to: type)
+        }
         if let name = updates.name { habit.name = name }
         if let icon = updates.icon { habit.icon = icon }
         if let color = updates.color { habit.color = color }
@@ -251,7 +255,28 @@ class HabitRepository: ObservableObject {
         loadActiveHabits()
         notifyDataChange(habitId: habit.id)
     }
-    
+
+    /// 类型切换架桥：把既有记录原地补齐新类型所需字段（幂等，可来回切）
+    /// - 数值→打卡：有数值的记录补 isCompleted = true（数值保留）
+    /// - 打卡→数值：已完成的记录补 value = 1（勾选语义保留为每次计 1）
+    /// - 两个方向都清理「未完成且无数值」的空记录（勾了又取消/同步残留，无任何数据）
+    /// 只改内存对象不落库，由调用方与类型写入同一事务一次 save
+    private func bridgeRecordsForTypeChange(_ habit: Habit, to newType: HabitType) {
+        for record in getAllRecords(for: habit) {
+            let hasValue = record.value != nil
+            if !record.isCompleted && !hasValue {
+                context.delete(record)
+                continue
+            }
+            switch newType {
+            case .checkIn:
+                if hasValue { record.isCompleted = true }
+            case .numeric:
+                if record.isCompleted && !hasValue { record.value = NSNumber(value: 1) }
+            }
+        }
+    }
+
     /// 归档习惯（软删除）
     func archiveHabit(_ habit: Habit) throws {
         if !isReady { setup() }
@@ -1259,6 +1284,7 @@ class HabitRepository: ObservableObject {
 
 /// 习惯更新参数
 struct HabitUpdates {
+    var type: HabitType?
     var name: String?
     var icon: String?
     var color: String?

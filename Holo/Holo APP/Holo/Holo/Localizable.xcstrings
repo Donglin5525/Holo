@@ -65272,6 +65272,38 @@
         }
       }
     },
+    "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After saving, each day with a past value entry will be marked as completed. Values are kept and you can switch back anytime."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後，歷史數值記錄的每一天將標記為已完成，數值保留，可隨時切回"
+          }
+        }
+      }
+    },
+    "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After saving, past check-ins will count as 1 each in stats. Check marks are kept and you can switch back anytime."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後，歷史打卡將按每次 1 計入統計，勾選狀態保留，可隨時切回"
+          }
+        }
+      }
+    },
     "趋势变化" : {
       "localizations" : {
         "en" : {

@@ -321,10 +321,37 @@ struct AddHabitSheet: View {
                 }
             }
             .pickerStyle(.segmented)
-            
+
             Text(selectedType.description)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+
+            // 编辑模式且类型有改动：预告历史记录的转换方式
+            if let habit = editingHabit, selectedType != habit.habitType {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12))
+                    Text(typeChangeHint)
+                }
+                .font(.holoCaption)
+                .foregroundColor(.holoPrimary)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(Color.holoPrimary.opacity(0.08))
+                )
+            }
+        }
+    }
+
+    /// 类型切换的历史记录转换预告文案
+    private var typeChangeHint: String {
+        switch selectedType {
+        case .checkIn:
+            String(localized: "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回")
+        case .numeric:
+            String(localized: "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回")
         }
     }
     
@@ -522,6 +549,7 @@ struct AddHabitSheet: View {
             if let habit = editingHabit {
                 // 编辑模式
                 try repository.updateHabit(habit, updates: HabitUpdates(
+                    type: selectedType,
                     name: trimmedName,
                     icon: selectedIcon,
                     color: selectedColor,
