@@ -320,6 +320,56 @@ export function createCloudAnalysisQueryEngine() {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  /** 模型传入的原始时间窗值的安全序列化（错误消息回显用），截断防刷屏。 */
+  function describeRawRange(range) {
+    try {
+      const text = JSON.stringify(range) ?? String(range);
+      return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+    } catch {
+      return String(range);
+    }
+  }
+
+  /**
+   * 时间窗口显式校验（2026-09-21 静默失效根治）：模型显式给了 timeRange/baseline
+   * 但 windowOf 解析失败（日期文本而非 Unix 秒/毫秒、start≥end）时，此前静默当作
+   * 「无窗口」返回全量——模型看到数字与未过滤完全一致，只能在报告里承认「时间
+   * 过滤没有生效」（2026-09-21 东林「最近一个季度」追问 538 笔全量作答实锤）。
+   * 与 _search/UNKNOWN_FIELD 同一教训：认不出必须显式报错让模型换格式重试，
+   * 不做静默降级。perDay 派生依赖 timeRange，缺窗口同样显式报错（此前派生
+   * 静默消失）。
+   */
+  function validateWindows(plan, snapshot) {
+    const cutoffMs = snapshotCutoffMs(snapshot);
+    const formatHint = cutoffMs != null
+      ? `start/end 必须是 Unix 秒（如 ${Math.floor(cutoffMs / 1000)}）或 Unix 毫秒数字，不能是日期文本，且 start 必须早于 end；快照截止 end=${Math.floor(cutoffMs / 1000)}（Unix 秒）可直接引用。`
+      : "start/end 必须是 Unix 秒或 Unix 毫秒数字，不能是日期文本，且 start 必须早于 end。";
+    if (plan.timeRange != null && !windowOf(plan.timeRange)) {
+      return {
+        code: "INVALID_TIMERANGE",
+        message: `timeRange 无法解析（收到 ${describeRawRange(plan.timeRange)}）。${formatHint}`,
+        recoverable: true,
+      };
+    }
+    if (plan.baseline != null && !windowOf(plan.baseline)) {
+      return {
+        code: "INVALID_TIMERANGE",
+        message: `baseline 对照窗口无法解析（收到 ${describeRawRange(plan.baseline)}）。${formatHint}`,
+        recoverable: true,
+      };
+    }
+    const needsPerDayWindow = (plan.derivations ?? []).some((d) => d?.operation === "perDay");
+    if (needsPerDayWindow && plan.timeRange == null) {
+      return {
+        code: "INVALID_TIMERANGE",
+        message: "perDay 派生需要显式 timeRange（按窗口天数折算日均），请补全后重试。",
+        recoverable: true,
+      };
+    }
+    return null;
+  }
+
+
   /** 窗口的可读描述（错误/警告文案用）。 */
   function describeWindow(window) {
     if (!window) return "无";
@@ -367,6 +417,11 @@ export function createCloudAnalysisQueryEngine() {
           recoverable: true,
         },
       });
+    }
+
+    const windowError = validateWindows(plan, snapshot);
+    if (windowError) {
+      return toolResultEnvelope(toolRequestID, tool, { status: "error", error: windowError });
     }
 
     const filterError = validateFilters(plan.filters, dataset, "filters")

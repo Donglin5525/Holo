@@ -272,10 +272,38 @@ export function createCloudAnalysisExecutor({
 
   // 工具结果统一为 iOS HoloDataToolResult 同构信封（错误也走 error 字段），
   // 模型按提示词约定解析，不出现自造结构。
-  function executeToolRequests(toolRequests, snapshot) {
+  // 工具参数行为日志（2026-09-21 时间过滤静默失效事故补件）：故障时只有参数
+  // 摘要才有第一手证据（当轮 ai_call_logs 不存请求体、任务内容端到端加密）。
+  // 隐私边界：只记结构与时间值原样，filters 只记字段名+操作符，不记筛选值
+  // （value 可能含「猫砂」等用户数据关键词）。
+  function describeToolRequest(request) {
+    const plan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
+    if (plan) {
+      const aggs = (plan.aggregations ?? []).map((a) => a.operation).join("/") || "-";
+      const filters = (plan.filters ?? []).map((f) => `${f.field}:${f.operation}`).join(",") || "-";
+      const raw = (value) => { try { return JSON.stringify(value) ?? "-"; } catch { return "-"; } };
+      return `source=${plan.source} aggs=${aggs} filters=${filters} timeRange=${raw(plan.timeRange)} baseline=${raw(plan.baseline)}`;
+    }
+    if (request.tool === "snapshot_rows") {
+      const params = request.parameters ?? {};
+      // parameters 非 dynamicPlan 的值经 validateAgentLoopContent 规范化全是字符串
+      // （与引擎 normalizeRowsPlan 同一协议），filters 到此已是 JSON 字符串
+      let rawFilters = params.filters;
+      if (typeof rawFilters === "string") {
+        try { rawFilters = JSON.parse(rawFilters); } catch { rawFilters = []; }
+      }
+      const filters = (Array.isArray(rawFilters) ? rawFilters : [])
+        .map((f) => `${f.field}:${f.operation}`).join(",") || "-";
+      return `source=${params.source} filters=${filters} sortBy=${params.sortBy ?? "-"} limit=${params.limit ?? "-"}`;
+    }
+    return `query=${request.query ?? "-"}`;
+  }
+
+  function executeToolRequests(toolRequests, snapshot, logContext = null) {
     return toolRequests.map((request) => {
       const id = request.id ?? "tool";
       const tool = request.tool;
+      log(`工具参数 taskId=${logContext?.taskId ?? "-"} round=${logContext?.round ?? "-"} tool=${tool} ${describeToolRequest(request)}`);
       const envelope = (fields) => ({ toolRequestID: id, tool, coverage: null, warnings: [], ...fields });
       try {
         if (tool === "snapshot_rows") {
@@ -876,7 +904,7 @@ export function createCloudAnalysisExecutor({
 
         const toolRequests = Array.isArray(output.toolRequests) ? output.toolRequests : [];
         if (toolRequests.length > 0) {
-          const toolResults = executeToolRequests(toolRequests, snapshot);
+          const toolResults = executeToolRequests(toolRequests, snapshot, { taskId, round });
           collectEvidence(toolRequests, toolResults);
           const failures = toolResults
             .filter((r) => r.status === "error")
