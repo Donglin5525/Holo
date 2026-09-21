@@ -715,8 +715,8 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // v22：任务优先与环境中性重写（2026-09-19 深度分析提示词与证据链落地方案）
-  assert.equal(prompt.version, 22);
+  // v23: 财务深析五层深挖法 + claimTitle 点破式标题（2026-09-21 财务深析改造）
+  assert.equal(prompt.version, 23);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -725,7 +725,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /evidenceIDs/);
   // v17: 新增 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   assert.match(prompt.content, /narrativeSummary/);
-  assert.match(prompt.content, /一句话总结这次的发现/);
+  assert.match(prompt.content, /点破式提炼/);
   // v21: 分析方法论 + keyInsight/interpretation 输出字段
   assert.match(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
   assert.match(prompt.content, /keyInsight/);
@@ -747,6 +747,15 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /workout_summary/);
   assert.match(prompt.content, /dynamic_query/);
   assert.match(prompt.content, /禁止生成 SQL/);
+  // v23: 财务深析五层深挖 + 管家记忆 + 展开豁免 + claimTitle
+  assert.match(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);
+  assert.match(prompt.content, /五层深挖/);
+  assert.match(prompt.content, /私人资产管家/);
+  assert.match(prompt.content, /生活状态交叉/);
+  assert.match(prompt.content, /管家记忆/);
+  assert.match(prompt.content, /claimTitle/);
+  assert.match(prompt.content, /禁止复述正文第一句/);
+  assert.match(prompt.content, /00:00 整点/);
   // v18: 新增 expression 派生操作（分档换算自由组合）
   assert.match(prompt.content, /expression/);
   assert.match(prompt.content, /分档换算/);

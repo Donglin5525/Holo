@@ -7,7 +7,7 @@ const FILTER_OPERATIONS = new Set([
   "lessThan", "lessThanOrEqual", "contains", "oneOf",
 ]);
 const FIELD_TYPES = new Set(["number", "text", "date", "boolean"]);
-const GROUP_TYPES = new Set(["day", "week", "month", "weekend", "field"]);
+const GROUP_TYPES = new Set(["day", "week", "month", "weekend", "hour", "field"]);
 const AGGREGATION_OPERATIONS = new Set(["count", "sum", "average", "min", "max", "distinctCount"]);
 const DERIVATION_OPERATIONS = new Set([
   "difference", "ratio", "percentageChange", "rate", "perDay", "linearTrend", "coverage",
@@ -322,6 +322,9 @@ function normalizeClaim(claim, index, status, repairs) {
   claim.prohibitedInferences = normalizeStringArray(claim.prohibitedInferences);
   // interpretation（v21）：claim 级生活化解读，字符串或 null，其他类型归一化为 null。
   claim.interpretation = optionalString(claim.interpretation);
+  // claimTitle（v23）：claim 级点破式标题（iOS 卡片主题），门控规则同顶层
+  // title——仅 final_claims 状态透传，其余状态强制 null。
+  claim.claimTitle = status === "final_claims" ? optionalString(claim.claimTitle) : null;
   claim.confidence = finiteNumber(claim.confidence) ?? 0.5;
   if (!Array.isArray(claim.metricAssertions)) {
     return `claims[${index}].metricAssertions must be an array`;

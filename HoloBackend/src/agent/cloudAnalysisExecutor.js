@@ -70,14 +70,16 @@ function normalizeAnswerTask(snapshot, fallbackQuestion) {
 
 /** 冻结任务段文案（拼进 system prompt）：用户可见问题原样保留，范围/类型/清单
  * 由代码声明，模型不得改写。旧客户端无 answerTask 时退化为最小任务（仅问题+
- * 快照截止），行为与旧版一致。 */
-function buildFrozenTaskBlock(task, availableSources) {
+ * 快照截止），行为与旧版一致。taskType（deep_analysis 等）由代码声明，
+ * 供 v23 契约的「深度分析展开豁免」做确定性识别，不靠模型从问句猜。 */
+function buildFrozenTaskBlock(task, availableSources, taskType) {
   const fmt = (ms) => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
   const lines = [
     "【本轮冻结任务（系统生成，范围不得改写）】",
     `用户问题（原话）：${task.userQuestion}`,
     `问题类型：${task.questionKind}`,
   ];
+  if (taskType) lines.push(`任务类型：${taskType}`);
   if (task.scenarioID) lines.push(`场景：${task.scenarioID}`);
   if (task.primaryTimeRange) {
     lines.push(`主时间范围：${fmt(task.primaryTimeRange.startMs)} 至 ${fmt(task.primaryTimeRange.endMs)}（${task.primaryTimeRange.label}；Unix 秒 ${Math.floor(task.primaryTimeRange.startMs / 1000)}-${Math.floor(task.primaryTimeRange.endMs / 1000)}；dynamicPlan.timeRange 优先引用此范围）`);
@@ -137,6 +139,13 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
     ledgerByMetricKey.get(entry.metricKey).push(entry);
   }
   const claims = [];
+  // claimTitle（v23 点破式标题）数字核验的白名单底座：Ledger 已核验值 +
+  // 本条 claim 正文/断言的数字。claimTitle 自身不进白名单（自证无核验意义）。
+  const ledgerNumbers = [];
+  for (const metric of metricLedger.values()) {
+    ledgerNumbers.push(metric.value);
+    if (metric.baselineValue != null) ledgerNumbers.push(metric.baselineValue);
+  }
   for (const claim of output.claims ?? []) {
     const sanitized = { ...claim };
     // 数字断言逐条对账
@@ -175,6 +184,20 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
     if (ledgerHasMetrics && !hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
       warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
       continue;
+    }
+    // claimTitle 数字一致性：标题里出现的数字必须被本条正文/断言或 Ledger 支持，
+    // 对不上清空该标题（编数标题宁缺毋滥，iOS 端有短句回退不丢卡）。
+    if (typeof sanitized.claimTitle === "string" && sanitized.claimTitle.trim()) {
+      const claimAllowed = [...ledgerNumbers, ...extractCheckableNumbers(sanitized.displayText), ...extractCheckableNumbers(sanitized.summary)];
+      for (const assertion of sanitized.metricAssertions ?? []) {
+        if (assertion.value != null) claimAllowed.push(assertion.value);
+        if (assertion.baselineValue != null) claimAllowed.push(assertion.baselineValue);
+      }
+      const badTitleNumbers = extractCheckableNumbers(sanitized.claimTitle).filter((n) => !numberMatchesAllowed(n, claimAllowed));
+      if (badTitleNumbers.length > 0) {
+        warnings.push(`CLAIM_TITLE_INCONSISTENT:${sanitized.id ?? "claim"}`);
+        sanitized.claimTitle = null;
+      }
     }
     claims.push(sanitized);
   }
@@ -693,7 +716,7 @@ export function createCloudAnalysisExecutor({
       const datasetNames = Object.keys(snapshot.datasets ?? {});
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames)}`,
+        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}`,
       });
       messages.push({ role: "user", content: task.question });
 

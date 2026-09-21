@@ -1184,3 +1184,124 @@ test("context_plan：快照为空白→failed（不调模型、阶段failed）",
   assert.equal(provider.calls.length, 0);
   assert.equal(store.get(task.id).stage, "failed");
 });
+
+// —— v23 claimTitle 点破式标题：透传与数字对账（2026-09-21 财务深析改造）——
+
+test("claimTitle：数字对得上的透传，编数的清空并记 warning（iOS 有短句回退）", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [{ type: "field", field: "category" }],
+            aggregations: [{ id: "cat_total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+            limit: 10,
+            evidenceLimit: 10,
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      title: "餐饮是本期的主去向",
+      claims: [
+        {
+          summary: "餐饮 102 元",
+          displayText: "本月餐饮支出合计 102 元，集中在晚间",
+          claimTitle: "餐饮合计102元",
+          metricAssertions: [{
+            metricKey: "dynamic.finance_transactions.cat_total.__",
+            value: -102,
+            baselineValue: null,
+            unit: "元",
+            comparison: "餐饮",
+            evidenceIDs: [],
+          }],
+          evidenceIDs: ["dynamic-finance_transactions.cat_total.__"],
+          type: "change",
+          confidence: 0.8,
+        },
+        {
+          summary: "交通 18 元",
+          displayText: "本月交通支出合计 18 元",
+          // 编数标题：58 不在本条正文/断言，也不在 Ledger（-102/-60/-42/-18…）
+          claimTitle: "打车花掉了58元",
+          metricAssertions: [{
+            metricKey: "dynamic.finance_transactions.cat_total.__",
+            value: -18,
+            baselineValue: null,
+            unit: "元",
+            comparison: "交通",
+            evidenceIDs: [],
+          }],
+          evidenceIDs: ["dynamic-finance_transactions.cat_total.__"],
+          type: "observation",
+          confidence: 0.7,
+        },
+      ],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+
+  const task = store.create({ deviceId: "device-title", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 2);
+  assert.equal(result.claims[0].claimTitle, "餐饮合计102元");
+  assert.equal(result.claims[1].claimTitle, null, "编数标题必须被清空");
+  assert.ok(result.warnings.some((w) => w.startsWith("CLAIM_TITLE_INCONSISTENT")));
+});
+
+test("冻结任务块注入任务类型（v23 展开豁免的确定性识别）", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+            limit: 5,
+            evidenceLimit: 5,
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        summary: "支出合计 319 元",
+        displayText: "本期支出合计 319 元",
+        metricAssertions: [{
+          metricKey: "dynamic.finance_transactions.total.all",
+          value: -319,
+          baselineValue: null,
+          unit: "元",
+          comparison: null,
+          evidenceIDs: [],
+        }],
+        evidenceIDs: [],
+        type: "observation",
+        confidence: 0.6,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-kind", question: "深度分析我的消费", taskType: "deep_analysis" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const system = provider.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(system.content.includes("任务类型：deep_analysis"), "冻结任务块应含任务类型");
+});
