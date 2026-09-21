@@ -7,7 +7,39 @@
 //
 
 import XCTest
+import Combine
+import SwiftUI
+import UIKit
 @testable import Holo
+
+@MainActor
+private final class MarkdownEditorHostState: ObservableObject {
+    @Published var text = ""
+    @Published var pendingAction: MarkdownEditorAction?
+    @Published var dynamicHeight: CGFloat = 240
+    @Published var formatState = TypingFormatState()
+    @Published var triggerContext: EditorTriggerContext?
+    @Published var selectedToken: HoloContentNode?
+    @Published var caretRect: CGRect = .zero
+}
+
+@MainActor
+private struct MarkdownEditorHostView: View {
+    @ObservedObject var state: MarkdownEditorHostState
+
+    var body: some View {
+        MarkdownTextView(
+            text: $state.text,
+            pendingAction: $state.pendingAction,
+            dynamicHeight: $state.dynamicHeight,
+            formatState: $state.formatState,
+            triggerContext: $state.triggerContext,
+            selectedToken: $state.selectedToken,
+            caretRect: $state.caretRect
+        )
+        .frame(width: 320, height: 240)
+    }
+}
 
 final class MarkdownTextViewNodePipelineTests: XCTestCase {
 
@@ -72,6 +104,249 @@ final class MarkdownTextViewNodePipelineTests: XCTestCase {
         XCTAssertEqual(unorderedStyle?.headIndent ?? -1, 24, accuracy: 0.1)
         XCTAssertEqual(orderedStyle?.firstLineHeadIndent ?? -1, 0, accuracy: 0.1)
         XCTAssertEqual(orderedStyle?.headIndent ?? -1, 24, accuracy: 0.1)
+    }
+
+    func testListActionRejectsStaleSwiftUIBodySnapshotUntilLatestTextIsAcknowledged() {
+        var boundText = "• 高圆圆"
+        var triggerContext: EditorTriggerContext?
+        var selectedToken: HoloContentNode?
+        let textBinding = Binding(
+            get: { boundText },
+            set: { boundText = $0 }
+        )
+        let coordinator = MarkdownTextView.Coordinator(
+            text: textBinding,
+            triggerContext: Binding(
+                get: { triggerContext },
+                set: { triggerContext = $0 }
+            ),
+            selectedToken: Binding(
+                get: { selectedToken },
+                set: { selectedToken = $0 }
+            )
+        )
+        let textView = UITextView()
+        textView.attributedText = MarkdownTextView.makeAttributedText(
+            from: [.text(value: boundText)]
+        )
+        textView.selectedRange = NSRange(location: textView.attributedText.length, length: 0)
+        coordinator.lastKnownMarkdown = boundText
+
+        coordinator.perform(action: .insertOrderedList, on: textView, markdown: textBinding)
+
+        XCTAssertEqual(textView.attributedText.string, "1. 高圆圆")
+        XCTAssertEqual(boundText, "1. 高圆圆")
+        XCTAssertEqual(
+            coordinator.replacementForHostText("• 高圆圆"),
+            "1. 高圆圆",
+            "工具栏状态变化回放旧正文时，必须继续保护刚完成的列表动作"
+        )
+        XCTAssertNil(
+            coordinator.replacementForHostText("1. 高圆圆"),
+            "宿主回显最新版时无需重复写回"
+        )
+        XCTAssertEqual(
+            coordinator.replacementForHostText("• 高圆圆"),
+            "1. 高圆圆",
+            "宿主确认一次后仍可能再次回放旧 View；保护必须覆盖整个编辑会话"
+        )
+    }
+
+    func testListEditingSessionSurvivesReturnAndSecondLineHostReplays() {
+        var boundText = ""
+        var triggerContext: EditorTriggerContext?
+        var selectedToken: HoloContentNode?
+        let textBinding = Binding(
+            get: { boundText },
+            set: { boundText = $0 }
+        )
+        let coordinator = MarkdownTextView.Coordinator(
+            text: textBinding,
+            triggerContext: Binding(
+                get: { triggerContext },
+                set: { triggerContext = $0 }
+            ),
+            selectedToken: Binding(
+                get: { selectedToken },
+                set: { selectedToken = $0 }
+            )
+        )
+        let textView = UITextView()
+        textView.attributedText = NSAttributedString(
+            string: "",
+            attributes: MarkdownTextView.baseAttributes
+        )
+        coordinator.lastKnownMarkdown = ""
+
+        coordinator.perform(action: .insertUnorderedList, on: textView, markdown: textBinding)
+        XCTAssertEqual(boundText, "• ")
+
+        let firstLine = NSMutableAttributedString(attributedString: textView.attributedText)
+        firstLine.append(NSAttributedString(string: "高圆圆", attributes: textView.typingAttributes))
+        textView.attributedText = firstLine
+        textView.selectedRange = NSRange(location: firstLine.length, length: 0)
+        coordinator.textViewDidChange(textView)
+        XCTAssertEqual(boundText, "• 高圆圆")
+
+        XCTAssertFalse(coordinator.textView(
+            textView,
+            shouldChangeTextIn: textView.selectedRange,
+            replacementText: "\n"
+        ))
+        XCTAssertEqual(boundText, "• 高圆圆\n• ")
+        XCTAssertNil(coordinator.replacementForHostText("• 高圆圆\n• "))
+
+        let secondLine = NSMutableAttributedString(attributedString: textView.attributedText)
+        secondLine.append(NSAttributedString(string: "第二行", attributes: textView.typingAttributes))
+        textView.attributedText = secondLine
+        textView.selectedRange = NSRange(location: secondLine.length, length: 0)
+        coordinator.textViewDidChange(textView)
+        XCTAssertEqual(boundText, "• 高圆圆\n• 第二行")
+
+        for staleHostValue in ["• 高圆圆", "• 高圆圆\n• ", ""] {
+            XCTAssertEqual(
+                coordinator.replacementForHostText(staleHostValue),
+                "• 高圆圆\n• 第二行",
+                "第二行输入期间，无论 SwiftUI 回放哪一代旧正文都不能覆盖编辑器"
+            )
+        }
+        XCTAssertEqual(textView.attributedText.string, "• 高圆圆\n• 第二行")
+        XCTAssertEqual(textView.selectedRange.location, ("• 高圆圆\n• 第二行" as NSString).length)
+    }
+
+    func testHostedEditorDoesNotRebuildTextOrMoveCaretWhenSwiftUIReplaysOldLines() {
+        let state = MarkdownEditorHostState()
+        let host = UIHostingController(rootView: MarkdownEditorHostView(state: state))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        host.loadViewIfNeeded()
+        host.view.frame = window.bounds
+        window.makeKeyAndVisible()
+        host.beginAppearanceTransition(true, animated: false)
+        host.endAppearanceTransition()
+        window.layoutIfNeeded()
+        host.view.layoutIfNeeded()
+        defer { window.isHidden = true }
+        pumpMainRunLoop(duration: 0.2)
+
+        guard let textView = findTextView(in: host.view) else {
+            return XCTFail("未找到 MarkdownTextView 的 UITextView")
+        }
+
+        state.pendingAction = .insertUnorderedList
+        pumpMainRunLoop()
+        XCTAssertEqual(textView.attributedText.string, "• ")
+        XCTAssertNil(state.pendingAction, "列表动作必须只消费一次，不能随 SwiftUI 重入重复执行")
+
+        append("高圆圆", to: textView)
+        textView.delegate?.textViewDidChange?(textView)
+        pumpMainRunLoop()
+        XCTAssertEqual(state.text, "• 高圆圆")
+
+        let accepted = textView.delegate?.textView?(
+            textView,
+            shouldChangeTextIn: textView.selectedRange,
+            replacementText: "\n"
+        )
+        XCTAssertEqual(accepted, false)
+        pumpMainRunLoop()
+        XCTAssertEqual(textView.attributedText.string, "• 高圆圆\n• ")
+
+        append("第二行", to: textView)
+        textView.delegate?.textViewDidChange?(textView)
+        pumpMainRunLoop()
+        let latest = "• 高圆圆\n• 第二行"
+        let expectedCaret = (latest as NSString).length
+        XCTAssertEqual(state.text, latest)
+
+        // 模拟 IME、自动保存、工具栏分别携带三代旧 View 快照回放。
+        // 每次都让真实 SwiftUI → UIViewRepresentable 更新链路运行，而不是只测纯函数。
+        for staleHostValue in ["", "• 高圆圆", "• 高圆圆\n• "] {
+            state.text = staleHostValue
+            pumpMainRunLoop()
+            XCTAssertEqual(textView.attributedText.string, latest)
+            XCTAssertEqual(textView.selectedRange.location, expectedCaret)
+            XCTAssertEqual(state.text, latest)
+        }
+    }
+
+    private func append(_ text: String, to textView: UITextView) {
+        let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+        mutable.append(NSAttributedString(string: text, attributes: textView.typingAttributes))
+        textView.attributedText = mutable
+        textView.selectedRange = NSRange(location: mutable.length, length: 0)
+    }
+
+    private func pumpMainRunLoop(duration: TimeInterval = 0.05) {
+        RunLoop.main.run(until: Date().addingTimeInterval(duration))
+    }
+
+    private func findTextView(in view: UIView) -> UITextView? {
+        if let textView = view as? UITextView { return textView }
+        for subview in view.subviews {
+            if let match = findTextView(in: subview) { return match }
+        }
+        return nil
+    }
+
+    func testOrderedListReturnKeepsEmptySecondItemUntilUserContinuesTyping() {
+        var boundText = "1. 高圆圆"
+        var triggerContext: EditorTriggerContext?
+        var selectedToken: HoloContentNode?
+        let textBinding = Binding(
+            get: { boundText },
+            set: { boundText = $0 }
+        )
+        let coordinator = MarkdownTextView.Coordinator(
+            text: textBinding,
+            triggerContext: Binding(
+                get: { triggerContext },
+                set: { triggerContext = $0 }
+            ),
+            selectedToken: Binding(
+                get: { selectedToken },
+                set: { selectedToken = $0 }
+            )
+        )
+        let textView = UITextView()
+        textView.attributedText = MarkdownTextView.makeAttributedText(
+            from: [.text(value: boundText)]
+        )
+        textView.selectedRange = NSRange(location: textView.attributedText.length, length: 0)
+        coordinator.lastKnownMarkdown = boundText
+
+        let shouldUseUIKitDefault = coordinator.textView(
+            textView,
+            shouldChangeTextIn: textView.selectedRange,
+            replacementText: "\n"
+        )
+
+        XCTAssertFalse(shouldUseUIKitDefault)
+        XCTAssertEqual(textView.attributedText.string, "1. 高圆圆\n2. ")
+        XCTAssertEqual(boundText, "1. 高圆圆\n2. ")
+
+        let replayed = MarkdownTextView.makeAttributedText(
+            from: RichContentSerializer.nodes(fromPlainText: boundText)
+        )
+        XCTAssertEqual(
+            replayed.string,
+            "1. 高圆圆\n2. ",
+            "第二行尚未输入正文时，回显也必须保留可继续输入的列表前缀"
+        )
+    }
+
+    func testEmptyContinuationItemsRoundTripForBothListTypes() {
+        for markdown in ["1. 第一项\n2. ", "• 第一项\n• "] {
+            let attributed = MarkdownTextView.makeAttributedText(
+                from: RichContentSerializer.nodes(fromPlainText: markdown)
+            )
+
+            XCTAssertEqual(attributed.string, markdown)
+            XCTAssertEqual(
+                MarkdownTextView.serializeNodes(from: attributed),
+                [.text(value: markdown)]
+            )
+        }
     }
 
     // MARK: - 纯文本含 #标签 的往返（修复「打开后标签不高亮 / 末尾换行丢失」）

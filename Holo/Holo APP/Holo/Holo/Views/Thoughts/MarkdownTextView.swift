@@ -8,6 +8,7 @@
 
 import SwiftUI
 import UIKit
+import os.log
 
 // MARK: - MarkdownEditorAction
 
@@ -124,6 +125,38 @@ struct MarkdownTextView: UIViewRepresentable {
     var suggestionKeyboardHasItems: Bool = false
     /// v2 妙控键盘格式快捷键（Cmd+B/I/U）回调
     var onFormatCommand: ((MarkdownEditorAction) -> Void)? = nil
+    /// IME 组字状态变化回调（true=进入组字/false=组字结束）。
+    /// 父视图据此在组字窗口内推迟自动保存等全页级状态变更——组字中途重渲染
+    /// 会打断输入法会话，造成组字文字叠影/闪动（真机 iOS 26 实锤）。
+    var onCompositionChange: ((Bool) -> Void)? = nil
+
+    /// IME 组字诊断日志：同时写 os.log 与沙盒 Documents/imediag.log（环形 200KB）。
+    /// 真机复现组字叠影时用 devicectl 从沙盒拉取，作为「组字窗口内 App 侧
+    /// 发生了什么」的第一手证据（质量红线：日志先行，禁止凭印象改）。
+    enum IMEDiag {
+        private static let logger = Logger(subsystem: "com.holo.app", category: "IMEDiag")
+        private static let queue = DispatchQueue(label: "com.holo.imediag")
+
+        static func log(_ message: String) {
+            logger.info("\(message, privacy: .public)")
+            queue.async {
+                let stamp = ISO8601DateFormatter().string(from: Date())
+                let line = "[\(stamp)] \(message)\n"
+                guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                let url = dir.appendingPathComponent("imediag.log")
+                if let handle = try? FileHandle(forWritingTo: url) {
+                    defer { try? handle.close() }
+                    let end = (try? handle.seekToEnd()) ?? 0
+                    try? handle.write(contentsOf: Data(line.utf8))
+                    if end > 200_000 {
+                        try? handle.truncate(atOffset: 0)
+                    }
+                } else {
+                    try? Data(line.utf8).write(to: url)
+                }
+            }
+        }
+    }
 
     /// 编辑态和阅读态共用同一种 UITextView 构造方式。
     static func makeTaskAwareTextView() -> UITextView {
@@ -131,6 +164,7 @@ struct MarkdownTextView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
+        IMEDiag.log("makeUIView: build=ime-list-session-v3 editorOwnership=on deferredActions=on")
         let textView = SelfSizingTextView(frame: .zero)
         textView.delegate = context.coordinator
         let coordinator = context.coordinator
@@ -171,6 +205,10 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.autocorrectionType = .default
         textView.spellCheckingType = .default
         textView.keyboardType = .default
+        // iOS 26 实锤（真机录屏）：系统输入预测层与中文组字叠加时，组字文字出现
+        // 叠影/残影、候选栏整体错乱。inline prediction 只服务英文灰色联想补全，
+        // 中文拼音候选不走它，关掉对中文输入零影响，换取 IME 会话稳定。
+        textView.inlinePredictionType = .no
         // 长文时实际滚动由 UITextView 承担；键盘收起也必须挂在同一个滚动容器上，
         // 否则外层 SwiftUI ScrollView 收不到拖拽，用户只能点完成或额外点击空白处。
         textView.keyboardDismissMode = .interactive
@@ -196,9 +234,14 @@ struct MarkdownTextView: UIViewRepresentable {
         let initialMarkdown = text
         let canonicalMarkdown = RichContentSerializer.plainText(from: initialNodes)
         if initialRichJSON != nil, canonicalMarkdown != initialMarkdown {
-            context.coordinator.setBoundText(canonicalMarkdown)
-            context.coordinator.pendingCanonicalMarkdown = canonicalMarkdown
-            context.coordinator.staleMarkdownBeforeCanonicalSync = initialMarkdown
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                // UIViewRepresentable 创建/更新期间不能同步发布 SwiftUI State；
+                // 即使是首次结构化内容规范化，也统一延后到下一轮主循环。
+                if coordinator.boundText == initialMarkdown {
+                    coordinator.setBoundText(canonicalMarkdown)
+                }
+            }
         }
         context.coordinator.lastKnownMarkdown = canonicalMarkdown
         context.coordinator.lastAppliedRichJSON = initialRichJSON
@@ -208,9 +251,15 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onConvertSelection = onConvertSelection
         context.coordinator.onConvertToTask = onConvertToTask
         context.coordinator.onSuggestionCommand = onSuggestionCommand
+        context.coordinator.onCompositionChange = onCompositionChange
         context.coordinator.updateAccessibilityValue(in: textView)
         context.coordinator.onHeightChange = { height in
+            let coordinator = context.coordinator
             DispatchQueue.main.async {
+                if abs(coordinator.lastReportedHeight - height) > 0.5 {
+                    coordinator.lastReportedHeight = height
+                    IMEDiag.log("height changed → \(Int(height)) composing=\(coordinator.lastReportedComposing)")
+                }
                 self.dynamicHeight = height
             }
         }
@@ -262,24 +311,22 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onConvertSelection = onConvertSelection
         context.coordinator.onConvertToTask = onConvertToTask
         context.coordinator.onSuggestionCommand = onSuggestionCommand
+        context.coordinator.onCompositionChange = onCompositionChange
 
-        // makeUIView 中由 rich JSON 派生出的规范文本写回 Binding 后，SwiftUI 可能先把
-        // 创建时的旧纯文本快照回传一次。只忽略这一个已知旧值，避免 Token 被降级；
-        // 如果值已经不是旧快照，说明是用户或宿主真正改过的内容，继续正常处理。
-        if let pendingCanonicalMarkdown = context.coordinator.pendingCanonicalMarkdown {
-            if text == pendingCanonicalMarkdown {
-                context.coordinator.pendingCanonicalMarkdown = nil
-                context.coordinator.staleMarkdownBeforeCanonicalSync = nil
-            } else if text == context.coordinator.staleMarkdownBeforeCanonicalSync {
-                context.coordinator.setBoundText(pendingCanonicalMarkdown)
-                context.coordinator.lastKnownMarkdown = pendingCanonicalMarkdown
-                context.coordinator.pendingCanonicalMarkdown = nil
-                context.coordinator.staleMarkdownBeforeCanonicalSync = nil
-                return
-            } else {
-                context.coordinator.pendingCanonicalMarkdown = nil
-                context.coordinator.staleMarkdownBeforeCanonicalSync = nil
+        // 编辑器一旦发生过本地输入，本次编辑会话内 UITextView 就是正文事实源。
+        // SwiftUI 的 State 更新、IME 状态、工具栏和自动保存都可能用不同代的 View
+        // 快照重入 updateUIView；无论回放的是哪一代正文，都不能反向重建正在编辑的
+        // attributedText。这里按“会话所有权”处理，而不是猜测并屏蔽某一个旧字符串。
+        if let protectedMarkdown = context.coordinator.replacementForHostText(text) {
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                // updateUIView 内同步修改 SwiftUI State 会产生未定义的重入顺序；
+                // 下一轮主循环再纠正 Binding，当前 UITextView 全程保持不动。
+                if coordinator.boundText != protectedMarkdown {
+                    coordinator.restoreBoundText(protectedMarkdown)
+                }
             }
+            return
         }
 
         if let textView = textView as? SelfSizingTextView {
@@ -287,14 +334,37 @@ struct MarkdownTextView: UIViewRepresentable {
             textView.suggestionKeyboardHasItems = suggestionKeyboardHasItems
         }
         if let action = pendingAction {
-            pendingAction = nil
-            context.coordinator.perform(action: action, on: textView, markdown: $text)
+            guard !context.coordinator.isPendingActionScheduled else { return }
+            context.coordinator.isPendingActionScheduled = true
+            let coordinator = context.coordinator
+            let actionBinding = $pendingAction
+            let textBinding = $text
+            DispatchQueue.main.async {
+                // 工具动作整体移出 updateUIView：正文、Binding、节点回调都会改 SwiftUI
+                // State，在视图更新栈内执行会造成 AttributeGraph 重入甚至重复消费动作。
+                coordinator.perform(action: action, on: textView, markdown: textBinding)
+                if actionBinding.wrappedValue == action {
+                    actionBinding.wrappedValue = nil
+                }
+                coordinator.isPendingActionScheduled = false
+            }
             return
         }
 
         // 富文本中的 UIFont 不会因为 UITextView.adjustsFontForContentSizeCategory 自动逐段重建；
         // 监听 SwiftUI 的字号环境，按当前节点重新生成，保证编辑态和阅读态的 Dynamic Type 真正生效。
+        // 铁律：组字期间（markedTextRange != nil）输入法会话独占文本存储，
+        // 下方所有程序化重写 attributedText 的路径一律跳过——组字中途重写会让
+        // IME 内部偏移与文本存储脱节，组字文字叠影/残影（真机 iOS 26 实锤）。
+        // 组字结束时 textViewDidChange → syncMarkdown 会写回绑定，自然重入
+        // updateUIView，届时条件仍成立、被跳过的重建自动补做。
         if context.coordinator.lastAppliedSizeCategory != sizeCategory {
+            IMEDiag.log(textView.markedTextRange == nil
+                ? "updateUIView: sizeCategory rebuild applied"
+                : "updateUIView: sizeCategory rebuild DEFERRED (composing)")
+        }
+        if context.coordinator.lastAppliedSizeCategory != sizeCategory,
+           textView.markedTextRange == nil {
             let currentNodes = context.coordinator.nodes
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
             let attributedText = Self.applyingEditorLineSpacing(to: showHighlight
@@ -315,6 +385,13 @@ struct MarkdownTextView: UIViewRepresentable {
         // 才异步到达。必须重新水合结构化节点，否则 @/任务看似有颜色，实际却已失去
         // Token 身份，点按会被误判为普通文字或新的 @ 触发器。
         if initialRichJSON != context.coordinator.lastAppliedRichJSON {
+            IMEDiag.log(textView.markedTextRange == nil
+                ? "updateUIView: richJSON hydration applied"
+                : "updateUIView: richJSON hydration DEFERRED (composing)")
+        }
+        if !context.coordinator.hasLocalEdits,
+           initialRichJSON != context.coordinator.lastAppliedRichJSON,
+           textView.markedTextRange == nil {
             let previousMarkdown = context.coordinator.lastKnownMarkdown
             let newNodes = RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: text)
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
@@ -328,12 +405,23 @@ struct MarkdownTextView: UIViewRepresentable {
             context.coordinator.isProgrammaticChange = false
             context.coordinator.lastAppliedRichJSON = initialRichJSON
             let canonicalMarkdown = RichContentSerializer.plainText(from: newNodes)
-            if context.coordinator.boundText == previousMarkdown {
-                context.coordinator.setBoundText(canonicalMarkdown)
-            }
             context.coordinator.lastKnownMarkdown = canonicalMarkdown
             context.coordinator.nodes = newNodes
-            context.coordinator.onNodesChange?(newNodes)
+            if context.coordinator.boundText == previousMarkdown {
+                let coordinator = context.coordinator
+                DispatchQueue.main.async {
+                    // 与工具动作遵循同一条边界：updateUIView 只更新 UIKit，
+                    // Binding 和父视图节点回调必须离开当前 SwiftUI 更新栈。
+                    if !coordinator.hasLocalEdits,
+                       coordinator.boundText == previousMarkdown {
+                        coordinator.setBoundText(canonicalMarkdown)
+                    }
+                }
+            }
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                coordinator.onNodesChange?(newNodes)
+            }
             context.coordinator.refreshTypingAttributes(for: textView)
             context.coordinator.updatePlaceholderVisibility(in: textView)
             context.coordinator.updateAccessibilityValue(in: textView)
@@ -341,6 +429,13 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         if !context.coordinator.isProgrammaticChange,
+           text != context.coordinator.lastKnownMarkdown {
+            IMEDiag.log(textView.markedTextRange == nil
+                ? "updateUIView: plain-text sync applied"
+                : "updateUIView: plain-text sync DEFERRED (composing)")
+        }
+        if !context.coordinator.hasLocalEdits,
+           !context.coordinator.isProgrammaticChange,
            textView.markedTextRange == nil,
            text != context.coordinator.lastKnownMarkdown {
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
@@ -373,9 +468,11 @@ struct MarkdownTextView: UIViewRepresentable {
 
         var isProgrammaticChange = false
         var lastKnownMarkdown: String = ""
-        /// 首次从 rich JSON 水合时，等待 SwiftUI 完成 Binding 回写；期间屏蔽一次旧纯文本快照。
-        var pendingCanonicalMarkdown: String?
-        var staleMarkdownBeforeCanonicalSync: String?
+        /// 本次编辑会话是否已产生本地修改。为 true 后 UITextView 是正文事实源，
+        /// SwiftUI 回放的任意旧快照都只能被纠正，不能再重建编辑器。
+        private(set) var hasLocalEdits = false
+        /// pendingAction 已安排到下一轮主循环，阻止 SwiftUI 重入时重复消费同一动作。
+        var isPendingActionScheduled = false
         /// 编辑期结构化内容模型（事实源）：文本变化时由富文本属性重建，Token 节点不被重渲染销毁
         var nodes: [HoloContentNode] = []
         /// 最近一次应用到 UITextView 的结构化 JSON；用于处理异步初始数据到达
@@ -392,8 +489,31 @@ struct MarkdownTextView: UIViewRepresentable {
     var onConvertSelection: ((String, NSRange) -> Void)?
     /// 工具栏「转为任务」（整篇）回调
     var onConvertToTask: (() -> Void)?
-    /// 候选面板硬件键盘操作回调
-    var onSuggestionCommand: ((SuggestionKeyboardCommand) -> Void)?
+        /// 候选面板硬件键盘操作回调
+        var onSuggestionCommand: ((SuggestionKeyboardCommand) -> Void)?
+        /// IME 组字状态变化回调（父视图据此推迟组字窗口内的自动保存）
+        var onCompositionChange: ((Bool) -> Void)?
+        /// 最近一次上报的内容高度（诊断日志去重用）
+        var lastReportedHeight: CGFloat = 0
+        /// 最近一次上报的组字状态（跳变检测）
+        var lastReportedComposing = false
+
+        /// 组字状态跳变检测与上报。必须在两个 delegate 的 markedTextRange 守卫
+        /// 之前调用，否则组字开始（marked 插入）那一次回调会被守卫吃掉。
+        func reportCompositionState(_ textView: UITextView) {
+            let composing = textView.markedTextRange != nil
+            guard composing != lastReportedComposing else { return }
+            lastReportedComposing = composing
+            if composing {
+                let markedLength = textView.markedTextRange.map {
+                    textView.offset(from: $0.start, to: $0.end)
+                } ?? 0
+                IMEDiag.log("composition START markedLen=\(markedLength) docLen=\(textView.attributedText.length)")
+            } else {
+                IMEDiag.log("composition END docLen=\(textView.attributedText.length)")
+            }
+            onCompositionChange?(composing)
+        }
 
         /// 占位提示标签（makeUIView 创建，依据编辑器内容实时显隐）
         weak var placeholderLabel: UILabel?
@@ -428,8 +548,32 @@ struct MarkdownTextView: UIViewRepresentable {
             self._selectedToken = selectedToken
         }
 
-        /// 把结构化节点派生出的规范文本写回 SwiftUI，避免通过普通 String 快照绕过绑定。
+        /// 初始化/异步加载阶段写回规范文本；尚未建立本地编辑所有权。
         func setBoundText(_ value: String) {
+            guard text != value else { return }
+            text = value
+        }
+
+        /// 本地编辑统一从这里发布。即使值暂时相同，也要建立会话所有权，
+        /// 防止后续工具栏/IME 状态刷新把创建时的 View 快照灌回编辑器。
+        func publishLocalMarkdown(_ value: String) {
+            hasLocalEdits = true
+            lastKnownMarkdown = value
+            if text != value {
+                text = value
+            }
+        }
+
+        /// 本地编辑建立后，宿主只负责接收正文。任何不等于编辑器最新版的输入值
+        /// 都是过期 View 快照；不能用“宿主确认一次后解除保护”的瞬时策略，因为
+        /// 换行、候选确认和自动保存会在同一会话里反复制造新的竞态窗口。
+        func replacementForHostText(_ incoming: String) -> String? {
+            guard hasLocalEdits, incoming != lastKnownMarkdown else { return nil }
+            return lastKnownMarkdown
+        }
+
+        /// 旧快照回放时恢复最新 Binding；不登记成一次新的编辑器写入，避免保护状态自循环。
+        func restoreBoundText(_ value: String) {
             text = value
         }
 
@@ -438,6 +582,8 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
+            // 组字跳变上报必须先于任何守卫：组字开始/结束都要通知父视图
+            reportCompositionState(textView)
             // 占位提示依据 attributedText 实时刷新，必须在 markedText guard 之前：
             // 中文输入法组字阶段 markedTextRange != nil，content 绑定尚未更新，
             // 但 attributedText 已含组字内容，据此立即隐藏占位。
@@ -456,8 +602,11 @@ struct MarkdownTextView: UIViewRepresentable {
         ) -> Bool {
             guard !isProgrammaticChange else { return true }
 
-            // Token 原子化：编辑范围触碰 Token 时扩展为完整 Token 操作
-            if handleTokenEditInterception(textView, range: range, replacementText: text) {
+            // Token 原子化：编辑范围触碰 Token 时扩展为完整 Token 操作。
+            // 组字按键是 IME 缓冲区操作而非正文编辑，不参与 Token 拦截，
+            // 否则组字中途程序化重写文本会打断输入法会话（组字叠影的根因家族）。
+            if textView.markedTextRange == nil,
+               handleTokenEditInterception(textView, range: range, replacementText: text) {
                 return false
             }
 
@@ -586,6 +735,8 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            // 组字跳变上报必须先于 markedTextRange 守卫（组字插入本身会改选区）
+            reportCompositionState(textView)
             // IME 组字期间不刷新 typingAttributes，防止自定义格式属性被丢弃
             guard textView.markedTextRange == nil else { return }
 
@@ -633,7 +784,10 @@ struct MarkdownTextView: UIViewRepresentable {
             on textView: UITextView,
             markdown: Binding<String>
         ) {
-            guard textView.markedTextRange == nil else { return }
+            if textView.markedTextRange != nil {
+                IMEDiag.log("perform DEFERRED: \(action) (composing)")
+                return
+            }
 
             if !textView.isFirstResponder {
                 textView.becomeFirstResponder()
@@ -776,8 +930,7 @@ struct MarkdownTextView: UIViewRepresentable {
             let serializedNodes = MarkdownTextView.serializeNodes(from: textView.attributedText)
             nodes = serializedNodes
             let markdown = RichContentSerializer.plainText(from: serializedNodes)
-            lastKnownMarkdown = markdown
-            text = markdown
+            publishLocalMarkdown(markdown)
             onNodesChange?(serializedNodes)
             updateAccessibilityValue(in: textView)
         }
@@ -969,6 +1122,7 @@ struct MarkdownTextView: UIViewRepresentable {
             let previousText = NSAttributedString(attributedString: textView.attributedText)
             let previousSelection = textView.selectedRange
 
+            IMEDiag.log("programmaticEdit: \(actionName) marked=\(textView.markedTextRange != nil)")
             isProgrammaticChange = true
             mutation()
             isProgrammaticChange = false

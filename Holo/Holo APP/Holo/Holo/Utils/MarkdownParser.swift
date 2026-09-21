@@ -90,8 +90,10 @@ private enum RegexCache {
 
     // MARK: - 解析用正则
 
-    static let unorderedList = safeRegex("^[\\-\\*\u{2022}] (.+)$")
-    static let orderedList = safeRegex("^(\\d+)\\. (.+)$")
+    // 回车续写列表时，新一行会先处于只有前缀（如「2. 」）的临时状态。
+    // 这里允许正文为空，避免下一轮 SwiftUI 回显把刚生成的列表前缀降级成普通段落。
+    static let unorderedList = safeRegex("^[\\-\\*\u{2022}] (.*)$")
+    static let orderedList = safeRegex("^(\\d+)\\. (.*)$")
     static let inlineTag = safeRegex("#[\\p{L}][\\p{L}\\p{N}_]*")
     static let colorOpen = safeRegex("\\{color:(#[0-9A-Fa-f]{3,8}|[0-9A-Fa-f]{3,8})\\}")
     static let colorClose = safeRegex("\\{/color\\}")
