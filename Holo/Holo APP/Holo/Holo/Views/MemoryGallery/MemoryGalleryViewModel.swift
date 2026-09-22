@@ -208,11 +208,10 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 刷新数据（重新加载第一页）
     ///
     /// 本地数据（Core Data）始终刷新；若 AI 洞察刷新配额未满，顺带重新生成。
+    /// 统计/热力图随 loadData 的缓存重建在后台一并计算（见 computeSnapshotInBackground）。
     func refresh() async {
         currentDayOffset = 0
         hasMoreData = true
-        computeAggregateStats()
-        computeHeatmapData()
         await loadData()
         await loadInsights()
         await loadLatestReportEntry()
@@ -228,6 +227,33 @@ class MemoryGalleryViewModel: ObservableObject {
         await loadData(isLoadMore: true)
     }
 
+    /// 后台重计算快照：全部列查询/预取，不物化无关对象，不占主线程。
+    /// streak 成就高亮与里程碑依赖 @MainActor HabitRepository，留在主线程（量级 = 活跃习惯数）。
+    private struct GallerySnapshot {
+        let items: [MemoryItem]
+        let batchHighlights: [Date: [HighlightData]]
+        let totalMemoryCount: Int
+        let totalRecordedDays: Int
+        let heatmap: [Date: Int]
+    }
+
+    private func computeSnapshot() async throws -> GallerySnapshot {
+        try await CoreDataStack.shared.performBackgroundTask { context in
+            let items = try Self.fetchAllMemoryItems(context: context)
+            let dates = Self.collectUniqueDates(from: items)
+            let highlights = HighlightDetector.detectBatch(for: dates, context: context)
+            let stats = Self.computeAggregateStats(context: context)
+            let heatmap = Self.computeHeatmapData(context: context)
+            return GallerySnapshot(
+                items: items,
+                batchHighlights: highlights,
+                totalMemoryCount: stats.memoryCount,
+                totalRecordedDays: stats.recordedDays,
+                heatmap: heatmap
+            )
+        }
+    }
+
     /// 加载数据
     private func loadData(isLoadMore: Bool = false) async {
         if isLoadMore {
@@ -238,18 +264,25 @@ class MemoryGalleryViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // 缓存无效时重新获取
+            // 缓存无效时重新获取（后台重计算，主线程只做轻量组装）
             if !isCacheValid() || cachedItems.isEmpty {
-                cachedItems = try fetchAllMemoryItems()
+                let snapshot = try await computeSnapshot()
+                cachedItems = snapshot.items
                 cacheTimestamp = Date()
 
-                // 运行高亮和里程碑检测
-                let dates = collectUniqueDates(from: cachedItems)
-                cachedHighlights = HighlightDetector.detect(
-                    for: dates,
-                    context: context
-                )
+                // 运行高亮（批量部分已在后台算出）和里程碑检测
+                var highlights = snapshot.batchHighlights
+                for highlight in HighlightDetector.detectStreakAchievements(context: context) {
+                    let dayStart = Calendar.current.startOfDay(for: highlight.date)
+                    highlights[dayStart, default: []].append(highlight.data)
+                }
+                cachedHighlights = highlights
                 cachedMilestones = MilestoneDetector.detect(context: context)
+
+                totalMemoryCount = snapshot.totalMemoryCount
+                totalRecordedDays = snapshot.totalRecordedDays
+                totalInsights = 0
+                heatmapData = snapshot.heatmap
             }
 
             // 计算日期范围
@@ -294,30 +327,32 @@ class MemoryGalleryViewModel: ObservableObject {
         isLoadingMore = false
     }
 
-    // MARK: - Data Fetching（复用原有逻辑）
+    // MARK: - Data Fetching（复用原有逻辑；static + 任意 context，供后台快照调用）
 
     /// 从所有模块获取记忆条目
-    private func fetchAllMemoryItems() throws -> [MemoryItem] {
+    private static func fetchAllMemoryItems(context: NSManagedObjectContext) throws -> [MemoryItem] {
         var items: [MemoryItem] = []
 
-        items.append(contentsOf: try fetchTransactions())
-        items.append(contentsOf: try fetchHabitRecords())
-        items.append(contentsOf: try fetchTasks())
-        items.append(contentsOf: try fetchThoughts())
+        items.append(contentsOf: try fetchTransactions(context: context))
+        items.append(contentsOf: try fetchHabitRecords(context: context))
+        items.append(contentsOf: try fetchTasks(context: context))
+        items.append(contentsOf: try fetchThoughts(context: context))
 
         return items.sorted { $0.date > $1.date }
     }
 
-    private func fetchTransactions() throws -> [MemoryItem] {
+    private static func fetchTransactions(context: NSManagedObjectContext) throws -> [MemoryItem] {
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = 500
+        // MemoryItem 标题/副题读分类与账户名：预取关系，避免逐笔惰性加载
+        request.relationshipKeyPathsForPrefetching = ["category", "account"]
         let transactions = try context.fetch(request)
         return transactions.map { MemoryItem.from(transaction: $0) }
     }
 
-    private func fetchHabitRecords() throws -> [MemoryItem] {
+    private static func fetchHabitRecords(context: NSManagedObjectContext) throws -> [MemoryItem] {
         var items: [MemoryItem] = []
 
         let habitRequest = Habit.fetchRequest()
@@ -344,7 +379,7 @@ class MemoryGalleryViewModel: ObservableObject {
         return items
     }
 
-    private func fetchTasks() throws -> [MemoryItem] {
+    private static func fetchTasks(context: NSManagedObjectContext) throws -> [MemoryItem] {
         let request = TodoTask.fetchRequest()
         let now = Date()
         request.predicate = NSPredicate(
@@ -360,7 +395,7 @@ class MemoryGalleryViewModel: ObservableObject {
         return tasks.map { MemoryItem.from(task: $0) }
     }
 
-    private func fetchThoughts() throws -> [MemoryItem] {
+    private static func fetchThoughts(context: NSManagedObjectContext) throws -> [MemoryItem] {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
@@ -395,21 +430,26 @@ class MemoryGalleryViewModel: ObservableObject {
     // MARK: - Helpers
 
     /// 从缓存中提取所有唯一起始日日期
-    private func collectUniqueDates(from items: [MemoryItem]) -> [Date] {
+    private static func collectUniqueDates(from items: [MemoryItem]) -> [Date] {
         let calendar = Calendar.current
         let uniqueDays = Set(items.map { calendar.startOfDay(for: $0.date) })
         return Array(uniqueDays).sorted(by: >)
     }
 
-    // MARK: - Overview Aggregates
+    // MARK: - Overview Aggregates（static + 列查询：只取日期列，不物化全对象）
 
-    private func computeAggregateStats() {
+    private struct AggregateStats {
+        var memoryCount: Int = 0
+        var recordedDays: Int = 0
+    }
+
+    private static func computeAggregateStats(context: NSManagedObjectContext) -> AggregateStats {
         let transactionRequest = Transaction.fetchRequest()
         transactionRequest.predicate = NSPredicate(format: "deletedAt == nil")
         let txCount = (try? context.count(for: transactionRequest)) ?? 0
 
-        let activeHabitIds = fetchActiveHabitIds()
-        let habitRecordCount = countHabitRecords(for: activeHabitIds)
+        let activeHabitIds = fetchActiveHabitIds(context: context)
+        let habitRecordCount = countHabitRecords(for: activeHabitIds, context: context)
 
         let taskRequest = TodoTask.fetchRequest()
         taskRequest.predicate = NSPredicate(
@@ -426,117 +466,152 @@ class MemoryGalleryViewModel: ObservableObject {
         allDates.formUnion(fetchUniqueDates(
             entityName: "Transaction",
             key: "date",
-            predicate: NSPredicate(format: "deletedAt == nil")
+            predicate: NSPredicate(format: "deletedAt == nil"),
+            context: context
         ))
-        allDates.formUnion(fetchHabitRecordDates(for: activeHabitIds))
+        allDates.formUnion(fetchHabitRecordDates(for: activeHabitIds, context: context))
         allDates.formUnion(fetchUniqueDates(
             entityName: "TodoTask",
             key: "completedAt",
-            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES")
+            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES"),
+            context: context
         ))
         allDates.formUnion(fetchUniqueDates(
             entityName: "TodoTask",
             key: "dueDate",
-            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate < %@", Date() as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == NO AND dueDate < %@", Date() as NSDate),
+            context: context
         ))
         allDates.formUnion(fetchUniqueDates(
             entityName: "Thought",
             key: "createdAt",
-            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO"),
+            context: context
         ))
 
-        totalMemoryCount = txCount + habitRecordCount + taskCount + thoughtCount
-        totalRecordedDays = allDates.count
-        totalInsights = 0
+        return AggregateStats(
+            memoryCount: txCount + habitRecordCount + taskCount + thoughtCount,
+            recordedDays: allDates.count
+        )
     }
 
-    private func computeHeatmapData() {
+    private static func computeHeatmapData(context: NSManagedObjectContext) -> [Date: Int] {
         let today = Date().startOfDay
         let currentWeekStart = today.startOfWeek
         let windowStart = currentWeekStart.addingWeeks(-12)
         let windowEnd = currentWeekStart.addingDays(7)
-        let activeHabitIds = fetchActiveHabitIds()
+        let activeHabitIds = fetchActiveHabitIds(context: context)
 
         var counts: [Date: Int] = [:]
         mergeDayCounts(into: &counts, fetchDayCounts(
             entityName: "Transaction",
             key: "date",
-            predicate: NSPredicate(format: "deletedAt == nil AND date >= %@ AND date < %@", windowStart as NSDate, windowEnd as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND date >= %@ AND date < %@", windowStart as NSDate, windowEnd as NSDate),
+            context: context
         ))
         mergeDayCounts(into: &counts, fetchHabitRecordDayCounts(
             for: activeHabitIds,
             start: windowStart,
-            end: windowEnd
+            end: windowEnd,
+            context: context
         ))
         mergeDayCounts(into: &counts, fetchDayCounts(
             entityName: "TodoTask",
             key: "completedAt",
-            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES AND completedAt >= %@ AND completedAt < %@", windowStart as NSDate, windowEnd as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES AND completedAt >= %@ AND completedAt < %@", windowStart as NSDate, windowEnd as NSDate),
+            context: context
         ))
         mergeDayCounts(into: &counts, fetchDayCounts(
             entityName: "Thought",
             key: "createdAt",
-            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO AND createdAt >= %@ AND createdAt < %@", windowStart as NSDate, windowEnd as NSDate)
+            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO AND createdAt >= %@ AND createdAt < %@", windowStart as NSDate, windowEnd as NSDate),
+            context: context
         ))
 
-        heatmapData = counts
+        return counts
     }
 
-    private func fetchActiveHabitIds() -> [UUID] {
+    private static func fetchActiveHabitIds(context: NSManagedObjectContext) -> [UUID] {
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
         let habits = (try? context.fetch(request)) ?? []
         return habits.map(\.id)
     }
 
-    private func countHabitRecords(for activeHabitIds: [UUID]) -> Int {
+    private static func countHabitRecords(for activeHabitIds: [UUID], context: NSManagedObjectContext) -> Int {
         guard !activeHabitIds.isEmpty else { return 0 }
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds)
         return (try? context.count(for: request)) ?? 0
     }
 
-    private func fetchHabitRecordDates(for activeHabitIds: [UUID]) -> Set<Date> {
+    private static func fetchHabitRecordDates(for activeHabitIds: [UUID], context: NSManagedObjectContext) -> Set<Date> {
         guard !activeHabitIds.isEmpty else { return [] }
-        let request = HabitRecord.fetchRequest()
+        let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
         request.predicate = NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds)
-        let records = (try? context.fetch(request)) ?? []
-        return Set(records.map { $0.date.startOfDay })
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["date"]
+        request.returnsDistinctResults = true
+        let rows = (try? context.fetch(request)) ?? []
+        return Set(rows.compactMap { ($0["date"] as? Date)?.startOfDay })
     }
 
-    private func fetchHabitRecordDayCounts(for activeHabitIds: [UUID], start: Date, end: Date) -> [Date: Int] {
+    private static func fetchHabitRecordDayCounts(
+        for activeHabitIds: [UUID],
+        start: Date,
+        end: Date,
+        context: NSManagedObjectContext
+    ) -> [Date: Int] {
         guard !activeHabitIds.isEmpty else { return [:] }
-        let request = HabitRecord.fetchRequest()
+        let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
         request.predicate = NSPredicate(
             format: "habitId IN %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
             activeHabitIds,
             start as NSDate,
             end as NSDate
         )
-        let records = (try? context.fetch(request)) ?? []
-        return records.reduce(into: [Date: Int]()) { result, record in
-            result[record.date.startOfDay, default: 0] += 1
-        }
-    }
-
-    private func fetchUniqueDates(entityName: String, key: String, predicate: NSPredicate?) -> Set<Date> {
-        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-        request.predicate = predicate
-        let objects = (try? context.fetch(request)) ?? []
-        return Set(objects.compactMap { ($0.value(forKey: key) as? Date)?.startOfDay })
-    }
-
-    private func fetchDayCounts(entityName: String, key: String, predicate: NSPredicate?) -> [Date: Int] {
-        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-        request.predicate = predicate
-        let objects = (try? context.fetch(request)) ?? []
-        return objects.reduce(into: [Date: Int]()) { result, object in
-            guard let date = object.value(forKey: key) as? Date else { return }
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["date"]
+        let rows = (try? context.fetch(request)) ?? []
+        return rows.reduce(into: [Date: Int]()) { result, row in
+            guard let date = row["date"] as? Date else { return }
             result[date.startOfDay, default: 0] += 1
         }
     }
 
-    private func mergeDayCounts(into target: inout [Date: Int], _ source: [Date: Int]) {
+    private static func fetchUniqueDates(
+        entityName: String,
+        key: String,
+        predicate: NSPredicate?,
+        context: NSManagedObjectContext
+    ) -> Set<Date> {
+        let request = NSFetchRequest<NSDictionary>(entityName: entityName)
+        request.predicate = predicate
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = [key]
+        request.returnsDistinctResults = true
+        let rows = (try? context.fetch(request)) ?? []
+        return Set(rows.compactMap { ($0[key] as? Date)?.startOfDay })
+    }
+
+    private static func fetchDayCounts(
+        entityName: String,
+        key: String,
+        predicate: NSPredicate?,
+        context: NSManagedObjectContext
+    ) -> [Date: Int] {
+        let request = NSFetchRequest<NSDictionary>(entityName: entityName)
+        request.predicate = predicate
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = [key]
+        let rows = (try? context.fetch(request)) ?? []
+        return rows.reduce(into: [Date: Int]()) { result, row in
+            guard let date = row[key] as? Date else { return }
+            result[date.startOfDay, default: 0] += 1
+        }
+    }
+
+    private static func mergeDayCounts(into target: inout [Date: Int], _ source: [Date: Int]) {
         for (date, count) in source {
             target[date, default: 0] += count
         }
