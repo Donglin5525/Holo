@@ -48,7 +48,9 @@ const PROMPT_VERSIONS = {
   // 渠道不同（信用卡/零钱）实证，账户需逐笔匹配；契约同步 bump UNDERSTANDING_SCHEMA_VERSION=3。
   vision_extraction: 3,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
-  matter_reconciliation: 1,
+  // v2（2026-09-23 Matter 计划修订）：新增 addTask 提案类型——用户表达计划外新步骤时
+  // 建议加入计划（title ≤20字动作短语，一次最多 2 条，planTaskTitles 去重），恒需用户确认。
+  matter_reconciliation: 2,
   // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版
   goal_workshop: 1,
 };
