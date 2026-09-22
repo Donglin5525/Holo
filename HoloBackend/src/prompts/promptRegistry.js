@@ -50,7 +50,9 @@ const PROMPT_VERSIONS = {
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
   // v2（2026-09-23 Matter 计划修订）：新增 addTask 提案类型——用户表达计划外新步骤时
   // 建议加入计划（title ≤20字动作短语，一次最多 2 条，planTaskTitles 去重），恒需用户确认。
-  matter_reconciliation: 2,
+  // v3（2026-09-23）：明确动作动词（帮我订/帮我安排/帮我规划/加进计划）提出的新步骤，
+  // 即使执行时间靠后也输出 addTask 提案（title 带时间限定），决定权交用户确认卡。
+  matter_reconciliation: 3,
   // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版
   goal_workshop: 1,
 };
