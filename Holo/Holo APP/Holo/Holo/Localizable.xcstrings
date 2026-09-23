@@ -1395,7 +1395,20 @@
       }
     },
     "「独立提醒」按设定时刻准时提醒，与截止时间无关；其余为截止时间前的提前提醒。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Standalone” reminders fire at the exact set time regardless of the due date; all others remind ahead of the due time."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「獨立提醒」按設定時刻準時提醒，與截止時間無關；其餘為截止時間前的提前提醒。"
+          }
+        }
+      }
     },
     "「等了好久的日子，终于到了！」" : {
       "localizations" : {
@@ -37712,7 +37725,20 @@
       }
     },
     "截止前提醒" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before Due Date"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止前提醒"
+          }
+        }
+      }
     },
     "截止日期" : {
       "localizations" : {
@@ -37747,7 +37773,20 @@
       }
     },
     "截止时间前提醒" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before Due Time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止時間前提醒"
+          }
+        }
+      }
     },
     "截至%@" : {
       "localizations" : {
@@ -39189,6 +39228,22 @@
         }
       }
     },
+    "按任务日生成的快捷档位，点选即加、再点取消：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick presets based on the task date; tap to add, tap again to remove:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按任務日產生的快捷檔位，點選即加、再點取消："
+          }
+        }
+      }
+    },
     "按任务是什么时候创建的排列" : {
       "localizations" : {
         "en" : {
@@ -40337,7 +40392,20 @@
       }
     },
     "提醒时刻" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder Time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒時刻"
+          }
+        }
+      }
     },
     "提醒时间" : {
       "localizations" : {
@@ -40356,7 +40424,20 @@
       }
     },
     "提醒明细" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder Details"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒明細"
+          }
+        }
+      }
     },
     "提醒频率" : {
       "localizations" : {
@@ -45482,7 +45563,20 @@
       }
     },
     "暂无提醒" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No reminders yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無提醒"
+          }
+        }
+      }
     },
     "暂无数据" : {
       "localizations" : {
@@ -51878,7 +51972,20 @@
 
     },
     "没有具体时间时，设置一个提醒时刻" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When there's no specific time, set a reminder time."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有具體時間時，設定一個提醒時刻"
+          }
+        }
+      }
     },
     "没有加入成功，可以再试一次" : {
 
@@ -54428,7 +54535,20 @@
       }
     },
     "独立提醒" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standalone Reminder"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "獨立提醒"
+          }
+        }
+      }
     },
     "王牌" : {
       "localizations" : {
