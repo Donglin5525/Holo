@@ -532,6 +532,11 @@ export function createCloudAnalysisExecutor({
       }
     }
     if (!prompt) {
+      log(
+        `规划 prompt 为空 taskId=${taskId} snapshotType=${typeof task.snapshot} ` +
+        `snapshotLen=${typeof task.snapshot === "string" ? task.snapshot.length : -1} ` +
+        `snapshotHead=${typeof task.snapshot === "string" ? task.snapshot.slice(0, 120) : String(task.snapshot)}`
+      );
       taskStore.fail({ id: taskId, reason: "规划请求缺失或为空" });
       taskStore.updateStage(taskId, { stage: "failed" });
       return "failed";
