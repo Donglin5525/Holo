@@ -18,6 +18,11 @@ nonisolated struct HoloMemoryQualitySnapshot: Codable, Equatable, Sendable {
     var rejectedByUserCount: Int
     var maximumSerialNetworkRoundTripsOnChatPath: Int
     var maximumConcurrentMemoryAIJobs: Int
+    /// 五路决策分布（route 原始值 → 次数），仅聚合数字（低确认成本方案 §15.3）。
+    var decisionRouteCounts: [String: Int]
+    /// shadow 对照：v3 与 v4 结论一致的次数 / 不一致的 v3→v4 迁移对计数。
+    var shadowAgreeCount: Int
+    var shadowDisagreeCounts: [String: Int]
 
     static let empty = HoloMemoryQualitySnapshot(
         queryCount: 0,
@@ -29,7 +34,10 @@ nonisolated struct HoloMemoryQualitySnapshot: Codable, Equatable, Sendable {
         correctedCount: 0,
         rejectedByUserCount: 0,
         maximumSerialNetworkRoundTripsOnChatPath: 0,
-        maximumConcurrentMemoryAIJobs: 0
+        maximumConcurrentMemoryAIJobs: 0,
+        decisionRouteCounts: [:],
+        shadowAgreeCount: 0,
+        shadowDisagreeCounts: [:]
     )
 
     var queryHitRate: Double {
@@ -108,6 +116,29 @@ actor HoloMemoryQualityMetrics {
             state.maximumConcurrentMemoryAIJobs,
             max(0, count)
         )
+    }
+
+    func recordDecision(route: String) {
+        state.decisionRouteCounts[route, default: 0] += 1
+    }
+
+    func recordShadowDecision(legacyRoute: String, v4Route: HoloMemoryFiveWayRoute, agrees: Bool) {
+        if agrees {
+            state.shadowAgreeCount += 1
+        } else {
+            let key = "\(legacyRoute)->\(routeName(v4Route))"
+            state.shadowDisagreeCounts[key, default: 0] += 1
+        }
+    }
+
+    private func routeName(_ route: HoloMemoryFiveWayRoute) -> String {
+        switch route {
+        case .factEligible: return "fact"
+        case .qualifiedAdvice: return "qualified"
+        case .observeOnly: return "observe"
+        case .askWhenRelevant: return "ask"
+        case .discard: return "discard"
+        }
     }
 
     func snapshot() -> HoloMemoryQualitySnapshot { state }

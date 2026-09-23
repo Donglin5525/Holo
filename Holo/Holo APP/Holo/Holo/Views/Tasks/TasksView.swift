@@ -60,10 +60,10 @@ struct TasksView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: TodoTab = .tasks
     /// 当前窗口宽度（v2 断点判断用）
-    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.holoContentWidth) private var holoContentWidth
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
-        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+        HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
     }
     @State private var showAddTask: Bool = false
     @State private var showNotificationSettings: Bool = false
@@ -92,7 +92,8 @@ struct TasksView: View {
                         repository: repository,
                         onBack: { close() },
                         onFilterChanged: { selectedTaskFilter = $0 },
-                        searchTrigger: searchTrigger
+                        searchTrigger: searchTrigger,
+                        onAddRequested: { showAddTask = true }
                     )
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })

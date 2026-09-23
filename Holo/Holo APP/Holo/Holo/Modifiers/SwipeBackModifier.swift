@@ -164,6 +164,7 @@ private struct EdgeGestureOverlay: UIViewRepresentable {
     func updateUIView(_ uiView: EdgeGestureHostView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.recognizer?.isEnabled = isEnabled
+        uiView.gestureEnabled = isEnabled
     }
 
     // MARK: - Coordinator
@@ -225,6 +226,11 @@ private class EdgeGestureHostView: UIView {
     /// 是否忽略 NavigationStack 让位逻辑（见 hitTest 注释）
     let ignoreNavigationStack: Bool
 
+    /// isEnabled 的镜像。false 时必须整层失效——只停用手势不够，
+    /// 这层 overlay 仍会在 hitTest 里截留左缘 20pt 的触摸，压死下层页面
+    /// （如 push 上来的详情页）自己的边缘返回手势，表现为边缘右滑彻底无响应。
+    var gestureEnabled = true
+
     init(ignoreNavigationStack: Bool) {
         self.ignoreNavigationStack = ignoreNavigationStack
         super.init(frame: .zero)
@@ -236,7 +242,8 @@ private class EdgeGestureHostView: UIView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard point.x < edgeWidth,
+        guard gestureEnabled,
+              point.x < edgeWidth,
               isUserInteractionEnabled,
               !isHidden,
               alpha > 0.01
@@ -311,6 +318,15 @@ extension View {
     ///     传 true 时关闭前会通知 HomeView 改用纯淡出退出转场，避免右滑后再叠下滑动画
     ///   - onDismiss: 关闭回调
     /// - Returns: 应用了手势的视图
+    ///
+    /// ⚠️ 挂载位置决定「让位判断」是否有效：「NavigationStack 有 push 内容时让位」
+    /// 靠沿响应链向上找 UINavigationController 判断；若把手势挂在整个 NavigationStack
+    /// 外面，overlay 与导航控制器的视图是兄弟层级，响应链向上永远找不到栈，
+    /// 让位判断恒失效——push 子页面后右滑会把整页连同子页一起滑出
+    /// （2026-09-16 健康页睡眠详情黑屏事故）。两种合法用法二选一：
+    /// 1. 挂在 NavigationStack 内部的根内容上：让位判断正常工作，覆盖一切 push 方式；
+    /// 2. 挂在栈外：必须用 isEnabled 按 push 状态显式门控（如健康页
+    ///    `isEnabled: selectedMetric == nil && !showVitals`），禁用态为整层失效、触摸穿透。
     func swipeBackToDismiss(
         isEnabled: Bool = true,
         ignoreNavigationStack: Bool = false,

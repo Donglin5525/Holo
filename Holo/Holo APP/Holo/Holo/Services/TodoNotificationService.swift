@@ -530,7 +530,8 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
                 Self.logger.info("图片自动记账通知 Deep Link")
                 if let draftIDString = userInfo["draftID"] as? String,
                    let draftID = UUID(uuidString: draftIDString) {
-                    DeepLinkState.shared.navigate(to: .receiptReview(draftID: draftID))
+                    // 统一走 Presenter：导航同时落「已自动弹过」标记，关掉后回前台兜底不再重复弹
+                    ReceiptBookingForegroundPresenter.present(draftID: draftID)
                 } else if let transactionIDString = userInfo["transactionID"] as? String,
                           let transactionID = UUID(uuidString: transactionIDString) {
                     DeepLinkState.shared.navigate(to: .transactionDetail(transactionId: transactionID))

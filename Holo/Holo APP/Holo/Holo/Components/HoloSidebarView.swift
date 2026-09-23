@@ -91,15 +91,27 @@ struct HoloSidebarView: View {
     /// 当前选中的目的地（由 ContentView 持有）
     @Binding var selection: HoloSidebarDestination
 
+    /// 侧边栏形态：常驻全宽（图标+文字）或窄条（仅图标，目的地始终可见可点）
+    var visibility: HoloLayoutPolicy.SidebarVisibility = .persistent
+
+    /// 形态切换（收起/展开；nil 形态下不显示切换按钮）
+    var onToggleVisibility: ((HoloLayoutPolicy.SidebarVisibility?) -> Void)? = nil
+
     /// 底部「快速记录」动作（⌘N 同款语义）
     let onQuickCapture: () -> Void
 
+    private var isRail: Bool { visibility == .rail }
+
     var body: some View {
         VStack(spacing: 0) {
-            brandHeader
-                .padding(.horizontal, 16)
-                .padding(.top, 20)
-                .padding(.bottom, 6)
+            if isRail {
+                railHeader
+            } else {
+                brandHeader
+                    .padding(.horizontal, 16)
+                    .padding(.top, 20)
+                    .padding(.bottom, 6)
+            }
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 2) {
@@ -110,26 +122,47 @@ struct HoloSidebarView: View {
                     Divider()
                         .background(Color.holoBorder)
                         .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, isRail ? 10 : 12)
 
                     ForEach(HoloSidebarDestination.secondaryItems) { item in
                         sidebarRow(item)
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, isRail ? 8 : 12)
             }
 
             quickCaptureButton
-                .padding(.horizontal, 14)
+                .padding(.horizontal, isRail ? 10 : 14)
                 .padding(.top, 8)
                 .padding(.bottom, 14)
+
+            if let onToggleVisibility, !isRail {
+                collapseButton
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 14)
+            } else if let onToggleVisibility, isRail {
+                expandButton
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 14)
+            }
         }
-        .frame(width: HoloAdaptiveLayout.sidebarWidth)
+        .frame(width: isRail ? HoloLayoutPolicy.sidebarRailWidth : HoloAdaptiveLayout.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Self.sidebarBackground.ignoresSafeArea())
+        .animation(.easeInOut(duration: 0.22), value: visibility)
     }
 
     // MARK: - 子视图
+
+    /// 窄条品牌区：Holo 圆点
+    private var railHeader: some View {
+        Circle()
+            .fill(Color.holoPrimary)
+            .frame(width: 9, height: 9)
+            .padding(.top, 24)
+            .padding(.bottom, 10)
+            .accessibilityHidden(true)
+    }
 
     /// 品牌区：Holo + 日期问候
     private var brandHeader: some View {
@@ -152,33 +185,42 @@ struct HoloSidebarView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 单行导航条目
+    /// 单行导航条目（窄条形态只渲染图标）
     private func sidebarRow(_ item: HoloSidebarDestination) -> some View {
         let isSelected = selection == item
         return Button {
             guard selection != item else { return }
             selection = item
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
-                    .frame(width: 20)
+            Group {
+                if isRail {
+                    Image(systemName: item.icon)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                        .frame(width: 40, height: 40)
+                } else {
+                    HStack(spacing: 10) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                            .frame(width: 20)
 
-                Text(item.title)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                        Text(item.title)
+                            .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                            .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
 
-                Spacer(minLength: 0)
+                        Spacer(minLength: 0)
 
-                if let number = item.shortcutNumber {
-                    Text("⌘\(number)")
-                        .font(.system(size: 10))
-                        .foregroundColor(.holoTextPlaceholder)
+                        if let number = item.shortcutNumber {
+                            Text("⌘\(number)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoTextPlaceholder)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .fill(isSelected ? Color.holoPrimary.opacity(0.14) : Color.clear)
@@ -186,36 +228,93 @@ struct HoloSidebarView: View {
         }
         .buttonStyle(.plain)
         .holoHover()
+        .accessibilityLabel(item.title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    /// 底部快速记录
+    /// 底部快速记录（窄条形态只渲染 + 号）
     private var quickCaptureButton: some View {
         Button(action: onQuickCapture) {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .semibold))
-                Text(String(localized: "快速记录"))
-                    .font(.system(size: 14, weight: .semibold))
-                Text("⌘N")
-                    .font(.system(size: 10, weight: .regular))
-                    .opacity(0.7)
+            Group {
+                if isRail {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(
+                            RoundedRectangle(cornerRadius: HoloRadius.md)
+                                .fill(Color.holoPrimary)
+                        )
+                } else {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(String(localized: "快速记录"))
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("⌘N")
+                            .font(.system(size: 10, weight: .regular))
+                            .opacity(0.7)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: HoloRadius.lg)
+                            .fill(LinearGradient(
+                                colors: [Color.holoPrimary, Color.holoPrimaryDark],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ))
+                    )
+                    .shadow(color: Color.holoPrimary.opacity(0.3), radius: 12, x: 0, y: 5)
+                }
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(LinearGradient(
-                        colors: [Color.holoPrimary, Color.holoPrimaryDark],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-            )
-            .shadow(color: Color.holoPrimary.opacity(0.3), radius: 12, x: 0, y: 5)
         }
         .buttonStyle(.plain)
         .holoHover()
         .accessibilityLabel(String(localized: "快速记录"))
+    }
+
+    /// 常驻形态底部的收起按钮（«）
+    private var collapseButton: some View {
+        Button {
+            onToggleVisibility?(.rail)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 13, weight: .medium))
+                Text(String(localized: "收起边栏"))
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(.holoTextSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(Color.holoPrimary.opacity(0.06))
+            )
+        }
+        .buttonStyle(.plain)
+        .holoHover()
+        .accessibilityLabel(String(localized: "收起边栏"))
+    }
+
+    /// 窄条形态底部的展开按钮（»）
+    private var expandButton: some View {
+        Button {
+            onToggleVisibility?(.persistent)
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .fill(Color.holoPrimary.opacity(0.06))
+                )
+        }
+        .buttonStyle(.plain)
+        .holoHover()
+        .accessibilityLabel(String(localized: "展开边栏"))
     }
 
     // MARK: - 辅助

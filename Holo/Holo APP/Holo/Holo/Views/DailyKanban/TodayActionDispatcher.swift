@@ -40,13 +40,32 @@ final class TodayActionDispatcher: ObservableObject {
     var onOpenChatWithMatter: ((UUID) -> Void)?
     private let viewModel: HoloTodayViewModel
 
+    /// 防双击去抖记录：导航类动作瞬时完成、不走 inFlightAction，
+    /// 同一动作在窗口内的第二次触发视为双击忽略。
+    private var lastDebouncedAction: HoloTodayAction?
+    private var lastDebouncedActionAt = Date.distantPast
+
     init(viewModel: HoloTodayViewModel) {
         self.viewModel = viewModel
+    }
+
+    /// 防重压栈。推入动画进行中再压同值会触发 iOS 26 导航栈内部
+    /// AnyNavigationPath.comparisonTypeMismatch 断言闪退
+    /// （2026-09-20 真机+模拟器双重复现：看板 Matter 卡快速双击必崩）。
+    func push(_ route: HoloTodayRoute) {
+        guard path.last != route else { return }
+        path.append(route)
     }
 
     /// 唯一入口：卡片/行只管把 action 交进来。
     func perform(_ action: HoloTodayAction) {
         guard inFlightAction == nil else { return } // 防双击重复写入
+        let now = Date()
+        if action == lastDebouncedAction, now.timeIntervalSince(lastDebouncedActionAt) < 0.45 {
+            return // 双击去抖：导航/跳转类动作重复触发直接忽略
+        }
+        lastDebouncedAction = action
+        lastDebouncedActionAt = now
         localErrorMessage = nil
         switch action {
         case .openTask(let taskID):
@@ -70,7 +89,7 @@ final class TodayActionDispatcher: ObservableObject {
                 Task { await viewModel.refreshNow() }
                 return
             }
-            path.append(.matterDetail(matterID, focusOpenLoopID: focusLoopID))
+            push(.matterDetail(matterID, focusOpenLoopID: focusLoopID))
 
         case .createTaskFromOpenLoop(let matterID, let openLoopID):
             inFlightAction = action

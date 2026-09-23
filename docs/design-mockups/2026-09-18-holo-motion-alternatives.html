@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holo 动效探索 · 无进度条的三种方向</title>
+  <style>
+    :root {
+      --ink: #302b28;
+      --muted: #786f67;
+      --orange: #f46d38;
+      --cream: #fdfcf8;
+      --border: #ddd4c9;
+      --serif: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+      --sans: "PingFang SC", "Hiragino Sans GB", -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { background: #eae5dd; color: var(--ink); font-family: var(--sans); }
+    body { margin: 0; min-width: 320px; background: radial-gradient(circle at 7% 8%, #fff8eb, transparent 27%), radial-gradient(circle at 96% 78%, #eedacf, transparent 33%), #eae5dd; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+    button:disabled { cursor: default; }
+    a { color: inherit; }
+    .wrap { max-width: 1500px; margin: auto; padding: 48px 34px 80px; }
+    .eyebrow { color: #aa4a2b; font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; }
+    .top { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 35px; }
+    h1 { font: 600 clamp(34px, 4vw, 59px)/1.12 var(--serif); letter-spacing: -.07em; margin: 12px 0 12px; }
+    .intro { max-width: 780px; color: #665b52; line-height: 1.8; font-size: 15px; margin: 0; }
+    .top-actions { display: flex; flex-direction: column; gap: 12px; align-items: end; white-space: nowrap; }
+    .back-link { font-size: 12px; font-weight: 700; text-decoration: none; border-bottom: 1px solid #b85b37; padding-bottom: 3px; }
+    .motion-toggle { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #685a50; }
+    .motion-toggle input { accent-color: var(--orange); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; align-items: start; }
+    .concept { background: #ffffff91; border: 1px solid #d7cfc4; border-radius: 28px; padding: 19px; box-shadow: 0 18px 45px #54402612; }
+    .concept-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding: 3px 3px 13px; }
+    .concept-code { color: #aa4a2b; font-size: 11px; font-weight: 900; letter-spacing: .18em; }
+    .concept-name { margin: 6px 0 0; font: 600 25px/1.1 var(--serif); letter-spacing: -.05em; }
+    .concept-kind { color: #93867a; font-size: 11px; }
+    .phone { max-width: 344px; height: 650px; margin: auto; overflow: hidden; border: 7px solid #312d2a; border-radius: 43px; position: relative; box-shadow: 0 12px 20px #2b1e1825, 0 29px 55px #2b1e1836; }
+    .phone::before { content: ""; position: absolute; z-index: 20; width: 30%; height: 20px; top: 0; left: 35%; background: #312d2a; border-radius: 0 0 14px 14px; }
+    .screen { height: 100%; overflow: hidden; position: relative; padding: 42px 21px 22px; }
+    .status { display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; opacity: .65; margin-bottom: 28px; }
+    .holo-wordmark { font-size: 14px; font-weight: 900; letter-spacing: -.06em; }
+    .holo-wordmark i { color: var(--orange); font-style: normal; }
+    .footnote { font-size: 12px; color: #675b50; line-height: 1.65; padding: 13px 4px 0; min-height: 72px; }
+    .footnote strong { color: var(--ink); }
+    .concept-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #e2d8cc; padding: 13px 4px 2px; font-size: 11px; line-height: 1.5; }
+    .concept-meta span { display: block; color: #9b8775; font-size: 10px; font-weight: 700; margin-bottom: 3px; }
+    .concept-meta b { font-weight: 600; }
+    .toast { position: absolute; z-index: 10; bottom: 20px; left: 17px; right: 17px; display: none; align-items: center; justify-content: space-between; background: #332d28; color: #fff; padding: 12px 13px; border-radius: 12px; box-shadow: 0 10px 23px #0004; font-size: 11px; }
+    .toast.show { display: flex; animation: toast-in .2s both; }
+    .toast button { border: 0; background: transparent; color: #ffcbad; font-weight: 800; padding: 2px; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* B · 活页归档：纸张由上往下归入事簿。 */
+    .paper-screen { background: #f5f0e7; color: #3a302c; }
+    .paper-screen::after { content: ""; position: absolute; inset: 0; opacity: .27; pointer-events: none; background-image: repeating-linear-gradient(0deg, #784a2208 0, #784a2208 1px, transparent 1px, transparent 5px); }
+    .paper-screen > * { position: relative; z-index: 1; }
+    .paper-date { color: #ab5133; font-size: 10px; letter-spacing: .2em; font-weight: 800; }
+    .paper-title { font: 600 29px/1.12 var(--serif); letter-spacing: -.07em; margin: 10px 0 8px; }
+    .paper-sub { font-size: 11px; line-height: 1.55; color: #88766a; margin: 0 0 25px; }
+    .paper-stack { position: relative; margin: 0 3px 28px; }
+    .paper-stack::before, .paper-stack::after { content: ""; position: absolute; background: #fffaf2; border: 1px solid #d9cbb9; border-radius: 6px 18px 8px 8px; inset: 8px 3px -9px 3px; transform: rotate(-2deg); box-shadow: 0 7px 14px #6b4c3214; }
+    .paper-stack::after { inset: 11px -4px -5px 6px; transform: rotate(2deg); }
+    .paper-card { position: relative; z-index: 2; background: #fffdf8; border: 1px solid #d8c8b7; min-height: 232px; padding: 22px 20px 18px; border-radius: 7px 22px 8px 8px; box-shadow: 0 14px 20px #5c402423; transform-origin: 50% 100%; }
+    .paper-card.turn { animation: paper-turn .45s both; }
+    @keyframes paper-turn { 0% { transform: translateY(0) rotate(0); opacity: 1; } 48% { transform: translateY(-25px) rotate(-4deg); opacity: .15; } 49% { transform: translateY(18px) rotate(2deg); opacity: .15; } 100% { transform: translateY(0) rotate(0); opacity: 1; } }
+    .paper-card .topline { display: flex; justify-content: space-between; font-size: 10px; color: #ab765a; font-weight: 700; }
+    .paper-card h3 { font: 600 28px/1.22 var(--serif); letter-spacing: -.065em; margin: 24px 0 12px; min-height: 69px; }
+    .paper-card p { font-size: 11px; line-height: 1.5; color: #8b786a; min-height: 31px; margin: 0 0 18px; }
+    .paper-action { border: 1px solid #a6482c; background: #aa4b2f; color: #fffdf8; padding: 9px 14px; border-radius: 7px; font-size: 11px; font-weight: 700; }
+    .paper-action:disabled { background: #b5a39a; border-color: #b5a39a; }
+    .paper-record-label { font: 600 14px/1 var(--serif); margin: 0 0 13px; }
+    .paper-records { max-height: 138px; overflow: auto; padding-right: 3px; scrollbar-width: thin; }
+    .paper-record { display: flex; align-items: center; justify-content: space-between; background: #ebe2d5; padding: 9px 11px; border-radius: 3px 11px 4px 4px; border-left: 3px solid #b65e3c; margin-bottom: 7px; font-size: 10px; color: #645347; animation: record-in .38s both; }
+    .paper-record em { font: 700 10px var(--serif); color: #b55234; font-style: normal; border: 1px solid #c87b5e; border-radius: 50%; width: 26px; height: 26px; display: grid; place-items: center; transform: rotate(-12deg); }
+    @keyframes record-in { from { opacity: 0; transform: translateY(-14px) rotate(-3deg); } to { opacity: 1; transform: translateY(0); } }
+
+    /* C · 聚光舞台：只呈现眼前的行动。 */
+    .stage-screen { color: #f3e8d7; background: radial-gradient(ellipse at 50% 39%, #63564b 0, #292b2b 32%, #171d20 77%); }
+    .stage-screen::before { content: ""; position: absolute; top: 93px; left: 7%; width: 86%; height: 350px; background: radial-gradient(ellipse, #e2a66a2c 0, #d48c4a13 30%, transparent 69%); filter: blur(5px); pointer-events: none; }
+    .stage-screen > * { position: relative; z-index: 1; }
+    .stage-screen .status { color: #cfbcaa; }
+    .stage-head { display: flex; align-items: center; justify-content: space-between; color: #c9b8a4; font-size: 10px; letter-spacing: .16em; }
+    .stage-head strong { font-size: 13px; color: #f0ddc7; letter-spacing: -.05em; }
+    .stage-scene { display: flex; flex-direction: column; justify-content: center; min-height: 371px; text-align: center; transition: opacity .35s, transform .35s; }
+    .stage-scene.change { opacity: .05; transform: scale(.95); }
+    .stage-glyph { width: 72px; height: 72px; margin: 0 auto 29px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #f3b47975; color: #f8be89; font: 400 36px var(--serif); box-shadow: 0 0 0 12px #f3b4790b, 0 0 45px #e88f3c35; }
+    .stage-kicker { color: #efae73; font-size: 10px; font-weight: 800; letter-spacing: .22em; }
+    .stage-title { font: 500 32px/1.25 var(--serif); letter-spacing: -.055em; margin: 15px auto 13px; max-width: 240px; min-height: 80px; }
+    .stage-caption { font-size: 11px; color: #bba997; line-height: 1.6; margin: 0 auto; max-width: 230px; min-height: 36px; }
+    .stage-action { position: absolute; bottom: 79px; left: 22px; right: 22px; width: calc(100% - 44px); border: 1px solid #e2ae7a; border-radius: 100px; background: #e9ad74; color: #3c271e; padding: 14px 20px; font-size: 12px; font-weight: 800; box-shadow: 0 6px 27px #e88f3c30; }
+    .stage-action:disabled { background: #655c54; border-color: #655c54; color: #e1d3c4; box-shadow: none; }
+    .stage-recent { position: absolute; bottom: 29px; left: 24px; right: 24px; color: #9d9c96; font-size: 10px; text-align: center; }
+
+    /* D · 生活拼贴：行动变成真实标题的小物件。 */
+    .collage-screen { background: #f0efe8; color: #2f3431; }
+    .collage-screen::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .33; background-image: radial-gradient(#7f867b24 .5px, transparent .5px); background-size: 6px 6px; }
+    .collage-screen > * { position: relative; z-index: 1; }
+    .collage-screen .status { color: #596159; }
+    .collage-kicker { color: #43705f; font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+    .collage-title { font: 600 29px/1.12 var(--serif); letter-spacing: -.07em; margin: 9px 0 7px; }
+    .collage-sub { color: #718078; font-size: 11px; line-height: 1.5; margin: 0; }
+    .collage-board { height: 294px; position: relative; margin: 13px 0 13px; overflow: hidden; }
+    .collage-board::before { content: ""; position: absolute; inset: 25px 7px 12px; border: 1px dashed #b9c5b9; border-radius: 45% 55% 49% 51%; transform: rotate(-13deg); }
+    .artifact { position: absolute; border: 1px solid #ccc1ac; box-shadow: 0 11px 17px #42544825; background: #f8efe2; padding: 13px 11px; width: 122px; min-height: 103px; transform: rotate(var(--rotate)); animation: artifact-in .55s both; }
+    .artifact::before { content: ""; position: absolute; top: -5px; left: 45%; width: 30px; height: 10px; background: #d6c7a5a8; transform: rotate(-8deg); }
+    .artifact small { display: block; color: #9b7159; font-size: 8px; letter-spacing: .13em; font-weight: 800; }
+    .artifact strong { display: block; font: 600 17px/1.2 var(--serif); margin-top: 15px; letter-spacing: -.05em; }
+    .artifact.a0 { top: 58px; left: 23px; --rotate: -11deg; background: #f5e9d7; }
+    .artifact.a1 { top: 32px; right: 18px; --rotate: 8deg; background: #e3eee8; }
+    .artifact.a2 { top: 154px; left: 102px; --rotate: -2deg; background: #f7ddd0; }
+    .artifact.a3 { top: 176px; right: 8px; --rotate: 12deg; background: #eee4cd; }
+    @keyframes artifact-in { from { opacity: 0; transform: translateY(32px) rotate(0deg) scale(.86); } to { opacity: 1; transform: translateY(0) rotate(var(--rotate)) scale(1); } }
+    .collage-current { background: #194c43; color: #f6f2e8; padding: 16px 17px; border-radius: 18px; box-shadow: 0 11px 22px #194c4329; min-height: 125px; }
+    .collage-current small { display: block; font-size: 9px; letter-spacing: .16em; color: #a5d6bb; font-weight: 800; margin-bottom: 9px; }
+    .collage-current strong { display: block; font: 600 19px/1.3 var(--serif); margin-bottom: 11px; min-height: 25px; }
+    .collage-action { background: #e1a779; color: #3d2d23; border: 0; border-radius: 8px; padding: 7px 12px; font-size: 10px; font-weight: 800; }
+    .collage-action:disabled { background: #aeb7aa; }
+
+    .decision { margin-top: 33px; border: 1px solid #d7cdc0; border-radius: 22px; background: #fffcf6aa; padding: 20px 24px; display: grid; grid-template-columns: 160px 1fr; gap: 22px; }
+    .decision h2 { font: 600 20px/1.25 var(--serif); margin: 0; }
+    .decision p { font-size: 13px; line-height: 1.7; color: #61574e; margin: 0; }
+    .decision strong { color: #9e4a30; }
+    .reduced *, .reduced *::before, .reduced *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+    @media (max-width: 1140px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 740px) { .wrap { padding: 31px 16px 60px; } .top { display: block; } .top-actions { align-items: start; margin-top: 18px; } .grid { grid-template-columns: 1fr; } .concept { max-width: 420px; margin: auto; width: 100%; } .decision { grid-template-columns: 1fr; gap: 8px; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div>
+        <div class="eyebrow">HOLO · MOTION EXPLORATION · B / C / D</div>
+        <h1>让完成，有别的形状。</h1>
+        <p class="intro">三种版本都不展示进度条、圆环、节点轨迹或百分比。点按手机里的完成按钮，观察任务怎样离开、下一件事怎样出现，以及做过的事留下什么。</p>
+      </div>
+      <div class="top-actions">
+        <a class="back-link" href="2026-09-18-holo-motion-integrated-journey.html">在 Holo 中体验完整动线 ↗</a>
+        <a class="back-link" href="2026-09-18-holo-motion-study.html">查看 A 版 · 光痕轨迹 ↗</a>
+        <label class="motion-toggle"><input id="reduce-motion" type="checkbox"> 减少动态效果</label>
+      </div>
+    </header>
+    <div class="grid">
+      <article class="concept">
+        <div class="concept-head"><div><span class="concept-code">VERSION B</span><h2 class="concept-name">活页归档</h2></div><span class="concept-kind">触感 / 编辑感</span></div>
+        <div class="phone">
+          <div class="screen paper-screen">
+            <div class="status"><span>9:41</span><span class="holo-wordmark">holo<i>.</i></span></div>
+            <div class="paper-date">FRIDAY · 18 SEPTEMBER</div>
+            <h3 class="paper-title">今天这页，<br>慢慢写。</h3>
+            <p class="paper-sub">眼前这件事，做完就收进今天的事簿。</p>
+            <div class="paper-stack"><div class="paper-card" id="paper-card"><div class="topline"><span>眼前这件事</span><span>日本旅行</span></div><h3 id="paper-task">整理日本旅行证件</h3><p id="paper-hint">护照、签证和行程资料放在一起。</p><button class="paper-action" id="paper-action">完成并归档</button></div></div>
+            <div class="paper-record-label">今天已写下</div>
+            <div class="paper-records" id="paper-records"><div class="paper-record"><span>定好出发日期</span><em>成</em></div></div>
+            <div class="toast" id="paper-toast" role="status" aria-live="polite"><span>已收进今天，可撤回</span><button id="paper-undo">撤回</button></div>
+          </div>
+        </div>
+        <div class="footnote"><strong>记住的瞬间：</strong>卡片像活页一样被收进事簿，留下可读的文字印记。</div>
+        <div class="concept-meta"><div><span>适合</span><b>任务、清单、日回顾</b></div><div><span>取舍</span><b>安静耐看；复杂卡片需控制层数</b></div></div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><div><span class="concept-code">VERSION C</span><h2 class="concept-name">聚光舞台</h2></div><span class="concept-kind">专注 / 沉浸</span></div>
+        <div class="phone">
+          <div class="screen stage-screen">
+            <div class="status"><span>9:41</span><span class="holo-wordmark">holo<i>.</i></span></div>
+            <div class="stage-head"><span>ONE THING AT A TIME</span><strong>今天</strong></div>
+            <div class="stage-scene" id="stage-scene"><div class="stage-glyph" id="stage-glyph">旅</div><div class="stage-kicker">此刻值得做</div><h3 class="stage-title" id="stage-title">整理日本旅行证件</h3><p class="stage-caption" id="stage-caption">把注意力放在眼前这件事上。</p></div>
+            <button class="stage-action" id="stage-action">完成这件事</button>
+            <div class="stage-recent" id="stage-recent">刚刚完成 · 定好出发日期</div>
+            <div class="toast" id="stage-toast" role="status" aria-live="polite"><span>已转向下一件事</span><button id="stage-undo">撤回</button></div>
+          </div>
+        </div>
+        <div class="footnote"><strong>记住的瞬间：</strong>任务退场，光落在下一件事上；视线只需停留在一处。</div>
+        <div class="concept-meta"><div><span>适合</span><b>Today 焦点、专注模式</b></div><div><span>取舍</span><b>仪式感强；不宜覆盖批量列表</b></div></div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><div><span class="concept-code">VERSION D</span><h2 class="concept-name">生活拼贴</h2></div><span class="concept-kind">个性 / 记忆</span></div>
+        <div class="phone">
+          <div class="screen collage-screen">
+            <div class="status"><span>9:41</span><span class="holo-wordmark">holo<i>.</i></span></div>
+            <div class="collage-kicker">TODAY'S PIECES</div><h3 class="collage-title">今天留下的<br>生活切片。</h3><p class="collage-sub">每做完一件事，就多一张属于你的卡片。</p>
+            <div class="collage-board" id="collage-board"><div class="artifact a0"><small>日本旅行</small><strong>定好出发日期</strong></div></div>
+            <div class="collage-current"><small>接下来</small><strong id="collage-title">整理日本旅行证件</strong><button class="collage-action" id="collage-action">完成，留下切片</button></div>
+            <div class="toast" id="collage-toast" role="status" aria-live="polite"><span>已留在今天，可撤回</span><button id="collage-undo">撤回</button></div>
+          </div>
+        </div>
+        <div class="footnote"><strong>记住的瞬间：</strong>完成的真实任务标题成为可回看的纸片，日常逐渐有自己的纹理。</div>
+        <div class="concept-meta"><div><span>适合</span><b>Matter、记忆、日回顾</b></div><div><span>取舍</span><b>辨识度高；高密度时需收纳</b></div></div>
+      </article>
+    </div>
+    <section class="decision"><h2>我的初步判断</h2><p><strong>B 活页归档</strong>最适合替换任务模块的日常反馈：动作有手感，也能承受反复使用。<strong>C 聚光舞台</strong>适合 Today 的单一焦点入口。<strong>D 生活拼贴</strong>更适合 Matter 与日回顾，让完成的事在更长时间里留下意义。三版可以共享“完成、撤回、已保存”的同一业务状态，视觉表达各司其职。</p></section>
+  </main>
+  <script>
+    const tasks = [
+      { title: '整理日本旅行证件', hint: '护照、签证和行程资料放在一起。', glyph: '旅' },
+      { title: '确认住宿与交通', hint: '把预订信息整理成一处。', glyph: '行' },
+      { title: '给出发前的自己留一句话', hint: '用一句话记下这次出发的心情。', glyph: '记' }
+    ];
+    const state = {
+      paper: { index: 0, pending: null, timer: null, moving: false, version: 0, transitionTimer: null, settleTimer: null },
+      stage: { index: 0, pending: null, timer: null, moving: false, version: 0, transitionTimer: null },
+      collage: { index: 0, pending: null, timer: null }
+    };
+    const $ = id => document.getElementById(id);
+    const reducedMotion = () => document.body.classList.contains('reduced') || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    $('reduce-motion').addEventListener('change', event => document.body.classList.toggle('reduced', event.target.checked));
+    function pendingFor(name, previousIndex) {
+      const current = state[name];
+      clearTimeout(current.timer);
+      current.pending = previousIndex;
+      $(name + '-toast').classList.add('show');
+      current.timer = setTimeout(() => { current.pending = null; $(name + '-toast').classList.remove('show'); }, 3000);
+    }
+    function clearPending(name) {
+      const current = state[name];
+      clearTimeout(current.timer);
+      current.pending = null;
+      $(name + '-toast').classList.remove('show');
+    }
+    function renderPaper() {
+      const index = state.paper.index;
+      $('paper-task').textContent = index < tasks.length ? tasks[index].title : '今天这页，写好了。';
+      $('paper-hint').textContent = index < tasks.length ? tasks[index].hint : '你可以回看刚刚完成的事。';
+      $('paper-action').disabled = index >= tasks.length || state.paper.moving;
+      $('paper-action').textContent = index < tasks.length ? '完成并归档' : '今天已收好';
+    }
+    $('paper-action').addEventListener('click', () => {
+      const current = state.paper;
+      if (current.index >= tasks.length || current.moving) return;
+      const oldIndex = current.index;
+      clearPending('paper');
+      current.index += 1;
+      current.moving = !reducedMotion();
+      const version = ++current.version;
+      if (current.moving) {
+        $('paper-action').disabled = true;
+        $('paper-card').classList.add('turn');
+        current.transitionTimer = setTimeout(() => { if (current.version === version) renderPaper(); }, 215);
+        current.settleTimer = setTimeout(() => { if (current.version === version) { current.moving = false; $('paper-card').classList.remove('turn'); renderPaper(); } }, 460);
+      } else {
+        renderPaper();
+      }
+      const record = document.createElement('div');
+      record.className = 'paper-record'; record.id = 'paper-record-' + oldIndex;
+      const text = document.createElement('span'); text.textContent = tasks[oldIndex].title;
+      const seal = document.createElement('em'); seal.textContent = '成';
+      record.append(text, seal); $('paper-records').prepend(record);
+      pendingFor('paper', oldIndex);
+    });
+    $('paper-undo').addEventListener('click', () => {
+      const oldIndex = state.paper.pending;
+      if (oldIndex === null) return;
+      clearPending('paper');
+      state.paper.version += 1;
+      clearTimeout(state.paper.transitionTimer);
+      clearTimeout(state.paper.settleTimer);
+      state.paper.moving = false;
+      state.paper.index = oldIndex;
+      $('paper-record-' + oldIndex)?.remove();
+      $('paper-card').classList.remove('turn');
+      renderPaper();
+    });
+    function renderStage() {
+      const index = state.stage.index;
+      $('stage-title').textContent = index < tasks.length ? tasks[index].title : '今天，先到这里。';
+      $('stage-caption').textContent = index < tasks.length ? '把注意力放在眼前这件事上。' : '做过的事已经留下；接下来可以休息。';
+      $('stage-glyph').textContent = index < tasks.length ? tasks[index].glyph : '歇';
+      $('stage-action').disabled = index >= tasks.length || state.stage.moving;
+      $('stage-action').textContent = index < tasks.length ? '完成这件事' : '今天已完成';
+      $('stage-recent').textContent = index ? '刚刚完成 · ' + tasks[index - 1].title : '刚刚完成 · 定好出发日期';
+    }
+    $('stage-action').addEventListener('click', () => {
+      const current = state.stage;
+      if (current.index >= tasks.length || current.moving) return;
+      const oldIndex = current.index;
+      clearPending('stage');
+      current.index += 1;
+      current.moving = !reducedMotion();
+      const version = ++current.version;
+      if (current.moving) {
+        $('stage-action').disabled = true;
+        $('stage-scene').classList.add('change');
+        current.transitionTimer = setTimeout(() => { if (current.version === version) { current.moving = false; renderStage(); $('stage-scene').classList.remove('change'); } }, 290);
+      } else {
+        renderStage();
+      }
+      pendingFor('stage', oldIndex);
+    });
+    $('stage-undo').addEventListener('click', () => {
+      const oldIndex = state.stage.pending;
+      if (oldIndex === null) return;
+      clearPending('stage');
+      state.stage.version += 1;
+      clearTimeout(state.stage.transitionTimer);
+      state.stage.moving = false;
+      state.stage.index = oldIndex;
+      $('stage-scene').classList.remove('change');
+      renderStage();
+    });
+    function renderCollage() {
+      const index = state.collage.index;
+      $('collage-title').textContent = index < tasks.length ? tasks[index].title : '今天的切片已收好。';
+      $('collage-action').disabled = index >= tasks.length;
+      $('collage-action').textContent = index < tasks.length ? '完成，留下切片' : '今天已完成';
+    }
+    $('collage-action').addEventListener('click', () => {
+      const current = state.collage;
+      if (current.index >= tasks.length) return;
+      const oldIndex = current.index;
+      clearPending('collage');
+      current.index += 1;
+      const artifact = document.createElement('div');
+      artifact.className = 'artifact a' + (oldIndex + 1);
+      artifact.id = 'artifact-' + oldIndex;
+      const category = document.createElement('small'); category.textContent = '日本旅行';
+      const title = document.createElement('strong'); title.textContent = tasks[oldIndex].title;
+      artifact.append(category, title); $('collage-board').append(artifact);
+      renderCollage();
+      pendingFor('collage', oldIndex);
+    });
+    $('collage-undo').addEventListener('click', () => {
+      const oldIndex = state.collage.pending;
+      if (oldIndex === null) return;
+      clearPending('collage');
+      state.collage.index = oldIndex;
+      $('artifact-' + oldIndex)?.remove();
+      renderCollage();
+    });
+  </script>
+</body>
+</html>

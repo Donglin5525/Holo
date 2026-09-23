@@ -24,6 +24,9 @@ final class HoloMatterLink: NSManagedObject, Identifiable {
     @NSManaged var confidence: Double
     @NSManaged var statusRaw: String
     @NSManaged var sourceRevision: String?
+    /// V2 计划顺序：仅 todoTask+action 的 link 持久化 0...N-1；其余恒 -1。
+    /// 计划展示、下一步选择、修复补链一律以此为准，不依赖 fetch 顺序/创建时间/标题匹配。
+    @NSManaged var planOrder: Int16
     @NSManaged var createdAt: Date
     @NSManaged var updatedAt: Date
     @NSManaged var deletedAt: Date?

@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holo · 动效融合 · 品牌风格版</title>
+  <style>
+:root {
+  --bg: #fdfcf8;
+  --surface: #fff;
+  --nested: #f5f4f1;
+  --ink: #333;
+  --muted: #898d92;
+  --subtle: #a4a7ac;
+  --line: #ececee;
+  --orange: #f46d38;
+  --orange-deep: #ea580c;
+  --orange-text: #d75927;
+  --orange-wash: #fff1e9;
+  --purple: #7c5cfc;
+  --blue: #60a5fa;
+  --shadow: 0 9px 28px rgba(36, 39, 45, .055);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+body.dark {
+  --bg: #1c1c1e;
+  --surface: #2c2c2e;
+  --nested: #363638;
+  --ink: #f5f5f5;
+  --muted: #a5a5aa;
+  --subtle: #88888d;
+  --line: #3a3a3c;
+  --orange-text: #ff9b70;
+  --orange-wash: #46332e;
+  --shadow: 0 10px 28px rgba(0, 0, 0, .17);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); font-family: var(--font); color: var(--ink); }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 5% 4%, rgba(244,109,56,.065), transparent 28%),
+    radial-gradient(circle at 90% 18%, rgba(124,92,252,.045), transparent 30%),
+    var(--bg);
+}
+body.dark {
+  background:
+    radial-gradient(circle at 5% 4%, rgba(244,109,56,.10), transparent 28%),
+    radial-gradient(circle at 90% 18%, rgba(124,92,252,.06), transparent 30%),
+    var(--bg);
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+a { color: inherit; }
+.layout {
+  max-width: 1490px;
+  min-height: 100vh;
+  margin: auto;
+  padding: 28px 30px 40px;
+  display: grid;
+  grid-template-columns: 270px minmax(350px, 410px) minmax(280px, 1fr);
+  gap: 27px;
+  align-items: start;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+.left { position: sticky; top: 25px; padding: 23px 18px 20px; }
+.mark { font-size: 15px; font-weight: 800; letter-spacing: -.045em; }
+.mark b { color: var(--orange); }
+.eyebrow { margin-top: 25px; color: var(--orange-text); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+.left h1 { margin: 11px 0 13px; font-size: 28px; line-height: 1.18; font-weight: 730; letter-spacing: -.065em; }
+.left p { margin: 0 0 19px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.scenario-label { margin: 22px 5px 8px; color: var(--subtle); font-size: 10px; font-weight: 750; letter-spacing: .12em; }
+.scenario-button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 12px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: background .2s, border-color .2s, transform .2s;
+}
+.scenario-button:hover { transform: translateX(2px); }
+.scenario-button.active { background: var(--orange-wash); border-color: rgba(244,109,56,.42); }
+.scenario-button i { color: var(--orange-text); font-size: 10px; font-style: normal; font-weight: 800; padding-top: 2px; }
+.scenario-button strong { display: block; font-size: 12px; font-weight: 700; }
+.scenario-button small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.routes { margin: 12px 1px 17px; padding: 0; list-style: none; }
+.routes li { display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; margin-bottom: 4px; border-radius: 10px; color: var(--muted); font-size: 11px; }
+.routes li.active { background: var(--orange-wash); color: var(--orange-text); font-weight: 750; }
+.route-sub { color: var(--subtle); font-size: 10px; font-weight: 450; line-height: 1.35; }
+.routes li.active .route-sub { color: var(--muted); }
+.left-footer { border-top: 1px solid var(--line); padding-top: 15px; display: flex; flex-direction: column; gap: 11px; }
+.left-footer button { background: var(--orange); color: #fff; border: 0; border-radius: 12px; padding: 10px 12px; font-size: 11px; font-weight: 750; }
+.left-footer a { align-self: flex-start; color: var(--orange-text); font-size: 10px; font-weight: 650; text-decoration: none; }
+.left-footer a:hover { text-decoration: underline; }
+.device-col { padding-top: 6px; }
+.device-caption { margin-bottom: 14px; text-align: center; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.phone {
+  position: relative;
+  width: 100%;
+  max-width: 410px;
+  height: 790px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 8px solid #222327;
+  border-radius: 48px;
+  box-shadow: 0 30px 55px rgba(20,25,33,.18), 0 55px 85px rgba(20,25,33,.08);
+}
+.phone:before { content: ""; position: absolute; z-index: 30; top: 0; left: 36%; width: 28%; height: 24px; background: #222327; border-radius: 0 0 17px 17px; }
+.phone-status { position: absolute; z-index: 20; top: 22px; left: 25px; right: 25px; display: flex; justify-content: space-between; color: var(--ink); font-size: 10px; font-weight: 750; }
+.phone-content {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 52px 18px 22px;
+  background:
+    radial-gradient(circle at 90% 18%, rgba(124,92,252,.045), transparent 34%),
+    radial-gradient(circle at 8% 67%, rgba(96,165,250,.035), transparent 30%),
+    var(--bg);
+}
+.phone-content::-webkit-scrollbar { display: none; }
+.page-in { animation: page-in .22s both; }
+@keyframes page-in { from { opacity: .65; } to { opacity: 1; } }
+.bottom-nav, .module-nav {
+  position: sticky;
+  bottom: -22px;
+  margin: 22px -18px -22px;
+  display: flex;
+  justify-content: space-around;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 11px 10px 25px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.bottom-nav span:first-child, .module-nav b { color: var(--orange-text); font-weight: 750; }
+.bottom-nav i { display: block; margin-bottom: 3px; font-size: 16px; font-style: normal; }
+.screen-head { display: flex; align-items: center; gap: 11px; margin-bottom: 18px; }
+.back { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); font-size: 16px; }
+.screen-head strong { font-size: 17px; font-weight: 750; }
+.screen-head small { margin-left: auto; color: var(--muted); font-size: 10px; }
+.block-title { margin: 0 0 11px; font-size: 21px; font-weight: 720; letter-spacing: -.04em; }
+.section-label { margin: 21px 2px 9px; color: var(--muted); font-size: 10px; font-weight: 780; letter-spacing: .08em; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.mini { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.plain-link { border: 0; background: none; color: var(--orange-text); padding: 7px 2px; font-size: 11px; font-weight: 700; text-align: left; }
+
+/* Home: retain Holo's orb and five glass entries, without progress rings. */
+.home { min-height: 712px; display: flex; flex-direction: column; }
+.home-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 2px; }
+.hello { color: var(--ink); font-size: 24px; font-weight: 760; letter-spacing: -.055em; }
+.date { margin-top: 5px; color: var(--muted); font-size: 10px; }
+.home-settings { color: var(--muted); font-size: 16px; }
+.home-note { align-self: flex-start; margin: 18px 0 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; box-shadow: var(--shadow); }
+.home-note:before { content: "●"; color: var(--orange); font-size: 7px; margin-right: 6px; }
+.home-stage { position: relative; flex: 1; min-height: 475px; display: grid; place-items: center; isolation: isolate; }
+.home-stage:before { content: ""; position: absolute; width: 295px; height: 295px; border: 1px solid rgba(244,109,56,.11); border-radius: 50%; transform: rotate(-17deg); }
+.home-stage:after { content: ""; position: absolute; z-index: -1; width: 320px; height: 320px; background: radial-gradient(circle, rgba(244,109,56,.12), rgba(244,109,56,.015) 54%, transparent 75%); filter: blur(23px); }
+.feature { position: absolute; width: 72px; height: 83px; display: flex; flex-direction: column; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--muted); font-size: 10px; }
+.feature b { width: 56px; height: 56px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); font-size: 21px; font-weight: 500; }
+.feature b svg { width: 22px; height: 22px; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.feature.task { top: 38px; left: calc(50% - 36px); }
+.feature.finance { top: 138px; right: 1px; }
+.feature.habit { bottom: 85px; right: 23px; }
+.feature.health { bottom: 85px; left: 23px; }
+.feature.thought { top: 138px; left: 1px; }
+.home-orb { position: relative; z-index: 1; width: 166px; height: 166px; display: grid; place-items: center; border: 0; border-radius: 50%; background: linear-gradient(145deg,#fed7aa 0%,#ff9d6a 26%,#f46d38 67%,#ea580c 100%); box-shadow: 0 16px 38px rgba(244,109,56,.27), inset -9px -13px 24px rgba(173,57,5,.12); transition: transform .25s; }
+.home-orb { animation: orb-breathe 4.8s ease-in-out infinite alternate; }
+@keyframes orb-breathe { from { box-shadow: 0 16px 38px rgba(244,109,56,.24), inset -9px -13px 24px rgba(173,57,5,.12); } to { box-shadow: 0 19px 44px rgba(244,109,56,.34), 0 0 36px rgba(244,109,56,.1), inset -9px -13px 24px rgba(173,57,5,.12); } }
+.home-orb:hover { transform: scale(1.035); }
+.home-orb:before { content: ""; position: absolute; inset: 19px; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); }
+.orb-core { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle,#fff 0,rgba(255,255,255,.8) 25%,rgba(255,255,255,0) 72%); filter: blur(2px); box-shadow: 0 0 25px rgba(255,255,255,.8); }
+.home-caption { position: absolute; bottom: 35px; text-align: center; color: var(--muted); font-size: 11px; }
+.home-caption strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 16px; font-weight: 750; }
+
+/* Today: focus lens inside a standard Holo card. */
+.today-hero { position: relative; display: flex; flex-direction: column; min-height: 258px; overflow: hidden; padding: 19px; background: var(--surface); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); isolation: isolate; }
+.today-hero:after { content: ""; position: absolute; z-index: -1; top: -112px; right: -102px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle,rgba(244,109,56,.25),rgba(244,109,56,.08) 38%,rgba(244,109,56,0) 70%); }
+.motion-pulse .today-hero:after { animation: focus-glow .62s ease-out both; }
+@keyframes focus-glow { from { opacity: .3; transform: scale(.68); } to { opacity: 1; transform: scale(1); } }
+.today-hero:before { content: ""; position: absolute; z-index: -1; top: 17px; right: 22px; width: 70px; height: 70px; border: 1px solid rgba(244,109,56,.17); border-radius: 50%; }
+.hero-tag { display: flex; align-items: center; gap: 6px; color: var(--orange-text); font-size: 10px; font-weight: 780; letter-spacing: .04em; }
+.hero-tag:before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--orange); }
+.today-hero h2 { margin: 28px 0 10px; color: var(--ink); font-size: 25px; font-weight: 760; letter-spacing: -.045em; line-height: 1.25; }
+.today-next-step { align-self: flex-start; display: inline-flex; margin-bottom: 7px; padding: 7px 10px; background: var(--orange-wash); border-radius: 8px; color: var(--orange-text); font-size: 10px; font-weight: 670; }
+.today-hero p { margin: 0 0 15px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.primary-light { width: 100%; margin-top: auto; padding: 11px 14px; border: 0; border-radius: 12px; background: var(--orange); color: #fff; font-size: 11px; font-weight: 750; box-shadow: 0 7px 17px rgba(244,109,56,.18); }
+.today-matter { padding: 15px; margin-top: 12px; }
+.today-matter strong { font-size: 13px; font-weight: 720; }
+.today-matter small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+.today-matter button:not(.plain-link) { margin-top: 12px; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--orange-wash); color: var(--orange-text); font-size: 10px; font-weight: 750; }
+.today-matter .plain-link { margin-left: 7px; }
+.today-agenda { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 13px 14px; font-size: 11px; }
+.agenda-icon { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--orange-text); }
+.agenda-copy small { display: block; margin-top: 3px; color: var(--muted); }
+
+/* Tasks: content stays visible, a completed card becomes a quiet record. */
+.task-paper-head { margin-bottom: 14px; padding: 16px; background: linear-gradient(128deg,var(--surface),var(--orange-wash)); }
+.task-paper-head b { color: var(--ink); font-size: 19px; font-weight: 730; }
+.task-paper-head p { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+.task-filter { display: flex; gap: 6px; margin-bottom: 13px; }
+.task-filter span { padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; }
+.task-filter span:first-child { border-color: rgba(244,109,56,.24); background: var(--orange-wash); color: var(--orange-text); font-weight: 730; }
+.paper-row { width: 100%; display: flex; align-items: center; gap: 11px; margin-bottom: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); text-align: left; color: var(--ink); }
+.paper-row .circle { width: 22px; height: 22px; flex: 0 0 22px; border: 1.5px solid var(--orange); border-radius: 50%; }
+.paper-row strong { font-size: 12px; font-weight: 720; }
+.paper-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.paper-row-muted { opacity: .8; }
+.task-with-steps { display: block; padding: 0; overflow: hidden; }
+.paper-open { width: 100%; display: flex; align-items: center; gap: 11px; padding: 14px 15px 11px; border: 0; background: transparent; text-align: left; color: var(--ink); }
+.paper-open > span:nth-child(2) { flex: 1; }
+.paper-open b { color: var(--muted); font-size: 18px; font-weight: 400; }
+.task-mini-steps { margin: 0 15px 8px 48px; padding-top: 4px; border-top: 1px solid var(--line); }
+.inline-step { width: 100%; min-height: 31px; display: flex; align-items: center; gap: 9px; padding: 4px 0; border: 0; background: transparent; color: var(--ink); text-align: left; font-size: 10px; line-height: 1.35; }
+.step-mark { width: 16px; height: 16px; flex: 0 0 16px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 5px; color: #fff; font-size: 11px; }
+.inline-step.done .step-mark { background: var(--orange); border-color: var(--orange); }
+.inline-step.done .step-title { color: var(--muted); text-decoration: line-through; }
+.task-record { display: flex; justify-content: space-between; align-items: center; margin: 7px 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: 11px; }
+.task-record span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--orange-wash); color: var(--orange-text); font-size: 12px; font-weight: 800; }
+.motion-pulse .task-record-new { animation: record-settle .36s cubic-bezier(.2,.8,.25,1) both; }
+@keyframes record-settle { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.bridge { margin-bottom: 15px; padding: 12px 13px; background: var(--orange-wash); border: 1px solid rgba(244,109,56,.16); border-radius: 13px; }
+.bridge strong { color: var(--ink); font-size: 11px; }
+.bridge p { margin: 4px 0 8px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.bridge button { padding: 8px 10px; border: 0; border-radius: 9px; background: var(--orange); color: #fff; font-size: 10px; font-weight: 750; }
+.module-nav { margin-top: 25px; font-size: 10px; }
+
+/* Detail sheet mirrors Holo's white card and inline checklist. */
+.sheet-backdrop { min-height: 716px; margin: -2px -18px -22px; padding: 22px 11px 0; background: var(--nested); }
+.detail-sheet { min-height: 710px; padding: 10px 20px 30px; border-radius: 24px 24px 0 0; background: var(--surface); box-shadow: 0 -8px 22px rgba(0,0,0,.045); }
+.handle { width: 36px; height: 4px; margin: 0 auto 15px; border-radius: 99px; background: var(--line); }
+.detail-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.detail-head span { color: var(--muted); font-size: 12px; font-weight: 750; }
+.detail-head button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--nested); color: var(--ink); }
+.detail-label { color: var(--orange-text); font-size: 10px; font-weight: 750; }
+.detail-sheet h2 { margin: 9px 0 12px; font-size: 25px; font-weight: 760; letter-spacing: -.045em; line-height: 1.25; }
+.detail-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: 10px; }
+.detail-meta span { padding: 8px; border: 1px solid var(--line); border-radius: 9px; }
+.detail-section { padding: 12px 0; border-top: 1px solid var(--line); }
+.detail-section strong { font-size: 12px; font-weight: 750; }
+.detail-section p { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.detail-steps { margin-top: 7px; }
+.detail-steps .inline-step { min-height: 40px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.detail-steps .inline-step:last-child { border-bottom: 0; }
+.detail-steps .step-mark { width: 20px; height: 20px; flex-basis: 20px; }
+.detail-section .step-help { margin-top: 8px; font-size: 10px; }
+.complete-button { width: 100%; margin-top: 12px; padding: 13px; border: 0; border-radius: 12px; background: var(--orange); color: #fff; font-size: 12px; font-weight: 760; }
+
+/* Matter: a factual cluster of linked events, with no paper or fake imagery. */
+.matter-head { margin-bottom: 17px; padding: 17px; background: var(--surface); }
+.matter-head .kind { display: inline-block; padding: 5px 8px; border-radius: 99px; background: var(--orange-wash); color: var(--orange-text); font-size: 10px; font-weight: 750; }
+.matter-head h2 { margin: 11px 0 7px; font-size: 24px; font-weight: 760; letter-spacing: -.045em; }
+.matter-head p { margin: 0; color: var(--muted); font-size: 11px; }
+.matter-action { padding: 15px; }
+.matter-action strong { font-size: 12px; font-weight: 750; }
+.matter-action p { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.matter-action button { padding: 10px 12px; border: 0; border-radius: 10px; background: var(--orange); color: #fff; font-size: 11px; font-weight: 750; }
+.collage { min-height: 177px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; padding: 11px; border: 1px solid var(--line); border-radius: 18px; background: radial-gradient(circle at 70% 15%,rgba(124,92,252,.07),transparent 43%),radial-gradient(circle at 20% 80%,rgba(244,109,56,.08),transparent 50%),var(--nested); }
+.collage:not(.has-new) { grid-template-columns: 1fr; }
+.artifact { position: relative; min-height: 150px; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: var(--shadow); }
+.artifact:before { content: ""; width: 21px; height: 21px; display: block; border-radius: 50%; background: radial-gradient(circle at 45% 40%,#fed7aa,#f46d38 68%,#ea580c); box-shadow: 0 4px 10px rgba(244,109,56,.16); }
+.artifact.new:before { background: radial-gradient(circle at 40% 35%,#e8ddff,#7c5cfc 70%); box-shadow: 0 4px 10px rgba(124,92,252,.16); }
+.artifact small { display: block; color: var(--muted); font-size: 9px; font-weight: 650; }
+.artifact strong { display: block; margin-top: 6px; color: var(--ink); font-size: 12px; font-weight: 720; line-height: 1.35; }
+.motion-pulse .artifact.new { animation: artifact-arrive .38s both; }
+@keyframes artifact-arrive { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.event-line { padding: 9px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.matter-list-row { width: 100%; margin-bottom: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); color: var(--ink); text-align: left; font-size: 12px; }
+.matter-list-row small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+
+.receipt { position: absolute; z-index: 24; top: 302px; left: 31px; right: 31px; display: none; padding: 15px 17px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: 0 18px 45px rgba(19,23,29,.19); }
+.receipt.show { display: block; animation: receipt-in .78s both; }
+.receipt small { color: var(--orange-text); font-size: 10px; font-weight: 750; }
+.receipt strong { display: block; margin-top: 5px; color: var(--ink); font-size: 14px; font-weight: 750; }
+.receipt em { float: right; width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; background: var(--orange-wash); color: var(--orange-text); font-size: 12px; font-style: normal; }
+@keyframes receipt-in { 0% { opacity: 0; transform: translateY(12px) scale(.95); } 35% { opacity: 1; transform: translateY(0) scale(1); } 70% { opacity: 1; transform: translateY(-3px); } 100% { opacity: 0; transform: translateY(-18px); } }
+.undo-toast { position: absolute; z-index: 25; bottom: 23px; left: 17px; right: 17px; display: none; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 12px; background: #2a2b2f; color: #fff; box-shadow: 0 12px 20px rgba(0,0,0,.2); font-size: 11px; }
+.undo-toast.show { display: flex; }
+.undo-toast button { border: 0; background: none; color: #ffad87; font-weight: 750; }
+
+.right { position: sticky; top: 25px; padding: 24px; }
+.right .kicker { color: var(--orange-text); font-size: 10px; font-weight: 780; letter-spacing: .13em; }
+.right h2 { margin: 12px 0; font-size: 26px; font-weight: 760; letter-spacing: -.055em; line-height: 1.16; }
+.right p { color: var(--muted); font-size: 12px; line-height: 1.75; }
+.concept-tag { display: inline-block; margin: 3px 4px 0 0; padding: 6px 10px; border-radius: 999px; background: var(--orange-wash); color: var(--orange-text); font-size: 10px; font-weight: 730; }
+.fact-tag { background: var(--nested); color: var(--ink); }
+.right .rule { margin-top: 19px; padding-top: 18px; border-top: 1px solid var(--line); }
+.right h3 { margin: 0 0 9px; font-size: 12px; font-weight: 750; }
+.right ul { margin: 0; padding-left: 17px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.right li { margin-bottom: 7px; }
+.legend { margin-top: 16px; color: var(--subtle); font-size: 10px !important; line-height: 1.65 !important; }
+.right .motion { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 11px; }
+.right .motion input { accent-color: var(--orange); }
+.reduced *, .reduced *:before, .reduced *:after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) { *, *:before, *:after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+@media (max-width: 1130px) { .layout { grid-template-columns: 250px minmax(350px,410px); gap: 20px; } .right { grid-column: 1/-1; position: static; } }
+@media (max-width: 760px) { .layout { display: flex; flex-direction: column; padding: 15px; gap: 18px; } .left, .right { position: static; width: 100%; } .device-col { width: 100%; } .phone { width: min(100%,410px); margin: auto; } .device-caption { text-align: left; } .left { padding: 19px; } .scenario-button { display: inline-flex; width: calc(33.33% - 7px); min-height: 77px; vertical-align: top; margin-right: 5px; } .scenario-button small { display: none; } .routes { display: none; } .left-footer { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; } }
+
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <aside class="panel left">
+      <div class="mark">Holo<b> ·</b> Motion</div>
+      <div class="eyebrow">VISUAL OPTION / HOLO NATIVE</div>
+      <h1>让行动有回应，<br>让界面仍是 Holo。</h1>
+      <p>沿用已确认的三条用户动线。这个版本用品牌橙、柔光、白色圆角卡片和清晰的文字，替换纸张与印章质感。</p>
+      <div class="scenario-label">选择一个 Use Case</div>
+      <button class="scenario-button active" data-scenario="today"><i>01</i><span><strong>从今天推进</strong><small>首页中央入口 → Today → 任务</small></span></button>
+      <button class="scenario-button" data-scenario="tasks"><i>02</i><span><strong>从任务处理</strong><small>首页任务入口 → 卡片子任务 → 详情</small></span></button>
+      <button class="scenario-button" data-scenario="matter"><i>03</i><span><strong>从事项回看</strong><small>Today → 进行中的事 → 关联任务</small></span></button>
+      <div class="scenario-label">当前动线</div>
+      <ol class="routes" id="route-list"></ol>
+      <div class="left-footer"><button id="reset">回到首页重新体验</button><a href="2026-09-18-holo-motion-integrated-journey.html">与上一版纸张风格对照 ↗</a><a href="../todo/plans/2026-09-18-Holo动效融合用户动线.md">查看入口与页面规格 ↗</a></div>
+    </aside>
+    <section class="device-col">
+      <div class="device-caption">IPHONE · HOLO 视觉候选 · 手机内按钮均可点击</div>
+      <div class="phone" aria-label="Holo 用户动线原型">
+        <div class="phone-status"><span>9:41</span><span>●●● 100%</span></div>
+        <div class="phone-content" id="app"></div>
+        <div class="receipt" id="receipt" aria-hidden="true"><small>任务已完成</small><em>✓</em><strong>整理日本旅行证件</strong></div>
+        <div class="undo-toast" id="undo-toast" role="status" aria-live="polite"><span>已完成 · 3 秒内可撤回</span><button id="undo">撤回</button></div>
+      </div>
+    </section>
+    <aside class="panel right" id="explain"></aside>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const stepTitles = ['确认证件有效期','保存签证材料','把机票与住宿信息放在一起'];
+    const state = {scenario:'today',stack:['home'],completed:false,pending:false,motionPulse:false,pendingTimer:null,receiptTimer:null,checklist:[true,false,false],autoCompletionStep:null,returnBridge:false};
+    const routes = {
+      today:[['首页','中央「今天」入口'],['今天','C · 柔光焦点卡'],['任务详情','现有 sheet 入口'],['完成后回到今天','B 收束反馈，C 切下一件事']],
+      tasks:[['首页','五角形「任务」入口'],['任务列表','卡片直接展示子任务'],['任务详情','完整子任务与 B 收束'],['完成后回到任务','B · 留下文字记录']],
+      matter:[['首页 → 今天','中央「今天」入口'],['进行中的事','Today 内现有入口'],['事项详情','D · 真实变化微卡'],['关联任务','现有深链进入任务详情'],['完成后回到事项','建议新增返回来源入口']]
+    };
+    const info = {
+      home:{title:'首页：保留 Holo 的识别感',tags:[['现有入口',true],['去三环视觉提案',false]],body:'iPhone 中央橙色光球仍打开 Today；五角形玻璃入口仍进入各模块。新视觉保留球体、柔光与橙色，只移去反复跳动的三环比例。',points:['中央球体 → Today，仍是全屏展开层。','五角形「任务」→ 任务模块，默认进入今日任务。','iPad 对应侧边栏「今天 / 任务」，交互内容可复用。']},
+      today:{title:'Today：C 用柔光承托焦点',tags:[['现有页面入口',true],['Holo 风格焦点提案',false]],body:'白色圆角卡保留当前 Today 的信息结构，顶部用一处克制的橙色柔光聚焦行动；下一条真实子任务直接露出。下方继续是进行中的事和今日安排，不新增中转页面。',points:['点「查看任务」走现有任务详情 sheet。','点事项卡进入 Matter 详情；「全部」进入 Matter 列表。','任务完成后卡片换成下一件有依据的行动。']},
+      taskList:{title:'任务：B 成为轻量收束',tags:[['子任务平铺现有',true],['Holo 风格完成提案',false]],body:'保留当前 Holo 的白色任务卡和直接可勾选的子任务。完成时卡片短暂收束，留下带真实标题的完成记录；不使用纸张翻页、印章或迷你进度条。',points:['卡片内直接勾选子任务，点任务标题进入详情。','最后一条子任务完成时，沿现有联动规则完成主任务。','从 Matter 深链过来时，建议显式提供「返回事项」出口。']},
+      taskDetail:{title:'任务详情：完整子任务留在眼前',tags:[['子任务已内嵌现有',true],['简洁呈现提案',false],['完成与撤回提案',false]],body:'当前 iOS 任务详情本来就内嵌完整子任务。新版原型直接把它们放在标题与信息下方，可在原位勾选和撤回，不再跳到单独页面，也不重复展示进度条。完成后的 B 反馈和 3 秒撤回仍是待统一的交互提案。',points:['Today 进入 → 关闭后回 Today。','任务列表进入 → 关闭后回任务列表。','Matter 进入 → 经任务模块；返回事项需新接来源上下文。']},
+      matterList:{title:'进行中的事：稳定列表入口',tags:[['现有页面',true]],body:'Today 中的「全部进行中的事」进入列表，按正在进行、已完成、已归档查看。列表负责查找，变化微卡只在具体事项详情中出现。',points:['列表负责查找，不铺开装饰性拼贴。','进入某一事项后再看行动和变化。']},
+      matterDetail:{title:'Matter：D 成为变化微卡',tags:[['现有详情入口',true],['Holo 风格回看提案',false]],body:'事项详情沿用当前内容顺序。最近变化用两张轻量微卡展示真实事件与关联任务，保留标题与来源；不使用纸片、胶带或虚构照片。',points:['「查看任务」使用已有的关联任务动作。','完成后需要真实回执和 MatterLink 才增加微卡。','返回事项桥接是新增导航设计，原入口仍保留。']}
+    };
+    function page(){return state.stack[state.stack.length-1]}
+    function back(){if(state.stack.length>1){state.stack.pop();render()}}
+    function push(name){state.stack.push(name);render()}
+    function reset(scenario=state.scenario){clearTimeout(state.pendingTimer);clearTimeout(state.receiptTimer);state.scenario=scenario;state.stack=['home'];state.completed=false;state.pending=false;state.motionPulse=false;state.checklist=[true,false,false];state.autoCompletionStep=null;state.returnBridge=false;$('undo-toast').classList.remove('show');$('receipt').classList.remove('show');document.querySelectorAll('[data-scenario]').forEach(b=>b.classList.toggle('active',b.dataset.scenario===scenario));render()}
+    function openTask(source){if(source==='matter'){state.stack=['home','taskList','taskDetail'];state.returnBridge=true}else{push('taskDetail');return}render()}
+    function complete(autoStep=null){if(state.completed)return;state.completed=true;state.pending=true;state.motionPulse=true;state.autoCompletionStep=autoStep;const previous=page();if(previous==='taskDetail')state.stack.pop();if(state.returnBridge)state.stack=['home','taskList'];render();const receipt=$('receipt');receipt.classList.remove('show');void receipt.offsetWidth;receipt.classList.add('show');$('undo-toast').classList.add('show');clearTimeout(state.pendingTimer);clearTimeout(state.receiptTimer);state.receiptTimer=setTimeout(()=>{receipt.classList.remove('show');state.motionPulse=false},850);state.pendingTimer=setTimeout(()=>{state.pending=false;state.autoCompletionStep=null;$('undo-toast').classList.remove('show')},3000)}
+    function undo(){if(!state.pending)return;clearTimeout(state.pendingTimer);clearTimeout(state.receiptTimer);state.completed=false;state.pending=false;state.motionPulse=false;if(state.autoCompletionStep!==null)state.checklist[state.autoCompletionStep]=false;state.autoCompletionStep=null;$('receipt').classList.remove('show');$('undo-toast').classList.remove('show');render()}
+    function toggleStep(n){if(state.completed||!Number.isInteger(n)||n<0||n>=state.checklist.length)return;const wasChecked=state.checklist[n];state.checklist[n]=!wasChecked;if(!wasChecked&&state.checklist.every(Boolean)){complete(n)}else{render(true)}}
+    function navigate(action){switch(action){case 'today':push('today');break;case 'tasks':push('taskList');break;case 'matter':push('matterDetail');break;case 'matter-list':push('matterList');break;case 'task-today':openTask('today');break;case 'task-tasks':openTask('tasks');break;case 'task-matter':openTask('matter');break;case 'return-matter':state.stack=['home','today','matterDetail'];state.returnBridge=false;render();break;case 'complete':complete();break;case 'back':back();break;default:if(action.startsWith('step-'))toggleStep(Number(action.slice(5)))}}
+    function header(title,right=''){return `<div class="screen-head"><button class="back" data-action="back" aria-label="返回">‹</button><strong>${title}</strong><small>${right}</small></div>`}
+    function bottom(){return '<div class="bottom-nav"><span><i>☀</i>今天</span><span><i>✧</i>对话</span><span><i>◯</i>我的</span></div>'}
+    function nextOpenStep(){const index=state.checklist.findIndex(checked=>!checked);return index<0?'准备步骤已处理':stepTitles[index]}
+    function stepButtons(){return stepTitles.map((name,i)=>`<button class="inline-step ${state.checklist[i]?'done':''}" data-action="step-${i}" aria-label="${state.checklist[i]?'取消完成':'完成'}：${name}"><span class="step-mark">${state.checklist[i]?'✓':''}</span><span class="step-title">${name}</span></button>`).join('')}
+    function home(){return `<div class="home"><div class="home-header"><div><div class="hello">东林，早上好。</div><div class="date">9月18日 · 星期五</div></div><div class="home-settings">⚙</div></div><div class="home-note">国庆去日本 · 有一件事值得推进</div><div class="home-stage"><button class="feature task" data-action="tasks" aria-label="打开任务"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></b>任务</button><span class="feature finance"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M16 15h2"/></svg></b>财务</span><span class="feature habit"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></b>习惯</span><span class="feature health"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20s-8.5-5.4-8.5-11A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8.5 2c0 5.6-8.5 11-8.5 11Z"/></svg></b>健康</span><span class="feature thought"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18h6m-5 3h4M8 15c-1.3-1.1-2-2.7-2-4.5a6 6 0 1 1 12 0c0 1.8-.7 3.4-2 4.5-.6.5-1 1.2-1 2H9c0-.8-.4-1.5-1-2Z"/></svg></b>想法</span><button class="home-orb" data-action="today" aria-label="打开今天"><span class="orb-core"></span></button><div class="home-caption"><strong>今天</strong>有一件事值得先做</div></div>${bottom()}</div>`}
+    function today(){return `${header('今天','9月18日')}<div class="today-hero"><div class="hero-tag">现在最值得推进</div><h2>${state.completed?'确认住宿与交通':'整理日本旅行证件'}</h2>${state.completed?'':`<div class="today-next-step">下一步 · ${nextOpenStep()}</div>`}<p>${state.completed?'证件任务已完成。接下来可以核对住宿与交通。':'来自：国庆去日本 · 今天可以先处理'}</p><button class="primary-light" data-action="${state.completed?'tasks':'task-today'}">${state.completed?'查看全部任务':'查看任务'}</button></div><div class="section-label">进行中的事</div><div class="card today-matter"><strong>国庆去日本</strong><small>${state.completed?'准备工作又向前走了一步':'下一步：整理日本旅行证件'}</small><button data-action="matter">查看这件事</button><button class="plain-link" data-action="matter-list">全部进行中的事 ›</button></div><div class="section-label">今天的安排</div><div class="card today-agenda"><div class="agenda-icon">${state.completed?'✓':'○'}</div><div class="agenda-copy">整理日本旅行证件<small>${state.completed?'今天已完成':'日本旅行 · 今天'}</small></div></div><div class="card today-agenda"><div class="agenda-icon">○</div><div class="agenda-copy">确认住宿与交通<small>日本旅行 · 今天</small></div></div><div class="section-label">保持状态</div><div class="card today-agenda">把日常安排留在视线里，按自己的节奏继续。</div>`}
+    function taskList(){return `${header('任务','搜索 · 提醒')}${state.returnBridge?'<div class="bridge"><strong>来自「国庆去日本」</strong><p>处理完关联任务，可以回到这件事继续看变化。</p><button data-action="return-matter">返回进行中的事</button></div>':''}<div class="card task-paper-head"><b>今天的任务</b><p>看清要做的步骤，完成后留下记录。</p></div><div class="task-filter"><span>今日</span><span>收件箱</span><span>全部</span><span>已完成</span></div><div class="section-label">接下来可以做</div>${state.completed?'':`<div class="paper-row task-with-steps"><button class="paper-open" data-action="task-tasks"><span class="circle"></span><span><strong>整理日本旅行证件</strong><small>日本旅行 · 今天</small></span><b>›</b></button><div class="task-mini-steps">${stepButtons()}</div></div>`}<div class="paper-row paper-row-muted"><span class="circle"></span><span><strong>确认住宿与交通</strong><small>日本旅行 · 今天</small></span></div><div class="section-label">今天已完成</div>${state.completed?'<div class="task-record task-record-new">整理日本旅行证件 <span>✓</span></div>':''}<div class="task-record">定好出发日期 <span>✓</span></div><div class="module-nav"><span>统计</span><b>任务</b><span>纪念日</span><span>＋ 新增</span></div>`}
+    function taskDetail(){return `<div class="sheet-backdrop"><div class="detail-sheet"><div class="handle"></div><div class="detail-head"><span>任务详情</span><button data-action="back" aria-label="关闭任务详情">×</button></div><div class="detail-label">国庆去日本 · 今天</div><h2>整理日本旅行证件</h2><div class="detail-meta"><span>◷ 截止：今天</span><span>⌁ 所属事项：国庆去日本</span></div><div class="detail-section"><strong>子任务</strong><div class="detail-steps">${stepButtons()}</div><p class="step-help">全部勾选后，主任务会同步完成。</p></div><div class="detail-section"><strong>备注</strong><p>护照、签证、机票和住宿确认信息。</p></div><button class="complete-button" data-action="complete">完成这件事</button></div></div>`}
+    function matterList(){return `${header('进行中的事')}<h2 class="block-title">正在进行</h2><button class="matter-list-row" data-action="matter"><strong>国庆去日本</strong><small>下一步：${state.completed?'确认住宿与交通':'整理日本旅行证件'}</small></button><div class="section-label">已完成</div><p class="mini">这里保留已完成事项的回看入口。</p>`}
+    function matterDetail(){return `${header('进行中的事','详情')}<div class="card matter-head"><span class="kind">正在进行</span><h2>国庆去日本</h2><p>旅行准备仍在进行，相关行动都汇在这里。</p></div><div class="section-label">现在最值得做</div><div class="card matter-action"><strong>${state.completed?'确认住宿与交通':'整理日本旅行证件'}</strong><p>${state.completed?'证件已处理，接下来核对住宿与交通。':'这是一条已关联的真实任务，可以打开继续处理。'}</p><button data-action="${state.completed?'tasks':'task-matter'}">${state.completed?'查看相关任务':'查看任务'}</button></div><div class="section-label">最近变化</div><div class="collage ${state.completed?'has-new':''}"><div class="artifact old"><small>已完成 · 日本旅行</small><strong>定好出发日期</strong></div>${state.completed?'<div class="artifact new"><small>已完成 · 日本旅行</small><strong>整理日本旅行证件</strong></div>':''}</div><div class="section-label">相关内容</div><div class="event-line">关联任务 · 整理日本旅行证件</div><div class="event-line">最近变化 · ${state.completed?'证件任务已完成':'出发日期已确定'}</div><button class="plain-link" data-action="matter-list">查看全部进行中的事 ›</button>`}
+    const views={home,today,taskList,taskDetail,matterList,matterDetail};
+    function renderRoutes(){const items=routes[state.scenario];const current=page();let active=0;if(current==='today')active=state.scenario==='matter'?0:1;if(current==='taskList')active=state.scenario==='matter'?(state.completed?4:3):1;if(current==='matterList')active=1;if(current==='matterDetail')active=state.scenario==='matter'?(state.completed?4:2):2;if(current==='taskDetail')active=state.scenario==='matter'?3:2;if(state.completed&&state.scenario==='today'&&current==='today')active=3;if(state.completed&&state.scenario==='tasks'&&current==='taskList')active=3;$('route-list').innerHTML=items.map((x,i)=>`<li class="${i===active?'active':''}">${x[0]}<span class="route-sub">${x[1]}</span></li>`).join('')}
+    function renderExplain(){const item=info[page()];$('explain').innerHTML=`<div class="kicker">CURRENT SCREEN · ${state.scenario.toUpperCase()}</div><h2>${item.title}</h2><div>${item.tags.map(t=>`<span class="concept-tag ${t[1]?'fact-tag':''}">${t[0]}</span>`).join('')}</div><p>${item.body}</p><div class="rule"><h3>从这里，用户会怎样走</h3><ul>${item.points.map(p=>`<li>${p}</li>`).join('')}</ul></div><p class="legend">灰色标签是当前代码已有的入口或页面形态；橙色标签是本次视觉与导航提案。示例内容不连接真实数据。</p><label class="motion"><input id="dark" type="checkbox" ${document.body.classList.contains('dark')?'checked':''}> 深色模式预览</label><label class="motion"><input id="reduce" type="checkbox" ${document.body.classList.contains('reduced')?'checked':''}> 减少动态效果预览</label>`}
+    function render(preserveScroll=false){const current=page();const scrollTop=$('app').scrollTop;$('app').innerHTML=`<div class="page-in ${state.motionPulse?'motion-pulse':''}">${views[current]()}</div>`;$('app').scrollTop=preserveScroll?scrollTop:0;renderRoutes();renderExplain()}
+    $('app').addEventListener('click',event=>{const target=event.target.closest('[data-action]');if(target)navigate(target.dataset.action)});
+    document.querySelectorAll('[data-scenario]').forEach(button=>button.addEventListener('click',()=>reset(button.dataset.scenario)));
+    $('reset').addEventListener('click',()=>reset());$('undo').addEventListener('click',undo);
+    $('explain').addEventListener('change',event=>{if(event.target.id==='reduce')document.body.classList.toggle('reduced',event.target.checked);if(event.target.id==='dark')document.body.classList.toggle('dark',event.target.checked)});
+    render();
+  </script>
+</body>
+</html>

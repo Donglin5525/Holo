@@ -39,10 +39,18 @@ nonisolated struct HoloMemoryCompactionService: Sendable {
         var retainedIDs = Set(records.map(\.id))
         var overflow: [String: Int] = [:]
 
+        // 低确认成本方案 §10.2：candidate（含 observeOnly）一并纳入 freshness 治理，
+        // 不再无限积累；未获用户确认的记录不得借 permanentFact 逃避衰减。
         let staleAutomaticOrConfirmed = records.filter {
-            $0.state == .active &&
-            $0.persistenceClass != .permanentFact &&
-            !HoloMemoryRecallPolicy.isEligible($0, now: now)
+            guard $0.persistenceClass != .permanentFact
+                    || ![.confirmed, .corrected].contains($0.userDecision) else { return false }
+            if $0.state == .active {
+                return !HoloMemoryRecallPolicy.isEligible($0, now: now)
+            }
+            if $0.state == .candidate {
+                return Self.isStaleCandidate($0, now: now)
+            }
+            return false
         }
         archiveIDs.formUnion(staleAutomaticOrConfirmed.map(\.id))
 
@@ -95,8 +103,12 @@ nonisolated struct HoloMemoryCompactionService: Sendable {
         let result = plan(records: records, tombstones: tombstones, now: now)
         for id in result.archiveRecordIDs {
             guard var record = try await repository.fetch(id: id),
-                  record.state == .active,
-                  record.persistenceClass != .permanentFact else { continue }
+                  record.state == .active || record.state == .candidate else { continue }
+            // 用户确认/纠正过的记录不归档；candidate 的 permanentFact 不豁免衰减（§10.2）。
+            if record.persistenceClass == .permanentFact,
+               [.confirmed, .corrected].contains(record.userDecision) {
+                continue
+            }
             let predecessor = record.versionID
             record.state = .archived
             record.recordVersion += 1
@@ -139,6 +151,23 @@ nonisolated struct HoloMemoryCompactionService: Sendable {
     private static func isProtected(_ record: HoloMemoryRecord) -> Bool {
         record.persistenceClass == .permanentFact ||
         [.confirmed, .corrected].contains(record.userDecision)
+    }
+
+    /// 过期候选：freshness 低于召回下限的 candidate 归档（§10.2 observeOnly 不无限积累）。
+    /// 未确认的 candidate 按 phase 半衰期计算，不得借 permanentFact 逃避衰减。
+    private static func isStaleCandidate(_ record: HoloMemoryRecord, now: Date) -> Bool {
+        guard ![.confirmed, .corrected].contains(record.userDecision) else { return false }
+        let persistence: HoloMemoryPersistenceClass =
+            record.persistenceClass == .permanentFact ? .phase : record.persistenceClass
+        let effective = min(
+            record.freshnessScore,
+            HoloMemoryScorer.freshness(
+                persistenceClass: persistence,
+                lastSupportedAt: record.lastSupportedAt,
+                now: now
+            )
+        )
+        return effective < HoloMemoryRecallPolicy.minimumFreshness
     }
 
     private static func preferred(_ lhs: HoloMemoryRecord, _ rhs: HoloMemoryRecord) -> Bool {

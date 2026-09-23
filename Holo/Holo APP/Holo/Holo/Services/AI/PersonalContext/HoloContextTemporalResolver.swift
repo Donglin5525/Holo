@@ -55,13 +55,14 @@ nonisolated enum HoloContextTemporalResolver {
     // MARK: - 时间重叠
 
     /// 情境时间是否与参考区间重叠（职责/规则的时间份额判定，§7.1）。
-    /// ongoing 恒重叠；event 看区间；recurring 恒可能重叠（由实例状态细化）；
-    /// conditional 视触发条件文本与区间无明确冲突时保守视为可能重叠。
+    /// ongoing 恒重叠；event 看区间；recurring 必须有具体发生日期落进区间
+    /// （R10 修复：不再「活跃即恒真」）；conditional 无明确时间锚时保守视为可能重叠。
     static func overlaps(
         temporal: HoloContextTemporalV1,
         rangeStart: Date,
         rangeEnd: Date,
-        now: Date
+        now: Date,
+        calendar: Calendar = .current
     ) -> Bool {
         switch temporal.kind {
         case .ongoing:
@@ -75,25 +76,35 @@ nonisolated enum HoloContextTemporalResolver {
             let to = temporal.validTo ?? from
             return from <= rangeEnd && to >= rangeStart
         case .recurring:
-            // 周期规则：生效期内与区间可能重叠。
             if let validTo = temporal.validTo, validTo < rangeStart {
                 return false
             }
             if let validFrom = temporal.validFrom, validFrom > rangeEnd {
                 return false
             }
-            return true
+            // 周期规则：锚点齐全时必须算出区间内的真实发生日期（R10）。
+            guard let recurrence = temporal.recurrence else {
+                // 无结构化锚点（模糊周期表达）：保留原文语义，保守视为可能重叠。
+                return true
+            }
+            let searchStart = max(temporal.validFrom ?? rangeStart, rangeStart)
+            guard let next = nextOccurrence(
+                of: recurrence, after: searchStart.addingTimeInterval(-1), calendar: calendar
+            ) else {
+                // 锚点不全（如 weekly 缺 weekday）：无法计算发生日期，保守处理。
+                return true
+            }
+            return next.date <= rangeEnd
         case .conditional:
             // 条件性：无明确时间锚时保守视为可能相关。
             return true
         }
     }
 
-    /// 规则在参考时点是否仍生效（失效规则不进建议背景）。
+    /// 规则在参考时点是否仍可参考（失效/已结束规则不进建议背景）。
+    /// 只回答「是否已结束」；尚未开始（validFrom 在未来）的未来事件/责任
+    /// 不算失效——与区间的重叠由 overlaps 判定（R3：未来预约不得被错杀）。
     static func isActive(temporal: HoloContextTemporalV1, at now: Date) -> Bool {
-        if let validFrom = temporal.validFrom, validFrom > now {
-            return false
-        }
         if let validTo = temporal.validTo, validTo < now {
             return false
         }

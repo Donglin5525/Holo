@@ -24,8 +24,9 @@ class DataExportService {
     /**
      导出交易记录为 CSV 字符串
      
-     CSV 列顺序：日期, 时间, 类型, 金额, 一级分类, 二级分类, 账户, 备注, 标签
-     金额始终为正数，类型字段区分收入/支出
+     CSV 列顺序：日期, 时间, 类型, 金额, 一级分类, 二级分类, 账户, 备注, 标签, 分期
+     金额始终为正数，类型字段区分收入/支出；分期列为 "期次/总数"（非分期行留空），
+     导入侧据此无损还原分期归组
      
      - Parameter dateRange: 日期范围（nil = 全部）
      - Returns: CSV 格式的字符串
@@ -35,7 +36,7 @@ class DataExportService {
         
         var csv = ""
         // 表头
-        csv += "日期,时间,类型,金额,一级分类,二级分类,账户,备注,标签\n"
+        csv += "日期,时间,类型,金额,一级分类,二级分类,账户,备注,标签,分期\n"
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy/MM/dd"
@@ -57,8 +58,12 @@ class DataExportService {
             let accountName = account.name
             let note = escapeCSVField(tx.note ?? "")
             let tags = tx.tags?.joined(separator: ";") ?? ""
-            
-            csv += "\(dateStr),\(timeStr),\(typeStr),\(String(format: "%.2f", amount)),\(escapeCSVField(primaryName)),\(escapeCSVField(subName)),\(escapeCSVField(accountName)),\(note),\(escapeCSVField(tags))\n"
+            // 分期列：还原 "期次/总数"（导入侧 parseColumnValue 识别同款写法）
+            let installment = tx.installmentGroupId != nil && tx.installmentTotal > 0
+                ? "\(tx.installmentIndex)/\(tx.installmentTotal)"
+                : ""
+
+            csv += "\(dateStr),\(timeStr),\(typeStr),\(String(format: "%.2f", amount)),\(escapeCSVField(primaryName)),\(escapeCSVField(subName)),\(escapeCSVField(accountName)),\(note),\(escapeCSVField(tags)),\(installment)\n"
         }
         
         return csv
@@ -189,9 +194,9 @@ class DataExportService {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         
         var csv = ""
-        csv += "日期,时间,类型,金额,一级分类,二级分类,账户,备注,标签\n"
-        csv += "2026/03/14,12:30,支出,35.50,餐饮,午餐,微信,公司食堂,工作餐\n"
-        csv += "2026/03/14,09:00,收入,8500.00,工资收入,工资,银行卡,3月工资,\n"
+        csv += "日期,时间,类型,金额,一级分类,二级分类,账户,备注,标签,分期\n"
+        csv += "2026/03/14,12:30,支出,35.50,餐饮,午餐,微信,公司食堂,工作餐,\n"
+        csv += "2026/03/14,09:00,收入,8500.00,工资收入,工资,银行卡,3月工资,,\n"
         
         let bom = "\u{FEFF}"
         try? (bom + csv).data(using: .utf8)?.write(to: fileURL)

@@ -578,7 +578,9 @@ actor HoloMemoryLiveObservationCoordinator {
                 now: now
             )
         }
-        if !needsConfirmation.isEmpty {
+        if !needsConfirmation.isEmpty, !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled {
+            // 收件箱下线后不再产生任务式确认回执（方案 §12.1：silent/observe 候选不写
+            // 每日 confirmation receipt）；P2 起按五路结果生成回执。
             HoloMemoryReceiptStore.record(
                 kind: .write,
                 channel: .insight,

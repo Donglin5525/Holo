@@ -21,6 +21,9 @@ nonisolated enum HoloMatterRolloutPolicy {
         case matterScopedChatEnabled
         case matterInferredAssociationEnabled
         case matterInterventionEnabled
+        /// V2 统一启动（2026-09-21 战略收敛）：新规划卡单 CTA + 原子 launchPlan。
+        /// 依赖 storage 而非 activation——关闭时回到旧卡片交互，已有 Matter 不受影响。
+        case matterUnifiedLaunchV2Enabled
 
         /// 左侧依赖（层级序）。
         var prerequisites: [Flag] {
@@ -30,6 +33,7 @@ nonisolated enum HoloMatterRolloutPolicy {
             case .matterScopedChatEnabled: return [.matterActivationEnabled]
             case .matterInferredAssociationEnabled: return [.matterScopedChatEnabled]
             case .matterInterventionEnabled: return [.matterInferredAssociationEnabled]
+            case .matterUnifiedLaunchV2Enabled: return [.matterStorageEnabled]
             }
         }
     }
@@ -43,6 +47,8 @@ nonisolated enum HoloMatterRolloutPolicy {
         .matterStorageEnabled,
         .matterActivationEnabled,
         .matterScopedChatEnabled,
+        // V2 首发重构：Debug 构建与内部包先走新链路；回退 = 关此开关回旧卡片交互。
+        .matterUnifiedLaunchV2Enabled,
     ]
 
     /// 指定开关当前是否生效（含依赖链校验：任何前置关闭即视为关闭）。
@@ -91,4 +97,7 @@ nonisolated enum HoloMatterRolloutPolicy {
 
     /// 是否允许主动帮助（M5，首版恒 false）。
     static var interventionEnabled: Bool { isEnabled(.matterInterventionEnabled) }
+
+    /// V2 统一启动（新规划卡单 CTA → launchPlan 原子落库）。
+    static var unifiedLaunchV2Enabled: Bool { isEnabled(.matterUnifiedLaunchV2Enabled) }
 }

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今天 · 光球文字融入 — 三个设计方向</title>
+<style>
+  :root {
+    --primary: #F46D38;
+    --primary-light: #FED7AA;
+    --primary-dark: #EA580C;
+    --bg: #FAF5F0;
+    --ink: #3D2B1F;
+    --ink-soft: #9A8574;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(244,109,56,0.06), transparent),
+      var(--bg);
+    font-family: "PingFang SC", "SF Pro SC", -apple-system, sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 56px 32px 80px;
+  }
+  .page { max-width: 1180px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 64px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 6px; color: var(--primary);
+    font-weight: 600; margin-bottom: 14px;
+  }
+  h1 { font-size: 28px; font-weight: 600; letter-spacing: 1px; }
+  .lede {
+    margin-top: 14px; font-size: 14px; color: var(--ink-soft); line-height: 1.9;
+    max-width: 560px; margin-left: auto; margin-right: auto;
+  }
+
+  .row {
+    display: flex; gap: 36px; justify-content: center; flex-wrap: wrap;
+  }
+  .card {
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(244,109,56,0.10);
+    border-radius: 28px;
+    padding: 44px 36px 36px;
+    width: 340px;
+    text-align: center;
+    box-shadow: 0 20px 50px -30px rgba(234,88,12,0.25);
+    position: relative;
+  }
+  .card.recommended::before {
+    content: "东林参考方向";
+    position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+    background: var(--primary); color: #fff;
+    font-size: 11px; letter-spacing: 2px; font-weight: 600;
+    padding: 5px 16px; border-radius: 999px;
+  }
+  .orb-wrap {
+    width: 300px; height: 300px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+  }
+  svg { width: 288px; height: 288px; display: block; }
+
+  .name { margin-top: 30px; font-size: 17px; font-weight: 600; letter-spacing: 1px; }
+  .tag {
+    display: inline-block; margin-top: 8px;
+    font-size: 11px; letter-spacing: 2px; color: var(--primary);
+    border: 1px solid rgba(244,109,56,0.35); border-radius: 999px; padding: 3px 12px;
+  }
+  .desc {
+    margin-top: 14px; font-size: 13px; line-height: 1.95; color: var(--ink-soft);
+    text-align: left;
+  }
+  .desc b { color: var(--ink); font-weight: 600; }
+
+  footer {
+    margin-top: 64px; text-align: center; font-size: 12.5px;
+    color: var(--ink-soft); line-height: 2;
+  }
+
+  /* 三环旋转：与 iOS 端同为整体旋转 */
+  .spin1 { animation: rot 46s linear infinite; transform-origin: 96px 96px; }
+  .spin2 { animation: rot 34s linear infinite reverse; transform-origin: 96px 96px; }
+  .spin3 { animation: rot 26s linear infinite; transform-origin: 96px 96px; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .pulse { animation: pulse 2.6s ease-in-out infinite; transform-origin: 96px 96px; }
+  @keyframes pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">HOLO · 今天</div>
+    <h1>把状态写进光球 — 三个方向</h1>
+    <p class="lede">
+      前几版的问题出在几何语言：球和环都是圆的，一行方块字横在下面，永远像「贴上去的标签」。
+      这三个方向的共同点是让文字服从球体的几何，成为这颗星球的一部分。
+    </p>
+  </header>
+
+  <div class="row">
+
+    <!-- ═══════════ 方案 A：表盘铭文 ═══════════ -->
+    <div class="card recommended">
+      <div class="orb-wrap">
+        <svg viewBox="0 0 192 192">
+          <defs>
+            <linearGradient id="ballA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FED7AA"/>
+              <stop offset="52%" stop-color="#F46D38"/>
+              <stop offset="100%" stop-color="#EA580C"/>
+            </linearGradient>
+            <path id="arcA" d="M 49.7 151.2 A 72 72 0 0 0 142.3 151.2" fill="none"/>
+          </defs>
+          <!-- 球体 -->
+          <circle cx="96" cy="96" r="88" fill="url(#ballA)"/>
+          <circle cx="96" cy="96" r="88" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1"/>
+          <!-- 高光 -->
+          <ellipse cx="74" cy="52" rx="46" ry="30" fill="rgba(255,255,255,.30)"/>
+          <!-- 外环 104 / 进度 62% -->
+          <g class="spin1">
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6.5"/>
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="6.5"
+                    stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="44" r="4.6" fill="#fff"/>
+          </g>
+          <!-- 中环 75 / 45% -->
+          <g class="spin2">
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="5"/>
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="5"
+                    stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="58.5" r="3.6" fill="rgba(255,255,255,.75)"/>
+          </g>
+          <!-- 内环 49 / 80% -->
+          <g class="spin3">
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="4"/>
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="4"
+                    stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+          </g>
+          <!-- 呼吸光点 -->
+          <circle class="pulse" cx="96" cy="96" r="9" fill="rgba(255,255,255,.65)"/>
+          <!-- ★ 弧形铭文：沿中环下弧，像表盘刻字 -->
+          <text font-size="10.5" fill="rgba(255,255,255,.94)" letter-spacing="3"
+                font-family="PingFang SC, sans-serif" font-weight="500">
+            <textPath href="#arcA" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+          </text>
+        </svg>
+      </div>
+      <div class="name">A · 表盘铭文</div>
+      <div class="tag">沿弧刻字 · 与环同语言</div>
+      <p class="desc">
+        文字沿内圈下弧逐字排布，字距拉宽，像高级表盘背面的刻字。
+        <b>文字第一次真正「服从」了球的几何</b>——它不再是一行方块，而是圆的一部分。
+        旋转的三环从它上方掠过时，层次自然分离。
+      </p>
+    </div>
+
+    <!-- ═══════════ 方案 B：晨昏线 ═══════════ -->
+    <div class="card">
+      <div class="orb-wrap">
+        <svg viewBox="0 0 192 192">
+          <defs>
+            <linearGradient id="ballB" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FED7AA"/>
+              <stop offset="52%" stop-color="#F46D38"/>
+              <stop offset="100%" stop-color="#EA580C"/>
+            </linearGradient>
+            <!-- 下环带（晨昏线）：两同心弧围成的月牙带 -->
+            <filter id="softB" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.4"/></filter>
+            <path id="bandB" d="M 48.4 152.7 A 74 74 0 0 0 143.6 152.7 L 134.6 142 A 60 60 0 0 1 57.4 142 Z" fill="rgba(140,45,5,.34)" filter="url(#softB)"/>
+            <path id="arcB" d="M 51.3 149.2 A 69.5 69.5 0 0 0 140.7 149.2" fill="none"/>
+          </defs>
+          <circle cx="96" cy="96" r="88" fill="url(#ballB)"/>
+          <ellipse cx="74" cy="52" rx="46" ry="30" fill="rgba(255,255,255,.30)"/>
+          <g class="spin1">
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6.5"/>
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="6.5"
+                    stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="44" r="4.6" fill="#fff"/>
+          </g>
+          <g class="spin2">
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="5"/>
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="5"
+                    stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="58.5" r="3.6" fill="rgba(255,255,255,.75)"/>
+          </g>
+          <g class="spin3">
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="4"/>
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="4"
+                    stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+          </g>
+          <circle class="pulse" cx="96" cy="96" r="9" fill="rgba(255,255,255,.65)"/>
+          <!-- ★ 晨昏线：一条与球同心的暗带沉在球下部，文字落在带上 -->
+          <use href="#bandB"/>
+          <text font-size="10" font-weight="500" fill="rgba(255,255,255,.95)" letter-spacing="2"
+                font-family="PingFang SC, sans-serif">
+            <textPath href="#arcB" startOffset="50%" text-anchor="middle">今天有3项安排</textPath>
+          </text>
+        </svg>
+      </div>
+      <div class="name">B · 晨昏线</div>
+      <div class="tag">行星阴影带 · 文字有落点</div>
+      <p class="desc">
+        球的下部沉一条与球弧<b>同心的深色暗带</b>，像行星的晨昏线。
+        文字落在暗带上，白字因此有了「位置」而不是悬空。
+        上一版丑的根源是字悬空，这一版给文字修了一条河床。实现最轻，风险最小。
+      </p>
+    </div>
+
+    <!-- ═══════════ 方案 C：仪表读数 ═══════════ -->
+    <div class="card">
+      <div class="orb-wrap">
+        <svg viewBox="0 0 192 192">
+          <defs>
+            <linearGradient id="ballC" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FED7AA"/>
+              <stop offset="52%" stop-color="#F46D38"/>
+              <stop offset="100%" stop-color="#EA580C"/>
+            </linearGradient>
+            <radialGradient id="glowC" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(255,255,255,.75)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+            </radialGradient>
+          </defs>
+          <circle cx="96" cy="96" r="88" fill="url(#ballC)"/>
+          <ellipse cx="74" cy="52" rx="46" ry="30" fill="rgba(255,255,255,.30)"/>
+          <g class="spin1">
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6.5"/>
+            <circle cx="96" cy="96" r="52" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="6.5"
+                    stroke-linecap="round" stroke-dasharray="202.6 326.7" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="44" r="4.6" fill="#fff"/>
+          </g>
+          <g class="spin2">
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="5"/>
+            <circle cx="96" cy="96" r="37.5" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="5"
+                    stroke-linecap="round" stroke-dasharray="105.8 235.6" transform="rotate(-90 96 96)"/>
+            <circle cx="96" cy="58.5" r="3.6" fill="rgba(255,255,255,.75)"/>
+          </g>
+          <g class="spin3">
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="4"/>
+            <circle cx="96" cy="96" r="24.5" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="4"
+                    stroke-linecap="round" stroke-dasharray="123.2 154" transform="rotate(-90 96 96)"/>
+          </g>
+          <!-- ★ 仪表读数：中心光晕化作数字的底光，整句话浓缩成一个安静的读数 -->
+          <circle class="pulse" cx="96" cy="96" r="26" fill="url(#glowC)"/>
+          <text x="96" y="99" text-anchor="middle" font-size="22" font-weight="700"
+                fill="#fff" font-family="SF Pro Rounded, DIN Alternate, PingFang SC, sans-serif">3</text>
+          <text x="96" y="112" text-anchor="middle" font-size="7.5" letter-spacing="2"
+                fill="rgba(255,255,255,.72)" font-family="PingFang SC, sans-serif">项安排</text>
+        </svg>
+      </div>
+      <div class="name">C · 仪表读数</div>
+      <div class="tag">减法设计 · 状态即数字</div>
+      <p class="desc">
+        最克制的一版：整句话浓缩成球心一个<b>安静的数字</b>，呼吸光晕变成数字的底光，
+        像高端仪表的读数。球面从此没有任何一行「文案」。
+        代价是语义被压缩（「3 项安排」而不是完整一句话），需要你接受这层抽象。
+      </p>
+    </div>
+
+  </div>
+
+  <footer>
+    三颗球均为真实比例还原（球体 192pt · 三环 104/75/49 · 品牌色 #FED7AA→#F46D38→#EA580C）。<br>
+    A/B 保留完整句子；C 用一个数字说话。选定后我再落到 Swift 端。
+  </footer>
+</div>
+</body>
+</html>

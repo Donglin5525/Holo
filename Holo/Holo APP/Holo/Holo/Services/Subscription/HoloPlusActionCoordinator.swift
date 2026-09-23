@@ -16,25 +16,34 @@ final class HoloPlusActionCoordinator: ObservableObject {
     @Published private(set) var context: HoloPlusGateContext = .membershipCenter
 
     private var pendingAction: (() async -> Void)?
+    /// 用户未购买直接关闭付费墙后仍要执行的动作（落点本身不需要 Plus 的场景，
+    /// 如小组件深链导航）；不传则行为与既往一致——关闭即放弃。
+    private var dismissAction: (() -> Void)?
 
     private init() {}
 
     func requirePlus(
         context: HoloPlusGateContext,
-        resume: (() async -> Void)? = nil
+        resume: (() async -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.context = context
         pendingAction = resume
+        dismissAction = onDismiss
         isPaywallPresented = true
     }
 
     func dismissPaywall() {
         isPaywallPresented = false
         pendingAction = nil
+        let action = dismissAction
+        dismissAction = nil
+        action?()
     }
 
     func resumeAfterSuccessfulPurchase() async {
         isPaywallPresented = false
+        dismissAction = nil
         let action = pendingAction
         pendingAction = nil
         await action?()

@@ -78,10 +78,42 @@ cd docs/holoai-audit/vision-eval && swift tools/render_corpus.swift corpus
 node ../../scripts/eval-vision-extraction.mjs --limit 6
 
 # 全量
-node ../../scripts/eval-vision-extraction.mjs
+node ../../scripts/eval-vision-extraction.mjs --models deepseek --reasoning-effort none
 ```
 
-模型与 key 从 `HoloBackend/.env` 读（QWEN_API_KEY/QWEN_BASE_URL、ZHIPU_API_KEY/ZHIPU_BASE_URL），可用 `--models qwen,zhipu`、`--model-qwen qwen-vl-max-latest`、`--model-zhipu glm-4v-plus` 覆盖。
+模型与 key 从 `HoloBackend/.env` 读（`DEEPSEEK_VISION_API_KEY`/`DEEPSEEK_API_KEY`、`QWEN_API_KEY`/`DASHSCOPE_API_KEY`、`ZHIPU_API_KEY/ZHIPU_BASE_URL`），可用 `--models qwen,zhipu`、`--model-qwen qwen-vl-max-latest`、`--model-zhipu glm-4v-plus` 覆盖。
+
+调自动落账阈值不用重跑 API：`node scripts/eval-vision-extraction.mjs --resim docs/holoai-audit/vision-eval/results/<model>.json` 用已存输出离线复算门禁表。
+
+## v2 契约评测（2026-09-15，M0 自动落账门禁）
+
+> v2（2026-09-14 图片快捷指令自动记账方案 §26）：schemaVersion/paymentStatus/paymentStatusOriginalText/逐笔 amountOriginalText/字段级 confidence/分类语义候选；响应带 `automationPolicy` 总闸。manifest 已补 `paymentStatus` 期望。
+
+### 生产模型 deepseek-v4-flash-vision-exp（REASONING_EFFORT=none，与生产同口径）
+
+- **24/24 满分**；支付状态准确 15/15；拦截 4/4；误拒 0。
+- 门禁仿真：**T=0.90 与 T=0.95 均零红线**（错误自动入账=0，自动命中率 100%）。
+  - T=0.90：自动 14 笔（含退款 r09）、转复核 1（r10 多笔，设计内）。
+  - T=0.95：自动 11 笔、转复核 4。
+  - T=0.99：模型置信度达不到，全部转复核（不可用）。
+- **首版阈值定为 0.95**（amount/direction/paymentStatus 三字段，合成语料上 0.90-0.95 区间零错误，取保守端；真实截图语料回灌后复测再放宽）。
+
+### 对照 qwen3-vl-plus
+
+- 18/24（4 张 JSON 断尾——v2 输出变长后 qwen 结构稳定性劣化，max_tokens=4000 仍断）。
+- **1 例红线**：r10 双账单页被折叠成单笔还给出 amount=0.99 高置信——门禁无法从单笔输出本身识破「漏了一笔」，自动落账会漏记 ¥25.5。
+- 结论：**qwen 维持落选，且不得用于自动模式**；env 换模型必须先重跑本评测（M0 门禁按模型逐个过）。
+
+### 对 M1 ReceiptBookingPolicy 的输入
+
+1. 阈值 0.95 用于 amount/direction/paymentStatus；缺失或 null 一律复核。
+2. `review.amountConflict` 增加确定性检查：items 金额合计与单笔 amount 明显冲突时转复核（针对 qwen 折叠型漏笔的兜底，折扣单 sum>实付属正常方向，只在差值显著时触发）。
+3. paymentStatus ∈ {pending,failed,cancelled} 服务端护栏已清交易（understandingContract 护栏二）；refunded + income + 高置信可自动（r09 实证）。
+4. v1 旧响应（无新字段）→ 全部转复核，不用整体 confidence 冒充字段置信度。
+
+### 成本
+
+v2 prompt 单均 ~2200 tokens（deepseek，v1 约 1000 的 2.2 倍——新增字段级置信度与完整示例所致），自动记账能力换 ~¥0.002/张增量，可接受。
 
 ## 局限与后续
 

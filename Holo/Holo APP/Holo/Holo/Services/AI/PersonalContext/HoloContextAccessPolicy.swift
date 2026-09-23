@@ -60,19 +60,28 @@ nonisolated enum HoloContextAccessPolicy {
                 excluded[record.id] = .unknownSchemaVersion
                 continue
             }
-            // 准入：只有程序判定的 adviceEligible 可进建议背景。
-            switch payload.admission.level {
-            case .forbidden:
-                excluded[record.id] = .admissionForbidden
-                continue
-            case .unreviewed:
-                excluded[record.id] = .admissionUnreviewed
-                continue
-            case .confirmationOnly:
-                excluded[record.id] = .admissionConfirmationOnly
-                continue
-            case .adviceEligible:
-                break
+            // 准入：有五路决策元数据时以 useLevel 为准（decision metadata 是唯一最终裁决，
+            // admission 仅作旧数据兼容投影，§11.1/ADR-6）；无元数据走旧 admission 口径。
+            if let v2 = record.decisionMetadata?.v2 {
+                guard v2.isReliablyDecoded,
+                      v2.useLevel == .factEligible || v2.useLevel == .qualifiedAdvice else {
+                    excluded[record.id] = .admissionForbidden
+                    continue
+                }
+            } else {
+                switch payload.admission.level {
+                case .forbidden:
+                    excluded[record.id] = .admissionForbidden
+                    continue
+                case .unreviewed:
+                    excluded[record.id] = .admissionUnreviewed
+                    continue
+                case .confirmationOnly:
+                    excluded[record.id] = .admissionConfirmationOnly
+                    continue
+                case .adviceEligible:
+                    break
+                }
             }
             // 状态：非可用态一律不可用（含 disputed：有分歧先不进建议）。
             guard [.candidate, .active].contains(record.state) else {
@@ -109,6 +118,7 @@ nonisolated enum HoloContextAccessPolicy {
                 versionID: record.versionID,
                 payload: payload,
                 needsQualifiedExpression: payload.epistemicStatus == .inferred
+                    || record.decisionMetadata?.v2?.useLevel == .qualifiedAdvice
             ))
         }
         return (selected, excluded)

@@ -120,6 +120,8 @@ struct TaskListView: View {
     var onFilterChanged: ((TaskFilterType) -> Void)? = nil
     /// Cmd+F 触发计数（TasksView 转发）：变化即打开任务搜索
     var searchTrigger: Int = 0
+    /// 空态行动按钮回调（激活方案 §3.2）：外层 TasksView 打开新建任务
+    var onAddRequested: (() -> Void)? = nil
 
     /// 任务列表（本地缓存）
     @State private var tasks: [TodoTask] = []
@@ -158,7 +160,7 @@ struct TaskListView: View {
     @State private var selectedTask: TaskSelection? = nil
 
     /// 宽屏双栏门控（D2）：expanded 档列表+详情同屏
-    @Environment(\.holoWindowWidth) private var taskWindowWidth
+    @Environment(\.holoContentWidth) private var taskWindowWidth
     private var isWideLayout: Bool {
         HoloAdaptiveLayout.isExpandedWidth(taskWindowWidth)
     }
@@ -195,8 +197,11 @@ struct TaskListView: View {
     @State private var postponeBannerText: String = ""
     @State private var postponeBannerDismissTask: Task<Void, Never>? = nil
 
-    /// 正在完成中的任务 ID（来自 repository 全局撤回状态）
-    private var pendingCompletionTaskId: UUID? { repository.pendingCompletionTaskId }
+    /// 完成协调层（G1 完成契约：撤回窗口 / confirm / 撤回统一走它）
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
+
+    /// 正在完成中的任务 ID（来自完成协调层的全局撤回状态）
+    private var pendingCompletionTaskId: UUID? { completionCoordinator.pending?.taskID }
 
     /// 未完成的过期任务数（Hero 副行警示）
     private var overdueCount: Int {
@@ -250,6 +255,21 @@ struct TaskListView: View {
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.top, HoloSpacing.xs)
                     .padding(.bottom, pendingCompletionTaskId != nil ? 80 : 100)
+                    // 完成状态只改变卡片内容，不更换卡片结构，避免列表跳变。
+                    .animation(HoloAnimation.paperSettle, value: pendingCompletionTaskId)
+                }
+
+                // 完成回执（B 一次性收页反馈）：印章纸页随完成升起、播完自隐，
+                // 不参与命中；连续完成时换实例重播，前一项已被显式确认（G1 契约）
+                if let pending = completionCoordinator.pending,
+                   HoloTaskMotionRolloutPolicy.isEnabled,
+                   let pendingTask = tasks.first(where: { $0.id == pending.taskID })
+                        ?? repository.findTask(by: pending.taskID) {
+                    TaskPaperCompletionReceipt(title: pendingTask.title)
+                        .id(pending.taskID)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 96)
+                        .allowsHitTesting(false)
                 }
 
                 // 撤回 banner（完成 / 延期可能短时并存，纵向堆叠防重叠）
@@ -303,24 +323,13 @@ struct TaskListView: View {
     }
 
     var body: some View {
-        // 通宵冲刺 D2（v2 二批欠账）：宽屏左列表 46% + 右详情 54% 同屏，详情不再走 sheet；
+        // 宽屏左列表 + 右详情同屏（HoloListDetailSplit：内容宽 ≥860 双栏、
+        // 列表栏 360–520 钳制、详情栏弹性撑满），详情不再走 sheet；
         // 窄屏/iPhone 维持原单列 + sheet 语义
-        Group {
-            if isWideLayout {
-                GeometryReader { geo in
-                    HStack(spacing: 0) {
-                        taskMasterColumn
-                            .frame(width: geo.size.width * 0.46)
-                        Rectangle()
-                            .fill(Color.holoBorder.opacity(0.4))
-                            .frame(width: 0.5)
-                        taskDetailPane
-                            .frame(width: geo.size.width * 0.54)
-                    }
-                }
-            } else {
-                taskMasterColumn
-            }
+        HoloListDetailSplit {
+            taskMasterColumn
+        } detail: {
+            taskDetailPane
         }
         .onAppear {
             // 从持久化恢复筛选状态
@@ -506,7 +515,10 @@ struct TaskListView: View {
             : 0
 
         Group {
-            if isHeroAllDone {
+            if HoloTaskMotionRolloutPolicy.isEnabled {
+                // Holo 文字状态头：不使用百分比、圆环和进度条。
+                paperHeroCard
+            } else if isHeroAllDone {
                 heroCelebrateCard(total: heroProgress.total)
             } else {
                 heroRegularCard(ratio: ratio)
@@ -516,6 +528,41 @@ struct TaskListView: View {
         .offset(y: heroAppeared ? 0 : 14)
         .padding(.top, HoloSpacing.md)
         .animation(.spring(response: 0.45, dampingFraction: 0.85), value: isHeroAllDone)
+    }
+
+    /// Holo 状态头：保留不依赖进度条的文字反馈。
+    @ViewBuilder
+    private var paperHeroCard: some View {
+        if isHeroAllDone {
+            TaskPaperHeaderCard(
+                title: String(localized: "今天的计划已完成"),
+                subtitle: celebrateSubtitle(total: heroProgress.total),
+                countBadge: String(localized: "已清零")
+            )
+        } else {
+            let remaining = max(0, heroProgress.total - heroProgress.completed)
+            TaskPaperHeaderCard(
+                title: String(localized: "今天，先推进重要的事"),
+                subtitle: paperHeroSubtitle,
+                countBadge: remaining > 0 ? String(localized: "\(remaining) 项待办") : nil
+            )
+        }
+    }
+
+    /// 纸页头副行：日期 + 待办/过期状态文字化（保留信息，去掉比例表达）
+    private var paperHeroSubtitle: String {
+        var parts: [String] = []
+        let remaining = heroProgress.total - heroProgress.completed
+        if heroProgress.total > 0 {
+            parts.append(remaining > 0
+                         ? String(localized: "还有 \(remaining) 项可以推进")
+                         : String(localized: "今日任务已清零"))
+        }
+        if overdueCount > 0 {
+            parts.append(String(localized: "\(overdueCount) 项已过期"))
+        }
+        let status = parts.isEmpty ? String(localized: "还没有安排今天的任务") : parts.joined(separator: " · ")
+        return "\(heroDateString) · \(status)"
     }
 
     /// 常规态：日期行 + 大数字进度 + 环形进度 + 渐变条 + 过期警示
@@ -758,7 +805,20 @@ struct TaskListView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, HoloSpacing.xs)
+                .padding(.leading, HoloSpacing.xs)
+                // 右侧留白到胶囊间距一档：滚到最右时最后一枚胶囊不硬贴排序按钮
+                .padding(.trailing, HoloSpacing.md)
+            }
+            // 右缘渐隐：横向滚动容器无系统指示条，给出「还有更多」的暗示，
+            // 避免最后一枚胶囊在视口边缘被直线硬切（iPad 双栏窄列下尤其明显）
+            .overlay(alignment: .trailing) {
+                LinearGradient(
+                    colors: [.holoBackground.opacity(0), .holoBackground],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 14)
+                .allowsHitTesting(false)
             }
 
             // 排序入口固定筛选条右端：不随过滤胶囊滚动、始终可见
@@ -1132,7 +1192,7 @@ struct TaskListView: View {
                         }
                     },
                     isCompleting: pendingCompletionTaskId == task.id,
-                    onToggleCompletion: {
+                    onToggleCompletion: { trigger in
                         if task.completed {
                             // 已完成 → 直接取消完成
                             do {
@@ -1145,8 +1205,8 @@ struct TaskListView: View {
                             // 撤回窗口内再点完成圈/反勾子项 → 撤回完成
                             undoCompletion()
                         } else {
-                            // 未完成 → 走撤回流程
-                            handleTaskCompletion(task)
+                            // 未完成 → 走撤回流程（子任务链触发时带触发子任务快照）
+                            handleTaskCompletion(task, trigger: trigger)
                         }
                     },
                     onPostpone: canPostpone ? { postponeSelection = TaskSelection(id: task.id) } : nil
@@ -1166,35 +1226,47 @@ struct TaskListView: View {
     // MARK: - 撤回 banner
 
     private var undoBanner: some View {
-        HStack {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoSuccess)
-                Text("任务已完成")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-            }
+        Group {
+            if HoloTaskMotionRolloutPolicy.isEnabled {
+                HoloUndoToast(
+                    message: String(localized: "已完成 · \(Int(HoloTaskCompletionCoordinator.confirmDelay)) 秒内可撤回"),
+                    onUndo: { undoCompletion() }
+                )
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoSuccess)
+                        Text("任务已完成")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                    }
 
-            Spacer()
+                    Spacer()
 
-            Button {
-                undoCompletion()
-            } label: {
-                Text("撤回")
-                    .font(.holoBody)
-                    .foregroundColor(.holoPrimary)
-                    .fontWeight(.semibold)
+                    Button {
+                        undoCompletion()
+                    } label: {
+                        Text("撤回")
+                            .font(.holoBody)
+                            .foregroundColor(.holoPrimary)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.holoCardBackground)
+                .cornerRadius(HoloRadius.md)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.md)
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.bottom, 8)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - 延期（面板 / 批量 / 撤回横幅）
@@ -1261,34 +1333,10 @@ struct TaskListView: View {
 
     /// 延期撤回横幅（与完成撤回横幅同语言：图标 + 文案 + 撤回按钮）
     private var postponeUndoBanner: some View {
-        HStack {
-            HStack(spacing: 6) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-                Text(postponeBannerText)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button {
-                undoPostpone()
-            } label: {
-                Text("撤回")
-                    .font(.holoBody)
-                    .foregroundColor(.holoPrimary)
-                    .fontWeight(.semibold)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, 12)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.md)
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        HoloUndoToast(
+            message: postponeBannerText,
+            onUndo: { undoPostpone() }
+        )
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.bottom, 8)
         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -1329,15 +1377,20 @@ struct TaskListView: View {
     // MARK: - 完成任务（带撤回，使用全局撤回状态）
 
     /// 处理任务完成：启动 3 秒撤回窗口（全局状态，跨界面一致）
-    private func handleTaskCompletion(_ task: TodoTask) {
-        repository.startPendingCompletion(for: task)
+    private func handleTaskCompletion(_ task: TodoTask, trigger: (checkItemID: UUID, wasChecked: Bool)? = nil) {
+        completionCoordinator.requestCompletion(
+            taskID: task.id,
+            source: .taskList,
+            trigger: trigger,
+            in: repository
+        )
         HapticManager.taskCompletion()
     }
 
     /// 撤回任务完成
     private func undoCompletion() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            repository.undoPendingCompletion()
+            completionCoordinator.undo(in: repository)
         }
         HapticManager.light()
     }
@@ -1455,9 +1508,27 @@ struct TaskListView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextSecondary)
 
-                Text("点击右下角 + 创建第一个任务")
+                Text("告诉 Holo 要做什么，或手动创建")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+                if let onAddRequested {
+                    Button(action: onAddRequested) {
+                        Label(String(localized: "创建第一个任务"), systemImage: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 26)
+                            .padding(.vertical, 11)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.holoPrimary)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("taskEmptyCta")
+                }
             }
 
             if selectedFilter != .today, ICloudSyncStatusService.shared.isInitialSyncPending {

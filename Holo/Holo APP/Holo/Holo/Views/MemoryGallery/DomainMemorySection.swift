@@ -111,6 +111,7 @@ struct DomainMemorySection: View {
                 emptyCard
             } else {
                 if !pendingRecords.isEmpty {
+                    // 回滚口径（收件箱开关关闭）保留旧「想和你确认的」任务组。
                     specialMemoryGroup(
                         title: String(localized: "想和你确认的"),
                         icon: "questionmark.bubble",
@@ -121,8 +122,12 @@ struct DomainMemorySection: View {
                         showsQuickConfirm: true
                     )
                 }
+                // 「Holo 会参考」：领域分组里的可用内容（明确记忆 + 会谨慎参考的限定观察）。
                 ForEach(nonemptyGroups) { group in
                     memoryGroup(group)
+                }
+                if !observingRecords.isEmpty {
+                    observingSection
                 }
                 if !archivedRecords.isEmpty {
                     specialMemoryGroup(
@@ -205,7 +210,9 @@ struct DomainMemorySection: View {
     }
 
     private var pendingRecords: [HoloMemoryRecord] {
-        records.filter { $0.state == .candidate }
+        // 统一走 AttentionPolicy 口径（不再裸用 state == candidate）；
+        // 收件箱下线后「想和你确认的」任务组整体消失（方案 §8.2/§12.1）。
+        records.filter { HoloMemoryAttentionPolicy.requiresDailyConfirmation($0) }
     }
 
     private var archivedRecords: [HoloMemoryRecord] {
@@ -213,8 +220,51 @@ struct DomainMemorySection: View {
     }
 
     private var currentRecords: [HoloMemoryRecord] {
-        records.filter { $0.state != .candidate && $0.state != .archived }
+        // 「Holo 会参考」= factEligible + qualifiedAdvice（都会影响回答/建议）。
+        // 收件箱下线后 observe 类 candidate 移入「观察中」折叠组，不混入领域分组（§8.3）。
+        records.filter { record in
+            record.state != .candidate && record.state != .archived
+        }
     }
+
+    /// 「观察中」：observeOnly / 未触发的 askWhenRelevant——不用于回答，默认折叠（§8.3）。
+    private var observingRecords: [HoloMemoryRecord] {
+        guard HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled else { return [] }
+        return records.filter { record in
+            guard record.state == .candidate,
+                  ![.rejected, .markedIrrelevant, .forgotten].contains(record.userDecision) else {
+                return false
+            }
+            return HoloMemoryUserVisibility.isVisible(record)
+        }
+    }
+
+    /// 「观察中」折叠组：无计数徽章、无清空义务，用户可主动打开纠正（§8.3）。
+    private var observingSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            DisclosureGroup(isExpanded: $showsObservingSection) {
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    ForEach(observingRecords) { record in
+                        memoryCard(record)
+                    }
+                }
+                .padding(.top, HoloSpacing.xs)
+            } label: {
+                HStack(spacing: HoloSpacing.xs) {
+                    Image(systemName: "eye")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                    Text("观察中")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+            Text("这些内容目前不会用于回答，Holo 会继续观察。")
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextSecondary)
+        }
+    }
+    @State private var showsObservingSection = false
 
     private func memoryGroup(_ group: HoloMemoryDisplayGroup) -> some View {
         let groupRecords = currentRecords.filter { HoloMemoryDisplayGroup.group(for: $0) == group }
@@ -302,17 +352,23 @@ struct DomainMemorySection: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if record.state == .candidate
+            if (record.state == .candidate && !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled)
                 || newMemoryIDs.contains(record.id)
                 || record.state == .archived
                 || feedbackBadge != nil {
                 HStack(spacing: 4) {
-                    if record.state == .candidate {
+                    if record.state == .candidate,
+                       !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled {
                         compactStatusBadge(String(localized: "待确认"), icon: "questionmark", color: .orange)
+                    } else if record.state == .candidate {
+                        compactStatusBadge(String(localized: "观察中"), icon: "eye", color: .holoTextSecondary)
                     } else if newMemoryIDs.contains(record.id) {
                         compactStatusBadge(String(localized: "新"), icon: "sparkles", color: .holoPrimary)
                     } else if record.state == .archived {
                         compactStatusBadge(String(localized: "过去"), icon: "archivebox", color: .holoTextSecondary)
+                    }
+                    if Self.isQualifiedAdvice(record) {
+                        compactStatusBadge(String(localized: "会谨慎参考"), icon: "sparkle.magnifyingglass", color: .holoPrimary)
                     }
                     if let badge = feedbackBadge {
                         HoloMemoryFeedbackBadgeView(badge: badge)
@@ -534,6 +590,12 @@ struct DomainMemorySection: View {
         HoloMemoryUserVisibility.isVisible(record)
     }
 
+    /// 限定建议记忆：会影响回答但必须「可能相关/从记录看」限定表达（§8.3 标记，
+    /// 与明确记忆区分；无决策元数据的旧记录按明确记忆展示）。
+    private static func isQualifiedAdvice(_ record: HoloMemoryRecord) -> Bool {
+        record.decisionMetadata?.v2?.useLevel == .qualifiedAdvice
+    }
+
     private func apply(_ change: HoloMemoryRecordDetailChange) {
         switch change {
         case .updated(let record):
@@ -724,6 +786,10 @@ enum HoloMemoryUserPresentation {
 
     static func degradedStatus(for record: HoloMemoryRecord) -> String? {
         if record.state == .candidate {
+            // 收件箱下线后 candidate 不再是「等你确认的任务」，改为观察语义（P5 定稿文案）。
+            if HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled {
+                return String(localized: "这条还在观察中，暂不会用于回答")
+            }
             return String(localized: "确认后才会用于 HoloAI 回答")
         }
         if record.state == .archived {

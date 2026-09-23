@@ -37,6 +37,11 @@ enum CoreDataTestSupport {
         }
         try context.save()
     }
+    /// 清空模型内全部实体（不关心实体清单的套件用；比 clearEntities 慢但不会漏）。
+    static func clearAllEntities(_ context: NSManagedObjectContext) throws {
+        let names = sharedModel.entities.compactMap(\.name)
+        try clearEntities(context, names)
+    }
 
     /// hosted XCTest + iOS 26.3 Simulator 在释放部分 MainActor/Core Data 组合对象时
     /// 存在系统层重复释放。仅在测试进程内延长生命周期，生产对象不受影响。

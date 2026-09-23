@@ -1,0 +1,85 @@
+[
+  {
+    "id": "gw-001",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "这个愿望挺具体的，我想先弄清楚一件事，好决定往哪个方向陪你练。",
+        "question": {
+          "text": "开会的时候，你更常卡在哪一步——是脑子里有想法但英文一时组织不出来，还是能说但怕说错、怕别人怎么看你，所以干脆不说？",
+          "whyItMatters": "如果是语言组织跟不上，路径会偏向高频句型和会议场景的预演；如果是怕出错而不敢开口，路径会偏向低压力的真实开口次数和心理门槛的拆解，两者练法完全不同。"
+        }
+      },
+      {
+        "turn": "propose_options",
+        "kind": "options",
+        "optionCount": 3,
+        "recommended": "route-1"
+      },
+      {
+        "turn": "build_plan",
+        "kind": "plan",
+        "title": "在工作会议中更敢开口说英语",
+        "taskCount": 3,
+        "habitCount": 1,
+        "assumptionCount": 5
+      }
+    ],
+    "violations": [],
+    "needsHumanReview": true,
+    "contractOK": true
+  },
+  {
+    "id": "gw-002",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "三个月考过 PMP，来得及，但先确认一件事——它会决定这三个月是「复习」还是「复习 + 补课时」。",
+        "question": {
+          "text": "你报名 PMP 需要的 35 小时项目管理培训（PDU/学时证明），现在是已经拿到了，还是还没开始？",
+          "whyItMatters": "这是报名考试的硬门槛，如果还没完成，前几周的时间要专门留给培训课时，整个三个月的节奏和任务顺序都会不一样。"
+        }
+      }
+    ],
+    "violations": [],
+    "needsHumanReview": true,
+    "error": "Expected ',' or '}' after property value in JSON at position 868 (line 1 column 869)",
+    "contractOK": false
+  },
+  {
+    "id": "gw-003",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "想多读书这件事，先弄清楚「多」对你来说长什么样，后面才好安排。",
+        "question": {
+          "text": "你说的「多读点书」，更接近哪种——每天/每周有固定的阅读时间读下去，还是一段时间内读完几本具体的书？",
+          "whyItMatters": "前者是养成阅读节奏，后者是有明确书单和进度，两者的第一步和衡量方式完全不同。"
+        }
+      },
+      {
+        "turn": "propose_options",
+        "kind": "options",
+        "optionCount": 3,
+        "recommended": null
+      },
+      {
+        "turn": "build_plan",
+        "kind": "plan",
+        "title": "每天定量阅读，先稳住 20 分钟",
+        "taskCount": 1,
+        "habitCount": 1,
+        "assumptionCount": 5
+      }
+    ],
+    "violations": [],
+    "needsHumanReview": true,
+    "contractOK": true
+  }
+]

@@ -30,16 +30,19 @@ struct LineChartView: View {
     }
 
     private var axisMarkDates: [Date] {
-        guard dataPoints.count > 14 else { return dataPoints.map(\.date) }
+        // 末位日期不进刻度层（会被尾侧 Y 轴截出的刻度文字层右缘钳位叠印），
+        // 由 chartOverlay 在绘图区右下角右对齐自绘，这里只出前面的刻度
+        let count = dataPoints.count
+        guard count > 1 else { return [] }
 
-        let desiredCount = 6
-        let lastIndex = dataPoints.count - 1
-        let step = max(Double(lastIndex) / Double(desiredCount - 1), 1)
-
-        return (0..<desiredCount).compactMap { index in
-            let dataIndex = min(Int((Double(index) * step).rounded()), lastIndex)
-            return dataPoints[dataIndex].date
+        if count > 14 {
+            let step = max(Double(count - 1) / 5, 1)
+            return (0..<5).compactMap { index in
+                let dataIndex = min(Int((Double(index) * step).rounded()), count - 2)
+                return dataPoints[dataIndex].date
+            }
         }
+        return dataPoints.dropLast().map(\.date)
     }
 
     /// 稳定 Y 轴域：取数据最大值向上取整到「好看」的刻度，避免小幅数据变动导致轴抖动
@@ -231,6 +234,17 @@ struct LineChartView: View {
                         hoveredDate = nil
                     }
                 )
+
+                // 末位日期自绘（原因见 axisMarkDates 注释）：右对齐钉在绘图区右缘
+                if let plotFrame,
+                   let lastPoint = dataPoints.last,
+                   let lastLabel = labelForAxisDate(lastPoint.date) {
+                    Text(lastLabel)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.holoTextSecondary)
+                        .frame(width: plotFrame.width, alignment: .trailing)
+                        .position(x: plotFrame.midX, y: plotFrame.maxY + 10)
+                }
 
                 // 触摸金额标注
                 if let hoveredDate,

@@ -159,6 +159,7 @@ final class HoloMemorySettings: ObservableObject {
         get { memoryAssistedAnsweringEnabled }
         set { memoryAssistedAnsweringEnabled = newValue }
     }
+
     // MARK: - Goal Workshop（目标共创，2026-09-17 完整开发计划任务 5）
 
     /// 目标共创「一起想清楚」总闸：本地默认关 + 服务端 goalWorkshopV1 控制。
@@ -169,7 +170,6 @@ final class HoloMemorySettings: ObservableObject {
         #endif
         return HoloServerFeatureFlags.value("goalWorkshopV1", localDefault: false)
     }
-
 
     // MARK: - Profile Snapshot Feature Flags
 
@@ -448,6 +448,30 @@ enum HoloAIFeatureFlags {
         HoloMemoryOperationalControls.current().isShadowEvaluation
     }
 
+    // MARK: - Memory Decision Policy v4（记忆低确认成本，2026-09-16 方案 §18）
+    // 四个开关 P0 引入、默认全关，不改变任何现行行为；按灰度顺序逐档打开。
+
+    /// 五路统一决策策略 v4：规范实现与默认值由 HoloMemoryDecisionPolicy 持有。
+    static var memoryDecisionPolicyV4Enabled: Bool {
+        HoloMemoryDecisionPolicy.isEnabled
+    }
+
+    /// 下线每日「待确认 N 件 / 去确认」任务式入口。规范实现与默认值（P1 起默认下线）
+    /// 由 HoloMemoryAttentionPolicy 持有，回滚=UserDefaults 写 false。
+    static var memoryDailyConfirmationInboxDisabled: Bool {
+        HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled
+    }
+
+    /// 按需澄清：规范实现由 HoloMemoryClarificationCoordinator 持有。
+    static var memoryJustInTimeClarificationEnabled: Bool {
+        HoloMemoryClarificationCoordinator.isEnabled
+    }
+
+    /// shadow 日志：规范实现由 HoloMemoryDecisionPolicy 持有。
+    static var memoryDecisionPolicyShadowLoggingEnabled: Bool {
+        HoloMemoryDecisionPolicy.isShadowLoggingEnabled
+    }
+
     // MARK: - Goal Workshop（目标共创，2026-09-17 完整开发计划任务 5）
 
     /// 目标共创「一起想清楚」总闸：本地默认关 + 服务端 goalWorkshopV1 控制。
@@ -458,7 +482,6 @@ enum HoloAIFeatureFlags {
         #endif
         return HoloServerFeatureFlags.value("goalWorkshopV1", localDefault: false)
     }
-
 
     // MARK: - Profile Snapshot Feature Flags
 

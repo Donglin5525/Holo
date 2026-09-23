@@ -1,0 +1,64 @@
+{
+  "fixtureID": "tpl-shift-handover-03",
+  "domainTags": [
+    "工作",
+    "交接"
+  ],
+  "sources": [
+    {
+      "sourceID": "task:task-shift",
+      "sourceDomain": "task",
+      "sourceKind": "todoTask",
+      "plainText": "值班交接表发给小王",
+      "recordedAt": "2026-09-10T10:00:00+08:00",
+      "eventTime": "2026-09-10T10:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "businessState": {
+        "completed": "false"
+      }
+    },
+    {
+      "sourceID": "thought:note-shift",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "这轮夜班排到月底，交接清单还没更新完，新人不熟悉监控告警的升级流程。",
+      "recordedAt": "2026-09-16T23:30:00+08:00",
+      "eventTime": "2026-09-16T23:30:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我下周三开始休假五天，帮我理一下休假前要做完的事。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户有值班交接责任且交接清单未完成",
+      "basisSourceIDs": [
+        "task:task-shift",
+        "thought:note-shift"
+      ],
+      "epistemicStatus": "inferred"
+    }
+  ],
+  "unknowns": [
+    "休假期间替班人是否已确认",
+    "交接清单剩余项"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "休假前完成交接清单与替班确认"
+    }
+  ],
+  "forbiddenClaims": [
+    "断言替班人已确认（记录中无）"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "thought 改为「交接清单已全部完成并确认」",
+      "expectedEffect": "不再出现交接缺口建议"
+    }
+  ]
+}

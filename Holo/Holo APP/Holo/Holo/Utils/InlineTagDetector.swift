@@ -83,6 +83,33 @@ nonisolated struct InlineTagDetector {
         return tags.filter { seen.insert(ThoughtTagNormalizer.key($0)).inserted }
     }
 
+    // MARK: - 摘要剥除
+
+    /// 剥除全部内联标签（含 #），用于无法渲染标签胶囊样式的纯文本摘要场景
+    /// （如小组件回忆卡：标签已由底部标签行展示，正文再保留会重复）。
+    /// 标签紧前的单个半角空格一并剥除，避免留下「看看  这个」式双空格。
+    static func removingInlineTags(from content: String) -> String {
+        let nsString = content as NSString
+        let fullRange = NSRange(location: 0, length: nsString.length)
+        let removalRanges = tagRegex.matches(in: content, range: fullRange)
+            .filter { isTriggerPosition($0.range.location, in: content) }
+            .map { match -> NSRange in
+                let preceding = match.range.location - 1
+                if preceding >= 0, nsString.character(at: preceding) == UInt16(UnicodeScalar(" ").value) {
+                    return NSRange(location: preceding, length: match.range.length + 1)
+                }
+                return match.range
+            }
+        guard !removalRanges.isEmpty else { return content }
+
+        var result = content
+        for range in removalRanges.reversed() {
+            guard let swiftRange = Range(range, in: result) else { continue }
+            result.removeSubrange(swiftRange)
+        }
+        return result
+    }
+
     // MARK: - 触发位置判定
 
     /// # 是否位于合法触发位置：文首，或前一字符不在禁止集合（见 isForbiddenPreceding）

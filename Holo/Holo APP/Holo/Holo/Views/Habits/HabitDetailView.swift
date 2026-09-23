@@ -470,13 +470,6 @@ struct HabitDetailView: View {
         return (calendar.dateComponents([.day], from: min(start, end), to: max(start, end)).day ?? 0) + 1
     }
 
-    private var selectedRangeLabel: String {
-        if let selectedRange {
-            return selectedRange.displayName
-        }
-        return String(localized: "自定义周期")
-    }
-
     private var customRangeText: String {
         HabitCustomDateRangeSheet.rangeText(from: customStartDate, to: customEndDate)
     }
@@ -569,7 +562,7 @@ struct HabitDetailView: View {
 
             statItem(
                 value: "\(snapshot.completedCount)",
-                label: String(localized: "\(selectedRangeLabel)完成"),
+                label: String(localized: "本期完成"),
                 icon: "checkmark.circle.fill",
                 color: .holoSuccess
             )
@@ -697,6 +690,9 @@ struct HabitDetailView: View {
             Text(label)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+                // 四列均分后列宽有限：标签超长（英文/Dynamic Type 大字号）不折行，轻微缩字保住四列数值水平对齐
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
     }

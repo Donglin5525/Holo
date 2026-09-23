@@ -205,6 +205,8 @@ struct TransactionRowView: View {
     let transaction: Transaction
     var isCompact: Bool = false
     var showsDate: Bool = false
+    /// iPad 双栏选中态（右栏详情联动左栏高亮）
+    var isSelected: Bool = false
     let onTap: () -> Void
 
     /// 是否有用户填写的名称
@@ -329,6 +331,12 @@ struct TransactionRowView: View {
             .padding(.leading, isCompact ? 6 : 11)
             .padding(.trailing, isCompact ? HoloSpacing.sm : HoloSpacing.md)
             .padding(.vertical, isCompact ? HoloSpacing.xs : 10)
+            .background(
+                // 双栏选中高亮：主色浅底，与右栏详情建立视觉对应
+                isSelected
+                    ? AnyShapeStyle(Color.holoPrimary.opacity(0.10))
+                    : AnyShapeStyle(Color.clear)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())

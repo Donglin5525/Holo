@@ -1,0 +1,2434 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>温暖陪伴 P0 · 叙事契约盲评</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 0; background: #f5f4f1; color: #1d1d1f; }
+  header { padding: 28px 20px 12px; max-width: 860px; margin: 0 auto; }
+  header h1 { font-size: 22px; margin: 0 0 8px; }
+  header p { color: #555; font-size: 14px; line-height: 1.7; margin: 4px 0; }
+  .bar { position: sticky; top: 0; background: rgba(245,244,241,.95); backdrop-filter: blur(8px); border-bottom: 1px solid #ddd; z-index: 9; padding: 10px 20px; }
+  .bar-inner { max-width: 860px; margin: 0 auto; display: flex; gap: 16px; align-items: center; font-size: 14px; flex-wrap: wrap; }
+  .bar b { font-size: 16px; }
+  main { max-width: 860px; margin: 0 auto; padding: 12px 20px 80px; }
+  .pair { background: #fff; border-radius: 16px; padding: 18px; margin: 16px 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .q { font-weight: 600; font-size: 16px; margin-bottom: 12px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
+  .card { border: 1px solid #e5e3de; border-radius: 12px; padding: 14px; background: #fbfaf8; }
+  .card.before { background: #f3f3f3; }
+  .card-title { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+  .insight { background: #fff7e6; border: 1px solid #f5e0b0; border-radius: 8px; padding: 8px 10px; font-size: 14px; margin-bottom: 8px; }
+  .summary { font-size: 14px; line-height: 1.7; margin-bottom: 10px; }
+  .section { border-top: 1px dashed #e0ded8; padding: 8px 0 4px; }
+  .section-title { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 3px; }
+  .section-body { font-size: 14px; line-height: 1.65; }
+  .interp { font-size: 13px; color: #6b6b6b; margin-top: 4px; font-style: normal; background: #f4f4f0; border-radius: 6px; padding: 6px 8px; }
+  .vote { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .vote button { border: 1px solid #c9c6bf; background: #fff; border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  .vote button.chosen { background: #1d1d1f; color: #fff; border-color: #1d1d1f; }
+  .vote .note { color: #888; font-size: 12px; }
+  .pair.voted { outline: 2px solid #b7e3c8; }
+  .e2e { margin-top: 10px; font-size: 13px; color: #666; }
+  .e2e summary { cursor: pointer; }
+  .e2e .card { margin-top: 8px; }
+  details.tech { background: #fff; border-radius: 12px; padding: 14px 18px; margin: 14px 0; font-size: 13px; line-height: 1.8; }
+  details.tech table { border-collapse: collapse; }
+  details.tech td, details.tech th { border: 1px solid #e2e0da; padding: 4px 10px; text-align: left; }
+</style>
+</head>
+<body>
+<header>
+  <h1>温暖陪伴 P0 · 叙事契约盲评</h1>
+  <p>同一份模型分析结果，分别用「P0 前的 iOS 重组」与「P0 后的 iOS 重组」渲染成两张卡。两卡的事实与数字完全相同，只有表达层不同——评的就是温度是不是早就生成了、只是被链路丢掉。</p>
+  <p>评法：每题点一个「更好」（更好 = 更像在对你说话、更能看下去，不是更长）。全部点完看顶部胜率——出口门禁：新版胜率 ≥ 65%。</p>
+</header>
+<div class="bar"><div class="bar-inner">
+  <span>已评 <b id="voted">0</b>/29</span>
+  <span>新版胜 <b id="warm">0</b></span>
+  <span>旧版胜 <b id="legacy">0</b></span>
+  <span>持平 <b id="tie">0</b></span>
+  <span>新版胜率 <b id="rate">—</b></span>
+</div></div>
+<main>
+<details class="tech"><summary>技术面板：叙事字段端到端保真（P0 后 · 29 条完成样本）</summary>
+  <table>
+    <tr><th>字段</th><th>模型生成率</th><th>iOS 可用率（过防线）</th></tr>
+    <tr><td>narrativeSummary 自然摘要</td><td>29/29</td><td>29/29</td></tr>
+    <tr><td>keyInsight 核心洞察</td><td>14/29</td><td>14/14</td></tr>
+    <tr><td>interpretation 生活解读</td><td>29/29 条结果（共 69 张卡）</td><td>29/29</td></tr>
+  </table>
+  <p style="color:#777">P0 门禁口径：模型生成了叙事字段时，经协议解码 + 防线后 100% 可用（保真率 100%）；「生成率」本身反映模型按提示词 v21 的产出意愿，是 P2 表达层的目标。</p>
+</details>
+
+  <section class="pair" data-id="F01">
+    <div class="q">F01 · 为什么这个月又超支了？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">钱主要花在了吃饭和网购上</div>
+    <div class="insight">💡 超支不是某一次大手笔，而是外卖高频叠加大额网购。</div>
+    <div class="summary">这段时间的账单加起来 10401 元，其中餐饮 4969、购物 4632，两块就占了九成二，剩下的交通、娱乐、订阅都只是零头。餐饮里最密集的是外卖：67 笔、2236 元，平均每笔 33 元，不是吃了贵的，是笔数堆起来的。购物里能看到 7 月 25 日京东一笔 1299 元，其余淘宝多在百来块到两百多。有一点我得说清楚：设备上没有预算数据，快照也没按月拆开，所以钱去了哪我能看清，这个月具体超了多少我核对不了。</div>
+    
+    <div class="section">
+      <div class="section-title">这段时间账单合计支出 104</div>
+      <div class="section-body">这段时间账单合计支出 10401 元，钱几乎集中在两块：餐饮 4969 元（约 48%）、购物 4632 元（约 45%），两项加起来占了总支出的九成二；交通 362 元、娱乐 240 元、订阅 198 元都只是零头。超支的重量基本都压在这两类上。</div>
+      <div class="interp">这对你来说：餐饮和购物同时占到九成，像是日常吃饭和随手网购两条线一起把额度吃掉了，娱乐并不高。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">如果要收口</div>
+      <div class="section-body">如果要收口，最省力的切口是外卖：每月外卖大约 730 元、平均每周 5 笔，把每周的外卖从 5 顿减到 3 顿（按笔均 33 元算），每月大约能省下 300 元——这笔钱放在 10401 元的结构里，足以让最密集的那条线明显变细。购物那边更像是偶发大额，适合单笔设一道金额门槛，而不是整体压。</div>
+      <div class="interp">这对你来说：减少两顿外卖对生活节奏的扰动最小，比强行压缩整类餐饮更容易坚持。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">餐饮 4969 元里</div>
+      <div class="section-body">餐饮 4969 元里，备注或商户带「外卖」的就有 67 笔、共 2236 元，平均每笔 33 元，占餐饮的 45%。也就是说餐饮的压力主要不是来自几顿贵的，而是笔数密——差不多每周 5 笔。</div>
+      <div class="interp">这对你来说：笔数密度高、单笔不高，像是工作日晚间不太想做饭时的常规选择，而不是偶尔犒劳自己。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">购物 4632 元里能看到明</div>
+      <div class="section-body">购物 4632 元里能看到明显的大额单笔：7 月 25 日京东一笔 1299 元；其余淘宝消费多在 112 到 279 元之间，属于多笔小额叠上来。也就是说购物这一块是「一笔大的加一串小的」的形态，和餐饮的成因不一样。</div>
+      <div class="interp">这对你来说：1299 元这一笔更像是计划外的一次性支出，其余淘宝消费则接近日常随手买的节奏。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">要提醒一点</div>
+      <div class="section-body">要提醒一点：这次我能核对的是「钱花在哪」，不是「超了多少」。设备上没有预算数据，快照按月汇总也只返回了一条合计（10401 元），所以本月比上月的涨幅、以及超支是相对哪个预算口径，都无法核对。上面的金额覆盖的是账单所在的 6 月中到 9 月中整段，不等于自然月。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">钱主要花在了吃饭和网购上</div>
+    
+    <div class="summary">这段时间账单合计支出 10401 元，钱几乎集中在两块：餐饮 4969 元（约 48%）、购物 4632 元（约 45%），两项加起来占了总支出的九成二；交通 362 元、娱乐 240 元、订阅 198 元都只是零头。超支的重量基本都压在这两类上。；如果要收口，最省力的切口是外卖：每月外卖大约 730 元、平均每周 5 笔，把每周的外卖从 5 顿减到 3 顿（按笔均 33 元算），每月大约能省下 300 元——这笔钱放在 10401 元的结构里，足以让最密集的那条线明显变细。购物那边更像是偶发大额，适合单笔设一道金额门槛，而不是整体压。；餐饮 4969 元里，备注或商户带「外卖」的就有 67 笔、共 2236 元，平均每笔 33 元，占餐饮的 45%。也就是说餐饮的压力主要不是来自几顿贵的，而是笔数密——差不多每周 5 笔。；购物 4632 元里能看到明显的大额单笔：7 月 25 日京东一笔 1299 元；其余淘宝消费多在 112 到 279 元之间，属于多笔小额叠上来。也就是说购物这一块是「一笔大的加一串小的」的形态，和餐饮的成因不一样。；要提醒一点：这次我能核对的是「钱花在哪」，不是「超了多少」。设备上没有预算数据，快照按月汇总也只返回了一条合计（10401 元），所以本月比上月的涨幅、以及超支是相对哪个预算口径，都无法核对。上面的金额覆盖的是账单所在的 6 月中到 9 月中整段，不等于自然月。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这段时间账单合计支出 10401 元，钱几乎集中在两块：餐饮 4969 元（约 48%）、购物 4632 元（约 45%），两项加起来占了总支出的九成二；交通 362 元、娱乐 240 元、订阅 198 元都只是零头。超支的重量基本都压在这两类上。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">如果要收口，最省力的切口是外卖：每月外卖大约 730 元、平均每周 5 笔，把每周的外卖从 5 顿减到 3 顿（按笔均 33 元算），每月大约能省下 300 元——这笔钱放在 10401 元的结构里，足以让最密集的那条线明显变细。购物那边更像是偶发大额，适合单笔设一道金额门槛，而不是整体压。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">餐饮 4969 元里，备注或商户带「外卖」的就有 67 笔、共 2236 元，平均每笔 33 元，占餐饮的 45%。也就是说餐饮的压力主要不是来自几顿贵的，而是笔数密——差不多每周 5 笔。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">购物 4632 元里能看到明显的大额单笔：7 月 25 日京东一笔 1299 元；其余淘宝消费多在 112 到 279 元之间，属于多笔小额叠上来。也就是说购物这一块是「一笔大的加一串小的」的形态，和餐饮的成因不一样。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">要提醒一点：这次我能核对的是「钱花在哪」，不是「超了多少」。设备上没有预算数据，快照按月汇总也只返回了一条合计（10401 元），所以本月比上月的涨幅、以及超支是相对哪个预算口径，都无法核对。上面的金额覆盖的是账单所在的 6 月中到 9 月中整段，不等于自然月。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">钱主要压在餐饮和购物上</div>
+    
+    <div class="summary">现有账单快照里支出合计 10401 元、共 243 笔，餐饮 4969 元和购物 4632 元是最集中的两块，合计占九成以上。；购物类的样本里，一笔 1299 元的京东订单明显大于同期淘宝的几笔（112 元到 279 元之间），单笔大额把购物这一类的金额撑高了不少。；交通、娱乐、订阅三项分别是 362 元、240 元、198 元，合计远小于餐饮和购物；交通多为 6 元一次的地铁，属于高频小额。；不过「又超支」的完整归因现在还答不全：这次拿不到预算额度数据，也拆不出本月与上月的分月对比，所以哪一类超了预算、环比涨了多少，暂时没有依据。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">现有账单快照里支出合计 10401 元、共 243 笔，餐饮 4969 元和购物 4632 元是最集中的两块，合计占九成以上。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">购物类的样本里，一笔 1299 元的京东订单明显大于同期淘宝的几笔（112 元到 279 元之间），单笔大额把购物这一类的金额撑高了不少。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">交通、娱乐、订阅三项分别是 362 元、240 元、198 元，合计远小于餐饮和购物；交通多为 6 元一次的地铁，属于高频小额。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">不过「又超支」的完整归因现在还答不全：这次拿不到预算额度数据，也拆不出本月与上月的分月对比，所以哪一类超了预算、环比涨了多少，暂时没有依据。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F02">
+    <div class="q">F02 · 这个月钱都花哪了？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">钱大半进了餐饮和购物</div>
+    
+    <div class="summary">目前这些账单合计约10401元，主要落在餐饮和购物两类上，两者加起来约占全部支出的九成。；餐饮是最大的一块，约4969元，分布在20笔记录里。；购物排第二，约4632元，只用了10笔；其中一笔京东支出1299元是能看到的最大单笔。；其余三类规模都不大：交通约362元、娱乐约240元、订阅约198元，合计不到800元。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">目前这些账单合计约10401元，主要落在餐饮和购物两类上，两者加起来约占全部支出的九成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">餐饮是最大的一块，约4969元，分布在20笔记录里。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">购物排第二，约4632元，只用了10笔；其中一笔京东支出1299元是能看到的最大单笔。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">其余三类规模都不大：交通约362元、娱乐约240元、订阅约198元，合计不到800元。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">钱大半进了餐饮和购物</div>
+    <div class="insight">💡 餐饮和购物合计约占九成，钱主要是日常吃和线上购物花掉的</div>
+    <div class="summary">从目前能看到的数据看，你这段记录里的支出主要集中在吃和买东西上——餐饮约4969元、购物约4632元，两项就占了将近九成的开销，交通、娱乐、订阅加起来还不到800元。不过要说明一点：这份记录横跨2026年6月到9月，是一段时间的合计，我还拆不出单独的「这个月」数字，所以下面的金额是把这几个月的账单一起算的。</div>
+    
+    <div class="section">
+      <div class="section-title">目前这些账单合计约10401</div>
+      <div class="section-body">目前这些账单合计约10401元，主要落在餐饮和购物两类上，两者加起来约占全部支出的九成。</div>
+      <div class="interp">这对你来说：支出高度集中在吃和购物两类，像是日常节奏里最稳定的两处开销。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">餐饮是最大的一块</div>
+      <div class="section-body">餐饮是最大的一块，约4969元，分布在20笔记录里。</div>
+      <div class="interp">这对你来说：笔数多、金额高，更像是日常三餐和外卖形成的固定开销。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">购物排第二</div>
+      <div class="section-body">购物排第二，约4632元，只用了10笔；其中一笔京东支出1299元是能看到的最大单笔。</div>
+      <div class="interp">这对你来说：10笔花掉4632元，其中有千元级的大件，像是偶尔的较大额采买叠加日常小单。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">其余三类规模都不大</div>
+      <div class="section-body">其余三类规模都不大：交通约362元、娱乐约240元、订阅约198元，合计不到800元。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">这个月一半花在了一台设备上</div>
+    
+    <div class="summary">这个月（9 月 1 日到 15 日）一共花掉 ¥3426，最大的一块是购物 ¥2388，占将近七成；其次是餐饮 ¥821，剩下娱乐 ¥97、订阅 ¥66、交通 ¥54 都很小。；购物里有一笔 9 月 3 日 Apple Store 的 ¥1899，单这一笔就占了购物支出的约八成、占这个月全部花销的一半以上；其余购物是淘宝 ¥210 和 ¥279。；和 8 月整月的 ¥2200 相比，这个月到 15 日已经多花 ¥1226，差额几乎全来自购物：8 月购物只有 ¥322，这个月涨到 ¥2388，多了 ¥2066；餐饮反而从 8 月的 ¥1664 降到 ¥821。；餐饮这 ¥821 至少分散在 20 笔三十几块的小单里，面馆 ¥33-35、食堂 ¥35、外卖黄焖鸡 ¥33、星巴克 ¥32 都出现了，没有一笔大额餐饮。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这个月（9 月 1 日到 15 日）一共花掉 ¥3426，最大的一块是购物 ¥2388，占将近七成；其次是餐饮 ¥821，剩下娱乐 ¥97、订阅 ¥66、交通 ¥54 都很小。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">购物里有一笔 9 月 3 日 Apple Store 的 ¥1899，单这一笔就占了购物支出的约八成、占这个月全部花销的一半以上；其余购物是淘宝 ¥210 和 ¥279。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">和 8 月整月的 ¥2200 相比，这个月到 15 日已经多花 ¥1226，差额几乎全来自购物：8 月购物只有 ¥322，这个月涨到 ¥2388，多了 ¥2066；餐饮反而从 8 月的 ¥1664 降到 ¥821。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">餐饮这 ¥821 至少分散在 20 笔三十几块的小单里，面馆 ¥33-35、食堂 ¥35、外卖黄焖鸡 ¥33、星巴克 ¥32 都出现了，没有一笔大额餐饮。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F03">
+    <div class="q">F03 · 最近奶茶咖啡喝得是不是有点多？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">别急，这三个月奶茶咖啡挺平稳</div>
+    
+    <div class="summary">最近这段记录里（6 月 18 日到 9 月 11 日），奶茶和咖啡加起来一共 19 次、大约 502 元，平均下来每月六次上下，没有出现「越喝越多」的走势。；按月份拆开看：6 月 6 次、7 月 7 次、8 月降到 4 次，9 月到 11 号为止只有 2 次——高峰其实在 7 月，之后是往下走的，所以「最近喝得有点多」这个感觉和记录对不太上。；两种饮品的高峰不是同一时间：喜茶 10 次里有 5 次挤在 7 月，之后明显转淡；咖啡则是 8 月底开始连着出现（8 月 31 日、9 月 2 日、9 月 11 日），间隔缩短到两三天和一周多，是近几周唯一在变密的一支。；每笔单价都很克制：咖啡 16–33 元、喜茶 20–34 元，单笔均价在 25–27 元，没有出现一次点好几杯或大额外送的情况。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">最近这段记录里（6 月 18 日到 9 月 11 日），奶茶和咖啡加起来一共 19 次、大约 502 元，平均下来每月六次上下，没有出现「越喝越多」的走势。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">按月份拆开看：6 月 6 次、7 月 7 次、8 月降到 4 次，9 月到 11 号为止只有 2 次——高峰其实在 7 月，之后是往下走的，所以「最近喝得有点多」这个感觉和记录对不太上。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">两种饮品的高峰不是同一时间：喜茶 10 次里有 5 次挤在 7 月，之后明显转淡；咖啡则是 8 月底开始连着出现（8 月 31 日、9 月 2 日、9 月 11 日），间隔缩短到两三天和一周多，是近几周唯一在变密的一支。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">每笔单价都很克制：咖啡 16–33 元、喜茶 20–34 元，单笔均价在 25–27 元，没有出现一次点好几杯或大额外送的情况。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">别急，这三个月奶茶咖啡挺平稳</div>
+    <div class="insight">💡 咖啡近几周开始短间隔出现，茶饮却已在 7 月高点后转淡</div>
+    <div class="summary">把 6 月中到 9 月 11 日的记录翻出来看，奶茶和咖啡加起来一共 19 次、大约 502 元，摊到每个月就是六次上下，节奏其实蛮稳的。真正的密集期在 7 月，尤其是喜茶一个月喝了 5 次，8 月已经回落到 4 次，9 月到 11 号为止只有 2 次。所以与其说「最近喝多了」，更像是 7 月那阵子嘴馋得比较勤，之后自己就慢下来了。</div>
+    
+    <div class="section">
+      <div class="section-title">最近这段记录里（6 月 18</div>
+      <div class="section-body">最近这段记录里（6 月 18 日到 9 月 11 日），奶茶和咖啡加起来一共 19 次、大约 502 元，平均下来每月六次上下，没有出现「越喝越多」的走势。</div>
+      <div class="interp">这对你来说：每月六次上下，更像是随手一杯的日常，而不是靠它撑着什么。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">按月份拆开看</div>
+      <div class="section-body">按月份拆开看：6 月 6 次、7 月 7 次、8 月降到 4 次，9 月到 11 号为止只有 2 次——高峰其实在 7 月，之后是往下走的，所以「最近喝得有点多」这个感觉和记录对不太上。</div>
+      <div class="interp">这对你来说：7 月喝得密一点，8 月自己就收住了，看起来更像是那阵子天热或心气儿顺带来的随手一两杯。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">两种饮品的高峰不是同一时间</div>
+      <div class="section-body">两种饮品的高峰不是同一时间：喜茶 10 次里有 5 次挤在 7 月，之后明显转淡；咖啡则是 8 月底开始连着出现（8 月 31 日、9 月 2 日、9 月 11 日），间隔缩短到两三天和一周多，是近几周唯一在变密的一支。</div>
+      <div class="interp">这对你来说：茶饮淡下去、咖啡变密，像是天气转凉后换了口味，也可能和最近做事节奏有关——这点只有你知道。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">每笔单价都很克制</div>
+      <div class="section-body">每笔单价都很克制：咖啡 16–33 元、喜茶 20–34 元，单笔均价在 25–27 元，没有出现一次点好几杯或大额外送的情况。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">奶茶咖啡这两个月确实喝得勤</div>
+    
+    <div class="summary">记录期内奶茶咖啡一共44笔、约1114元：星巴克13笔339元最多，蜜雪冰城12笔273元，喜茶10笔257元，瑞幸9笔245元。；最近的频率确实上来了：9月才过14天就已经喝了至少8杯（星巴克3次、蜜雪3次、瑞幸2次），而8月整月是13杯。；每一杯的金额都落在16到34元之间，星巴克、蜜雪、喜茶、瑞幸轮着出现，单杯价位没有明显抬升。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">记录期内奶茶咖啡一共44笔、约1114元：星巴克13笔339元最多，蜜雪冰城12笔273元，喜茶10笔257元，瑞幸9笔245元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">最近的频率确实上来了：9月才过14天就已经喝了至少8杯（星巴克3次、蜜雪3次、瑞幸2次），而8月整月是13杯。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">每一杯的金额都落在16到34元之间，星巴克、蜜雪、喜茶、瑞幸轮着出现，单杯价位没有明显抬升。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F04">
+    <div class="q">F04 · 为什么晚上总是忍不住点外卖？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">晚上那几顿，多半不是饿</div>
+    <div class="insight">💡 夜里那顿多是重口味外卖，而你的睡眠一直偏短，它们常常同时出现。</div>
+    <div class="summary">先说一个事实：你点外卖的次数确实不算少——记录里 67 笔、加起来 2236 元，占了餐饮支出的将近一半，分布在 53 天里，平均一顿三十几块。其中明确带「夜宵」字样的有 32 笔、1219 元，翻出来的内容基本都是烧烤、小龙虾、麻辣香锅、炸鸡这类口味偏重的东西。与此同时，你的平均睡眠是 6.74 小时，略短于成人常见的 7–9 小时。有两件事我得老实说：账单里没有下单时间，所以「晚上」这个点我没法从数据里验证，只能靠「夜宵」这个标签间接看到一部分；另外睡眠偏短和夜里进食只是同时出现，谁带动谁，数据答不了。</div>
+    
+    <div class="section">
+      <div class="section-title">外卖是你餐饮里最大的一块</div>
+      <div class="section-body">外卖是你餐饮里最大的一块：记录里一共 67 笔、合计 2236 元，分布在 53 天当中，占餐饮总支出 4969 元的约 45%。</div>
+      <div class="interp">这对你来说：每顿平均三十几块，单笔都不大，更像是临时决定、就近解决的一餐，而不是提前安排好的饭局——这种「不算贵所以不心疼」的支出，反而容易反复发生。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">明确写着「夜宵」的记录有 3</div>
+      <div class="section-body">明确写着「夜宵」的记录有 32 笔、共 1219 元，内容基本是烧烤、小龙虾、麻辣香锅、炸鸡这类口味偏重的东西，占了外卖金额的一半多。</div>
+      <div class="interp">这对你来说：夜里点的多是重口味、上瘾性强的那几类，像是当时想要一点刺激和满足感，而不只是填饱肚子。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">你的平均睡眠是 6</div>
+      <div class="section-body">你的平均睡眠是 6.74 小时，略短于成人常见的 7–9 小时；它和夜里这些外卖记录在时间上是同时出现的，但数据只能说明「同时发生」，不能说明谁引起了谁。</div>
+      <div class="interp">这对你来说：可能是睡得晚的那几天，夜里更容易饿、也更容易顺手点一份；也可能只是两件都发生在同样的作息节奏里。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">要说明的是</div>
+      <div class="section-body">要说明的是：账单里没有记录下单时间，所以「晚上」这个时间点我没法直接验证，只能通过带「夜宵」标签的记录看到其中一部分。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">如果想让晚上那顿少一点</div>
+      <div class="section-body">如果想让晚上那顿少一点，比起靠意志力硬扛，更省力的做法是先动最容易触发的那几类——把这 32 笔夜宵（平均每次约 38 元）里的重口味单子，一周减少两次，一个月大概能少花 300 元左右，而且减的是最晚的那一顿。</div>
+      <div class="interp">这对你来说：从最容易松动的两顿入手，比要求自己「以后都不点」更容易做到，也不会因为破戒一次就全盘放弃。</div>
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">晚上那几顿，多半不是饿</div>
+    
+    <div class="summary">外卖是你餐饮里最大的一块：记录里一共 67 笔、合计 2236 元，分布在 53 天当中，占餐饮总支出 4969 元的约 45%。；明确写着「夜宵」的记录有 32 笔、共 1219 元，内容基本是烧烤、小龙虾、麻辣香锅、炸鸡这类口味偏重的东西，占了外卖金额的一半多。；你的平均睡眠是 6.74 小时，略短于成人常见的 7–9 小时；它和夜里这些外卖记录在时间上是同时出现的，但数据只能说明「同时发生」，不能说明谁引起了谁。；要说明的是：账单里没有记录下单时间，所以「晚上」这个时间点我没法直接验证，只能通过带「夜宵」标签的记录看到其中一部分。；如果想让晚上那顿少一点，比起靠意志力硬扛，更省力的做法是先动最容易触发的那几类——把这 32 笔夜宵（平均每次约 38 元）里的重口味单子，一周减少两次，一个月大概能少花 300 元左右，而且减的是最晚的那一顿。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">外卖是你餐饮里最大的一块：记录里一共 67 笔、合计 2236 元，分布在 53 天当中，占餐饮总支出 4969 元的约 45%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">明确写着「夜宵」的记录有 32 笔、共 1219 元，内容基本是烧烤、小龙虾、麻辣香锅、炸鸡这类口味偏重的东西，占了外卖金额的一半多。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">你的平均睡眠是 6.74 小时，略短于成人常见的 7–9 小时；它和夜里这些外卖记录在时间上是同时出现的，但数据只能说明「同时发生」，不能说明谁引起了谁。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">要说明的是：账单里没有记录下单时间，所以「晚上」这个时间点我没法直接验证，只能通过带「夜宵」标签的记录看到其中一部分。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">如果想让晚上那顿少一点，比起靠意志力硬扛，更省力的做法是先动最容易触发的那几类——把这 32 笔夜宵（平均每次约 38 元）里的重口味单子，一周减少两次，一个月大概能少花 300 元左右，而且减的是最晚的那一顿。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">晚上的外卖，几乎都是这几样</div>
+    
+    <div class="summary">能查到的外卖订单是 67 笔、合计 2236 元；备注里全部是烧烤、炸鸡、小龙虾、麻辣香锅、披萨这类偏夜宵的品类，没有一笔是清淡的家常菜。记账数据里没有具体钟点，“晚上”是从点什么看出来的，不是从时间戳看出来的。；外卖的品类集中度很高：最近 10 笔里有 8 笔是烧烤、炸鸡、小龙虾、麻辣香锅、披萨和麻辣烫，单价落在 28 到 50 元之间，金额不大但次数密。；同一段时间里，你的睡眠有 95 天记录、平均 6.74 小时；外卖的 67 笔也发生在这段时间内。这两个数据我只能说同时存在，不能说明谁引起了谁。；如果想把夜宵收一收，可以先不设“戒掉”，只设一个每周 2 次的重口味上限。按现在 67 笔共 2236 元、分布在 6 到 9 月来摊，大约每月 17 笔、560 元，压到一半就是每月省下 250 到 300 元，先从单价最高的烧烤和小龙虾那档开始减，最容易见效。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">能查到的外卖订单是 67 笔、合计 2236 元；备注里全部是烧烤、炸鸡、小龙虾、麻辣香锅、披萨这类偏夜宵的品类，没有一笔是清淡的家常菜。记账数据里没有具体钟点，“晚上”是从点什么看出来的，不是从时间戳看出来的。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">外卖的品类集中度很高：最近 10 笔里有 8 笔是烧烤、炸鸡、小龙虾、麻辣香锅、披萨和麻辣烫，单价落在 28 到 50 元之间，金额不大但次数密。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">同一段时间里，你的睡眠有 95 天记录、平均 6.74 小时；外卖的 67 笔也发生在这段时间内。这两个数据我只能说同时存在，不能说明谁引起了谁。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">如果想把夜宵收一收，可以先不设“戒掉”，只设一个每周 2 次的重口味上限。按现在 67 笔共 2236 元、分布在 6 到 9 月来摊，大约每月 17 笔、560 元，压到一半就是每月省下 250 到 300 元，先从单价最高的烧烤和小龙虾那档开始减，最容易见效。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F05">
+    <div class="q">F05 · 按现在这个节奏，月底大概会花多少钱？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">前半月花了3426元，月底大概在4500到6900之间</div>
+    
+    <div class="summary">9月1日到15日你一共花了3426元，平均每天228元左右。；本月最大的支出块是购物，2388元，占了这半个月的近七成，但只由3笔构成——更像几次集中下单，而不是天天在买。；餐饮是第二块，821元，摊在12笔上，平均每天大概55元，单笔多在30元上下。；娱乐97元、订阅66元、交通54元，这三块加起来只占本月约6%，属于小额固定项。；按现在的节奏往下推，月底大概落在4460元到6850元之间：如果那3笔购物是偶发的、之后不再出现，全月约4460元；如果整个9月都保持前15天的总节奏，则约6850元——这是推算，不是已经发生的事实。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">9月1日到15日你一共花了3426元，平均每天228元左右。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">本月最大的支出块是购物，2388元，占了这半个月的近七成，但只由3笔构成——更像几次集中下单，而不是天天在买。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">餐饮是第二块，821元，摊在12笔上，平均每天大概55元，单笔多在30元上下。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">娱乐97元、订阅66元、交通54元，这三块加起来只占本月约6%，属于小额固定项。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">按现在的节奏往下推，月底大概落在4460元到6850元之间：如果那3笔购物是偶发的、之后不再出现，全月约4460元；如果整个9月都保持前15天的总节奏，则约6850元——这是推算，不是已经发生的事实。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">前半月花了3426元，月底大概在4500到6900之间</div>
+    <div class="insight">💡 本月近七成花在3笔购物上，日常节奏其实很轻。</div>
+    <div class="summary">9月过了一半（截至15日），你一共花了3426元，日均228元左右。但这笔钱的大头不是日常——购物2388元只由3笔构成，占了本月近七成；剩下的餐饮821元摊在12顿饭上，一天也就55元，是很平的节奏。所以月底会落在哪个数，取决于那几笔购物是偶发还是常态：不再重复的话大约4460元，按当前总节奏延续则约6850元。</div>
+    
+    <div class="section">
+      <div class="section-title">9月1日到15日你一共花了3</div>
+      <div class="section-body">9月1日到15日你一共花了3426元，平均每天228元左右。</div>
+      <div class="interp">这对你来说：15天的日均在两三百元这个量级，整体节奏不快。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">本月最大的支出块是购物</div>
+      <div class="section-body">本月最大的支出块是购物，2388元，占了这半个月的近七成，但只由3笔构成——更像几次集中下单，而不是天天在买。</div>
+      <div class="interp">这对你来说：3笔撑起七成，像是月中集中的几次采购，而不是稳定流出的日常开销。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">餐饮是第二块</div>
+      <div class="section-body">餐饮是第二块，821元，摊在12笔上，平均每天大概55元，单笔多在30元上下。</div>
+      <div class="interp">这对你来说：单笔二三十、一天一两顿，是相当平稳的吃饭节奏。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">娱乐97元、订阅66元、交通</div>
+      <div class="section-body">娱乐97元、订阅66元、交通54元，这三块加起来只占本月约6%，属于小额固定项。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">按现在的节奏往下推</div>
+      <div class="section-body">按现在的节奏往下推，月底大概落在4460元到6850元之间：如果那3笔购物是偶发的、之后不再出现，全月约4460元；如果整个9月都保持前15天的总节奏，则约6850元——这是推算，不是已经发生的事实。</div>
+      <div class="interp">这对你来说：两个数差了两千多，差别几乎全在那几笔购物上——它是偶发还是常态，决定了这个月长什么样。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">这个月的抬头，几乎全靠那一笔</div>
+    
+    <div class="summary">按 9 月前 15 天的节奏往下走，9 月全月大概会花到 ¥4950 左右：已经花掉 ¥3426，剩下 15 天按最近的日常速度再花约 ¥1500 出头。；这半个月 15 天每天都有记账，日均约 ¥228；但 9 月 3 日 Apple Store 一笔 ¥1899 占了很大比重，把它去掉后日均回落到约 ¥102。；9 月前半段这 ¥3426 里，购物 ¥2388 占约七成（含那笔 ¥1899，另有淘宝 ¥210 和 ¥279），餐饮 ¥821 约占四分之一，娱乐、订阅、交通加起来不到 ¥220。；整个快照窗口 243 笔共 ¥10401，覆盖 93 个有记录的日子，日均约 ¥112——9 月看起来陡增，主要是那笔大额带起来的，日常开销本身跟这个水平差不太多。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">按 9 月前 15 天的节奏往下走，9 月全月大概会花到 ¥4950 左右：已经花掉 ¥3426，剩下 15 天按最近的日常速度再花约 ¥1500 出头。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这半个月 15 天每天都有记账，日均约 ¥228；但 9 月 3 日 Apple Store 一笔 ¥1899 占了很大比重，把它去掉后日均回落到约 ¥102。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">9 月前半段这 ¥3426 里，购物 ¥2388 占约七成（含那笔 ¥1899，另有淘宝 ¥210 和 ¥279），餐饮 ¥821 约占四分之一，娱乐、订阅、交通加起来不到 ¥220。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">整个快照窗口 243 笔共 ¥10401，覆盖 93 个有记录的日子，日均约 ¥112——9 月看起来陡增，主要是那笔大额带起来的，日常开销本身跟这个水平差不太多。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F06">
+    <div class="q">F06 · 这个月和上个月比，支出变化大吗？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">这两期账单没能拆开看</div>
+    
+    <div class="summary">你想知道这个月和上个月差多少，我试了几种方式想把两期分开算，但每次拿回来的都是同一组金额，时间窗没能真正切开，所以环比这件事我暂时给不了准数——不想拿一个看着像答案的数字糊弄你。能确认的只有快照里记着的这组支出结构：餐饮和购物占了大头，剩下的交通、娱乐、订阅加起来才八百出头。等月份能拆开，我再帮你看清楚涨的是哪一块。</div>
+    
+    <div class="section">
+      <div class="section-title">这次没能把本月和上月的支出分</div>
+      <div class="section-body">这次没能把本月和上月的支出分开来算——换了几种取数方式，返回的都是同一组金额，所以两个月的涨跌给不出可靠结论。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">快照里记录的这组支出中</div>
+      <div class="section-body">快照里记录的这组支出中，餐饮 4969 元、购物 4632 元是两笔最大的去向，合计约占总量的九成；交通 362 元、娱乐 240 元、订阅 198 元加起来不到一成。</div>
+      <div class="interp">这对你来说：餐饮和购物撑起了绝大部分开销，像是日常吃饭刚需加上零散网购叠在一起，但具体落在哪个月份目前还看不出来。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">明细里最早的一笔在 6 月</div>
+      <div class="section-body">明细里最早的一笔在 6 月 13 日，最近的一笔在 9 月 15 日，这段区间的记录是齐的，问题出在按月份切分这一步没走通。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">这两期账单没能拆开看</div>
+    
+    <div class="summary">这次没能把本月和上月的支出分开来算——换了几种取数方式，返回的都是同一组金额，所以两个月的涨跌给不出可靠结论。；快照里记录的这组支出中，餐饮 4969 元、购物 4632 元是两笔最大的去向，合计约占总量的九成；交通 362 元、娱乐 240 元、订阅 198 元加起来不到一成。；明细里最早的一笔在 6 月 13 日，最近的一笔在 9 月 15 日，这段区间的记录是齐的，问题出在按月份切分这一步没走通。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这次没能把本月和上月的支出分开来算——换了几种取数方式，返回的都是同一组金额，所以两个月的涨跌给不出可靠结论。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">快照里记录的这组支出中，餐饮 4969 元、购物 4632 元是两笔最大的去向，合计约占总量的九成；交通 362 元、娱乐 240 元、订阅 198 元加起来不到一成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">明细里最早的一笔在 6 月 13 日，最近的一笔在 9 月 15 日，这段区间的记录是齐的，问题出在按月份切分这一步没走通。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">多花的钱，几乎都在一笔购物上</div>
+    
+    <div class="summary">这个月到 15 日已经花了 3426 元，比 8 月整月的 2200 元多出 1226 元，多约 56%；不过这个月才过半个月，交易笔数只有 42 笔，反而比 8 月的 74 笔少。；多出来的钱几乎都来自购物：9 月购物 2388 元，8 月只有 322 元，相差 2066 元；其中 9 月 3 日在 Apple Store 的一笔就有 1899 元。；餐饮这半个月反而比上月少：9 月 821 元，8 月 1664 元，少了 843 元——考虑 9 月只统计到 15 日，摊到每天和 8 月基本持平。；放到三个月看，7 月 3837 元、8 月 2200 元、9 月前 15 天 3426 元——8 月是明显花得少的一个月，9 月这半个月已经接近 7 月整月的水平；按当前节奏推下去，这个月整月大概率会明显高于 8 月（推算，不是已发生的事实）。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这个月到 15 日已经花了 3426 元，比 8 月整月的 2200 元多出 1226 元，多约 56%；不过这个月才过半个月，交易笔数只有 42 笔，反而比 8 月的 74 笔少。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">多出来的钱几乎都来自购物：9 月购物 2388 元，8 月只有 322 元，相差 2066 元；其中 9 月 3 日在 Apple Store 的一笔就有 1899 元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">餐饮这半个月反而比上月少：9 月 821 元，8 月 1664 元，少了 843 元——考虑 9 月只统计到 15 日，摊到每天和 8 月基本持平。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">放到三个月看，7 月 3837 元、8 月 2200 元、9 月前 15 天 3426 元——8 月是明显花得少的一个月，9 月这半个月已经接近 7 月整月的水平；按当前节奏推下去，这个月整月大概率会明显高于 8 月（推算，不是已发生的事实）。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F07">
+    <div class="q">F07 · 我每个月固定要花多少钱？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">每月固定 66 元，就这三笔</div>
+    
+    <div class="summary">你目前账面上能确认的每月固定扣款是 66 元，由三项订阅组成：iCloud 21 元、爱奇艺 30 元、网易云音乐 15 元。；这三项都是每月 1 号扣一次，7 月、8 月、9 月连续三个月金额一模一样，没有涨价或中断的迹象。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">你目前账面上能确认的每月固定扣款是 66 元，由三项订阅组成：iCloud 21 元、爱奇艺 30 元、网易云音乐 15 元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这三项都是每月 1 号扣一次，7 月、8 月、9 月连续三个月金额一模一样，没有涨价或中断的迹象。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">每月固定 66 元，就这三笔</div>
+    
+    <div class="summary">从账上能确认的「固定支出」只有三条订阅：iCloud、爱奇艺、网易云音乐，都在每月 1 号同一天自动扣，金额三个月完全没变过。加起来每月 66 元，属于很轻的固定负担。另外，账里没看到房租、分期这类更大额的周期项——如果确实有，可能是走了别的账户或没记进来。</div>
+    
+    <div class="section">
+      <div class="section-title">你目前账面上能确认的每月固定</div>
+      <div class="section-body">你目前账面上能确认的每月固定扣款是 66 元，由三项订阅组成：iCloud 21 元、爱奇艺 30 元、网易云音乐 15 元。</div>
+      <div class="interp">这对你来说：三笔都卡在每月 1 号同一天自动走账，像是早就设好就不用再管的默认订阅。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这三项都是每月 1 号扣一次</div>
+      <div class="section-body">这三项都是每月 1 号扣一次，7 月、8 月、9 月连续三个月金额一模一样，没有涨价或中断的迹象。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">每月1日，三笔订阅安静扣款</div>
+    
+    <div class="summary">你每月的固定订阅支出是 66 元，一共三笔：iCloud 21 元、爱奇艺 30 元、网易云音乐 15 元，都固定在每月 1 日扣款。；这三笔订阅在 7 月、8 月、9 月三个月都是同样金额、同样日期，金额没有变动过。；电影院那三笔（95 元、48 元、97 元）日期和金额都不规则，属于零散娱乐消费，不算固定支出。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">你每月的固定订阅支出是 66 元，一共三笔：iCloud 21 元、爱奇艺 30 元、网易云音乐 15 元，都固定在每月 1 日扣款。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这三笔订阅在 7 月、8 月、9 月三个月都是同样金额、同样日期，金额没有变动过。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">电影院那三笔（95 元、48 元、97 元）日期和金额都不规则，属于零散娱乐消费，不算固定支出。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F08">
+    <div class="q">F08 · 这个月最大的一笔花销是什么？值不值？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">最大一笔：Apple Store 1899 元</div>
+    <div class="insight">💡 最大单笔 1899 元来自 Apple Store，购物类成为最大支出去向</div>
+    <div class="summary">你把这个问题问出来，其实是想知道那笔钱花得值不值。快照里能定位到的最大一笔，是 9 月 3 日在 Apple Store 的 1899 元，记在购物分类下，也是这段记录里 136 笔支出中金额最高的一笔，大约占全部支出的四分之一。购物本身也是这段时间最大的去向，合计 4632 元，其次是餐饮 2899 元。至于值不值，账本只留下商户名，没写买了什么、也没写使用频率，这一层我暂时算不出来——你告诉我这东西打算用多久、或一周大概用几次，我就能帮你摊出每天的实际成本。</div>
+    
+    <div class="section">
+      <div class="section-title">这段记录里金额最大的一笔支出</div>
+      <div class="section-body">这段记录里金额最大的一笔支出，是 9 月 3 日在 Apple Store 花的 1899 元，记在购物分类下，也是全部 136 笔支出里单笔最高的一笔。如果你说的本月指快照里最新的这个月，那这笔就是本月最大的一笔。</div>
+      <div class="interp">这对你来说：单笔金额落在购物大件的量级，且出现在月初，像是计划内的替换型消费，但这只是从时间和分类看到的形态，不是结论。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这个统计口径下共有 136</div>
+      <div class="section-body">这个统计口径下共有 136 笔支出、合计 7989 元，这一笔 1899 元大约占了 24%，相当于每花出去四块钱，有一块来自这一单。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">购物是这段记录里最大的支出去</div>
+      <div class="section-body">购物是这段记录里最大的支出去向，合计 4632 元、10 笔；其次是餐饮 2899 元，其余依次是订阅 198 元、娱乐 192 元、交通 68 元。这笔 1899 元大约占了购物类总支出的四成。</div>
+      <div class="interp">这对你来说：购物压过餐饮成为最大一类，像是这个阶段有大件需求集中落地，而不是日常小额慢慢堆出来的。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">账本里还有一笔量级接近的购物</div>
+      <div class="section-body">账本里还有一笔量级接近的购物：7 月 25 日在京东的 1299 元。加上 Apple Store 那一单，两笔合计 3198 元，接近购物类总额的七成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">值不值这个问题</div>
+      <div class="section-body">值不值这个问题，现在的数据答不了：记录里只有商户名 Apple Store，没写买了什么，也没有使用频率，所以算不出单次使用成本。想判断回本的话先做一件事——告诉我这东西打算用几个月、或一周大概用几次，我就能帮你摊出每天的实际成本；顺手的话把 7 月那笔 1299 元也一起说明，两笔放在同一把尺子上比较才有意义。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">最大一笔：Apple Store 1899 元</div>
+    
+    <div class="summary">这段记录里金额最大的一笔支出，是 9 月 3 日在 Apple Store 花的 1899 元，记在购物分类下，也是全部 136 笔支出里单笔最高的一笔。如果你说的本月指快照里最新的这个月，那这笔就是本月最大的一笔。；这个统计口径下共有 136 笔支出、合计 7989 元，这一笔 1899 元大约占了 24%，相当于每花出去四块钱，有一块来自这一单。；购物是这段记录里最大的支出去向，合计 4632 元、10 笔；其次是餐饮 2899 元，其余依次是订阅 198 元、娱乐 192 元、交通 68 元。这笔 1899 元大约占了购物类总支出的四成。；账本里还有一笔量级接近的购物：7 月 25 日在京东的 1299 元。加上 Apple Store 那一单，两笔合计 3198 元，接近购物类总额的七成。；值不值这个问题，现在的数据答不了：记录里只有商户名 Apple Store，没写买了什么，也没有使用频率，所以算不出单次使用成本。想判断回本的话先做一件事——告诉我这东西打算用几个月、或一周大概用几次，我就能帮你摊出每天的实际成本；顺手的话把 7 月那笔 1299 元也一起说明，两笔放在同一把尺子上比较才有意义。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这段记录里金额最大的一笔支出，是 9 月 3 日在 Apple Store 花的 1899 元，记在购物分类下，也是全部 136 笔支出里单笔最高的一笔。如果你说的本月指快照里最新的这个月，那这笔就是本月最大的一笔。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这个统计口径下共有 136 笔支出、合计 7989 元，这一笔 1899 元大约占了 24%，相当于每花出去四块钱，有一块来自这一单。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">购物是这段记录里最大的支出去向，合计 4632 元、10 笔；其次是餐饮 2899 元，其余依次是订阅 198 元、娱乐 192 元、交通 68 元。这笔 1899 元大约占了购物类总支出的四成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">账本里还有一笔量级接近的购物：7 月 25 日在京东的 1299 元。加上 Apple Store 那一单，两笔合计 3198 元，接近购物类总额的七成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">值不值这个问题，现在的数据答不了：记录里只有商户名 Apple Store，没写买了什么，也没有使用频率，所以算不出单次使用成本。想判断回本的话先做一件事——告诉我这东西打算用几个月、或一周大概用几次，我就能帮你摊出每天的实际成本；顺手的话把 7 月那笔 1299 元也一起说明，两笔放在同一把尺子上比较才有意义。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">这个月最大一笔，花在一台设备上</div>
+    
+    <div class="summary">这个月金额最大的一笔，是 9 月 3 日在 Apple Store 花的 1,899 元。；它占了本月购物支出的将近八成（购物一共 2,388 元），也占了本月总支出 3,426 元的一半多；换成日常尺度看，本月平均每笔 81.6 元，这一笔差不多相当于二十多笔普通消费。；值不值这件事，账单本身回答不了——它只记得住金额，记不住你多久用一次、替掉了什么别的东西。真想算清楚，可以先记一笔它的使用频率（比如每天用多久、一周用几次），再拿 1,899 元去除，这样得到的日常成本比单看金额更能说明问题。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这个月金额最大的一笔，是 9 月 3 日在 Apple Store 花的 1,899 元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">它占了本月购物支出的将近八成（购物一共 2,388 元），也占了本月总支出 3,426 元的一半多；换成日常尺度看，本月平均每笔 81.6 元，这一笔差不多相当于二十多笔普通消费。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">值不值这件事，账单本身回答不了——它只记得住金额，记不住你多久用一次、替掉了什么别的东西。真想算清楚，可以先记一笔它的使用频率（比如每天用多久、一周用几次），再拿 1,899 元去除，这样得到的日常成本比单看金额更能说明问题。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F09">
+    <div class="q">F09 · 工作日和周末花钱差别大吗？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">周末贵在少数几天</div>
+    <div class="insight">💡 周末日均是工作日的1.7倍，差额几乎全出在购物大额日</div>
+    <div class="summary">把 6 月 13 日到 9 月 15 日的账按工作日和周末分开看：周末日均约 157 元，工作日约 93 元，周末平均每天多出六十几块。不过典型的一天两边其实差不多——差距主要来自几个大额购物日，而不是每天都花得更凶。整体上钱也主要落在餐饮和购物这两块。</div>
+    
+    <div class="section">
+      <div class="section-title">这段时间里周末日均花了约15</div>
+      <div class="section-body">这段时间里周末日均花了约157元，工作日约93元，周末平均每天多花约64元、高出约七成。</div>
+      <div class="interp">这对你来说：周末平均更松一些，但一周里只有两天周末，对整月总额的影响被工作日的天数摊薄了。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">两边典型的一天其实差不多</div>
+      <div class="section-body">两边典型的一天其实差不多：周末单日支出的中位数是69元，工作日是63元。</div>
+      <div class="interp">这对你来说：均值上的差距不是「每天多花一点」堆出来的，更像是被少数几天撑起来的——日常小额两边水平相近。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">差距主要出在少数大额日</div>
+      <div class="section-body">差距主要出在少数大额日：27个周末日里有5天单日超过200元，66个工作日里只有1天；而且这些大额都落在购物类，比如7月25日京东1299元、9月3日Apple Store 1899元。</div>
+      <div class="interp">这对你来说：像是把一些较贵的采购留到了空闲时间处理，但这只是并发现象，工作日同样出现过单笔1899元的电子类支出。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这段时间总支出10401元</div>
+      <div class="section-body">这段时间总支出10401元，其中餐饮4969元、购物4632元，两类合计约占92%，钱主要还是花在这两块。</div>
+      <div class="interp">这对你来说：周末多出来的部分很可能也主要落进购物类，因为大额样本都出在这里。</div>
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">周末贵在少数几天</div>
+    
+    <div class="summary">这段时间里周末日均花了约157元，工作日约93元，周末平均每天多花约64元、高出约七成。；两边典型的一天其实差不多：周末单日支出的中位数是69元，工作日是63元。；差距主要出在少数大额日：27个周末日里有5天单日超过200元，66个工作日里只有1天；而且这些大额都落在购物类，比如7月25日京东1299元、9月3日Apple Store 1899元。；这段时间总支出10401元，其中餐饮4969元、购物4632元，两类合计约占92%，钱主要还是花在这两块。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这段时间里周末日均花了约157元，工作日约93元，周末平均每天多花约64元、高出约七成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">两边典型的一天其实差不多：周末单日支出的中位数是69元，工作日是63元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">差距主要出在少数大额日：27个周末日里有5天单日超过200元，66个工作日里只有1天；而且这些大额都落在购物类，比如7月25日京东1299元、9月3日Apple Store 1899元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">这段时间总支出10401元，其中餐饮4969元、购物4632元，两类合计约占92%，钱主要还是花在这两块。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">周末多花的钱，基本都进了购物车</div>
+    
+    <div class="summary">从6月13日到9月15日，你周末日均花157元，工作日日均92元，周末大约高出七成。；这个差距不是每个周末都在发生：周末单日花销的中位数是69元，工作日是63元，只差6元——差额集中在少数几个大额周末日。；差额主要来自购物：这段时间购物类共4,632元，金额最大的几笔里有8笔落在6个周末日、合计2,647元（含京东1,299元和多笔淘宝）；工作日那边最大的一笔是9月3日周四的Apple Store 1,899元。；把周末那几笔网购（2,647元）和9月3日那笔Apple Store（1,899元）都拿掉后，工作日日均约63元、周末日均约59元，几乎一样——说明吃饭、交通这类日常花销，周末并不比工作日多。；这段时间总支出10,401元，其中餐饮4,969元和购物4,632元就占了九成以上，交通362元、娱乐240元、订阅198元都只是零头。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">从6月13日到9月15日，你周末日均花157元，工作日日均92元，周末大约高出七成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这个差距不是每个周末都在发生：周末单日花销的中位数是69元，工作日是63元，只差6元——差额集中在少数几个大额周末日。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">差额主要来自购物：这段时间购物类共4,632元，金额最大的几笔里有8笔落在6个周末日、合计2,647元（含京东1,299元和多笔淘宝）；工作日那边最大的一笔是9月3日周四的Apple Store 1,899元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">把周末那几笔网购（2,647元）和9月3日那笔Apple Store（1,899元）都拿掉后，工作日日均约63元、周末日均约59元，几乎一样——说明吃饭、交通这类日常花销，周末并不比工作日多。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">这段时间总支出10,401元，其中餐饮4,969元和购物4,632元就占了九成以上，交通362元、娱乐240元、订阅198元都只是零头。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F10">
+    <div class="q">F10 · 这个月一共花了多少钱？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">能算到的是 6–9 月的合计——约 ¥10401</div>
+    
+    <div class="summary">你问的这个月总额：工具这次没能把记录按月拆开，只给出一个合计 ¥10401，而这些记录的时间跨度是 2026 年 6 月到 9 月，所以它更像是这几个月的合计，而不是单独某一个月。结构上餐饮和购物占了绝大部分，其中两笔千元级的网上购物显得比较突出。</div>
+    
+    <div class="section">
+      <div class="section-title">目前数据里能统计到的支出合计</div>
+      <div class="section-body">目前数据里能统计到的支出合计是 ¥10401，但这些记录跨了 2026 年 6 月到 9 月——工具没能按月单独拆分，所以这更像这几个月的合计，我没法把它单独归到某一个月。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">这些支出里餐饮 ¥4969（</div>
+      <div class="section-body">这些支出里餐饮 ¥4969（约 20 笔）和购物 ¥4632（约 10 笔）是大头，两项加起来占总额约九成；交通 ¥362、娱乐 ¥240、订阅 ¥198 相对都很小。</div>
+      <div class="interp">这对你来说：餐饮的笔数明显多于购物，像是日常高频小额在累积；购物笔数少但单笔重，结构上偏一次性大件。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">明细里最大的两笔都是网上购物</div>
+      <div class="section-body">明细里最大的两笔都是网上购物：9 月 3 日的 Apple Store ¥1899 和 7 月 25 日的京东 ¥1299，其余购物多在百元到两百多元。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">能算到的是 6–9 月的合计——约 ¥10401</div>
+    
+    <div class="summary">目前数据里能统计到的支出合计是 ¥10401，但这些记录跨了 2026 年 6 月到 9 月——工具没能按月单独拆分，所以这更像这几个月的合计，我没法把它单独归到某一个月。；这些支出里餐饮 ¥4969（约 20 笔）和购物 ¥4632（约 10 笔）是大头，两项加起来占总额约九成；交通 ¥362、娱乐 ¥240、订阅 ¥198 相对都很小。；明细里最大的两笔都是网上购物：9 月 3 日的 Apple Store ¥1899 和 7 月 25 日的京东 ¥1299，其余购物多在百元到两百多元。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">目前数据里能统计到的支出合计是 ¥10401，但这些记录跨了 2026 年 6 月到 9 月——工具没能按月单独拆分，所以这更像这几个月的合计，我没法把它单独归到某一个月。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这些支出里餐饮 ¥4969（约 20 笔）和购物 ¥4632（约 10 笔）是大头，两项加起来占总额约九成；交通 ¥362、娱乐 ¥240、订阅 ¥198 相对都很小。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">明细里最大的两笔都是网上购物：9 月 3 日的 Apple Store ¥1899 和 7 月 25 日的京东 ¥1299，其余购物多在百元到两百多元。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">本月花了一万出头</div>
+    
+    <div class="summary">本月一共花了约 ¥10,401。；花得最多的两块是餐饮 ¥4,969 和购物 ¥4,632，加起来占了本月支出的近九成。；其余是交通 ¥362、娱乐 ¥240、订阅 ¥198，都是小额。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">本月一共花了约 ¥10,401。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">花得最多的两块是餐饮 ¥4,969 和购物 ¥4,632，加起来占了本月支出的近九成。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">其余是交通 ¥362、娱乐 ¥240、订阅 ¥198，都是小额。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F11">
+    <div class="q">F11 · 餐饮和购物哪个花得多？差多少？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">餐饮比购物多花三百多块</div>
+    
+    <div class="summary">餐饮比购物花得多：餐饮累计 ¥4,969，购物 ¥4,632，餐饮多出 ¥337，大约多 7%。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">餐饮比购物花得多：餐饮累计 ¥4,969，购物 ¥4,632，餐饮多出 ¥337，大约多 7%。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">餐饮比购物多花三百多块</div>
+    
+    <div class="summary">这段时间餐饮累计 ¥4,969，购物 ¥4,632，两者咬得很紧，餐饮只是略微领先 ¥337，大约多出 7%。不过两类的花法不太一样：购物的金额主要压在几笔大额下单上，餐饮则是笔数多、单笔零碎地累起来的。</div>
+    
+    <div class="section">
+      <div class="section-title">餐饮比购物花得多</div>
+      <div class="section-body">餐饮比购物花得多：餐饮累计 ¥4,969，购物 ¥4,632，餐饮多出 ¥337，大约多 7%。</div>
+      <div class="interp">这对你来说：购物的钱更像是集中在几笔大额下单（像 Apple Store、京东这类），餐饮则是笔数多、单笔小的日常累加，两类的花法差别挺明显。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">餐饮比购物多花了337块</div>
+    
+    <div class="summary">餐饮比购物花得多，餐饮4969元，购物4632元，餐饮多出337元。；餐饮一共约20笔，购物只有10笔，餐饮笔数更多、单笔更小；购物这边金额最大的几笔是Apple Store1899元、京东1299元。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">餐饮比购物花得多，餐饮4969元，购物4632元，餐饮多出337元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">餐饮一共约20笔，购物只有10笔，餐饮笔数更多、单笔更小；购物这边金额最大的几笔是Apple Store1899元、京东1299元。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="F12">
+    <div class="q">F12 · 给我这个月的消费做个全面复盘</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">近万支出里，吃和买占了九成</div>
+    <div class="insight">💡 消费呈两极：购物靠两笔大件，餐饮靠高频外卖</div>
+    <div class="summary">先把口径说清楚：这份账覆盖的是 2026 年 6 月中旬到 9 月中旬，不是单独一个月，合计 10401 元、243 笔，笔均 42.8 元。钱几乎只流向两处——餐饮 4969 元、购物 4632 元，两者加起来占了 92%。但这两块的性质完全不同：购物是 10 笔撑起来的，两件大件就占了它的近七成；餐饮则是 67 笔外卖一笔笔堆出来的，平均每笔 33 元。</div>
+    
+    <div class="section">
+      <div class="section-title">这份账实际覆盖 2026 年</div>
+      <div class="section-body">这份账实际覆盖 2026 年 6 月中旬到 9 月中旬，不是单独一个月：合计支出 10401 元，共 243 笔，平均每笔 42.8 元。按月拆分的序列在本次查询中没有被拆开，所以没法给出「本月比上月」的月度对比。</div>
+      <div class="interp">这对你来说：跨度接近三个月、笔均四十出头，钱主要是被大量日常小额带走的，而不是靠几笔大额。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">支出几乎只集中在两个方向</div>
+      <div class="section-body">支出几乎只集中在两个方向：餐饮 4969 元，占 47.8%；购物 4632 元，占 44.5%。两项合计占全部支出的 92.3%。其余是交通 362 元（3.5%）、娱乐 240 元（2.3%）、订阅 198 元（1.9%）。</div>
+      <div class="interp">这对你来说：餐饮和购物各占近半，结构上非常集中，其余三类加起来不到一成。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">购物这 4632 元集中在</div>
+      <div class="section-body">购物这 4632 元集中在 10 笔里，平均一笔 463 元，明显是被大件拉动：9 月 3 日 Apple Store 1899 元、7 月 25 日京东 1299 元，两笔合计 3198 元，占了购物的约 69%。其余多是小额淘宝订单，单笔 86 到 279 元不等。</div>
+      <div class="interp">这对你来说：购物不是常态性流失，更像两三次明确的大件决定，其余月份大概率不会有同样体量。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">餐饮的 4969 元里</div>
+      <div class="section-body">餐饮的 4969 元里，外卖占了 2236 元、67 笔，平均每笔 33.4 元，相当于餐饮的四成半。此外咖啡与茶饮出现得很频繁：一点点 14 笔、星巴克 13 笔、蜜雪冰城 12 笔、喜茶 10 笔、瑞幸 9 笔，合计 58 笔。</div>
+      <div class="interp">这对你来说：餐饮的钱更像由日常节奏带动的连续小额支出，而不是偶尔的聚餐大单。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">交通 362 元几乎来自通勤</div>
+      <div class="section-body">交通 362 元几乎来自通勤：地铁出现 49 次，单笔多为 6 元。娱乐 240 元来自电影院与网易云音乐各 3 笔，订阅 198 元来自 9 笔周期性扣款。这几类在总额里都不到 4%。</div>
+      <div class="interp">这对你来说：交通与娱乐都属于稳定的小额固定节奏，不太可能是支出波动的原因。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">如果要动手优化</div>
+      <div class="section-body">如果要动手优化，优先看外卖这一项：它三个月里累计 2236 元、67 笔。哪怕只减掉三分之一，也能省下约 745 元，同时餐饮占比会明显回落。购物那两笔大件属于一次性决定，不需要设成月度目标去追。</div>
+      <div class="interp">这对你来说：外卖是这次复盘中唯一高频、可调、且单价不高容易被忽略的项目，改动成本最低。</div>
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">近万支出里，吃和买占了九成</div>
+    
+    <div class="summary">这份账实际覆盖 2026 年 6 月中旬到 9 月中旬，不是单独一个月：合计支出 10401 元，共 243 笔，平均每笔 42.8 元。按月拆分的序列在本次查询中没有被拆开，所以没法给出「本月比上月」的月度对比。；支出几乎只集中在两个方向：餐饮 4969 元，占 47.8%；购物 4632 元，占 44.5%。两项合计占全部支出的 92.3%。其余是交通 362 元（3.5%）、娱乐 240 元（2.3%）、订阅 198 元（1.9%）。；购物这 4632 元集中在 10 笔里，平均一笔 463 元，明显是被大件拉动：9 月 3 日 Apple Store 1899 元、7 月 25 日京东 1299 元，两笔合计 3198 元，占了购物的约 69%。其余多是小额淘宝订单，单笔 86 到 279 元不等。；餐饮的 4969 元里，外卖占了 2236 元、67 笔，平均每笔 33.4 元，相当于餐饮的四成半。此外咖啡与茶饮出现得很频繁：一点点 14 笔、星巴克 13 笔、蜜雪冰城 12 笔、喜茶 10 笔、瑞幸 9 笔，合计 58 笔。；交通 362 元几乎来自通勤：地铁出现 49 次，单笔多为 6 元。娱乐 240 元来自电影院与网易云音乐各 3 笔，订阅 198 元来自 9 笔周期性扣款。这几类在总额里都不到 4%。；如果要动手优化，优先看外卖这一项：它三个月里累计 2236 元、67 笔。哪怕只减掉三分之一，也能省下约 745 元，同时餐饮占比会明显回落。购物那两笔大件属于一次性决定，不需要设成月度目标去追。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这份账实际覆盖 2026 年 6 月中旬到 9 月中旬，不是单独一个月：合计支出 10401 元，共 243 笔，平均每笔 42.8 元。按月拆分的序列在本次查询中没有被拆开，所以没法给出「本月比上月」的月度对比。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">支出几乎只集中在两个方向：餐饮 4969 元，占 47.8%；购物 4632 元，占 44.5%。两项合计占全部支出的 92.3%。其余是交通 362 元（3.5%）、娱乐 240 元（2.3%）、订阅 198 元（1.9%）。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">购物这 4632 元集中在 10 笔里，平均一笔 463 元，明显是被大件拉动：9 月 3 日 Apple Store 1899 元、7 月 25 日京东 1299 元，两笔合计 3198 元，占了购物的约 69%。其余多是小额淘宝订单，单笔 86 到 279 元不等。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">餐饮的 4969 元里，外卖占了 2236 元、67 笔，平均每笔 33.4 元，相当于餐饮的四成半。此外咖啡与茶饮出现得很频繁：一点点 14 笔、星巴克 13 笔、蜜雪冰城 12 笔、喜茶 10 笔、瑞幸 9 笔，合计 58 笔。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">交通 362 元几乎来自通勤：地铁出现 49 次，单笔多为 6 元。娱乐 240 元来自电影院与网易云音乐各 3 笔，订阅 198 元来自 9 笔周期性扣款。这几类在总额里都不到 4%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 6</div>
+      <div class="section-body">如果要动手优化，优先看外卖这一项：它三个月里累计 2236 元、67 笔。哪怕只减掉三分之一，也能省下约 745 元，同时餐饮占比会明显回落。购物那两笔大件属于一次性决定，不需要设成月度目标去追。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">钱主要压在购物和吃饭上</div>
+    
+    <div class="summary">本月账单里共 136 笔支出，合计 7989 元，平均每笔约 59 元。；钱主要去了两个地方：购物 4632 元，占本月支出约 58%；餐饮 2899 元，占约 36%，两项合起来接近九成五。；购物只有 10 笔，却花掉 4632 元，单笔平均约 463 元；餐饮是 112 笔、共 2899 元，单笔平均约 26 元，属于典型的高频小额。；交通 68 元、娱乐 192 元、订阅 198 元，三项加起来 458 元，在本月支出里占比不到 6%，都很克制。；复盘可以先从购物那 10 笔入手——它们占掉本月近六成支出，逐笔确认是不是都在计划内，比盯餐饮每一笔的性价比高得多；餐饮这边 112 笔、单笔约 26 元，调整空间更可能在频次而不是金额。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">本月账单里共 136 笔支出，合计 7989 元，平均每笔约 59 元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">钱主要去了两个地方：购物 4632 元，占本月支出约 58%；餐饮 2899 元，占约 36%，两项合起来接近九成五。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">购物只有 10 笔，却花掉 4632 元，单笔平均约 463 元；餐饮是 112 笔、共 2899 元，单笔平均约 26 元，属于典型的高频小额。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">交通 68 元、娱乐 192 元、订阅 198 元，三项加起来 458 元，在本月支出里占比不到 6%，都很克制。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">复盘可以先从购物那 10 笔入手——它们占掉本月近六成支出，逐笔确认是不是都在计划内，比盯餐饮每一笔的性价比高得多；餐饮这边 112 笔、单笔约 26 元，调整空间更可能在频次而不是金额。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="H01">
+    <div class="q">H01 · 最近睡得好吗？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">睡得稍短，倒是挺沉</div>
+    <div class="insight">💡 睡得略短，但夜间结构还挺稳</div>
+    <div class="summary">这阵子的睡眠，时长上稍微欠了一点——平均约 6 小时 45 分钟，比成人常见的 7-9 小时略短。不过入睡之后的表现还不错：深睡和快速眼动都在常见区间，睡眠效率接近 89%，夜里平均只醒不到一次，整体算是睡得比较连贯。这些是基于最近 20 条睡眠记录看到的时长和结构，醒来后精神怎么样，还得结合你自己的主观感受来看。</div>
+    
+    <div class="section">
+      <div class="section-title">最近这段平均每晚睡约 6 小</div>
+      <div class="section-body">最近这段平均每晚睡约 6 小时 45 分钟，略低于成人常见的 7-9 小时区间。</div>
+      <div class="interp">这对你来说：时长卡在 7 小时下方，像是作息被压着，入睡偏晚或起得偏早都可能这样。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">入睡后的结构还算正常</div>
+      <div class="section-body">入睡后的结构还算正常：深睡占比约 19.6%、快速眼动约 21.6%，都落在常见区间内。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">睡眠效率约 88</div>
+      <div class="section-body">睡眠效率约 88.6%，夜里平均只醒 0.9 次，说明睡得比较连贯。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">睡得稍短，倒是挺沉</div>
+    
+    <div class="summary">最近这段平均每晚睡约 6 小时 45 分钟，略低于成人常见的 7-9 小时区间。；入睡后的结构还算正常：深睡占比约 19.6%、快速眼动约 21.6%，都落在常见区间内。；睡眠效率约 88.6%，夜里平均只醒 0.9 次，说明睡得比较连贯。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">最近这段平均每晚睡约 6 小时 45 分钟，略低于成人常见的 7-9 小时区间。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">入睡后的结构还算正常：深睡占比约 19.6%、快速眼动约 21.6%，都落在常见区间内。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">睡眠效率约 88.6%，夜里平均只醒 0.9 次，说明睡得比较连贯。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">睡得不算长，但睡得还算稳</div>
+    
+    <div class="summary">记录里的 95 个夜晚，你平均每晚睡 6 小时 45 分左右，最短 5 小时 24 分，最长 8 小时。这个时长略低于成人常见的 7–9 小时区间。；这 95 晚里有 12 晚睡不到 6 小时，约占记录的八分之一。；睡眠结构一项不差：深睡占比约 19.6%，快速眼动约 21.6%，睡眠效率约 88.6%，都落在成人常见范围附近。；夜里平均中断 0.9 次，多数晚上基本是一觉到天亮。；整体看，你的睡眠问题集中在「时长」这一个维度上——结构和连续性都在正常范围，偏偏总时长偏短。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">记录里的 95 个夜晚，你平均每晚睡 6 小时 45 分左右，最短 5 小时 24 分，最长 8 小时。这个时长略低于成人常见的 7–9 小时区间。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这 95 晚里有 12 晚睡不到 6 小时，约占记录的八分之一。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">睡眠结构一项不差：深睡占比约 19.6%，快速眼动约 21.6%，睡眠效率约 88.6%，都落在成人常见范围附近。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">夜里平均中断 0.9 次，多数晚上基本是一觉到天亮。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 5</div>
+      <div class="section-body">整体看，你的睡眠问题集中在「时长」这一个维度上——结构和连续性都在正常范围，偏偏总时长偏短。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="H02">
+    <div class="q">H02 · 我的深睡够不够？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">深睡比例还行，就是睡得有点短</div>
+    
+    <div class="summary">设备记录的 95 个晚上，你的深睡占比平均约 19.6%，落在成人常见区间（大致 15%–25%）的中上位置，单看这一项不算少。；同一批记录里，你平均每晚睡 6.7 小时，比常见的 7 小时以上略短；按这个均值推算，深睡的绝对时长大约每晚 1.3 小时，所以深睡够不够，更多是被总睡眠时长限制的。；这次没能把记录按月或按近期拆开，所以还不确定 19.6% 对你是长期常态还是最近才变化；单看时长和结构这两项，也无法判断深睡的连续性、睡得多沉这类情况。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">设备记录的 95 个晚上，你的深睡占比平均约 19.6%，落在成人常见区间（大致 15%–25%）的中上位置，单看这一项不算少。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">同一批记录里，你平均每晚睡 6.7 小时，比常见的 7 小时以上略短；按这个均值推算，深睡的绝对时长大约每晚 1.3 小时，所以深睡够不够，更多是被总睡眠时长限制的。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">这次没能把记录按月或按近期拆开，所以还不确定 19.6% 对你是长期常态还是最近才变化；单看时长和结构这两项，也无法判断深睡的连续性、睡得多沉这类情况。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">深睡比例还行，就是睡得有点短</div>
+    <div class="insight">💡 深睡占比在常见区间，但 6.7 小时的睡眠时长偏短，深睡的绝对量被总量限制。</div>
+    <div class="summary">从设备记录的 95 个晚上看，你的深睡占比平均在 19.6% 左右，落在成人常见区间偏中上的位置，深睡这一项本身不算少。但同期平均每晚只睡了 6.7 小时，总量偏短一些，深睡的绝对时长也就跟着被压缩了——大概是每晚 1.3 小时上下。这次没能按月份拆开看，所以还判断不了这个比例对你来说是一直如此，还是最近才变化的。</div>
+    
+    <div class="section">
+      <div class="section-title">设备记录的 95 个晚上</div>
+      <div class="section-body">设备记录的 95 个晚上，你的深睡占比平均约 19.6%，落在成人常见区间（大致 15%–25%）的中上位置，单看这一项不算少。</div>
+      <div class="interp">这对你来说：比例本身在常见范围内，像是没有被深睡结构拖后腿的那种状态。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">同一批记录里</div>
+      <div class="section-body">同一批记录里，你平均每晚睡 6.7 小时，比常见的 7 小时以上略短；按这个均值推算，深睡的绝对时长大约每晚 1.3 小时，所以深睡够不够，更多是被总睡眠时长限制的。</div>
+      <div class="interp">这对你来说：6.7 小时的夜间时长，可能让深睡即便比例正常，总量也上不去。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这次没能把记录按月或按近期拆</div>
+      <div class="section-body">这次没能把记录按月或按近期拆开，所以还不确定 19.6% 对你是长期常态还是最近才变化；单看时长和结构这两项，也无法判断深睡的连续性、睡得多沉这类情况。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">深睡占比够，总时长偏短拉低了深睡总量</div>
+    
+    <div class="summary">最近这段时间平均深睡占比约19.6%，落在成人常见的13%–23%区间中间，从比例上看深睡不算少。；平均每晚总睡眠约6.7小时，略低于成人常见的7–9小时；按这个占比换算，深睡的绝对时长大约1.3小时/晚，接近常见下限。；同一批记录里，REM睡眠约占21.6%、睡眠效率约88.6%，都落在成人常见范围，睡眠结构整体没有明显异常。；如果想让深睡总量更充裕，优先把总睡眠往上抬——每晚多睡30–60分钟到7小时以上，深睡绝对时长通常也会随之增加；这比单纯追求更高深睡占比更实际。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">最近这段时间平均深睡占比约19.6%，落在成人常见的13%–23%区间中间，从比例上看深睡不算少。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">平均每晚总睡眠约6.7小时，略低于成人常见的7–9小时；按这个占比换算，深睡的绝对时长大约1.3小时/晚，接近常见下限。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">同一批记录里，REM睡眠约占21.6%、睡眠效率约88.6%，都落在成人常见范围，睡眠结构整体没有明显异常。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">如果想让深睡总量更充裕，优先把总睡眠往上抬——每晚多睡30–60分钟到7小时以上，深睡绝对时长通常也会随之增加；这比单纯追求更高深睡占比更实际。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="H03">
+    <div class="q">H03 · 这个月的睡眠比上个月好了还是差了？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">最近两周多在6小时上下</div>
+    
+    <div class="summary">快照里记录的 95 晚睡眠，平均每晚 6.74 小时；这些夜晚的深睡占比平均 19.6%，快速眼动占比约 21.6%，睡眠效率平均 88.6%。；最近十天（9 月 6 日到 15 日）每一晚的睡眠时长在 5.6 到 6.8 小时之间，其中 6 晚不超过 6.3 小时，最低的是 9 月 7 日的 5.6 小时和 9 月 11 日的 5.8 小时。；这次给不出「本月比上月好还是差」的结论：按月分组的查询没有返回 8 月和 9 月的分期结果，只拿到了整段记录合在一起的平均值 6.74 小时，所以目前只能看到整体水位，看不到两个月之间的差别。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">快照里记录的 95 晚睡眠，平均每晚 6.74 小时；这些夜晚的深睡占比平均 19.6%，快速眼动占比约 21.6%，睡眠效率平均 88.6%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">最近十天（9 月 6 日到 15 日）每一晚的睡眠时长在 5.6 到 6.8 小时之间，其中 6 晚不超过 6.3 小时，最低的是 9 月 7 日的 5.6 小时和 9 月 11 日的 5.8 小时。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">这次给不出「本月比上月好还是差」的结论：按月分组的查询没有返回 8 月和 9 月的分期结果，只拿到了整段记录合在一起的平均值 6.74 小时，所以目前只能看到整体水位，看不到两个月之间的差别。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">最近两周多在6小时上下</div>
+    
+    <div class="summary">快照里能看到的 95 晚睡眠，平均每晚 6.74 小时，深睡占比约两成、睡眠效率接近九成。最近十天（9 月 6 日到 15 日）的每一晚落在 5.6 到 6.8 小时之间，其中 6 晚不超过 6.3 小时，整体处在偏短的一侧。需要说明的是，按月分组的查询两次都没有返回 8 月和 9 月的分期结果，所以这次给不出严格的「本月比上月好还是差」的结论。</div>
+    
+    <div class="section">
+      <div class="section-title">快照里记录的 95 晚睡眠</div>
+      <div class="section-body">快照里记录的 95 晚睡眠，平均每晚 6.74 小时；这些夜晚的深睡占比平均 19.6%，快速眼动占比约 21.6%，睡眠效率平均 88.6%。</div>
+      <div class="interp">这对你来说：六小时半上下、深睡接近两成，是能撑住白天但不太有余量的节奏。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">最近十天（9 月 6 日到</div>
+      <div class="section-body">最近十天（9 月 6 日到 15 日）每一晚的睡眠时长在 5.6 到 6.8 小时之间，其中 6 晚不超过 6.3 小时，最低的是 9 月 7 日的 5.6 小时和 9 月 11 日的 5.8 小时。</div>
+      <div class="interp">这对你来说：这十晚都压在 6 小时出头，像是靠固定时长在维持，而不是睡够后自然醒。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这次给不出「本月比上月好还是</div>
+      <div class="section-body">这次给不出「本月比上月好还是差」的结论：按月分组的查询没有返回 8 月和 9 月的分期结果，只拿到了整段记录合在一起的平均值 6.74 小时，所以目前只能看到整体水位，看不到两个月之间的差别。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">翻了一圈，这个月还比不出来</div>
+    
+    <div class="summary">我暂时没法回答这个月比上个月是好了还是差了：两次按月取数返回的结果完全相同，都是覆盖整个可查区间的整体平均值，没有真正拆成单月数据。；在能查到的这段记录里，你的平均睡眠时长是 6.74 小时，深睡占 19.6%、快速眼动占 21.6%，睡眠效率 88.6%，夜里平均醒来 0.9 次。这些是整个可查区间的整体值，不是某一个月单独的情况。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">我暂时没法回答这个月比上个月是好了还是差了：两次按月取数返回的结果完全相同，都是覆盖整个可查区间的整体平均值，没有真正拆成单月数据。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">在能查到的这段记录里，你的平均睡眠时长是 6.74 小时，深睡占 19.6%、快速眼动占 21.6%，睡眠效率 88.6%，夜里平均醒来 0.9 次。这些是整个可查区间的整体值，不是某一个月单独的情况。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="H04">
+    <div class="q">H04 · 我作息规律吗？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">作息很稳，就是睡得有点少</div>
+    
+    <div class="summary">起床时间是这段时间里最稳的一项：平均 7:45 起床，最早 7:05，最晚也只有 8:54，95 晚之间前后只差了约 1.5 小时。；入睡时段也比较集中：95 晚里有 91 晚都落在晚间 20 点到午夜这一段，只有 4 晚熬过了零点，中间 06:00–20:00 这个区间没有任何入睡记录。；真正不规律的是睡眠量：95 晚平均只睡 6.74 小时，其中 57 晚不到 7 小时，占了六成；相比成人常见的 7–9 小时区间，整体偏短。；熬过午夜的那 4 晚平均只睡 5.65 小时，明显少于其余 91 晚的 6.79 小时，差了约 1.1 小时。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">起床时间是这段时间里最稳的一项：平均 7:45 起床，最早 7:05，最晚也只有 8:54，95 晚之间前后只差了约 1.5 小时。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">入睡时段也比较集中：95 晚里有 91 晚都落在晚间 20 点到午夜这一段，只有 4 晚熬过了零点，中间 06:00–20:00 这个区间没有任何入睡记录。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">真正不规律的是睡眠量：95 晚平均只睡 6.74 小时，其中 57 晚不到 7 小时，占了六成；相比成人常见的 7–9 小时区间，整体偏短。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">熬过午夜的那 4 晚平均只睡 5.65 小时，明显少于其余 91 晚的 6.79 小时，差了约 1.1 小时。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">作息很稳，就是睡得有点少</div>
+    <div class="insight">💡 起床时间只差1.5小时很稳，但六成夜晚睡不满7小时——节律稳、睡眠量不够。</div>
+    <div class="summary">手头这 95 晚的记录里，你的起床时间几乎刻在表上——平均 7:45 起身，最早 7:05，最晚也不过 8:54，前后只差一个半小时；入睡也大多落在午夜前那一段，只有 4 晚熬过了零点。真正不平衡的是睡眠量：平均 6.74 小时，57 晚不到 7 小时，占了大半。也就是说，你的作息框架是规律的，只是规律地睡得偏少。</div>
+    
+    <div class="section">
+      <div class="section-title">起床时间是这段时间里最稳的一</div>
+      <div class="section-body">起床时间是这段时间里最稳的一项：平均 7:45 起床，最早 7:05，最晚也只有 8:54，95 晚之间前后只差了约 1.5 小时。</div>
+      <div class="interp">这对你来说：起床时间这么集中，说明每天的启动节奏已经被固定下来了，像是有稳定的日程在牵引。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">入睡时段也比较集中</div>
+      <div class="section-body">入睡时段也比较集中：95 晚里有 91 晚都落在晚间 20 点到午夜这一段，只有 4 晚熬过了零点，中间 06:00–20:00 这个区间没有任何入睡记录。</div>
+      <div class="interp">这对你来说：入睡没有出现今天很早、明天很晚的来回摇摆，更像是长期维持在同一段夜里。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">真正不规律的是睡眠量</div>
+      <div class="section-body">真正不规律的是睡眠量：95 晚平均只睡 6.74 小时，其中 57 晚不到 7 小时，占了六成；相比成人常见的 7–9 小时区间，整体偏短。</div>
+      <div class="interp">这对你来说：作息看起来是「规律地睡得偏少」——时点守得住，时长却没跟上，长期下来消耗像是在慢慢累积。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">熬过午夜的那 4 晚平均只睡</div>
+      <div class="section-body">熬过午夜的那 4 晚平均只睡 5.65 小时，明显少于其余 91 晚的 6.79 小时，差了约 1.1 小时。</div>
+      <div class="interp">这对你来说：像是每次拖到午夜之后才睡，第二天并没有相应地往后延起床，于是那几个夜晚被压缩掉了——不过只有 4 晚，还只是个苗头。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">起床挺规律，睡眠稍微短了点</div>
+    
+    <div class="summary">起床时间比较规律：这段时间平均在早上 7:45 左右，最早 7:05、最晚 8:54，前后只差不到两小时。；睡眠时长平均 6.74 小时，最短 5.4 小时、最长 8 小时，起伏比起床时间更明显，平均也略低于常见的 7–9 小时区间。；入睡时间的记录跨度很大，从半夜 00:01 到接近午夜 23:58 都有，这个口径下没法直接算出一个可信的入睡平均时间，所以入睡规律性这次只能先存疑。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">起床时间比较规律：这段时间平均在早上 7:45 左右，最早 7:05、最晚 8:54，前后只差不到两小时。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">睡眠时长平均 6.74 小时，最短 5.4 小时、最长 8 小时，起伏比起床时间更明显，平均也略低于常见的 7–9 小时区间。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">入睡时间的记录跨度很大，从半夜 00:01 到接近午夜 23:58 都有，这个口径下没法直接算出一个可信的入睡平均时间，所以入睡规律性这次只能先存疑。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="H05">
+    <div class="q">H05 · 最近运动量怎么样？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">这阵子运动没落下，力量和跑步各占一边</div>
+    <div class="insight">💡 力量训练时长约为跑步的 3 倍，训练偏向抗阻一侧</div>
+    <div class="summary">快照里一共记了 25 次运动，累计 1263 分钟，大概 21 小时，平均每次 50 分钟上下。其中力量训练占了大头，18 次、939 分钟；跑步 7 次、324 分钟。整体看是稳定在练的状态，不是零星动两下。</div>
+    
+    <div class="section">
+      <div class="section-title">快照里一共记录了 25 次运</div>
+      <div class="section-body">快照里一共记录了 25 次运动，累计 1263 分钟（约 21 小时），平均每次 50 分钟左右。</div>
+      <div class="interp">这对你来说：平均每次 50 分钟，像是有固定训练节奏而不是随手动一下。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">运动类型上力量训练是主力</div>
+      <div class="section-body">运动类型上力量训练是主力：18 次共 939 分钟；跑步 7 次共 324 分钟。</div>
+      <div class="interp">这对你来说：力量训练时长约为跑步的 3 倍，像是把重心放在抗阻训练上，跑步作为补充。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这些运动累计消耗约 7410</div>
+      <div class="section-body">这些运动累计消耗约 7410 千卡。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">这阵子运动没落下，力量和跑步各占一边</div>
+    
+    <div class="summary">快照里一共记录了 25 次运动，累计 1263 分钟（约 21 小时），平均每次 50 分钟左右。；运动类型上力量训练是主力：18 次共 939 分钟；跑步 7 次共 324 分钟。；这些运动累计消耗约 7410 千卡。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">快照里一共记录了 25 次运动，累计 1263 分钟（约 21 小时），平均每次 50 分钟左右。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">运动类型上力量训练是主力：18 次共 939 分钟；跑步 7 次共 324 分钟。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">这些运动累计消耗约 7410 千卡。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">运动量稳，力量训练在撑着节奏</div>
+    
+    <div class="summary">快照里一共有 25 次运动记录，累计 1263 分钟，平均每次约 50 分钟，整体是有一定强度的规律训练量。；运动类型以力量训练为主，18 次力量训练对比 7 次跑步，跑步更像是穿插在力量训练之间的补充。；最近这一段的节奏是 9 月 2 日、6 日、9 日、13 日各练一次，大约每隔三到四天动一次，单次时长在 43 到 63 分钟之间。；这些运动累计消耗约 7410 千卡，平均每次在 200 到 370 千卡之间。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">快照里一共有 25 次运动记录，累计 1263 分钟，平均每次约 50 分钟，整体是有一定强度的规律训练量。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">运动类型以力量训练为主，18 次力量训练对比 7 次跑步，跑步更像是穿插在力量训练之间的补充。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">最近这一段的节奏是 9 月 2 日、6 日、9 日、13 日各练一次，大约每隔三到四天动一次，单次时长在 43 到 63 分钟之间。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">这些运动累计消耗约 7410 千卡，平均每次在 200 到 370 千卡之间。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="X01">
+    <div class="q">X01 · 晚上熬夜的时候，花钱是不是也变多了？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">熬夜和花钱，这回先看清一半</div>
+    
+    <div class="summary">记账里备注含「夜宵」的消费一共 32 笔，合计 1219 元，是典型的深夜进食场景。；近 95 天的睡眠记录显示，你平均每晚睡 6.74 小时，其中有 12 天不足 6 小时。；睡眠记录覆盖了 95 天，但消费只记到日期、缺一天内的时刻，所以「熬夜当天是否花更多」这次还答不上来，只能先看夜宵这类夜间消费的侧面信号。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">记账里备注含「夜宵」的消费一共 32 笔，合计 1219 元，是典型的深夜进食场景。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">近 95 天的睡眠记录显示，你平均每晚睡 6.74 小时，其中有 12 天不足 6 小时。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">睡眠记录覆盖了 95 天，但消费只记到日期、缺一天内的时刻，所以「熬夜当天是否花更多」这次还答不上来，只能先看夜宵这类夜间消费的侧面信号。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">熬夜和花钱，这回先看清一半</div>
+    
+    <div class="summary">你问熬夜时是不是也花得多——记账只写到日期、没记具体几点，所以「晚上花的钱」没法单独拎出来，这次只能用两组侧面数据看：近 95 天你有 12 天睡不到 6 小时，平均每晚 6.74 小时；备注写了「夜宵」的消费有 32 笔、合计 1219 元。这两个信号都指向晚睡时段的进食，但它们是不是总落在同一天，还需要按天对齐才能看清。</div>
+    
+    <div class="section">
+      <div class="section-title">记账里备注含「夜宵」的消费一</div>
+      <div class="section-body">记账里备注含「夜宵」的消费一共 32 笔，合计 1219 元，是典型的深夜进食场景。</div>
+      <div class="interp">这对你来说：32 笔夜宵放在 95 天里像是隔几天一次的深夜顺手消费，但具体是否集中在熬夜当天，还需按天对齐才能确认。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">近 95 天的睡眠记录显示</div>
+      <div class="section-body">近 95 天的睡眠记录显示，你平均每晚睡 6.74 小时，其中有 12 天不足 6 小时。</div>
+      <div class="interp">这对你来说：平均不到 7 小时、偶有睡不到 6 小时的日子，像是节奏偏紧、偶尔晚睡的状态。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">睡眠记录覆盖了 95 天</div>
+      <div class="section-body">睡眠记录覆盖了 95 天，但消费只记到日期、缺一天内的时刻，所以「熬夜当天是否花更多」这次还答不上来，只能先看夜宵这类夜间消费的侧面信号。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">熬夜和花费，这次没能对上</div>
+    
+    <div class="summary">近 95 天的睡眠记录里，你平均每晚睡 6.74 小时。；睡眠记录里的平均入睡时间约为 1134 分钟，这个数值口径偏早，像是字段本身的定义与日常说的「几点睡」不一致，值得核对后再用。；这段快照里的消费记录共有 243 笔，合计约 10401 元。；关于「熬夜那天是不是也花得更多」，这次还答不上来——账单只有日期、没有消费发生的时刻，而且按天配对的睡眠与支出对照没有取回，所以无法判断两者是否同步出现。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">近 95 天的睡眠记录里，你平均每晚睡 6.74 小时。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">睡眠记录里的平均入睡时间约为 1134 分钟，这个数值口径偏早，像是字段本身的定义与日常说的「几点睡」不一致，值得核对后再用。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">这段快照里的消费记录共有 243 笔，合计约 10401 元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">关于「熬夜那天是不是也花得更多」，这次还答不上来——账单只有日期、没有消费发生的时刻，而且按天配对的睡眠与支出对照没有取回，所以无法判断两者是否同步出现。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="X02">
+    <div class="q">X02 · 睡得晚的日子，第二天任务完成得怎么样？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">这次没能把两件事对上</div>
+    
+    <div class="summary">你想看的是「哪几晚睡得晚、隔天任务做得怎么样」。我翻了两边的记录：睡眠那边只留下了每一天的时长和深睡、浅睡占比，没有可判读的每晚入睡时刻；任务那边虽然条数不少，但按天分组后只剩一个总数，拆不出每天的完成情况。所以这层对照我没能真的做出来，不敢拿整段平均去凑一个结论给你。能确定的是：这段时间平均睡 6.74 小时，任务整体完成得相当满，376 条里完成了 371 条。</div>
+    
+    <div class="section">
+      <div class="section-title">这次没能真的对上</div>
+      <div class="section-body">这次没能真的对上：睡眠记录里没有可用的每晚入睡时刻，任务记录按天分组后只返回了总量，所以我没法判断哪些晚上算睡得晚、隔天又完成了多少。</div>
+      <div class="interp">这对你来说：你问的其实是一个很具体的作息—状态问题，只是目前两边记录都不是按天可对齐的形式，像是数据还停留在「每天一条汇总」的粒度。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">有睡眠记录的这些天</div>
+      <div class="section-body">有睡眠记录的这些天，平均每晚睡 6.74 小时，明显偏短一些。</div>
+      <div class="interp">这对你来说：6.74 小时略低于常说的成人 7 小时上下，如果最近确实觉得白天吃力，这条可能值得留意。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">任务这边记录得挺完整</div>
+      <div class="section-body">任务这边记录得挺完整：一共 376 条，其中 371 条是已完成状态，占绝大多数。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">这次没能把两件事对上</div>
+    
+    <div class="summary">这次没能真的对上：睡眠记录里没有可用的每晚入睡时刻，任务记录按天分组后只返回了总量，所以我没法判断哪些晚上算睡得晚、隔天又完成了多少。；有睡眠记录的这些天，平均每晚睡 6.74 小时，明显偏短一些。；任务这边记录得挺完整：一共 376 条，其中 371 条是已完成状态，占绝大多数。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这次没能真的对上：睡眠记录里没有可用的每晚入睡时刻，任务记录按天分组后只返回了总量，所以我没法判断哪些晚上算睡得晚、隔天又完成了多少。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">有睡眠记录的这些天，平均每晚睡 6.74 小时，明显偏短一些。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">任务这边记录得挺完整：一共 376 条，其中 371 条是已完成状态，占绝大多数。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">睡得晚的那些夜，第二天也没落下</div>
+    
+    <div class="summary">这段时间一共记了 376 条任务，完成 371 条，完成率 98.7%；没做完的只有 5 条，落在 7 月 23 日（2 条）、8 月 1 日、8 月 6 日和 8 月 21 日，内容都是生活类的事：预约体检、整理云盘照片、给爸妈买礼物、学完 Swift 第一课、处理旧手机。；同一段时间的睡眠记录里，平均每晚睡 6.74 小时。；按入睡时间取最晚的 10 个夜晚——8 月 22、23、29、31 日，9 月 2、5、6、8、12、13 日——它们的第二天都没有出现未完成的任务；反过来看，那 5 条没做完的事，日期都不在这 10 个夜晚的次日。；这 10 个最晚入睡的夜晚，对应记录的睡眠时长在 6.0 到 6.9 小时之间，和整体平均的 6.74 小时接近，没有出现明显整体缩短。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这段时间一共记了 376 条任务，完成 371 条，完成率 98.7%；没做完的只有 5 条，落在 7 月 23 日（2 条）、8 月 1 日、8 月 6 日和 8 月 21 日，内容都是生活类的事：预约体检、整理云盘照片、给爸妈买礼物、学完 Swift 第一课、处理旧手机。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">同一段时间的睡眠记录里，平均每晚睡 6.74 小时。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">按入睡时间取最晚的 10 个夜晚——8 月 22、23、29、31 日，9 月 2、5、6、8、12、13 日——它们的第二天都没有出现未完成的任务；反过来看，那 5 条没做完的事，日期都不在这 10 个夜晚的次日。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">这 10 个最晚入睡的夜晚，对应记录的睡眠时长在 6.0 到 6.9 小时之间，和整体平均的 6.74 小时接近，没有出现明显整体缩短。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="B01">
+    <div class="q">B01 · 习惯坚持得怎么样？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">喝水几乎天天在打，冥想最近掉队了</div>
+    <div class="insight">💡 喝水天天有记录，冥想是唯一近期断档的习惯</div>
+    <div class="summary">三个习惯里，喝水和香烟记录得最勤，几乎每天都有打卡；冥想明显松松的，近六天里只在 9 月 14 日出现过一次。整体像是「日常小习惯稳住了，需要专门空出时间的那个容易断」。按月趋势这次没取到，所以长期走向暂时看不出来。</div>
+    
+    <div class="section">
+      <div class="section-title">三个习惯的累计打卡次数是</div>
+      <div class="section-body">三个习惯的累计打卡次数是：香烟记录 87 次、每日喝水 8 杯 80 次、冥想 52 次，合计 219 次。</div>
+      <div class="interp">这对你来说：三个习惯里冥想次数最少，相差约三十次，像是唯一需要专门留时间、也最容易被挤掉的那一个。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">从最近记录看（9 月 10</div>
+      <div class="section-body">从最近记录看（9 月 10 日至 9 月 15 日），喝水几乎每天都有打卡，冥想只在 9 月 14 日出现过一次。</div>
+      <div class="interp">这对你来说：喝水这种顺手就能完成的动作撑住了，冥想更像是最近这几天被忙挤出去的，不是完全停下。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">香烟的记录是每天 9 到 1</div>
+      <div class="section-body">香烟的记录是每天 9 到 10 支，最近几天基本每天都在记，说明这个习惯的记录保持得很连续。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">喝水几乎天天在打，冥想最近掉队了</div>
+    
+    <div class="summary">三个习惯的累计打卡次数是：香烟记录 87 次、每日喝水 8 杯 80 次、冥想 52 次，合计 219 次。；从最近记录看（9 月 10 日至 9 月 15 日），喝水几乎每天都有打卡，冥想只在 9 月 14 日出现过一次。；香烟的记录是每天 9 到 10 支，最近几天基本每天都在记，说明这个习惯的记录保持得很连续。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">三个习惯的累计打卡次数是：香烟记录 87 次、每日喝水 8 杯 80 次、冥想 52 次，合计 219 次。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">从最近记录看（9 月 10 日至 9 月 15 日），喝水几乎每天都有打卡，冥想只在 9 月 14 日出现过一次。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">香烟的记录是每天 9 到 10 支，最近几天基本每天都在记，说明这个习惯的记录保持得很连续。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">喝水几乎天天做到，冥想隔天一次</div>
+    
+    <div class="summary">从 6 月 13 日到 9 月 15 日这段有记录的约 95 天里，你一共完成了 219 次习惯打卡：喝水 80 次、香烟 87 次、冥想 52 次。；「每日喝水 8 杯」是三项里执行得最稳的之一，95 天里有 80 天有记录，大致相当于每 10 天做到 8 天多。；「香烟（支）」这项记录覆盖了 95 天里的 87 天，是三项中打卡天数最多的。；「冥想」是三项里最松的一环：95 天里只有 52 天做过，大约每隔一天一次，比喝水和香烟低了近一半。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">从 6 月 13 日到 9 月 15 日这段有记录的约 95 天里，你一共完成了 219 次习惯打卡：喝水 80 次、香烟 87 次、冥想 52 次。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">「每日喝水 8 杯」是三项里执行得最稳的之一，95 天里有 80 天有记录，大致相当于每 10 天做到 8 天多。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">「香烟（支）」这项记录覆盖了 95 天里的 87 天，是三项中打卡天数最多的。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">「冥想」是三项里最松的一环：95 天里只有 52 天做过，大约每隔一天一次，比喝水和香烟低了近一半。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="B02">
+    <div class="q">B02 · 烟抽得多了还是少了？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">烟量这两个月在往上走</div>
+    
+    <div class="summary">9 月到 15 号，有记录的日子里平均每天约 10.5 支，比 8 月的每天约 9 支多了 1 支半，涨幅约 17%——这个月确实抽得比上个月多。；总量上看：8 月整月 280 支、31 天都有记录；9 月到 15 号为止 11 个记录日累计 116 支。；再往前看，6 月中旬那几天记录的是每天 7 支左右，8 月约 9 支、9 月约 10.5 支，这三个月是一条慢慢上坡的线。；另外发现一件事：财务流水里搜「烟」「中华」「烟草」都是 0 条，说明买烟这笔钱目前完全没记在账上。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">9 月到 15 号，有记录的日子里平均每天约 10.5 支，比 8 月的每天约 9 支多了 1 支半，涨幅约 17%——这个月确实抽得比上个月多。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">总量上看：8 月整月 280 支、31 天都有记录；9 月到 15 号为止 11 个记录日累计 116 支。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">再往前看，6 月中旬那几天记录的是每天 7 支左右，8 月约 9 支、9 月约 10.5 支，这三个月是一条慢慢上坡的线。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">另外发现一件事：财务流水里搜「烟」「中华」「烟草」都是 0 条，说明买烟这笔钱目前完全没记在账上。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">烟量这两个月在往上走</div>
+    <div class="insight">💡 烟钱没进账本，烟量却在习惯打卡里逐月走高</div>
+    <div class="summary">翻了你的习惯打卡，烟是记在「香烟（支）」里的——8 月一整月抽了 280 支，平均每天约 9 支；9 月到 15 号这 11 天里已经累计 116 支，日均约 10.5 支，比 8 月往上抬了 1 支多。更早的 6 月记录里还是每天 7 支左右，所以这几个月是一条缓慢上坡的线。顺带发现账本里完全没有烟支出，这块的花费目前是记账盲区。</div>
+    
+    <div class="section">
+      <div class="section-title">9 月到 15 号</div>
+      <div class="section-body">9 月到 15 号，有记录的日子里平均每天约 10.5 支，比 8 月的每天约 9 支多了 1 支半，涨幅约 17%——这个月确实抽得比上个月多。</div>
+      <div class="interp">这对你来说：涨幅不大但方向清楚，像是日常量在一点点往上挪，而不是偶发的一天抽多了。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">总量上看</div>
+      <div class="section-body">总量上看：8 月整月 280 支、31 天都有记录；9 月到 15 号为止 11 个记录日累计 116 支。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">再往前看</div>
+      <div class="section-body">再往前看，6 月中旬那几天记录的是每天 7 支左右，8 月约 9 支、9 月约 10.5 支，这三个月是一条慢慢上坡的线。</div>
+      <div class="interp">这对你来说：单看每一段都不算突然，但连着看是持续的小幅走高，值得留意。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">另外发现一件事</div>
+      <div class="section-body">另外发现一件事：财务流水里搜「烟」「中华」「烟草」都是 0 条，说明买烟这笔钱目前完全没记在账上。</div>
+      <div class="interp">这对你来说：烟钱可能走现金或没记，所以这块花销在消费分析里是看不见的。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">这次的账本里，没找到买烟的痕迹</div>
+    
+    <div class="summary">现有记账里搜不到任何与「烟」相关的消费——按「烟」这个关键词查，结果是 0 笔、0 元；换成烟草、便利店、超市、烟酒、中华这些常见写法再找，也都没有匹配记录，所以暂时没法说这阵子抽得多了还是少了。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">现有记账里搜不到任何与「烟」相关的消费——按「烟」这个关键词查，结果是 0 笔、0 元；换成烟草、便利店、超市、烟酒、中华这些常见写法再找，也都没有匹配记录，所以暂时没法说这阵子抽得多了还是少了。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="B03">
+    <div class="q">B03 · 这个月冥想了多少次？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">冥想刻度在 9 月还在走</div>
+    
+    <div class="summary">记录到的冥想打卡一共 52 次，这是查询返回的总量口径，没有按月拆开。；最近的明细里，9 月 2 日、3 日、4 日、6 日、8 日、14 日各有一次冥想记录。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">记录到的冥想打卡一共 52 次，这是查询返回的总量口径，没有按月拆开。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">最近的明细里，9 月 2 日、3 日、4 日、6 日、8 日、14 日各有一次冥想记录。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">冥想刻度在 9 月还在走</div>
+    
+    <div class="summary">冥想这件事一直在被记着——工具里匹配到的冥想打卡一共 52 次。最近的记录落在 9 月 2 日到 14 日之间，中间隔几天就出现一次，节奏没有断。只是按工具的返回口径，我没法把 52 次拆到某一个月，所以这个月的准确次数还差一步确认。</div>
+    
+    <div class="section">
+      <div class="section-title">记录到的冥想打卡一共 52</div>
+      <div class="section-body">记录到的冥想打卡一共 52 次，这是查询返回的总量口径，没有按月拆开。</div>
+      <div class="interp">这对你来说：52 次落在整段记录里，说明冥想是被持续记下来的习惯之一，而不是偶尔想起来才打一次卡。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">最近的明细里</div>
+      <div class="section-body">最近的明细里，9 月 2 日、3 日、4 日、6 日、8 日、14 日各有一次冥想记录。</div>
+      <div class="interp">这对你来说：隔一到两天就有一次，中间的空档不长，像是已经嵌进日常的固定动作。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">冥想记录有 52 次，但本月切不出来</div>
+    
+    <div class="summary">习惯记录里冥想相关的打卡总共 52 次，分布在 52 个不同的日期上，基本是每天一次；但按本月筛选和按月分组两次查询都返回了这个相同的总数，所以无法确认其中有多少次落在本月。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">习惯记录里冥想相关的打卡总共 52 次，分布在 52 个不同的日期上，基本是每天一次；但按本月筛选和按月分组两次查询都返回了这个相同的总数，所以无法确认其中有多少次落在本月。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="T01">
+    <div class="q">T01 · 最近的任务完成得如何？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">任务清单里绝大多数已经打上勾</div>
+    
+    <div class="summary">在现有的任务记录里，共 376 个任务，其中 371 个已经标记完成，未完成的数量很少。；任务清单的分布是工作类 270 个、生活类 106 个，工作项占了大部分。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">在现有的任务记录里，共 376 个任务，其中 371 个已经标记完成，未完成的数量很少。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">任务清单的分布是工作类 270 个、生活类 106 个，工作项占了大部分。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">任务清单里绝大多数已经打上勾</div>
+    
+    <div class="summary">把任务记录整体看下来，376 个条目里有 371 个已经标记完成，几乎都是打过勾的状态。清单上工作类的条目更多，270 个，生活类 106 个。这次的时间维度没能拆开——拿到的是全部记录口径，不是某一段最近的窗口，所以还看不出近几周是变快还是变慢。</div>
+    
+    <div class="section">
+      <div class="section-title">在现有的任务记录里</div>
+      <div class="section-body">在现有的任务记录里，共 376 个任务，其中 371 个已经标记完成，未完成的数量很少。</div>
+      <div class="interp">这对你来说：待办几乎没有积压，也可能说明记录习惯偏向只留下要做和已做完的事。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">任务清单的分布是工作类 27</div>
+      <div class="section-body">任务清单的分布是工作类 270 个、生活类 106 个，工作项占了大部分。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">绝大多数任务都收尾了，只剩生活清单的几件</div>
+    
+    <div class="summary">这段时间共记录 376 条任务，其中 371 条已完成，还有 5 条未完成，完成率约 98.7%。；工作清单 270 条任务全部完成；生活清单 106 条里完成了 101 条，剩下 5 条还没做，也都集中在这一类。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这段时间共记录 376 条任务，其中 371 条已完成，还有 5 条未完成，完成率约 98.7%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">工作清单 270 条任务全部完成；生活清单 106 条里完成了 101 条，剩下 5 条还没做，也都集中在这一类。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="T02">
+    <div class="q">T02 · 我的待办是不是堆积太多了？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">待办没堆起来，只有 5 件还搁着</div>
+    
+    <div class="summary">你的待办没有堆积：一共记了 376 条任务，其中 371 条已完成，还开着没做的只有 5 条，未完成的比例约 1.3%。；这 5 条未完成的任务全部在「生活」清单里，没有散落在其他清单。；这 5 件里最早的两件是 7 月 23 日记下的，最新一件记于 8 月 21 日——与其说是量多，更像是几件一直没等到合适时机的事。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">你的待办没有堆积：一共记了 376 条任务，其中 371 条已完成，还开着没做的只有 5 条，未完成的比例约 1.3%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这 5 条未完成的任务全部在「生活」清单里，没有散落在其他清单。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">这 5 件里最早的两件是 7 月 23 日记下的，最新一件记于 8 月 21 日——与其说是量多，更像是几件一直没等到合适时机的事。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">待办没堆起来，只有 5 件还搁着</div>
+    
+    <div class="summary">从记录看，你的待办并没有堆起来：一共 376 条任务，371 条已经完成，还开着的只有 5 条，而且全部集中在「生活」清单里。让人有点挂心的不是数量，而是这 5 条里最早的两条记于 7 月 23 日，一直放到了现在——像是几件需要专门腾出时间才做得成的事，不是忘了，只是还没轮到。</div>
+    
+    <div class="section">
+      <div class="section-title">你的待办没有堆积</div>
+      <div class="section-body">你的待办没有堆积：一共记了 376 条任务，其中 371 条已完成，还开着没做的只有 5 条，未完成的比例约 1.3%。</div>
+      <div class="interp">这对你来说：从完成与未完成的比例看，你的待办更像是随手记随手清，而不是越攒越多。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这 5 条未完成的任务全部在</div>
+      <div class="section-body">这 5 条未完成的任务全部在「生活」清单里，没有散落在其他清单。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">这 5 件里最早的两件是 7</div>
+      <div class="section-body">这 5 件里最早的两件是 7 月 23 日记下的，最新一件记于 8 月 21 日——与其说是量多，更像是几件一直没等到合适时机的事。</div>
+      <div class="interp">这对你来说：像是需要出门或需要整块时间的几件事（预约体检、处理旧手机、给爸妈买礼物），卡在时机上而不是卡在量上。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">待办没有堆积，攒下的只有5件</div>
+    
+    <div class="summary">你记录的任务一共 376 件，其中 371 件已经完成，占了大约九成九，整体完成度很高。；真正还没打勾的只有 5 件，而且都集中在「生活」这个清单里，没有散落到别的分类。；目前只能看到整体合计，按月的时间趋势还没有拆出来，所以这只是整体口径下的判断，不能说明最近某个月是不是突然变多。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">你记录的任务一共 376 件，其中 371 件已经完成，占了大约九成九，整体完成度很高。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">真正还没打勾的只有 5 件，而且都集中在「生活」这个清单里，没有散落到别的分类。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">目前只能看到整体合计，按月的时间趋势还没有拆出来，所以这只是整体口径下的判断，不能说明最近某个月是不是突然变多。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="G01">
+    <div class="q">G01 · 我的目标进展怎么样？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">三个目标都在往前挪，节奏不一</div>
+    
+    <div class="summary">你现在有 3 个在推进的目标，平均完成度是 36.7%，最高的到了 50%，最低的 22%。；三个目标里，『读完 6 本书』走得最快，到 50%，你也记了已读完 3 本；『三个月存下 1 万』到 38%，靠每月发薪日转 3300 在推；『睡前少刷手机』在 22%，是三个里进度最浅的一个。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">你现在有 3 个在推进的目标，平均完成度是 36.7%，最高的到了 50%，最低的 22%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">三个目标里，『读完 6 本书』走得最快，到 50%，你也记了已读完 3 本；『三个月存下 1 万』到 38%，靠每月发薪日转 3300 在推；『睡前少刷手机』在 22%，是三个里进度最浅的一个。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">三个目标都在往前挪，节奏不一</div>
+    
+    <div class="summary">你手上正同时推着三件事：读书的进度最前面，已经走过一半；攒钱这件事按发薪日转账的节奏走，过了三分之一；睡前少刷手机落在最后，只有两成出头。三个目标都不算轻松，但没有一个是停着的。</div>
+    
+    <div class="section">
+      <div class="section-title">你现在有 3 个在推进的目标</div>
+      <div class="section-body">你现在有 3 个在推进的目标，平均完成度是 36.7%，最高的到了 50%，最低的 22%。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">三个目标里</div>
+      <div class="section-body">三个目标里，『读完 6 本书』走得最快，到 50%，你也记了已读完 3 本；『三个月存下 1 万』到 38%，靠每月发薪日转 3300 在推；『睡前少刷手机』在 22%，是三个里进度最浅的一个。</div>
+      <div class="interp">这对你来说：存钱和读书都有可数的刻度在动，睡前少刷手机没有明确的量度方式，进度看起来慢，可能也和它本身不好量化有关。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">三个目标都在推进，读书过半</div>
+    
+    <div class="summary">「三个月存下 1 万」目前进度 38%，备注里写的是每月发薪日转 3300，截止日期在 2026 年 10 月 10 日。；「读完 6 本书」进度 50%，备注显示已读完 3 本，截止日期在 2026 年 11 月 14 日。；「睡前少刷手机」目前进度 22%，是三个目标里推进最慢的一条，截止日期在 2026 年 10 月 25 日。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">「三个月存下 1 万」目前进度 38%，备注里写的是每月发薪日转 3300，截止日期在 2026 年 10 月 10 日。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">「读完 6 本书」进度 50%，备注显示已读完 3 本，截止日期在 2026 年 11 月 14 日。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">「睡前少刷手机」目前进度 22%，是三个目标里推进最慢的一条，截止日期在 2026 年 10 月 25 日。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="C01">
+    <div class="q">C01 · 最近我都在想些什么？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">最近你反复在想同一件事</div>
+    
+    <div class="summary">这段时间你一共记下 34 条想法，落点挺清楚：职业转型最多，其次是读书笔记、健身与精力、理财，还有几条随手写下的杂感。近两周的顺序也很连贯——先在《纳瓦尔宝典》的杠杆段落上停了停，接着留意到下午三点总是犯困、怀疑和午餐结构有关，中间还记了一条「什么都不想干」的周末，而那道关于内推机会的选择题，来回出现了好几次。</div>
+    
+    <div class="section">
+      <div class="section-title">你一共记下 34 条想法</div>
+      <div class="section-body">你一共记下 34 条想法，其中「职业转型」出现得最多，有 12 条；后面依次是读书笔记 7 条、健身与精力 6 条、理财 5 条，还有 4 条偏随手的杂感。</div>
+      <div class="interp">这对你来说：主题数不多但分得很开，一头是职业和钱这类现实议题，一头是读书和身体状态，像是同时在处理「往外走」和「把自己调好」两件事。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">最近的记录顺序也很清楚</div>
+      <div class="section-body">最近的记录顺序也很清楚：9 月 13 到 14 日在读《纳瓦尔宝典》里关于杠杆的段落；9 月 10 日写下下午三点总是犯困、怀疑和午餐结构有关，同一天还记了一条周末什么都不想干的杂感；9 月 6 日记的是要不要接内推的机会，纠结通勤和成长空间。</div>
+      <div class="interp">这对你来说：读书、犯困、周末提不起劲、换工作这几件事挨着出现，像是同一段时间里几个方向同时在动。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">「职业转型」不只是条数最多</div>
+      <div class="section-body">「职业转型」不只是条数最多，记录的还是同一件事——要不要接内推机会、通勤和成长空间怎么权衡，这条内容在 8 月底到 9 月初反复出现。</div>
+      <div class="interp">这对你来说：同一道选择题被写下好几次，可能说明它还没在心里落定，值得留意的是它已经持续了不止一周。</div>
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">最近你反复在想同一件事</div>
+    
+    <div class="summary">你一共记下 34 条想法，其中「职业转型」出现得最多，有 12 条；后面依次是读书笔记 7 条、健身与精力 6 条、理财 5 条，还有 4 条偏随手的杂感。；最近的记录顺序也很清楚：9 月 13 到 14 日在读《纳瓦尔宝典》里关于杠杆的段落；9 月 10 日写下下午三点总是犯困、怀疑和午餐结构有关，同一天还记了一条周末什么都不想干的杂感；9 月 6 日记的是要不要接内推的机会，纠结通勤和成长空间。；「职业转型」不只是条数最多，记录的还是同一件事——要不要接内推机会、通勤和成长空间怎么权衡，这条内容在 8 月底到 9 月初反复出现。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">你一共记下 34 条想法，其中「职业转型」出现得最多，有 12 条；后面依次是读书笔记 7 条、健身与精力 6 条、理财 5 条，还有 4 条偏随手的杂感。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">最近的记录顺序也很清楚：9 月 13 到 14 日在读《纳瓦尔宝典》里关于杠杆的段落；9 月 10 日写下下午三点总是犯困、怀疑和午餐结构有关，同一天还记了一条周末什么都不想干的杂感；9 月 6 日记的是要不要接内推的机会，纠结通勤和成长空间。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">「职业转型」不只是条数最多，记录的还是同一件事——要不要接内推机会、通勤和成长空间怎么权衡，这条内容在 8 月底到 9 月初反复出现。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">想得最多的，是职业转型</div>
+    
+    <div class="summary">目前记录的想法里，出现最多的是职业转型，共 12 条，约占了全部想法的三分之一。；其余想法分散在读书笔记（7 条）、健身与精力（6 条）、理财（5 条），另有 4 条属于零散杂感。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">目前记录的想法里，出现最多的是职业转型，共 12 条，约占了全部想法的三分之一。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">其余想法分散在读书笔记（7 条）、健身与精力（6 条）、理财（5 条），另有 4 条属于零散杂感。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="N01">
+    <div class="q">N01 · 分析一下我的餐饮支出结构</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">这份账单里，没找到一顿饭</div>
+    
+    <div class="summary">这份账单快照一共 74 笔交易，分类只有购物、交通、娱乐、订阅四类，没有餐饮这一类，四类金额加总与全部支出完全对得上。；我用「餐」「吃」「外卖」「饭」「咖啡」这几个词分别去搜备注和商户，五次都是零条命中。；账上的商户一共 9 个，笔数加总正好是全部 74 笔：地铁 49 笔最多，淘宝 8 笔，iCloud、滴滴、爱奇艺、电影院、网易云音乐各 3 笔，Apple Store 和京东各 1 笔；里面没有一家餐厅、咖啡店或外卖平台。；能看到的支出结构里，购物是最大的一块：¥4632，占全部 ¥5432 的约 85%，主要是 Apple Store ¥1899、京东 ¥1299 这类电子产品和淘宝的多笔小额。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这份账单快照一共 74 笔交易，分类只有购物、交通、娱乐、订阅四类，没有餐饮这一类，四类金额加总与全部支出完全对得上。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">我用「餐」「吃」「外卖」「饭」「咖啡」这几个词分别去搜备注和商户，五次都是零条命中。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">账上的商户一共 9 个，笔数加总正好是全部 74 笔：地铁 49 笔最多，淘宝 8 笔，iCloud、滴滴、爱奇艺、电影院、网易云音乐各 3 笔，Apple Store 和京东各 1 笔；里面没有一家餐厅、咖啡店或外卖平台。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 4</div>
+      <div class="section-body">能看到的支出结构里，购物是最大的一块：¥4632，占全部 ¥5432 的约 85%，主要是 Apple Store ¥1899、京东 ¥1299 这类电子产品和淘宝的多笔小额。</div>
+      
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">这份账单里，没找到一顿饭</div>
+    
+    <div class="summary">我把这份账单从头翻了一遍——74 笔记录，分类只出现了购物、交通、娱乐、订阅四类，商户从地铁、淘宝到 iCloud、电影院，一条都指不到吃饭这件事上。我又拿「餐」「吃」「外卖」「饭」「咖啡」分别去搜备注和商户，全是空。所以关于餐饮结构，这份快照给不出答案；能说的是，钱目前主要流向了购物（¥4632，占八成半），而元 subway 那 49 笔 ¥6 是账上最细密的一层日常。</div>
+    
+    <div class="section">
+      <div class="section-title">这份账单快照一共 74 笔交</div>
+      <div class="section-body">这份账单快照一共 74 笔交易，分类只有购物、交通、娱乐、订阅四类，没有餐饮这一类，四类金额加总与全部支出完全对得上。</div>
+      <div class="interp">这对你来说：更像是餐饮记录根本没有进到这份账单里，而不是这段时间真的没吃饭。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">我用「餐」「吃」「外卖」「饭</div>
+      <div class="section-body">我用「餐」「吃」「外卖」「饭」「咖啡」这几个词分别去搜备注和商户，五次都是零条命中。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">账上的商户一共 9 个</div>
+      <div class="section-body">账上的商户一共 9 个，笔数加总正好是全部 74 笔：地铁 49 笔最多，淘宝 8 笔，iCloud、滴滴、爱奇艺、电影院、网易云音乐各 3 笔，Apple Store 和京东各 1 笔；里面没有一家餐厅、咖啡店或外卖平台。</div>
+      <div class="interp">这对你来说：商户名单里地铁占了三分之二笔数，¥6 一趟的小额高频，是账上最细密的日常节奏。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">能看到的支出结构里</div>
+      <div class="section-body">能看到的支出结构里，购物是最大的一块：¥4632，占全部 ¥5432 的约 85%，主要是 Apple Store ¥1899、京东 ¥1299 这类电子产品和淘宝的多笔小额。</div>
+      <div class="interp">这对你来说：¥1899 和 ¥1299 两笔大件把购物这个月拉得很高，其余是淘宝上百来块的小单在垫底。</div>
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">翻遍了，账里没有餐饮这一项</div>
+    
+    <div class="summary">这批记录里没有餐饮类的支出，所以无法按餐饮给结构——全部 74 笔刚好被交通、购物、订阅、娱乐四类占满，没有剩余记录落在别处。；现有四类里金额最集中的是购物，4632 元、10 笔，占了这批支出的大头；交通虽然 52 笔最多，但一共只有 362 元，多是几元一趟的地铁。；最近的记录里出现的是地铁、淘宝、电影院，加上按「餐」「外卖」「咖啡」「饭」四组关键词检索都没有命中，基本可以确定不是分类名写法不同的问题。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">这批记录里没有餐饮类的支出，所以无法按餐饮给结构——全部 74 笔刚好被交通、购物、订阅、娱乐四类占满，没有剩余记录落在别处。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">现有四类里金额最集中的是购物，4632 元、10 笔，占了这批支出的大头；交通虽然 52 笔最多，但一共只有 362 元，多是几元一趟的地铁。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 3</div>
+      <div class="section-body">最近的记录里出现的是地铁、淘宝、电影院，加上按「餐」「外卖」「咖啡」「饭」四组关键词检索都没有命中，基本可以确定不是分类名写法不同的问题。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="N02">
+    <div class="q">N02 · 我的睡眠有什么问题吗？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">睡眠这块，我手上还是空的</div>
+    
+    <div class="summary">你问睡眠有没有问题，我认真去翻了——这台设备目前没有留下任何一条睡眠记录，所以我没办法告诉你睡得好不好。不是没发现异常，是真的没东西可看。如果你有戴手表睡觉，可能是没开启睡眠追踪；如果你最近确实觉得睡得不太对，也可以直接跟我讲讲，我们从别的角度一起看。</div>
+    
+    <div class="section">
+      <div class="section-title">目前这台设备里没有留下任何睡</div>
+      <div class="section-body">目前这台设备里没有留下任何睡眠记录，所以我没法判断你的睡眠有没有问题——不是没问题，是还没数据。</div>
+      <div class="interp">这对你来说：记录为空通常意味着睡眠追踪没开启或设备夜里没佩戴，而不是「夜里没睡」。</div>
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">睡眠这块，我手上还是空的</div>
+    
+    <div class="summary">目前这台设备里没有留下任何睡眠记录，所以我没法判断你的睡眠有没有问题——不是没问题，是还没数据。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">目前这台设备里没有留下任何睡眠记录，所以我没法判断你的睡眠有没有问题——不是没问题，是还没数据。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">睡眠这块，我这边是空的</div>
+    
+    <div class="summary">我这边查不到你的睡眠记录，近期一条睡眠数据都没有，所以暂时没法评估你的睡眠情况。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">我这边查不到你的睡眠记录，近期一条睡眠数据都没有，所以暂时没法评估你的睡眠情况。</div>
+      
+    </div>
+  </div></details>
+  </section>
+  <section class="pair" data-id="N03">
+    <div class="q">N03 · 我最近炒股收益怎么样？</div>
+    <div class="cards">
+      
+  <div class="card a">
+    <div class="card-title">账本里搜不到炒股这回事</div>
+    
+    <div class="summary">我把「股票」「股」「证券」「基金」「理财」几个说法都翻了一遍，一条记录都没有；记账里实际出现的只有餐饮、购物、交通、娱乐、订阅这五类。所以你的炒股收益，我现在算不出来——不是收益为零，而是这笔钱根本没进到这本账里。如果你是在券商 App 里操作的，那部分盈亏不会自动流到我这里；愿意的话也可以手动记一笔，我就能帮你一起看。</div>
+    
+    <div class="section">
+      <div class="section-title">在目前的记账数据里</div>
+      <div class="section-body">在目前的记账数据里，没有找到任何与股票相关的记录——含「股票」的流水合计 0 元，所以你的炒股收益我暂时算不出来。</div>
+      <div class="interp">这对你来说：搜不到更可能是这类操作没记在这本账里，而不是你真的没在投。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">这本账里出现的支出只有餐饮约</div>
+      <div class="section-body">这本账里出现的支出只有餐饮约 ¥4969、购物约 ¥4632、交通约 ¥362、娱乐约 ¥240、订阅约 ¥198 这五类，其中并没有投资或证券类目。</div>
+      <div class="interp">这对你来说：记账范围偏向日常吃喝用度，投资类的资金流动目前不在其中。</div>
+    </div>
+  </div>
+      
+  <div class="card b">
+    <div class="card-title">账本里搜不到炒股这回事</div>
+    
+    <div class="summary">在目前的记账数据里，没有找到任何与股票相关的记录——含「股票」的流水合计 0 元，所以你的炒股收益我暂时算不出来。；这本账里出现的支出只有餐饮约 ¥4969、购物约 ¥4632、交通约 ¥362、娱乐约 ¥240、订阅约 ¥198 这五类，其中并没有投资或证券类目。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">在目前的记账数据里，没有找到任何与股票相关的记录——含「股票」的流水合计 0 元，所以你的炒股收益我暂时算不出来。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">这本账里出现的支出只有餐饮约 ¥4969、购物约 ¥4632、交通约 ¥362、娱乐约 ¥240、订阅约 ¥198 这五类，其中并没有投资或证券类目。</div>
+      
+    </div>
+  </div>
+    </div>
+    <div class="vote">
+      <button class="pick" data-side="A">左边更好</button>
+      <button class="pick" data-side="B">右边更好</button>
+      <button class="pick" data-side="tie">差不多</button>
+      <span class="note">更好 = 更像在对你说话、更能看下去（不是更长）</span>
+    </div>
+    <details class="e2e"><summary>参考：P0 前线上真实结果（端到端旧管线）</summary>
+  <div class="card before">
+    <div class="card-title">账本里没找到炒股这笔账</div>
+    
+    <div class="summary">我用「股票、证券、基金、投资、理财、炒股」六个说法检索了全部记账内容，都没有找到匹配的记录，金额合计为 0 元。；目前账本里的消费只覆盖餐饮、购物、交通、娱乐、订阅五个分类，其中餐饮 4969 元、购物 4632 元、交通 362 元、娱乐 240 元、订阅 198 元，没有任何投资或证券类目。</div>
+    
+    <div class="section">
+      <div class="section-title">发现 1</div>
+      <div class="section-body">我用「股票、证券、基金、投资、理财、炒股」六个说法检索了全部记账内容，都没有找到匹配的记录，金额合计为 0 元。</div>
+      
+    </div>
+    <div class="section">
+      <div class="section-title">发现 2</div>
+      <div class="section-body">目前账本里的消费只覆盖餐饮、购物、交通、娱乐、订阅五个分类，其中餐饮 4969 元、购物 4632 元、交通 362 元、娱乐 240 元、订阅 198 元，没有任何投资或证券类目。</div>
+      
+    </div>
+  </div></details>
+  </section>
+</main>
+<script>
+  const map = {"F01":"A","F02":"B","F03":"B","F04":"A","F05":"B","F06":"A","F07":"B","F08":"A","F09":"A","F10":"A","F11":"B","F12":"A","H01":"A","H02":"B","H03":"B","H04":"B","H05":"A","X01":"B","X02":"A","B01":"A","B02":"B","B03":"B","T01":"B","T02":"B","G01":"B","C01":"A","N01":"B","N02":"A","N03":"A"};
+  let voted = 0, warm = 0, legacy = 0, tie = 0;
+  document.querySelectorAll(".pair").forEach((pair) => {
+    const id = pair.dataset.id;
+    pair.querySelectorAll(".pick").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (pair.classList.contains("voted")) return;
+        pair.classList.add("voted");
+        pair.querySelectorAll(".pick").forEach((b) => b.classList.remove("chosen"));
+        btn.classList.add("chosen");
+        voted += 1;
+        const side = btn.dataset.side;
+        if (side === "tie") tie += 1;
+        else if (side === map[id]) warm += 1;
+        else legacy += 1;
+        document.getElementById("voted").textContent = voted;
+        document.getElementById("warm").textContent = warm;
+        document.getElementById("legacy").textContent = legacy;
+        document.getElementById("tie").textContent = tie;
+        const denom = warm + legacy;
+        document.getElementById("rate").textContent = denom === 0 ? "—" :
+          Math.round((warm / denom) * 100) + "%（忽略持平）";
+      });
+    });
+  });
+</script>
+</body>
+</html>

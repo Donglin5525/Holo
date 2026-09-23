@@ -1,0 +1,118 @@
+{
+  "fixtureID": "tpl-travel-pet-14",
+  "domainTags": [
+    "出行",
+    "宠物",
+    "照护"
+  ],
+  "sources": [
+    {
+      "sourceID": "finance:tx-pet",
+      "sourceDomain": "finance",
+      "sourceKind": "transaction",
+      "plainText": "仓鼠粮（备注：宠物用品店）",
+      "recordedAt": "2026-08-19T19:00:00+08:00",
+      "eventTime": "2026-08-19T19:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "task:task-care",
+      "sourceDomain": "task",
+      "sourceKind": "todoTask",
+      "plainText": "给芝麻换水",
+      "recordedAt": "2026-09-12T20:00:00+08:00",
+      "eventTime": "2026-09-12T20:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "businessState": {
+        "completed": "true"
+      }
+    },
+    {
+      "sourceID": "habit:habit-care",
+      "sourceDomain": "habit",
+      "sourceKind": "habitDefinition",
+      "plainText": "给芝麻换水",
+      "recordedAt": "2026-09-01T08:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "derivedCheckins": [
+        {
+          "sourceID": "habit:habit-care#ck0",
+          "eventTime": "2026-09-12T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-care#ck1",
+          "eventTime": "2026-09-13T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-care#ck2",
+          "eventTime": "2026-09-14T08:00:00+08:00",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "sourceID": "thought:note-care",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上次出门找过人上门喂仓鼠。",
+      "recordedAt": "2026-05-01T22:00:00+08:00",
+      "eventTime": "2026-05-01T22:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 10 月 3 日到 10 日去厦门，第一次去。签证、机票、酒店都还没有安排，请帮我做好出发前的准备。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户可能存在仓鼠照料责任（多来源弱证据，身份未确认）",
+      "basisSourceIDs": [
+        "finance:tx-pet",
+        "task:task-care",
+        "habit:habit-care"
+      ],
+      "epistemicStatus": "inferred"
+    },
+    {
+      "statement": "用户曾有离家时安排仓鼠照护的经历",
+      "basisSourceIDs": [
+        "thought:note-care"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "芝麻是否为用户本人饲养",
+    "本次出行期间是否已有照护安排"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "建议核实出行期间仓鼠的上门喂养安排"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "询问本次是否已有人照看仓鼠"
+    }
+  ],
+  "forbiddenClaims": [
+    "断言用户养仓鼠（身份未知）",
+    "断言「你还没安排照护」（只能说未查到）",
+    "无证据自动创建照护任务"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除全部宠物相关来源",
+      "expectedEffect": "不再出现个性化照护建议，不提仓鼠"
+    },
+    {
+      "variantID": "cf-2",
+      "change": "thought:note-care 改为「朋友说他出门找过人上门喂猫」",
+      "expectedEffect": "引用他人经历不再构成用户本人照护史"
+    }
+  ]
+}

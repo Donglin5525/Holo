@@ -24,17 +24,24 @@ struct MatterDetailView: View {
     @State private var loadFailed = false
     /// 正在「转成任务」的 loop ID（防重复点击）。
     @State private var creatingTaskFromLoop: UUID?
+    /// V2：任务完成经 TodoRepository 广播，驱动计划/下一步即时重算（INV-07 不经 LLM）。
+    @State private var v2ReloadToken = 0
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                if loadFailed || matter == nil {
-                    missingView
-                } else if let matter {
-                    content(matter)
-                }
+        // 注意：本视图不得自带 NavigationStack——它作为目的地被压入宿主导航栈
+        // （Today 看板路由 / Matter 列表 push），「栈中栈」在 iOS 26 会卡死转场，
+        // 连续压栈更触发 AnyNavigationPath comparisonTypeMismatch 断言闪退
+        // （2026-09-20 东林真机+模拟器双复现）。弹窗根视图场景由调用方外部包栈
+        // （HomeView / ChatView 的 sheet 已包），先例同 MatterListContent（§10.1）。
+        ZStack(alignment: .bottom) {
+            if loadFailed || matter == nil {
+                missingView
+            } else if let matter {
+                content(matter)
             }
+        }
         .background(Color.holoBackground.ignoresSafeArea())
+        .navigationTitle(matter?.title ?? String(localized: "详情"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -66,7 +73,6 @@ struct MatterDetailView: View {
         } message: {
             Text(String(localized: "归档是轻性的收起，不删除任何数据，随时可以重新打开。"))
         }
-        }
     }
 
     // MARK: - 数据
@@ -78,21 +84,212 @@ struct MatterDetailView: View {
     private func content(_ matter: HoloMatter) -> some View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    headerSection(matter)
-                    judgmentSection(matter)
-                    nextActionSection(matter)
-                    openLoopsSection(matter)
-                    resolvedSection(matter)
-                    linksSection(matter)
-                    eventsSection(matter)
+                if HoloMatterRolloutPolicy.unifiedLaunchV2Enabled {
+                    // V2（2026-09-21 战略收敛 §4.2）：状态→下一步→计划→待确认；
+                    // 内部词汇（phase/attention/证据/事件流）收进旧布局，主动查看才见。
+                    v2Sections(matter)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+                } else {
+                    VStack(alignment: .leading, spacing: 18) {
+                        headerSection(matter)
+                        judgmentSection(matter)
+                        nextActionSection(matter)
+                        openLoopsSection(matter)
+                        resolvedSection(matter)
+                        linksSection(matter)
+                        eventsSection(matter)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
             }
             discussButton(matter)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
+            v2ReloadToken += 1
+        }
+    }
+
+    // MARK: - V2 布局（§4.2：默认只回答状态、下一步、计划和待确认）
+
+    /// 计划任务实时快照：确定性规则（planOrder 最小未完成 = 下一步），不读 projection 旧值。
+    private var v2PlanTasks: [MatterPlanQuery.PlanTask] {
+        _ = v2ReloadToken
+        return MatterPlanQuery.planTasks(matterID: matterID, repository: repository)
+    }
+
+    private func v2Sections(_ matter: HoloMatter) -> some View {
+        let tasks = v2PlanTasks
+        let doneCount = tasks.filter(\.completed).count
+        let next = tasks.first { !$0.completed }
+        let activeLoops = repository.openLoops(matterID: matterID, activeOnly: true)
+        let isCompleted = matter.lifecycle == .completed
+
+        return VStack(alignment: .leading, spacing: 18) {
+            v2Header(matter, isCompleted: isCompleted)
+            if isCompleted {
+                v2CompletedSummary(doneCount: doneCount, total: tasks.count)
+            } else {
+                v2Status(doneCount: doneCount, total: tasks.count)
+                v2NextAction(next: next, hasActiveLoops: !activeLoops.isEmpty)
+                v2PlanList(tasks)
+                if !activeLoops.isEmpty {
+                    v2PendingQuestions(activeLoops)
+                }
+            }
+        }
+    }
+
+    private func v2Header(_ matter: HoloMatter, isCompleted: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(matter.title)
+                .font(.title2.weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                if isCompleted {
+                    Text(verbatim: "已完成")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.green.opacity(0.15)))
+                        .foregroundStyle(.green)
+                }
+                if let target = matter.targetDate {
+                    Text(verbatim: "\(target.formatted(.dateTime.month().day())) 出发")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func v2Status(doneCount: Int, total: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: "当前状态")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Text(verbatim: "\(doneCount)/\(total) 已完成")
+                .font(.subheadline.weight(.medium))
+        }
+    }
+
+    private func v2NextAction(next: MatterPlanQuery.PlanTask?, hasActiveLoops: Bool) -> some View {
+        Group {
+            if let next {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(verbatim: "下一步")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Text(next.title)
+                        .font(.body.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else if hasActiveLoops {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(verbatim: "当前状态")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Text(verbatim: "还需要确认一件事")
+                        .font(.body.weight(.medium))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(verbatim: "准备已完成")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.green)
+                    Button {
+                        showCompleteConfirm = true
+                    } label: {
+                        Text(verbatim: "完成这件事")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+            }
+        }
+    }
+
+    private func v2PlanList(_ tasks: [MatterPlanQuery.PlanTask]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(verbatim: "计划 \(tasks.filter(\.completed).count)/\(tasks.count)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            ForEach(tasks) { planTask in
+                Button {
+                    v2Toggle(planTask)
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: planTask.completed ? "checkmark.circle.fill" : "circle")
+                            .font(.body)
+                            .foregroundStyle(planTask.completed ? .green : .secondary)
+                            .padding(.top, 1)
+                        Text(planTask.title)
+                            .font(.subheadline)
+                            .strikethrough(planTask.completed)
+                            .foregroundStyle(planTask.completed ? .secondary : .primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func v2PendingQuestions(_ loops: [HoloMatterOpenLoop]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(verbatim: "待确认 \(loops.count)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            ForEach(loops.prefix(3), id: \.id) { loop in
+                HStack(spacing: 8) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                    Text(loop.title)
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.tertiarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func v2CompletedSummary(doneCount: Int, total: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label {
+                Text(verbatim: "已完成")
+                    .font(.headline)
+            } icon: {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+            }
+            Text(verbatim: "\(doneCount)/\(total) 已完成 · 计划和对话保留，可随时回看。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// 计划行完成/撤销：走 Todo 域真实对象（INV-08 真实 ID），广播后本页即时重算。
+    private func v2Toggle(_ planTask: MatterPlanQuery.PlanTask) {
+        guard let task = repository.todoTask(id: planTask.id) else { return }
+        try? TodoRepository.shared.toggleTaskCompletion(task)
     }
 
     // MARK: ① 头部

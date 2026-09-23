@@ -184,6 +184,18 @@ nonisolated struct HoloMatterAmbiguityOption: Codable, Equatable, Sendable, Iden
     }
 }
 
+/// 对账提案的新任务草稿（2026-09-23 计划修订能力）：用户确认后才落库，
+/// 接在计划末尾（planOrder = max+1）；模型不可直接创建任务。
+nonisolated struct HoloMatterTaskDraft: Codable, Equatable, Sendable {
+    var title: String
+    var note: String?
+
+    init(title: String, note: String? = nil) {
+        self.title = title
+        self.note = note
+    }
+}
+
 nonisolated enum HoloMatterMutation: Codable, Equatable, Sendable {
     /// 新增 AI 建议的问题（落库即 suggested，永不直接 confirmed）。
     case addSuggestedOpenLoop(HoloMatterOpenLoopDraft)
@@ -191,6 +203,8 @@ nonisolated enum HoloMatterMutation: Codable, Equatable, Sendable {
     case confirmOpenLoop(openLoopID: UUID)
     /// 更新 Open Loop 状态（仅限 Matter 内明确、唯一、低风险的语义）。
     case setOpenLoopState(openLoopID: UUID, state: HoloMatterOpenLoopState)
+    /// 建议在计划末尾新增任务——恒需用户确认，模型不可直接创建（2026-09-23 计划修订）。
+    case addTask(HoloMatterTaskDraft)
     /// 提议关联外部内容（需要用户确认）。
     case proposeLink(HoloMatterLinkDraft)
     /// 刷新投影。
@@ -275,6 +289,8 @@ nonisolated enum HoloMatterConversationEntrySource: String, Codable, Sendable {
     case matterDetail
     case homeFocusCard
     case listQuickAction
+    /// 重启后从「上次在聊」幽灵条恢复（2026-09-23）。
+    case restored
 }
 
 /// Matter-scoped Chat 的类型化上下文。走显式 matterID，禁止靠标题关键词猜。

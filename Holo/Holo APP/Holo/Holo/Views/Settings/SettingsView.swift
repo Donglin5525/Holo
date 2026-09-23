@@ -86,7 +86,11 @@ struct SettingsView: View {
     @ObservedObject private var appLockSettings = AppLockSettings.shared
     @ObservedObject private var appLockManager = AppLockManager.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
+    /// 任务纸面动效灰度开关（动效融合 G2）：key/默认值与 HoloTaskMotionRolloutPolicy 对齐，
+    /// 未设置时默认开；拨动即落 UserDefaults，重启/即时生效（外观由视图每次取值）
+    @AppStorage(HoloTaskMotionRolloutPolicy.Flag.taskPaperMotionEnabled.rawValue) private var taskPaperMotionEnabled: Bool = true
     @State private var showAISettings = false
+    @State private var showMatterV2Prototype = false
     @State private var showAIConsent = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showPrivacyPolicy = false
@@ -107,7 +111,7 @@ struct SettingsView: View {
 
     // 宽屏双栏：当前选中的分组
     @State private var selectedSection: SettingsSection = .nickname
-    @Environment(\.holoWindowWidth) private var settingsWindowWidth
+    @Environment(\.holoContentWidth) private var settingsWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(settingsWindowWidth) }
 
     // MARK: - Body
@@ -1033,6 +1037,31 @@ struct SettingsView: View {
             }
 
             #if DEBUG
+            // 任务纸面动效（灰度回退开关，仅开发调试）：动效融合 G2——
+            // 关闭即恢复任务模块原布局（大数字仪表/白卡/白底横幅），不动数据
+            HStack(spacing: 12) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("任务纸面动效")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("开发调试：任务模块纸页视觉，关闭恢复原布局")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer(minLength: 8)
+
+                Toggle("", isOn: $taskPaperMotionEnabled)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+            }
+            .padding(.vertical, 6)
+
             // AI 设置（仅开发调试）
             settingsRow(
                 icon: "sparkles",
@@ -1045,6 +1074,21 @@ struct SettingsView: View {
             .sheet(isPresented: $showAISettings) {
                 NavigationStack {
                     AISettingsView()
+                }
+            }
+
+            // Matter V2 静态样机（仅开发调试）：新规划卡/详情/Today 与旧卡对照
+            settingsRow(
+                icon: "square.stack.3d.up",
+                iconColor: .holoPrimary,
+                title: "Matter V2 样机",
+                subtitle: "开发调试：新规划卡 / 详情页 / Today 对照"
+            ) {
+                showMatterV2Prototype = true
+            }
+            .sheet(isPresented: $showMatterV2Prototype) {
+                NavigationStack {
+                    MatterV2PrototypeView()
                 }
             }
 

@@ -4,8 +4,18 @@ private func expectWeeklyWindow(_ condition: @autoclosure () -> Bool, _ message:
     guard condition() else { fatalError(message) }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
-private struct WeeklyGridWindowPolicyStandaloneTests {
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        WeeklyGridWindowPolicyStandaloneTests.main()
+    }
+}
+#endif
+struct WeeklyGridWindowPolicyStandaloneTests {
     static func main() {
         testHistoricalWeekCanReachBothEdges()
         testCurrentWeekStopsWithTodayCentered()

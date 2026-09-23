@@ -36,15 +36,7 @@ struct ImportExportView: View {
     @State private var showBillTutorial = false
     
     var body: some View {
-        VStack(spacing: HoloSpacing.md) {
-            // 区块标题
-            HStack {
-                Text("数据管理")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-                Spacer()
-            }
-            
+        HoloSettingsSection(title: "数据管理") {
             // 导出数据
             settingsRow(
                 icon: "square.and.arrow.up",
@@ -54,7 +46,9 @@ struct ImportExportView: View {
             ) {
                 showExportSheet = true
             }
-            
+
+            HoloSettingsDivider()
+
             // 导入数据
             settingsRow(
                 icon: "square.and.arrow.down",
@@ -65,16 +59,20 @@ struct ImportExportView: View {
                 showFilePicker = true
             }
 
+            HoloSettingsDivider()
+
             // 如何导出账单（图文教程）
             settingsRow(
                 icon: "questionmark.circle",
-                iconColor: .blue,
+                iconColor: .holoInfo,
                 title: String(localized: "如何导出账单"),
                 subtitle: String(localized: "微信/支付宝/银行账单的导出步骤")
             ) {
                 showBillTutorial = true
             }
-            
+
+            HoloSettingsDivider()
+
             // 下载导入模板
             settingsRow(
                 icon: "doc.text",
@@ -89,6 +87,7 @@ struct ImportExportView: View {
             // 开发环境：从沙箱 Documents 加载 CSV
             if let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                FileManager.default.fileExists(atPath: docURL.appendingPathComponent("holo_import.csv").path) {
+                HoloSettingsDivider()
                 settingsRow(
                     icon: "flask",
                     iconColor: .orange,
@@ -100,7 +99,6 @@ struct ImportExportView: View {
             }
             #endif
         }
-        .padding(.horizontal, HoloSpacing.lg)
         // 导出选项 Sheet
         .sheet(isPresented: $showExportSheet) {
             ExportOptionsSheet()
@@ -160,7 +158,7 @@ struct ImportExportView: View {
     
     // MARK: - 设置行组件
     
-    /// 通用设置行样式
+    /// 通用设置行样式（外观统一走 HoloSettingsRow）
     private func settingsRow(
         icon: String,
         iconColor: Color,
@@ -169,37 +167,14 @@ struct ImportExportView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: HoloSpacing.md) {
-                // 图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(iconColor.opacity(0.1))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(iconColor)
-                }
-                
-                // 文字
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+            HoloSettingsRow(
+                icon: icon,
+                iconColor: iconColor,
+                title: title,
+                subtitle: subtitle
+            ) {
+                HoloSettingsChevron()
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
     }

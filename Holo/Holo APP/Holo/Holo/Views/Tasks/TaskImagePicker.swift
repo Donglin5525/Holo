@@ -102,6 +102,8 @@ struct TaskImagePicker: View {
             var images: [UIImage] = []
             var failedCount = 0
             var permissionRequired = false
+            var limitedAccess = false
+            var cloudFailed = false
             for item in items {
                 let outcome = await PhotoLibraryImageLoader.loadImageData(from: item)
                 if case .data(let data) = outcome, let image = UIImage(data: data) {
@@ -109,13 +111,15 @@ struct TaskImagePicker: View {
                 } else {
                     failedCount += 1
                     if case .permissionRequired = outcome { permissionRequired = true }
+                    if case .limitedAccess = outcome { limitedAccess = true }
+                    if case .cloudDownloadFailed = outcome { cloudFailed = true }
                 }
             }
             selectedPhotos = []
             if !images.isEmpty {
                 onSelectImages(images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
         }
     }
 }

@@ -49,6 +49,9 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
     let rawFallback: (any HoloContextRawFallbackProviding)?
     /// 政策筛选前的候选记录来源（P2 HoloContextAccessPolicy 在此应用）。
     let recordsProvider: @Sendable () async throws -> [HoloMemoryRecord]
+    /// R6 修复：来源当前修订目录（sourceKey → 当前修订）。nil 时维持旧兼容口径
+    ///（缺省 map 缺项视为未变）；注入后新跨域推断按真实修订核对，不匹配即 stale。
+    let sourceRevisionsProvider: (@Sendable ([String]) async -> [String: String])?
     /// 控制快照（版本/基线/闸），生成前后核对。
     let controlSnapshotProvider: @Sendable () async throws -> HoloContextAccessGuard
     let calendar: Calendar
@@ -60,13 +63,15 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         rawFallback: (any HoloContextRawFallbackProviding)? = nil,
         recordsProvider: @Sendable @escaping () async throws -> [HoloMemoryRecord],
         controlSnapshotProvider: @Sendable @escaping () async throws -> HoloContextAccessGuard,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        sourceRevisionsProvider: (@Sendable ([String]) async -> [String: String])? = nil
     ) {
         self.generator = generator
         self.retrieval = retrieval
         self.persistence = persistence
         self.rawFallback = rawFallback
         self.recordsProvider = recordsProvider
+        self.sourceRevisionsProvider = sourceRevisionsProvider
         self.controlSnapshotProvider = controlSnapshotProvider
         self.calendar = calendar
     }
@@ -177,9 +182,16 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         try await persistence.saveRun(run)
         onStage?(.retrieving)
 
-        // 1) 政策筛选 + 混合检索。
+        // 1) 政策筛选 + 混合检索。R6：按真实修订目录核对（不匹配即 stale，
+        //    不再缺省视为仍有效）。
         let records = try await recordsProvider()
-        let policy = HoloContextAccessPolicy.selectAdviceCandidates(records: records)
+        let currentRevisions = await Self.sourceRevisions(
+            for: records, provider: sourceRevisionsProvider
+        )
+        let policy = HoloContextAccessPolicy.selectAdviceCandidates(
+            records: records,
+            currentSourceRevisions: currentRevisions
+        )
         let retrievalResult = await retrieval.retrieve(
             frame: frame,
             catalog: policy.selected,
@@ -258,6 +270,11 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             }
 
             var draft = sanitized
+            await Self.injectMemoryClarificationIfNeeded(
+                into: &draft,
+                recordsProvider: recordsProvider,
+                now: now
+            )
             run.state = .draftReady
             run.draftRevision = draft.draftRevision
             run.updatedAt = now
@@ -317,9 +334,16 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         try await persistence.saveRun(run)
         onStage?(.retrieving)
 
-        // 1) 政策筛选 + 混合检索。
+        // 1) 政策筛选 + 混合检索。R6：按真实修订目录核对（不匹配即 stale，
+        //    不再缺省视为仍有效）。
         let records = try await recordsProvider()
-        let policy = HoloContextAccessPolicy.selectAdviceCandidates(records: records)
+        let currentRevisions = await Self.sourceRevisions(
+            for: records, provider: sourceRevisionsProvider
+        )
+        let policy = HoloContextAccessPolicy.selectAdviceCandidates(
+            records: records,
+            currentSourceRevisions: currentRevisions
+        )
         let retrievalResult = await retrieval.retrieve(
             frame: frame,
             catalog: policy.selected,
@@ -414,6 +438,13 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             try await persistence.saveRun(run)
             throw PlanningError.undeliverableAfterRepair
         }
+
+        // 按需澄清：草案定稿前注入（§17 P4；聊天/Context Plan/Voice 三入口共用本协调器）。
+        await Self.injectMemoryClarificationIfNeeded(
+            into: &draft,
+            recordsProvider: recordsProvider,
+            now: now
+        )
 
         // 4) 落库前代际复查（保存前再次核对 accessGeneration；§10）。
         let finalGuard = try await controlSnapshotProvider()
@@ -560,6 +591,79 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             "\"rawFallbackSegments\":[" + segmentLines.joined(separator: ",") + "]," +
             "\"semanticCoverage\":\(jsonString(semanticCoverage.rawValue))" +
         "}"
+    }
+
+    /// 收集记录证据涉及的全部 sourceKey 并查询当前修订目录。
+    private static func sourceRevisions(
+        for records: [HoloMemoryRecord],
+        provider: (@Sendable ([String]) async -> [String: String])?
+    ) async -> [String: String] {
+        guard let provider else { return [:] }
+        let sourceIDs = Set(records.flatMap { record in
+            record.personalContext?.v1?.basis.map(\.sourceID) ?? []
+        })
+        guard !sourceIDs.isEmpty else { return [:] }
+        return await provider(Array(sourceIDs))
+    }
+
+    // MARK: - 按需澄清注入（低确认成本方案 §8.4/§11.4）
+
+    /// 草案定稿前注入至多一个记忆澄清问题：只有当前结果真实依赖的 askWhenRelevant
+    /// 记录才会出现（预算/冷却由 HoloMemoryClarificationCoordinator 统一裁决），
+    /// 与模型已产出的 unknowns 合并去重后仍受 2 条上限约束；零新增串行模型调用。
+    private static func injectMemoryClarificationIfNeeded(
+        into draft: inout HoloContextPlanDraft,
+        recordsProvider: @Sendable () async throws -> [HoloMemoryRecord],
+        now: Date
+    ) async {
+        guard HoloMemoryClarificationCoordinator.isEnabled else { return }
+        guard let records = try? await recordsProvider() else { return }
+        let history = HoloMemoryClarificationCoordinator.loadHistory()
+        guard let (question, updatedHistory) = HoloMemoryClarificationCoordinator.selectQuestion(
+            records: records,
+            affectsCurrentOutcome: { record in
+                Self.planDepends(on: record, draft: draft)
+            },
+            now: now,
+            history: history
+        ) else { return }
+        // 去重：模型已把同一缺口列为 unknown 时不重复注入（宁缺勿滥）。
+        let alreadyAsked = draft.unknowns.contains { unknown in
+            unknown.question.contains(question.missingVariable)
+                || question.questionText.contains(unknown.question)
+        }
+        guard !alreadyAsked else { return }
+        draft.unknowns.insert(
+            HoloContextPlanUnknown(
+                question: question.questionText,
+                impact: question.impactSummary,
+                independentParts: String(localized: "其余安排不依赖这个答案，会照常给出")
+            ),
+            at: 0
+        )
+        if draft.unknowns.count > 2 {
+            draft.unknowns = Array(draft.unknowns.prefix(2))
+        }
+        HoloMemoryClarificationCoordinator.saveHistory(updatedHistory)
+    }
+
+    /// 相关性判定（确定性代理）：采用情境引用命中，或目标/回答文本包含记录命题的
+    /// 显著片段（≥4 字连续子串）。不确定 → 不问（§8.4 条件 1 的保守实现）。
+    private static func planDepends(on record: HoloMemoryRecord, draft: HoloContextPlanDraft) -> Bool {
+        if let contextID = record.personalContext?.v1?.contextID,
+           draft.usedContextRefs.contains(contextID) {
+            return true
+        }
+        let statement = record.personalContext?.v1?.statement ?? record.displaySummary
+        guard statement.count >= 4 else { return false }
+        let haystack = draft.goalSummary + "\n" + draft.answerText
+        var index = statement.startIndex
+        while statement.distance(from: index, to: statement.endIndex) >= 4 {
+            let end = statement.index(index, offsetBy: 4)
+            if haystack.contains(statement[index..<end]) { return true }
+            index = statement.index(after: index)
+        }
+        return false
     }
 
     private static func jsonString(_ value: String) -> String {

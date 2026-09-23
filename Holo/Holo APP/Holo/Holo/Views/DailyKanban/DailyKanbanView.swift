@@ -18,6 +18,8 @@ struct DailyKanbanView: View {
     @ObservedObject private var todoRepo = TodoRepository.shared
     @ObservedObject private var habitRepo = HabitRepository.shared
     @ObservedObject private var healthRepo = HealthRepository.shared
+    /// 完成协调层（G1 完成契约：议程区完成改走统一撤回窗口，撤回 banner 与其他入口共享）
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     /// 周一晨报入口信号：为 true 时顶部展示上周小结卡（默认 false，手动进看板不显示）
@@ -29,7 +31,8 @@ struct DailyKanbanView: View {
     var onOpenAI: (() -> Void)? = nil
     var onOpenFinance: (() -> Void)? = nil
     var onAddTask: (() -> Void)? = nil
-    var onAddThought: (() -> Void)? = nil
+    /// 「对 Holo 说」快速记录出口（原「记录今天」误指想法编辑器，已按激活方案改指向 AI + 预填）
+    var onQuickRecord: (() -> Void)? = nil
 
     @StateObject private var dispatcher: TodayActionDispatcher
 
@@ -40,7 +43,7 @@ struct DailyKanbanView: View {
         onOpenAI: (() -> Void)? = nil,
         onOpenFinance: (() -> Void)? = nil,
         onAddTask: (() -> Void)? = nil,
-        onAddThought: (() -> Void)? = nil
+        onQuickRecord: (() -> Void)? = nil
     ) {
         self.showWeeklyBrief = showWeeklyBrief
         self.todayViewModel = todayViewModel
@@ -48,7 +51,7 @@ struct DailyKanbanView: View {
         self.onOpenAI = onOpenAI
         self.onOpenFinance = onOpenFinance
         self.onAddTask = onAddTask
-        self.onAddThought = onAddThought
+        self.onQuickRecord = onQuickRecord
         _dispatcher = StateObject(wrappedValue: TodayActionDispatcher(
             viewModel: todayViewModel ?? HoloTodayViewModel()
         ))
@@ -57,7 +60,6 @@ struct DailyKanbanView: View {
     @State private var editingHabit: Habit? = nil
     @State private var inputValue: String = ""
     @State private var showGoalCreate = false
-    @State private var completedTaskPendingUndo: UUID? = nil
     @FocusState private var isInputFocused: Bool
 
     /// 键盘高度：数值输入弹窗是手写 overlay（非系统 sheet），系统键盘避让管不到，
@@ -65,7 +67,7 @@ struct DailyKanbanView: View {
     @State private var keyboardHeight: CGFloat = 0
 
     /// 当前窗口宽度（v2 断点：宽屏双栏）
-    @Environment(\.holoWindowWidth) private var kanbanWindowWidth
+    @Environment(\.holoContentWidth) private var kanbanWindowWidth
     private var isExpandedWidth: Bool {
         HoloAdaptiveLayout.isExpandedWidth(kanbanWindowWidth)
     }
@@ -106,7 +108,12 @@ struct DailyKanbanView: View {
                     .padding(.top, 8)
                 }
             }
-            .background(navigationDestinations)
+            .navigationDestination(for: HoloTodayRoute.self) { route in
+                // 目的地直挂栈内容（不经 .background 隐藏挂载）；真正的闪退根因是
+                // MatterDetailView 自带内嵌 NavigationStack（栈中栈，iOS 26 卡死转场 +
+                // 连续压栈触发 comparisonTypeMismatch 断言崩溃），已在 MatterDetailView 侧根治。
+                routeDestination(route)
+            }
             .sheet(item: $dispatcher.scheduleDetailItem) { item in
                 ScheduleDetailSheet(item: item)
             }
@@ -138,14 +145,14 @@ struct DailyKanbanView: View {
                         sectionState: snapshot.sectionStates[.matters],
                         onCard: { dispatcher.perform($0.cardAction) },
                         onStartNew: { onOpenAI?() },
-                        onViewAll: { dispatcher.path.append(.matterList) },
+                        onViewAll: { dispatcher.push(.matterList) },
                         onDiscuss: { openChat(matterID: $0.id) }
                     )
                     TodayOverviewSection(
                         overview: snapshot.overview,
                         sectionState: snapshot.sectionStates[.overview],
                         onOpenFinance: { onOpenFinance?() },
-                        onAddRecord: { onAddThought?() }
+                        onAddRecord: { onQuickRecord?() }
                     )
                 }
                 VStack(alignment: .leading, spacing: 20) {
@@ -155,7 +162,7 @@ struct DailyKanbanView: View {
                         maxVisible: 12,
                         onItem: { dispatcher.perform($0.action) },
                         onComplete: { completeTask($0) },
-                        pendingUndoTaskID: completedTaskPendingUndo
+                        pendingUndoTaskID: completionCoordinator.pending?.taskID
                     )
                     TodayRoutineStrip(
                         routine: snapshot.routine,
@@ -180,31 +187,14 @@ struct DailyKanbanView: View {
                 inFlightAction: dispatcher.inFlightAction,
                 errorMessage: dispatcher.localErrorMessage,
                 onStart: { dispatcher.perform($0) },
-                onPostpone: { todayViewModel?.postponeFocus() }
+                onPostpone: { todayViewModel?.postponeFocus() },
+                onCalmQuickRecord: { onQuickRecord?() }
             )
 
             // 2. Weekly Brief（次级横幅，不压主行动）
             // （已在上方紧跟主卡之后渲染）
 
-            // 3. 进行中的事
-            TodayMatterSection(
-                matters: snapshot.matters,
-                sectionState: snapshot.sectionStates[.matters],
-                onCard: { item in
-                    dispatcher.perform(item.cardAction)
-                },
-                onStartNew: {
-                    onOpenAI?()
-                },
-                onViewAll: {
-                    dispatcher.path.append(.matterList)
-                },
-                onDiscuss: { item in
-                    openChat(matterID: item.id)
-                }
-            )
-
-            // 4. 今天的安排
+            // 3. 今天的安排（V2 §4.3：先安排后正在推进，压缩注意力）
             TodayAgendaSection(
                 items: snapshot.agenda,
                 sectionState: snapshot.sectionStates[.agenda],
@@ -215,7 +205,25 @@ struct DailyKanbanView: View {
                 onComplete: { item in
                     completeTask(item)
                 },
-                pendingUndoTaskID: completedTaskPendingUndo
+                pendingUndoTaskID: completionCoordinator.pending?.taskID
+            )
+
+            // 4. 正在推进（V2：最多两行紧凑，无 active 整块隐藏）
+            TodayMatterSection(
+                matters: snapshot.matters,
+                sectionState: snapshot.sectionStates[.matters],
+                onCard: { item in
+                    dispatcher.perform(item.cardAction)
+                },
+                onStartNew: {
+                    onOpenAI?()
+                },
+                onViewAll: {
+                    dispatcher.push(.matterList)
+                },
+                onDiscuss: { item in
+                    openChat(matterID: item.id)
+                }
             )
 
             // 5. 保持状态
@@ -230,7 +238,7 @@ struct DailyKanbanView: View {
                 overview: snapshot.overview,
                 sectionState: snapshot.sectionStates[.overview],
                 onOpenFinance: { onOpenFinance?() },
-                onAddRecord: { onAddThought?() }
+                onAddRecord: { onQuickRecord?() }
             )
         } else {
             // loading：与最终卡等高的骨架
@@ -264,22 +272,11 @@ struct DailyKanbanView: View {
         onOpenChatWithMatter?(matterID)
     }
 
-    /// 完成任务（真实回执 + 3 秒撤回）。
+    /// 完成任务（真实回执 + 3 秒撤回，统一走完成协调层；落库延迟到 confirm）。
     private func completeTask(_ item: HoloTodayAgendaItem) {
-        guard case .openTask(let taskID) = item.action,
-              let task = TodoRepository.shared.findTask(by: taskID) else { return }
-        do {
-            _ = try todoRepo.toggleTaskCompletion(task)
-            completedTaskPendingUndo = taskID
-            HapticManager.light()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak todoRepo] in
-                if todoRepo?.pendingCompletionTaskId == nil {
-                    completedTaskPendingUndo = nil
-                }
-            }
-        } catch {
-            Logger(subsystem: "com.holo.app", category: "Today").error("完成任务失败: \(error.localizedDescription)")
-        }
+        guard case .openTask(let taskID) = item.action else { return }
+        completionCoordinator.requestCompletion(taskID: taskID, source: .todayAgenda, in: todoRepo)
+        HapticManager.light()
     }
 
     /// 习惯快速打卡。
@@ -336,14 +333,6 @@ struct DailyKanbanView: View {
         let f = DateFormatter()
         f.setLocalizedDateFormatFromTemplate("MMMdE")
         return f.string(from: Date())
-    }
-
-    /// NavigationStack 目的地（隐藏挂载）。
-    private var navigationDestinations: some View {
-        Group {}
-            .navigationDestination(for: HoloTodayRoute.self) { route in
-                routeDestination(route)
-            }
     }
 
     // MARK: - 旧版看板（flag 关闭时完整保留）

@@ -1,0 +1,33 @@
+{
+  "fixtureID": "tpl-empty-control-02",
+  "domainTags": [
+    "出行",
+    "对照"
+  ],
+  "sources": [],
+  "currentRequest": {
+    "utterance": "我 11 月 3 日到 10 日去外地看展会，帮我准备出发前要安排的事。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [],
+  "unknowns": [
+    "家中是否有需要照看的宠物或植物（无记录可查）"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldExclude",
+      "description": "不出现任何个性化照护建议"
+    }
+  ],
+  "forbiddenClaims": [
+    "说「你有狗要照顾」",
+    "生成任何个性化照护任务或伪造依据"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "（对照组无来源，无反事实变体）",
+      "expectedEffect": "行为不变"
+    }
+  ]
+}

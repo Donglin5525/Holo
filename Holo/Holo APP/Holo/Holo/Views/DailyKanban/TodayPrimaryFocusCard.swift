@@ -20,6 +20,8 @@ struct TodayPrimaryFocusCard: View {
     let errorMessage: String?
     let onStart: (HoloTodayAction) -> Void
     let onPostpone: () -> Void
+    /// calm 态行动出口：指向 AI 一句话记录（激活方案 §3.2；nil 则不显示）
+    var onCalmQuickRecord: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -144,6 +146,29 @@ struct TodayPrimaryFocusCard: View {
             Text(String(localized: "可以按自己的节奏推进安排。"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            if let onCalmQuickRecord {
+                Button(action: onCalmQuickRecord) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "sparkles")
+                        Text(String(localized: "试试对 Holo 说一句话"))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.holoPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.holoPrimary.opacity(0.08))
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 10)
+                .accessibilityIdentifier("todayCalmQuickRecordButton")
+            }
         }
         .padding(.vertical, 6)
     }

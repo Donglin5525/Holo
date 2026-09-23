@@ -165,16 +165,19 @@ nonisolated enum HoloContextReconciler {
             epistemicStatus: epistemic,
             applicability: candidate.applicability ?? HoloContextApplicabilityV1(),
             temporal: candidate.temporal,
-            basis: candidate.basis.map { basis in
-                HoloContextBasisRef(
-                    sourceID: basis.sourceID,
-                    quote: basis.quote,
-                    stance: basis.stance == "contradiction" ? .contradiction : .support,
-                    sourceRevision: basis.revision
-                        ?? sourcesByID[basis.sourceID]?.revisionDigest
-                        ?? "unknown"
-                )
-            },
+            basis: Self.deduplicatedByLineage(
+                candidate.basis.map { basis in
+                    HoloContextBasisRef(
+                        sourceID: basis.sourceID,
+                        quote: basis.quote,
+                        stance: basis.stance == "contradiction" ? .contradiction : .support,
+                        sourceRevision: basis.revision
+                            ?? sourcesByID[basis.sourceID]?.revisionDigest
+                            ?? "unknown"
+                    )
+                },
+                sourcesByID: sourcesByID
+            ),
             linkedContextIDs: [],
             openQuestions: candidate.openQuestions ?? [],
             admission: admission
@@ -204,6 +207,24 @@ nonisolated enum HoloContextReconciler {
             claimKind: claimKind(for: candidate, epistemic: epistemic),
             sensitivity: sensitivity
         )
+    }
+
+    /// R2 血缘去重（A07）：同一真实事件派生的多条记录（如打卡与其派生任务）
+    /// 只算一份独立证据——lineageRootIDs 相交的 basis 保留首个；
+    /// 无血缘标记的来源不去重（保持原证据）。
+    private static func deduplicatedByLineage(
+        _ basis: [HoloContextBasisRef],
+        sourcesByID: [String: HoloContextSourceSnapshot]
+    ) -> [HoloContextBasisRef] {
+        var seenRoots: Set<String> = []
+        var kept: [HoloContextBasisRef] = []
+        for ref in basis {
+            let roots = Set(sourcesByID[ref.sourceID]?.lineageRootIDs ?? [])
+            if !roots.isEmpty && !roots.isDisjoint(with: seenRoots) { continue }
+            seenRoots.formUnion(roots)
+            kept.append(ref)
+        }
+        return kept
     }
 
     /// claimKind 映射（§4.2）：不为了过采用门槛改写。

@@ -306,6 +306,10 @@ struct HoloApp: App {
                     }
                 case .active:
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
+                    // 图片快捷记账确认页必达（2026-09-22）：回前台统一兜底——存在
+                    // 未自动弹过的待复核草案就直接弹复核页。用户从横幅/图标/多任务
+                    // 任何一路回到 Holo 都命中这里，不再依赖快捷指令拉起或通知点击。
+                    ReceiptBookingForegroundPresenter.presentIfNeeded()
                     // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
                     ThoughtOrganizationQueue.shared.appWillEnterForeground()
                     // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上

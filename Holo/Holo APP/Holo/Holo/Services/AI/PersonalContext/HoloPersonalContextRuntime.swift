@@ -118,8 +118,14 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
 
     private static let cursorKey = "holo_personal_context_extraction_cursor_v1"
 
+    /// 按域游标键：thought 沿用旧键（存量零迁移）；其余域独立键（R1）。
+    nonisolated static func cursorKey(domain: String) -> String {
+        domain == "thought" ? cursorKey : "\(cursorKey)_\(domain)"
+    }
+
     func existingContextRecords() async throws -> [HoloMemoryRecord] {
-        try await repository.query(.domain(.thought)).filter { $0.personalContext != nil }
+        // R1 四域归并：跨域候选参与同一归并池（多源聚合责任命题的基础）。
+        try await repository.query(.all).filter { $0.personalContext != nil }
     }
 
     func write(records: [HoloMemoryRecord], batchKey: String) async throws {
@@ -163,6 +169,16 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
         defaults.set(data, forKey: Self.cursorKey)
     }
 
+    func loadCursor(domain: String) async throws -> HoloContextExtractionCursorState? {
+        guard let data = defaults.data(forKey: Self.cursorKey(domain: domain)) else { return nil }
+        return try? JSONDecoder().decode(HoloContextExtractionCursorState.self, from: data)
+    }
+
+    func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws {
+        let data = try JSONEncoder().encode(cursor)
+        defaults.set(data, forKey: Self.cursorKey(domain: domain))
+    }
+
     func currentGeneration() async throws -> HoloContextExtractionGeneration {
         let control = try await repository.loadControlState()
         return HoloContextExtractionGeneration(
@@ -172,18 +188,10 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
     }
 
     /// 修订目录：按源 ID 回查当前修订（读取后修改检测）。
+    /// R1 四域：sourceKey 带域前缀分派到对应仓储；thought 存量为裸 UUID。
+    @MainActor
     func currentSourceRevisions(sourceIDs: [String]) async throws -> [String: String] {
-        var revisions: [String: String] = [:]
-        for sourceID in sourceIDs {
-            guard let uuid = UUID(uuidString: sourceID),
-                  let thought = try thoughtRepository.fetchById(uuid) else {
-                // 来源已删除：返回哨兵修订，触发过期批次拒绝（删除路径走失效传播）。
-                revisions[sourceID] = "deleted"
-                continue
-            }
-            revisions[sourceID] = HoloThoughtContextSourcePaging.revisionDigest(thought)
-        }
-        return revisions
+        HoloLifeSourceObservation.currentRevisionDigests(sourceKeys: sourceIDs, thoughtRepository: thoughtRepository)
     }
 }
 
@@ -221,9 +229,15 @@ enum HoloPersonalContextExtractionJob {
         var ranBatches = 0
         var progress = HoloContextExtractionProgress()
         var skippedReason: String?
+        /// R1 四域：各域本轮流经情况（诊断/按域隔离用）。
+        var domainNotes: [String: String] = [:]
     }
 
+    /// 四域轮转指针键：保证游标公平推进（不总从同一域开始）。
+    private static let roundRobinKey = "holo_personal_context_extraction_domain_pointer_v1"
+
     /// 一轮萃取通过调用（appLaunch/回前台触发；前台每轮最多 2 包）。
+    /// R1 四域：thought/finance/task/habit 轮转，每域独立游标；单域失败不拖垮其他域（§3.11）。
     /// - Parameters:
     ///   - packageLimit: 本轮最多处理的包数（默认 2，方案 §6 前台补偿预算）。
     ///   - now: 注入时钟。
@@ -246,33 +260,46 @@ enum HoloPersonalContextExtractionJob {
         guard let repository = try? await HoloMemoryRuntime.shared.repository() else {
             return PassOutcome(skippedReason: "repository-unavailable")
         }
-        let extractor = HoloPersonalContextExtractor(
-            paging: HoloThoughtContextSourcePaging(repository: ThoughtRepository()),
-            llm: HoloPersonalContextProviderLLM(provider: provider ?? HoloBackendAIProvider()),
-            writer: HoloPersonalContextRuntimeWriter(repository: repository)
-        )
+        let llm = HoloPersonalContextProviderLLM(provider: provider ?? HoloBackendAIProvider())
+        let writer = HoloPersonalContextRuntimeWriter(repository: repository)
 
         var outcome = PassOutcome()
-        do {
-            for _ in 0..<max(packageLimit, 1) {
+        let domains = HoloLifeSourceObservation.domains
+        let budget = max(packageLimit, 1)
+        let defaults = UserDefaults.standard
+        let pointer = max(0, defaults.integer(forKey: roundRobinKey))
+        var usedBatches = 0
+        var nextPointer = pointer
+
+        for offset in 0..<domains.count where usedBatches < budget {
+            let domain = domains[(pointer + offset) % domains.count]
+            guard let paging = HoloLifeSourceObservation.makePaging(domain: domain) else {
+                outcome.domainNotes[domain] = "paging-unavailable"
+                continue
+            }
+            let extractor = HoloPersonalContextExtractor(
+                paging: paging,
+                llm: llm,
+                writer: writer,
+                domain: domain
+            )
+            do {
                 let batch = try await extractor.runOneBatch(now: now)
+                usedBatches += 1
                 outcome.ranBatches += 1
-                if let cursor = try? await HoloPersonalContextRuntimeWriter(repository: repository)
-                    .loadCursor() {
-                    outcome.progress = cursor.progress
+                if let cursor = try? await writer.loadCursor(domain: domain) {
+                    outcome.progress = outcome.progress.byAdding(cursor.progress)
                 }
-                if !batch.hasMore { break }
+                outcome.domainNotes[domain] = batch.hasMore ? "more" : "caught-up"
+                nextPointer = (pointer + offset + 1) % domains.count
+            } catch {
+                // 按域隔离：失败只影响本域本批，游标本域不推进，下轮重试；继续其他域。
+                outcome.progress.failedBatches += 1
+                outcome.domainNotes[domain] = "failed:\(String(describing: type(of: error)))"
             }
-        } catch {
-            // 失败不推进游标（runOneBatch 内部保证）；如实记录，下次续跑。
-            logger.info("萃取批次失败，游标未推进：\(String(describing: error), privacy: .public)")
-            if let cursor = try? await HoloPersonalContextRuntimeWriter(repository: repository)
-                .loadCursor() {
-                outcome.progress = cursor.progress
-            }
-            outcome.progress.failedBatches += 1
         }
-        logger.error("EXTRACT-DIAG ran=\(outcome.ranBatches) created=\(outcome.progress.createdRecords) suppressed=\(outcome.progress.suppressedCandidates) failed=\(outcome.progress.failedBatches) skip=\(outcome.skippedReason ?? "none")")
+        defaults.set(nextPointer, forKey: roundRobinKey)
+        logger.error("EXTRACT-DIAG ran=\(outcome.ranBatches) created=\(outcome.progress.createdRecords) suppressed=\(outcome.progress.suppressedCandidates) failed=\(outcome.progress.failedBatches) domains=\(outcome.domainNotes.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","), privacy: .public)")
         HoloPersonalContextDiagnostics.recordExtraction(outcome)
         return outcome
     }

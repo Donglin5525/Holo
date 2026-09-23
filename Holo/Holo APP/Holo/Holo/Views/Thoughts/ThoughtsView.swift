@@ -26,7 +26,7 @@ struct ThoughtsView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var showAddThought: Bool = false
     /// 宽屏双栏判定：FAB 只在窄屏/手机出现（宽屏新建入口在列表顶部）
-    @Environment(\.holoWindowWidth) private var thoughtsWindowWidth
+    @Environment(\.holoContentWidth) private var thoughtsWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(thoughtsWindowWidth) }
 
     /// 列表筛选意图（知识树视图「未归类/已归档」等入口驱动列表重载）

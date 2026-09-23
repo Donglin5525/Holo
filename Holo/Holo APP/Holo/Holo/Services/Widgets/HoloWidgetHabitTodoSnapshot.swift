@@ -108,7 +108,10 @@ enum HoloWidgetHabitTodoSnapshotWriter {
             totalToday: progress.total,
             items: items,
             dateText: shortDateText(date),
-            updatedAt: date
+            updatedAt: date,
+            // 标题「剩 N 项」与列表同口径（今天到期 + 逾期未完成，去重全量计数，
+            // 不含末尾的已完成划线样本）
+            pendingCount: pending.count
         )
         try? store.writeTodo(snapshot)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.todo.rawValue)

@@ -79,6 +79,11 @@ struct PersonalView: View {
                 .holoContentColumn(paintsBackground: false)
             }
             .background(Color.holoBackground)
+            // 手势必须挂在 NavigationStack 内部：挂栈外时让位判断（沿响应链向上找
+            // UINavigationController）恒失效，子页面 push 后右滑会把整个个人页连同
+            // 子页一起关掉（2026-09-16 健康页睡眠详情同款事故，见 SwipeBackModifier 文档）。
+            // 挂栈内后：根层右滑=关闭个人页；子页面（系统导航栏可见）push 时自动让位给系统返回。
+            .swipeBackToDismiss { dismiss() }
             .navigationTitle("个人")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -130,7 +135,6 @@ struct PersonalView: View {
                 }
             )
         }
-        .swipeBackToDismiss { dismiss() }
         .onAppear {
             _ = profileService.loadProfile()
             if pendingGoalDetailId != nil {
@@ -362,14 +366,15 @@ struct PersonalView: View {
             Button {
                 HoloMemoryReceiptStore.markWriteReceiptsRead()
                 showMemorySummaryCapsule = false
-                if memoryInboxSnapshot.pendingConfirmationCount > 0 {
+                if !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled,
+                   memoryInboxSnapshot.pendingConfirmationCount > 0 {
                     showMemoryConfirmationQueue = true
                 } else {
-                    // 「新记住 N 件」直达长廊洞察 Tab 高亮新记忆，不再绕道设置页。
+                    // 收件箱下线后（含一次性首启说明）直达长廊，不再绕道确认队列。
                     DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
                 }
             } label: {
-                Label(memoryInboxSnapshot.summaryText, systemImage: "brain.head.profile.fill")
+                Label(memoryInboxSnapshot.presentationText, systemImage: "brain.head.profile.fill")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.holoTextPrimary)
             }

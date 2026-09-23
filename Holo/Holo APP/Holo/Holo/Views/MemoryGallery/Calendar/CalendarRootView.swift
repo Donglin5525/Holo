@@ -14,7 +14,7 @@ struct CalendarRootView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     /// 宽屏档章节大时间放大，与章节头排印同口径
-    @Environment(\.holoWindowWidth) private var scaleWindowWidth
+    @Environment(\.holoContentWidth) private var scaleWindowWidth
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
     @State private var selectedEventGroup: CalendarEventGroup?
@@ -53,6 +53,13 @@ struct CalendarRootView: View {
             CalendarScaleDatePickerSheet(
                 selection: $pickerDate,
                 isPresented: $showScaleDatePicker,
+                allowedRange: viewModel.scale == .timeline ? ...viewModel.timelineFutureLimit : ...Date(),
+                navigationTitle: viewModel.scale == .timeline
+                    ? String(localized: "前往一天")
+                    : String(localized: "回到一段生活"),
+                fieldLabel: viewModel.scale == .timeline
+                    ? String(localized: "选择日期")
+                    : String(localized: "选择回看的日期"),
                 onCommit: { viewModel.focusDay(pickerDate) }
             )
         }
@@ -208,7 +215,8 @@ struct CalendarRootView: View {
     }
 
     private func openScaleDatePicker() {
-        pickerDate = min(viewModel.focusedDate, Date())
+        // 打开前把选中值钳进当前档位的可选范围：轴档上限一年、其余档上限今天
+        pickerDate = min(viewModel.focusedDate, viewModel.scale == .timeline ? viewModel.timelineFutureLimit : Date())
         showScaleDatePicker = true
     }
 
@@ -233,9 +241,30 @@ struct CalendarRootView: View {
             }
 
             todayButton
+
+            // 轴档日期直达入口：过去回看、未来排布都从这里选；
+            // 日/周/月档已有大时间章节头承担选日期，不重复设入口
+            if viewModel.scale == .timeline {
+                datePickerButton
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, HoloSpacing.xs)
+    }
+
+    /// 轴档选日期按钮：与回正按钮同一胶囊语言，轻点打开日历
+    private var datePickerButton: some View {
+        Button(action: openScaleDatePicker) {
+            Image(systemName: "calendar")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoPrimary)
+                .frame(width: 30, height: 30)
+                .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "选择日期"))
+        .accessibilityHint(String(localized: "轻点打开日期选择器"))
     }
 
     /// 日|周|月 撑满两箭头之间、三档等宽——头部主控件，不做收缩小胶囊
@@ -361,20 +390,24 @@ struct CalendarRootView: View {
 private struct CalendarScaleDatePickerSheet: View {
     @Binding var selection: Date
     @Binding var isPresented: Bool
+    /// 可选日期范围：回看档传 ...今天，轴档传 ...一年上限（回看+排布）
+    let allowedRange: PartialRangeThrough<Date>
+    let navigationTitle: String
+    let fieldLabel: String
     let onCommit: () -> Void
 
     var body: some View {
         NavigationStack {
             DatePicker(
-                "选择回看的日期",
+                fieldLabel,
                 selection: $selection,
-                in: ...Date(),
+                in: allowedRange,
                 displayedComponents: .date
             )
             .datePickerStyle(.graphical)
             .tint(.holoPrimary)
             .padding()
-            .navigationTitle("回到一段生活")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -34,6 +34,26 @@ final class HoloCloudAnalysisClient {
             let reasoning: String?
             let evidence: [CloudEvidence]?
             let completedAt: String?
+            /// v17：final_claims 时的自然摘要（温暖陪伴 P0 契约止损——云端早已生成，
+            /// 此前协议未解码导致设备端只能分号拼接）。旧结果缺失解码为 nil。
+            /// 注：须为 var+默认值——let+默认值不参与 Codable 合成，会恒为 nil。
+            var narrativeSummary: String? = nil
+            /// v21：跨维度核心发现（卡片首屏主展示位）；旧结果缺失解码为 nil。
+            var keyInsight: String? = nil
+            /// P0 交付核验（2026-09-19）：与工具 Ledger 对账后产生的降级/剥离
+            /// 警告（METRIC_MISMATCH/NARRATIVE_INCONSISTENT 等）；旧结果缺失解码为 nil。
+            var warnings: [String]? = nil
+            /// 快照截止时间（诚实边界展示）；旧结果缺失解码为 nil。
+            var snapshotCutoffAt: String? = nil
+            /// 冻结任务的主时间范围回显（Unix 秒，客户端发起时冻结）；旧结果缺失解码为 nil。
+            var taskRange: CloudTaskRange? = nil
+
+            struct CloudTaskRange: Decodable {
+                let label: String
+                let start: Double
+                let end: Double
+            }
+
             /// 周期回放任务（kind == "period_replay"）：模型生成的回放 JSON 原文
             let kind: String?
             let output: String?
@@ -42,6 +62,27 @@ final class HoloCloudAnalysisClient {
                 let summary: String?
                 let displayText: String?
                 let evidenceIDs: [String]?
+                /// claim 产物类型（observation/change/pattern/correlation/suggestion）；
+                /// 云端 Validator 已规范化，旧结果缺失解码为 nil
+                var type: String? = nil
+                var confidence: Double? = nil
+                /// v21：这条数据在该用户生活里意味着什么的低置信解读；旧结果缺失解码为 nil
+                var interpretation: String? = nil
+                /// v23：这条发现的点破式标题（云端资产管家式提炼，作为章节主题）；
+                /// 后端已做数字对账（编数标题被清空）；旧结果缺失解码为 nil 走短句回退
+                var claimTitle: String? = nil
+                /// P0 交付核验后的结构化指标断言——值已与本次工具 Ledger 对账，
+                /// 可直接作为数字真相消费（不再只把 displayText 当数字）；旧结果缺失解码为 nil。
+                var metricAssertions: [CloudMetricAssertion]? = nil
+
+                struct CloudMetricAssertion: Decodable {
+                    let metricKey: String
+                    var value: Double? = nil
+                    var baselineValue: Double? = nil
+                    var unit: String? = nil
+                    var comparison: String? = nil
+                    var evidenceIDs: [String]? = nil
+                }
             }
 
             /// 云端回传的证据原料：metric = 聚合统计口径；rows = 行明细样本

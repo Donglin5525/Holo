@@ -14,7 +14,7 @@ struct DailyReplayEventCard: View {
     let onSelectGroup: ([CalendarEvent]) -> Void
 
     /// 宽屏档卡片排印放大（与章节头同口径），iPhone/medium 档不变
-    @Environment(\.holoWindowWidth) private var cardWindowWidth
+    @Environment(\.holoContentWidth) private var cardWindowWidth
     private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: cardWindowWidth) }
 
     /// 兼容「当天记录」等旧调用；新日回放统一走 moment 初始化。

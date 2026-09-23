@@ -173,6 +173,26 @@ final class IntentRouter {
         logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil"), normalizedCategoryCandidate=\(normalizedCategoryCandidate ?? "nil"), semanticCategoryHint=\(semanticCategoryHint ?? "nil")")
 
         let categoryRepo = FinanceRepository.shared
+
+        // 幂等重试（§24.4）：同卡重试命中既有交易直接返回，不重复入账
+        if let existing = existingTransactionIfReconfirmed(from: data, repo: categoryRepo) {
+            let names = try await resolvedCategoryDisplayNames(for: existing.category, type: .expense)
+            return RouteResult(
+                text: AIResponseTextBuilder.expenseRecorded(
+                    amount: amountStr,
+                    note: note,
+                    accountName: existing.account?.name ?? "",
+                    categoryUnmatched: false,
+                    unmatchedCategory: nil
+                ),
+                transactionId: existing.id,
+                linkedEntity: LinkedEntity(type: .transaction, id: existing.id),
+                categoryUnmatched: false,
+                matchedPrimaryCategory: names.primary,
+                matchedSubCategory: names.sub
+            )
+        }
+
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
@@ -182,7 +202,7 @@ final class IntentRouter {
             note: note ?? "",
             type: .expense
         )
-        let account = try await categoryRepo.getDefaultAccount()
+        let account = try await resolveWriteAccount(from: data, repo: categoryRepo)
 
         guard let account = account else {
             return RouteResult(text: "请先设置默认账户")
@@ -216,7 +236,12 @@ final class IntentRouter {
             account: account,
             date: TransactionDateResolver.resolve(from: data),
             note: note,
-            financeProject: matchedProject
+            financeProject: matchedProject,
+            // AI 来源字段与交易同一次 save 落库（§24.4：不再两次保存）；
+            // 未注入（文本聊天直记等）时保持 nil，行为不变
+            aiSourceMessageId: data["aiSourceMessageId"],
+            aiSourceItemId: data["aiSourceItemId"],
+            aiCandidate: data["categoryCandidate"] ?? note
         )
 
         // 分类未匹配时暂存候选，供用户编辑时学习
@@ -286,6 +311,25 @@ final class IntentRouter {
         let note = transactionNote(from: data)
         let categoryRepo = FinanceRepository.shared
 
+        // 幂等重试（§24.4）：同卡重试命中既有交易直接返回，不重复入账
+        if let existing = existingTransactionIfReconfirmed(from: data, repo: categoryRepo) {
+            let names = try await resolvedCategoryDisplayNames(for: existing.category, type: .income)
+            return RouteResult(
+                text: AIResponseTextBuilder.incomeRecorded(
+                    amount: amountStr,
+                    note: note,
+                    accountName: existing.account?.name ?? "",
+                    categoryUnmatched: false,
+                    unmatchedCategory: nil
+                ),
+                transactionId: existing.id,
+                linkedEntity: LinkedEntity(type: .transaction, id: existing.id),
+                categoryUnmatched: false,
+                matchedPrimaryCategory: names.primary,
+                matchedSubCategory: names.sub
+            )
+        }
+
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
@@ -295,7 +339,7 @@ final class IntentRouter {
             note: note ?? "",
             type: .income
         )
-        let account = try await categoryRepo.getDefaultAccount()
+        let account = try await resolveWriteAccount(from: data, repo: categoryRepo)
 
         guard let account = account else {
             return RouteResult(text: "请先设置默认账户")
@@ -318,7 +362,11 @@ final class IntentRouter {
             category: category,
             account: account,
             date: TransactionDateResolver.resolve(from: data),
-            note: note
+            note: note,
+            // AI 来源字段与交易同一次 save 落库（§24.4）
+            aiSourceMessageId: data["aiSourceMessageId"],
+            aiSourceItemId: data["aiSourceItemId"],
+            aiCandidate: data["categoryCandidate"] ?? note
         )
 
         // 分类未匹配时暂存候选，供用户编辑时学习
@@ -438,43 +486,34 @@ final class IntentRouter {
         }
 
         let todoRepo = TodoRepository.shared
-        let dueDateText = data["dueDate"] ?? data["reminderDate"]
 
-        // 解析 dueDate 与是否含时间。
-        // LLM 偶尔会漏填时间（如「晚上10点」只返回日期），这里用原始输入做兜底：
-        // - 若 LLM 给了日期但没时间，且原文含时间表达 → 合并 LLM 的日期 + 原文解析的时间
-        // - 若 LLM 完全没给日期，且原文能解析出完整日期时间 → 直接采用
-        let (dueDate, hasTime) = resolveTaskDueDate(
-            dueDateText: dueDateText,
-            originalInput: originalInput
-        )
+        // 生效值 = 用户在确认卡上的覆盖 > AI 识别 > 历史默认（TaskPendingDefaults 单一真源，
+        // 确认卡编辑弹层的初始值与这里的落库口径一致）
+        let (dueDate, hasTime) = TaskPendingDefaults.effectiveDueDate(data: data, originalInput: originalInput)
 
         let priority = parsePriority(data["priority"])
-        let checkItemTitles = SubtaskParser.parse(data["subtasks"])
+        let checkItemTitles = TaskPendingDefaults.effectiveSubtasks(data: data)
 
-        // 用户明确指定的提醒时间（可多个，逗号分隔）→ 绝对模式提醒；
-        // 未指定但有截止时间 → 默认提前 15 分钟
-        let userReminders = ReminderSlotParser.parse(from: data)
-            .compactMap { parseDate(from: $0) }
-            .map { TaskReminder(triggerDate: $0) }
-        let reminders: Set<TaskReminder>?
-        if !userReminders.isEmpty {
-            reminders = Set(userReminders)
-        } else {
-            reminders = (hasTime && dueDate != nil)
-                ? [TaskReminder(offsetMinutes: 15)]
-                : nil
-        }
+        // 提醒：用户改过（含显式清空）优先；否则 AI 绝对提醒；有截止时刻默认提前 15 分钟
+        let reminders = TaskPendingDefaults.effectiveReminders(data: data, dueDate: dueDate, hasTime: hasTime)
 
         if originalInput != nil && dueDate != nil && hasTime {
             logger.info("任务时间解析（含兜底）：dueDate=\(dueDate.map { String(describing: $0) } ?? "nil") hasTime=\(hasTime)")
         }
 
-        // 指定清单：AI 判断的主题归属（如「日本旅行」）。匹配已有清单优先，未命中自动
-        // 创建——不让主题任务散在「全部」；AI 未给主题时落默认位置（不阻断创建）
+        // 指定清单：用户在确认卡上选过（空 = 收件箱）优先；否则 AI 判断的主题归属（如「日本旅行」）。
+        // 匹配已有清单优先，未命中自动创建——不让主题任务散在「全部」
         var listNote: String?
         var targetList: TodoList?
-        if let listName = data["listName"]?.trimmingCharacters(in: .whitespacesAndNewlines), !listName.isEmpty {
+        if data[TaskPendingDefaults.userListNameKey] != nil {
+            if let listName = TaskPendingDefaults.effectiveListName(data: data),
+               let outcome = try todoRepo.matchOrCreateList(named: listName) {
+                targetList = outcome.list
+                listNote = outcome.created
+                    ? "，已创建清单「\(outcome.list.name)」并放入"
+                    : "，已放入清单「\(outcome.list.name)」"
+            }
+        } else if let listName = data["listName"]?.trimmingCharacters(in: .whitespacesAndNewlines), !listName.isEmpty {
             if let outcome = try todoRepo.matchOrCreateList(named: listName) {
                 targetList = outcome.list
                 listNote = outcome.created
@@ -1150,10 +1189,10 @@ final class IntentRouter {
         let newDesc = data["description"]
         let priority = parsePriority(data["priority"])
 
-        // 时间解析复用 create_task 同款 resolveTaskDueDate（含原文兜底），
+        // 时间解析复用 create_task 同款解析（含原文兜底），
         // 解决「明晚」「今晚10点」等相对时间 LLM 漏填时间时的解析问题。
         // 用户没提到时间时 dueDateText 为 nil，返回 (nil, false)，不会误改原时间。
-        let (dueDate, hasTime) = resolveTaskDueDate(
+        let (dueDate, hasTime) = TaskPendingDefaults.resolveDueDate(
             dueDateText: data["dueDate"] ?? data["reminderDate"],
             originalInput: originalInput
         )
@@ -1399,58 +1438,6 @@ final class IntentRouter {
         return NLDateParser.parse(string)
     }
 
-    /// 解析任务截止日期与「是否含具体时间」
-    /// - 当 LLM 返回的 dueDateText 完整含时间 → 直接采用
-    /// - 当 LLM 返回了日期但缺时间，且原始输入含时间表达 → 用 LLM 的日期 + 原文解析的时间合并
-    /// - 当 LLM 未返回日期，但原始输入能解析出完整日期时间 → 采用原文解析结果
-    /// - 返回 (nil, false) 表示无法确定日期时间（创建为无截止日期任务）
-    private func resolveTaskDueDate(
-        dueDateText: String?,
-        originalInput: String?
-    ) -> (dueDate: Date?, hasTime: Bool) {
-        let llmDate = parseDate(from: dueDateText)
-        let llmHasTime = dueDateText.map { NLDateParser.containsTimeComponent($0) } ?? false
-
-        // LLM 已给出带时间的日期 → 直接采用
-        if let date = llmDate, llmHasTime {
-            return (date, true)
-        }
-
-        // 尝试用原始输入兜底
-        guard let original = originalInput?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !original.isEmpty,
-              let originalDate = NLDateParser.parse(original) else {
-            // 无原文兜底 → 回退到 LLM 结果（可能只有日期）
-            return (llmDate, llmHasTime)
-        }
-
-        let originalHasTime = NLDateParser.containsTimeComponent(original)
-
-        if llmDate != nil && !llmHasTime {
-            // LLM 给了日期但没时间，原文含时间 → 合并：LLM 的日期 + 原文的时间
-            if originalHasTime {
-                let merged = mergeDate(llmDate!, withTimeFrom: originalDate)
-                return (merged, true)
-            }
-            // 原文也没时间 → 用 LLM 的纯日期
-            return (llmDate, false)
-        }
-
-        // LLM 完全没给日期，用原文解析结果（含或不含时间）
-        return (originalDate, originalHasTime)
-    }
-
-    /// 将 date 的时间部分替换为 source 的时分
-    private func mergeDate(_ date: Date, withTimeFrom source: Date) -> Date {
-        let calendar = Calendar.current
-        let dateComps = calendar.dateComponents([.year, .month, .day], from: date)
-        let timeComps = calendar.dateComponents([.hour, .minute], from: source)
-        var merged = dateComps
-        merged.hour = timeComps.hour
-        merged.minute = timeComps.minute
-        return calendar.date(from: merged) ?? date
-    }
-
     /// 格式化日期为 M月d日
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
@@ -1495,6 +1482,8 @@ final class IntentRouter {
         return (category.name, nil)
     }
 
+    /// 分类解析整体搬迁至 FinanceTransactionDraftResolver（2026-09-14 完整方案 §27.2：
+    /// 抽出而非复制，文本聊天与图片识别共用同一条分类链）。这里保持委托，调用点不变。
     private func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
@@ -1504,146 +1493,15 @@ final class IntentRouter {
         note: String,
         type: TransactionType
     ) async throws -> Category? {
-        let categoryRepo = FinanceRepository.shared
-        let categories = try await categoryRepo.getCategories(by: type)
-
-        let candidates = CategoryCandidateResolver.orderedCandidates(
+        try await FinanceTransactionDraftResolver.shared.matchCategory(
+            primaryCategory: primaryCategory,
+            subCategory: subCategory,
             categoryCandidate: categoryCandidate,
             normalizedCategoryCandidate: normalizedCategoryCandidate,
             semanticCategoryHint: semanticCategoryHint,
             note: note,
-            hour: Calendar.current.component(.hour, from: Date())
+            type: type
         )
-
-        // 1. 用户学习映射最优先，尊重手动纠正过的分类
-        for candidate in candidates {
-            if let learned = CategoryLearnedMapping.lookup(
-                candidate: candidate,
-                type: type,
-                primaryCategory: primaryCategory ?? ""
-            ) ?? CategoryLearnedMapping.lookup(candidate: candidate, type: type) {
-
-                // 仅当用户映射到的二级本身是餐次（早/午/晚/夜宵）时，才按当前时间动态重算餐段；
-                // 否则尊重用户明确映射的具体品类（如"奶茶→饮品""星巴克→咖啡"），不做时段覆盖
-                if CategoryCandidateResolver.mealSlotSubCategories.contains(learned.sub) {
-                    let hour = Calendar.current.component(.hour, from: Date())
-                    let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
-                    let parent = categories.first(where: {
-                        $0.isTopLevel && $0.name == learned.primary && $0.type == type.rawValue
-                    })
-                    if let parent = parent,
-                       let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
-                        return sub
-                    }
-                }
-
-                // 非餐次映射（具体品类或其他一级）：走精确匹配，尊重用户映射
-                let learnedResult = CategoryMatcherService.shared.matchSingle(
-                    primaryCategory: learned.primary,
-                    subCategory: learned.sub,
-                    type: type,
-                    categories: categories
-                )
-                if let matched = learnedResult.matchedCategory, matched.isSubCategory {
-                    return matched
-                }
-            }
-        }
-
-        // 2. AI 明确给出的标准科目，走严格 Core Data 匹配
-        if let sub = subCategory, !sub.isEmpty {
-            let matchResult = CategoryMatcherService.shared.matchSingle(
-                primaryCategory: primaryCategory ?? "",
-                subCategory: sub,
-                type: type,
-                categories: categories
-            )
-            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
-               let matched = matchResult.matchedCategory,
-               matched.isSubCategory {
-                return matched
-            }
-        }
-
-        // 3. 本地科目 + catalog 别名
-        for candidate in candidates {
-            // 直接匹配用户本地已有科目，保护自定义分类
-            if let customMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
-                candidate,
-                primaryCategory: primaryCategory ?? "",
-                type: type,
-                categories: categories
-            ) {
-                return customMatched
-            }
-
-            // 标准 catalog 负责别名归一，例如"滴滴"→"交通/打车"
-            let catalog = await FinanceCategoryCatalogProvider.shared.loadCatalog()
-            if let catalogMatch = CategoryMatcherService.shared.matchCandidate(candidate, type: type, catalog: catalog) {
-                let catalogResult = CategoryMatcherService.shared.matchSingle(
-                    primaryCategory: catalogMatch.primaryCategory,
-                    subCategory: catalogMatch.subCategory,
-                    type: type,
-                    categories: categories
-                )
-                if let matched = catalogResult.matchedCategory, matched.isSubCategory {
-                    return matched
-                }
-            }
-        }
-
-        // 3.5. AI 语义兜底：semanticCategoryHint 匹配到一级分类后推断二级
-        if let hint = semanticCategoryHint?.trimmingCharacters(in: .whitespaces),
-           !hint.isEmpty {
-            let hintLower = hint.lowercased()
-            if let parent = categories.first(where: {
-                $0.isTopLevel && $0.type == type.rawValue && $0.name.lowercased() == hintLower
-            }) {
-                if CategoryCandidateResolver.timeSensitivePrimaries.contains(parent.name) {
-                    // 餐饮类：按时间选餐段
-                    let hour = Calendar.current.component(.hour, from: Date())
-                    let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
-                    if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
-                        return sub
-                    }
-                } else {
-                    // 非餐饮类：用 normalizedCategoryCandidate 在该一级分类下找子类
-                    if let normalized = normalizedCategoryCandidate?.trimmingCharacters(in: .whitespaces),
-                       !normalized.isEmpty {
-                        if let sub = categories.first(where: {
-                            $0.parentId == parent.id && $0.name.lowercased() == normalized.lowercased()
-                        }) {
-                            return sub
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. 降级：note 只做唯一精确匹配
-        if let noteMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
-            note,
-            primaryCategory: "",
-            type: type,
-            categories: categories
-        ) {
-            return noteMatched
-        }
-
-        // 5. 原始 candidate 再做一次直接匹配，避免餐饮归一掩盖同名自定义分类
-        if let rawCandidate = categoryCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !candidates.contains(rawCandidate),
-           let rawMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
-                rawCandidate,
-                primaryCategory: primaryCategory ?? "",
-                type: type,
-                categories: categories
-           ) {
-            return rawMatched
-        }
-
-        // 无法可靠匹配，返回 nil，由调用方使用「待分类」兜底
-        return nil
     }
 
     private func transactionNote(from data: [String: String]) -> String? {
@@ -1654,6 +1512,27 @@ final class IntentRouter {
             }
         }
         return nil
+    }
+
+    // MARK: - AI 落账写入辅助（2026-09-14 完整方案 §24.4/§27.2）
+
+    /// 账户解析：截图识别确认流注入 visionAccountId（识别出的支付通道匹配账户）时
+    /// 一次 save 直接落到目标账户，不再「先落默认、确认后再搬运」；
+    /// 账户已归档/删除或未注入时走默认账户（既有口径）。
+    private func resolveWriteAccount(from data: [String: String], repo: FinanceRepository) async throws -> Account? {
+        if let idString = data["visionAccountId"],
+           let id = UUID(uuidString: idString),
+           let account = repo.findAccount(by: id),
+           !account.isArchived, account.deletedAt == nil {
+            return account
+        }
+        return try await repo.getDefaultAccount()
+    }
+
+    /// 幂等重试：失败卡重试/对账回 pending 后再确认时，按来源键返回既有交易，不重复入账（§24.4）
+    private func existingTransactionIfReconfirmed(from data: [String: String], repo: FinanceRepository) -> Transaction? {
+        guard let srcMsg = data["aiSourceMessageId"], let srcItem = data["aiSourceItemId"] else { return nil }
+        return repo.findTransactionByAISource(messageId: srcMsg, itemId: srcItem)
     }
 
     // MARK: - Memory Insight Generation
@@ -1744,7 +1623,7 @@ final class IntentRouter {
             note: note ?? "",
             type: .expense
         )
-        let account = try await categoryRepo.getDefaultAccount()
+        let account = try await resolveWriteAccount(from: data, repo: categoryRepo)
 
         guard let account = account else {
             return RouteResult(text: "请先设置默认账户")
@@ -1811,4 +1690,179 @@ enum GoalMatchResult {
     case single(Goal)
     case ambiguous([Goal])
     case none
+}
+
+// MARK: - 待确认任务生效值（确认卡编辑与执行路由的单一真源）
+
+/// 确认卡（TaskChatCard）编辑弹层的初始值、卡片行的当前显示、执行路由（handleCreateTask）
+/// 的最终落库三处共用同一套「生效值」计算，保证口径一致。
+/// 用户在确认卡上的编辑通过 renderData 的 userX 专用键传递，优先级高于 AI 识别值。
+nonisolated enum TaskPendingDefaults {
+
+    // MARK: renderData 用户覆盖键
+
+    /// 用户改过截止时间："yyyy-MM-dd HH:mm"（带时刻）或 "yyyy-MM-dd"（全天）
+    static let userDueDateKey = "userDueDate"
+    /// 用户改过提醒：[TaskReminder] JSON 编码；空数组 = 显式清空（不再回落默认 15 分钟）
+    static let userRemindersKey = "userReminders"
+    /// 用户选过清单：清单名；空串 = 收件箱（显式不归清单，AI 的 listName 同时失效）
+    static let userListNameKey = "userListName"
+    /// 用户改过子条目：换行分隔（单项合法；AI 通道 subtasks 沿用「≥2 项才算清单」约定）
+    static let userSubtasksKey = "userSubtasks"
+
+    // MARK: 编解码
+
+    static func encodeReminders(_ reminders: [TaskReminder]) -> String? {
+        guard let data = try? JSONEncoder().encode(reminders) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func decodeReminders(_ raw: String?) -> [TaskReminder]? {
+        guard let raw, let data = raw.data(using: .utf8),
+              let reminders = try? JSONDecoder().decode([TaskReminder].self, from: data) else {
+            return nil
+        }
+        return reminders
+    }
+
+    static func parseUserDueDate(_ raw: String?) -> (date: Date, hasTime: Bool)? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if let date = DateFormatter.holoUserDueDateTime.date(from: raw) { return (date, true) }
+        if let date = DateFormatter.holoUserDueDateDay.date(from: raw) { return (date, false) }
+        return nil
+    }
+
+    static func formatUserDueDate(_ date: Date, hasTime: Bool) -> String {
+        (hasTime ? DateFormatter.holoUserDueDateTime : DateFormatter.holoUserDueDateDay).string(from: date)
+    }
+
+    // MARK: 生效值计算
+
+    /// 截止时间生效值：用户覆盖 > AI 值（含原话兜底合并，历史行为不变）
+    static func effectiveDueDate(data: [String: String], originalInput: String?) -> (dueDate: Date?, hasTime: Bool) {
+        if let user = parseUserDueDate(data[userDueDateKey]) {
+            return (user.date, user.hasTime)
+        }
+        return resolveDueDate(dueDateText: data["dueDate"] ?? data["reminderDate"], originalInput: originalInput)
+    }
+
+    /// AI 通道的截止时间解析：LLM 值直接采用；缺时间时用原话兜底合并
+    static func resolveDueDate(dueDateText: String?, originalInput: String?) -> (dueDate: Date?, hasTime: Bool) {
+        let llmDate = dueDateText.flatMap { NLDateParser.parse($0) }
+        let llmHasTime = dueDateText.map { NLDateParser.containsTimeComponent($0) } ?? false
+
+        if let date = llmDate, llmHasTime {
+            return (date, true)
+        }
+
+        guard let original = originalInput?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !original.isEmpty,
+              let originalDate = NLDateParser.parse(original) else {
+            return (llmDate, llmHasTime)
+        }
+
+        let originalHasTime = NLDateParser.containsTimeComponent(original)
+        if llmDate != nil && !llmHasTime {
+            if originalHasTime {
+                return (mergeDate(llmDate!, withTimeFrom: originalDate), true)
+            }
+            return (llmDate, false)
+        }
+        return (originalDate, originalHasTime)
+    }
+
+    /// 将 date 的时间部分替换为 source 的时分
+    static func mergeDate(_ date: Date, withTimeFrom source: Date) -> Date {
+        let calendar = Calendar.current
+        var merged = calendar.dateComponents([.year, .month, .day], from: date)
+        let timeComps = calendar.dateComponents([.hour, .minute], from: source)
+        merged.hour = timeComps.hour
+        merged.minute = timeComps.minute
+        return calendar.date(from: merged) ?? date
+    }
+
+    /// 提醒生效值：用户改过（空 = 显式清空）> AI 绝对提醒 > 有截止时刻默认提前 15 分钟 > 无
+    static func effectiveReminders(data: [String: String], dueDate: Date?, hasTime: Bool) -> Set<TaskReminder>? {
+        if data[userRemindersKey] != nil {
+            let edited = decodeReminders(data[userRemindersKey]) ?? []
+            return edited.isEmpty ? nil : Set(edited)
+        }
+        let aiReminders = ReminderSlotParser.parse(from: data)
+            .compactMap { NLDateParser.parse($0) }
+            .map { TaskReminder(triggerDate: $0) }
+        if !aiReminders.isEmpty {
+            return Set(aiReminders)
+        }
+        return (hasTime && dueDate != nil) ? [TaskReminder(offsetMinutes: 15)] : nil
+    }
+
+    /// 子条目生效值：用户编辑保留单项；AI 通道沿用「≥2 项才算清单」
+    static func effectiveSubtasks(data: [String: String]) -> [String] {
+        if let raw = data[userSubtasksKey] {
+            return raw.split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        }
+        return SubtaskParser.parse(data["subtasks"])
+    }
+
+    /// 清单名生效值：用户选择（空串哨兵归一为 nil = 收件箱）> AI listName；nil = 未指定归默认
+    static func effectiveListName(data: [String: String]) -> String? {
+        if let user = data[userListNameKey] {
+            let trimmed = user.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        let ai = data["listName"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return ai.isEmpty ? nil : ai
+    }
+
+    /// 卡片显示用：截止时间中文摘要（NLDateParser 与用户覆盖的 ISO 格式都认；解析不了的原文透传）
+    static func displayDueDate(_ raw: String?, originalInput: String? = nil) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if let date = NLDateParser.parse(raw) ?? parseUserDueDate(raw)?.date {
+            let hasTime = NLDateParser.containsTimeComponent(raw) || parseUserDueDate(raw)?.hasTime == true
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.setLocalizedDateFormatFromTemplate(hasTime ? "MMMdHHmm" : "MMMd")
+            return formatter.string(from: date)
+        }
+        return raw
+    }
+
+    /// 绝对提醒（全天/无截止时刻场景）的默认触发时刻：
+    /// 锚定任务日 09:00——「明天的任务」配「现在+1h」的提醒会响在任务日之前，属无效提醒；
+    /// 当日 9 点已过给最近整点；任务无日期才退回 now+1h。
+    /// 纯函数注入 now，单测锁定，杜绝别处再写「取现在」。
+    static func defaultAbsoluteTrigger(
+        anchorDate: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        guard let anchorDate else { return now.addingTimeInterval(3600) }
+        let day = calendar.dateComponents([.year, .month, .day], from: anchorDate)
+        if let nine = calendar.date(from: DateComponents(
+            year: day.year, month: day.month, day: day.day, hour: 9
+        )), nine > now {
+            return nine
+        }
+        let nextHour = calendar.date(byAdding: .hour, value: 1, to: now) ?? now.addingTimeInterval(3600)
+        return calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: nextHour)) ?? nextHour
+    }
+}
+
+extension DateFormatter {
+    /// 用户覆盖截止时间的固定格式（en_US_POSIX 保证不随设备区域变）
+    static let holoUserDueDateTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    static let holoUserDueDateDay: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
 }

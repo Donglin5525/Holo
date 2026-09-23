@@ -49,17 +49,18 @@ struct TodayOverviewSection: View {
 
                 divider
 
-                // 今日记录快速入口（默认折叠为一行入口）
+                // 「对 Holo 说」快速记录（原「记录今天」误指想法编辑器；激活方案 §3.2 改指向 AI + 预填）
                 Button {
                     onAddRecord?()
                 } label: {
-                    Label(String(localized: "记录今天"), systemImage: "plus.circle")
+                    Label(String(localized: "对 Holo 说"), systemImage: "sparkles")
                         .font(.subheadline)
                         .foregroundStyle(Color.holoPrimary)
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("todayQuickRecordButton")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)

@@ -112,6 +112,11 @@ final class HoloContextPlanRunController: @unchecked Sendable {
     }
 
     /// 终态：方案就绪。finalRunID 用于把临时 runID 换成草案真实 runID。
+    /// 2026-09-20：draftReady 不再 writeThrough——「就绪」信封必须与方案 JSON 在
+    /// 同一笔 finalizeMessage 里原子落库。此前先单独落「就绪」，落库链路任何一处
+    /// 失败都会留下「已就绪但无方案」的死状态（真机实锤：云端已领取已 ack、
+    /// 本地只剩就绪信封，且终态不进对账、永远无人收治）。这里只推进内存态
+    /// 并注销登记表，持久化由调用方随方案一起单笔写入。
     func completeDraft(finalRunID: String? = nil) {
         lock.lock()
         defer { lock.unlock() }
@@ -121,7 +126,6 @@ final class HoloContextPlanRunController: @unchecked Sendable {
         _envelope.stageRevision += 1
         _envelope.updatedAt = Date()
         _envelope.failureCode = nil
-        writeThroughLocked()
         HoloContextPlanRunRegistry.shared.markDone(messageID)
     }
 
@@ -193,8 +197,29 @@ final class HoloContextPlanRunController: @unchecked Sendable {
             }
     }
 
+    /// 「就绪但无方案」孤儿运行（2026-09-20 真机实锤）：信封已 draftReady 终态、
+    /// 方案 JSON 却没落上。终态运行不进 interruptedRunIDs 对账，此前永远无人
+    /// 收治——用户看到「已就绪」却没有方案、没有报错、没有入口。这里单独
+    /// 识别出来交对账收治：云端结果仍在则补领落卡（完整恢复），已销毁则转诚实失败。
+    static func orphanReadyRunIDs(from messages: [ChatMessageViewData]) -> [UUID] {
+        messages
+            .filter { $0.messageType == .contextPlan }
+            .filter { $0.contextPlanJSON == nil }
+            .compactMap { message -> UUID? in
+                guard let envelope = decode(message.contextPlanRunJSON),
+                      envelope.stage == .draftReady,
+                      !HoloContextPlanRunRegistry.shared.isLive(message.id)
+                else { return nil }
+                return message.id
+            }
+    }
+
     /// 对账失败的统一终态载荷。
-    static func interruptedEnvelope(for messageID: UUID, previous: HoloContextPlanRunEnvelope?) -> HoloContextPlanRunEnvelope {
+    static func interruptedEnvelope(
+        for messageID: UUID,
+        previous: HoloContextPlanRunEnvelope?,
+        failureCode: String = "PLANNING_RUN_INTERRUPTED"
+    ) -> HoloContextPlanRunEnvelope {
         var envelope = previous ?? HoloContextPlanRunEnvelope(
             runID: messageID.uuidString,
             assistantMessageID: messageID,
@@ -203,7 +228,7 @@ final class HoloContextPlanRunController: @unchecked Sendable {
         envelope.stage = .failed
         envelope.stageRevision += 1
         envelope.updatedAt = Date()
-        envelope.failureCode = "PLANNING_RUN_INTERRUPTED"
+        envelope.failureCode = failureCode
         envelope.canResume = false
         return envelope
     }

@@ -83,6 +83,7 @@ struct ContextExtractorOrchestratorStandaloneTests {
         var records: [HoloMemoryRecord] = []
         var successfulBatchKeys: Set<String> = []
         var cursor: HoloContextExtractionCursorState?
+        var domainCursors: [String: HoloContextExtractionCursorState] = [:]
         var tombstones: [HoloMemoryTombstone] = []
         var generation = HoloContextExtractionGeneration(userDecisionVersion: 1, learningBaselineAt: nil)
         /// sourceID → 当前修订（竞态模拟：LLM 返回后改这里）。
@@ -114,6 +115,15 @@ struct ContextExtractorOrchestratorStandaloneTests {
 
         func saveCursor(_ cursor: HoloContextExtractionCursorState) async throws {
             self.cursor = cursor
+        }
+
+        // R1 四域：内存按域游标（thought 域回落单游标语义）。
+        func loadCursor(domain: String) async throws -> HoloContextExtractionCursorState? {
+            domain == "thought" ? cursor : domainCursors[domain]
+        }
+
+        func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws {
+            if domain == "thought" { self.cursor = cursor } else { domainCursors[domain] = cursor }
         }
 
         func currentGeneration() async throws -> HoloContextExtractionGeneration { generation }
@@ -521,6 +531,14 @@ final class StaleGenerationWriter: HoloPersonalContextRecordWriting, @unchecked 
 
     func saveCursor(_ cursor: HoloContextExtractionCursorState) async throws {
         try await base.saveCursor(cursor)
+    }
+
+    func loadCursor(domain: String) async throws -> HoloContextExtractionCursorState? {
+        try await base.loadCursor(domain: domain)
+    }
+
+    func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws {
+        try await base.saveCursor(cursor, domain: domain)
     }
 
     func currentGeneration() async throws -> HoloContextExtractionGeneration {

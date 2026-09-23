@@ -17,6 +17,12 @@ enum OnboardingProgressStore {
     /// 记忆长廊首访欢迎条
     static let memoryGalleryWelcomeKey = "holo_welcome_memory_gallery_v1_seen"
 
+    /// 首页「第一步行动卡」手动关闭态（产生首条记录的自动消失不落盘，仅记录用户点 ×）
+    static let firstStepCardDismissedKey = "holo_first_step_card_dismissed_v1"
+
+    /// 首次记录庆祝已展示（一次即封，老用户不触发）
+    static let firstRecordCelebrationShownKey = "holo_first_record_celebration_shown_v1"
+
     static func hasSeen(_ key: String, defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: key)
     }

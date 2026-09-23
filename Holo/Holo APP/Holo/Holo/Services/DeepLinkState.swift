@@ -121,18 +121,24 @@ class DeepLinkState: ObservableObject {
 
     func handle(url: URL) {
         guard let widgetTarget = HoloWidgetDeepLink.parse(url) else { return }
-        Task { @MainActor in
-            await HoloSubscriptionService.shared.refreshStatus()
-            guard HoloEntitlementState.shared.isPlusActive else {
-                // 免费用户被付费墙拦截时，把原跳转目标作为 resume 闭包传入：
-                // 购买成功后由 resumeAfterSuccessfulPurchase 触发续跳，避免购买成功却停在原页。
-                HoloPlusActionCoordinator.shared.requirePlus(context: .desktopWidget) {
-                    self.navigate(to: DeepLinkTarget(widgetTarget))
-                }
-                return
+        // 权益判断用本地快照（冷启动即从磁盘恢复，弱网不误判），不阻塞在网络刷新上——
+        // 否则点小组件拉起 App 后要等最多 30 秒服务端响应才导航；正式权益仍由
+        // 冷启动/回前台的既有刷新通道保持准确。
+        guard HoloEntitlementState.shared.isPlusActive else {
+            // 免费用户点小组件拉起：弹付费墙；无论购买成功（resume）还是直接关闭
+            // （onDismiss，深链落点页面本身不需要 Plus），都续跳到目标页，
+            // 避免用户关掉付费墙后被丢在首页。
+            let navigateToTarget = {
+                self.navigate(to: DeepLinkTarget(widgetTarget))
             }
-            navigate(to: DeepLinkTarget(widgetTarget))
+            HoloPlusActionCoordinator.shared.requirePlus(
+                context: .desktopWidget,
+                resume: navigateToTarget,
+                onDismiss: navigateToTarget
+            )
+            return
         }
+        navigate(to: DeepLinkTarget(widgetTarget))
     }
 
     // MARK: - Initialization

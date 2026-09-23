@@ -22,6 +22,11 @@ struct ContentView: View {
     /// iPad 侧边栏选中态
     @State private var sidebarSelection: HoloSidebarDestination = .today
 
+    /// iPad 侧边栏形态：用户手动收起/展开后的选择；nil = 未干预，跟随窗口自动策略
+    /// （扣 232 后主内容 ≥600 常驻，否则窄条）。旋转/分屏时未干预则自动重估，
+    /// 干预过则尊重用户选择——侧边栏形态变化不清空任何业务状态。
+    @State private var manualSidebarVisibility: HoloLayoutPolicy.SidebarVisibility?
+
     @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
     @State private var pendingGoalDetailId: UUID?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -48,7 +53,7 @@ struct ContentView: View {
                     .ignoresSafeArea()
 
                 if useIPadSidebar {
-                    iPadSidebarShell
+                    iPadSidebarShell(windowWidth: geo.size.width)
                 } else {
                     iPhoneTabs
                 }
@@ -79,24 +84,47 @@ struct ContentView: View {
 
     // MARK: - iPad 侧边栏骨架
 
-    /// 左侧边栏 + 右侧宿主。宿主是 HomeView：首页内容、七个常驻模块、
+    /// 左侧边栏（常驻/窄条两态）+ 右侧宿主。宿主是 HomeView：首页内容、七个常驻模块、
     /// 设置/个人页面层都由它承载（常驻栈机制不变，保滚动位置与聊天状态）。
-    private var iPadSidebarShell: some View {
-        HStack(spacing: 0) {
+    /// 宿主区注入 `holoContentWidth`（业务模块唯一合法的宽度事实源）。
+    private func iPadSidebarShell(windowWidth: CGFloat) -> some View {
+        let autoVisibility: HoloLayoutPolicy.SidebarVisibility =
+            HoloLayoutPolicy.prefersPersistentSidebar(windowWidth: windowWidth) ? .persistent : .rail
+        let visibility = manualSidebarVisibility ?? autoVisibility
+
+        return HStack(spacing: 0) {
             HoloSidebarView(
                 selection: $sidebarSelection,
+                visibility: visibility,
+                onToggleVisibility: { target in
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        manualSidebarVisibility = target
+                    }
+                },
                 onQuickCapture: {
                     HoloShortcutBus.shared.post(.newItemAtCurrentModule)
                 }
             )
 
-            ZStack {
-                Color.holoBackground
-                    .ignoresSafeArea()
+            Rectangle()
+                .fill(Color.holoBorder.opacity(0.5))
+                .frame(width: 0.5)
 
-                HomeView(sidebarSelection: $sidebarSelection)
+            GeometryReader { hostGeo in
+                ZStack {
+                    Color.holoBackground
+                        .ignoresSafeArea()
+
+                    HomeView(sidebarSelection: $sidebarSelection)
+                }
+                .environment(
+                    \.holoContentWidth,
+                    HoloLayoutPolicy.contentWidth(windowWidth: windowWidth, sidebar: visibility)
+                )
+                // GeometryReader 的尺寸读数已扣除侧边栏与分隔线；宿主内容布局
+                // 与手算值恒等，直接用 policy 口径注入保证与单测同一公式。
+                .environment(\.holoWindowWidth, hostGeo.size.width)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .ignoresSafeArea(.keyboard)
     }
@@ -162,7 +190,15 @@ struct ContentView: View {
             }
             deepLinkState.pendingTarget = nil
         default:
-            break
+            // 其余目标（小组件/通知/内部跳转）全部由 HomeView 的常驻模块栈消费：
+            // 先把宿主切回「今天」，HomeView 重建后 onAppear/onChange 领取 pendingTarget
+            // 落到对应模块。用户停在「对话/我的」时 HomeView 已被卸载，缺这道分发
+            // 跳转目标会滞留，App 停在原界面。pendingTarget 由 HomeView 消费后自清。
+            if useIPadSidebar {
+                sidebarSelection = .today
+            } else {
+                selectedTab = .today
+            }
         }
     }
 }

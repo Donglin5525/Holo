@@ -34,7 +34,7 @@ struct HealthView: View {
 
     /// 宽屏双栏（通宵冲刺 D1）：expanded 档左（hero+指标+数据源）/右（洞察+生活闭环+周趋势），
     /// 修复单列卡片流在 iPad 全宽拉伸的「放大版 iPhone」观感；iPhone/竖屏单列不变。
-    @Environment(\.holoWindowWidth) private var healthWindowWidth
+    @Environment(\.holoContentWidth) private var healthWindowWidth
     private var isExpandedWidth: Bool {
         HoloAdaptiveLayout.isExpandedWidth(healthWindowWidth)
     }

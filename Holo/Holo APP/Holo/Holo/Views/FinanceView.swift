@@ -62,10 +62,10 @@ struct FinanceView: View {
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
     /// 当前窗口宽度（v2 断点判断用）
-    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.holoContentWidth) private var holoContentWidth
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
-        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+        HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
     }
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }

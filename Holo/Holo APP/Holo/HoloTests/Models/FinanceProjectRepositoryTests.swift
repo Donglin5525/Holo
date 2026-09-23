@@ -16,17 +16,8 @@ import CoreData
 @MainActor
 final class FinanceProjectRepositoryTests: XCTestCase {
 
-    /// 进程级共享容器（与 FinanceReconciliationTests 同款理由：避免反复 load 模型触发不兼容错误）
-    private static let sharedContainer: NSPersistentContainer = {
-        let model = CoreDataTestSupport.sharedModel
-        let container = NSPersistentContainer(name: "FinanceProjectTests", managedObjectModel: model)
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-        try? container.loadPersistentStores { _, _ in }
-        return container
-    }()
-
+    /// 进程唯一测试容器（CoreDataTestSupport R4-1 政策，2026-09-16 迁入）：
+    /// 避免同模型反复 load 触发实体映射歧义（见 CoreDataTestSupport.sharedTestContainer 注释）
     private var context: NSManagedObjectContext!
     private var repo: FinanceRepository!
     private var projectRepo: FinanceProjectRepository!
@@ -34,16 +25,8 @@ final class FinanceProjectRepositoryTests: XCTestCase {
     private var lunchCategory: Holo.Category!
 
     override func setUp() async throws {
-        context = Self.sharedContainer.viewContext
-
-        // 清空上一用例数据（in-memory store 不支持 batch delete，逐实体 fetch+delete）
-        for entityName in ["Transaction", "Category", "Account", "Budget", "FinanceProject"] {
-            let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-            for object in (try? context.fetch(request)) ?? [] {
-                context.delete(object)
-            }
-        }
-        try? context.save()
+        context = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(context, ["Transaction", "Category", "Account", "Budget", "FinanceProject"])
 
         repo = FinanceRepository(context: context)
         projectRepo = FinanceProjectRepository(finance: repo)

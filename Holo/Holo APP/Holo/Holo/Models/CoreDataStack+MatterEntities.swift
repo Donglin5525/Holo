@@ -143,6 +143,8 @@ nonisolated extension CoreDataStack {
         attr("confidence", .doubleAttributeType, optional: false, default: 0)
         let statusRaw = attr("statusRaw", .stringAttributeType, optional: false, default: HoloMatterLinkStatus.proposed.rawValue)
         attr("sourceRevision", .stringAttributeType, optional: true)
+        // V2 计划顺序：仅 todoTask+action 的 link 使用 0...N-1；其余恒 -1（旧数据/CloudKit 轻量迁移兼容）。
+        attr("planOrder", .integer16AttributeType, optional: false, default: -1)
         attr("createdAt", .dateAttributeType, optional: false, default: Date())
         attr("updatedAt", .dateAttributeType, optional: false, default: Date())
         let soft = CoreDataStack.makeSoftDeleteAttributes()

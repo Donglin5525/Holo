@@ -112,6 +112,15 @@ struct TrendChartView: View {
                         }
                     }
 
+                    // —— 末位日期自绘（原因见 axisLabelIndices 注释）：右对齐钉在绘图区右缘 ——
+                    if let plotFrame, let lastPoint = dataPoints.last {
+                        Text(lastPoint.label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.holoTextSecondary)
+                            .frame(width: plotFrame.width, alignment: .trailing)
+                            .position(x: plotFrame.midX, y: plotFrame.maxY + 10)
+                    }
+
                     // —— 触摸手势：拖动/点按查看单日，纵向手势交还页面滚动 ——
                     DirectionalChartGestureOverlay(
                         onChanged: { location in
@@ -350,16 +359,17 @@ struct TrendChartView: View {
         ticks.first { abs($0.unit - axisValue) < 0.01 }?.label ?? ""
     }
 
-    /// 数据点多（>14）时 X 轴稀疏展示（最多 6 个）
+    /// 数据点多（>14）时 X 轴稀疏展示（5 格 + 末位自绘）。
+    /// 末位数据点不进刻度层：横轴刻度文字层的右缘被尾侧余额刻度轴截掉一段，
+    /// 末位标签无论居中还是改锚点都会被钳位到边界上、与倒数第二格叠印——
+    /// 改由 chartOverlay 在绘图区右下角右对齐自绘（与断口标注同一画法）。
     private var axisLabelIndices: [(index: Int, label: String)] {
         let count = dataPoints.count
-        guard count > 0 else { return [] }
-        guard count > 14 else { return (0..<count).map { ($0, dataPoints[$0].label) } }
-        let desiredCount = 6
-        let lastIndex = count - 1
-        let step = max(Double(lastIndex) / Double(desiredCount - 1), 1)
-        return (0..<desiredCount).compactMap { stepIndex in
-            let dataIndex = min(Int((Double(stepIndex) * step).rounded()), lastIndex)
+        guard count > 1 else { return [] }
+        guard count > 14 else { return (0..<(count - 1)).map { ($0, dataPoints[$0].label) } }
+        let step = max(Double(count - 1) / 5, 1)
+        return (0..<5).compactMap { stepIndex in
+            let dataIndex = min(Int((Double(stepIndex) * step).rounded()), count - 2)
             return (dataIndex, dataPoints[dataIndex].label)
         }
     }

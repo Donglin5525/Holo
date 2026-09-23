@@ -115,14 +115,38 @@ nonisolated enum ChatCardData: Equatable {
 
         case .createTask:
             guard let title = data["title"], !title.isEmpty else { return nil }
+            // 用户在确认卡上的编辑（userX 键）优先于 AI 值；口径与 TaskPendingDefaults 一致
+            let userDueDate = data[TaskPendingDefaults.userDueDateKey]
+            let editedReminders = data[TaskPendingDefaults.userRemindersKey] != nil
+                ? (TaskPendingDefaults.decodeReminders(data[TaskPendingDefaults.userRemindersKey]) ?? [])
+                : nil
+            let (effectiveDue, effectiveHasTime) = TaskPendingDefaults.effectiveDueDate(
+                data: data, originalInput: data["originalInput"]
+            )
+            // 提醒显示用生效值（含「有截止时刻默认提前15分钟」）：所见即所建
+            let effectiveReminderTitles: [String]
+            if let edited = editedReminders {
+                effectiveReminderTitles = edited.map(\.displayTitle)
+            } else {
+                let reminders = TaskPendingDefaults.effectiveReminders(
+                    data: data, dueDate: effectiveDue, hasTime: effectiveHasTime
+                ) ?? []
+                let absolute = reminders.filter { $0.isAbsolute }
+                    .sorted { ($0.triggerDate ?? .distantPast) < ($1.triggerDate ?? .distantPast) }
+                let relative = reminders.filter { !$0.isAbsolute }
+                    .sorted { $0.offsetMinutes > $1.offsetMinutes }
+                effectiveReminderTitles = (absolute + relative).map(\.displayTitle)
+            }
             return .task(TaskCardData(
                 title: title,
-                dueDate: data["dueDate"],
+                dueDate: userDueDate ?? data["dueDate"],
                 priority: data["priority"],
                 description: data["description"],
-                subtasks: SubtaskParser.parse(data["subtasks"]),
+                subtasks: data[TaskPendingDefaults.userSubtasksKey] != nil
+                    ? TaskPendingDefaults.effectiveSubtasks(data: data)
+                    : SubtaskParser.parse(data["subtasks"]),
                 reminderDate: data["reminderDate"],
-                reminderDates: ReminderSlotParser.parse(from: data),
+                reminderDates: effectiveReminderTitles,
                 requiresConfirmation: ["pending", "confirming", "failed"]
                     .contains(data["confirmationStatus"] ?? ""),
                 repeatEnabled: data["repeatEnabled"] == "true",
@@ -132,6 +156,10 @@ nonisolated enum ChatCardData: Equatable {
                     .split(separator: ",").compactMap { Int($0) } ?? [],
                 repeatMonthDay: data["repeatMonthDay"].flatMap { Int($0) },
                 repeatSummary: data["repeatSummary"],
+                listName: TaskPendingDefaults.effectiveListName(data: data),
+                listChosenByUser: data[TaskPendingDefaults.userListNameKey] != nil,
+                editedReminders: editedReminders,
+                hasTime: effectiveHasTime,
                 taskId: data["taskId"].flatMap(UUID.init(uuidString:)),
                 itemID: itemID,
                 isConfirming: data["confirmationStatus"] == "confirming",
@@ -618,6 +646,14 @@ nonisolated struct TaskCardData: Equatable {
     let repeatWeekdays: [Int]
     let repeatMonthDay: Int?
     let repeatSummary: String?
+    /// 生效清单名（用户在确认卡上选的 > AI 的 listName）；nil = 收件箱/未指定
+    var listName: String? = nil
+    /// 清单行是否已被用户明确选择过（区分「收件箱」显示与未指定态）
+    var listChosenByUser: Bool = false
+    /// 用户在确认卡上编辑过的提醒（nil = 未编辑，卡片按 AI 值/默认值显示）
+    var editedReminders: [TaskReminder]? = nil
+    /// 截止时间是否带具体时刻（决定提醒行用相对预设还是绝对时刻）
+    var hasTime: Bool = false
     /// 卡片模式（create 新建 / modify 修改已有任务条目）
     let cardMode: TaskCardMode
     /// 关联任务 ID（确认创建后写入；供「补充条目」锚定目标任务）
@@ -652,6 +688,10 @@ nonisolated struct TaskCardData: Equatable {
         repeatWeekdays: [Int] = [],
         repeatMonthDay: Int? = nil,
         repeatSummary: String? = nil,
+        listName: String? = nil,
+        listChosenByUser: Bool = false,
+        editedReminders: [TaskReminder]? = nil,
+        hasTime: Bool = false,
         cardMode: TaskCardMode = .create,
         taskId: UUID? = nil,
         addItems: [String] = [],
@@ -678,6 +718,10 @@ nonisolated struct TaskCardData: Equatable {
         self.repeatWeekdays = repeatWeekdays
         self.repeatMonthDay = repeatMonthDay
         self.repeatSummary = repeatSummary
+        self.listName = listName
+        self.listChosenByUser = listChosenByUser
+        self.editedReminders = editedReminders
+        self.hasTime = hasTime
         self.cardMode = cardMode
         self.taskId = taskId
         self.addItems = addItems

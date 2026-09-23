@@ -1,0 +1,73 @@
+{
+  "fixtureID": "tpl-travel-elderly-01",
+  "domainTags": [
+    "出行",
+    "家庭",
+    "照护"
+  ],
+  "sources": [
+    {
+      "sourceID": "task:task-meds",
+      "sourceDomain": "task",
+      "sourceKind": "todoTask",
+      "plainText": "提醒奶奶吃降压药",
+      "recordedAt": "2026-09-01T09:00:00+08:00",
+      "eventTime": "2026-09-01T09:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "businessState": {
+        "completed": "true"
+      }
+    },
+    {
+      "sourceID": "thought:note-elder",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "奶奶一个人住，我每周日下午过去看她。这周加班没去成，有点担心。",
+      "recordedAt": "2026-09-13T23:00:00+08:00",
+      "eventTime": "2026-09-13T23:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 10 月 20 日到 27 日要去青岛培训，请帮我安排一下这段时间家里的事。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户每周探望独居的奶奶并有用药提醒责任",
+      "basisSourceIDs": [
+        "task:task-meds",
+        "thought:note-elder"
+      ],
+      "epistemicStatus": "inferred"
+    },
+    {
+      "statement": "最近一次探望未完成",
+      "basisSourceIDs": [
+        "thought:note-elder"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "培训期间奶奶由谁照看",
+    "用药提醒是否有其他家人分担"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "建议核实外出期间奶奶的探望与用药安排"
+    }
+  ],
+  "forbiddenClaims": [
+    "断言奶奶健康状况恶化",
+    "替用户承诺家人会照顾"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "thought 改为「奶奶最近搬去和姑姑住了」",
+      "expectedEffect": "照看责任减弱，建议降级或不出现"
+    }
+  ]
+}

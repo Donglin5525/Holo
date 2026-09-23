@@ -14,8 +14,11 @@ struct KanbanTaskSection: View {
     @State private var showAddSheet = false
     @State private var refreshTrigger = false
 
-    /// 撤回窗口（来自 repository 全局状态，与 TaskListView 共享）
-    private var pendingCompletionTaskId: UUID? { todoRepo.pendingCompletionTaskId }
+    /// 完成协调层（G1 完成契约：与 TaskListView 等入口共享同一撤回窗口）
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
+
+    /// 撤回窗口（来自完成协调层全局状态，与 TaskListView 共享）
+    private var pendingCompletionTaskId: UUID? { completionCoordinator.pending?.taskID }
 
     /// 选中查看详情的任务
     private struct TaskSelection: Identifiable, Equatable {
@@ -369,8 +372,8 @@ struct KanbanTaskSection: View {
             // 撤回窗口内再点完成圈 → 撤回完成（与任务列表一致）
             undoCompletion()
         } else {
-            // 未完成 → 走全局 3 秒撤回流程
-            todoRepo.startPendingCompletion(for: task)
+            // 未完成 → 走统一完成协调层的 3 秒撤回流程
+            completionCoordinator.requestCompletion(taskID: task.id, source: .todayTaskSection, in: todoRepo)
             HapticManager.taskCompletion()
         }
     }
@@ -378,7 +381,7 @@ struct KanbanTaskSection: View {
     /// 撤回任务完成
     private func undoCompletion() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            todoRepo.undoPendingCompletion()
+            completionCoordinator.undo(in: todoRepo)
         }
         HapticManager.light()
     }

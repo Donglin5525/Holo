@@ -52,6 +52,13 @@ class CalendarState: ObservableObject {
     
     /// 选中日期的交易列表
     @Published var selectedDayTransactions: [Transaction] = []
+
+    /// 渲染用有效明细：外部删除路径（如分类删除连查明细）落库后、刷新落地前，
+    /// 数组会短暂残留已失效对象（managedObjectContext 已被清空），
+    /// SwiftUI 渲染读其属性会强桥接崩溃（开发规范 13 节场景 C），消费方一律用本属性
+    var liveDayTransactions: [Transaction] {
+        selectedDayTransactions.filter { $0.managedObjectContext != nil }
+    }
     
     /// 选中日期支出/收入
     @Published var selectedDayExpense: Decimal = 0
@@ -76,17 +83,39 @@ class CalendarState: ObservableObject {
     /// 缓存：key = 月首日，value = 月度 DailySummary
     private var summaryCache: [Date: [Date: DailySummary]] = [:]
     private let repository = FinanceRepository.shared
+
+    /// 财务数据变化通知订阅
+    private var changeObserver: AnyCancellable?
+
+    init() {
+        // 与 FinanceView 同生命周期，在此统一监听财务数据变化并清缓存重载：
+        // 不依赖账本视图恰好在屏（此前在固定支出页落账后切回账本，月度卡片仍是旧缓存）
+        changeObserver = NotificationCenter.default
+            .publisher(for: .financeDataDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.refreshAfterDataChange() }
+            }
+    }
     
     // MARK: - 日期操作
     
     /// 选中某一天（自动加载交易数据）
     func selectDate(_ date: Date) {
+        // 跨月选日时必须重载该月汇总与环比，否则顶部"本月支出"卡残留上一个月的数字
+        let monthChanged = !date.isSameMonth(as: currentMonth)
         selectedDate = date
         currentWeekStart = date.startOfWeek
-        if !date.isSameMonth(as: currentMonth) {
+        if monthChanged {
             currentMonth = date.startOfMonth
         }
-        Task { await loadSelectedDayData() }
+        Task {
+            if monthChanged {
+                await loadMonthSummaries(for: currentMonth)
+                await loadPreviousPeriodComparison()
+            }
+            await loadSelectedDayData()
+        }
     }
     
     func goToNextMonth() { currentMonth = currentMonth.addingMonths(1); loadMonthIfNeeded() }

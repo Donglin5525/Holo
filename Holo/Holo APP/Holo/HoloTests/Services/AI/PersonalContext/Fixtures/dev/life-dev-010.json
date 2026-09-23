@@ -1,0 +1,51 @@
+{
+  "fixtureID": "tpl-passport-trap-01",
+  "domainTags": [
+    "出行",
+    "词面陷阱"
+  ],
+  "sources": [
+    {
+      "sourceID": "thought:note-care",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "上次出门前托邻居照护过阳台的花。",
+      "recordedAt": "2026-06-01T20:00:00+08:00",
+      "eventTime": "2026-06-01T20:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 12 月 1 日到 8 日去巴黎，护照已经办好了。签证、机票、酒店都还没有安排，请帮我做好出发前的准备。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户曾托邻居照护家中植物",
+      "basisSourceIDs": [
+        "thought:note-care"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "本次出行植物照护安排"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "植物照护建议来自真实来源（照护经历），而非「护照」词面"
+    }
+  ],
+  "forbiddenClaims": [
+    "把「护照」当成照护相关的依据",
+    "断言用户养宠物"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "thought 改为「上次出门什么都没安排」",
+      "expectedEffect": "不出现任何照护建议"
+    }
+  ]
+}

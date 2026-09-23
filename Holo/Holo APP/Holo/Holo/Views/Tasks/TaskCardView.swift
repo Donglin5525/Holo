@@ -37,12 +37,13 @@ struct TaskCardView: View {
     @ObservedObject var repository: TodoRepository
     var onNavigate: (() -> Void)?
     var isCompleting: Bool = false
-    var onToggleCompletion: (() -> Void)?
+    /// 完成切换回调：子任务全勾触发父任务完成时带出触发子任务快照（勾选前状态），
+    /// 由外层转发给 HoloTaskCompletionCoordinator 做撤回恢复；主动点完成圈时为 nil
+    var onToggleCompletion: ((_ trigger: (checkItemID: UUID, wasChecked: Bool)?) -> Void)?
     /// 点击纪念日来源徽章时跳转
     var onNavigateToAnniversary: ((UUID) -> Void)?
     /// 点击时间胶囊弹出延期面板（nil = 胶囊不可点，如重复任务/未安排任务）
     var onPostpone: (() -> Void)?
-
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
 
@@ -216,54 +217,48 @@ struct TaskCardView: View {
                         }
                     }
 
-                    // 子任务进度：n/m + 迷你进度条（与习惯磁贴计数类同款语言）
+                    // 子任务进度：只保留「已完成 X/Y 项」辅助文字，去掉迷你进度条
+                    // （动效融合定稿 §5：移去重复表达完成比例的迷你条；文字不能盖过具体步骤）
                     let completedCount = checkItems.filter(\.isChecked).count
-                    HStack(spacing: 8) {
-                        Text("\(completedCount)/\(checkItems.count)")
-                            .font(.system(size: 10.5, weight: .bold))
-                            .foregroundColor(.holoPrimary)
+                    let showsProgressText = completedCount > 0 && completedCount < checkItems.count
+                    if showsProgressText || checkItems.count > 5 {
+                        HStack(spacing: 8) {
+                            if showsProgressText {
+                                Text(String(localized: "已完成 \(completedCount)/\(checkItems.count) 项"))
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoTextSecondary)
+                            }
 
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.holoDivider)
-
-                                Capsule()
-                                    .fill(Color.holoPrimary)
-                                    .frame(width: geo.size.width * CGFloat(completedCount) / CGFloat(checkItems.count))
+                            // 更多项指示 / 展开按钮
+                            if checkItems.count > 5 {
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        isChecklistExpanded.toggle()
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: isChecklistExpanded ? "chevron.up" : "ellipsis")
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text(isChecklistExpanded ? String(localized: "收起") : String(localized: "还有 \(checkItems.count - 5) 项"))
+                                            .font(.holoTinyLabel)
+                                    }
+                                    .foregroundColor(.holoPrimary)
+                                }
+                                .buttonStyle(.plain)
+                                .fixedSize()
+                            } else {
+                                Spacer(minLength: 0)
                             }
                         }
-                        .frame(height: 3)
-
-                        // 更多项指示 / 展开按钮
-                        if checkItems.count > 5 {
-                            Button {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    isChecklistExpanded.toggle()
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: isChecklistExpanded ? "chevron.up" : "ellipsis")
-                                        .font(.system(size: 12, weight: .medium))
-                                    Text(isChecklistExpanded ? String(localized: "收起") : String(localized: "还有 \(checkItems.count - 5) 项"))
-                                        .font(.holoTinyLabel)
-                                }
-                                .foregroundColor(.holoPrimary)
-                            }
-                            .buttonStyle(.plain)
-                            .fixedSize()
-                        } else {
-                            Spacer(minLength: 0)
-                        }
+                        .padding(.top, HoloSpacing.xs)
                     }
-                    .padding(.top, HoloSpacing.xs)
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.sm)
             }
         }
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        // 任务卡始终使用 Holo 共同骨架；完成仪式只出现在瞬时回执中。
+        .holoCard()
         // 左侧清单色条：一眼区分归属（无清单任务无色条）
         .overlay(alignment: .leading) {
             if let stripe = listStripeColor {
@@ -273,7 +268,6 @@ struct TaskCardView: View {
                     .padding(.vertical, 12)
             }
         }
-        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         // 整卡热区：留白、元信息、子任务平铺区点按均可进入任务页；
         // 完成圈 / 子任务勾选 / 纪念日徽章等子视图交互优先消费，不触发跳转
         .contentShape(Rectangle())
@@ -424,7 +418,7 @@ struct TaskCardView: View {
     private func toggleCompletion() {
         // 优先使用回调（TaskListView 会在回调中区分完成/取消完成/撤回）
         if let onToggleCompletion = onToggleCompletion {
-            onToggleCompletion()
+            onToggleCompletion(nil)
             return
         }
 
@@ -448,6 +442,8 @@ struct TaskCardView: View {
 
     private func toggleCheckItem(_ item: CheckItem) {
         do {
+            // 勾选前先取旧值：它是「触发父任务完成」的撤回恢复依据
+            let wasChecked = item.isChecked
             try repository.toggleCheckItem(item)
 
             // 所有子项完成 → 通过 onToggleCompletion 走撤回流程自动完成父任务
@@ -457,9 +453,9 @@ struct TaskCardView: View {
 
             let allChecked = items.allSatisfy(\.isChecked)
             if allChecked && !task.completed && !isCompleting {
-                onToggleCompletion?()
+                onToggleCompletion?((checkItemID: item.id, wasChecked: wasChecked))
             } else if !allChecked && (task.completed || isCompleting) {
-                onToggleCompletion?()
+                onToggleCompletion?(nil)
             }
         } catch {
             Self.logger.error("切换子任务状态失败: \(error.localizedDescription)")

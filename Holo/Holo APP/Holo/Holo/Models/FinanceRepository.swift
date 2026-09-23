@@ -987,12 +987,13 @@ final class SpendingProjectRepository {
         project.amountMode = kind == .recurring ? SpendingProjectAmountMode.perOccurrence.rawValue : nil
         project.paymentMode = nil
         project.frequency = frequency?.rawValue
-        project.startDate = startDate
+        // 开始日期归一到当天零点：DatePicker 只选日期不带时间，落账的"当天"语义不应依赖保存时刻的时分秒
+        project.startDate = startDate.startOfDay
         project.endDate = endDate
         project.maxOccurrences = maxOccurrences
         project.occurrencesGenerated = 0
         project.plannedLifespanDays = plannedLifespanDays
-        project.nextOccurrenceDate = kind == .recurring ? startDate : nil
+        project.nextOccurrenceDate = kind == .recurring ? project.startDate : nil
         project.isPaused = false
         project.autoGenerateTransaction = kind == .recurring && autoGenerateTransaction
         project.usageCount = 0
@@ -1002,7 +1003,9 @@ final class SpendingProjectRepository {
         project.createdAt = Date()
         project.updatedAt = Date()
         try context.save()
-        SpendingProjectBackgroundService.shared.scheduleNextTask()
+        // 保存规则后立即补账：开始日期当天的首笔当场生成进账本，
+        // 不再依赖后台任务或下次进入固定支出页（补账幂等，未来期次不会提前入账）
+        try syncRecurringProjects()
         return project
     }
 

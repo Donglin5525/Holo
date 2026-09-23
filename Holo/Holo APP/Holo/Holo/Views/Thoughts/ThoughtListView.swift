@@ -109,7 +109,7 @@ struct ThoughtListView: View {
 
     /// 宽屏双栏（v2 设计稿③）：expanded 档列表+详情同屏（46:54），不再全屏跳转；
     /// 11 寸竖屏/medium 档与手机维持「点卡片全屏详情」
-    @Environment(\.holoWindowWidth) private var thoughtWindowWidth
+    @Environment(\.holoContentWidth) private var thoughtWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(thoughtWindowWidth) }
 
     /// 全屏编辑器 cover 的门控绑定：宽屏编辑器常驻右栏，cover 恒 nil 不弹；
@@ -1193,18 +1193,6 @@ struct ThoughtListView: View {
                                     showTopicPicker = true
                                 } label: {
                                     Label("移入主题", systemImage: "folder")
-                                }
-
-                                // 详情页下线后卡片上没有复制入口；正文选字又与这个
-                                // 长按菜单互斥（长按被菜单抢占），补「拷贝正文」兜全文复制
-                                Button {
-                                    UIPasteboard.general.string = MarkdownTextView.accessibilityText(
-                                        richJSON: thought.richContentJSON,
-                                        fallbackPlainText: thought.content
-                                    )
-                                    HapticManager.light()
-                                } label: {
-                                    Label("拷贝正文", systemImage: "doc.on.doc")
                                 }
                             }
                         },

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "gw-001",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "想先弄清楚一件事——「不敢开口」这件事，卡住你的到底是哪一层。",
+        "question": {
+          "text": "开会时你更常遇到的是哪种情况：脑子里有想法但一到嘴边就紧张、怕说错，还是开口了却发现英语跟不上、表达不出来？",
+          "whyItMatters": "如果是前者，方案会偏向低压力的开口练习和真实场景暴露；如果是后者，重点会放在高频表达句型的积累和复用上，两条路要练的东西完全不一样。"
+        }
+      },
+      {
+        "turn": "propose_options",
+        "kind": "options",
+        "optionCount": 3,
+        "recommended": "route-1"
+      },
+      {
+        "turn": "build_plan",
+        "kind": "plan",
+        "title": "在工作会议中更敢开口说英语",
+        "taskCount": 3,
+        "habitCount": 1,
+        "assumptionCount": 4
+      }
+    ],
+    "violations": [],
+    "needsHumanReview": true,
+    "contractOK": true
+  },
+  {
+    "id": "gw-002",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "三个月考过 PMP，时间不算宽裕，先把最关键的一件事确认清楚，我好帮你把节奏排出来。",
+        "question": {
+          "text": "你已经修完 PMP 报名需要的 35 学时培训了吗？还是连培训也要放进这三个月里？",
+          "whyItMatters": "这决定三个月里要不要额外挤出上课时间——如果培训还没开始，备考节奏和纯刷题冲刺完全是两套排法。"
+        }
+      },
+      {
+        "turn": "propose_options",
+        "kind": "options",
+        "optionCount": 3,
+        "recommended": "route-1"
+      },
+      {
+        "turn": "build_plan",
+        "kind": "plan",
+        "title": "三个月通过 PMP 认证",
+        "taskCount": 6,
+        "habitCount": 1,
+        "assumptionCount": 4
+      }
+    ],
+    "violations": [],
+    "needsHumanReview": true,
+    "contractOK": true
+  }
+]

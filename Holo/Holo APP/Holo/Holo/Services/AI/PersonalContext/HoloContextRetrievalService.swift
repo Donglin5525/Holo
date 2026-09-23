@@ -96,7 +96,9 @@ nonisolated struct HoloContextRetrievalService: Sendable {
             semanticScores = Self.lexicalScores(frame: frame, catalog: catalog)
         }
 
-        // 2) 信号合并。
+        // 2) 信号合并。时间窗：冻结情境区间优先，缺省回落 now+30（兼容旧行为）。
+        let impactWindow = frame.resolvedInterval
+            ?? (start: now, end: now.addingTimeInterval(30 * 86_400))
         var signals: [String: Set<HoloContextRetrievalSignal>] = [:]
 
         for candidate in catalog {
@@ -110,9 +112,10 @@ nonisolated struct HoloContextRetrievalService: Sendable {
             if let temporal = candidate.payload.temporal,
                HoloContextTemporalResolver.overlaps(
                    temporal: temporal,
-                   rangeStart: now,
-                   rangeEnd: now.addingTimeInterval(30 * 86_400),
-                   now: now
+                   rangeStart: impactWindow.start,
+                   rangeEnd: impactWindow.end,
+                   now: now,
+                   calendar: calendar
                ),
                HoloContextTemporalResolver.isActive(temporal: temporal, at: now) {
                 matched.insert(.temporalOverlap)
@@ -121,6 +124,22 @@ nonisolated struct HoloContextRetrievalService: Sendable {
                 matched.insert(.conditionMatch)
             }
             signals[candidate.recordID] = matched
+        }
+
+        // 2b) R9 修复：linkedContextIDs 只做已命中候选的受限一跳扩展
+        //（指向 catalog 内尚未命中的候选时带入 conditionMatch），不构成独立召回理由。
+        let recordIDByContextID = Dictionary(
+            catalog.map { ($0.payload.contextID, $0.recordID) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for candidate in catalog {
+            guard let matched = signals[candidate.recordID], !matched.isEmpty else { continue }
+            for linkedContextID in candidate.payload.linkedContextIDs {
+                if let targetID = recordIDByContextID[linkedContextID],
+                   signals[targetID]?.isEmpty != false {
+                    signals[targetID, default: []].insert(.conditionMatch)
+                }
+            }
         }
         // 3) 合并去重（≤40；向量独占 ≤30 保时间/条件份额）。
         var entries: [HoloContextCatalogEntry] = []
@@ -220,13 +239,27 @@ nonisolated struct HoloContextRetrievalService: Sendable {
         return false
     }
 
-    /// 条件/依赖匹配：范围条件词重叠或存在关联上下文。
+    /// 条件/依赖匹配：条件短语与 frame 的 bigram 重叠。
+    /// CJK bigram 至少 2 个重叠才构成命中（「安排」等高频泛词单撞不算）；
+    /// 西文词 1 个即算。linkedContextIDs 不构成独立召回理由（R9：仅用于
+    /// 已命中候选的受限一跳扩展，在 retrieve 信号合并后统一处理）。
     static func conditionMatches(frame: HoloPlanningRequestFrame, payload: HoloPersonalContextPayloadV1) -> Bool {
-        if !payload.linkedContextIDs.isEmpty { return true }
         guard let condition = payload.applicability.conditionText else { return false }
         let conditionWords = tokenized(condition)
-        let frameWords = tokenized([frame.utterance, frame.goalSummary, frame.scope ?? ""].joined(separator: " "))
-        return !conditionWords.isDisjoint(with: frameWords)
+        // 条件语境只认用户原话与明确范围；goalSummary 是程序摘要（含「出行/安排」
+        // 等泛化词），参与匹配会造成泛词误命中（R3 实测）。
+        let frameWords = tokenized([frame.utterance, frame.scope ?? ""].joined(separator: " "))
+        let overlap = conditionWords.intersection(frameWords)
+        var cjkOverlap = 0
+        var westernOverlap = 0
+        for token in overlap {
+            if token.unicodeScalars.first?.value ?? 0 > 0x2E80 {
+                cjkOverlap += 1
+            } else {
+                westernOverlap += 1
+            }
+        }
+        return cjkOverlap >= 2 || westernOverlap >= 1
     }
 
     /// 降级词法召回（§7.2：多查询词法召回，标记 degraded）。
@@ -265,24 +298,32 @@ nonisolated struct HoloContextRetrievalService: Sendable {
             .joined(separator: " ")
     }
 
-    /// 分词：CJK 按字切 + 西文按词（词法召回的多查询词基础）。
+    /// 分词：CJK 相邻字组合（bigram）+ 西文按词（R1 修复）。
+    /// 单字 token 会让「护照/照护」共享「护」「照」造成词面误召回；
+    /// bigram 要求连续两字相同才重叠；短词拆分的召回损失由语义向量通道兜底。
     static func tokenized(_ text: String) -> Set<String> {
         var tokens: Set<String> = []
         var current = ""
-        for scalar in text.unicodeScalars {
-            if scalar.value > 0x2E80 {
+        var previousCJK: Character? = nil
+        for character in text {
+            if character.unicodeScalars.first?.value ?? 0 > 0x2E80 {
                 if !current.isEmpty {
                     tokens.insert(current.lowercased())
                     current = ""
                 }
-                tokens.insert(String(scalar))
-            } else if scalar.properties.isAlphabetic || scalar.properties.numericType != nil {
-                current.unicodeScalars.append(scalar)
+                if let previous = previousCJK {
+                    tokens.insert(String(previous) + String(character))
+                }
+                previousCJK = character
+            } else if character.isLetter || character.isNumber {
+                current.append(character)
+                previousCJK = nil
             } else {
                 if !current.isEmpty {
                     tokens.insert(current.lowercased())
                     current = ""
                 }
+                previousCJK = nil
             }
         }
         if !current.isEmpty {

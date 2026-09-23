@@ -130,9 +130,19 @@ nonisolated class CoreDataStack {
         return container
     }
 
-    /// 通过代码创建 Core Data 数据模型
-    /// - Returns: NSManagedObjectModel
+    /// 全进程唯一数据模型实例：真栈与测试栈必须共享同一份 NSManagedObjectModel。
+    /// 多份实例（即使内容完全相同）会让 NSManagedObject 子类→实体映射出现全局歧义，
+    /// 装载次数一多即触发系统层「模型不兼容 134020」——fetch 失败被 try? 吞成 nil 的假失败
+    /// （2026-09-16/17 测试域三轮复发，R4-1 B 政策完全体；生产仅 buildContainer 调一次，行为不变）。
+    private static let sharedDataModel: NSManagedObjectModel = CoreDataStack.shared.makeDataModel()
+
     nonisolated func createDataModel() -> NSManagedObjectModel {
+        Self.sharedDataModel
+    }
+
+    /// 通过代码创建 Core Data 数据模型（仅由 sharedDataModel 惰性初始化调用一次）
+    /// - Returns: NSManagedObjectModel
+    private nonisolated func makeDataModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         var entities: [NSEntityDescription] = []
         let goalEntity = createGoalEntity()
@@ -165,6 +175,8 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createRecycleBinEntities())
         // Matter「进行中的事」四实体（ID 逻辑外键、无跨域关系）
         entities.append(contentsOf: createMatterEntities())
+        // 目标共创会话与决策版本（ID 逻辑外键；payload 版本化信封）
+        entities.append(contentsOf: createGoalWorkshopEntities())
         model.entities = entities
         return model
     }

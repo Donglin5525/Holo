@@ -142,9 +142,28 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    /// 未来导航限制：记忆长廊只回看已经发生的生活，三档都不翻到当前期之后。
+    /// 轴档未来排布上限（天）：轴是回放与排布的双面工具，过去回看、未来排事；
+    /// 任务本身可排任意远，导航给一年封顶避免无限空翻，更远的排期走正常建任务。
+    private static let timelineFutureLimitDays = 365
+
+    /// 轴档能翻到的最远日期（一年后的今天，取当天零点）
+    var timelineFutureLimit: Date {
+        Calendar.current.date(
+            byAdding: .day,
+            value: Self.timelineFutureLimitDays,
+            to: Calendar.current.startOfDay(for: Date())
+        ) ?? Calendar.current.startOfDay(for: Date())
+    }
+
+    /// 轴档是否允许继续向未来步进（未到一年上限）
+    private var canTimelineStepForward: Bool {
+        Calendar.current.startOfDay(for: focusedDate) < timelineFutureLimit
+    }
+
+    /// 未来导航限制：日/周/月三档只回看已经发生的生活，不翻到当前期之后；
+    /// 轴档例外——排布未来是它的本职，翻到一年上限为止。
     var canStepForward: Bool {
-        !isAtCurrentPeriod
+        scale == .timeline ? canTimelineStepForward : !isAtCurrentPeriod
     }
 
     var hasFailure: Bool { timelineResult.hasFailure }
@@ -353,15 +372,21 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - 导航
 
-    /// 切换时间刻度：聚焦日期保持不变（统一浏览方案 §6.2 切换规则）
+    /// 切换时间刻度：聚焦日期保持不变（统一浏览方案 §6.2 切换规则）。
+    /// 例外：轴档可以聚焦未来日（排布），日/周/月只回看——离开轴档时
+    /// 把未来的聚焦日期带回今天，避免三档出现「回放一个还没发生的日子」。
     func switchScale(_ s: CalendarScale) {
         guard scale != s else { return }
+        if scale == .timeline && s != .timeline,
+           focusedDate > Calendar.current.startOfDay(for: Date()) {
+            focusedDate = Calendar.current.startOfDay(for: Date())
+        }
         scale = s
         ensureTimelineData(around: focusedDate)
         if s == .week { refreshWeekNarrative() }
     }
 
-    /// 箭头步进：日 ±1 天、周 ±1 周、月 ±1 月，全部只改 focusedDate
+    /// 箭头步进：日/轴 ±1 天、周 ±1 周、月 ±1 月，全部只改 focusedDate
     func step(by delta: Int) {
         let cal = Calendar.current
         let today = Date()
@@ -369,9 +394,14 @@ final class CalendarViewModel: ObservableObject {
         guard var next = cal.date(byAdding: component, value: delta, to: focusedDate) else { return }
         next = cal.startOfDay(for: next)
 
-        // 未来限制：任何尺度都不越过当前期。
-        if delta > 0 && next > today {
-            next = cal.startOfDay(for: today)
+        // 未来限制：日/周/月不越过当前期；轴档允许排布未来，钳在一年上限。
+        if delta > 0 {
+            if scale == .timeline {
+                let limit = timelineFutureLimit
+                if next > limit { next = limit }
+            } else if next > today {
+                next = cal.startOfDay(for: today)
+            }
         }
         guard !cal.isDate(next, inSameDayAs: focusedDate) else { return }
 

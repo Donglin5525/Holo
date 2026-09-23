@@ -48,6 +48,7 @@ struct ReportDetailRoute: View {
                 AgentDeepAnalysisDetailSheet(
                     result: result,
                     onFinanceDrilldown: onFinanceDrilldown,
+                    askedAt: message.timestamp,
                     followUpController: followUpController.canFollowUp ? followUpController : nil,
                     onOpenFollowUpReport: { entry in
                         // DTO 行点击 → 完整消息快照（含完整分析结果）再进子详情

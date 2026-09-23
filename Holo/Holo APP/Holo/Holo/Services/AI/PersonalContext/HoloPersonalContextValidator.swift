@@ -289,6 +289,8 @@ nonisolated enum HoloPersonalContextValidator {
             case selfMerge
             case invalidEpistemicStatus
             case invalidFacet
+            /// R2：declared（本人明说）候选的证据全部是代购/引用他人来源。
+            case thirdPartyOnlyBasis
         }
 
         var code: Code
@@ -358,6 +360,24 @@ nonisolated enum HoloPersonalContextValidator {
                 }
             }
             guard basisValid else { continue }
+
+            // R2 authorship 门禁（方案 §3.7 想法域边界：引用/转述不能变成用户事实）：
+            // declared（本人明说）候选至少需要一个本人归属来源作证据；
+            // 纯代购/引用他人的候选只能走 inferred/observed（弱线索，不构成用户事实）。
+            if candidate.epistemicStatus == "declared" {
+                let hasOwnBasis = candidate.basis.contains { basis in
+                    let authorship = sourcesByID[basis.sourceID]?.authorship
+                    return authorship == nil || authorship == "user"
+                }
+                if !hasOwnBasis {
+                    findings.append(Finding(
+                        code: .thirdPartyOnlyBasis,
+                        candidateRef: ref,
+                        detail: "本人明说候选的证据全部为代购/引用他人来源"
+                    ))
+                    continue
+                }
+            }
 
             var sanitized = candidate
             sanitized.statement = statement

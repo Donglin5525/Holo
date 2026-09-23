@@ -15,7 +15,17 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await ThoughtClassificationFeedbackStoreStandaloneTests.main()
+    }
+}
+#endif
 struct ThoughtClassificationFeedbackStoreStandaloneTests {
 
     static var failures: [String] = []

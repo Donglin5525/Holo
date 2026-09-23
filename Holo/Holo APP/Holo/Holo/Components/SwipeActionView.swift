@@ -66,8 +66,13 @@ struct SwipeActionView<Content: View>: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             actionButtons
+                // 操作层常驻在内容背后；任务完成时卡片会换形成更矮的记录行，
+                // 若闭合态仍参与绘制，换形中间帧会短暂露出最右侧的删除按钮。
+                // 只有用户真正开始左滑后才显示操作层，避免状态动画泄露危险操作。
+                .opacity(offset < -0.5 ? 1 : 0)
+                .allowsHitTesting(offset < -0.5)
 
-                content
+            content
                 .offset(x: offset)
                 .overlay(
                     SwipeGestureOverlay(

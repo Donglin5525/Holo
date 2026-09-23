@@ -155,6 +155,8 @@ class DataImportService {
         var absoluteLine = -1
         // 账单数据行的轻量投影（软检测用；超过上限放弃软检测，内存优先）
         var projections: [BillRowProjection] = []
+        // 分期识别候选行（列值信号优先、备注文字信号兜底；上限与投影一致）
+        var installmentCandidates: [InstallmentImportRecognizer.CandidateRow] = []
         try StreamingCSVReader.enumerateLines(in: url) { line in
             absoluteLine += 1
             // 封面说明行与表头行都跳过（表头已从探测结果取得）
@@ -206,6 +208,21 @@ class DataImportService {
                     billSource: billSource
                 )
                 parseableCount += 1
+
+                // 分期识别候选（不限账单来源——HOLO 往返/银行备注写法也要识别）
+                if installmentCandidates.count < 50_000 {
+                    let columnSignal = mapping.installmentIndex
+                        .flatMap { aligned[safe: $0]?.trimmingCharacters(in: .whitespaces) }
+                        .flatMap { InstallmentImportRecognizer.parseColumnValue($0) }
+                    installmentCandidates.append(InstallmentImportRecognizer.CandidateRow(
+                        row: rowIndex,
+                        date: item.date,
+                        type: item.type,
+                        amount: item.amount,
+                        accountName: item.accountName,
+                        signal: columnSignal ?? InstallmentImportRecognizer.parseSignal(from: item.note ?? "")
+                    ))
+                }
 
                 // 账单轻量投影与对方名收集（软检测 / AI 科目匹配的输入）
                 if billSource != nil {
@@ -298,6 +315,20 @@ class DataImportService {
             throw ImportError.emptyFile
         }
 
+        // 分期识别：扫描期一次成型，预览区块与导入落库共用；空候选不产出
+        let installmentInfo: InstallmentScanInfo?
+        if installmentCandidates.isEmpty {
+            installmentInfo = nil
+        } else {
+            let outcome = InstallmentImportRecognizer.resolve(candidates: installmentCandidates)
+            installmentInfo = InstallmentScanInfo(
+                assignments: outcome.assignments,
+                groups: outcome.groups,
+                suspected: outcome.suspected,
+                ungroupedSignalCount: outcome.ungroupedSignalCount
+            )
+        }
+
         // 构建分类计划（扫描阶段不需要已存在的分类列表，只统计将新建的）
         // 这里用空 existing 列表，让 planner 把所有 incoming 都算作"新建"
         // 真实的已有分类匹配在 ViewModel 里做（小数据量）
@@ -320,7 +351,8 @@ class DataImportService {
             categoryPlan: categoryPlan,
             topFailures: topFailures,
             billInfo: billInfo,
-            billProjections: billSource != nil && projections.count < 50_000 ? projections : nil
+            billProjections: billSource != nil && projections.count < 50_000 ? projections : nil,
+            installmentInfo: installmentInfo
         )
     }
 
@@ -474,10 +506,11 @@ class DataImportService {
             noteIndex: headers.firstIndex(of: "名称"),
             descriptionIndex: headers.firstIndex(of: "描述"),
             merchantIndex: headers.firstIndex(of: "商家"),
-            tagsIndex: headers.firstIndex(of: "标签")
+            tagsIndex: headers.firstIndex(of: "标签"),
+            installmentIndex: headers.firstIndex(of: "分期")
         )
     }
-    
+
     /// HOLO 自身格式映射
     private func holoFieldMapping(headers: [String]) -> FieldMapping {
         FieldMapping(
@@ -491,7 +524,8 @@ class DataImportService {
             noteIndex: headers.firstIndex(of: "备注"),
             descriptionIndex: nil,
             merchantIndex: nil,
-            tagsIndex: headers.firstIndex(of: "标签")
+            tagsIndex: headers.firstIndex(of: "标签"),
+            installmentIndex: headers.firstIndex(of: "分期")
         )
     }
     
@@ -508,7 +542,8 @@ class DataImportService {
             noteIndex: fuzzyMatch(headers: headers, keywords: ["备注", "note", "说明", "名称", "描述"]),
             descriptionIndex: nil,
             merchantIndex: fuzzyMatch(headers: headers, keywords: ["商家", "merchant", "商户"]),
-            tagsIndex: fuzzyMatch(headers: headers, keywords: ["标签", "tag", "tags"])
+            tagsIndex: fuzzyMatch(headers: headers, keywords: ["标签", "tag", "tags"]),
+            installmentIndex: fuzzyMatch(headers: headers, keywords: ["分期", "instalment", "installment"])
         )
     }
     
@@ -812,7 +847,8 @@ class DataImportService {
         type: TransactionType,
         primaryCategory: String,
         subCategory: String,
-        accountName: String
+        accountName: String,
+        installment: (index: Int, total: Int)? = nil
     ) -> String {
         // 用固定时区算日期，避免用户跨时区时同一笔账算出不同指纹导致去重失效
         var cal = Calendar(identifier: .gregorian)
@@ -823,7 +859,9 @@ class DataImportService {
         let amountPart = String(format: "%.2f", NSDecimalNumber(decimal: amount).doubleValue)
         let normalizedCategory = "\(primaryCategory.trimmingCharacters(in: .whitespaces))/\(subCategory.trimmingCharacters(in: .whitespaces))"
         let normalizedAccount = accountName.trimmingCharacters(in: .whitespaces).lowercased()
-        return "\(datePart)|\(amountPart)|\(type.rawValue)|\(normalizedCategory)|\(normalizedAccount)"
+        let base = "\(datePart)|\(amountPart)|\(type.rawValue)|\(normalizedCategory)|\(normalizedAccount)"
+        // 分期后缀：同文件多期同金额同日行指纹互不相同，否则批次内指纹去重会误跳其余期次
+        return installment.map { "\(base)|I\($0.index)/\($0.total)" } ?? base
     }
 
     /// 从已入库的 Transaction 生成指纹（撤回/历史查重用）
@@ -852,7 +890,10 @@ class DataImportService {
             type: transaction.transactionType,
             primaryCategory: primaryName,
             subCategory: subName,
-            accountName: account.name
+            accountName: account.name,
+            installment: transaction.installmentGroupId != nil
+                ? (index: Int(transaction.installmentIndex), total: Int(transaction.installmentTotal))
+                : nil
         )
     }
 

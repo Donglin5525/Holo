@@ -244,6 +244,13 @@ extension Font {
     
     /// 超小标签，用于底部导航标签；跟随系统动态字体缩放。
     static let holoTinyLabel = Font.caption2.weight(.medium)
+
+    // MARK: 衬线字体（动效融合定稿 §3）
+    /// 衬线标题：只用于聚光标题、任务回执、事簿记录行与 Matter 纸片标题。
+    /// 正文、按钮、清单继续用系统无衬线；禁止扩散到普通页面标题。
+    static let holoSerifTitle = Font.system(.title2, design: .serif).weight(.semibold)
+    /// 衬线正文级：回执/记录行的任务标题
+    static let holoSerifBody = Font.system(.subheadline, design: .serif).weight(.semibold)
 }
 
 // MARK: - 间距系统
@@ -321,6 +328,13 @@ enum HoloAnimation {
     static let snappy: Animation = .spring(response: 0.3, dampingFraction: 0.7)
     /// 沉稳弹性——滑动返回、大块视图位移
     static let grounded: Animation = .spring(response: 0.45, dampingFraction: 0.82)
+
+    // MARK: B 活页归档（动效融合 G2）
+    /// 收页回执整段时长：一次「升起微弹 → 上浮淡出」的自播关键帧，播完即隐
+    /// （原型 receipt-in 0.75s 的转译；Reduce Motion 下改为静态显示同一时长）
+    static let paperReceiptDuration: TimeInterval = 0.75
+    /// 记录行/纸页行入场：轻微显现，不做表演
+    static let paperSettle: Animation = .spring(response: 0.4, dampingFraction: 0.85)
 }
 
 // MARK: - Holo Plus 主题
@@ -382,6 +396,87 @@ enum HoloPlusTheme {
     )
     /// 方案卡选中态的浅橙底
     static let planSelectedTint = Color.holoPrimary.opacity(0.07)
+}
+
+// MARK: - B 活页归档纸面主题（动效融合 G2）
+
+/// B「活页归档」的纸面语言 token（动效融合定稿 §3）。
+/// 色值从已选 HTML 原型转译，浅/深模式分别定义；
+/// 只用于任务完成表达（纸页行、事簿记录、回执、撤回 toast、纸页头），
+/// 禁止扩散到无关页面；运动节奏见 `HoloAnimation.paperReceiptDuration`。
+enum HoloTaskPaperTheme {
+    // MARK: 纸页行（未完成任务卡）
+    /// 纸页行底：暖纸白 / 深色暗纸
+    static let rowBackground = Color.holoDynamic(
+        light: UIColor(red: 1.000, green: 0.992, blue: 0.969, alpha: 1),   // 原型 #FFFDF7
+        dark:  UIColor(red: 0.145, green: 0.129, blue: 0.114, alpha: 1))
+    /// 纸页细边
+    static let rowBorder = Color.holoDynamic(
+        light: UIColor(red: 0.882, green: 0.835, blue: 0.780, alpha: 1),   // 原型 #E1D5C7
+        dark:  UIColor(red: 0.263, green: 0.235, blue: 0.204, alpha: 1))
+
+    // MARK: 今日事簿记录行（完成任务收页后的记录）
+    /// 记录行底：牛皮纸浅 / 暗棕
+    static let recordBackground = Color.holoDynamic(
+        light: UIColor(red: 0.969, green: 0.933, blue: 0.890, alpha: 1),   // 原型 #F7EEE3
+        dark:  UIColor(red: 0.180, green: 0.153, blue: 0.125, alpha: 1))
+    /// 记录行左色条 + 印章描边的棕红
+    static let recordStripe = Color.holoDynamic(
+        light: UIColor(red: 0.722, green: 0.396, blue: 0.271, alpha: 1),   // 原型 #B86545
+        dark:  UIColor(red: 0.784, green: 0.478, blue: 0.353, alpha: 1))
+
+    // MARK: 完成回执（印章 + 衬线标题）
+    /// 回执底：暖光纸
+    static let receiptBackground = Color.holoDynamic(
+        light: UIColor(red: 1.000, green: 0.969, blue: 0.918, alpha: 1),   // 原型 #FFF7EA
+        dark:  UIColor(red: 0.196, green: 0.161, blue: 0.129, alpha: 1))
+    /// 回执描边
+    static let receiptBorder = Color.holoDynamic(
+        light: UIColor(red: 0.894, green: 0.784, blue: 0.659, alpha: 1),   // 原型 #E4C8A8
+        dark:  UIColor(red: 0.302, green: 0.247, blue: 0.192, alpha: 1))
+    /// 印章字色（「成」）
+    static let sealText = Color.holoDynamic(
+        light: UIColor(red: 0.718, green: 0.357, blue: 0.235, alpha: 1),   // 原型 #B75B3C
+        dark:  UIColor(red: 0.910, green: 0.608, blue: 0.471, alpha: 1))
+
+    // MARK: 撤回 toast（深底横条）
+    /// toast 底：深墨（两模式同走深底；深色模式提亮一档并靠描边分层）
+    static let undoToastBackground = Color.holoDynamic(
+        light: UIColor(red: 0.188, green: 0.169, blue: 0.157, alpha: 1),   // 原型 #302B28
+        dark:  UIColor(red: 0.243, green: 0.220, blue: 0.196, alpha: 1))
+    /// toast 主文字：暖白
+    static let undoToastText = Color.holoDynamic(
+        light: UIColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1),
+        dark:  UIColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1))
+    /// toast 撤回动作色：杏仁橙
+    static let undoAction = Color(red: 1.000, green: 0.780, blue: 0.647)   // 原型 #FFC7A5
+
+    // MARK: 纸页头（任务列表顶部）
+    /// 纸页头渐变：暖光入纸白（深色模式走暗纸两级）
+    static let headerGradient = LinearGradient(
+        colors: [
+            Color.holoDynamic(light: UIColor(red: 1.000, green: 0.961, blue: 0.910, alpha: 1),   // #FFF5E8
+                              dark:  UIColor(red: 0.196, green: 0.169, blue: 0.137, alpha: 1)),
+            Color.holoDynamic(light: UIColor(red: 1.000, green: 0.992, blue: 0.973, alpha: 1),   // #FFFDF8
+                              dark:  UIColor(red: 0.149, green: 0.129, blue: 0.106, alpha: 1))
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    // MARK: 形状
+    /// 纸页不对称圆角：右上大、其余小，像一页翻起的纸（原型 8/18/9/9）
+    static let rowShape = UnevenRoundedRectangle(
+        topLeadingRadius: 8, bottomLeadingRadius: 9,
+        bottomTrailingRadius: 9, topTrailingRadius: 18,
+        style: .continuous
+    )
+    /// 回执用的小号纸页圆角（原型 8/18/9/9 同语言）
+    static let receiptShape = UnevenRoundedRectangle(
+        topLeadingRadius: 8, bottomLeadingRadius: 9,
+        bottomTrailingRadius: 9, topTrailingRadius: 18,
+        style: .continuous
+    )
 }
 
 // MARK: - 卡片样式

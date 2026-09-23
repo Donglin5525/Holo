@@ -34,6 +34,9 @@ nonisolated protocol HoloPersonalContextRecordWriting: Sendable {
     func activeTombstones() async throws -> [HoloMemoryTombstone]
     func loadCursor() async throws -> HoloContextExtractionCursorState?
     func saveCursor(_ cursor: HoloContextExtractionCursorState) async throws
+    /// R1 四域：按域读写游标（thought 域实现须回落旧方法以兼容既有存储键）。
+    func loadCursor(domain: String) async throws -> HoloContextExtractionCursorState?
+    func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws
     /// 当前控制代际（用户决策版本 + 学习基线）；每批前后复查。
     func currentGeneration() async throws -> HoloContextExtractionGeneration
     /// 来源当前修订目录（对账用：sourceID → 当前修订）。
@@ -56,6 +59,20 @@ nonisolated struct HoloContextExtractionProgress: Codable, Equatable, Sendable {
     var discardedCandidates = 0
     var mergedCandidates = 0
     var createdRecords = 0
+
+    /// 跨域聚合（R1 四域轮转诊断）：数值逐项相加。
+    func byAdding(_ other: HoloContextExtractionProgress) -> HoloContextExtractionProgress {
+        var summed = self
+        summed.scannedSources += other.scannedSources
+        summed.processedRevisions += other.processedRevisions
+        summed.pendingBatches += other.pendingBatches
+        summed.failedBatches += other.failedBatches
+        summed.suppressedCandidates += other.suppressedCandidates
+        summed.discardedCandidates += other.discardedCandidates
+        summed.mergedCandidates += other.mergedCandidates
+        summed.createdRecords += other.createdRecords
+        return summed
+    }
 }
 
 // MARK: - 游标状态
@@ -190,15 +207,19 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     let paging: any HoloContextSourcePaging
     let llm: any HoloPersonalContextLLMCalling
     let writer: any HoloPersonalContextRecordWriting
+    /// 本编排器服务的来源域（R1 四域；游标与批次进度按域隔离）。
+    let domain: String
 
     init(
         paging: any HoloContextSourcePaging,
         llm: any HoloPersonalContextLLMCalling,
-        writer: any HoloPersonalContextRecordWriting
+        writer: any HoloPersonalContextRecordWriting,
+        domain: String = "thought"
     ) {
         self.paging = paging
         self.llm = llm
         self.writer = writer
+        self.domain = domain
     }
 
     enum ExtractionError: Error, Equatable {
@@ -223,7 +244,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     /// 任一包失败即抛出、游标不动（下次重试，已成功包按 receipt 幂等跳过）。
     /// - Parameter now: 注入时钟。
     func runOneBatch(now: Date) async throws -> BatchOutcome {
-        var cursor = try await writer.loadCursor() ?? HoloContextExtractionCursorState()
+        var cursor = try await writer.loadCursor(domain: domain) ?? HoloContextExtractionCursorState()
         let generationAtStart = try await writer.currentGeneration()
 
         // 组包：一页来源 → 全部切段 → 取一个包。
@@ -241,7 +262,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             if nextCursor == nil && cursor.sourceCursor != nil {
                 cursor.sourceCursor = nil
                 cursor.watermark = now
-                try await writer.saveCursor(cursor)
+                try await writer.saveCursor(cursor, domain: domain)
             }
             return BatchOutcome()
         }
@@ -396,7 +417,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         cursor.progress.mergedCandidates += outcome.mergedRecords
         cursor.progress.createdRecords += outcome.createdRecords
         cursor.watermark = now
-        try await writer.saveCursor(cursor)
+        try await writer.saveCursor(cursor, domain: domain)
 
         return outcome
     }
@@ -454,7 +475,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                 observedAt: now
             )
         }
-        return HoloMemoryRecord(
+        var record = HoloMemoryRecord(
             id: stableID,
             scope: .domain,
             primaryDomain: domain,
@@ -482,6 +503,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             updatedAt: now,
             personalContext: HoloPersonalContextPayloadEnvelope(v1: payload)
         )
+        // 五路决策（§11.1）：新写入挂 decision metadata；admission 由决策单向投影，
+        // 不再独立裁决。discard（第三方/敏感无授权等）直接不落库。
+        guard HoloMemoryDecisionPolicy.isEnabled else { return record }
+        let decision = HoloMemoryDecisionPolicy.evaluate(record, now: now)
+        return HoloMemoryDecisionPolicy.attach(decision, to: record, now: now)
     }
 
     /// 合并既有记录：复用稳定 ID 与 contextID，追加证据、推进版本。
@@ -516,6 +542,18 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         record.personalContext = HoloPersonalContextPayloadEnvelope(v1: mergedPayload)
         record.recordVersion += 1
         record.updatedAt = now
+        // 证据追加后按 v4 重评估（§11.1 唯一裁决者）；discard 不在此处删除既有记录
+        //（合并目标已有历史价值，交由压缩/反馈治理），仅不赋予使用权限。
+        if HoloMemoryDecisionPolicy.isEnabled {
+            let decision = HoloMemoryDecisionPolicy.evaluate(record, now: now)
+            if let reattached = HoloMemoryDecisionPolicy.attach(decision, to: record, now: now) {
+                record = reattached
+            } else {
+                record.decisionMetadata = HoloMemoryDecisionMetadataEnvelope(
+                    v2: decision.metadata
+                )
+            }
+        }
         return record
     }
 }

@@ -19,7 +19,7 @@ enum HoloMemoryFeedbackError: Error, Equatable {
 }
 
 protocol HoloMemoryFeedbackStore: HoloMemoryForgettingStore {
-    /// 只删除当前记忆，不写入阻止后续重新生成的语义墓碑。
+    /// 删除当前记录（仅供记忆清理与迁移使用；「不再使用」必须走 suppression + 墓碑）。
     func deleteRecord(id: String) async throws -> Bool
 }
 
@@ -47,7 +47,9 @@ struct HoloMemoryFeedbackService: Sendable {
         case .inaccurate:
             didApply = try await store.markUserDecision(id: id, decision: .rejected, now: now)
         case .noLongerUse:
-            didApply = try await store.deleteRecord(id: id)
+            // 低确认成本方案 §8.5/§12.1：不再使用 = suppression + 语义墓碑，
+            // 同锚点同命题不得因换 ID 或同义改写重生（只 deleteRecord 挡不住再萃取）。
+            didApply = try await suppressWithTombstone(id: id, now: now)
         }
         #if !HOLO_MEMORY_STANDALONE
         if didApply {
@@ -59,6 +61,24 @@ struct HoloMemoryFeedbackService: Sendable {
         }
         #endif
         return didApply
+    }
+
+    /// 先写语义墓碑再置 suppressed（与「忘记」同构；即使中途崩溃也不会被后台重新生成）。
+    private func suppressWithTombstone(id: String, now: Date) async throws -> Bool {
+        guard let record = try await store.fetch(id: id) else { return false }
+        let control = try await store.loadControlState()
+        let version = max(control.userDecisionVersion, Int64(now.timeIntervalSince1970 * 1_000)) + 1
+        try await store.saveTombstone(
+            HoloMemoryTombstone(
+                identityKey: record.id,
+                scope: record.scope,
+                claimKind: record.claimKind,
+                anchorKeys: HoloMemoryIdentity.canonicalAnchors(record.anchorRefs).map(\.stableKey),
+                userDecisionVersion: version,
+                createdAt: now
+            )
+        )
+        return try await store.markUserDecision(id: id, decision: .rejected, now: now)
     }
 
     /// 纠正保留可追溯证据与稳定身份，只创建一个用户确认的新版本。

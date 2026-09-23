@@ -1,0 +1,99 @@
+{
+  "fixtureID": "tpl-study-conflict-03",
+  "domainTags": [
+    "学习",
+    "工作"
+  ],
+  "sources": [
+    {
+      "sourceID": "habit:habit-study",
+      "sourceDomain": "habit",
+      "sourceKind": "habitDefinition",
+      "plainText": "每晚 21 点备考一级建造师一小时",
+      "recordedAt": "2026-09-05T21:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "derivedCheckins": [
+        {
+          "sourceID": "habit:habit-study#ck0",
+          "eventTime": "2026-09-16T21:30:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-study#ck1",
+          "eventTime": "2026-09-17T21:30:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-study#ck2",
+          "eventTime": "2026-09-18T21:30:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-study#ck3",
+          "eventTime": "2026-09-19T21:30:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-study#ck4",
+          "eventTime": "2026-09-20T21:30:00+08:00",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "sourceID": "thought:note-exam",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "考试在 11 月中旬，最近项目天天加班到十点，复习全靠周末补。",
+      "recordedAt": "2026-09-21T23:50:00+08:00",
+      "eventTime": "2026-09-21T23:50:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "接下来一个月项目要冲交付，帮我安排一下学习和工作。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户有每日备考习惯且临近考试",
+      "basisSourceIDs": [
+        "habit:habit-study",
+        "thought:note-exam"
+      ],
+      "epistemicStatus": "inferred"
+    },
+    {
+      "statement": "近期工作加班挤占晚间复习时间",
+      "basisSourceIDs": [
+        "thought:note-exam"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "冲刺期实际加班强度",
+    "周末可用复习时段"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldAdjust",
+      "description": "将复习重心调整到周末并压缩单次时长"
+    },
+    {
+      "effectKind": "shouldAsk",
+      "description": "确认冲刺期是否需要降低每日目标"
+    }
+  ],
+  "forbiddenClaims": [
+    "断言用户无法通过考试",
+    "删除用户已设定的备考习惯"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除加班想法记录",
+      "expectedEffect": "不出现冲突调整，仅保留习惯节奏"
+    }
+  ]
+}

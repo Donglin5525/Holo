@@ -10,8 +10,18 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
-private struct TodoTaskDatePolicyStandaloneTests {
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        TodoTaskDatePolicyStandaloneTests.main()
+    }
+}
+#endif
+struct TodoTaskDatePolicyStandaloneTests {
 
     private static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)

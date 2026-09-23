@@ -20,6 +20,9 @@ struct CategoryPicker: View {
     
     /// 交易类型（收入/支出），改为 Binding 以支持 Tab 切换时联动外部状态
     @Binding var transactionType: TransactionType
+
+    /// 是否显示收入/支出切换 Tab（固定支出等纯支出场景关闭）
+    var showsTypeTabs: Bool = true
     
     /// 所有分类数据（含一级和二级）
     @State private var categories: [Category] = []
@@ -40,15 +43,22 @@ struct CategoryPicker: View {
     )
     
     // MARK: - Computed Properties
-    
+
+    /// 渲染用有效分类：外部删除路径（分类管理页删分类）落库后、本组件刷新前，
+    /// categories 会短暂残留已失效对象（managedObjectContext 已被清空），
+    /// 渲染读其属性会强桥接崩溃（开发规范 13 节场景 C）
+    private var liveCategories: [Category] {
+        categories.filter { $0.managedObjectContext != nil }
+    }
+
     /// 当前类型下的一级分类列表（仅展示“有子分类”的一级，排除旧版扁平分类）
     private var topLevelCategories: [Category] {
-        categories
+        liveCategories
             .filter { top in
                 top.transactionType == transactionType
                 && top.isTopLevel
                 && !top.isSystem
-                && categories.contains { $0.parentId == top.id }
+                && liveCategories.contains { $0.parentId == top.id }
             }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
@@ -56,7 +66,7 @@ struct CategoryPicker: View {
     /// 当前下钻父分类的二级子分类列表
     private var childCategories: [Category] {
         guard let parent = drillDownParent else { return [] }
-        return categories
+        return liveCategories
             .filter { $0.parentId == parent.id }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
@@ -66,6 +76,7 @@ struct CategoryPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // --- 管理分类入口 ---
+            // Form/List 环境里必须显式 plain，否则点击会被行级手势吞给行内第一个按钮
             Button {
                 showCategoryManagement = true
             } label: {
@@ -77,9 +88,12 @@ struct CategoryPicker: View {
                 }
                 .foregroundColor(.holoPrimary)
             }
+            .buttonStyle(.plain)
             
             // --- 收入/支出 Tab 栏 ---
-            typeTabBar
+            if showsTypeTabs {
+                typeTabBar
+            }
             
             // --- 最近常用分类（仅在一级视图且有历史数据时显示）---
             if drillDownParent == nil && !recentCategories.isEmpty {
@@ -104,7 +118,8 @@ struct CategoryPicker: View {
         .padding(HoloSpacing.md)
         .animation(.easeInOut(duration: 0.25), value: drillDownParent?.objectID)
         .sheet(isPresented: $showCategoryManagement) {
-            CategoryManagementView()
+            // 分类管理页内含 NavigationLink，必须自带导航栈容器，否则页内跳转全部失效
+            NavigationStack { CategoryManagementView(showsDoneButton: true) }
         }
         .onChange(of: showCategoryManagement) { _, isShowing in
             if !isShowing {
@@ -148,7 +163,7 @@ struct CategoryPicker: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.md) {
-                    ForEach(recentCategories, id: \.objectID) { category in
+                    ForEach(recentCategories.filter { $0.managedObjectContext != nil }, id: \.objectID) { category in
                         PickerCategoryButton(
                             category: category,
                             isSelected: selectedCategory?.objectID == category.objectID
@@ -177,7 +192,8 @@ struct CategoryPicker: View {
                 ForEach(topLevelCategories, id: \.objectID) { category in
                     PickerCategoryButton(
                         category: category,
-                        isSelected: false
+                        // 已选二级分类时高亮其所属一级分类，让"当前选了什么"在总览视图可见
+                        isSelected: selectedCategory?.parentId == category.id
                     ) {
                         withAnimation {
                             drillDownParent = category
@@ -205,6 +221,7 @@ struct CategoryPicker: View {
                 }
                 .foregroundColor(.holoPrimary)
             }
+            .buttonStyle(.plain)
             
             LazyVGrid(columns: gridColumns, spacing: HoloSpacing.md) {
                 ForEach(childCategories, id: \.objectID) { category in
@@ -238,6 +255,13 @@ struct CategoryPicker: View {
     private func loadCategories() async {
         do {
             categories = try await FinanceRepository.shared.getAllCategories()
+            // 场景 C：清掉已删分类的残留引用，避免后续渲染读失效对象
+            if let parent = drillDownParent, parent.managedObjectContext == nil {
+                drillDownParent = nil
+            }
+            if let selected = selectedCategory, selected.managedObjectContext == nil {
+                selectedCategory = nil
+            }
             await loadRecentCategories()
         } catch {
             // 加载分类失败，静默处理
@@ -305,6 +329,8 @@ private struct PickerCategoryButton: View {
                     .lineLimit(1)
             }
         }
+        // Form/List 环境里必须显式 plain，否则点击会被行级手势吞给行内第一个按钮
+        .buttonStyle(.plain)
     }
 }
 

@@ -4,7 +4,17 @@ import Foundation
 // V3 Phase 1 standalone：ThoughtTopicLink 投影层核心行为锁定。
 // 运行方式见 scripts/run-thought-topic-link-standalone.sh（swiftc 直编，不挂 pbxproj）。
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try ThoughtTopicLinkProjectionStandaloneTests.main()
+    }
+}
+#endif
 struct ThoughtTopicLinkProjectionStandaloneTests {
     static func check(_ condition: Bool, _ message: @autoclosure () -> String = "", line: UInt = #line) {
         precondition(condition, "check failed: \(message()) (line \(line))")

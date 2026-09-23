@@ -12,7 +12,17 @@ import Foundation
 // V3 Phase 5 standalone：候选簇引擎纯函数核心行为锁定。
 // 运行方式见 scripts/run-thought-cluster-standalone.sh（swiftc 直编，不挂 pbxproj）。
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try ThoughtTopicClusterStandaloneTests.main()
+    }
+}
+#endif
 struct ThoughtTopicClusterStandaloneTests {
     static func check(_ condition: Bool, _ message: @autoclosure () -> String = "", line: UInt = #line) {
         precondition(condition, "check failed: \(message()) (line \(line))")

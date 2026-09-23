@@ -53,7 +53,8 @@ struct ChatTaskEditSheet: View {
             ) ?? []
             TaskReminderPickerSheet(
                 mode: effective.hasTime ? .relative : .absolute,
-                initialReminders: initial
+                initialReminders: initial,
+                anchorDate: effective.dueDate
             ) { reminders in
                 applyPatch(edit, [
                     TaskPendingDefaults.userRemindersKey:

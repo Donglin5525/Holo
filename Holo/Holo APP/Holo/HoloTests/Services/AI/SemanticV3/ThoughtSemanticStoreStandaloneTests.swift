@@ -5,7 +5,17 @@ import Foundation
 // USearch 索引实现的行为由 spike（15/15）与主工程编译+模拟器冒烟覆盖。
 // 运行：bash scripts/run-thought-semantic-store-standalone.sh
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await ThoughtSemanticStoreStandaloneTests.main()
+    }
+}
+#endif
 struct ThoughtSemanticStoreStandaloneTests {
     static func check(_ condition: Bool, _ message: @autoclosure () -> String = "", line: UInt = #line) {
         precondition(condition, "check failed: \(message()) (line \(line))")

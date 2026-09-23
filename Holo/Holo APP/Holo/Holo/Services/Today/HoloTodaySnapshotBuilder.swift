@@ -85,6 +85,8 @@ enum HoloTodaySnapshotBuilder {
                     )
                     matterCandidates.append(candidate)
 
+                    // V2 计划进度：planOrder 口径实时计算（§5.6），不依赖 projection。
+                    let planTasks = MatterPlanQuery.planTasks(matterID: matter.id, repository: HoloMatterRepository.shared)
                     matterItems.append(HoloTodayMatterItem(
                         id: matter.id,
                         title: matter.title,
@@ -98,7 +100,9 @@ enum HoloTodaySnapshotBuilder {
                         },
                         suggestedCount: loopInputs.filter { $0.epistemic == .suggested && ($0.state == .open) }.count,
                         isFocus: false,
-                        cardAction: .openMatter(matter.id, focusOpenLoopID: nil)
+                        cardAction: .openMatter(matter.id, focusOpenLoopID: nil),
+                        planDoneCount: planTasks.filter(\.completed).count,
+                        planTotalCount: planTasks.count
                     ))
                 }
                 sectionStates[.matters] = matterItems.isEmpty ? .empty : .content
@@ -208,6 +212,11 @@ enum HoloTodaySnapshotBuilder {
             sectionStates[.focus] = .content
         } catch {
             sectionStates[.focus] = .failed(lastSuccessfulAt: nil)
+        }
+
+        // INV-06（全 App 只有一个「当下一步」）：Focus 已占用的任务从 Agenda 移除。
+        if case .openTask(let focusTaskID) = focus?.action {
+            agendaItems.removeAll { $0.id == "task:\(focusTaskID.uuidString)" }
         }
 
         // MARK: Matter 列表排序（复用 MatterHomeSurface 确定性排序，最多展示 3 件）

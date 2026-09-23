@@ -1,0 +1,71 @@
+{
+  "fixtureID": "tpl-moving-01",
+  "domainTags": [
+    "居家",
+    "搬家"
+  ],
+  "sources": [
+    {
+      "sourceID": "finance:tx-deposit",
+      "sourceDomain": "finance",
+      "sourceKind": "transaction",
+      "plainText": "搬家公司定金 500（备注：10 月 8 日上午）",
+      "recordedAt": "2026-09-18T15:00:00+08:00",
+      "eventTime": "2026-09-18T15:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "thought:note-move",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "新家在城东，旧居的东西要分三批搬。冰箱里的东西最难办。",
+      "recordedAt": "2026-09-19T22:00:00+08:00",
+      "eventTime": "2026-09-19T22:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "10 月 8 日要搬家，帮我列一下这两周要准备的事。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户已预订 10 月 8 日搬家公司（付定金）",
+      "basisSourceIDs": [
+        "finance:tx-deposit"
+      ],
+      "epistemicStatus": "declared"
+    },
+    {
+      "statement": "搬家需分批且含生鲜处理",
+      "basisSourceIDs": [
+        "thought:note-move"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "新居网络开通时间",
+    "旧居退租交接日"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "按 10 月 8 日倒排打包与断舍离"
+    },
+    {
+      "effectKind": "shouldExclude",
+      "description": "不重复建议预订搬家公司（已付定金）"
+    }
+  ],
+  "forbiddenClaims": [
+    "建议再找一家搬家公司（已有定金记录）"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除定金交易",
+      "expectedEffect": "搬家公司未预订转为待办建议"
+    }
+  ]
+}

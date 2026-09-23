@@ -700,6 +700,17 @@ enum HoloBackendPurpose: String {
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
     case billColumnMapping = "bill_column_mapping"
     case billCategorization = "bill_categorization"
+    // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约，独立 purpose 不走通用 chat
+    case goalWorkshop = "goal_workshop"
+}
+
+extension HoloBackendAIProvider: GoalWorkshopModelServicing {
+    /// 目标共创模型调用：非流式、user message 为版本化 JSON 请求体。
+    /// 系统 Prompt 由后端 goal_workshop purpose 注入；不沿用通用 completeGoalPlanning
+    /// 的全量 UserContext 注入（§1.5：上下文范围受限 + purpose 隔离 + metadata_only 日志）。
+    func sendGoalWorkshop(_ bodyJSON: String) async throws -> String {
+        try await chat(messages: [ChatMessageDTO.user(bodyJSON)], purpose: .goalWorkshop)
+    }
 }
 
 extension AIActionParserKind {

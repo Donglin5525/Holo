@@ -26,7 +26,7 @@ struct MemoryGalleryView: View {
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @ObservedObject private var deepLinkState = DeepLinkState.shared
     /// expanded 档放宽内容列（720→920），减少两侧留白；其余档维持全局列宽
-    @Environment(\.holoWindowWidth) private var galleryWindowWidth
+    @Environment(\.holoContentWidth) private var galleryWindowWidth
     private var contentColumnWidth: CGFloat {
         HoloAdaptiveLayout.isExpandedWidth(galleryWindowWidth)
             ? HoloAdaptiveLayout.galleryColumnMaxWidth

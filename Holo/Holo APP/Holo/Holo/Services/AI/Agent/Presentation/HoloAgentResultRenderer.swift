@@ -1134,6 +1134,26 @@ nonisolated struct HoloAgentResultRenderer {
         return title.isEmpty ? "数据解读" : title
     }
 
+    /// 云端深度分析的 section 语义标题（温暖陪伴 P0 统一展示口径）：
+    /// 与本地轨道 metricTitle 缺失时的路径同源——正文首句短标题，不再使用固定「发现 N」。
+    /// 重名时退「数据解读」保持每卡可区分（与本地 appendSection 终值一致）。
+    static func cloudSectionTitle(for body: String, usedTitles: inout Set<String>) -> String {
+        let title = shortTitle(from: body)
+        let unique = usedTitles.contains(title) ? "数据解读" : title
+        usedTitles.insert(unique)
+        return unique
+    }
+
+    /// v23 云端点破式标题的消费入口（prompt 已令模型给每条 claim 一个 ≤12 字提炼，
+    /// 后端已做数字对账）。本地反偷懒防线：标题等于正文首句短标题、或为正文前缀时
+    /// 视为模型偷懒复述正文，返回 nil 让调用方回退 cloudSectionTitle，改动不落空。
+    static func validatedClaimTitle(_ title: String?, body: String) -> String? {
+        guard let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        if trimmed == shortTitle(from: body) { return nil }
+        if body.hasPrefix(trimmed) { return nil }
+        return trimmed
+    }
+
     private static func normalize(_ text: String) -> String {
         text.lowercased()
             .filter { !$0.isWhitespace && !"，,；;。.!！?？：:".contains($0) }

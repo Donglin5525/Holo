@@ -72,6 +72,32 @@ struct ContextPlanChatCard: View {
     }
 
     var body: some View {
+        Group {
+            if let draft = draft0, HoloMatterRolloutPolicy.unifiedLaunchV2Enabled {
+                // V2 统一启动（2026-09-21 战略收敛）：单 CTA 原子落库；旧交互经开关回退。
+                MatterPlanLaunchCard(
+                    draft: draft,
+                    messageID: messageID,
+                    userMessageID: userMessageID,
+                    onOpenMatter: onOpenMatter
+                )
+            } else {
+                legacyBody
+            }
+        }
+        .onAppear { loadDraft() }
+        .alert(
+            String(localized: "原记录已删除或当前不可访问"),
+            isPresented: $showEvidenceUnavailable
+        ) {
+            Button(String(localized: "知道了"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "这条记录可能已被删除，或当前版本无法打开它。"))
+        }
+    }
+
+    /// 旧卡片布局（V2 开关关闭时的回退路径；内部试用结束后的下一版本退役）。
+    private var legacyBody: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let draft = draft0 {
                 header(draft)
@@ -98,15 +124,6 @@ struct ContextPlanChatCard: View {
         .padding(16)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .onAppear { loadDraft() }
-        .alert(
-            String(localized: "原记录已删除或当前不可访问"),
-            isPresented: $showEvidenceUnavailable
-        ) {
-            Button(String(localized: "知道了"), role: .cancel) {}
-        } message: {
-            Text(String(localized: "这条记录可能已被删除，或当前版本无法打开它。"))
-        }
     }
 
     // MARK: - 区块

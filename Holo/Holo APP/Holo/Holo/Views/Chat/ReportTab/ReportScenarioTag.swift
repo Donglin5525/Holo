@@ -84,15 +84,18 @@ enum ReportScenarioTag: String, CaseIterable, Sendable {
     }
 
     /// 问句 → 场景。跨域判定优先（旧跨域问句含多个单域词，先判单域会误归）；
-    /// 「数据趋势」是旧默认跨域问句（分析一下我最近的数据趋势）的特征词。
+    /// 「数据趋势」是旧默认跨域问句（分析一下我最近的数据趋势）的特征词，
+    /// 「生活节奏/同一段时间」是 2026-09-19 新版跨域问句的特征词。
     static func classify(question: String?) -> ReportScenarioTag {
         guard let q = question, !q.isEmpty else { return .general }
         if q.contains("放在一起") || q.contains("各类生活数据")
-            || q.contains("跨领域") || q.contains("数据趋势") {
+            || q.contains("跨领域") || q.contains("数据趋势")
+            || q.contains("生活节奏") || q.contains("同一段时间") {
             return .crossDomain
         }
         if q.contains("财务") || q.contains("支出") || q.contains("花销")
-            || q.contains("消费") || q.contains("预算") {
+            || q.contains("消费") || q.contains("预算")
+            || q.contains("钱主要花") || q.contains("花在了哪里") {
             return .finance
         }
         if q.contains("睡眠") || q.contains("健康") || q.contains("运动") || q.contains("步数") {

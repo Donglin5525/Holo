@@ -2,7 +2,17 @@ import CoreData
 import Foundation
 @testable import Holo
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try ThoughtDuplicateRepairStandaloneTests.main()
+    }
+}
+#endif
 struct ThoughtDuplicateRepairStandaloneTests {
     static func check(_ condition: Bool, line: UInt = #line) { precondition(condition, "check failed at line \(line)") }
 

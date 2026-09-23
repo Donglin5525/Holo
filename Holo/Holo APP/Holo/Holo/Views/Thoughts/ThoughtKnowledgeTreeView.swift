@@ -46,7 +46,7 @@ struct ThoughtKnowledgeTreeView: View {
 
     /// 宽屏排印分档（通宵冲刺 D3）：主题卡墙列数随内容列宽度自适应（每列 ≥300pt，2-4 列），
     /// 修复宽屏固定 2 列单卡 ~480pt 的拉伸观感；iPhone 恒 2 列不变
-    @Environment(\.holoWindowWidth) private var knowledgeWindowWidth
+    @Environment(\.holoContentWidth) private var knowledgeWindowWidth
     private var topicGridColumnCount: Int {
         guard HoloAdaptiveLayout.isExpandedWidth(knowledgeWindowWidth) else { return 2 }
         let column = max(300, HoloAdaptiveLayout.galleryColumnMaxWidth / 3.4)

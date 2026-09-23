@@ -155,6 +155,9 @@ nonisolated struct HoloTodayMatterItem: Equatable, Sendable, Identifiable {
     let isFocus: Bool
     /// 整卡点击动作（进详情）。
     let cardAction: HoloTodayAction
+    /// V2 计划进度（planOrder 口径，MatterPlanQuery 实时计算）；无计划任务时 total = 0。
+    var planDoneCount: Int = 0
+    var planTotalCount: Int = 0
 }
 
 // MARK: - 今天的安排区块

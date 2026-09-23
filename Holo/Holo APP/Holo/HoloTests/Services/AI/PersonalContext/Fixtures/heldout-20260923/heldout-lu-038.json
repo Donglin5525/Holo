@@ -1,0 +1,84 @@
+{
+  "fixtureID": "tpl-travel-plant-02",
+  "domainTags": [
+    "出行",
+    "居家",
+    "照护"
+  ],
+  "sources": [
+    {
+      "sourceID": "habit:habit-plant",
+      "sourceDomain": "habit",
+      "sourceKind": "habitDefinition",
+      "plainText": "给阳台的绿萝和龟背竹浇水",
+      "recordedAt": "2026-08-01T08:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "derivedCheckins": [
+        {
+          "sourceID": "habit:habit-plant#ck0",
+          "eventTime": "2026-09-08T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-plant#ck1",
+          "eventTime": "2026-09-11T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-plant#ck2",
+          "eventTime": "2026-09-14T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-plant#ck3",
+          "eventTime": "2026-09-17T08:00:00+08:00",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "sourceID": "thought:note-plant",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "入夏后这两盆长得很猛，两天不浇就蔫。",
+      "recordedAt": "2026-08-20T21:00:00+08:00",
+      "eventTime": "2026-08-20T21:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 11 月 10 日出差去厦门一个星期，家里没别人。帮我看看出发前要安排什么。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户家中有需定期浇水的植物",
+      "basisSourceIDs": [
+        "habit:habit-plant",
+        "thought:note-plant"
+      ],
+      "epistemicStatus": "inferred"
+    }
+  ],
+  "unknowns": [
+    "出发期间是否有人帮忙浇水",
+    "植物耐旱程度"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "建议核实出差期间植物浇水安排"
+    }
+  ],
+  "forbiddenClaims": [
+    "断言用户养了名贵植物",
+    "自动创建浇水任务"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除浇水习惯与打卡",
+      "expectedEffect": "不再出现植物浇水个性化建议"
+    }
+  ]
+}

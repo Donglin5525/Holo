@@ -129,6 +129,12 @@ struct ThoughtEditorView: View {
     @State private var draftThoughtId: UUID? = nil
     /// 防抖自动保存任务（用户停顿 2 秒后落库一次）
     @State private var autoSaveTask: Task<Void, Never>? = nil
+    /// IME 组字进行中（输入法候选未确认）。组字窗口内整页必须静默：
+    /// 此刻落库会触发草稿创建/导航栏变更等全页重渲染，iOS 26 上会打断
+    /// 输入法会话，造成组字文字叠影闪动（真机实锤，见 imediag.log）。
+    @State private var isComposingIME = false
+    /// 组字期间到期的自动保存：组字结束后补跑
+    @State private var autoSaveDeferredByComposition = false
     /// AI 分类是否已触发（每个草稿只触发一次，避免自动保存重复消耗配额）
     @State private var didEnqueueAIClassification: Bool = false
     /// 短想法「暂不整理」提示是否已发过（每个编辑器会话只提示一次，避免反复打扰）
@@ -156,7 +162,10 @@ struct ThoughtEditorView: View {
 
     /// 当前正在编辑的想法 ID（编辑模式用注入的 id，新建模式用草稿 id）
     private var currentThoughtId: UUID? { editingThoughtId ?? draftThoughtId }
-    /// 是否为编辑模式（已有记录）
+    /// 是否为编辑模式（已有记录，含新建后已落库的草稿）。
+    /// 注意：导航栏标题故意不用它——草稿在打字中途首次落库时若标题翻成
+    /// 「编辑想法」就是一次全页重渲染，砸在组字窗口内打断输入法（叠影根因之一）。
+    /// 标题只看 editingThoughtId（用户进编辑器时的意图），新建会话全程「记录想法」。
     private var isEditing: Bool { currentThoughtId != nil }
 
     /// 是否有实质内容：文字非空，或已有图片（纯图片想法同样合法，不再被当空草稿丢弃）
@@ -186,7 +195,9 @@ struct ThoughtEditorView: View {
                 .background(Color.holoBackground)
                 // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
                 .scrollDismissesKeyboard(.interactively)
-                .navigationTitle(isEditing ? String(localized: "编辑想法") : String(localized: "记录想法"))
+                .navigationTitle(editingThoughtId != nil
+                    ? String(localized: "编辑想法")
+                    : String(localized: "记录想法"))
                 .navigationBarTitleDisplayMode(.inline)
                 // 「待确认」徽章进入：数据就绪、区块渲染后滚到 AI 归类确认位
                 .onChange(of: hasLoadedEditorData) { _, loaded in
@@ -413,13 +424,28 @@ struct ThoughtEditorView: View {
     }
 
     /// 防抖自动保存：内容变化后停顿 2 秒落库一次，避免逐字写入的性能开销。
+    /// 组字（IME 候选未确认）期间不落库：保存触发的草稿创建/标题与工具栏变更
+    /// 是全页重渲染，砸在组字中途就是叠影闪动的根因；推迟到组字结束再存。
     private func scheduleAutoSave() {
+        guard !isComposingIME else {
+            autoSaveDeferredByComposition = true
+            MarkdownTextView.IMEDiag.log("autoSave deferred (composing)")
+            return
+        }
         autoSaveTask?.cancel()
         autoSaveTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard !Task.isCancelled else { return }
             persistContent(shouldDismiss: false, notifyDataChange: false)
         }
+    }
+
+    /// 编辑器上报的组字状态变化：结束时补跑被推迟的自动保存
+    private func handleCompositionChange(_ composing: Bool) {
+        isComposingIME = composing
+        guard !composing, autoSaveDeferredByComposition else { return }
+        autoSaveDeferredByComposition = false
+        scheduleAutoSave()
     }
 
     /// 核心持久化：根据当前状态 create / update / 删除空草稿。
@@ -495,6 +521,7 @@ struct ThoughtEditorView: View {
                 )
                 draftThoughtId = thought.id
                 didCreateThoughtInSession = true
+                MarkdownTextView.IMEDiag.log("persistContent: draft created wasComposing=\(isComposingIME)")
                 try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
                 // 不能依赖上面的 @State 在本次同步调用中立即回写；调用方需要继续使用刚创建的 ID。
                 persistedThoughtId = thought.id
@@ -651,7 +678,8 @@ struct ThoughtEditorView: View {
                 },
                 onSuggestionCommand: handleSuggestionKeyboardCommand,
                 suggestionKeyboardEnabled: triggerContext != nil,
-                suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty
+                suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty,
+                onCompositionChange: handleCompositionChange
             )
             .frame(height: editorFrameHeight)
 

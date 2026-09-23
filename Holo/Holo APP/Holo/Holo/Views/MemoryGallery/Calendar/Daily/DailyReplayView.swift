@@ -338,7 +338,7 @@ private struct DailyReplayChapterHeader: View {
     private var calendar: Calendar { Calendar.current }
 
     /// 宽屏档日号放大（与章节头排印同口径）
-    @Environment(\.holoWindowWidth) private var dayHeaderWindowWidth
+    @Environment(\.holoContentWidth) private var dayHeaderWindowWidth
     private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayHeaderWindowWidth) }
 
     var body: some View {
@@ -433,7 +433,7 @@ private struct DailyReplayDayContent: View {
     let onEmptySwipe: (DailyReplayEmptyDaySwipeDirection) -> Void
 
     /// 宽屏档时段注脚与空态文案放大（与章节头排印同口径）
-    @Environment(\.holoWindowWidth) private var dayContentWindowWidth
+    @Environment(\.holoContentWidth) private var dayContentWindowWidth
     private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayContentWindowWidth) }
 
     private var periodBlocks: [DailyReplayPresentation.PeriodBlock] {

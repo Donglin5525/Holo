@@ -42,11 +42,6 @@ class TodoRepository: ObservableObject {
     /// 回收站中的任务（已删除）
     @Published var trashedTasks: [TodoTask] = []
 
-    /// 全局任务完成撤回状态：正在完成中（3 秒撤回窗口）的任务 ID
-    /// 跨界面共享——无论在列表还是看板完成，撤回 banner 都一致显示
-    @Published var pendingCompletionTaskId: UUID? = nil
-    private var pendingCompletionWorkItem: DispatchWorkItem? = nil
-
     /// 是否已完成初始化（供 UI 判断加载状态）
     @Published private(set) var isReady: Bool = false
 
@@ -208,17 +203,36 @@ class TodoRepository: ObservableObject {
     /// 返回 nil 表示没有可用的清单名（调用方落默认位置）。
     @discardableResult
     func matchOrCreateList(named suggested: String) throws -> (list: TodoList, created: Bool)? {
-        let lists = folders.flatMap { $0.listsArray } + unfiledLists
         guard let resolution = TodoListNameResolver.resolve(
             suggested: suggested,
-            existingListNames: lists.map(\.name)
+            existingListNames: existingListNamesForResolution()
         ) else { return nil }
-        if let matchedName = resolution.matchedExistingName,
-           let hit = lists.first(where: { $0.name == matchedName }) {
+        if let hit = matchList(for: resolution) {
             return (hit, false)
         }
         let list = try createList(name: resolution.name)
         return (list, true)
+    }
+
+    /// 只读匹配：按名命中已有清单，不落库不创建。
+    /// 确认卡预演展示「将放入哪个清单 / 将新建」时用——用户取消前不留副作用。
+    func matchList(named suggested: String) -> TodoList? {
+        guard let resolution = TodoListNameResolver.resolve(
+            suggested: suggested,
+            existingListNames: existingListNamesForResolution()
+        ) else { return nil }
+        return matchList(for: resolution)
+    }
+
+    private func existingListNamesForResolution() -> [String] {
+        let lists = folders.flatMap { $0.listsArray } + unfiledLists
+        return lists.map(\.name)
+    }
+
+    private func matchList(for resolution: TodoListNameResolver.Resolution) -> TodoList? {
+        guard let matchedName = resolution.matchedExistingName else { return nil }
+        let lists = folders.flatMap { $0.listsArray } + unfiledLists
+        return lists.first(where: { $0.name == matchedName })
     }
 
     /// 创建清单
@@ -505,48 +519,8 @@ class TodoRepository: ObservableObject {
 
     // MARK: - 全局完成撤回
 
-    /// 开始完成撤回流程：乐观标记 UI，3 秒后真正落库，期间可撤回。
-    /// 跨界面共享 pendingCompletionTaskId，任何界面都能看到撤回 banner。
-    func startPendingCompletion(for task: TodoTask) {
-        // 如果有上一个待确认的任务，立即确认它
-        confirmPendingCompletion()
-
-        pendingCompletionTaskId = task.id
-
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-            self.confirmPendingCompletion()
-        }
-        pendingCompletionWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
-    }
-
-    /// 确认待完成的任务（真正落库）
-    func confirmPendingCompletion() {
-        guard let pendingId = pendingCompletionTaskId else { return }
-        pendingCompletionWorkItem?.cancel()
-        pendingCompletionWorkItem = nil
-
-        if let task = findTask(by: pendingId) {
-            do {
-                if task.repeatRule != nil {
-                    _ = try completeRepeatingTask(task)
-                } else {
-                    try completeTask(task)
-                }
-            } catch {
-                logger.error("确认完成任务失败: \(error.localizedDescription)")
-            }
-        }
-        pendingCompletionTaskId = nil
-    }
-
-    /// 撤回待完成的任务（取消 3 秒计时，不落库）
-    func undoPendingCompletion() {
-        pendingCompletionWorkItem?.cancel()
-        pendingCompletionWorkItem = nil
-        pendingCompletionTaskId = nil
-    }
+    /// 完成撤回流程已上移到 HoloTaskCompletionCoordinator（动效融合 G1 完成契约）：
+    /// 本仓库只保留 completeTask / completeRepeatingTask / toggleTaskCompletion 等原子操作。
 
     /// 完成重复任务并生成下一个实例
     /// - Parameter task: 要完成的重复任务

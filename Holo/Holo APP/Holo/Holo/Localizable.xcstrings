@@ -418,6 +418,9 @@
         }
       }
     },
+    " 等%lld个" : {
+
+    },
     " 等%lld项" : {
       "localizations" : {
         "en" : {
@@ -708,6 +711,7 @@
       }
     },
     "· %lld 个 AI 猜测待你确认" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1763,7 +1767,6 @@
       }
     },
     "%@ - %@" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3527,6 +3530,7 @@
       }
     },
     "%lld 个待确认" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4390,7 +4394,6 @@
       }
     },
     "%lld 笔同金额交易按月出现，是一个分期吗？" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4487,7 +4490,6 @@
       }
     },
     "%lld 组" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10211,6 +10213,9 @@
         }
       }
     },
+    "不再提示恢复" : {
+
+    },
     "不再新增，回答可使用已有记忆" : {
       "localizations" : {
         "en" : {
@@ -10346,6 +10351,9 @@
         }
       }
     },
+    "不归入任何清单" : {
+
+    },
     "不挂项目" : {
       "localizations" : {
         "en" : {
@@ -10427,7 +10435,6 @@
       }
     },
     "不是分期" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11037,6 +11044,9 @@
           }
         }
       }
+    },
+    "为什么" : {
+
     },
     "为什么现在想做这件事（可选）" : {
       "localizations" : {
@@ -15832,6 +15842,38 @@
         }
       }
     },
+    "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After saving, past check-ins will count as 1 each in stats. Check marks are kept and you can switch back anytime."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後，歷史打卡將按每次 1 計入統計，勾選狀態保留，可隨時切回"
+          }
+        }
+      }
+    },
+    "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After saving, each day with a past value entry will be marked as completed. Values are kept and you can switch back anytime."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後，歷史數值記錄的每一天將標記為已完成，數值保留，可隨時切回"
+          }
+        }
+      }
+    },
     "保存后随 iCloud 同步，卸载重装也能找回来" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18128,7 +18170,6 @@
       }
     },
     "其中 %lld 笔为未来期次：已保存但不计入统计，到期后自动出现在账单里" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19647,7 +19688,6 @@
       }
     },
     "分期识别" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21836,6 +21876,9 @@
     "加入待办" : {
 
     },
+    "加入计划" : {
+
+    },
     "加待办" : {
       "localizations" : {
         "en" : {
@@ -23550,7 +23593,6 @@
       }
     },
     "另有 %lld 笔带分期字样但无法确定归属，将按普通交易导入（分期信息保留在备注中）" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30575,6 +30617,9 @@
         }
       }
     },
+    "已加入计划：「%@」" : {
+
+    },
     "已匹配 %lld 个交易对方（高置信 %lld）" : {
       "localizations" : {
         "en" : {
@@ -32966,6 +33011,9 @@
         }
       }
     },
+    "已进入这件事的对话" : {
+
+    },
     "已连续 %@不间断" : {
       "localizations" : {
         "en" : {
@@ -34395,7 +34443,6 @@
       }
     },
     "归为分期" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36465,6 +36512,9 @@
         }
       }
     },
+    "恢复上次的对话上下文" : {
+
+    },
     "恢复关联" : {
       "localizations" : {
         "en" : {
@@ -37660,6 +37710,9 @@
           }
         }
       }
+    },
+    "截止前提醒" : {
+
     },
     "截止日期" : {
       "localizations" : {
@@ -39960,6 +40013,9 @@
         }
       }
     },
+    "描述" : {
+
+    },
     "提交" : {
       "localizations" : {
         "en" : {
@@ -40279,6 +40335,9 @@
           }
         }
       }
+    },
+    "提醒时刻" : {
+
     },
     "提醒时间" : {
       "localizations" : {
@@ -42799,6 +42858,9 @@
           }
         }
       }
+    },
+    "新建「%@」" : {
+
     },
     "新建主题" : {
       "localizations" : {
@@ -48533,6 +48595,12 @@
         }
       }
     },
+    "条目" : {
+
+    },
+    "条目内容" : {
+
+    },
     "来源" : {
       "localizations" : {
         "en" : {
@@ -49535,6 +49603,9 @@
         }
       }
     },
+    "标题、条目、优先级" : {
+
+    },
     "核心" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -50513,6 +50584,15 @@
           }
         }
       }
+    },
+    "正在聊：%@" : {
+
+    },
+    "正在聊「%@」" : {
+
+    },
+    "正在聊这件事" : {
+
     },
     "正在记录…" : {
       "localizations" : {
@@ -51797,6 +51877,9 @@
     "没有入账，请稍后重试。" : {
 
     },
+    "没有具体时间时，设置一个提醒时刻" : {
+
+    },
     "没有加入成功，可以再试一次" : {
 
     },
@@ -51922,6 +52005,7 @@
       }
     },
     "没有截止日时，设置一个具体的提醒时刻" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -53007,6 +53091,9 @@
         }
       }
     },
+    "添加条目" : {
+
+    },
     "添加第一个账户" : {
       "localizations" : {
         "en" : {
@@ -53089,6 +53176,7 @@
       }
     },
     "添加进行中的事" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57820,7 +57908,6 @@
       }
     },
     "第%lld-%lld期/共%lld期" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57843,7 +57930,6 @@
       }
     },
     "第%lld期/共%lld期" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57866,7 +57952,6 @@
       }
     },
     "第1-%lld期/共%lld期" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -62677,6 +62762,9 @@
         }
       }
     },
+    "识别于 %@" : {
+
+    },
     "识别信息不完整，请核对后保存。" : {
       "localizations" : {
         "en" : {
@@ -64384,6 +64472,9 @@
         }
       }
     },
+    "调整内容" : {
+
+    },
     "调整范围" : {
       "localizations" : {
         "en" : {
@@ -65268,38 +65359,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "超過目標值時將以紅色標記並提醒控制"
-          }
-        }
-      }
-    },
-    "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "After saving, each day with a past value entry will be marked as completed. Values are kept and you can switch back anytime."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存後，歷史數值記錄的每一天將標記為已完成，數值保留，可隨時切回"
-          }
-        }
-      }
-    },
-    "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "After saving, past check-ins will count as 1 each in stats. Check marks are kept and you can switch back anytime."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存後，歷史打卡將按每次 1 計入統計，勾選狀態保留，可隨時切回"
           }
         }
       }
@@ -69789,6 +69848,9 @@
         }
       }
     },
+    "这次的个性化规划已生成，但结果没能保存到手机上。这条回答不是个性化方案，重新发送刚才的话即可再试。" : {
+
+    },
     "这次的个性化规划没有完成：AI 服务暂时连不上。这条回答不是个性化方案，稍后可以重新发送再试一次。" : {
       "localizations" : {
         "en" : {
@@ -69868,6 +69930,9 @@
           }
         }
       }
+    },
+    "这次的个性化规划没有完成（结果保存失败）。这条回答不是个性化方案，重新发送刚才的话即可再试。" : {
+
     },
     "这次综合分析提炼了几个跨模块的变化和提醒。" : {
       "localizations" : {
@@ -70029,6 +70094,9 @@
           }
         }
       }
+    },
+    "这笔没有入账" : {
+
     },
     "这笔账需要你确认。" : {
       "localizations" : {

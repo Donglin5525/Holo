@@ -21,12 +21,25 @@ nonisolated enum HoloMatterMutationValidator {
         let matterID: UUID
         let currentRevision: Int64
         let knownOpenLoopIDs: Set<UUID>
+        /// 当前计划任务标题（规范化），addTask 去重用（2026-09-23 计划修订）。
+        var planTaskTitles: Set<String>
 
-        init(matterID: UUID, currentRevision: Int64, knownOpenLoopIDs: Set<UUID>) {
+        init(
+            matterID: UUID,
+            currentRevision: Int64,
+            knownOpenLoopIDs: Set<UUID>,
+            planTaskTitles: Set<String> = []
+        ) {
             self.matterID = matterID
             self.currentRevision = currentRevision
             self.knownOpenLoopIDs = knownOpenLoopIDs
+            self.planTaskTitles = planTaskTitles
         }
+    }
+
+    /// addTask 去重口径：去空白 + 小写（与 Repository 事件键同风格）。
+    nonisolated static func normalizedPlanTitle(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     static func validate(_ proposal: HoloMatterMutationProposal, context: Context) -> Outcome {
@@ -67,6 +80,15 @@ nonisolated enum HoloMatterMutationValidator {
                 }
                 if draft.entityID.trimmingCharacters(in: .whitespaces).isEmpty {
                     return .rejected(reason: "proposeLink entityID 为空")
+                }
+            case .addTask(let draft):
+                // 计划修订（2026-09-23）：标题非空 + 计划内不得重复（方案 6.1 不输出重复任务）。
+                let title = draft.title.trimmingCharacters(in: .whitespaces)
+                if title.isEmpty {
+                    return .rejected(reason: "addTask 标题为空")
+                }
+                if context.planTaskTitles.contains(Self.normalizedPlanTitle(title)) {
+                    return .rejected(reason: "addTask 与计划内既有任务重复")
                 }
             case .refreshProjection:
                 break

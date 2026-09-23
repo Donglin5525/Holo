@@ -31,10 +31,28 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             let fields: [FieldDef]
             let rows: [[String: JSONValue]]
         }
+        /// 冻结回答任务（AnalysisAnswerTaskV1，2026-09-19 提示词方案 P1）：
+        /// 用户选择的场景、主时间范围与回答清单随快照上云，后端注入 system
+        /// prompt 作为权威范围——「用户改写问句仍保留所选场景」「九月只算九月」
+        /// 的同一真相源。旧后端只读 datasets，忽略此字段；nil 时不编码该键。
+        struct AnswerTask: Encodable {
+            struct TimeRangePayload: Encodable {
+                let label: String
+                /// Unix 秒（与后端 timeRange 归一约定一致）
+                let start: Double
+                let end: Double
+            }
+            let scenarioID: String
+            let userQuestion: String
+            let questionKind: String
+            let primaryTimeRange: TimeRangePayload?
+            let answerChecklist: [String]
+        }
         let version: Int
         let generatedAt: Date
         let historyDays: Int
         let datasets: [String: Dataset]
+        var answerTask: AnswerTask? = nil
     }
 
     enum JSONValue: Encodable {
@@ -74,17 +92,27 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         ]
     }
 
+    /// 快照时间值：带本地时区偏移的完整时刻（2026-09-21T22:40:00+08:00）。
+    /// 带偏移前缀即用户本地日期，云端 day/month/weekend 按前缀切桶与 iOS 本地
+    /// 日历同构；此前 withFullDate 把时刻截成纯日期（时段分析无数据）且按 UTC
+    /// 输出，东八区凌晨交易会被切进前一天。
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
-        f.formatOptions = [.withFullDate]
+        f.formatOptions = [.withInternetDateTime]
+        f.timeZone = .current
         return f
     }()
 
     /// 聚合快照并序列化为 JSON Data（PUT body 直接使用）。
+    /// scenario/userQuestion：显式场景发送时冻结为 AnswerTaskV1（时间默认窗
+    /// 按 `AnalysisScenario.defaultRangeDays`，用户问句里自己指定的时间由后端
+    /// 以「用户原话优先」覆盖）；nil = 常规深度分析，不带任务元数据。
     static func buildJSON(
         now: Date = Date(),
         historyDays: Int = defaultHistoryDays,
-        maxRows: Int = maxRowsPerDataset
+        maxRows: Int = maxRowsPerDataset,
+        scenario: AnalysisScenario? = nil,
+        userQuestion: String? = nil
     ) async throws -> Data {
         let start = Calendar.current.date(byAdding: .day, value: -historyDays, to: now) ?? now
         let range = HoloAgentTimeRange(label: "云端分析快照窗口", start: start, end: now)
@@ -119,11 +147,32 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
                 )
             }
         }
+        let answerTask: Snapshot.AnswerTask?
+        if let scenario {
+            let question = (userQuestion?.isEmpty == false) ? userQuestion! : scenario.question
+            answerTask = Snapshot.AnswerTask(
+                scenarioID: scenario.rawValue,
+                userQuestion: question,
+                questionKind: scenario.answerTaskKind,
+                primaryTimeRange: scenario.defaultRangeDays.map { days in
+                    let rangeStart = now.addingTimeInterval(-Double(days) * 86_400)
+                    return Snapshot.AnswerTask.TimeRangePayload(
+                        label: "最近\(days)天",
+                        start: rangeStart.timeIntervalSince1970.rounded(),
+                        end: now.timeIntervalSince1970.rounded()
+                    )
+                },
+                answerChecklist: scenario.answerChecklist
+            )
+        } else {
+            answerTask = nil
+        }
         let snapshot = Snapshot(
             version: 1,
             generatedAt: now,
             historyDays: historyDays,
-            datasets: datasets
+            datasets: datasets,
+            answerTask: answerTask
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

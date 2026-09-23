@@ -15,13 +15,16 @@ struct MarketingFrame {
 private let arguments = Array(CommandLine.arguments.dropFirst())
 private let root = URL(fileURLWithPath: arguments.first ?? FileManager.default.currentDirectoryPath)
 private let isIPad = arguments.contains("ipad")
-private let requestedVariant = arguments.dropFirst().first(where: { $0 == "a" || $0 == "b" })
+private let requestedVariant = arguments.dropFirst().first(where: { $0 == "a" || $0 == "b" || $0 == "life" })
 private let canvasWidth = isIPad ? 2064 : 1320
 private let canvasHeight = isIPad ? 2752 : 2868
 private let deviceDirectory = isIPad ? "ipad-13" : "iphone-6.9"
 private let contentDirectory: URL = {
     let base = root.appendingPathComponent("docs/app-store/screenshots/zh-Hans")
     guard let requestedVariant else { return base }
+    if requestedVariant == "life" {
+        return base.appendingPathComponent("v5")
+    }
     return base.appendingPathComponent("candidates/\(requestedVariant)")
 }()
 private let rawDirectory = contentDirectory.appendingPathComponent("\(deviceDirectory)/raw")
@@ -105,6 +108,45 @@ private let frames: [MarketingFrame] = {
                 output: "06-next-action.png",
                 title: ["从看见变化，", "到马上行动"],
                 subtitle: "AI 把数据变成问题、计划和下一步"
+            )
+        ]
+    case "life":
+        return [
+            MarketingFrame(
+                input: "01-ai-actions.png",
+                output: "01-one-sentence-life.png",
+                title: ["一句话，把生活", "安排好"],
+                subtitle: "会议、签证、家人的事，一次说清楚"
+            ),
+            MarketingFrame(
+                input: "02-home.png",
+                output: "02-one-holo-life.png",
+                title: ["一个 Holo，", "管好整段生活"],
+                subtitle: "工作、出行与日常，都放在一起看"
+            ),
+            MarketingFrame(
+                input: "03-ai-analysis.png",
+                output: "03-ask-your-data-life.png",
+                title: ["问自己的数据，", "回答有出处"],
+                subtitle: "从真实记录里，找到更适合你的安排"
+            ),
+            MarketingFrame(
+                input: "04-period-replay.png",
+                output: "04-life-replay-life.png",
+                title: ["把一周的生活，", "读出顺序"],
+                subtitle: "会议、签证、支出和观点，放在一起回看"
+            ),
+            MarketingFrame(
+                input: "05-memory-insight.png",
+                output: "05-memory-confirm-life.png",
+                title: ["记住什么，", "由你决定"],
+                subtitle: "AI 先提炼，你来确认每一条记忆"
+            ),
+            MarketingFrame(
+                input: "06-memory-gallery.png",
+                output: "06-memory-gallery-life.png",
+                title: ["记下的日子，", "长成回忆"],
+                subtitle: "普通的一天，也值得被认真记住"
             )
         ]
     default:
