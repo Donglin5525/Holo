@@ -362,10 +362,14 @@ struct TaskDatePickerSheet: View {
 
     // MARK: - Reminder Section
 
-    /// 提醒区：共用 TaskReminderEditor——有截止日时用相对预设，无截止日时选绝对提醒时刻
+    /// 提醒区：共用 TaskReminderEditor。
+    /// 带时刻 → 相对预设 chips；全天 → 锚定任务日的绝对档位（当天 09:00 等，与确认卡一致）；
+    /// 无截止日 → 绝对时刻自由添加。全天任务不给「提前15分钟」chips——全天没有截止时刻，
+    /// 「提前15分钟」等于提醒在 00:00 前几分钟，语义不成立。
     private var reminderSection: some View {
         TaskReminderEditor(
-            mode: hasDueDate ? .relative : .absolute,
+            mode: (hasDueDate && !isAllDay) ? .relative : .absolute,
+            anchorDate: (hasDueDate && isAllDay) ? dueDate : nil,
             reminders: $selectedReminders
         )
         .padding(.horizontal, 12)

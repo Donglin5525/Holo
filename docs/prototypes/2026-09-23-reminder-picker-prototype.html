@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HOLO 原型 · 提醒时刻（全天任务版）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #232120; color: #d8d3cc; padding: 28px 16px 60px;
+  }
+  .page { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 18px; color: #f2ede6; margin-bottom: 6px; }
+  .sub { font-size: 13px; color: #8f887f; margin-bottom: 22px; }
+  .layout { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* 手机框 */
+  .phone {
+    width: 400px; background: #f6f4f0; border-radius: 42px; padding: 12px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55); flex: none;
+  }
+  .screen { background: #f6f4f0; border-radius: 32px; overflow: hidden; padding: 10px 12px 18px; }
+  .statusbar { display:flex; justify-content:space-between; font-size:12px; color:#8b857c; padding: 4px 8px 10px; }
+
+  /* 任务上下文条 */
+  .ctx {
+    background: #fff; border-radius: 14px; padding: 10px 14px; margin-bottom: 10px;
+    font-size: 13px; color: #6f6960; display:flex; align-items:center; gap:8px;
+  }
+  .ctx b { color: #2b2723; font-weight: 600; }
+  .ctx .scen { margin-left:auto; font-size:11px; color:#e8703a; background:#fdeeE6; padding:4px 10px; border-radius:99px; border:none; cursor:pointer; white-space:nowrap; }
+
+  /* 底部弹层 */
+  .sheet { background:#fff; border-radius: 22px; box-shadow: 0 -2px 24px rgba(60,40,20,.10); overflow:hidden; }
+  .grab { width:38px; height:5px; border-radius:3px; background:#e4dfd7; margin:10px auto 2px; }
+  .sheet-head { display:flex; align-items:center; padding: 8px 18px 4px; }
+  .sheet-head .t { flex:1; text-align:center; font-size:16px; font-weight:600; color:#2b2723; }
+  .sheet-head .done { color:#e8703a; font-weight:600; font-size:15px; background:none; border:none; cursor:pointer; }
+  .sheet-head .ph { width:34px; }
+
+  .section { margin: 10px 14px 16px; background:#faf8f5; border-radius:16px; padding: 12px 14px; }
+  .sec-head { display:flex; align-items:center; gap:8px; font-size:14px; color:#2b2723; margin-bottom:10px; }
+  .badge { background:#e8703a; color:#fff; font-size:11px; border-radius:99px; padding:1px 7px; }
+  .hint { font-size:12px; color:#a09a90; margin-bottom:10px; }
+
+  /* 预设 chips */
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .chip {
+    font-size:13px; padding:8px 14px; border-radius:99px; border:none; cursor:pointer;
+    background:#efece6; color:#57514a; transition: all .15s;
+  }
+  .chip.sel { background:#e8703a; color:#fff; }
+  .chip.disabled { opacity:.32; cursor:not-allowed; }
+
+  /* 已设提醒列表 */
+  .rows { display:flex; flex-direction:column; gap:8px; }
+  .row { background:#fdeee5; border-radius:12px; padding:10px 12px; display:flex; align-items:center; gap:8px; }
+  .row .bell { color:#e8703a; font-size:14px; }
+  .row .time { flex:1; font-size:15px; color:#2b2723; font-weight:500; cursor:pointer; }
+  .row .time .tag { font-size:11px; color:#c07a52; margin-left:6px; }
+  .row .del { background:none; border:none; cursor:pointer; color:#b9b2a8; font-size:17px; line-height:1; padding:2px; }
+  .row .del:hover { color:#8f887f; }
+
+  /* 行内滚轮（点行展开） */
+  .wheel {
+    display:flex; gap:8px; margin-top:10px;
+  }
+  .wheel select {
+    flex:1; font-size:15px; padding:8px 6px; border-radius:10px; border:1px solid #eae5dd;
+    background:#fff; color:#2b2723;
+  }
+
+  #add { background:none; border:none; color:#e8703a; font-size:14px; font-weight:600; cursor:pointer; padding:10px 2px 0; }
+
+  /* 写回预览：确认卡 mini */
+  .after { margin-top:12px; }
+  .after .cap { font-size:12px; color:#8f887f; margin: 0 4px 8px; }
+  .mini-card { background:#fff; border-radius:18px; padding:14px 16px; box-shadow:0 2px 14px rgba(60,40,20,.08); }
+  .mini-title { font-size:14px; font-weight:600; color:#2b2723; margin-bottom:10px; display:flex; gap:8px; align-items:center; }
+  .mini-title .st { font-size:10px; color:#e8703a; background:#fdeeE6; padding:2px 8px; border-radius:99px; }
+  .mini-row { display:flex; align-items:center; gap:8px; font-size:13px; padding:9px 2px; border-top:1px solid #f3efe9; color:#57514a; }
+  .mini-row .ico { color:#e8703a; font-size:13px; width:16px; }
+  .mini-row .lab { color:#57514a; }
+  .mini-row .val { margin-left:auto; color:#2b2723; }
+  .mini-row .val.empty { color:#b9b2a8; }
+
+  /* 说明 */
+  .notes { flex:1; min-width: 300px; font-size:13.5px; line-height:1.85; color:#c9c3ba; }
+  .notes h2 { font-size:14px; color:#f2ede6; margin: 0 0 10px; }
+  .notes b { color:#f0a074; font-weight:600; }
+  .notes .n { margin-bottom: 12px; }
+  .toast {
+    position: fixed; left:50%; bottom:26px; transform:translateX(-50%);
+    background:#2b2723; color:#fff; font-size:13px; padding:10px 18px; border-radius:99px;
+    opacity:0; transition:opacity .25s; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>HOLO 原型 · 「提醒时刻」弹层改版（全天任务）</h1>
+  <div class="sub">可交互：点 chips、点已设条目、点删除、点完成都有效 · 对应方案 2026-09-23</div>
+
+  <div class="layout">
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>16:45</span><span>4G ▮▮▮▯</span></div>
+
+        <div class="ctx">
+          📋 <b>带包纸来公司</b> · 9月24日（明天）· 全天
+          <button class="scen" onclick="toggleScenario()">切到「今天」场景</button>
+        </div>
+
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head">
+            <span class="ph"></span>
+            <span class="t">提醒时刻</span>
+            <button class="done" onclick="onDone()">完成</button>
+          </div>
+
+          <div class="section">
+            <div class="sec-head">🔔 提醒 <span class="badge" id="count">1</span></div>
+            <div class="hint" id="hint">按任务日生成的快捷档位，点选即加、再点取消：</div>
+            <div class="chips" id="chips"></div>
+
+            <div class="rows" id="rows"></div>
+            <button id="add" onclick="addEntry()">＋ 添加提醒时刻</button>
+          </div>
+        </div>
+
+        <div class="after">
+          <div class="cap">▲ 点「完成」后写回确认卡（下方提醒行实时变）</div>
+          <div class="mini-card">
+            <div class="mini-title">✅ 任务待确认 <span class="st">待确认</span></div>
+            <div class="mini-row"><span class="ico">📄</span><span class="lab">标题</span><span class="val">带包纸来公司</span></div>
+            <div class="mini-row"><span class="ico">📅</span><span class="lab">日期</span><span class="val">9月24日</span></div>
+            <div class="mini-row"><span class="ico">🔔</span><span class="lab">提醒</span><span class="val" id="cardRemind">9月24日 09:00</span></div>
+            <div class="mini-row"><span class="ico">🗂</span><span class="lab">清单</span><span class="val">收件箱</span></div>
+            <div class="mini-row"><span class="ico">✏️</span><span class="lab">调整内容</span><span class="val">标题、条目、优先级</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>交互说明（对照业界约定）</h2>
+      <div class="n"><b>① 预设 chips 一等入口</b>：「当天 09:00 / 当天 18:00 / 前一天 20:00」按任务日期算出真实时刻，点选即加、再点即删，支持多选——与带时刻任务的「提前15分钟」同一套习惯。</div>
+      <div class="n"><b>② 点行即改</b>：点任意一条已设提醒，行内直接展开滚轮改时刻——不用删了重加，关掉弹层再开也照样能改（修掉「只能删」的毛病）。</div>
+      <div class="n"><b>③ 过去时刻自动置灰</b>：点上方「切到今天场景」，18:00 档与「前一天」档已过时刻的会变灰不可点——防止建出永远不响的提醒。</div>
+      <div class="n"><b>④ 完成写回</b>：点「完成」→ 下方确认卡的提醒行实时更新，所见即所建；全删 = 「未设置」（明确不要提醒）。</div>
+      <div class="n">带具体时刻的任务仍用「截止时 / 提前15分钟 / 1小时…」档位（本次未改）；本原型只重做全天任务这一档。</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// 场景：tomorrow = 任务在明天(9/24)；today = 任务就是今天且现在16:45
+let scenario = 'tomorrow';
+let entries = [ { prev:false, h:9, m:0 } ];   // 初始预填：当天 09:00
+let editingId = null;                          // 当前展开滚轮的条目 id
+let nextId = 1;
+entries.forEach(e => e.id = nextId++);
+
+const DAY_LABEL = scenario === 'tomorrow' ? '9月24日' : '9月23日';
+const PREV_LABEL = scenario === 'tomorrow' ? '9月23日' : '9月22日';
+const PRESETS = [
+  { prev:false, h:9,  m:0,  label:'当天 09:00' },
+  { prev:false, h:18, m:0,  label:'当天 18:00' },
+  { prev:true,  h:20, m:0,  label:'前一天 20:00' },
+];
+const NOW_MIN = scenario === 'tomorrow' ? -1 : 16*60+45; // today 场景的「现在」
+
+function scenarioDayOffset(p) { return scenario === 'tomorrow' ? (p ? 0 : 1) : (p ? -1 : 0); }
+function isInPast(e) {
+  if (scenario === 'tomorrow') return false; // 明天任务都不算过去
+  const total = e.h*60 + e.m;
+  return (scenarioDayOffset(e.prev) * 1440 + total) <= NOW_MIN;
+}
+function fmt(e) { return (e.prev ? PREV_LABEL : DAY_LABEL) + ' ' + String(e.h).padStart(2,'0') + ':' + String(e.m).padStart(2,'0'); }
+function same(a, b) { return a.prev===b.prev && a.h===b.h && a.m===b.m; }
+
+function renderChips() {
+  const box = document.getElementById('chips');
+  box.innerHTML = '';
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    const past = isInPast(p);
+    b.className = 'chip' + (entries.some(e => same(e,p)) ? ' sel' : '') + (past ? ' disabled' : '');
+    b.textContent = p.label + (past ? '（已过）' : '');
+    b.onclick = () => {
+      if (isInPast(p)) return;
+      const hit = entries.find(e => same(e,p));
+      if (hit) removeEntry(hit.id); else { entries.push({...p, id: nextId++}); render(); }
+    };
+    box.appendChild(b);
+  });
+}
+
+function renderRows() {
+  const box = document.getElementById('rows');
+  box.innerHTML = '';
+  entries.slice().sort((a,b)=>(a.prev?-1440:0)-(b.prev?-1440:0) || (a.h*60+a.m)-(b.h*60+b.m))
+    .forEach(e => {
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = '<span class="bell">⏰</span>';
+      const t = document.createElement('span'); t.className='time';
+      t.innerHTML = fmt(e) + (e.prev ? '<span class="tag">前一天</span>' : '');
+      t.title = '点一下直接改';
+      t.onclick = () => { editingId = (editingId === e.id ? null : e.id); render(); };
+      row.appendChild(t);
+      const del = document.createElement('button'); del.className='del'; del.textContent='✕';
+      del.onclick = () => removeEntry(e.id);
+      row.appendChild(del);
+      box.appendChild(row);
+
+      if (editingId === e.id) {
+        const w = document.createElement('div'); w.className='wheel';
+        const sDay = document.createElement('select');
+        [['0', DAY_LABEL + '（当天）'], ['1', PREV_LABEL + '（前一天）']].forEach(([v,l]) => {
+          const o = document.createElement('option'); o.value=v; o.textContent=l;
+          if (String(e.prev?1:0) === v) o.selected = true; sDay.appendChild(o);
+        });
+        sDay.onchange = () => { e.prev = sDay.value === '1'; render(); };
+        const sTime = document.createElement('select');
+        for (let m = 6*60; m <= 22*60; m += 30) {
+          const o = document.createElement('option');
+          o.value = m; o.textContent = String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+          if (e.h*60+e.m === m) o.selected = true; sTime.appendChild(o);
+        }
+        sTime.onchange = () => { e.h = Math.floor(sTime.value/60); e.m = sTime.value%60; render(); };
+        w.appendChild(sDay); w.appendChild(sTime);
+        box.appendChild(w);
+      }
+    });
+  document.getElementById('count').textContent = entries.length;
+}
+
+function renderCard() {
+  const el = document.getElementById('cardRemind');
+  if (!entries.length) { el.textContent = '未设置'; el.classList.add('empty'); return; }
+  el.classList.remove('empty');
+  el.textContent = entries.slice().sort((a,b)=>(a.prev?-1440:0)-(b.prev?-1440:0) || (a.h*60+a.m)-(b.h*60+b.m))
+    .map(fmt).join('、');
+}
+
+function removeEntry(id) { entries = entries.filter(e => e.id !== id); if (editingId === id) editingId = null; render(); }
+function addEntry() {
+  // 锚定任务日 09:00（当日已过 9 点给最近整点）；无任务日才退回「现在+1h」
+  let h = 9, m = 0, prev = false;
+  if (scenario === 'today' && 9*60 <= NOW_MIN) {
+    const t = Math.min(22*60, (Math.floor(NOW_MIN/60)+1)*60);
+    h = Math.floor(t/60); m = t%60;
+  }
+  entries.push({ prev, h, m, id: nextId++ });
+  editingId = entries[entries.length-1].id;
+  render();
+}
+function onDone() {
+  const toast = document.getElementById('toast');
+  toast.textContent = entries.length ? '已写回确认卡：提醒 ' + entries.length + ' 条' : '已写回确认卡：不提醒（未设置）';
+  toast.style.opacity = 1;
+  setTimeout(() => toast.style.opacity = 0, 1800);
+}
+function toggleScenario() {
+  scenario = scenario === 'tomorrow' ? 'today' : 'tomorrow';
+  entries = [{ prev:false, h:9, m:0, id: nextId++ }];
+  editingId = null;
+  document.querySelector('.scen').textContent = scenario === 'tomorrow' ? '切到「今天」场景' : '切回「明天」场景';
+  document.querySelector('.ctx b').nextSibling.textContent = scenario === 'tomorrow'
+    ? ' · 9月24日（明天）· 全天' : ' · 9月23日（今天）· 全天';
+  render();
+}
+function render() { renderChips(); renderRows(); renderCard(); }
+render();
+</script>
+</body>
+</html>

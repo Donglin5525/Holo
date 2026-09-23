@@ -231,6 +231,17 @@ final class TaskPendingEditTests: XCTestCase {
         XCTAssertEqual(trigger, date(2026, 9, 23, 18, 45))
     }
 
+    func testAnchoredPresetDates() {
+        // 锚定预设档：任务日 9.24 → 当天 09:00 / 当天 18:00 / 前一天(9.23) 20:00
+        let anchor = date(2026, 9, 24, 14, 0) // 带不带时刻都应按「日」锚定
+        let morning = TaskPendingDefaults.anchoredPresetDate(anchorDate: anchor, dayOffset: 0, hour: 9)
+        XCTAssertEqual(morning, date(2026, 9, 24, 9, 0))
+        let evening = TaskPendingDefaults.anchoredPresetDate(anchorDate: anchor, dayOffset: 0, hour: 18)
+        XCTAssertEqual(evening, date(2026, 9, 24, 18, 0))
+        let prevNight = TaskPendingDefaults.anchoredPresetDate(anchorDate: anchor, dayOffset: -1, hour: 20)
+        XCTAssertEqual(prevNight, date(2026, 9, 23, 20, 0))
+    }
+
     // MARK: - 卡片工厂
 
     func testChatCardFactoryUsesUserOverrides() {
