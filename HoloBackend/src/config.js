@@ -429,19 +429,20 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_DAY ?? 300),
       },
     },
-    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型默认 qwen3-vl-plus
-    //（M0 五轮评测选型，docs/holoai-audit/vision-eval/README.md），env 可换模型不动代码；
-    // qwen 通道复用 DashScope key（生产 QWEN_API_KEY 缺省时回退 DASHSCOPE_API_KEY）。
+    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型 deepseek-v4-flash-vision-exp
+    //（2026-09-09 东林拍板定版 DeepSeek 不换模型，2026-09-23 代码默认值与生产 env 对齐，
+    // 删掉误导性的 qwen3-vl-plus 默认）。钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验
+    // 模型与主聊天通道互相牵连。
     vision_extraction: {
-      provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "qwen",
-      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "qwen3-vl-plus",
+      provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "deepseek-vision",
+      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-v4-flash-vision-exp",
       temperature: Number(process.env.HOLO_VISION_EXTRACTION_TEMPERATURE ?? 0),
       // 4000：deepseek-v4-flash-vision-exp 是推理模型（评测实测会先思考再出 JSON），
       // 1500 时推理偶发吃满上限导致 content 空回复（f01 空回复实锤），放宽保输出。
       maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 4000),
-      // 思考档位默认不发（模型默认）；生产配 none——单步感知任务不需要多步推理
-      // （同 intent §reasoning-off 先例，实测关思考快 2-3 倍质量不掉）。env 可调档。
-      reasoningEffort: process.env.HOLO_VISION_EXTRACTION_REASONING_EFFORT,
+      // 思考档位 none：单步感知任务不需要多步推理（同 intent §reasoning-off 先例，
+      // 实测关思考快 2-3 倍质量不掉）。与生产 env 对齐，env 仍可调档。
+      reasoningEffort: process.env.HOLO_VISION_EXTRACTION_REASONING_EFFORT ?? "none",
       requestLimits: {
         perMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
         perDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),
@@ -482,7 +483,7 @@ const DEFAULT_CONFIG = {
       type: "openai-compatible",
       baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
       // QWEN_BASE_URL 默认就是 DashScope 兼容模式，生产只配了 DASHSCOPE_API_KEY（ASR 在用），
-      // 缺 QWEN_API_KEY 时回退同一把钥匙，视觉模型无需新增密钥配置。
+      // 缺 QWEN_API_KEY 时回退同一把钥匙。（截图识别已定版 DeepSeek，不走 qwen 通道。）
       apiKey: process.env.QWEN_API_KEY ?? process.env.DASHSCOPE_API_KEY,
     },
     moonshot: {

@@ -1386,20 +1386,29 @@ export function createApp(overrides = {}) {
         context.header("X-Holo-Request-Id", logId);
       }
 
-      const result = await provider.complete({
-        purpose: "vision_extraction",
-        messages: serverPrompt.messages,
-        stream: false,
-        model: route.model,
-        temperature: route.temperature,
-        maxTokens: route.maxTokens,
-        // 2026-09-20 性能根治：此处此前漏传 reasoningEffort，env 配的
-        // HOLO_VISION_EXTRACTION_REASONING_EFFORT=none 从未到达供应商，
-        // 推理模型全速思考（生产实锤单次 reasoning 985-3177 token，耗时 15-26s；
-        // 上游 A/B 实测 none 生效：思考归零、答案正确）。
-        reasoningEffort: route.reasoningEffort,
-        clientSignal: context.req.raw.signal,
-      });
+      let result;
+      try {
+        result = await provider.complete({
+          purpose: "vision_extraction",
+          messages: serverPrompt.messages,
+          stream: false,
+          model: route.model,
+          temperature: route.temperature,
+          maxTokens: route.maxTokens,
+          // 2026-09-20 性能根治：此处此前漏传 reasoningEffort，env 配的
+          // HOLO_VISION_EXTRACTION_REASONING_EFFORT=none 从未到达供应商，
+          // 推理模型全速思考（生产实锤单次 reasoning 985-3177 token，耗时 15-26s；
+          // 上游 A/B 实测 none 生效：思考归零、答案正确）。
+          reasoningEffort: route.reasoningEffort,
+          clientSignal: context.req.raw.signal,
+        });
+      } catch (error) {
+        // 2026-09-23 一致性收口：上游瞬断（fetch 网络抖动等非 GatewayError）原样
+        // 变成 500，iOS 端只对 502/503/504 自动重试一次——生产实锤 11:31 一次上游
+        // 瞬断直接以失败告终且未触发重试。归一成 502 让既有重试接住。
+        if (error instanceof GatewayError) throw error;
+        throw new GatewayError("UPSTREAM_ERROR", error?.message ?? "vision upstream failed", 502);
+      }
       const content = result?.choices?.[0]?.message?.content ?? "";
 
       let understanding;

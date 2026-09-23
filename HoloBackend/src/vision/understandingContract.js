@@ -185,7 +185,23 @@ export function normalizeUnderstanding(raw) {
     imageType = PAYMENT_STATUS_IMAGE_TYPES[paymentStatus];
   }
 
-  // 护栏三（图型红线）：不可记账图型绝不允许携带交易——模型偶尔会无视规则
+  // 护栏三（图型-状态一致性，2026-09-23）：模型自相矛盾时以它亲口给的支付状态为准。
+  // 生产实锤（美团外卖「商家已接单」页）：模型一边把 paymentStatus 判成 completed，
+  // 一边把 imageType 判成 pending_order——若不纠正，下方图型红线会把伴随的交易
+  // 一并清掉，一笔已支付的账被当成未支付拒识。paymentStatus=completed 是模型的
+  // 明确判断，pending_order 只能由 pending 状态支撑；此处改写图型让交易存活。
+  // 必须排在图型红线之前。
+  if (imageType === "pending_order" && paymentStatus === "completed") {
+    guards.push({
+      field: "imageType",
+      reason: "completed_status_pending_type_coerced",
+      from: imageType,
+      to: "payment_screenshot",
+    });
+    imageType = "payment_screenshot";
+  }
+
+  // 护栏四（图型红线）：不可记账图型绝不允许携带交易——模型偶尔会无视规则
   // 给转账/待付款截图也塞 transactions，这里兜底清掉。
   if (!BILLABLE_TYPES.has(imageType) && transactions.length > 0) {
     guards.push({ field: "transactions", reason: `non_billable_type_${imageType}_forced_clear` });
@@ -214,7 +230,7 @@ export function normalizeUnderstanding(raw) {
       .filter(Boolean),
     transactions,
     rejectReason: transactions.length === 0
-      ? (clampString(source.rejectReason, 200) ?? DEFAULT_REJECT_REASONS[imageType])
+      ? (clampString(source.rejectReason, 200) ?? DEFAULT_REJECT_REASONS[imageType] ?? null)
       : null,
   };
   return { understanding, guards };
