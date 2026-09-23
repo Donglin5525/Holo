@@ -32,7 +32,7 @@ const PROMPT_VERSIONS = {
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
   // 通用个人情境（2026-09-06 完整实施方案 §11）：四 purpose 首版
-  personal_context_extraction: 1,
+  personal_context_extraction: 2,
   personal_context_verification: 1,
   personal_context_request: 1,
   // v2（2026-09-21 Matter 战略收敛 §6.1）：生成收缩——资格线（跨天/多步/影响下一步，否则纯建议不拆步）、
