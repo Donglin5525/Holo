@@ -6,7 +6,92 @@
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
-## 1.0.3 提审材料包（2026-09-11 定稿，本次发版贴这个）
+## 1.0.8 提审材料包（2026-09-24 定稿，本次发版贴这个）
+
+> 归档：`~/Library/Developer/Xcode/Archives/2026-09-24/Holo 2026-09-24 1.0.8 (30).xcarchive`（版本 1.0.8 / 构建 30）。
+> 贴入位置：ASC → 版本 1.0.8 → 「此版本的新增内容」「推广文本」。
+> 范围口径：更新说明覆盖 1.0.6/27 归档之后的全部用户可感变化（即 1.0.7 + 1.0.8 两批）；若 1.0.7 已单独上架过，可酌情删去「分类删除」「健康日期跳转」两行。
+> 描述（Description）无需整段更新，可在功能清单补两行：「任务提醒随心调：快捷档位一点即加、点行即改」「截图记账支持一图多笔，逐笔核对一次入账」（繁英见下）。
+
+### 版本更新说明（What's New，随版本审核）
+
+**简体中文：**
+
+Holo 1.0.8 来了：任务提醒全面重做，记账更可信，AI 更懂你。
+【任务提醒重做】新增快捷档位（当天 9:00 / 18:00、前一天 20:00），点一下就加；已设的提醒点行即改，不用删了重来；全天任务的提醒改为锚定具体时刻。
+【AI 建任务更准】「9月20日」不再识成今天；一句话里的多个提醒全部保留；任务自动归入合适的清单。
+【截图记账更可信】识别失败会明确告诉你原因；每笔识别结果都标注「识别于 今天 14:30」，历史记录一眼可辨；外卖已付款订单也能正确识别。
+【一图多笔记账】一张截图里的多笔支付逐笔列出，逐笔核对、一次入账。
+【健康页日期自由跳转】点日期弹日历任意回看，左右滑动即可切换前后天。
+【分类可以删除了】自建分类支持删除，删除前引导处理名下记录，30 天回收站内可恢复。
+【习惯换类型不丢数据】数值型与打卡型互相转换，历史记录平滑过渡。
+【记忆长廊更流畅】点击浏览大幅提速；时间轴上的删除即刻生效，空档自动压缩，一屏看到更多。
+【启动页焕新】全新品牌视觉，覆盖安装立即生效。
+【更稳定】修复语音输入、打开 HoloAI、首次启动等多处闪退。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文：**
+
+Holo 1.0.8 來了：任務提醒全面重做，記帳更可信，AI 更懂你。
+【任務提醒重做】新增快捷檔位（當天 9:00 / 18:00、前一天 20:00），點一下就加；已設的提醒點行即改，不用刪了重來；全天任務的提醒改為錨定具體時刻。
+【AI 建任務更準】「9月20日」不再識成今天；一句話裡的多個提醒全部保留；任務自動歸入合適的清單。
+【截圖記帳更可信】辨識失敗會明確告訴你原因；每筆辨識結果都標註「辨識於 今天 14:30」，歷史記錄一眼可辨；外送已付款訂單也能正確辨識。
+【一圖多筆記帳】一張截圖裡的多筆支付逐筆列出，逐筆核對、一次入帳。
+【健康頁日期自由跳轉】點日期彈日曆任意回看，左右滑動即可切換前後天。
+【分類可以刪除了】自建分類支援刪除，刪除前引導處理名下記錄，30 天回收桶內可復原。
+【習慣換類型不丟資料】數值型與打卡型互相轉換，歷史記錄平滑過渡。
+【記憶長廊更流暢】點擊瀏覽大幅提速；時間軸上的刪除即刻生效，空檔自動壓縮，一屏看到更多。
+【啟動頁煥新】全新品牌視覺，覆蓋安裝立即生效。
+【更穩定】修復語音輸入、打開 HoloAI、首次啟動等多處閃退。
+感謝每一位使用者的支持，有問題隨時在設定裡回饋給我們。
+
+**English:**
+
+Holo 1.0.8 is here: task reminders redone, more trustworthy receipt scanning, and an AI that understands you better.
+- Task reminders, redone: quick presets (9:00 / 18:00 today, 8:00 PM the day before) — tap to add; tap any set reminder to edit it in place; all-day tasks now anchor to a concrete time.
+- Smarter task creation: "Sep 20" is no longer parsed as today; multiple reminders in one sentence are all kept; tasks are filed into the right list automatically.
+- Trustworthy receipt scanning: when a receipt can't be recorded, Holo tells you why; every result is stamped "scanned today at 14:30"; paid delivery orders are now recognized correctly.
+- Multiple receipts per image: every payment in one screenshot is listed separately — review each, record all at once.
+- Free date navigation in Health: tap the date for a calendar jump, swipe to move between days.
+- Categories can be deleted: delete your own categories with guided cleanup, restorable from the trash for 30 days.
+- Switch habit types safely: convert between counted and check-in habits with history carried over smoothly.
+- A smoother memory gallery: much faster browsing; timeline deletions apply instantly and empty rows compress to show more.
+- Fresh launch screen: new branded visuals that apply immediately after the update.
+- More stable: fixed crashes in voice input, opening HoloAI, and first launch.
+Thank you for your support — reach us anytime via Settings.
+
+### 推广文本（Promotional Text，随时可改，不必随版本审核）
+
+**简体中文（48 字符）：**
+
+任务提醒重做：快捷档位一点即加，点行即改。截图记账更可信，失败必说原因。你的人生数据库，越记越懂你。
+
+**繁體中文：**
+
+任務提醒重做：快捷檔位一點即加，點行即改。截圖記帳更可信，失敗必說原因。你的人生資料庫，越記越懂你。
+
+**English（143 字符）：**
+
+Task reminders, redone: quick presets, tap to edit. Receipt scanning you can trust — failures always tell you why. Your life database grows with you.
+
+### 描述（Description）补充两行（如需同步更新完整描述时使用）
+
+**简体中文：**
+
+- 任务提醒随心调：快捷档位一点即加，点行即改；全天任务锚定具体时刻。
+- 截图记账支持一图多笔：逐笔核对、一次入账，识别结果标注识别时间。
+
+**繁體中文：**
+
+- 任務提醒隨心調：快捷檔位一點即加，點行即改；全天任務錨定具體時刻。
+- 截圖記帳支援一圖多筆：逐筆核對、一次入帳，辨識結果標註辨識時間。
+
+**English:**
+
+- Task reminders at your fingertips: quick presets, tap any reminder to edit; all-day tasks anchor to a concrete time.
+- Multi-item receipt scanning: review each payment and record them all at once, with scan timestamps on every result.
+
+## 1.0.3 提审材料包（2026-09-11 定稿，历史存档——最新版见上方 1.0.8 材料包）
 
 > 归档：`~/Library/Developer/Xcode/Archives/2026-09-11/Holo 2026-09-11 1.0.3 (25).xcarchive`（版本 1.0.3 / 构建 25）。
 > 贴入位置：ASC → 版本 1.0.3 → 「推广文本」「描述」「此版本的新增内容」；截图在「App 预览和 App 截图」。
