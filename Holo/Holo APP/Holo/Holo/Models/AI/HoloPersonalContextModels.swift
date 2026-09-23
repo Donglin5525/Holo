@@ -298,9 +298,26 @@ nonisolated struct HoloContextTemporalV1: Codable, Equatable, Sendable {
         precision = (try? c.decode(HoloContextTemporalPrecision.self, forKey: .precision)) ?? nil ?? .unknown
         validFrom = try c.decodeIfPresent(Date.self, forKey: .validFrom)
         validTo = try c.decodeIfPresent(Date.self, forKey: .validTo)
-        recurrence = try c.decodeIfPresent(HoloContextRecurrenceV1.self, forKey: .recurrence)
+        recurrence = Self.decodeRecurrence(from: c)
         triggerText = try c.decodeIfPresent(String.self, forKey: .triggerText)
         exceptions = (try? c.decodeIfPresent([String].self, forKey: .exceptions)) ?? nil ?? []
+    }
+
+    /// LLM 常把 recurrence 写成自由文本（「每天」「同日多次出现」）：对象按结构解；
+    /// 字符串按常见频率词映射成规则；映射不出的置 nil（原文已在 originalExpression 保留）。
+    /// 单字段越界降级，不抛错拖垮整条候选（否则该候选被单条隔离静默丢弃且空批 receipt 永久拦重试）。
+    private static func decodeRecurrence(from c: KeyedDecodingContainer<CodingKeys>) -> HoloContextRecurrenceV1? {
+        if let value = try? c.decode(HoloContextRecurrenceV1.self, forKey: .recurrence) {
+            return value
+        }
+        guard let text = try? c.decode(String.self, forKey: .recurrence) else { return nil }
+        if text.contains("每天") || text.contains("每日") || text.contains("日常") {
+            return HoloContextRecurrenceV1(frequency: .daily)
+        }
+        if text.contains("每周") { return HoloContextRecurrenceV1(frequency: .weekly) }
+        if text.contains("每月") { return HoloContextRecurrenceV1(frequency: .monthly) }
+        if text.contains("每年") || text.contains("年度") { return HoloContextRecurrenceV1(frequency: .yearly) }
+        return nil
     }
 }
 

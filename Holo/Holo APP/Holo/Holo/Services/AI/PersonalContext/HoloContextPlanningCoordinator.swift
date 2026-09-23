@@ -229,6 +229,14 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             fallbackSegments: fallbackSegments,
             semanticCoverage: retrievalResult.semanticCoverage
         )
+        #if DEBUG
+        // 诊断（数量与排除原因分布，无用户原文）：分辨「准入排除/检索空手/修订判 stale」。
+        let excludedDist = Dictionary(grouping: policy.excluded.values) { $0.rawValue }
+            .map { "\($0.key)x\($0.value.count)" }
+            .sorted()
+            .joined(separator: ",")
+        ExtractionDebugLog.error?.log("PLAN-DIAG prepare records=\(records.count) selected=\(policy.selected.count) excluded[\(policy.excluded.count)]={\(excludedDist)} entries=\(retrievalResult.entries.count) retrievalSelected=\(retrievalResult.selected.count) coverage=\(retrievalResult.semanticCoverage.rawValue) fallback=\(fallbackSegments.count) promptChars=\(prompt.count)")
+        #endif
         return PreparedPlanPrompt(
             run: run,
             prompt: prompt,

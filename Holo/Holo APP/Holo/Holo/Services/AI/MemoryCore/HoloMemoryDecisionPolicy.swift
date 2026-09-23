@@ -685,7 +685,12 @@ nonisolated enum HoloMemoryDecisionInputDeriver {
             persistencePermission: persistencePermission(for: record, payload: payload),
             hasUnresolvedConflict: !record.counterEvidenceRefs.isEmpty || record.state == .disputed,
             isExpired: isExpired(record, payload: payload, now: now),
-            isTemporaryEventScope: payload?.temporal?.kind == .event,
+            // 门禁 6 防的是「今晚/这次」推成永久偏好；带 applicability.conditionText 的
+            // event 是「条件化经验」（如「出门时请人喂猫」），复用受条件约束不属泛化，
+            // 恰是个人情境候选的主形态——不最窄化（否则该类候选全被 observeOnly 挡在
+            // 建议门外，2026-09-23 端到端实锤）。
+            isTemporaryEventScope: payload?.temporal?.kind == .event
+                && (payload?.applicability.conditionText ?? "").isEmpty,
             claimIsBoundedFact: record.validFrom != nil
                 || record.evidenceRefs.contains { $0.validFrom != nil }
         )

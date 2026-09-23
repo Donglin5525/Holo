@@ -38,7 +38,7 @@ PC_PLAN_DEPS="$APP/Services/AI/PersonalContext/HoloContextPlanValidator.swift,$A
 
 SUITES=(
   "PersonalContextControls|$TESTS/Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift|$APP/Models/AI/HoloPersonalContextControls.swift"
-  "PersonalContextCodable|$TESTS/Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS"
+  "PersonalContextCodable|$TESTS/Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS,$APP/Services/AI/PersonalContext/HoloPersonalContextValidator.swift,$APP/Services/AI/PersonalContext/HoloContextSourceReader.swift"
   "PersonalContextIdentity|$TESTS/Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS"
   "ContextAccess|$TESTS/Services/AI/PersonalContext/ContextAccessStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS,$APP/Models/AI/HoloPersonalContextControls.swift,$APP/Services/AI/PersonalContext/HoloContextAccessPolicy.swift,$APP/Services/AI/MemoryCore/HoloSemanticTombstoneMatcher.swift,$APP/Services/AI/MemoryRepository/HoloMemoryRepository.swift"
   "ContextExtraction|$TESTS/Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift|$PC_MODELS,$PC_RECORD_DEPS,$PC_EXTRACT_DEPS,$APP/Services/AI/MemoryRepository/HoloMemoryRepository.swift,$APP/Services/AI/MemoryCore/HoloSemanticTombstoneMatcher.swift"

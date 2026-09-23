@@ -1848,6 +1848,19 @@ nonisolated enum TaskPendingDefaults {
         let nextHour = calendar.date(byAdding: .hour, value: 1, to: now) ?? now.addingTimeInterval(3600)
         return calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: nextHour)) ?? nextHour
     }
+
+    /// 锚定预设档的真实时刻：任务日 ±dayOffset 天的 hour:minute。
+    /// 确认卡/详情页提醒弹层的「当天 09:00 / 当天 18:00 / 前一天 20:00」chips 共用。
+    static func anchoredPresetDate(
+        anchorDate: Date,
+        dayOffset: Int,
+        hour: Int,
+        minute: Int = 0,
+        calendar: Calendar = .current
+    ) -> Date? {
+        let day = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: anchorDate))
+        return day.flatMap { calendar.date(bySettingHour: hour, minute: minute, second: 0, of: $0) }
+    }
 }
 
 extension DateFormatter {

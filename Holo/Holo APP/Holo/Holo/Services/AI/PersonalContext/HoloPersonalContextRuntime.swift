@@ -141,14 +141,32 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
             )
             return
         }
-        _ = try await repository.applyObservationBatch(
-            records,
-            observationKey: batchKey,
-            domain: .thought,
-            extractorVersion: 1,
-            promptVersion: 1,
-            completedAt: Date()
-        )
+        // R1 四域：一包候选可跨域（记录 primaryDomain 取首源域；跨域聚合/未知域回落
+        // thought）。仓库按批校验 primaryDomain==domain，故按域分组、非 thought 组用
+        // 「batchKey#域」组键落库；thought 组沿用父键（落成即标记父批成功）。全部组
+        // 成功后对无 thought 组的批次补父键空 receipt——hasSuccessfulBatch(父键) 与重跑
+        // 幂等都只看父键，部分组成功时重跑仅补缺失组（组键各自幂等）。
+        let groups = Dictionary(grouping: records) { $0.primaryDomain ?? .thought }
+        for (domain, group) in groups {
+            _ = try await repository.applyObservationBatch(
+                group,
+                observationKey: domain == .thought ? batchKey : "\(batchKey)#\(domain.rawValue)",
+                domain: domain,
+                extractorVersion: 1,
+                promptVersion: 1,
+                completedAt: Date()
+            )
+        }
+        if !groups.keys.contains(.thought) {
+            _ = try await repository.applyObservationBatch(
+                [],
+                observationKey: batchKey,
+                domain: .thought,
+                extractorVersion: 1,
+                promptVersion: 1,
+                completedAt: Date()
+            )
+        }
     }
 
     func hasSuccessfulBatch(batchKey: String) async throws -> Bool {
@@ -270,9 +288,14 @@ enum HoloPersonalContextExtractionJob {
         let pointer = max(0, defaults.integer(forKey: roundRobinKey))
         var usedBatches = 0
         var nextPointer = pointer
-
-        for offset in 0..<domains.count where usedBatches < budget {
+        // 调度语义：只有干了活的批（处理了记录或还有下一页）才消耗 LLM 预算；
+        // caught-up/失败不占名额，指针最多回绕两圈防死循环。否则追平域（finance/task
+        // 每轮空拉一页）会花光预算，把 more 域（如 thought 有存货）系统性饿死
+        //（2026-09-23 实测：thought=more 连续两次启动零消化）。
+        var offset = 0
+        while usedBatches < budget, offset < domains.count * 2 {
             let domain = domains[(pointer + offset) % domains.count]
+            offset += 1
             guard let paging = HoloLifeSourceObservation.makePaging(domain: domain) else {
                 outcome.domainNotes[domain] = "paging-unavailable"
                 continue
@@ -285,13 +308,15 @@ enum HoloPersonalContextExtractionJob {
             )
             do {
                 let batch = try await extractor.runOneBatch(now: now)
-                usedBatches += 1
                 outcome.ranBatches += 1
+                let consumedBudget = batch.hasMore
+                    || batch.createdRecords + batch.mergedRecords + batch.suppressed + batch.discarded > 0
+                if consumedBudget { usedBatches += 1 }
                 if let cursor = try? await writer.loadCursor(domain: domain) {
                     outcome.progress = outcome.progress.byAdding(cursor.progress)
                 }
                 outcome.domainNotes[domain] = batch.hasMore ? "more" : "caught-up"
-                nextPointer = (pointer + offset + 1) % domains.count
+                nextPointer = (pointer + offset) % domains.count
             } catch {
                 // 按域隔离：失败只影响本域本批，游标本域不推进，下轮重试；继续其他域。
                 outcome.progress.failedBatches += 1

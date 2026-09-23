@@ -74,6 +74,14 @@ final class LifeUnderstandingJourneyUITests: XCTestCase {
             skip.tap()
             sleep(2)
         }
+        // 首页新手引导气泡（全新安装出现；实测盖住环形模块入口热区，2026-09-23 dump 实证）。
+        let bubble = app.buttons.matching(
+            NSPredicate(format: "identifier == 'firstStepBubble.dismiss' OR label == '关闭新手引导'")
+        ).firstMatch
+        if bubble.exists, bubble.isHittable {
+            bubble.tap()
+            sleep(1)
+        }
     }
 
     func ensureMemorySwitchesOn() {
@@ -90,8 +98,15 @@ final class LifeUnderstandingJourneyUITests: XCTestCase {
             sleep(1)
         }
         check("memory-switches-on", true)
-        let back = app.buttons.matching(NSPredicate(format: "identifier == 'chevron.left' OR label == '返回'")).firstMatch
-        if back.exists { back.tap(); sleep(2) }
+        // 返回钮 identifier=BackButton（非 chevron.left，2026-09-23 新装 dump 实证）；
+        // 覆盖层未清时「前往今天」not hittable，先清浮层再安全点击回首页。
+        let back = app.buttons.matching(
+            NSPredicate(format: "identifier == 'chevron.left' OR identifier == 'BackButton' OR label == '返回'")
+        ).firstMatch
+        if back.exists { _ = safeTap(back, settle: 2) }
+        dismissOverlays()
+        let home = app.buttons.matching(NSPredicate(format: "label CONTAINS '前往今天'")).firstMatch
+        if home.exists { _ = safeTap(home, settle: 2) }
     }
 
     func openChat() {
@@ -172,9 +187,9 @@ final class LifeUnderstandingJourneyUITests: XCTestCase {
     /// 任务创建 sheet 的关闭按钮 not hittable（两轮实测）——靠 sheet 顶下拉手势兜底；
     /// 页面语义「返回时自动保存」，关闭即提交。
     func dismissOverlays() {
-        for label in ["关闭", "取消", "返回"] {
+        for label in ["关闭", "取消", "返回", "关闭当前模块"] {
             let button = app.buttons.matching(NSPredicate(
-                format: "label == %@ OR identifier == 'xmark' OR identifier == 'chevron.left'", label
+                format: "label == %@ OR identifier == 'xmark' OR identifier == 'chevron.left' OR identifier == 'BackButton' OR identifier == 'firstStepBubble.dismiss'", label
             )).firstMatch
             if button.exists, button.isHittable {
                 button.tap()
@@ -208,10 +223,13 @@ final class LifeUnderstandingJourneyUITests: XCTestCase {
 
     /// 首页环形模块入口：label tap 优先 + 坐标兜底 + 进入验证重试一次。
     func openRingModule(_ module: String, pageMarker: String) {
-        let home = app.buttons.matching(NSPredicate(format: "label CONTAINS '前往今天'")).firstMatch
-        if home.exists, home.isHittable {
-            home.tap()
-            sleep(2)
+        // 回首页裸态 = 循环关模块覆盖层（「前往今天」按钮是打开今天模块，不是回首页——
+        // 2026-09-23 dump 实证今天模块自带「新建」按钮会误匹配入口谓词）。
+        for _ in 0..<3 {
+            let closeModule = app.buttons.matching(NSPredicate(format: "label == '关闭当前模块'")).firstMatch
+            guard closeModule.exists, closeModule.isHittable else { break }
+            closeModule.tap()
+            sleep(1)
         }
         dismissOverlays()
         let centers: [String: (x: CGFloat, y: CGFloat)] = [
@@ -263,6 +281,7 @@ final class LifeUnderstandingJourneyUITests: XCTestCase {
         }
         sleep(3)
         let created = waitForText("喂猫", timeout: 6)
+        if !created { dumpElements("thought-not-created") }
         check("seed-thought-created", created)
         shoot("l01_thought_seeded")
         dismissOverlays()
@@ -270,8 +289,9 @@ final class LifeUnderstandingJourneyUITests: XCTestCase {
 
     func seedTask() {
         openRingModule("任务", pageMarker: "label == '新增'")
-        // 新建入口：页内底部 Tab 栏最右「新增」（侦察确认，非悬浮加号）。
-        let add = app.buttons.matching(NSPredicate(format: "label == '新增'")).firstMatch
+        // 新建入口：页内底部 Tab 栏最右「新增」（任务页特征词；今天模块也有「新建」按钮，
+        // 故 marker 必须用「新增」防误判，实际点击谓词两词兼容）。
+        let add = app.buttons.matching(NSPredicate(format: "label == '新增' OR label == '新建'")).firstMatch
         guard add.waitForExistence(timeout: 6), add.isHittable else {
             dumpElements("task-no-add")
             return check("seed-task", false, "找不到新增入口")

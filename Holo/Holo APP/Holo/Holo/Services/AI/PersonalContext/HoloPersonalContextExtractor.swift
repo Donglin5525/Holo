@@ -490,6 +490,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             evidenceRefs: evidence,
             upstreamMemoryIDs: [],
             counterEvidenceRefs: [],
+            lastSupportedAt: now,
             confidenceScore: 0.5,
             freshnessScore: 0.5,
             scoringVersion: 1,
@@ -542,6 +543,8 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         record.personalContext = HoloPersonalContextPayloadEnvelope(v1: mergedPayload)
         record.recordVersion += 1
         record.updatedAt = now
+        // 证据追加即重新获得支持；缺此字段 freshness 恒 0 会被压缩服务秒归档（二分实证回归）。
+        record.lastSupportedAt = now
         // 证据追加后按 v4 重评估（§11.1 唯一裁决者）；discard 不在此处删除既有记录
         //（合并目标已有历史价值，交由压缩/反馈治理），仅不赋予使用权限。
         if HoloMemoryDecisionPolicy.isEnabled {

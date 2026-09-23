@@ -39,6 +39,7 @@ struct PersonalContextCodableStandaloneTests {
         testLegacyReaderRoundTripLosesPayload()
         testBadPayloadDoesNotThrowRecordDecode()
         testSourceSnapshotRoundTrip()
+        testTemporalRecurrenceFreeTextTolerance()
         print("PersonalContextCodableStandaloneTests: \(assertionCount) 断言全部通过")
     }
 
@@ -223,6 +224,40 @@ struct PersonalContextCodableStandaloneTests {
         let min = try! decoder().decode(HoloContextSourceSnapshot.self, from: Data(minimal.utf8))
         expect(min.sourceKind == "unknown" && min.sensitivity == .normal && min.coverageGaps.isEmpty,
                "缺省可选字段使用默认值不失败")
+    }
+
+    /// LLM 把 recurrence 写成自由文本（生产 2026-09-23 15:39 摩卡案例实锤：
+    /// 「每天」「同日多次出现…」字符串导致整条候选被单条隔离丢弃、空批 receipt 永久拦重试）。
+    /// 契约：对象照常解；字符串按常见频率词映射成规则；映射不出置 nil（原文已在 originalExpression 保留）。
+    static func testTemporalRecurrenceFreeTextTolerance() {
+        let daily = """
+        {"kind":"recurring","originalExpression":"每天","recurrence":"每天"}
+        """
+        let t1 = try! decoder().decode(HoloContextTemporalV1.self, from: Data(daily.utf8))
+        expect(t1.recurrence?.frequency == .daily, "自由文本「每天」应映射成 daily 规则")
+        expect(t1.recurrence?.interval == 1, "映射出的规则 interval 默认 1")
+
+        let unmappable = """
+        {"kind":"recurring","originalExpression":"2026-09-23 三次记录","recurrence":"同日多次出现，疑似重复或周期性任务"}
+        """
+        let t2 = try! decoder().decode(HoloContextTemporalV1.self, from: Data(unmappable.utf8))
+        expect(t2.recurrence == nil, "映射不出的自由文本置 nil，不拖垮 temporal 解码")
+        expect(t2.originalExpression.contains("三次记录"), "原文时间表达保留")
+
+        let nullRec = """
+        {"kind":"event","originalExpression":"上次出门","recurrence":null}
+        """
+        let t3 = try! decoder().decode(HoloContextTemporalV1.self, from: Data(nullRec.utf8))
+        expect(t3.recurrence == nil, "null recurrence 维持原行为")
+
+        // 生产真实形态：候选带自由文本 recurrence 时整条不再被解码丢弃。
+        let responseJSON = """
+        {"candidates":[{"candidateRef":"c1","statement":"用户每天有给「摩卡」换水的习惯。","subjects":[{"label":"我","scope":"user"}],"objects":[{"label":"摩卡","scope":"other"}],"relationText":"用户每天为摩卡换水","facets":[{"kind":"responsibility","note":"照料宠物"}],"epistemicStatus":"declared","applicability":{"conditionText":null},"temporal":{"kind":"recurring","originalExpression":"每天","recurrence":"每天"},"basis":[{"sourceID":"habit:1","quote":"习惯「给摩卡换水」（每天）","stance":"support","revision":"r1"}],"openQuestions":[],"mergeInto":null}],"counterEvidence":[]}
+        """
+        let response = try! HoloPersonalContextResponseParser.parseExtraction(responseJSON)
+        expect(response.candidates.count == 1, "带自由文本 recurrence 的候选不得被解码丢弃")
+        expect(response.candidates.first?.temporal?.recurrence?.frequency == .daily,
+               "候选内自由文本 recurrence 完成映射")
     }
 }
 
