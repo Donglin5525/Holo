@@ -11,6 +11,15 @@ import Combine
 import CoreData
 import os.log
 
+/// 聊天发送的确定性路由结论（resolveSendRoute 产出，sendMessage 执行）。
+/// 显式场景直发深度分析；规划会话消费普通输入；草案待确认给提示；其余走意图识别。
+enum ChatSendRoute: Equatable {
+    case explicitDeepAnalysis(AnalysisScenario)
+    case goalPlanningReply
+    case goalDraftPendingNotice
+    case regular
+}
+
 @MainActor
 final class ChatViewModel: ObservableObject {
 
@@ -20,6 +29,11 @@ final class ChatViewModel: ObservableObject {
     @Published var inputText: String = "" {
         didSet {
             UserDefaults.standard.set(inputText, forKey: Self.inputDraftKey)
+            // 场景绑定随输入清空解除：用户删光预填文字=放弃该场景，
+            // 下一次发送回退到常规意图识别
+            if inputText.isEmpty {
+                pendingScenarioIntent = nil
+            }
         }
     }
     @Published var isStreaming: Bool = false
@@ -33,6 +47,8 @@ final class ChatViewModel: ObservableObject {
         let messageID: UUID
         let question: String
         let intent: String?
+        /// 显式场景 rawValue（隐私确认后续跑时还原场景绑定）
+        var scenarioID: String? = nil
     }
     private var pendingCloudAnalysis: CloudPendingAnalysis?
     /// 是否存在仍在等待/执行中的 AI 消息（消息级 streaming）。
@@ -143,19 +159,65 @@ final class ChatViewModel: ObservableObject {
     /// 最近一次场景预填（用于输入框上方的来源提示；用户改动问句后提示自然消失）
     private(set) var lastScenarioPrefill: (title: String, question: String)?
 
-    /// 预填来源提示：仅当输入框内容仍是预填原句时显示——
-    /// 用户改写、清空或发送后自动消失，无需手动清理。
+    /// 预填来源提示：场景绑定存续期间展示（含用户改写问句时——改写仍按该
+    /// 场景分析）；清空输入框或发送后绑定解除，提示自然消失。
     var activeScenarioPrefillTitle: String? {
-        guard let prefill = lastScenarioPrefill,
-              inputText == prefill.question,
-              !inputText.isEmpty else { return nil }
-        return prefill.title
+        guard pendingScenarioIntent != nil, !inputText.isEmpty else { return nil }
+        return lastScenarioPrefill?.title
+    }
+
+    /// 场景预填携带的显式发送意图：绑定随预填建立，改写问句不丢场景——
+    /// 客户端确定性路由进深度分析，不依赖后端词面识别，也不会被规划会话等
+    /// 本地状态劫持（2026-09-19 深度分析失效事故 + 提示词方案 P1 根治：
+    /// 「认真改写问题反而失去所选模式」）。
+    private(set) var pendingScenarioIntent: AnalysisScenario?
+
+    /// 目标规划问答是否处于收集答案期（此期间普通输入会被会话消费，UI 需常驻提示）
+    var isGoalPlanningCollecting: Bool {
+        activeGoalPlanningSession?.status == .collecting
+    }
+
+    /// 发送时消费显式场景意图：绑定存续期间发送任意非空文本均按该场景深度
+    /// 分析（改写自由）；长期模式不占额度，发送即按普通对话处理。发送后绑定解除。
+    func consumeExplicitScenarioIntent(for text: String) -> AnalysisScenario? {
+        defer { pendingScenarioIntent = nil }
+        guard let scenario = pendingScenarioIntent,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              scenario.consumesAnalysisQuota else { return nil }
+        return scenario
+    }
+
+    /// 发送路由的确定性决策（纯函数，可单测）。优先级：
+    /// 显式场景 > 规划会话续答 > 草案待确认提示 > 常规意图识别。
+    /// 显式场景不要求问句与预填原句相等——用户改写保留场景（P1 契约）。
+    static func resolveSendRoute(
+        text: String,
+        explicitScenario: AnalysisScenario?,
+        planningStatus: GoalPlanningStatus?,
+        hasDraftForReview: Bool
+    ) -> ChatSendRoute {
+        if let scenario = explicitScenario, scenario.consumesAnalysisQuota {
+            return .explicitDeepAnalysis(scenario)
+        }
+        if planningStatus == .collecting { return .goalPlanningReply }
+        if planningStatus == .draftReady || hasDraftForReview { return .goalDraftPendingNotice }
+        return .regular
     }
 
     func selectAnalysisScenario(_ scenario: AnalysisScenario) {
+        // 场景选择是显式分析意图：收集中的目标规划会话让位（取消有气泡交代），
+        // 不再把预填问句吞成规划回答（2026-09-19 深度分析失效事故根因）。
+        if activeGoalPlanningSession != nil || goalDraftForReview != nil {
+            cancelGoalPlanning()
+        }
         inputText = scenario.question
         showAnalysisScenarioPanel = false
+        pendingScenarioIntent = scenario
         lastScenarioPrefill = (title: scenario.title, question: scenario.question)
+        // 用户点开场景即关注额度余量，顺手刷新一次（面板经 @ObservedObject 实时更新）
+        Task { [weak self] in
+            await HoloSubscriptionService.shared.refreshStatus()
+        }
     }
 
     private let goalPlanningCoordinator = GoalPlanningCoordinator()
@@ -249,18 +311,34 @@ final class ChatViewModel: ObservableObject {
     /// 深度分析只走云端。返回 true = 本条消息已由云端轨道终局
     /// （成功落卡 / 失败落诚实卡 / 不可用落说明卡 / 挂起等隐私确认）；
     /// 返回 false = 用户点了停止，调用方走取消检查。
+    /// scenario：显式场景（P1 起随快照冻结为 AnalysisAnswerTaskV1 上云——
+    /// 范围/类型/回答清单由客户端声明，模型不靠词面猜场景）；nil = 常规深度分析。
     @MainActor
-    private func runCloudOnlyAnalysis(question: String, aiMessageId: UUID, intent: String?) async -> Bool {
+    private func runCloudOnlyAnalysis(
+        question: String,
+        aiMessageId: UUID,
+        intent: String?,
+        scenario: AnalysisScenario? = nil
+    ) async -> Bool {
         if !HoloCloudAnalysisService.privacyConsented {
             // 首次使用：弹隐私说明并把本次分析挂起；确认后续跑上云，关闭则落不可用卡
-            pendingCloudAnalysis = CloudPendingAnalysis(messageID: aiMessageId, question: question, intent: intent)
+            pendingCloudAnalysis = CloudPendingAnalysis(
+                messageID: aiMessageId,
+                question: question,
+                intent: intent,
+                scenarioID: scenario?.rawValue
+            )
             showCloudPrivacySheet = true
             return true
         }
         // 云端轨道启动即请求通知授权+注册 APNs（「分析完成」推送）；
         // 权限拒绝/注册失败不影响分析本身（打开 App 照常领取结果）
         HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
-        switch await HoloCloudAnalysisService.shared.attempt(question: question, sourceMessageID: aiMessageId) {
+        switch await HoloCloudAnalysisService.shared.attempt(
+            question: question,
+            sourceMessageID: aiMessageId,
+            scenario: scenario
+        ) {
         case .handled:
             return true
         case .userCancelled:
@@ -287,12 +365,14 @@ final class ChatViewModel: ObservableObject {
         HoloCloudAnalysisService.markPrivacyConsented()
         guard let pending = pendingCloudAnalysis else { return }
         pendingCloudAnalysis = nil
+        let scenario = pending.scenarioID.flatMap(AnalysisScenario.init(rawValue:))
         Task { [weak self] in
             guard let self else { return }
             let finished = await self.runCloudOnlyAnalysis(
                 question: pending.question,
                 aiMessageId: pending.messageID,
-                intent: pending.intent
+                intent: pending.intent,
+                scenario: scenario
             )
             if finished {
                 self.concludeStreamingSession(aiMessageId: pending.messageID)
@@ -827,12 +907,26 @@ final class ChatViewModel: ObservableObject {
         if activeGoalPlanningSession == nil, goalDraftForReview == nil {
             restoreActiveGoalPlanningIfNeeded()
         }
-        if let session = activeGoalPlanningSession, session.status == .collecting {
-            await handleGoalPlanningReply(text, session: session)
-            return
-        }
 
-        if activeGoalPlanningSession?.status == .draftReady {
+        // 发送路由统一决策：显式场景 > 规划续答 > 草案待确认 > 常规意图识别。
+        // 显式场景命中时规划会话让位（取消有气泡交代），深度分析不再被吞（2026-09-19）。
+        let explicitScenario = consumeExplicitScenarioIntent(for: text)
+        switch Self.resolveSendRoute(
+            text: text,
+            explicitScenario: explicitScenario,
+            planningStatus: activeGoalPlanningSession?.status,
+            hasDraftForReview: goalDraftForReview != nil
+        ) {
+        case .explicitDeepAnalysis:
+            if activeGoalPlanningSession != nil || goalDraftForReview != nil {
+                cancelGoalPlanning()
+            }
+        case .goalPlanningReply:
+            if let session = activeGoalPlanningSession {
+                await handleGoalPlanningReply(text, session: session)
+            }
+            return
+        case .goalDraftPendingNotice:
             // 落到气泡告知：此分支此前只写 errorMessage（无界面消费点），用户看到的是
             // 「发送没反应」（09-18 模拟器 QA 实锤）。输入文字放回输入框。
             // 保持默认 .normal 类型：goalPlanning 类型会撞草案卡归属条件（最新一条 AI
@@ -843,6 +937,8 @@ final class ChatViewModel: ObservableObject {
             )
             inputText = text
             return
+        case .regular:
+            break
         }
 
         // 1. 保存用户消息
@@ -892,7 +988,11 @@ final class ChatViewModel: ObservableObject {
 
                 // 用户明确从 Result 发起或当前会话存在高置信承接词时，
                 // 直接进 Agent，不再让一次意图识别失败切断追问链。
-                let resolvedContinuation = self.resolvedContinuationDraft(for: text)
+                // 场景显式发送（sendMessage 开头已消费判定）最优先：问句未改写时
+                // 确定性进深度分析，不过意图识别、不吃本地会话状态（2026-09-19）。
+                let resolvedContinuation = explicitScenario == nil
+                    ? self.resolvedContinuationDraft(for: text)
+                    : nil
                 if resolvedContinuation != nil {
                     self.continuationDraft = nil
                 }
@@ -934,7 +1034,21 @@ final class ChatViewModel: ObservableObject {
                     }
                 }
                 let processResult: ConversationProcessResult
-                if continuation != nil {
+                if explicitScenario != nil {
+                    // 场景显式发送：确定性路由进深度分析 Agent（quota 预检/云端轨道
+                    // 由下方 shouldRouteToAgent 分支统一承接）
+                    processResult = ConversationProcessResult(
+                        finalText: "",
+                        parsedBatch: nil,
+                        executionBatch: nil,
+                        firstIntent: .queryAnalysis,
+                        firstExtractedData: nil,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        shouldRouteToAgent: true
+                    )
+                } else if continuation != nil {
                     processResult = ConversationProcessResult(
                         finalText: "",
                         parsedBatch: nil,
@@ -1005,9 +1119,31 @@ final class ChatViewModel: ObservableObject {
                 if let planOutcome = processResult.contextPlanOutcome {
                     let encoder = JSONEncoder()
                     encoder.dateEncodingStrategy = .iso8601
-                    let draftJSON = (try? encoder.encode(planOutcome.draft))
-                        .flatMap { String(data: $0, encoding: .utf8) }
+                    // 编码失败不允许「就绪无方案」定稿（try? 静默曾留死状态）：诚实失败。
+                    guard let draftData = try? encoder.encode(planOutcome.draft),
+                          let draftJSON = String(data: draftData, encoding: .utf8),
+                          !draftJSON.isEmpty
+                    else {
+                        logger.error("PLAN-DIAG 本地草案编码失败，落诚实失败")
+                        planningRunBox.value?.fail(code: "PLANNING_DRAFT_ENCODE_FAILED")
+                        let failedRunJSON = planningRunBox.value.flatMap { HoloContextPlanRunController.encode($0.envelope) }
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: String(localized: "这次的个性化规划没有完成（结果保存失败）。这条回答不是个性化方案，重新发送刚才的话即可再试。"),
+                            intent: nil,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            contextPlanRunJSON: failedRunJSON,
+                            messageType: .contextPlan
+                        )
+                        self.concludeStreamingSession(aiMessageId: aiMessageId)
+                        return
+                    }
                     // 运行卡终态：换真实 runID + draftReady；同一消息原位转方案卡（§6.2）。
+                    // draftReady 信封不单独落盘，与草案同笔原子定稿（2026-09-20）。
                     planningRunBox.value?.completeDraft(finalRunID: planOutcome.runID)
                     let finalRunJSON = planningRunBox.value.flatMap { HoloContextPlanRunController.encode($0.envelope) }
                     self.chatRepo?.finalizeMessage(
@@ -1119,11 +1255,13 @@ final class ChatViewModel: ObservableObject {
                     }
                     // 云端独占轨道（2026-09-11 拍板）：深度分析只走云端，失败落诚实卡片
                     // 不再回落本地；周计划与续跑仍走本地轨道（下方 runAnalysis）。
+                    // 显式场景随问题上云（P1 冻结任务）：改写问句不丢场景。
                     if !isWeeklyPlanning, continuation == nil {
                         let cloudFinished = await self.runCloudOnlyAnalysis(
                             question: text,
                             aiMessageId: aiMessageId,
-                            intent: processResult.firstIntent?.rawValue
+                            intent: processResult.firstIntent?.rawValue,
+                            scenario: explicitScenario
                         )
                         if cloudFinished {
                             progressPoller.cancel()
@@ -1487,7 +1625,13 @@ final class ChatViewModel: ObservableObject {
             let result = await coordinator.reconcile(matterID: context.matterID, messageID: UUID(), messageText: text)
             // 迟到对账守卫：用户退出胶囊（active=nil）或已切到别的 Matter → 结果丢弃，不串事项。
             guard store.active?.matterID == context.matterID else { return }
-            if result.hasChanges {
+            if let draft = result.pendingTaskProposals.first {
+                // 计划修订提案（2026-09-23）：交确认卡；同一时刻只留最新一条
+                store.pendingTaskProposal = MatterChatContextStore.PendingTaskProposal(
+                    proposalID: result.sourceProposalID ?? UUID().uuidString,
+                    draft: draft
+                )
+            } else if result.hasChanges {
                 store.lastFeedback = MatterChatContextStore.MatterFeedback(
                     matterTitle: matterTitle ?? "",
                     summaries: result.appliedSummaries,
@@ -1999,6 +2143,69 @@ final class ChatViewModel: ObservableObject {
         }) else { return nil }
         guard !confirmingItemIds.contains(item.id) else { return nil }
         return item
+    }
+
+    /// 取消息里被点击卡片的待确认任务项（create_task，pending/failed 可编辑）：
+    /// 多卡消息按 itemID 精确定位；确认进行中的项不允许再改。
+    func pendingTaskItem(in message: ChatMessageViewData, itemID: String?) -> AIExecutionItem? {
+        let batch = latestExecutionBatch(for: message.id) ?? message.executionBatch
+        guard let batch else { return nil }
+        guard let item = batch.items.first(where: {
+            $0.intent == .createTask
+                && $0.status == .skipped
+                && ["pending", "failed"].contains($0.renderData?["confirmationStatus"] ?? "")
+                && (itemID == nil || $0.id == itemID)
+        }) else { return nil }
+        guard !confirmingItemIds.contains(item.id) else { return nil }
+        return item
+    }
+
+    /// 待确认任务卡的编辑写回：用户在确认前就地改日期/提醒/清单/内容，
+    /// patch 合并进该 item 的 renderData（确认执行时原样重放路由，userX 键优先生效）。
+    /// 基于重读的最新 batch 定位，防同消息多卡先后编辑时回滚兄弟卡片。
+    func updatePendingTaskRenderData(
+        from message: ChatMessageViewData,
+        itemID: String?,
+        patch: [String: String]
+    ) {
+        guard let msg = messages.first(where: { $0.id == message.id }),
+              let batch = msg.executionBatch,
+              let index = batch.items.firstIndex(where: {
+                  $0.intent == .createTask
+                      && ["pending", "failed"].contains($0.renderData?["confirmationStatus"] ?? "")
+                      && (itemID == nil || $0.id == itemID)
+              }),
+              var rd = batch.items[index].renderData else { return }
+
+        guard !confirmingItemIds.contains(batch.items[index].id) else { return }
+        for (key, value) in patch { rd[key] = value }
+
+        let item = batch.items[index]
+        var updatedItems = batch.items
+        updatedItems[index] = AIExecutionItem(
+            id: item.id,
+            parseItemId: item.parseItemId,
+            intent: item.intent,
+            status: item.status,
+            summaryText: item.summaryText,
+            renderData: rd,
+            linkedEntityType: item.linkedEntityType,
+            linkedEntityId: item.linkedEntityId,
+            errorText: item.errorText
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: batch.finalText
+        )
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: msg.intent,
+            extractedDataJSON: Self.encodeExtractedData(msg.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(msg.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
     }
 
     func confirmPendingTask(from message: ChatMessageViewData, itemID: String? = nil) {
@@ -3213,16 +3420,22 @@ final class ChatViewModel: ObservableObject {
     /// 任务已完成则恢复领取落方案卡，进行中则恢复轮询；查无任务才落明确失败。
     /// 2026-09-13 修复：此前只查进程内登记表（闪退后必为空），把云端仍在跑/已跑完的任务误判死。
     /// 只在消息装载后跑一次（活跃运行由登记表豁免）。
+    /// 2026-09-20 增收「就绪但无方案」孤儿（终态死状态，真机实锤用户只见
+    /// 「已就绪」无方案无报错无入口）：云端结果仍在则补领落卡，已销毁转诚实失败。
+    /// 注意读 chatRepo.messages（装载刚写完、必然新鲜）；self.messages 经
+    /// receive(on: main) 异步镜像，此处读取时可能尚未同步（实测会读到空数组，
+    /// 对账整段空转——恢复/收治从未真正执行过）。
     private func reconcileInterruptedPlanningRuns() {
-        let interruptedIDs = HoloContextPlanRunController.interruptedRunIDs(from: messages)
-        guard !interruptedIDs.isEmpty else { return }
+        let loadedMessages = chatRepo?.messages ?? messages
+        let interruptedIDs = HoloContextPlanRunController.interruptedRunIDs(from: loadedMessages)
+        let orphanReadyIDs = HoloContextPlanRunController.orphanReadyRunIDs(from: loadedMessages)
         for messageID in interruptedIDs {
-            guard let view = messages.first(where: { $0.id == messageID }),
+            guard let view = loadedMessages.first(where: { $0.id == messageID }),
                   let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
             // 云端查证优先：有云端任务 ID 的先尝试恢复，而不是直接判死
             if let cloudTaskID = envelope.cloudTaskID, !cloudTaskID.isEmpty {
                 let utterance = view.parentMessageId
-                    .flatMap { parentID in messages.first(where: { $0.id == parentID }) }?
+                    .flatMap { parentID in loadedMessages.first(where: { $0.id == parentID }) }?
                     .content ?? ""
                 let parentMessageID = view.parentMessageId?.uuidString
                 Task { @MainActor in
@@ -3237,6 +3450,27 @@ final class ChatViewModel: ObservableObject {
                 continue
             }
             finalizeInterruptedRun(messageID: messageID, previous: envelope)
+        }
+        for messageID in orphanReadyIDs {
+            guard let view = loadedMessages.first(where: { $0.id == messageID }),
+                  let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
+            guard let cloudTaskID = envelope.cloudTaskID, !cloudTaskID.isEmpty else {
+                finalizeLostDraftRun(messageID: messageID, previous: envelope)
+                continue
+            }
+            let utterance = view.parentMessageId
+                .flatMap { parentID in loadedMessages.first(where: { $0.id == parentID }) }?
+                .content ?? ""
+            let parentMessageID = view.parentMessageId?.uuidString
+            Task { @MainActor in
+                await self.recoverOrphanReadyRun(
+                    messageID: messageID,
+                    previous: envelope,
+                    cloudTaskID: cloudTaskID,
+                    parentMessageID: parentMessageID,
+                    utterance: utterance
+                )
+            }
         }
     }
 
@@ -3273,36 +3507,21 @@ final class ChatViewModel: ObservableObject {
                     finalizeInterruptedRun(messageID: messageID, previous: previous)
                     return
                 }
-                // 凭用户原话重建本机检索产物（交付校验的依赖），再走既有领取+校验+落库
+                // 凭用户原话重建本机检索产物（交付校验的依赖），再走统一落卡收口
                 let preparation = try await HoloContextChatPlanner.resumePreparation(
                     utterance: utterance, parentMessageID: parentMessageID
                 )
                 let start = HoloContextChatPlanner.CloudPlanStart(
                     cloudTaskID: cloudTaskID, preparation: preparation, utterance: utterance
                 )
-                let outcome = try await HoloContextChatPlanner.deliverCloudPlan(start, output: output)
-                let encoder = JSONEncoder()
-                encoder.dateEncodingStrategy = .iso8601
-                let draftJSON = (try? encoder.encode(outcome.draft)).flatMap { String(data: $0, encoding: .utf8) }
-                var finalEnvelope = previous
-                finalEnvelope.stage = .draftReady
-                finalEnvelope.stageRevision += 1
-                finalEnvelope.updatedAt = Date()
-                chatRepo?.finalizeMessage(
-                    messageID,
-                    finalContent: outcome.draft.answerText,
-                    intent: AIIntent.contextualPlanning.rawValue,
-                    extractedDataJSON: nil,
-                    parsedBatchJSON: nil,
-                    executionBatchJSON: nil,
-                    analysisContextJSON: nil,
-                    rawLogJSON: nil,
-                    contextPlanJSON: draftJSON,
-                    contextPlanRunJSON: HoloContextPlanRunController.encode(finalEnvelope),
-                    messageType: .contextPlan
+                _ = try await landCloudPlanDraft(
+                    start: start,
+                    output: output,
+                    messageID: messageID,
+                    previousEnvelope: previous,
+                    runController: nil,
+                    client: client
                 )
-                try? await client.ackResult(taskId: cloudTaskID)
-                logger.info("中断云端规划已恢复领取：task=\(cloudTaskID)")
             case "failed":
                 finalizeInterruptedRun(messageID: messageID, previous: previous)
             default:
@@ -3325,6 +3544,144 @@ final class ChatViewModel: ObservableObject {
             logger.error("中断云端运行查证失败，落判死：\(error.localizedDescription)")
             finalizeInterruptedRun(messageID: messageID, previous: previous)
         }
+    }
+
+    /// 云端方案领取后的统一落卡（2026-09-20 收口，轮询/恢复/孤儿补领三路共用）：
+    /// 交付解析 → 草案编码（失败当场诚实定稿，不再 try? 静默成「就绪无方案」）→
+    /// 「就绪」终态信封与方案 JSON 同一笔 finalizeMessage 原子定稿 →
+    /// 回读校验落库成功后才 ack 销毁云端副本。
+    /// - Throws: 只抛交付异常（解析/校验/运行时暂不可用），由调用方按各自语义重试或判死；
+    ///   编码失败与落库回读失败不抛（返回 false）：
+    ///   前者已诚实定稿，后者保留云端结果、消息留在可对账状态，重进后补领。
+    /// - Returns: true = 方案已落卡并 ack；false = 已定稿失败或保留待补领。
+    @discardableResult
+    private func landCloudPlanDraft(
+        start: HoloContextChatPlanner.CloudPlanStart,
+        output: String,
+        messageID: UUID,
+        previousEnvelope: HoloContextPlanRunEnvelope,
+        runController: HoloContextPlanRunController?,
+        client: HoloCloudAnalysisClient
+    ) async throws -> Bool {
+        let outcome = try await HoloContextChatPlanner.deliverCloudPlan(start, output: output)
+        let draftJSON: String
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            draftJSON = String(data: try encoder.encode(outcome.draft), encoding: .utf8) ?? ""
+        } catch {
+            logger.error("PLAN-DIAG 草案编码失败，落诚实失败：\(error.localizedDescription)")
+            finalizeLostDraftRun(messageID: messageID, previous: previousEnvelope)
+            return false
+        }
+        guard !draftJSON.isEmpty else {
+            logger.error("PLAN-DIAG 草案编码为空，落诚实失败")
+            finalizeLostDraftRun(messageID: messageID, previous: previousEnvelope)
+            return false
+        }
+        var finalEnvelope = previousEnvelope
+        if !outcome.runID.isEmpty { finalEnvelope.runID = outcome.runID }
+        finalEnvelope.stage = .draftReady
+        finalEnvelope.stageRevision += 1
+        finalEnvelope.updatedAt = Date()
+        finalEnvelope.failureCode = nil
+        // 登记表注销（内存态推进；draftReady 不单独落盘——与方案同笔原子写）
+        runController?.completeDraft(finalRunID: outcome.runID)
+        chatRepo?.finalizeMessage(
+            messageID,
+            finalContent: outcome.draft.answerText,
+            intent: AIIntent.contextualPlanning.rawValue,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            analysisContextJSON: nil,
+            rawLogJSON: nil,
+            contextPlanJSON: draftJSON,
+            contextPlanRunJSON: HoloContextPlanRunController.encode(finalEnvelope),
+            messageType: .contextPlan
+        )
+        // ack 前回读校验：方案没落上绝不销毁云端结果（ack 即焚不可逆；未 ack 的
+        // 结果留云端 7 天，由重进对账补领恢复）。
+        if let landed = chatRepo?.contextPlanDraftJSON(messageID), !landed.isEmpty {
+            try? await client.ackResult(taskId: start.cloudTaskID)
+            logger.info("PLAN-DIAG 云端方案已落卡并确认领取：task=\(start.cloudTaskID)")
+            return true
+        }
+        logger.error("PLAN-DIAG 草案落库回读为空，保留云端结果待补领：task=\(start.cloudTaskID)")
+        return false
+    }
+
+    /// 「就绪但无方案」孤儿的云端查证与收治：结果仍在（未 ack）→ 重新领取落卡
+    /// （完整恢复）；已被领取确认销毁/任务失效 → 诚实失败，不残留「已就绪」假状态。
+    private func recoverOrphanReadyRun(
+        messageID: UUID,
+        previous: HoloContextPlanRunEnvelope,
+        cloudTaskID: String,
+        parentMessageID: String?,
+        utterance: String
+    ) async {
+        let client = HoloCloudAnalysisClient()
+        do {
+            let status = try await client.fetchStatus(taskId: cloudTaskID)
+            switch status.status {
+            case "completed":
+                let output = status.result?.output ?? ""
+                guard !output.isEmpty else {
+                    // 云端结果已被领取确认销毁（历史版本 ack 先于落库校验）：
+                    // 方案不可恢复，诚实失败 + 可重发。
+                    finalizeLostDraftRun(messageID: messageID, previous: previous)
+                    return
+                }
+                let preparation = try await HoloContextChatPlanner.resumePreparation(
+                    utterance: utterance, parentMessageID: parentMessageID
+                )
+                let start = HoloContextChatPlanner.CloudPlanStart(
+                    cloudTaskID: cloudTaskID, preparation: preparation, utterance: utterance
+                )
+                _ = try await landCloudPlanDraft(
+                    start: start,
+                    output: output,
+                    messageID: messageID,
+                    previousEnvelope: previous,
+                    runController: nil,
+                    client: client
+                )
+            case "failed", "cancelled", "expired":
+                finalizeLostDraftRun(messageID: messageID, previous: previous)
+            default:
+                // 理论不可达（孤儿此前已到过就绪）；留待下次对账，不误杀
+                break
+            }
+        } catch APIError.backendError(let statusCode, _, _, _) where statusCode == 404 {
+            // 任务已过期清理：结果不可恢复，诚实失败
+            finalizeLostDraftRun(messageID: messageID, previous: previous)
+        } catch {
+            // 瞬时网络/服务错误：云端结果可能仍在，不判死，留待下次对账补领
+            logger.error("PLAN-DIAG 就绪孤儿查证暂失败，留待下次对账：\(error.localizedDescription)")
+        }
+    }
+
+    /// 方案不可恢复时的诚实收尾（PLANNING_DRAFT_LOST）：明确告知结果没能保存，
+    /// 而不是留在「已就绪」假状态让用户对着空白等。
+    private func finalizeLostDraftRun(messageID: UUID, previous: HoloContextPlanRunEnvelope?) {
+        chatRepo?.finalizeMessage(
+            messageID,
+            finalContent: String(localized: "这次的个性化规划已生成，但结果没能保存到手机上。这条回答不是个性化方案，重新发送刚才的话即可再试。"),
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            analysisContextJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: HoloContextPlanRunController.encode(
+                HoloContextPlanRunController.interruptedEnvelope(
+                    for: messageID,
+                    previous: previous,
+                    failureCode: "PLANNING_DRAFT_LOST"
+                )
+            ),
+            messageType: .contextPlan
+        )
     }
 
     /// 运行卡停止按钮（§6.3）：只允许停当前活跃的规划运行；非活跃卡由对账判死。
@@ -3392,28 +3749,26 @@ final class ChatViewModel: ObservableObject {
                         cloudPlanningPollTasks[aiMessageId] = nil
                         return
                     }
-                    // 领取 → 本机解析+校验+落库 → ack（严格排序；ack 丢失可重复领取）
-                    let outcome = try await HoloContextChatPlanner.deliverCloudPlan(start, output: output)
-                    let encoder = JSONEncoder()
-                    encoder.dateEncodingStrategy = .iso8601
-                    let draftJSON = (try? encoder.encode(outcome.draft))
-                        .flatMap { String(data: $0, encoding: .utf8) }
-                    runController?.completeDraft(finalRunID: outcome.runID)
-                    let finalRunJSON = runController.flatMap { HoloContextPlanRunController.encode($0.envelope) }
-                    chatRepo?.finalizeMessage(
-                        aiMessageId,
-                        finalContent: outcome.draft.answerText,
-                        intent: AIIntent.contextualPlanning.rawValue,
-                        extractedDataJSON: nil,
-                        parsedBatchJSON: nil,
-                        executionBatchJSON: nil,
-                        analysisContextJSON: nil,
-                        rawLogJSON: nil,
-                        contextPlanJSON: draftJSON,
-                        contextPlanRunJSON: finalRunJSON,
-                        messageType: .contextPlan
+                    // 统一落卡（2026-09-20 收口）：草案编码失败→当场诚实定稿；
+                    // 交付异常→抛给外层计数续轮（保持既有重试语义）；
+                    // 落库回读校验通过才 ack，失败保留云端结果交对账补领。
+                    let previousEnvelope = runController?.envelope
+                        ?? HoloContextPlanRunController.decode(
+                            messages.first(where: { $0.id == aiMessageId })?.contextPlanRunJSON
+                        )
+                        ?? HoloContextPlanRunEnvelope(
+                            runID: aiMessageId.uuidString,
+                            assistantMessageID: aiMessageId,
+                            stage: .cloudPlanning
+                        )
+                    _ = try await landCloudPlanDraft(
+                        start: start,
+                        output: output,
+                        messageID: aiMessageId,
+                        previousEnvelope: previousEnvelope,
+                        runController: runController,
+                        client: client
                     )
-                    try? await client.ackResult(taskId: start.cloudTaskID)
                     cloudPlanningPollTasks[aiMessageId] = nil
                     return
                 case "failed":
@@ -3734,7 +4089,6 @@ final class ChatViewModel: ObservableObject {
                 )
                 activeGoalPlanningSession = result.session
                 GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
-                GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
                 if let question = result.assistantText {
                     _ = chatRepo.addMessage(
                         role: "assistant",
@@ -3804,6 +4158,7 @@ final class ChatViewModel: ObservableObject {
                 provider: provider
             )
                 activeGoalPlanningSession = result.session
+                GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
                 if let question = result.assistantText {
                     _ = chatRepo.addMessage(
                         role: "assistant",

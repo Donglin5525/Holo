@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-09-23] HoloAI 语音按钮闪退根治：ChatView 栈溢出三修 + 真机门禁扩容 + 限重红线
+
+> 纯 iOS 修复，无 HoloBackend 发版，无数据迁移，无需 CloudKit 部署。真机门禁两用例已跑绿（入口 35.7s + 语音 37.0s PASS），东林手机已是修复包。
+
+**背景**：东林真机点 HoloAI 语音按钮一点即崩（3 秒内两次、两份同签名崩溃报告）。.ips 定案：`Thread stack size exceeded`——主线程 1MB 栈溢出，与 9-17 两次「点 HoloAI 即闪退」同病根第三次发作。语音功能代码全链排查无辜（9-06 后零逻辑改动、无强制解包路径、权限声明齐全）；诱因是并行会话在途 +217 行以叠加态随包上机，把 ChatView 堆回 1993 行（9-17 修复后基线 1772 行）。
+
+### 根因与三轮修复（两轮假修复的教训已固化红线）
+- **病根**：SwiftUI 界面在真机主线程上按层求值，ChatView 结构体过大 + 求值链过长，1MB 栈预算被吃穿；模拟器 8MB 栈天然测不出。
+- **一版/二版（失败）**：拆出两层中间容器 struct——真机 .ips 实锤 AttributeGraph 每经过一层 struct 边界多吃约 12 帧×8KB≈100KB 栈，两层容器把 9-17 后一直稳定的入口链也压死；把巨型构造挪进方法同样无效（方法帧照样叠加，爆点直接落在方法上）。
+- **三版（终绿）**：回到 9-17 验证过的内联基线（层级最少）+ 叶子拆分（任务卡编辑弹层 80 行 → ChatTaskEditSheets.swift、Matter 五件套 → ChatMatterStatusStack.swift，叶子零层级成本）+ 消除崩溃最后一帧（internalLogAction 逃逸闭包捕获 self = 整份复制 ChatView 结构体，改为 $viewingLog Binding 浅捕获）。ChatView 1839 行。
+- **根治原则**：「叶子拆出去、层级不增加」——struct 边界只用于叶子子件封顶单帧，禁止用嵌套容器给链路加层。
+
+### 规避机制（三项，已写入 docs/standards/quality-redlines.md）
+- §6 ChatView 限重红线：警戒线 1800 行，新界面块一律独立 struct 文件（工程文件系统同步型自动进 target），超线禁止再加。
+- 陷阱 10 三条三修教训：struct 边界非免费（每层约 100KB 真机栈）/ 方法帧同样叠加 / 逃逸闭包禁止捕获 View struct self。
+- §4 装包纪律：验收包必须从干净检出组装，禁止多会话叠加态直接上机（本次事故直接诱因）。
+
+### 验证
+- 真机门禁 AICrashDeviceReproUITests 两用例 PASS：入口用例（进页 + 退出重进断言存活）+ 新增语音按钮用例（点语音 → 关弹层 → 重点，复刻当日 3 秒两崩路径，含麦克风权限弹窗兜底）——用例断言 App 存活即本轮验证期间无闪退。
+- 全量编译绿（模拟器 generic 构建）。
+
+### 随批入库说明
+ChatView.swift / ChatViewModel.swift 含并行会话在途改动随本批一并入库：任务卡编辑取数方法（pendingTaskItem / updatePendingTaskRenderData）为 ChatTaskEditSheet 编译依赖；Matter 统一交互与任务卡编辑入口为 ChatView 在途改动主体，本次栈溢出修复在其基础上完成，真机门禁验证的正是该组合态。随批前已做干净检出 + 暂存内容的隔离编译验证。
+
+---
+
 ## [2026-09-23] 识图记账一致性收口：拒识反馈必达 + 旧草稿新鲜度闸门 + 外卖已付订单识别修复
 
 > 后端已发版生产（e1a730bcb，即时生效）；iOS 已入库（2e4538d0d）待东林真机装包。无数据迁移，无需 CloudKit 部署。

@@ -39,6 +39,8 @@ struct ChatView: View {
     /// 正在改分类的待确认项 ID：多卡消息里 dismiss 时按它定位，避免误关第一张 pending 卡
     @State private var pendingCategoryEditItemID: String?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
+    /// 待确认任务卡的编辑会话（日期/提醒/清单/内容就地改）
+    @State private var pendingTaskEdit: PendingTaskEdit?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @State private var memoryInboxSnapshot: HoloMemoryInboxSnapshot?
     /// 「待确认 N 件」直达确认队列（与个人页同通道）
@@ -115,8 +117,12 @@ struct ChatView: View {
 
     private var internalLogAction: ((ChatMessageViewData) -> Void)? {
         #if DEBUG || INTERNAL_DIAGNOSTICS
+        // 闭包只捕获浅值 Binding（约 32 字节），不捕获 self——直接捕获会在
+        // outlined init with copy of ChatView 里整份复制本 struct（2026-09-23
+        // 语音按钮闪退 .ips 的最后一帧即此处，三修教训）
+        let logBinding = $viewingLog
         return { message in
-            viewingLog = HoloInternalLogService.shared.log(for: message.id)
+            logBinding.wrappedValue = HoloInternalLogService.shared.log(for: message.id)
         }
         #else
         return nil
@@ -272,6 +278,9 @@ struct ChatView: View {
                 }
             }
         }
+        .sheet(item: $pendingTaskEdit) { edit in
+            ChatTaskEditSheet(viewModel: viewModel, edit: edit)
+        }
         .confirmationDialog(
             "删除确认",
             isPresented: $showDeleteConfirmation,
@@ -373,42 +382,26 @@ struct ChatView: View {
 
     /// 对话页主列：导航栏 + Matter 状态件 + 授权门/内容区。
     /// 子件全部为独立 struct（小体积引用进本列的结构类型），本列自身保持浅结构。
+    /// ⚠️ 三修教训（2026-09-23 真机 .ips 两轮实锤）：本列与 pageTabContent 必须
+    /// 保持内联——中间再包容器 struct（ChatMainColumn/ChatPageTabContainer 方案）
+    /// 会让 AttributeGraph 多下钻两层（每层约 12 帧 × 8KB），入口链直接爆栈。
+    /// struct 边界只用于给「叶子子件」封顶单帧，禁止用来给链路「加层」。
     private var chatColumn: some View {
         VStack(spacing: 0) {
             // 顶部导航栏
+            // AI 设置入口是调试专用（按钮在 Release 隐藏），Release 传空操作
+            let onOpenSettings: () -> Void = {
+                #if DEBUG
+                activeSheet = .aiSettings
+                #endif
+            }
             ChatNavBar(
                 onClose: {
                     viewModel.clearContinuationDraft()
                     close()
                 },
-                onOpenSettings: { activeSheet = .aiSettings }
+                onOpenSettings: onOpenSettings
             )
-
-            // Matter 上下文胶囊（方案 §13.5）：可退出，退出后不再自动关联
-            if let matterContext = matterChatStore.active {
-                MatterContextPill(context: matterContext, onExit: { matterChatStore.exit() })
-            }
-            if let feedback = matterChatStore.lastFeedback {
-                MatterFeedbackToast(
-                    feedback: feedback,
-                    onRevert: { eventID in
-                        Task {
-                            try? await HoloMatterRepository.shared.revertEvent(eventID: eventID)
-                            matterChatStore.lastFeedback = nil
-                        }
-                    },
-                    onDismiss: { matterChatStore.lastFeedback = nil },
-                    onAutoDismiss: {
-                        withAnimation { matterChatStore.lastFeedback = nil }
-                    }
-                )
-            }
-            if let ambiguity = matterChatStore.pendingAmbiguity {
-                MatterAmbiguityBar(
-                    ambiguity: ambiguity,
-                    onResolve: { option in resolveAmbiguity(ambiguity, option: option) }
-                )
-            }
 
             if !consent.isGranted {
                 // 未开启 AI 数据处理授权：首屏给出准确引导，避免误导性的「服务不可用」
@@ -436,36 +429,10 @@ struct ChatView: View {
         .padding(.bottom, keyboardOverlap)
     }
 
-    /// 记忆提示条主点击：回执已读 + 有待确认走确认队列，否则直达长廊
-    private func handleMemoryNoticeTap() {
-        HoloMemoryReceiptStore.markWriteReceiptsRead()
-        let hadPending = !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled
-            && (memoryInboxSnapshot?.pendingConfirmationCount ?? 0) > 0
-        memoryInboxSnapshot = nil
-        if hadPending {
-            showMemoryConfirmationQueue = true
-        } else {
-            DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
-        }
-    }
-
-    private func dismissMemoryNotice() {
-        HoloMemoryReceiptStore.markWriteReceiptsRead()
-        memoryInboxSnapshot = nil
-    }
-
-
-    // MARK: - Unconfigured View
-
-
-    // MARK: - 页内双 Tab（对话 / 报告）
-
-
-
-
     /// 两 Tab 常驻不销毁（照搬记忆长廊 tabContent 模式）：
     /// 切走仅隐藏，聊天侧滚动位置与输入态跨切换存活。
     /// 报告 pane 延迟到首次切换才构建，避免加重聊天首帧。
+    /// ⚠️ 保持内联（理由见 chatColumn 注释的三修教训）。
     private var pageTabContent: some View {
         ZStack {
             ChatContentColumn(
@@ -497,7 +464,8 @@ struct ChatView: View {
                         pendingCategoryEditItemID = itemID
                         pendingEditPrefill = prefill
                     },
-                    onReport: { message in reportingMessage = message }
+                    onReport: { message in reportingMessage = message },
+                    onTaskEdit: { edit in pendingTaskEdit = edit }
                 )
             )
             .opacity(selectedPageTab == .chat ? 1 : 0)
@@ -528,6 +496,31 @@ struct ChatView: View {
             }
         }
     }
+
+    /// 记忆提示条主点击：回执已读 + 有待确认走确认队列，否则直达长廊
+
+    private func handleMemoryNoticeTap() {
+        HoloMemoryReceiptStore.markWriteReceiptsRead()
+        let hadPending = !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled
+            && (memoryInboxSnapshot?.pendingConfirmationCount ?? 0) > 0
+        memoryInboxSnapshot = nil
+        if hadPending {
+            showMemoryConfirmationQueue = true
+        } else {
+            DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
+        }
+    }
+
+    private func dismissMemoryNotice() {
+        HoloMemoryReceiptStore.markWriteReceiptsRead()
+        memoryInboxSnapshot = nil
+    }
+
+
+    // MARK: - Unconfigured View
+
+
+    // MARK: - 页内双 Tab（对话 / 报告）
 
     /// 依据/报告侧栏（方案 2B）：定宽 520pt，左缘分隔线；顶部关闭后恢复全宽聊天列。
     /// 详情内容与窄屏全屏版同一套路由（追问能力、财务证据深链一致）。
@@ -821,9 +814,12 @@ struct ChatView: View {
         case .analysisDetail(let message):
             AnalysisDetailSheet(message: message)
         case .matterDetail(let matterID):
-            MatterDetailView(matterID: matterID) { discussID in
-                activeSheet = nil
-                matterChatStore.enter(matterID: discussID, source: .matterDetail)
+            // sheet 根视图需外部包栈：MatterDetailView 本体已去内嵌 NavigationStack
+            NavigationStack {
+                MatterDetailView(matterID: matterID) { discussID in
+                    activeSheet = nil
+                    matterChatStore.enter(matterID: discussID, source: .matterDetail)
+                }
             }
         case .taskDetail(let taskID):
             Group {
@@ -985,6 +981,19 @@ private struct ChatContentColumn: View {
             .allowsHitTesting(isInitialConversationVisible)
             .accessibilityHidden(!isInitialConversationVisible)
 
+            // 目标规划收集期常驻横幅：此期间普通输入会被规划会话消费，
+            // 必须可见可退，不能让用户无感地「发了没反应」（2026-09-19 事故）
+            if viewModel.isGoalPlanningCollecting {
+                GoalPlanningActiveBanner { viewModel.cancelGoalPlanning() }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
+            }
+
+            // Matter 上下文五件套（2026-09-23 统一交互：与目标规划横幅同区，
+            // 全部会话态提示收敛在输入框上方；实现拆 ChatMatterStatusStack）
+            ChatMatterStatusStack()
+
             // 输入框上方常驻能力行：对话全程可见
             QuickActionBar(viewModel: viewModel)
 
@@ -1013,12 +1022,13 @@ private struct ChatContentColumn: View {
                     .transition(.opacity)
             }
 
-            // 场景预填来源提示：用户改写问句/发送后自动消失（见 VM 计算属性）
+            // 场景预填来源提示：场景绑定随预填建立，改写问句仍按该场景分析；
+            // 清空输入框或发送后自动消失（见 VM 计算属性）
             if let scenarioTitle = viewModel.activeScenarioPrefillTitle {
                 HStack(spacing: 5) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 10, weight: .semibold))
-                    Text("来自「\(scenarioTitle)」场景 · 可改写问句，确认后发送")
+                    Text("将按「\(scenarioTitle)」场景分析 · 可改写问句，确认后发送")
                         .font(.system(size: 11, weight: .medium))
                 }
                 .foregroundColor(Color.holoPrimary.opacity(0.95))
@@ -1054,6 +1064,7 @@ private struct ChatContentColumn: View {
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.isTrulyEmptyConversation)
         .animation(.easeInOut(duration: 0.2), value: viewModel.streamingStatusHint)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isGoalPlanningCollecting)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: viewModel.showAnalysisScenarioPanel)
         .animation(.easeInOut(duration: 0.18), value: viewModel.activeScenarioPrefillTitle)
         .onChange(of: viewModel.showAnalysisScenarioPanel) { _, isOpen in
@@ -1062,6 +1073,8 @@ private struct ChatContentColumn: View {
                 UIApplication.shared.sendAction(
                     #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
                 )
+                // 展开即刷新额度快照：用户此刻正在读「今日剩余」，不能拿启动时的旧值
+                Task { await HoloSubscriptionService.shared.refreshStatus() }
             }
         }
         .task(id: viewModel.hasLoadedMessages) {
@@ -1081,6 +1094,38 @@ private struct ChatContentColumn: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.holoCardBackground)
+    }
+
+    /// 目标规划收集期横幅：明示「输入会被规划消费」并提供唯一可靠的退出出口
+    /// （此前退出入口只在草案生成后可达，收集期用户无感被劫，深度分析等显式意图失效）
+    private struct GoalPlanningActiveBanner: View {
+        let onExit: () -> Void
+
+        var body: some View {
+            HStack(spacing: 8) {
+                Image(systemName: "target")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("目标规划进行中 · 你的回复将用于生成目标草案")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button(action: onExit) {
+                    Text("退出")
+                        .font(.system(size: 11.5, weight: .bold))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 4)
+                        .background(Color.holoPrimary.opacity(0.14), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "退出目标规划"))
+            }
+            .foregroundColor(.holoPrimary)
+            .padding(.leading, 12)
+            .padding(.trailing, 6)
+            .padding(.vertical, 5)
+            .background(Color.holoPrimary.opacity(0.08), in: Capsule())
+            .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.25), lineWidth: 0.8))
+        }
     }
 
     /// 与成熟 IM 一致：点击输入区即表示继续最新对话。长距离直接到达，短距离柔和过渡；
@@ -1156,6 +1201,8 @@ private struct ChatMessageListPane: View {
         let onPendingCardDelete: (PendingCardDelete) -> Void
         let onCategoryEditPrefill: (ChatMessageViewData, String, PendingTransactionPrefill) -> Void
         let onReport: (ChatMessageViewData) -> Void
+        /// 待确认任务卡设置行编辑入口：弹层状态归 ChatView，经此回传（单一数据源）
+        let onTaskEdit: (PendingTaskEdit) -> Void
     }
 
     let actions: Actions
@@ -1261,6 +1308,18 @@ private struct ChatMessageListPane: View {
                         },
                         onTaskFollowUp: { msg, taskData in
                             viewModel.startTaskFollowUp(taskData)
+                        },
+                        onTaskEditDueDate: { msg, taskData in
+                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .dueDate))
+                        },
+                        onTaskEditReminders: { msg, taskData in
+                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .reminders))
+                        },
+                        onTaskEditList: { msg, taskData in
+                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .list))
+                        },
+                        onTaskEditContent: { msg, taskData in
+                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .content))
                         },
                         onTransactionConfirm: { msg, txData in
                             viewModel.confirmPendingTransaction(from: msg, itemID: txData.itemID)
@@ -1774,3 +1833,7 @@ private struct ChatMemoryNoticeBar: View {
         }
     }
 }
+
+// MARK: - 待确认任务卡编辑会话
+// PendingTaskEdit 与弹层路由 ChatTaskEditSheet 已拆 ChatTaskEditSheets.swift
+// （2026-09-23 栈溢出三修）。
