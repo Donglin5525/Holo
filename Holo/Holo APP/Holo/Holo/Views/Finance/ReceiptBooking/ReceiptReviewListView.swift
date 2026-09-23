@@ -36,7 +36,10 @@ struct ReceiptReviewListView: View {
                 List {
                 Section {
                     ForEach(drafts) { draft in
-                        NavigationLink(value: draft.id) {
+                        // 以草案本体作为导航值：推入页自带数据，不回头查 drafts——
+                        // 确认/删除后 refresh() 会把该草案移出列表，若目的地仍依赖
+                        // drafts 解析，值还在路径上而内容消失，iOS 26 导航栈会断言闪退
+                        NavigationLink(value: draft) {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     // 2026-09-19 一图多笔：行摘要展示首笔金额 + 笔数徽标
@@ -60,9 +63,16 @@ struct ReceiptReviewListView: View {
                                 if let merchant = draft.merchant, !merchant.isEmpty {
                                     Text(merchant).font(.subheadline).foregroundStyle(.secondary)
                                 }
-                                Text(reviewReasonText(draft.reasons))
-                                    .font(.footnote)
-                                    .foregroundStyle(.orange)
+                                HStack {
+                                    Text(reviewReasonText(draft.reasons))
+                                        .font(.footnote)
+                                        .foregroundStyle(.orange)
+                                    Spacer()
+                                    // 识别时间必显（2026-09-23）：历史草案一眼可辨，不冒充本次结果
+                                    Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                             .padding(.vertical, 2)
                         }
@@ -84,19 +94,17 @@ struct ReceiptReviewListView: View {
                 }
             }
         }
-        .navigationDestination(for: UUID.self) { draftID in
-            if let draft = drafts.first(where: { $0.id == draftID }) {
-                ReceiptReviewDetailView(draft: draft) {
-                    refresh()
-                }
+        .navigationDestination(for: ReceiptBookingResultStore.StoredDraft.self) { draft in
+            ReceiptReviewDetailView(draft: draft) {
+                refresh()
             }
         }
         .onAppear {
             if !didRouteInitialDraft,
                let initialDraftID,
-               drafts.contains(where: { $0.id == initialDraftID }) {
+               let draft = drafts.first(where: { $0.id == initialDraftID }) {
                 didRouteInitialDraft = true
-                path.append(initialDraftID)
+                path.append(draft)
             }
         }
     }

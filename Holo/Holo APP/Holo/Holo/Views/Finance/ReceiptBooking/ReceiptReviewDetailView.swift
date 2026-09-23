@@ -109,20 +109,25 @@ struct ReceiptReviewDetailView: View {
 
     // MARK: - 卡片
 
-    /// 汇总：多笔显示笔数与同向合计
+    /// 汇总：多笔显示笔数与同向合计；识别时间必显（2026-09-23 起旧草案一眼可辨）
     private var summaryCard: some View {
         card {
-            HStack {
-                Text(itemCountText)
-                    .font(.holoBody.weight(.semibold))
-                    .foregroundColor(.holoTextPrimary)
-                Spacer()
-                if let total = uniformTotalText {
-                    Text("¥\(total)")
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(itemCountText)
+                        .font(.holoBody.weight(.semibold))
                         .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    if let total = uniformTotalText {
+                        Text("¥\(total)")
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundColor(.holoTextPrimary)
+                    }
                 }
+                Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

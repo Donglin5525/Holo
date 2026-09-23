@@ -93,9 +93,53 @@ enum ReceiptBookingReason: String, Sendable, Equatable, CaseIterable {
     var isReview: Bool { rawValue.hasPrefix("review.") }
     var isReject: Bool { rawValue.hasPrefix("reject.") }
     var isFailure: Bool { rawValue.hasPrefix("failure.") }
+
+    /// 拒识原因的用户文案。快捷指令结果文字与结果通知共用同一份口径。
+    /// 2026-09-23 拒识反馈必达（东林拍板）：拒绝类必须让用户看到「没记+原因」，
+    /// 不允许静默——后台/自动化运行时快捷指令的结果文字用户根本看不到。
+    nonisolated var rejectionUserText: String {
+        switch self {
+        case .rejectTransfer:
+            return String(localized: "这是转账/还款，属于资金流转，不计入收支。")
+        case .rejectWealth:
+            return String(localized: "这是理财/余额页面，没有需要记的账。")
+        case .rejectPending:
+            return String(localized: "订单还没支付。支付完成后再试一次。")
+        case .rejectFailedPayment:
+            return String(localized: "支付没有完成或已取消，不记账。")
+        case .rejectForeignCurrency:
+            return String(localized: "这是外币消费，目前只支持人民币记账。")
+        case .rejectUnrelated:
+            return String(localized: "这张图里没有能记账的内容。")
+        case .rejectInvalidImage:
+            return String(localized: "没认出可靠的金额，没有入账。截图仍在照片里，可以拍清楚些再试。")
+        default:
+            return String(localized: "这张图不适合记账，未入账。")
+        }
+    }
 }
 
 // MARK: - 结果回执
+
+/// 「识别于 …」时间文案（2026-09-23 起确认页与复核列表必显）：
+/// 今天/昨天用相对表述，更早用「M月d日 HH:mm」。历史草案必须一眼可辨，
+/// 杜绝旧识别结果被当成这次的（东林 9-23 实锤：昨天的 65 元草案被当成今天识别的金额）。
+nonisolated enum ReceiptRecognizedTimeText {
+    static func text(for date: Date, now: Date = Date()) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        if calendar.isDateInToday(date) {
+            return String(localized: "今天 \(timeFormatter.string(from: date))")
+        }
+        if calendar.isDateInYesterday(date) {
+            return String(localized: "昨天 \(timeFormatter.string(from: date))")
+        }
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMdHHmm")
+        return formatter.string(from: date)
+    }
+}
 
 /// 自动记账成功（或命中精确重复返回既有交易）的回执快照
 struct ReceiptBookingReceipt: Sendable {

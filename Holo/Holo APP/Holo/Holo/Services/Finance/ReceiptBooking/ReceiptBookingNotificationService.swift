@@ -77,7 +77,7 @@ final class ReceiptBookingNotificationService {
         }
 
         guard let request = Self.makeRequest(for: outcome, deferredReviewReminder: deferredReviewReminder) else {
-            // 拒识走快捷指令自身的结果展示、用户取消无提醒价值，均不打扰通知栏
+            // 仅用户主动取消不打扰（2026-09-23 拒识反馈必达：其余终态一律通知）
             logger.info("skip notification for outcome: \(String(describing: outcome), privacy: .public)")
             return
         }
@@ -119,8 +119,13 @@ final class ReceiptBookingNotificationService {
             }
             content.categoryIdentifier = categoryIdentifier
             userInfo["draftID"] = snapshot.draftID.uuidString
-        case .rejected:
-            return nil
+        case .rejected(let reason):
+            // 2026-09-23 拒识反馈必达（东林拍板）：后台/自动化运行时快捷指令的结果
+            // 文字用户看不到，拒识静默会让用户以为记上了或以为功能坏了——
+            // 拒绝类一律通知说清原因，与快捷指令结果文字共用同一份文案。
+            content.title = String(localized: "这笔没有入账")
+            content.body = reason.rejectionUserText
+            content.categoryIdentifier = categoryIdentifier
         case .failed(let failure):
             guard failure.reason != .failureCancelled else { return nil }
             content.title = String(localized: "记账没有成功")

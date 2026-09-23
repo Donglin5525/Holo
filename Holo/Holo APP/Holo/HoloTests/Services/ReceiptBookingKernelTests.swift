@@ -377,6 +377,27 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertTrue(review.contains("未入账"), "复核文案不得说「成功」")
     }
 
+    func testRecognizedTimeTextFormatting() {
+        // 识别时间必显（2026-09-23）：今天/昨天相对表述，更早给绝对日期，旧草案一眼可辨
+        let calendar = Calendar.current
+        let now = Date()
+        let morning = calendar.date(bySettingHour: 9, minute: 27, second: 0, of: now)!
+
+        XCTAssertTrue(
+            ReceiptRecognizedTimeText.text(for: morning, now: now).contains("今天"),
+            "当天的草案用「今天 HH:mm」"
+        )
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: morning)!
+        XCTAssertTrue(
+            ReceiptRecognizedTimeText.text(for: yesterday, now: now).contains("昨天"),
+            "昨天的草案用「昨天 HH:mm」"
+        )
+        let lastMonth = calendar.date(byAdding: .month, value: -1, to: now)!
+        let older = ReceiptRecognizedTimeText.text(for: lastMonth, now: now)
+        XCTAssertFalse(older.contains("今天"), "更早的草案给绝对日期")
+        XCTAssertFalse(older.isEmpty)
+    }
+
     func testMultipleTransactionSnapshotTextMentionsCount() {
         // 2026-09-19 一图多笔：快捷指令回执必须说清笔数与合计，不再只提第一笔
         let items = (0..<2).map { index in
@@ -580,10 +601,20 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertNil(request?.trigger, "已记账通知不得押后")
     }
 
-    func testRejectedOutcomeSkipsNotification() {
-        XCTAssertNil(
-            ReceiptBookingNotificationService.makeRequest(for: .rejected(.rejectTransfer), deferredReviewReminder: false),
-            "拒识不打扰通知栏"
+    func testRejectedOutcomeNotifiesWithReason() {
+        // 2026-09-23 拒识反馈必达（东林拍板）：后台/自动化运行时快捷指令的结果文字
+        // 用户看不到，拒识静默会让用户以为记上了或以为功能坏了——拒绝类一律通知
+        // 说清原因；仅用户主动取消保持静默。
+        let request = ReceiptBookingNotificationService.makeRequest(
+            for: .rejected(.rejectTransfer), deferredReviewReminder: false
+        )
+        XCTAssertNotNil(request, "拒识必须发通知，不允许静默")
+        XCTAssertEqual(request?.content.title, String(localized: "这笔没有入账"))
+        XCTAssertEqual(request?.content.body, ReceiptBookingReason.rejectTransfer.rejectionUserText)
+        XCTAssertEqual(
+            request?.content.body,
+            RecognizeAndBookReceiptIntent.text(for: .rejected(.rejectTransfer)),
+            "通知与快捷指令结果文字必须同一份口径"
         )
         XCTAssertNil(
             ReceiptBookingNotificationService.makeRequest(
@@ -592,6 +623,14 @@ final class ReceiptBookingKernelTests: XCTestCase {
             ),
             "用户取消不发失败通知"
         )
+    }
+
+    func testRejectionUserTextCoversAllRejectReasons() {
+        for reason in ReceiptBookingReason.allCases where reason.isReject {
+            let text = reason.rejectionUserText
+            XCTAssertFalse(text.isEmpty, "\(reason.rawValue) 必须有用户文案")
+            XCTAssertFalse(text.contains("reject."), "用户文案不得泄漏机器码")
+        }
     }
 
     func testReviewReminderIdentifierMatchesCancelKey() {
