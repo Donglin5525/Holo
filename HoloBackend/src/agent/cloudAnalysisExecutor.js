@@ -83,6 +83,11 @@ function buildFrozenTaskBlock(task, availableSources, taskType) {
   if (task.scenarioID) lines.push(`场景：${task.scenarioID}`);
   if (task.primaryTimeRange) {
     lines.push(`主时间范围：${fmt(task.primaryTimeRange.startMs)} 至 ${fmt(task.primaryTimeRange.endMs)}（${task.primaryTimeRange.label}；Unix 秒 ${Math.floor(task.primaryTimeRange.startMs / 1000)}-${Math.floor(task.primaryTimeRange.endMs / 1000)}；dynamicPlan.timeRange 优先引用此范围）`);
+  } else {
+    // 无冻结窗兜底（2026-09-24「最近两个月答成180天」复盘）：词表外的口语时间
+    // 表达客户端解析不到时窗口缺失，模型行为不稳定——同一问句有的轮次自行
+    // 领悟、有的全窗查询。给确定性指令：问句含时间表述必须按它换算窗口。
+    lines.push("主时间范围：未冻结。若用户问题原话包含时间范围表述（如最近N天/周/月/年、某月起），必须按该表述换算 timeRange 查询，不得默认全窗口；回答开头注明实际分析的时间范围。");
   }
   if (task.snapshotCutoffAt) lines.push(`快照截止：${task.snapshotCutoffAt}（历史查询不得越过）`);
   if (task.availableSourcesHint) lines.push(`可用数据源：${task.availableSourcesHint}`);
