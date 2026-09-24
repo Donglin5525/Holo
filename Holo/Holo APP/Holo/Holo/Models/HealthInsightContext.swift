@@ -79,4 +79,24 @@ struct HealthInsightContext: Codable, Equatable {
     let workoutMinutes: Int?
     let dataAvailability: HealthDataAvailability
     let signals: [HealthSignal]
+
+    // —— 2026-09-24 富字段扩充（对齐深度分析健康域）：var+默认值，旧 JSON 可继续解码 ——
+    // 环比素材（回顾模板「趋势分析」段消费，与 previousPeriodExpense 同一模式）
+    var previousPeriodSleepHours: Double? = nil
+    var previousPeriodStepCount: Int? = nil
+    // 活动与运动
+    var activeMinutesPerDay: Double? = nil
+    var activeEnergyKcalPerDay: Double? = nil
+    var distanceKmPerDay: Double? = nil
+    var workoutSessionCount: Int? = nil
+    var topWorkoutTypes: [String]? = nil
+    // 睡眠质量（无 Apple Watch 分期数据时为 nil，不得当 0 解读）
+    var sleepEfficiencyPercent: Double? = nil
+    var deepSleepHoursPerDay: Double? = nil
+    var remSleepHoursPerDay: Double? = nil
+    /// 平均就寝时刻（一天内分钟，23:00=1380；凌晨入睡折算为次日，均值还原到 0-1439）
+    var bedtimeMinuteOfDay: Int? = nil
+    var wakeMinuteOfDay: Int? = nil
+    /// 本周期内至少有一项健康数据的天数（诚实口径：均值的天数分母背景）
+    var recordedDayCount: Int? = nil
 }
