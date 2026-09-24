@@ -87,11 +87,11 @@ struct HoloLightweightOnboardingView: View {
         switch currentPage {
         case 0:
             OnboardingWelcomePage(nicknameDraft: $nicknameDraft) {
-                withAnimation(.easeInOut(duration: 0.25)) { currentPage = 1 }
+                withAnimation(HoloAnimation.smooth) { currentPage = 1 }
             }
         case 1:
             OnboardingCapabilitiesPage {
-                withAnimation(.easeInOut(duration: 0.25)) { currentPage = 2 }
+                withAnimation(HoloAnimation.smooth) { currentPage = 2 }
             }
         case 2:
             OnboardingTopicSetupPage(
@@ -111,7 +111,7 @@ struct HoloLightweightOnboardingView: View {
         do {
             _ = try TopicRepository().createClassificationTopics(titles: Array(selectedTopics))
             topicSetupError = nil
-            withAnimation(.easeInOut(duration: 0.25)) { currentPage = 3 }
+            withAnimation(HoloAnimation.smooth) { currentPage = 3 }
         } catch {
             topicSetupError = String(localized: "主题保存失败，请再试一次")
         }
@@ -191,7 +191,7 @@ struct OnboardingPageDots: View {
                     )
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: currentPage)
+        .animation(HoloAnimation.standard, value: currentPage)
         .accessibilityElement()
         .accessibilityLabel(String(localized: "第 \(currentPage + 1) 步，共 \(pageCount) 步"))
     }

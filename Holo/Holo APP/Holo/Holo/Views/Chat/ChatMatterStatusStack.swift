@@ -26,7 +26,7 @@ struct ChatMatterStatusStack: View {
                         .padding(.bottom, 4)
                 }
             }
-            .animation(.easeOut(duration: 0.22), value: matterStore.active)
+            .animation(HoloAnimation.enter, value: matterStore.active)
 
             Group {
                 if let feedback = matterStore.lastFeedback {
@@ -47,7 +47,7 @@ struct ChatMatterStatusStack: View {
                     )
                 }
             }
-            .animation(.easeOut(duration: 0.22), value: matterStore.lastFeedback)
+            .animation(HoloAnimation.enter, value: matterStore.lastFeedback)
 
             Group {
                 if let ambiguity = matterStore.pendingAmbiguity {
@@ -57,7 +57,7 @@ struct ChatMatterStatusStack: View {
                     )
                 }
             }
-            .animation(.easeOut(duration: 0.22), value: matterStore.pendingAmbiguity)
+            .animation(HoloAnimation.enter, value: matterStore.pendingAmbiguity)
 
             Group {
                 if let proposal = matterStore.pendingTaskProposal {
@@ -68,7 +68,7 @@ struct ChatMatterStatusStack: View {
                     )
                 }
             }
-            .animation(.easeOut(duration: 0.22), value: matterStore.pendingTaskProposal)
+            .animation(HoloAnimation.enter, value: matterStore.pendingTaskProposal)
 
             Group {
                 if let recoverable = matterStore.recoverableContext {
@@ -79,7 +79,7 @@ struct ChatMatterStatusStack: View {
                     )
                 }
             }
-            .animation(.easeOut(duration: 0.22), value: matterStore.recoverableContext)
+            .animation(HoloAnimation.enter, value: matterStore.recoverableContext)
         }
         .task {
             // 重启后上下文不自动恢复，但读一次持久化记录给出「上次在聊」幽灵条

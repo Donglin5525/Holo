@@ -265,7 +265,7 @@ struct HomeView: View {
         }
         // 首页三步聚光灯导览：挂在根 ZStack 上，覆盖首页内容与常驻模块
         .coachMarkTour(isPresented: showHomeCoachTour, steps: HomeCoachTour.steps) {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 showHomeCoachTour = false
             }
         }
@@ -536,7 +536,7 @@ struct HomeView: View {
     private func startHomeCoachTourIfNeeded() {
         guard !OnboardingProgressStore.hasSeen(OnboardingProgressStore.homeCoachTourKey) else { return }
         OnboardingProgressStore.markSeen(OnboardingProgressStore.homeCoachTourKey)
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             showHomeCoachTour = true
         }
     }
@@ -549,7 +549,7 @@ struct HomeView: View {
             }
             selectedTab = .ai
         }
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             showHomeCoachTour = true
         }
     }
@@ -562,7 +562,7 @@ struct HomeView: View {
             && !OnboardingProgressStore.hasSeen(OnboardingProgressStore.firstStepCardDismissedKey)
             && !NewUserActivationState.hasAnyRecord()
         guard showFirstStepCard != shouldShow else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             showFirstStepCard = shouldShow
         }
     }
@@ -574,7 +574,7 @@ struct HomeView: View {
               NewUserActivationState.isFirstTransactionEver()
         else { return }
         OnboardingProgressStore.markSeen(OnboardingProgressStore.firstRecordCelebrationShownKey)
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             showFirstRecordCelebration = true
         }
     }
@@ -864,7 +864,7 @@ struct HomeView: View {
                             },
                             onDismiss: {
                                 OnboardingProgressStore.markSeen(OnboardingProgressStore.firstStepCardDismissedKey)
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                                withAnimation(HoloAnimation.standard) {
                                     showFirstStepCard = false
                                 }
                             }
@@ -1081,7 +1081,7 @@ struct HomeView: View {
                         .simultaneousGesture(
                             createDragGesture(for: item, at: index, positions: positions)
                         )
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
+                        .animation(HoloAnimation.snappy, value: isDragging)
                 }
             }
         }

@@ -125,7 +125,7 @@ struct FinanceAnalysisView: View {
 
     private func tabButton(_ tab: AnalysisTab) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 selectedTab = tab
             }
         } label: {
@@ -158,7 +158,7 @@ struct FinanceAnalysisView: View {
             case .overview:
                 OverviewTabView(state: state) { category in
                     state.selectDetailCategory(category)
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         selectedTab = .detail
                     }
                 }

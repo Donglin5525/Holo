@@ -913,7 +913,7 @@ struct TaskDetailView: View {
                         Spacer()
 
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(HoloAnimation.standard) {
                                 pendingCheckItems.removeAll { $0.id == item.id }
                             }
                         } label: {
@@ -1035,7 +1035,7 @@ struct TaskDetailView: View {
             }
             .buttonStyle(.plain)
             .disabled(!hasText)
-            .animation(.easeInOut(duration: 0.16), value: hasText)
+            .animation(HoloAnimation.quick, value: hasText)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

@@ -55,7 +55,7 @@ struct ChatEmptyStateView: View {
             }
             .padding(.horizontal, HoloSpacing.md)
         }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.emptyStateCapabilities)
+        .animation(HoloAnimation.standard, value: viewModel.emptyStateCapabilities)
     }
 
     @ViewBuilder

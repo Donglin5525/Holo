@@ -168,7 +168,7 @@ struct AccountListView: View {
         HStack(spacing: 0) {
             ForEach(AccountPageMode.allCases, id: \.hashValue) { mode in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         pageMode = mode
                     }
                 } label: {

@@ -33,7 +33,7 @@ extension AddTransactionSheet {
             HStack {
                 if let parent = drillDownParent {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
+                        withAnimation(HoloAnimation.smooth) {
                             drillDownParent = nil
                         }
                     } label: {
@@ -93,7 +93,7 @@ extension AddTransactionSheet {
         .padding(16)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .animation(.easeInOut(duration: 0.25), value: drillDownParent?.objectID)
+        .animation(HoloAnimation.smooth, value: drillDownParent?.objectID)
         .sheet(isPresented: $showCategoryManagement) {
             // 分类管理页内含 NavigationLink，必须自带导航栈容器，否则页内跳转全部失效
             NavigationStack { CategoryManagementView(showsDoneButton: true) }
@@ -208,7 +208,7 @@ extension AddTransactionSheet {
         } ?? false
 
         return Button {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 drillDownParent = category
             }
         } label: {
@@ -229,7 +229,7 @@ extension AddTransactionSheet {
         let parentColor = drillDownParent?.swiftUIColor ?? .holoPrimary
 
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 selectedCategory = category
             }
         } label: {
@@ -320,7 +320,7 @@ extension AddTransactionSheet {
     /// 切换收入/支出类型
     func switchType(to newType: TransactionType) {
         guard transactionType != newType else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             transactionType = newType
             drillDownParent = nil
             selectedCategory = nil

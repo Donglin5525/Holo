@@ -124,7 +124,7 @@ struct PersonalView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: showMemorySummaryCapsule)
+        .animation(HoloAnimation.standard, value: showMemorySummaryCapsule)
         .sheet(isPresented: $showMemoryConfirmationQueue) {
             MemoryConfirmationQueueView(
                 onRecordHandled: { _ in

@@ -248,7 +248,7 @@ struct BudgetSettingsSheet: View {
         HStack(spacing: 0) {
             ForEach(BudgetSheetMode.allCases, id: \.self) { modeOption in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         mode = modeOption
                         if modeOption == .total {
                             selectedCategory = nil

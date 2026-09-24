@@ -135,7 +135,7 @@ struct MemoryInsightCardView: View {
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .onTapGesture {
             guard !card.evidence.isEmpty else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 isExpanded.toggle()
             }
         }

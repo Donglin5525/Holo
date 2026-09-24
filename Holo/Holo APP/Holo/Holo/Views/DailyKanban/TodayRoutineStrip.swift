@@ -48,7 +48,7 @@ struct TodayRoutineStrip: View {
     private var summaryLine: some View {
         Button {
             if !routine.habitRows.isEmpty {
-                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                withAnimation(HoloAnimation.standard) { expanded.toggle() }
             }
         } label: {
             HStack(spacing: 8) {

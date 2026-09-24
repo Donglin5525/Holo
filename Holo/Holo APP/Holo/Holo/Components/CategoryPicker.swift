@@ -116,7 +116,7 @@ struct CategoryPicker: View {
             }
         }
         .padding(HoloSpacing.md)
-        .animation(.easeInOut(duration: 0.25), value: drillDownParent?.objectID)
+        .animation(HoloAnimation.smooth, value: drillDownParent?.objectID)
         .sheet(isPresented: $showCategoryManagement) {
             // 分类管理页内含 NavigationLink，必须自带导航栈容器，否则页内跳转全部失效
             NavigationStack { CategoryManagementView(showsDoneButton: true) }
@@ -241,7 +241,7 @@ struct CategoryPicker: View {
     /// 切换收入/支出类型，同时重置下钻和选中状态
     private func switchType(to newType: TransactionType) {
         guard transactionType != newType else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             transactionType = newType
             drillDownParent = nil
             selectedCategory = nil

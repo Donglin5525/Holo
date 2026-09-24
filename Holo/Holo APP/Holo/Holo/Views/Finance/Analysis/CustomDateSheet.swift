@@ -103,7 +103,7 @@ struct CustomDateSheet: View {
                 isSelected: editingDate == .start
             ) {
                 guard !hasApplied else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     editingDate = .start
                 }
             }
@@ -117,7 +117,7 @@ struct CustomDateSheet: View {
                 isSelected: editingDate == .end
             ) {
                 guard !hasApplied else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     editingDate = .end
                 }
             }
@@ -159,7 +159,7 @@ struct CustomDateSheet: View {
         guard !hasApplied else { return }
         if editingDate == .start {
             tempStartDate = day
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 editingDate = .end
             }
         } else {

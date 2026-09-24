@@ -151,7 +151,7 @@ struct TimelineReplayView: View {
             Task {
                 let items = await store.fetchSchedules(onDay: focusedDate)
                 await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         schedules = items
                     }
                 }

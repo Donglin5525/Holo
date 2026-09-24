@@ -187,7 +187,7 @@ struct ArchiveManagementView: View {
         HStack(spacing: 0) {
             ForEach(ArchiveTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         selectedTab = tab
                     }
                 } label: {

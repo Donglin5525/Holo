@@ -2,10 +2,10 @@
 //  TrendChartView.swift
 //  Holo
 //
-//  总览 Tab 趋势卡（双轴同图·资产总览风格）：
-//  - 下层：每日收支柱（红=支出、绿=收入）贴底，走左轴；当日最大支出日整柱高亮
-//  - 上层：余额线（冷蓝，独立刻度）走右轴，两根轴都标刻度，明着双尺不误导
-//  - 极淡横向网格只铺柱区；余额信息另外在卡头「较期初」与点按明细里可读
+//  总览 Tab 趋势卡（双轴同图·常规样式）：
+//  - 每日收支柱（红=支出、绿=收入）贴底，走左轴，几乎全高；当日最大支出日整柱高亮
+//  - 余额线（冷蓝，独立刻度）按右轴铺满整个绘图区、从柱间穿过，两根轴各自铺满，明着双尺不误导
+//  - 极淡横向网格随左轴刻度铺满全高；余额信息另外在卡头「较期初」与点按明细里可读
 //  - 单日尖峰超过次高值 2 倍且有效天数 ≥5 时，柱轴上限压缩并对尖峰柱做「断口」截断
 //  - 横向拖动/点按查看单日（柱后高亮带 + 明细），纵向手势交还页面滚动，点空白收起
 //
@@ -23,9 +23,9 @@ struct TrendChartView: View {
 
     // MARK: 画布几何（y 抽象单位，domain [0, plotUnitMax]，值越大越靠上）
     private let plotUnitMax: Double = 100
-    private let barTopUnit: Double = 55          // 柱带：0...55（柱轴上限映射到 55）
-    private let lineBandLow: Double = 62         // 线带：62...95（余额最小值→62，最大值→95）
-    private let lineBandHigh: Double = 95
+    private let barTopUnit: Double = 90          // 柱带：0...90（柱轴上限映射到 90，顶部留断口标注空间）
+    private let lineBandLow: Double = 8          // 线带：8...94（余额最小值→8，最大值→94，铺满全高穿柱而过）
+    private let lineBandHigh: Double = 94
     private let barOffsetUnits: Double = 0.29    // 支出/收入柱相对当天中线的偏移（x 单位）
     private let restBarOpacity: Double = 0.78    // 非峰值日柱子透明度（峰值日实色高亮）
 
@@ -266,7 +266,7 @@ struct TrendChartView: View {
         }
     }
 
-    /// 余额线（冷蓝，独立刻度映射到上层条带）
+    /// 余额线（冷蓝，独立刻度铺满全绘图区）
     @ChartContentBuilder
     private func balanceLine(_ index: Int, _ point: ChartDataPoint) -> some ChartContent {
         let balanceVal = Double(truncating: point.balance as NSDecimalNumber)
@@ -349,7 +349,7 @@ struct TrendChartView: View {
         return lower...max(values.max() ?? 1, lower + 1)
     }
 
-    /// 余额线映射到上层条带（全幅极值归一化）
+    /// 余额线映射到全绘图区（全幅极值归一化）
     private func lineY(_ balance: Double, range: ClosedRange<Double>) -> Double {
         guard range.upperBound > range.lowerBound else { return (lineBandLow + lineBandHigh) / 2 }
         let t = (balance - range.lowerBound) / (range.upperBound - range.lowerBound)

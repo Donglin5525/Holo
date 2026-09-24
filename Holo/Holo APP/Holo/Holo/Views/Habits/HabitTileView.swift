@@ -212,7 +212,7 @@ struct HabitTileView: View {
         .animation(
             isCompleted
                 ? .spring(response: 0.45, dampingFraction: 0.6).delay(0.12)
-                : .easeOut(duration: 0.15),
+                : HoloAnimation.enter,
             value: isCompleted
         )
     }
@@ -497,7 +497,7 @@ struct HabitTileView: View {
                 .buttonStyle(.plain)
                 .contentShape(Circle().inset(by: -5))
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: todayValue)
+            .animation(HoloAnimation.snappy, value: todayValue)
         }
     }
 
@@ -584,7 +584,7 @@ struct HabitTileView: View {
             }
             .buttonStyle(.plain)
         }
-        .animation(.easeOut(duration: 0.2), value: todayValue)
+        .animation(HoloAnimation.enter, value: todayValue)
     }
 
     /// 测量类当前值颜色：超标红（复刻原卡片），点亮后白

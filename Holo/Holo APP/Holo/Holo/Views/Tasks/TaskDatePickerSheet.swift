@@ -323,7 +323,7 @@ struct TaskDatePickerSheet: View {
 
             HStack(spacing: 0) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         isAllDay = true
                     }
                 } label: {
@@ -337,7 +337,7 @@ struct TaskDatePickerSheet: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         isAllDay = false
                     }
                 } label: {
@@ -444,7 +444,7 @@ struct TaskDatePickerSheet: View {
                     type: type,
                     isSelected: repeatType == type,
                     onTap: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             repeatType = type
                             if type == .custom && selectedWeekdays.isEmpty {
                                 selectedWeekdays = [.monday, .tuesday, .wednesday, .thursday, .friday]
@@ -460,7 +460,7 @@ struct TaskDatePickerSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 工作日快捷按钮
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(HoloAnimation.quick) {
                     let workdays: Set<Weekday> = [.monday, .tuesday, .wednesday, .thursday, .friday]
                     if selectedWeekdays == workdays {
                         selectedWeekdays = []
@@ -492,7 +492,7 @@ struct TaskDatePickerSheet: View {
                         weekday: weekday,
                         isSelected: selectedWeekdays.contains(weekday),
                         onTap: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(HoloAnimation.quick) {
                                 if selectedWeekdays.contains(weekday) {
                                     selectedWeekdays.remove(weekday)
                                 } else {
@@ -521,7 +521,7 @@ struct TaskDatePickerSheet: View {
             HStack(spacing: HoloSpacing.sm) {
                 ForEach([MonthlyRepeatMode.dayOfMonth, .nthWeekday], id: \.self) { mode in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             monthlyRepeatMode = mode
                             if mode == .nthWeekday && monthWeekday == nil {
                                 monthWeekday = .thursday
@@ -604,7 +604,7 @@ struct TaskDatePickerSheet: View {
             HStack(spacing: HoloSpacing.sm) {
                 ForEach([EndConditionType.never, .onDate, .afterCount], id: \.self) { type in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             endConditionType = type
                             if type == .onDate && repeatEndDate == nil {
                                 repeatEndDate = Calendar.current.date(byAdding: .month, value: 1, to: Date())

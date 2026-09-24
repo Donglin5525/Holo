@@ -20,7 +20,7 @@ struct MemoryAttributionBadge: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                withAnimation(HoloAnimation.standard) {
                     isExpanded.toggle()
                 }
             } label: {

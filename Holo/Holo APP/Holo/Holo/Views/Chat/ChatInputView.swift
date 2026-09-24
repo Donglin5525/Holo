@@ -180,7 +180,7 @@ struct ChatInputView: View {
         // v2：宽屏输入条收窄居中（修复「一条宽带横在大屏中央」的观感）
         .frame(maxWidth: HoloAdaptiveLayout.isExpandedWidth(inputWindowWidth) ? 720 : .infinity)
         .frame(maxWidth: .infinity)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.continuationDraft != nil)
+        .animation(HoloAnimation.standard, value: viewModel.continuationDraft != nil)
         .confirmationDialog(
             String(localized: "识别图片记账"),
             isPresented: $showImageSourceDialog,

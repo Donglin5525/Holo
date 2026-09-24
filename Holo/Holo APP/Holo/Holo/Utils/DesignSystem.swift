@@ -322,6 +322,8 @@ enum HoloAnimation {
     static let standard: Animation = .easeInOut(duration: 0.2)
     /// 较慢切换——导航高亮、板块过渡
     static let smooth: Animation = .easeInOut(duration: 0.25)
+    /// 入场减速——列表行/卡片淡入出现（easeOut 曲线：起快收缓，出现不拖沓）
+    static let enter: Animation = .easeOut(duration: 0.2)
 
     // MARK: 弹簧动画（spring）
     /// 弹性交互（最常用）——拖拽、卡片弹入、选中态回弹

@@ -337,7 +337,7 @@ struct ScheduleRowCard: View {
         HStack(spacing: HoloSpacing.sm) {
             // 勾完成（仅 Holo 本地状态）
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     store.setCompleted(item, !store.isCompleted(item))
                 }
             } label: {

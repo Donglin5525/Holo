@@ -603,7 +603,7 @@ struct DomainMemorySection: View {
             selectedRecord = record
         case .removed(let id):
             newMemoryIDs.remove(id)
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 records.removeAll { $0.id == id }
             }
             selectedRecord = nil
@@ -621,7 +621,7 @@ struct DomainMemorySection: View {
                 syncRecord(persisted)
             } else {
                 newMemoryIDs.remove(record.id)
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withAnimation(HoloAnimation.smooth) {
                     records.removeAll { $0.id == record.id }
                 }
             }
@@ -640,7 +640,7 @@ struct DomainMemorySection: View {
             syncRecord(persisted)
         } else {
             newMemoryIDs.remove(id)
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 records.removeAll { $0.id == id }
             }
         }
@@ -649,7 +649,7 @@ struct DomainMemorySection: View {
 
     private func syncRecord(_ record: HoloMemoryRecord) {
         newMemoryIDs.remove(record.id)
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             if Self.isUserVisible(record), let index = records.firstIndex(where: { $0.id == record.id }) {
                 records[index] = record
             } else {

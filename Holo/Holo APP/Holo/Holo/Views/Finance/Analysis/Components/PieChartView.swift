@@ -116,7 +116,7 @@ struct PieChartView: View {
                         onChanged: { location in
                             let category = categoryAtPoint(location, canvasSize: geo.size)
                             guard category?.id != highlightedCategory?.id else { return }
-                            withAnimation(.easeInOut(duration: 0.12)) {
+                            withAnimation(HoloAnimation.quick) {
                                 highlightedCategory = category
                             }
                         },
@@ -135,7 +135,7 @@ struct PieChartView: View {
                             switch phase {
                             case .active(let location):
                                 let category = categoryAtPoint(location, canvasSize: geo.size)
-                                withAnimation(.easeInOut(duration: 0.12)) {
+                                withAnimation(HoloAnimation.quick) {
                                     highlightedCategory = category
                                 }
                             case .ended:
@@ -542,7 +542,7 @@ struct PieChartView: View {
                     .lineLimit(1)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: effectiveCategory?.id)
+        .animation(HoloAnimation.smooth, value: effectiveCategory?.id)
     }
 
     private func focusedColor(for category: Category) -> Color? {

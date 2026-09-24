@@ -482,7 +482,7 @@ struct HabitDetailView: View {
                         title: range.displayName,
                         isSelected: selectedRange == range
                     ) {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             selectedRange = range
                         }
                     }

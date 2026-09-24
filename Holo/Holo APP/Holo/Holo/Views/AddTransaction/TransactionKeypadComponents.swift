@@ -96,6 +96,6 @@ struct KeypadButtonStyle: ButtonStyle {
                     .opacity(configuration.isPressed ? 1 : 0)
             }
             .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+            .animation(HoloAnimation.quick, value: configuration.isPressed)
     }
 }

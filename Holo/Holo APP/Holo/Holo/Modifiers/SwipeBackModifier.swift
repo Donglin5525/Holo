@@ -125,7 +125,7 @@ struct SwipeBackModifier: ViewModifier {
     // MARK: - 回弹动画（柔和弹簧）
 
     private func snapBack() {
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+        withAnimation(HoloAnimation.grounded) {
             offset = 0
         }
     }

@@ -173,7 +173,7 @@ struct CoachMarkOverlay: View {
                 .compositingGroup()
             }
             .ignoresSafeArea()
-            .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86), value: hole)
+            .animation(reduceMotion ? nil : HoloAnimation.paperSettle, value: hole)
     }
 
     /// 洞边缘白色描边，让高亮区域在浅色内容上也清晰
@@ -182,7 +182,7 @@ struct CoachMarkOverlay: View {
             .stroke(Color.white.opacity(0.85), lineWidth: 1.5)
             .shadow(color: .black.opacity(0.25), radius: 4)
             .allowsHitTesting(false)
-            .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86), value: hole)
+            .animation(reduceMotion ? nil : HoloAnimation.paperSettle, value: hole)
     }
 
     // MARK: - 说明卡片
@@ -200,7 +200,7 @@ struct CoachMarkOverlay: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
             .padding(.top, useBelow ? hole.maxY + CoachMarkLayout.gap : 0)
             .padding(.bottom, useBelow ? 0 : screenSize.height - hole.minY + CoachMarkLayout.gap)
-            .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86), value: step)
+            .animation(reduceMotion ? nil : HoloAnimation.paperSettle, value: step)
     }
 
     private func card(step: CoachMarkStep) -> some View {
@@ -276,7 +276,7 @@ struct CoachMarkOverlay: View {
         if isLastStep {
             onFinish()
         } else {
-            withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(reduceMotion ? nil : HoloAnimation.paperSettle) {
                 currentIndex += 1
             }
         }

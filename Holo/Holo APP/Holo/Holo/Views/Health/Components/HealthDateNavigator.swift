@@ -93,7 +93,7 @@ struct HealthDateNavigator: View {
 
     private var todayButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 selectedDate = Calendar.current.startOfDay(for: Date())
             }
         } label: {
@@ -128,7 +128,7 @@ struct HealthDateNavigator: View {
 
     private func navigateDate(_ direction: Int) {
         guard let newDate = Self.steppedDate(from: selectedDate, forward: direction > 0) else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             selectedDate = newDate
         }
     }
@@ -155,7 +155,7 @@ private struct HealthDatePickerSheet: View {
         Binding(
             get: { selectedDate },
             set: { newValue in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     selectedDate = Calendar.current.startOfDay(for: newValue)
                 }
                 dismiss()
@@ -186,7 +186,7 @@ private struct HealthDatePickerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(HoloAnimation.standard) {
                             selectedDate = Calendar.current.startOfDay(for: Date())
                         }
                         dismiss()

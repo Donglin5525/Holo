@@ -230,7 +230,7 @@ struct TaskContentEditSheet: View {
                             type: type,
                             isSelected: repeatType == type,
                             onTap: {
-                                withAnimation(.easeInOut(duration: 0.15)) {
+                                withAnimation(HoloAnimation.quick) {
                                     repeatType = type
                                     if type == .custom && repeatWeekdays.isEmpty {
                                         repeatWeekdays = [.monday, .tuesday, .wednesday, .thursday, .friday]

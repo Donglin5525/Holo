@@ -380,7 +380,7 @@ struct KanbanTaskSection: View {
 
     /// 撤回任务完成
     private func undoCompletion() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(HoloAnimation.snappy) {
             completionCoordinator.undo(in: todoRepo)
         }
         HapticManager.light()

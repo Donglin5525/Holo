@@ -211,7 +211,7 @@ struct AIReadableResponseView: View {
     private func detailDisclosure(detailBlocks: [AIReadableResponseBlock]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     isShowingDetails.toggle()
                 }
             } label: {

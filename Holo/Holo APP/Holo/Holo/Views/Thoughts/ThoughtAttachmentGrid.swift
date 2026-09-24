@@ -58,7 +58,7 @@ struct ThoughtAttachmentGrid: View {
                 .foregroundColor(.holoTextSecondary)
             Spacer()
             Button("完成") {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     isEditing = false
                 }
             }
@@ -92,7 +92,7 @@ struct ThoughtAttachmentGrid: View {
             }
         }
         .onLongPressGesture {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 isEditing = true
             }
         }

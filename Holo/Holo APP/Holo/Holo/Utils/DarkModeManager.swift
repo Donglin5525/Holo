@@ -89,7 +89,7 @@ class DarkModeManager: ObservableObject {
 
     /// 更新深色模式设置
     func updateSetting(_ setting: DarkModeSetting) {
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(HoloAnimation.smooth) {
             currentSetting = setting
         }
 

@@ -187,7 +187,7 @@ struct FinanceProjectListView: View {
         if !archivedItems.isEmpty {
             VStack(spacing: 0) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showArchived.toggle() }
+                    withAnimation(HoloAnimation.standard) { showArchived.toggle() }
                 } label: {
                     HStack {
                         Text("已归档 · \(archivedItems.count) 个")

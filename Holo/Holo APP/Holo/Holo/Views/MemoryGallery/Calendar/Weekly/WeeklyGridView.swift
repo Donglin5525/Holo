@@ -71,7 +71,7 @@ struct WeeklyGridView: View {
     }
 
     private func resetHourScale() {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             hourScale = 1
         }
         pinchStartScale = 1
@@ -189,7 +189,7 @@ struct WeeklyGridView: View {
                 }
                 .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
                 .offset(x: stripOffset(columnWidth: columnWidth))
-                .animation(.easeOut(duration: 0.22), value: windowStartIndex)
+                .animation(HoloAnimation.enter, value: windowStartIndex)
                 .frame(width: viewportWidth, height: dayHeaderHeight, alignment: .leading)
                 .clipped()
             }
@@ -205,7 +205,7 @@ struct WeeklyGridView: View {
 
     private var morningToggleCell: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.22)) {
+            withAnimation(HoloAnimation.standard) {
                 collapseMorning.toggle()
             }
         } label: {
@@ -341,7 +341,7 @@ struct WeeklyGridView: View {
                 }
                 .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
                 .offset(x: stripOffset(columnWidth: columnWidth))
-                .animation(.easeOut(duration: 0.22), value: windowStartIndex)
+                .animation(HoloAnimation.enter, value: windowStartIndex)
                 .frame(width: viewportWidth, height: morningSummaryHeight, alignment: .leading)
                 .clipped()
             }
@@ -529,7 +529,7 @@ struct WeeklyGridView: View {
         }
         .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
         .offset(x: stripOffset(columnWidth: columnWidth))
-        .animation(.easeOut(duration: 0.22), value: windowStartIndex)
+        .animation(HoloAnimation.enter, value: windowStartIndex)
         .frame(width: viewportWidth, height: profile.totalHeight, alignment: .topLeading)
         .clipped()
     }
@@ -576,7 +576,7 @@ struct WeeklyGridView: View {
               weekDays.indices.contains(windowPolicy.focusIndex(forWindowStart: nextStart)) else { return }
 
         let nextDay = weekDays[windowPolicy.focusIndex(forWindowStart: nextStart)]
-        withAnimation(.easeOut(duration: 0.22)) {
+        withAnimation(HoloAnimation.enter) {
             focusedDate = nextDay
         }
         onEnsureData(nextDay)
@@ -681,7 +681,7 @@ struct WeeklyGridView: View {
         .font(.system(size: 10, weight: .medium))
         .foregroundColor(.holoTextSecondary)
         .padding(.top, HoloSpacing.xs)
-        .animation(.easeInOut(duration: 0.2), value: abs(clampedHourScale - 1) > 0.001)
+        .animation(HoloAnimation.standard, value: abs(clampedHourScale - 1) > 0.001)
     }
 
     // MARK: - 格式化

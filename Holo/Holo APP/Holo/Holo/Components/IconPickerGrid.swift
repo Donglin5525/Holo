@@ -131,7 +131,7 @@ struct IconPickerGrid: View {
             }
         }
         .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 selectedIcon = iconName
             }
         }

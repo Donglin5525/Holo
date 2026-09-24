@@ -149,7 +149,7 @@ struct HoloSidebarView: View {
         .frame(width: isRail ? HoloLayoutPolicy.sidebarRailWidth : HoloAdaptiveLayout.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Self.sidebarBackground.ignoresSafeArea())
-        .animation(.easeInOut(duration: 0.22), value: visibility)
+        .animation(HoloAnimation.standard, value: visibility)
     }
 
     // MARK: - 子视图

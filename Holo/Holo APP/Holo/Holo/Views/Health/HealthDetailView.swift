@@ -544,7 +544,7 @@ struct HealthDetailView: View {
     /// 左右滑动切天：与看板页、日期胶囊共用同一条边界规则（不越过今天）
     private func switchDay(forward: Bool) {
         guard let newDate = HealthDateNavigator.steppedDate(from: selectedDate, forward: forward) else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             selectedDate = newDate
         }
     }

@@ -164,7 +164,7 @@ struct CategoryTabView: View {
 
     private func handleCategoryTap(_ category: Category?) {
         guard let category = category else {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 selectedCategory = nil
             }
             return
@@ -172,7 +172,7 @@ struct CategoryTabView: View {
 
         // 如果已在下钻模式，展示该二级分类的交易明细
         if state.isDrillingDown {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 selectedCategory = category
             }
             showTransactionDetail(for: category)
@@ -184,7 +184,7 @@ struct CategoryTabView: View {
             selectedCategory = nil
             state.drillDown(category: category)
         } else {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 selectedCategory = category
             }
         }

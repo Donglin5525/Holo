@@ -270,7 +270,7 @@ struct ReadOnlyRichTextPreview: View {
                 // 内，SwiftUI 内层 Button 优先命中，点这里原地展开、点正文其余
                 // 区域仍进编辑页。
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         isExpanded.toggle()
                     }
                 } label: {

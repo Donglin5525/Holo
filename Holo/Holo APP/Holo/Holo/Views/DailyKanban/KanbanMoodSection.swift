@@ -117,7 +117,7 @@ struct KanbanMoodSection: View {
                 tags: []
             )
 
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withAnimation(HoloAnimation.snappy) {
                 isSaved = true
             }
             HapticManager.success()

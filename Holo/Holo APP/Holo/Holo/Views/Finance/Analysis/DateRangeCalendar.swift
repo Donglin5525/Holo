@@ -45,7 +45,7 @@ struct DateRangeCalendar: View {
     private var monthNav: some View {
         HStack {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     displayMonth = displayMonth.addingMonths(-1)
                 }
             } label: {
@@ -65,7 +65,7 @@ struct DateRangeCalendar: View {
             Spacer()
 
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     displayMonth = displayMonth.addingMonths(1)
                 }
             } label: {

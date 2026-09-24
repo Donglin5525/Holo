@@ -85,7 +85,7 @@ struct WeekView: View {
     /// 两阶段动画：快速滑出 → 更新数据 → 弹入
     private func performWeekSwipe(forward: Bool) {
         let slideOut: CGFloat = forward ? -UIScreen.main.bounds.width * 0.3 : UIScreen.main.bounds.width * 0.3
-        withAnimation(.easeOut(duration: 0.15)) { swipeOffset = slideOut }
+        withAnimation(HoloAnimation.enter) { swipeOffset = slideOut }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             if forward { calendarState.goToNextWeek() }
             else { calendarState.goToPreviousWeek() }

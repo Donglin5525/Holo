@@ -396,7 +396,7 @@ struct DailyKanbanView: View {
                     .offset(y: -keyboardHeight / 2)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: editingHabit != nil)
+        .animation(HoloAnimation.standard, value: editingHabit != nil)
         .sheet(isPresented: $showGoalCreate) {
             GoalManualCreateSheet(
                 onSaved: { _ in showGoalCreate = false },

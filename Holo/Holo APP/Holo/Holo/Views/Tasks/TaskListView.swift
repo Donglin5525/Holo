@@ -224,7 +224,7 @@ struct TaskListView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         if revealedTaskId != nil {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(HoloAnimation.standard) {
                                 revealedTaskId = nil
                             }
                         }
@@ -527,7 +527,7 @@ struct TaskListView: View {
         .opacity(heroAppeared ? 1 : 0)
         .offset(y: heroAppeared ? 0 : 14)
         .padding(.top, HoloSpacing.md)
-        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: isHeroAllDone)
+        .animation(HoloAnimation.grounded, value: isHeroAllDone)
     }
 
     /// Holo 状态头：保留不依赖进度条的文字反馈。
@@ -871,7 +871,7 @@ struct TaskListView: View {
         let isSelected = selectedFilter == filter
 
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 selectedFilter = filter
             }
         } label: {
@@ -913,7 +913,7 @@ struct TaskListView: View {
         return Menu {
             ForEach(allLists, id: \.id) { list in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         selectedFilter = .list(list.id)
                     }
                 } label: {
@@ -1083,7 +1083,7 @@ struct TaskListView: View {
 
         return Button {
             HapticManager.selection()
-            withAnimation(.easeInOut(duration: 0.22)) {
+            withAnimation(HoloAnimation.standard) {
                 if isCollapsed {
                     collapsedGroups.remove(id)
                 } else {
@@ -1324,7 +1324,7 @@ struct TaskListView: View {
     private func undoPostpone() {
         guard let snapshots = postponeSnapshots else { return }
         postponeBannerDismissTask?.cancel()
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(HoloAnimation.snappy) {
             repository.restorePostponed(snapshots)
             postponeSnapshots = nil
         }
@@ -1389,7 +1389,7 @@ struct TaskListView: View {
 
     /// 撤回任务完成
     private func undoCompletion() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(HoloAnimation.snappy) {
             completionCoordinator.undo(in: repository)
         }
         HapticManager.light()
@@ -1401,7 +1401,7 @@ struct TaskListView: View {
     private func archiveTask(_ task: TodoTask) {
         do {
             try repository.archiveTask(task)
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 revealedTaskId = nil
             }
         } catch {
@@ -1413,7 +1413,7 @@ struct TaskListView: View {
     private func deleteTask(_ task: TodoTask) {
         do {
             try repository.deleteTask(task)
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 revealedTaskId = nil
             }
         } catch {
@@ -1470,7 +1470,7 @@ struct TaskListView: View {
 
     /// 应用排序选择：立即持久化到当前上下文对应槽位，并带重排动画
     private func applySort(_ option: TaskSortOption, ascending: Bool) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+        withAnimation(HoloAnimation.paperSettle) {
             sortOption = option
             sortAscending = ascending
         }
@@ -1599,7 +1599,7 @@ struct TaskListView: View {
         VStack(spacing: 0) {
             // 标题栏（可点击折叠/展开）
             Button {
-                withAnimation(.easeInOut(duration: 0.3)) {
+                withAnimation(HoloAnimation.smooth) {
                     isRecentlyCompletedExpanded.toggle()
                 }
             } label: {
@@ -1634,7 +1634,7 @@ struct TaskListView: View {
             // 展开/收起按钮
             if needsCollapse && !isRecentlyCompletedExpanded {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(HoloAnimation.smooth) {
                         isRecentlyCompletedExpanded = true
                     }
                 } label: {
@@ -1647,7 +1647,7 @@ struct TaskListView: View {
                 .buttonStyle(.plain)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: isRecentlyCompletedExpanded)
+        .animation(HoloAnimation.smooth, value: isRecentlyCompletedExpanded)
     }
 
     /// 判断任务是否在最近一周内完成

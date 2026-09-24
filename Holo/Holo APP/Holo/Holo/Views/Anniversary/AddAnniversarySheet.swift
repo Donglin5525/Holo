@@ -187,8 +187,8 @@ struct AddAnniversarySheet: View {
                     colors: [Color(hex: effectiveColor).opacity(0.92), Color(hex: effectiveColor).opacity(0.42)],
                     startPoint: .topLeading, endPoint: .bottomTrailing)))
         .shadow(color: Color(hex: effectiveColor).opacity(0.35), radius: 12, y: 6)
-        .animation(.easeInOut(duration: 0.25), value: effectiveColor)
-        .animation(.easeInOut(duration: 0.25), value: effectiveIcon)
+        .animation(HoloAnimation.smooth, value: effectiveColor)
+        .animation(HoloAnimation.smooth, value: effectiveIcon)
     }
 
     // MARK: - 步骤指示
@@ -202,7 +202,7 @@ struct AddAnniversarySheet: View {
                               ? Color(hex: effectiveColor)
                               : Color.holoBorder)
                         .frame(height: 4)
-                        .animation(.easeInOut(duration: 0.3), value: currentStep)
+                        .animation(HoloAnimation.smooth, value: currentStep)
                 }
             }
 
@@ -269,7 +269,7 @@ struct AddAnniversarySheet: View {
             // 配色与图标细调（场景预设已覆盖大多数场景，按需展开）
             VStack(spacing: 0) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.22)) { showAppearanceOptions.toggle() }
+                    withAnimation(HoloAnimation.standard) { showAppearanceOptions.toggle() }
                 } label: {
                     HStack {
                         Text(String(localized: "自定义配色与图标"))
@@ -475,7 +475,7 @@ struct AddAnniversarySheet: View {
     private func calendarSegmentButton(title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button {
             HapticManager.selection()
-            withAnimation(.easeInOut(duration: 0.2)) { action() }
+            withAnimation(HoloAnimation.standard) { action() }
         } label: {
             Text(title)
                 .font(.system(size: 12.5, weight: .bold))
@@ -543,7 +543,7 @@ struct AddAnniversarySheet: View {
                 toggleRow(icon: "bell.fill",
                           title: String(localized: "提醒我"),
                           subtitle: String(localized: "临近时推送通知"),
-                          isOn: $reminderEnabled.animation(.easeInOut(duration: 0.2)))
+                          isOn: $reminderEnabled.animation(HoloAnimation.standard))
 
                 if reminderEnabled {
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -631,7 +631,7 @@ struct AddAnniversarySheet: View {
                     requestDismiss()
                     return
                 }
-                withAnimation(.easeInOut(duration: 0.22)) { currentStep = previous }
+                withAnimation(HoloAnimation.standard) { currentStep = previous }
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
@@ -648,7 +648,7 @@ struct AddAnniversarySheet: View {
                     save()
                     return
                 }
-                withAnimation(.easeInOut(duration: 0.22)) { currentStep = next }
+                withAnimation(HoloAnimation.standard) { currentStep = next }
             } label: {
                 Group {
                     if currentStep == .ritual {

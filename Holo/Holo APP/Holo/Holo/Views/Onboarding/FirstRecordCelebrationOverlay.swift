@@ -90,7 +90,7 @@ struct FirstRecordCelebrationOverlay: View {
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
+            withAnimation(HoloAnimation.snappy) {
                 appeared = true
             }
         }

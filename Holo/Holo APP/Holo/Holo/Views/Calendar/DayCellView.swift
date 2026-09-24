@@ -72,7 +72,7 @@ struct DayCellView: View {
                     .stroke(Color.clear, lineWidth: 1.5)
             )
             .scaleEffect(isLongPressing ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: isLongPressing)
+            .animation(HoloAnimation.quick, value: isLongPressing)
             .onTapGesture { onTap() }
             .onLongPressGesture(
                 minimumDuration: 0.5,

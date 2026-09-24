@@ -215,7 +215,7 @@ struct HabitStatsSettingsView: View {
         .buttonStyle(.plain)
         // 选中态进无障碍：VoiceOver/UITest 可感知胶囊亮灭
         .accessibilityAddTraits(isOn.wrappedValue ? [.isSelected] : [])
-        .animation(.easeInOut(duration: 0.15), value: isOn.wrappedValue)
+        .animation(HoloAnimation.quick, value: isOn.wrappedValue)
     }
 
     // MARK: - 空状态

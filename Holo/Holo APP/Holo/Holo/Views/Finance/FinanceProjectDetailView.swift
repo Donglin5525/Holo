@@ -312,7 +312,7 @@ struct FinanceProjectDetailView: View {
     private func categoryRow(_ aggregation: CategoryAggregation) -> some View {
         let isSelected = categoryFilter?.id == aggregation.category.id
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 categoryFilter = isSelected ? nil : aggregation.category
             }
         } label: {
@@ -377,7 +377,7 @@ struct FinanceProjectDetailView: View {
                     .foregroundColor(.holoTextSecondary)
                 if categoryFilter != nil {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) { categoryFilter = nil }
+                        withAnimation(HoloAnimation.quick) { categoryFilter = nil }
                     } label: {
                         HStack(spacing: 3) {
                             Text(categoryFilter?.name ?? "")

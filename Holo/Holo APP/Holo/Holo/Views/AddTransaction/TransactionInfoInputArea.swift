@@ -49,7 +49,7 @@ extension AddTransactionSheet {
     /// 账户选择行（点击弹窗）
     private var accountRow: some View {
         Button {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showAccountPicker = true
             }
         } label: {
@@ -86,7 +86,7 @@ extension AddTransactionSheet {
     /// 财务项目选择行（点击弹窗；仅支出类型显示）
     private var financeProjectRow: some View {
         Button {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showProjectPicker = true
             }
         } label: {
@@ -125,7 +125,7 @@ extension AddTransactionSheet {
     /// 日期选择行（点击弹窗）
     private var dateRow: some View {
         Button {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showDatePicker = true
             }
         } label: {
@@ -169,7 +169,7 @@ extension AddTransactionSheet {
                 }
                 return
             }
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showInstallmentSheet = true
             }
         } label: {
@@ -410,7 +410,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showAccountPicker = false
                     }
                 }
@@ -427,7 +427,7 @@ extension AddTransactionSheet {
                         Button {
                             selectedAccount = account
                             lastSelectedAccountId = account.id.uuidString
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            withAnimation(HoloAnimation.enter) {
                                 showAccountPicker = false
                             }
                         } label: {
@@ -460,7 +460,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("取消") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showAccountPicker = false
                     }
                 }
@@ -482,7 +482,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showProjectPicker = false
                     }
                 }
@@ -500,7 +500,7 @@ extension AddTransactionSheet {
                         Button {
                             selectedProject = nil
                             lastSelectedFinanceProjectId = nil
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            withAnimation(HoloAnimation.enter) {
                                 showProjectPicker = false
                             }
                         } label: {
@@ -527,7 +527,7 @@ extension AddTransactionSheet {
                             Button {
                                 selectedProject = project
                                 lastSelectedFinanceProjectId = project.id.uuidString
-                                withAnimation(.easeOut(duration: 0.2)) {
+                                withAnimation(HoloAnimation.enter) {
                                     showProjectPicker = false
                                 }
                             } label: {
@@ -562,7 +562,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("取消") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showProjectPicker = false
                     }
                 }
@@ -584,7 +584,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showDatePicker = false
                     }
                 }
@@ -608,7 +608,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("完成") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showDatePicker = false
                     }
                 }
@@ -630,7 +630,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showInstallmentSheet = false
                     }
                 }
@@ -660,7 +660,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("完成") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showInstallmentSheet = false
                     }
                 }
