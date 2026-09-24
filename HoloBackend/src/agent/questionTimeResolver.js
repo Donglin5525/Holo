@@ -17,7 +17,9 @@
  */
 
 const RESOLVER_TIMEOUT_MS = 8_000;
-const RESOLVER_MAX_TOKENS = 300;
+// reasoning 型模型思考要吃 token：300 会把正文挤空（容器实测「入秋以来」content=""）。
+// 时间提取是简单协议，按 config 惯例关思考档 + 留足正文余量。
+const RESOLVER_MAX_TOKENS = 1_000;
 
 function buildResolverPrompt({ question, nowMs, snapshotStartMs, snapshotEndMs }) {
   const fmt = (ms) => new Date(ms).toISOString().replace("T", " ").slice(0, 16);
@@ -57,8 +59,10 @@ function extractJSONObject(text) {
 }
 
 /**
- * 校验并归一解析结果：数字秒 → 与快照窗求交 → 交非空返回 {label,startMs,endMs}。
- * 任何不合法（缺字段/乱序/交空/数值离谱）返回 null。
+ * 校验并归一解析结果：数字秒 → 与快照窗求交截断边界 → 返回 {label,startMs,endMs}。
+ * 窗口完全在快照范围外（如问「双十一」但数据只有近180天）时**保留原窗口不丢弃**：
+ * 丢弃会让任务回落全窗兜底、答成 180 天——答非所问；保留原窗则护栏把查询夹在
+ * 该窗口内，报告如实说「该时段没有数据」，更诚实。任何结构不合法仍返回 null。
  */
 function validateParsedWindow(parsed, { snapshotStartMs, snapshotEndMs }) {
   if (!parsed || typeof parsed !== "object") return null;
@@ -68,10 +72,11 @@ function validateParsedWindow(parsed, { snapshotStartMs, snapshotEndMs }) {
   if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) return null;
   if (startSec <= 0 || endSec <= 0) return null;
   if (startSec >= endSec) return null;
-  // 与快照窗求交（越界截断；交为空说明解析窗口完全在数据范围外，丢弃）
-  const startMs = Math.max(startSec * 1000, snapshotStartMs);
-  const endMs = Math.min(endSec * 1000, snapshotEndMs);
-  if (startMs >= endMs) return null;
+  // 边界截断（窗口主体在快照内时收紧到数据范围）；完全无重叠保留原窗（见上注释）
+  const overlapStartMs = Math.max(startSec * 1000, snapshotStartMs);
+  const overlapEndMs = Math.min(endSec * 1000, snapshotEndMs);
+  const startMs = overlapStartMs < overlapEndMs ? overlapStartMs : startSec * 1000;
+  const endMs = overlapStartMs < overlapEndMs ? overlapEndMs : endSec * 1000;
   const matchedText = typeof parsed.matchedText === "string" && parsed.matchedText.trim()
     ? parsed.matchedText.trim().slice(0, 40)
     : "问句时间";
@@ -106,7 +111,7 @@ export function createQuestionTimeResolver({ provider, route }) {
           model: route.model,
           temperature: 0,
           maxTokens: RESOLVER_MAX_TOKENS,
-          reasoningEffort: "low",
+          reasoningEffort: "none",
         })
       )
       .then((response) => {
