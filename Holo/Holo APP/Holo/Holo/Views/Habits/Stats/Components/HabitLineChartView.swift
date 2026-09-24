@@ -16,6 +16,11 @@ struct HabitLineChartView: View {
     let data: [DailyHabitData]
     let unit: String
 
+    /// 图表动画触发值：数值序列指纹，切习惯/切月份时线与面积平滑插值而非跳变
+    private var animatedSignature: [Double] {
+        data.map(\.value)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // 标题
@@ -26,10 +31,13 @@ struct HabitLineChartView: View {
 
             if data.isEmpty {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: data.isEmpty)
         .frame(height: 150)
     }
 
@@ -83,6 +91,7 @@ struct HabitLineChartView: View {
                 }
             }
         }
+        .animation(HoloAnimation.smooth, value: animatedSignature)
         .chartXScale(range: .plotDimension(startPadding: 12, endPadding: 12))
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in

@@ -560,6 +560,11 @@ struct FinanceLedgerView: View {
                                 Label("删除", systemImage: "trash")
                             }
                         }
+                    // 行离场（删除/删分期）向右滑出淡出，与想法列表同一离场语言
+                    .transition(.asymmetric(
+                        insertion: .opacity,
+                        removal: .opacity.combined(with: .move(edge: .trailing))
+                    ))
                 }
 
                 if calendarState.liveDayTransactions.isEmpty && !calendarState.isLoading {
@@ -622,6 +627,10 @@ struct FinanceLedgerView: View {
     
     /// 从列表直接删除交易
     private func deleteTransactionFromList(_ transaction: Transaction) {
+        // 删除已过确认，先带动画从当日明细乐观移除（行滑出），删库失败时由 refresh 还原
+        withAnimation(HoloAnimation.grounded) {
+            calendarState.selectedDayTransactions.removeAll { $0.id == transaction.id }
+        }
         Task {
             do {
                 try await FinanceRepository.shared.deleteTransaction(transaction)
@@ -631,6 +640,7 @@ struct FinanceLedgerView: View {
             } catch {
                 logger.error("删除交易失败: \(error)")
                 showOperationMessage(String(localized: "删除失败：\(error.localizedDescription)"), isError: true)
+                await calendarState.refreshData()
             }
             transactionToDelete = nil
         }
@@ -638,6 +648,10 @@ struct FinanceLedgerView: View {
 
     /// 删除整个分期组
     private func deleteInstallmentGroupFromList(_ groupId: UUID) {
+        // 同单笔删除：先乐观移除该组落在当天的所有行，失败由 refresh 还原
+        withAnimation(HoloAnimation.grounded) {
+            calendarState.selectedDayTransactions.removeAll { $0.installmentGroupId == groupId }
+        }
         Task {
             do {
                 try await FinanceRepository.shared.deleteInstallmentGroup(groupId: groupId)
@@ -647,6 +661,7 @@ struct FinanceLedgerView: View {
             } catch {
                 logger.error("删除分期组失败: \(error)")
                 showOperationMessage(String(localized: "删除失败：\(error.localizedDescription)"), isError: true)
+                await calendarState.refreshData()
             }
             transactionToDelete = nil
         }

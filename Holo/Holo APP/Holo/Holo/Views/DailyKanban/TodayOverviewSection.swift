@@ -33,6 +33,8 @@ struct TodayOverviewSection: View {
                         Text(spentText)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(overview.budgetAtRisk ? Color.holoError : Color.primary)
+                            .contentTransition(.numericText())
+                            .animation(HoloAnimation.smooth, value: overview.spentToday)
                     }
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())

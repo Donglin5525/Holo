@@ -428,6 +428,8 @@ struct AccountDetailView: View {
             Text(formatAmount(balance))
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
+                .contentTransition(.numericText())
+                .animation(HoloAnimation.smooth, value: balance)
                 .padding(.top, HoloSpacing.sm)
                 .padding(.bottom, HoloSpacing.md)
 

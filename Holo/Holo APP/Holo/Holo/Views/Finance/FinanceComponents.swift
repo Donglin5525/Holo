@@ -138,10 +138,12 @@ struct SummaryCard: View {
             
             Spacer(minLength: 16)
             
-            // 金额，留白呼吸
+            // 金额，留白呼吸（数字滚动：切月份/记账后金额平滑滚动到新值）
             Text(NumberFormatter.compactCurrency(amount))
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
+                .contentTransition(.numericText())
+                .animation(HoloAnimation.smooth, value: amount)
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
         }

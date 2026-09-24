@@ -20,6 +20,11 @@ struct HealthTrendChart: View {
         data.allSatisfy { $0.value == 0 }
     }
 
+    /// 图表动画触发值：数值序列指纹，健康数据刷新/切指标时柱体平滑插值而非跳变
+    private var animatedSignature: [Double] {
+        data.map(\.value)
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -41,10 +46,13 @@ struct HealthTrendChart: View {
 
             if data.isEmpty || allValuesZero {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: data.isEmpty || allValuesZero)
         .frame(height: 140)
     }
 
@@ -77,6 +85,7 @@ struct HealthTrendChart: View {
                 }
             }
         }
+        .animation(HoloAnimation.smooth, value: animatedSignature)
         .chartXScale(range: .plotDimension(startPadding: 12, endPadding: 12))
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in

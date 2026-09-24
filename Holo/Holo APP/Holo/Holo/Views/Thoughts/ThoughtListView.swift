@@ -1203,6 +1203,11 @@ struct ThoughtListView: View {
                             deleteThought(thought)
                         }
                     )
+                    // 行离场（删除/归档）向右滑出淡出；插入侧保持轻淡入
+                    .transition(.asymmetric(
+                        insertion: .opacity,
+                        removal: .opacity.combined(with: .move(edge: .trailing))
+                    ))
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)
@@ -1250,7 +1255,9 @@ struct ThoughtListView: View {
                 try thoughtRepository.archive(thought.id)
             }
             revealedThoughtId = nil
-            loadThoughts()
+            withAnimation(HoloAnimation.grounded) {
+                loadThoughts()
+            }
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
             Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("归档/恢复想法失败: \(error.localizedDescription)")
@@ -1263,7 +1270,9 @@ struct ThoughtListView: View {
         do {
             // 先从本地数组移除再删库（团队纪律）：当前 delete 是软删所以删库先后都安全，
             // 但若将来换成硬删，先删库会让本页继续渲染已删对象而闪退
-            thoughts.removeAll { $0.id == thought.id }
+            withAnimation(HoloAnimation.grounded) {
+                thoughts.removeAll { $0.id == thought.id }
+            }
             try thoughtRepository.delete(thought.id)
             revealedThoughtId = nil
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
@@ -1280,7 +1289,9 @@ struct ThoughtListView: View {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             if case .topic(let id) = drawerSelection, id == topic.id {
                 // 正按该主题筛选时移除，就地从列表消失
-                thoughts.removeAll { $0.id == thought.id }
+                withAnimation(HoloAnimation.grounded) {
+                    thoughts.removeAll { $0.id == thought.id }
+                }
             } else {
                 loadThoughts()
             }

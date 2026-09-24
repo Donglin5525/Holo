@@ -226,6 +226,8 @@ struct AccountListView: View {
             Text(formatAmount(netWorthData.netWorth))
                 .font(.system(size: 31, weight: .heavy, design: .rounded))
                 .foregroundColor(netWorthData.netWorth >= 0 ? Color(hex: "#FFE8D5") : AccountCardMaterial.debtColor)
+                .contentTransition(.numericText())
+                .animation(HoloAnimation.smooth, value: netWorthData.netWorth)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,6 +240,8 @@ struct AccountListView: View {
                     Text(formatAmount(netWorthData.assets))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(Color(hex: "#7EE2A8"))
+                        .contentTransition(.numericText())
+                        .animation(HoloAnimation.smooth, value: netWorthData.assets)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -247,6 +251,8 @@ struct AccountListView: View {
                     Text(formatAmount(netWorthData.liabilities))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(AccountCardMaterial.debtColor)
+                        .contentTransition(.numericText())
+                        .animation(HoloAnimation.smooth, value: netWorthData.liabilities)
                 }
             }
 

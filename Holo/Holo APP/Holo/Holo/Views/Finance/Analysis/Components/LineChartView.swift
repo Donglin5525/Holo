@@ -25,6 +25,12 @@ struct LineChartView: View {
 
     @State private var hoveredDate: Date? = nil
 
+    /// 图表动画触发值：ChartDataPoint 的 id 是每次构造的随机 UUID（不可作 diff 依据），
+    /// 用当前口径（支出/收入）的金额序列当指纹，切日期范围或切换收支类型时线与面积平滑插值
+    private var animatedSignature: [Double] {
+        dataPoints.map { Double(truncating: amount(for: $0) as NSDecimalNumber) }
+    }
+
     private var selectablePoints: [ChartDataPoint] {
         (selectionDataPoints ?? dataPoints).filter(\.hasTransactions)
     }
@@ -77,10 +83,13 @@ struct LineChartView: View {
             // 图表
             if dataPoints.isEmpty {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: dataPoints.isEmpty)
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 14)
         .holoCard()
@@ -169,6 +178,7 @@ struct LineChartView: View {
         .chartXScale(
             range: .plotDimension(startPadding: 12, endPadding: 12)
         )
+        .animation(HoloAnimation.smooth, value: animatedSignature)
         .chartYScale(
             domain: yAxisDomain,
             range: .plotDimension(startPadding: 9, endPadding: 12)

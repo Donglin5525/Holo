@@ -22,6 +22,13 @@ struct PieChartView: View {
 
     @State private var highlightedCategory: Category?
 
+    /// 出场扫开动画：nil = 停帧（播完/未播）。TimelineView 只在非 nil 的 0.5s 内逐帧驱动 Canvas，
+    /// 播完置回 nil 恢复停帧，不引入常驻逐帧开销
+    @State private var sweepStart: Date?
+
+    /// 扇区扫开总时长（秒）
+    private static let sweepDuration: Double = 0.45
+
     // MARK: - 颜色分配
 
     /// 扇区颜色（使用外部传入的统一调色板）
@@ -95,9 +102,12 @@ struct PieChartView: View {
 
     private var pieChartContent: some View {
         ZStack {
-            Canvas { context, size in
-                drawPieSectors(into: &context, size: size)
-                drawLabels(into: &context, size: size)
+            TimelineView(.animation(minimumInterval: nil, paused: sweepStart == nil)) { timeline in
+                Canvas { context, size in
+                    let sweep = sweepProgress(at: timeline.date)
+                    drawPieSectors(into: &context, size: size, sweep: sweep)
+                    drawLabels(into: &context, size: size, alpha: sweep)
+                }
             }
             .aspectRatio(1, contentMode: .fit)
             .overlay {
@@ -138,9 +148,40 @@ struct PieChartView: View {
             // 中心信息
             centerInfo
         }
+        .onAppear {
+            replaySweep()
+        }
+        // 切时间范围/收支类型等导致金额分布变化时重播扫开；纯交互（选中/悬停）不触发
+        .onChange(of: amountSignature) { _, _ in
+            replaySweep()
+        }
         .onChange(of: aggregations.map(\.id)) { _, _ in
             highlightedCategory = nil
         }
+    }
+
+    // MARK: - 扫开动画
+
+    /// 金额序列指纹：分布变化（非交互）才重播出场扫开
+    private var amountSignature: [Double] {
+        nonZeroAggregations.map { Double(truncating: $0.amount as NSDecimalNumber) }
+    }
+
+    private func replaySweep() {
+        let start = Date()
+        sweepStart = start
+        // 播完停帧：TimelineView paused 恢复 true；若期间又重播（start 已被替换）则由新任务接管
+        Task {
+            try? await Task.sleep(for: .seconds(Self.sweepDuration + 0.1))
+            if sweepStart == start {
+                sweepStart = nil
+            }
+        }
+    }
+
+    private func sweepProgress(at date: Date) -> Double {
+        guard let sweepStart else { return 1 }
+        return min(1, max(0, date.timeIntervalSince(sweepStart) / Self.sweepDuration))
     }
 
     // MARK: - 触摸位置 → 扇区映射
@@ -194,7 +235,7 @@ struct PieChartView: View {
 
     // MARK: - Canvas 绘制饼图扇区
 
-    private func drawPieSectors(into context: inout GraphicsContext, size: CGSize) {
+    private func drawPieSectors(into context: inout GraphicsContext, size: CGSize, sweep: Double = 1) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let fullRadius = min(size.width, size.height) / 2 - explodeDistance
         let outerRadius = fullRadius * pieScaleFactor
@@ -207,12 +248,15 @@ struct PieChartView: View {
         guard total > 0 else { return }
 
         for (index, agg) in nonZeroAggregations.enumerated() {
-            let startDeg = Self.sectorStartAngle(
+            // 出场扫开：各扇区自 12 点方向按最终占比同步展开（sweep 0→1）
+            let rawStart = Self.sectorStartAngle(
                 index: index, aggregations: nonZeroAggregations, total: total
             )
-            let spanDeg = Self.sectorSpan(
+            let rawSpan = Self.sectorSpan(
                 index: index, aggregations: nonZeroAggregations, total: total
             )
+            let startDeg = -90.0 + (rawStart + 90.0) * sweep
+            let spanDeg = rawSpan * sweep
             let midDeg = startDeg + spanDeg / 2
             // 使用 -midDeg 匹配 addArc 视觉坐标系（addArc 使用 -startDeg）
             let drawMidRad = -midDeg * .pi / 180
@@ -263,7 +307,9 @@ struct PieChartView: View {
 
     // MARK: - Canvas 绘制标签
 
-    private func drawLabels(into context: inout GraphicsContext, size: CGSize) {
+    private func drawLabels(into context: inout GraphicsContext, size: CGSize, alpha: Double = 1) {
+        // 出场扫开期间标签随进度整体渐显（GraphicsContext.opacity 对后续所有绘制生效）
+        context.opacity = alpha
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let fullRadius = min(size.width, size.height) / 2 - explodeDistance
         let outerRadius = fullRadius * pieScaleFactor

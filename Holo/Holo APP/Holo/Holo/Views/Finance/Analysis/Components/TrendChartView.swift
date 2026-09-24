@@ -33,16 +33,29 @@ struct TrendChartView: View {
         dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 && $0.balance == 0 }
     }
 
+    /// 图表动画触发值：ChartDataPoint 的 id 是每次构造的随机 UUID（不可作 diff 依据），
+    /// 用支出/收入/余额数值序列当指纹，切时间范围/数据更新时柱与线平滑插值而非跳变
+    private var animatedSignature: [Double] {
+        dataPoints.flatMap {
+            [Double(truncating: $0.expense as NSDecimalNumber),
+             Double(truncating: $0.income as NSDecimalNumber),
+             Double(truncating: $0.balance as NSDecimalNumber)]
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             chartLegend
 
             if dataPoints.isEmpty || allValuesZero {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: dataPoints.isEmpty || allValuesZero)
         .padding(HoloSpacing.md)
         .holoCard()
     }
@@ -82,6 +95,7 @@ struct TrendChartView: View {
 
         return trendChart(cap: plan.cap, clippedIndices: plan.clippedIndices,
                           peakDayIndex: peakDay, balanceTicks: balanceTicks)
+            .animation(HoloAnimation.smooth, value: animatedSignature)
             .chartOverlay { proxy in
                 GeometryReader { geometry in
                     let overlayFrame = geometry.frame(in: .local)

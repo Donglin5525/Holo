@@ -97,7 +97,7 @@ struct ContentView: View {
                 selection: $sidebarSelection,
                 visibility: visibility,
                 onToggleVisibility: { target in
-                    withAnimation(.easeInOut(duration: 0.22)) {
+                    withAnimation(HoloAnimation.smooth) {
                         manualSidebarVisibility = target
                     }
                 },
@@ -160,20 +160,25 @@ struct ContentView: View {
             case .today:
                 HomeView()
                     .holoContentColumn()
+                    .transition(.opacity)
             case .holo:
                 NavigationStack {
                     ChatView(goalPlanningRequest: $pendingGoalPlanningRequest)
                         .navigationBarHidden(true)
                 }
                 .holoContentColumn()
+                .transition(.opacity)
             case .profile:
                 PersonalView(onPlanGoal: {
                     pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
                     selectedTab = .holo
                 }, pendingGoalDetailId: $pendingGoalDetailId)
                     .holoContentColumn()
+                    .transition(.opacity)
             }
         }
+        // 声明式挂 value 版动画：快捷键 / 深链 / 点按 Tab 任一路径改 selectedTab 都生效
+        .animation(HoloAnimation.smooth, value: selectedTab)
     }
 
     private func handleDeepLink(_ target: DeepLinkTarget?) {
