@@ -112,6 +112,10 @@ test("period_replay：素材→单轮生成→complete+推送「回放已生成�
   // 推送文案区分任务类型
   assert.equal(pushes.length, 1);
   assert.equal(pushes[0].payload.title, "回放已生成");
+  // 路由字段：iOS 点通知直达结果卡的依据（custom 经 APNs sender 平铺到 payload 顶层）
+  assert.equal(pushes[0].payload.custom.taskId, task.id);
+  assert.equal(pushes[0].payload.custom.taskType, "period_replay");
+  assert.equal(pushes[0].payload.category, "CLOUD_ANALYSIS_DONE");
   // 完成即焚仍适用
   assert.ok(store.isDataDestroyed(task.id));
 });

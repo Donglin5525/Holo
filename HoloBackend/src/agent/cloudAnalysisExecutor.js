@@ -436,10 +436,19 @@ export function createCloudAnalysisExecutor({
     }
   }
 
-  /** 完成推送（fire-and-forget）：文案随任务类型；失败只记日志不影响任务终态。 */
-  function pushTaskCompleted(deviceId, { title, body }) {
+  /**
+   * 完成推送（fire-and-forget）：文案随任务类型；失败只记日志不影响任务终态。
+   * payload 带 category + {taskId, taskType}（iOS 点通知据此直达对应结果，
+   * 2026-09-24 修复「点推送只回到上次页面」）。
+   */
+  function pushTaskCompleted(deviceId, { title, body, taskId, taskType }) {
     if (!pushNotifier) return;
-    pushNotifier.notifyTaskCompleted(deviceId, { title, body }).catch((error) => {
+    pushNotifier.notifyTaskCompleted(deviceId, {
+      title,
+      body,
+      category: "CLOUD_ANALYSIS_DONE",
+      custom: { taskId, taskType },
+    }).catch((error) => {
       log(`完成推送发送失败: ${error?.message ?? error}`);
     });
   }
@@ -527,7 +536,7 @@ export function createCloudAnalysisExecutor({
         return "cancelled";
       }
       if (reservation) quotaLedger.commit(reservation);
-      pushTaskCompleted(task.device_id, { title: "回放已生成", body: "点按查看这段时光的回顾" });
+      pushTaskCompleted(task.device_id, { title: "回放已生成", body: "点按查看这段时光的回顾", taskId, taskType: "period_replay" });
       log(`回放任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
@@ -630,7 +639,7 @@ export function createCloudAnalysisExecutor({
       }
       taskStore.updateStage(taskId, { stage: "draftReady" });
       if (reservation) quotaLedger.commit(reservation);
-      pushTaskCompleted(task.device_id, { title: "个性化方案已就绪", body: "回到 Holo 查看你的专属方案" });
+      pushTaskCompleted(task.device_id, { title: "个性化方案已就绪", body: "回到 Holo 查看你的专属方案", taskId, taskType: "context_plan" });
       log(`规划任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
@@ -932,7 +941,7 @@ export function createCloudAnalysisExecutor({
             return "cancelled";
           }
           if (reservation) quotaLedger.commit(reservation);
-          pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看" });
+          pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看", taskId, taskType: "deep_analysis" });
           log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}${verified.warnings.length ? ` warnings=${verified.warnings.join(",")}` : ""}`);
           return "completed";
         }

@@ -224,7 +224,7 @@ export function createApp(overrides = {}) {
   }
   const analysisPushNotifier = apnsSender?.configured
     ? {
-        async notifyTaskCompleted(deviceId, { title, body }) {
+        async notifyTaskCompleted(deviceId, { title, body, category, custom }) {
           const row = deviceTokenStore.get(deviceId);
           if (!row) return;
           const result = await apnsSender.send({
@@ -232,6 +232,8 @@ export function createApp(overrides = {}) {
             environment: row.environment ?? undefined,
             title,
             body,
+            category,
+            custom,
           });
           if (result.ok) {
             if (result.environment && result.environment !== row.environment) {

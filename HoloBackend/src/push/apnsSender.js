@@ -59,8 +59,10 @@ export function createApnsSender({
   /**
    * 单环境发送。返回 {ok} 或 {ok:false, status, reason, body}。
    * reason: badDeviceToken（环境不符/非法）/ unregistered（410，应删 token）/ error
+   * category 写入 aps.category（iOS 点通知路由用）；custom 平铺到 payload 顶层
+   * （iOS 端 content.userInfo 直接可读）。
    */
-  function sendOnce({ token, environment, title, body, collapseId, threadId }) {
+  function sendOnce({ token, environment, title, body, collapseId, threadId, category, custom }) {
     const authority = environment === "sandbox"
       ? "https://api.sandbox.push.apple.com"
       : "https://api.push.apple.com";
@@ -114,10 +116,12 @@ export function createApnsSender({
       });
       request.on("error", (error) => finish({ ok: false, reason: "error", message: String(error?.message ?? error) }));
       request.end(JSON.stringify({
+        ...custom,
         aps: {
           alert: { title, body },
           sound: "default",
           "thread-id": threadId ?? "cloud-analysis",
+          ...(category ? { category } : {}),
         },
       }));
     });
@@ -128,13 +132,13 @@ export function createApnsSender({
    * @returns {Promise<{ok:boolean, environment?:string, reason?:string, apnsReason?:string}>}
    * environment = 实际成功（或尝试）的环境，调用方可回写缓存。
    */
-  async function send({ token, environment, title, body, collapseId, threadId }) {
+  async function send({ token, environment, title, body, collapseId, threadId, category, custom }) {
     await currentJwt();
     const preferred = environment === "sandbox" || environment === "production" ? environment : "production";
-    let result = await sendOnce({ token, environment: preferred, title, body, collapseId, threadId });
+    let result = await sendOnce({ token, environment: preferred, title, body, collapseId, threadId, category, custom });
     if (!result.ok && result.reason === "badDeviceToken" && preferred === "production") {
       const fallbackEnv = "sandbox";
-      const fallback = await sendOnce({ token, environment: fallbackEnv, title, body, collapseId, threadId });
+      const fallback = await sendOnce({ token, environment: fallbackEnv, title, body, collapseId, threadId, category, custom });
       if (fallback.ok) {
         return { ...fallback, environment: fallbackEnv };
       }
