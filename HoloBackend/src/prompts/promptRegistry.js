@@ -8,7 +8,7 @@ import * as Diff from "diff";
 const PROMPT_VERSIONS = {
   system_prompt: 5,                 // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止
   intent_recognition: 31,           // v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图（个人情境规划）
-  memory_insight_generation: 10,    // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
+  memory_insight_generation: 11,    // v11: 健康域入回顾（health 卡片类型+健康语义口径：分期缺失不当 0 解读/就寝时刻分钟编码/环比差额表达/上期对比字段）；v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 2,
@@ -27,7 +27,7 @@ const PROMPT_VERSIONS = {
   thought_organize_a: 1,
   thought_organize_r: 1,
   thought_organize_b: 1,
-  agent_loop: 23,                  // v23: 财务深析五层深挖法（备注/付款时刻/结构/生活状态交叉/串联点破）+管家记忆+claimTitle 点破式标题+深析展开豁免，财务维度菜单自 v21 迁入并修正 linearTrend 空头支票；v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
+  agent_loop: 24,                  // v24: 报告可读性数字纪律（对比必须写差额/幅度不许并排原始值、单句≤1数字/段≤3、字段间数字分工不重复、量纲生活化、禁引用不存在的图表）；v23: 财务深析五层深挖法（备注/付款时刻/结构/生活状态交叉/串联点破）+管家记忆+claimTitle 点破式标题+深析展开豁免，财务维度菜单自 v21 迁入并修正 linearTrend 空头支票；v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
@@ -68,6 +68,7 @@ const PROMPT_CONTRACT_APPENDICES = {
     defaultPrompts._agent_loop_v21_contract,
     defaultPrompts._agent_loop_v22_contract,
     defaultPrompts._agent_loop_v23_contract,
+    defaultPrompts._agent_loop_v24_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],

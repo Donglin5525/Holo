@@ -716,7 +716,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   const prompt = await response.json();
 
   // v23: 财务深析五层深挖法 + claimTitle 点破式标题（2026-09-21 财务深析改造）
-  assert.equal(prompt.version, 23);
+  assert.equal(prompt.version, 24);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -805,7 +805,7 @@ test("memory insight prompt 强制输出稳定主题键和四字段候选", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 10);
+  assert.equal(prompt.version, 11);
   assert.match(prompt.content, /HOLO_MEMORY_SEMANTIC_V2/);
   assert.match(prompt.content, /subjectKey/);
   assert.match(prompt.content, /跨日报、周报、月报稳定不变/);
