@@ -345,13 +345,15 @@ function normalizeClaim(claim, index, status, repairs) {
 
 function normalizeTimeRange(value) {
   if (!isObject(value)
-      || typeof value.label !== "string"
       || typeof value.start !== "number"
       || typeof value.end !== "number") {
     return null;
   }
+  // label 可选：工具目录只约定 start/end 用 Unix 秒、未要求 label，此前
+  // 无 label 的时间窗整段被丢弃成 null——模型按提示词传的时间被静默吞掉
+  // （2026-09-24「问近一周答 180 天」生产日志 timeRange 全 null 的帮凶）。
   return {
-    label: value.label,
+    label: typeof value.label === "string" ? value.label : "",
     start: value.start,
     end: value.end,
   };

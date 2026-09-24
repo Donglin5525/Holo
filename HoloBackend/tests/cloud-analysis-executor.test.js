@@ -1305,3 +1305,67 @@ test("冻结任务块注入任务类型（v23 展开豁免的确定性识别）"
   const system = provider.calls[0].messages.find((m) => m.role === "system");
   assert.ok(system.content.includes("任务类型：deep_analysis"), "冻结任务块应含任务类型");
 });
+
+// —— 任务窗默认护栏（2026-09-24「问近一周答 180 天」根治）——
+
+test("任务窗护栏：timeRange 缺省默认到冻结任务窗，显式宽窗不夹紧", async () => {
+  const startMs = new Date("2026-08-03T00:00:00+08:00").getTime();
+  const endMs = new Date("2026-08-06T00:00:00+08:00").getTime();
+  const plan = (extra = {}) => ({
+    source: "finance.transactions",
+    filters: [],
+    groupBy: [],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [],
+    limit: 10,
+    evidenceLimit: 10,
+    ...extra,
+  });
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [
+        { id: "t-defaulted", tool: "finance", query: "dynamic_query", parameters: { dynamicPlan: plan() } },
+        { id: "t-explicit", tool: "finance", query: "dynamic_query", parameters: { dynamicPlan: plan({ timeRange: { start: 1_700_000_000, end: 1_800_000_000 } }) } },
+      ],
+    }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "近几日支出不大", displayText: "近几日支出不大", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+
+  const task = store.create({ deviceId: "device-clamp", question: "最近一周花了多少" });
+  store.attachSnapshot({
+    id: task.id,
+    snapshot: JSON.stringify({
+      ...SNAPSHOT,
+      answerTask: {
+        scenarioID: "",
+        userQuestion: "最近一周花了多少",
+        questionKind: "general",
+        primaryTimeRange: { label: "问句指定：最近一周", start: startMs, end: endMs },
+        answerChecklist: [],
+      },
+    }),
+  });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const toolTurn = provider.calls[1].messages.find((m) => m.content?.startsWith("toolResults:"));
+  assert.ok(toolTurn, "第二轮应携带 toolResults");
+  const payload = JSON.parse(toolTurn.content.slice("toolResults: ".length));
+
+  // 缺省窗口：被默认到任务窗（8/3-8/5，sum=-18-28=-46），且带护栏提示
+  const defaulted = payload.find((r) => r.toolRequestID === "t-defaulted");
+  assert.equal(defaulted.status, "success");
+  assert.equal(defaulted.metrics[0].value, -245, "timeRange 缺省应按任务窗过滤（8/3+8/4+8/5，含 8/5 购物）");
+  assert.ok(
+    (defaulted.warnings ?? []).some((w) => w.includes("TIME_RANGE_DEFAULTED_TO_TASK")),
+    "应告知模型已按任务窗默认过滤"
+  );
+
+  // 显式窗口：尊重不夹紧（全窗 sum=-319）
+  const explicit = payload.find((r) => r.toolRequestID === "t-explicit");
+  assert.equal(explicit.status, "success");
+  assert.equal(explicit.metrics[0].value, -319, "模型显式宽窗（个人基线场景）不得被夹紧");
+  assert.ok(!(explicit.warnings ?? []).some((w) => w.includes("TIME_RANGE_DEFAULTED_TO_TASK")));
+});

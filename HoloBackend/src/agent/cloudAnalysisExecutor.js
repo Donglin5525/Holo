@@ -299,7 +299,27 @@ export function createCloudAnalysisExecutor({
     return `query=${request.query ?? "-"}`;
   }
 
-  function executeToolRequests(toolRequests, snapshot, logContext = null) {
+  /** 任务窗默认值护栏（2026-09-24「问近一周答 180 天」根治补件）：
+   * 模型不带 timeRange 时查询引擎按「无窗口=不过滤」全窗执行，主查询会越过
+   * 用户问句范围（实锤：问「最近一周」8 轮查询 timeRange 全 null，答成 180 天）。
+   * 这里把缺省窗口默认到冻结任务窗——只做默认不做硬夹紧：模型显式传的更宽
+   * 窗口（个人基线需要多期常态，v21 契约）保持尊重，并在工具结果 warning 里
+   * 告知模型被默认过滤了、需要宽窗时须显式声明。 */
+  function clampPlanToTaskWindow(plan, taskWindow, logContext = null) {
+    if (!taskWindow || plan.timeRange != null) return { plan, defaulted: false };
+    return {
+      plan: {
+        ...plan,
+        timeRange: {
+          start: Math.floor(taskWindow.startMs / 1000),
+          end: Math.floor(taskWindow.endMs / 1000),
+        },
+      },
+      defaulted: true,
+    };
+  }
+
+  function executeToolRequests(toolRequests, snapshot, logContext = null, taskWindow = null) {
     return toolRequests.map((request) => {
       const id = request.id ?? "tool";
       const tool = request.tool;
@@ -311,9 +331,19 @@ export function createCloudAnalysisExecutor({
           return engine.sampleRows(request.parameters ?? {}, snapshot, { toolRequestID: id, tool });
         }
         // validateAgentLoopContent 会把 parameters.dynamicPlan 规范化提升到请求顶层；两种位置都接受
-        const plan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
-        if (plan) {
-          return engine.execute(plan, snapshot, { toolRequestID: id, tool });
+        const rawPlan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
+        if (rawPlan) {
+          const { plan: clampedPlan, defaulted } = clampPlanToTaskWindow(rawPlan, taskWindow, logContext);
+          if (defaulted) {
+            log(`timeRange缺省→任务窗默认 taskId=${logContext?.taskId ?? "-"} round=${logContext?.round ?? "-"} tool=${tool}`);
+          }
+          const result = engine.execute(clampedPlan, snapshot, { toolRequestID: id, tool });
+          if (defaulted) {
+            (result.warnings ??= []).push(
+              `TIME_RANGE_DEFAULTED_TO_TASK：请求未带 timeRange，已按任务主范围过滤；如需更长窗口（如个人基线多期常态）请显式传 timeRange`
+            );
+          }
+          return result;
         }
         const statics = snapshot?.statics ?? {};
         if (Object.prototype.hasOwnProperty.call(statics, tool)) {
@@ -909,7 +939,7 @@ export function createCloudAnalysisExecutor({
 
         const toolRequests = Array.isArray(output.toolRequests) ? output.toolRequests : [];
         if (toolRequests.length > 0) {
-          const toolResults = executeToolRequests(toolRequests, snapshot, { taskId, round });
+          const toolResults = executeToolRequests(toolRequests, snapshot, { taskId, round }, answerTask.primaryTimeRange);
           collectEvidence(toolRequests, toolResults);
           const failures = toolResults
             .filter((r) => r.status === "error")

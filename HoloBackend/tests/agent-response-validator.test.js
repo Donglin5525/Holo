@@ -206,3 +206,36 @@ test("dynamic_query 缺少可解码的同级 dynamicPlan 必须拒绝，不能�
   assert.equal(result.valid, false);
   assert.match(result.error, /dynamicPlan/);
 });
+
+// 2026-09-24「问近一周答 180 天」帮凶锁定：工具目录只约定 start/end（Unix 秒），
+// 无 label 的时间窗此前被 normalizeTimeRange 整段丢弃成 null——模型按提示词
+// 传的时间被静默吞掉。label 现为可选。
+test("normalizeAgentLoopContent：无 label 的 timeRange/baseline 保留不丢弃", () => {
+  const content = JSON.stringify({
+    status: "need_tools",
+    reasoning: "r",
+    toolRequests: [{
+      id: "t1",
+      tool: "finance",
+      query: "dynamic_query",
+      parameters: {
+        dynamicPlan: {
+          source: "finance.transactions",
+          filters: [],
+          groupBy: [],
+          aggregations: [{ id: "a1", operation: "sum", field: "amount", unit: "元" }],
+          derivations: [],
+          timeRange: { start: 1_700_000_000, end: 1_800_000_000 },
+        },
+      },
+    }],
+    claims: [],
+    warnings: [],
+  });
+  const result = validateAgentLoopContent(content);
+  assert.ok(result.valid, `应通过校验: ${result.error ?? ""}`);
+  const plan = result.parsed.toolRequests[0].dynamicPlan ?? result.value.toolRequests[0].parameters.dynamicPlan;
+  assert.equal(plan.timeRange.start, 1_700_000_000, "无 label 时间窗必须保留");
+  assert.equal(plan.timeRange.end, 1_800_000_000);
+  assert.equal(plan.timeRange.label, "");
+});
