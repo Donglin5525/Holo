@@ -566,9 +566,11 @@ private struct ThoughtContentBody: View {
         // 所有卡片内容都走结构化阅读管线；没有 rich JSON 的存量纯文本也先转成 text/tag
         // 节点，避免列表外层重新走一套 Text/ExpandableText，导致 Markdown、空行和行距漂移。
         // 长文只在列表做预览，但通过同一套排版测量明确提示“点击查看全文”。
+        // 预览压掉空白行：行数配额让给有效文字（详情页/编辑器仍忠实原文格式）。
         ReadOnlyRichTextPreview(
             nodes: nodes,
-            lineLimit: 7
+            lineLimit: 7,
+            compressesBlankLines: true
         )
     }
 }

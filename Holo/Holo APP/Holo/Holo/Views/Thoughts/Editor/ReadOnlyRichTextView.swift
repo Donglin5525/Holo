@@ -223,6 +223,9 @@ struct ReadOnlyRichTextPreview: View {
 
     let nodes: [HoloContentNode]
     var lineLimit: Int = 7
+    /// 收起态压掉空白行（预览行数配额让给有效文字）；展开态还原原文格式。
+    /// 列表卡片传 true；需要忠实原文格式的预览场景保持 false。
+    var compressesBlankLines: Bool = false
 
     @State private var availableWidth: CGFloat = 0
     @State private var isOverflowing = false
@@ -231,10 +234,16 @@ struct ReadOnlyRichTextPreview: View {
     // 即销毁，展开态随之复位，无驻留成本。
     @State private var isExpanded = false
 
+    /// 收起态渲染用的节点（可含空行压缩）；展开态忠实还原原文。
+    private var displayNodes: [HoloContentNode] {
+        guard compressesBlankLines, !isExpanded else { return nodes }
+        return RichContentSerializer.previewNodes(from: nodes)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ReadOnlyRichTextView(
-                nodes: nodes,
+                nodes: displayNodes,
                 onTokenTap: { _ in },
                 lineLimit: isExpanded ? nil : lineLimit,
                 allowsTokenInteraction: false
@@ -304,9 +313,14 @@ struct ReadOnlyRichTextPreview: View {
     private func updateOverflow() {
         // 恒按收起态行数判定：isOverflowing = 内容超过预览行数上限，
         // 展开态不需要复判（按钮文案由 isExpanded 分流）。
+        // 溢出对象是「收起态实际渲染的内容」：压缩空白行后行数变少，
+        // 判定输入必须与 displayNodes 同源，否则会出现"截断已发生却判不溢出"。
         guard availableWidth > 0, lineLimit > 0 else { return }
+        let judgingNodes = compressesBlankLines
+            ? RichContentSerializer.previewNodes(from: nodes)
+            : nodes
         isOverflowing = ReadOnlyRichTextLayoutMetrics.exceedsLineLimit(
-            nodes: nodes,
+            nodes: judgingNodes,
             width: availableWidth,
             lineLimit: lineLimit,
             sizeCategory: sizeCategory
@@ -314,9 +328,11 @@ struct ReadOnlyRichTextPreview: View {
     }
 }
 
-/// 用 UIKit 的真实 attributed text 计算完整排版与限行排版的高度差。
+/// 用与渲染同引擎的 attributed text 计算完整排版与限行排版的高度差。
 /// 不用字符数估算，中文、英文、Emoji、Markdown 和 Token 都沿用编辑器的实际字体与段落样式。
-private enum ReadOnlyRichTextLayoutMetrics {
+/// 保持 internal（勿改回 private）——HoloTests 的 MarkdownTextViewNodePipelineTests
+/// 依赖直接调用判定入口做回归（同 MarkdownTextView extension 先例）。
+enum ReadOnlyRichTextLayoutMetrics {
 
     /// 溢出判定结果缓存：LazyVStack 卡片滚出即销毁、滚回即重建，onAppear 每次都重算；
     /// 全量 Markdown 构建 + 两次全文排版是 O(笔记长度) 的主线程重活（长文几十 ms），
@@ -359,6 +375,38 @@ private enum ReadOnlyRichTextLayoutMetrics {
         return result
     }
 
+    /// 与阅读态渲染同引擎的测量：离屏 UITextView（iOS 17+ 为 TextKit 2）。
+    ///
+    /// 此前的手动 NSLayoutManager 管线是 TextKit 1，与 UITextView（TextKit 2）
+    /// 对中文折行的判定存在临界差：同一内容测量算 7 行整、渲染实际 8 行，
+    /// 造成"正文已被截断、溢出提示却不出现"。测量必须与渲染同引擎才可信。
+    /// 主线程专用（视图生命周期回调内调用）；结果经 overflowCache 缓存，频率低。
+    private static let measuringTextView: UITextView = {
+        let textView = UITextView(frame: .zero)
+        textView.isScrollEnabled = false
+        textView.backgroundColor = nil
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        return textView
+    }()
+
+    private static func measuredHeight(
+        for attributedText: NSAttributedString,
+        width: CGFloat,
+        maximumNumberOfLines: Int
+    ) -> CGFloat {
+        let textView = measuringTextView
+        textView.attributedText = attributedText
+        textView.textContainer.maximumNumberOfLines = maximumNumberOfLines
+        textView.textContainer.lineBreakMode = maximumNumberOfLines > 0
+            ? .byTruncatingTail
+            : .byWordWrapping
+        let fitted = textView.sizeThatFits(
+            CGSize(width: max(1, width), height: .greatestFiniteMagnitude)
+        )
+        return ceil(fitted.height)
+    }
+
     /// 宽度按 1pt 取整成档（过滤亚像素抖动）；其余维度原样入键。
     private static func cacheKey(
         nodes: [HoloContentNode],
@@ -380,29 +428,5 @@ private enum ReadOnlyRichTextLayoutMetrics {
             }
         }
         return key as NSString
-    }
-
-    private static func measuredHeight(
-        for attributedText: NSAttributedString,
-        width: CGFloat,
-        maximumNumberOfLines: Int
-    ) -> CGFloat {
-        let storage = NSTextStorage(attributedString: attributedText)
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(
-            size: CGSize(width: max(1, width), height: .greatestFiniteMagnitude)
-        )
-        textContainer.lineFragmentPadding = 0
-        if maximumNumberOfLines > 0 {
-            textContainer.maximumNumberOfLines = maximumNumberOfLines
-            textContainer.lineBreakMode = .byTruncatingTail
-        } else {
-            textContainer.lineBreakMode = .byWordWrapping
-        }
-
-        storage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(textContainer)
-        layoutManager.ensureLayout(for: textContainer)
-        return layoutManager.usedRect(for: textContainer).height
     }
 }

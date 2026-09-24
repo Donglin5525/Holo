@@ -46,6 +46,96 @@ final class MarkdownTextViewNodePipelineTests: XCTestCase {
     private let tagId = UUID(uuidString: "4A02E6F1-8DB8-4A42-BD10-9821B53D41F8")!
     private let noteId = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
 
+    // MARK: - 列表预览空行压缩 + 溢出判定（2026-09-24「by 纯银」卡片修复回归）
+
+    func testPreviewNodesCompressesBlankLines() {
+        let tag = HoloContentNode.tag(id: tagId, displayPath: "一些摘抄")
+        let body = "Agent 时代，每个人为自己的需求手搓，仅仅给自己和身边的人用就够了。"
+
+        // 东林实例场景：标签后跟"空格行 + 正文 + 空行 + 签名行"，压缩后正文直接衔接
+        let signed = [
+            tag,
+            HoloContentNode.text(value: " \n\(body)\n\nby 纯银")
+        ]
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: signed),
+            [
+                tag,
+                // 首部只含 token 尾随空格的行不是空行，原样保留；段间空行压掉
+                HoloContentNode.text(value: " \n\(body)\nby 纯银")
+            ]
+        )
+
+        // 首节点的开头空行：直接删，预览第一行不给空白
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: "\n\nA\nB")]),
+            [.text(value: "A\nB")]
+        )
+        // 尾节点的结尾空行：直接删；但纯空格行是用户显式留白，保留占位
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: "A\nB\n  \n")]),
+            [.text(value: "A\nB\n  ")]
+        )
+        // 段间的空格行保留（2026-09-24 东林拍板：用户敲的留白不在预览消失，避免用户疑惑）
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: "A\n   \nB")]),
+            [.text(value: "A\n   \nB")]
+        )
+        // 连续多个段间空行压成单换行
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: "A\n\n\n\nB")]),
+            [.text(value: "A\nB")]
+        )
+        // 非尾节点结尾的空白行承担与后一 Token 的分界，保留一个换行
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: "A\n\n"), tag]),
+            [.text(value: "A\n"), tag]
+        )
+        // Token 节点原样保留
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [tag, .text(value: "正文")]),
+            [tag, .text(value: "正文")]
+        )
+    }
+
+    func testPreviewNodesPreservesInlineSpaces() {
+        // 行内多空格、行首/行尾空格必须原样保留（只压"整行无可见内容"的空白行）
+        let text = "Agent  时代，  多个   空格\n\nby  纯银  "
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: text)]),
+            [.text(value: "Agent  时代，  多个   空格\nby  纯银  ")]
+        )
+
+        // 行首缩进空格保留
+        XCTAssertEqual(
+            RichContentSerializer.previewNodes(from: [.text(value: "    缩进段落\n第二段")]),
+            [.text(value: "    缩进段落\n第二段")]
+        )
+    }
+
+    func testPreviewOverflowClearedAfterCompressionForTrailingSignature() {
+        // 修复验收：正文+空行+签名这种"截断临界"内容，压缩后不再溢出——
+        // 签名行进入 7 行预览、卡片底部不再留空行占位、「点击查看全文」不再缺席。
+        let body = "Agent 时代，每个人为自己的需求手搓，仅仅给自己和身边的人用就够了。过去那套围绕着最大公约数服务的理念已经被淘汰了，需求裂成了千人千面的无数个碎片。"
+        let nodes: [HoloContentNode] = [
+            .tag(id: tagId, displayPath: "一些摘抄"),
+            .text(value: " \n\(body)\n\nby 纯银")
+        ]
+        let compressed = RichContentSerializer.previewNodes(from: nodes)
+
+        for width in [300.0, 310.0, 320.0, 350.0] {
+            // 未压缩原文在两套引擎临界差下可能被误判"不溢出"（修复前的缺陷形态），
+            // 这里只锁定压缩后的行为：压缩内容必须判定不溢出（7 行上限装得下）。
+            let overflow = ReadOnlyRichTextLayoutMetrics.exceedsLineLimit(
+                nodes: compressed,
+                width: CGFloat(width),
+                lineLimit: 7,
+                sizeCategory: nil
+            )
+            XCTAssertFalse(overflow, "width=\(width) 压缩后不应溢出")
+        }
+    }
+
     // MARK: - 纯文本（Markdown）往返
 
     func testTextOnlyRoundTripPreservesMarkdownMarkers() {
