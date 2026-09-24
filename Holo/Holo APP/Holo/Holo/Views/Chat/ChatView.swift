@@ -32,6 +32,9 @@ struct ChatView: View {
     @State private var historyLoadGate = ChatHistoryLoadGate()
     @State private var pendingNewMessageCount = 0
     @State private var hasUnseenStreamingUpdate = false
+    /// 深链要求滚动定位到的消息（云端分析完成推送点开 → 直达结果卡）；
+    /// 由消息列表消费后清空
+    @State private var pendingScrollTargetMessageID: UUID?
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
@@ -217,9 +220,11 @@ struct ChatView: View {
                 activeSheet = .voiceInput
             }
             consumeInsightDeepLink()
+            consumeCloudReportDeepLink()
         }
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             consumeInsightDeepLink()
+            consumeCloudReportDeepLink()
         }
         .onChange(of: prefillText) { _, newValue in
             // 常驻页兜底：本页常驻不销毁，外部入口（今日看板「开始一件事」、
@@ -444,6 +449,7 @@ struct ChatView: View {
                 hasUnseenStreamingUpdate: $hasUnseenStreamingUpdate,
                 didInitialScrollToBottom: $didInitialScrollToBottom,
                 historyLoadGate: $historyLoadGate,
+                pendingScrollTargetMessageID: $pendingScrollTargetMessageID,
                 inputFocusTrigger: inputFocusTrigger,
                 internalLogAction: internalLogAction,
                 onVoiceInputTap: { activeSheet = .voiceInput },
@@ -612,6 +618,16 @@ struct ChatView: View {
         Task {
             await viewModel.openScheduledInsight(id: insightId)
         }
+    }
+
+    /// 消费 .cloudAnalysisReport 深链（完成推送点开）：
+    /// 回到聊天 Tab 并滚动定位到结果消息——此时多为「云端分析中」进度卡，
+    /// 领取完成后原地变报告卡，用户无需任何操作。
+    private func consumeCloudReportDeepLink() {
+        guard case .cloudAnalysisReport(let messageID) = deepLinkState.pendingTarget else { return }
+        deepLinkState.pendingTarget = nil
+        selectedPageTab = .chat
+        pendingScrollTargetMessageID = messageID
     }
 
     /// 档案行点击分流：深度分析 → 全屏报告详情；周期回放 → 全屏阅读版。
@@ -942,6 +958,7 @@ private struct ChatContentColumn: View {
     @Binding var hasUnseenStreamingUpdate: Bool
     @Binding var didInitialScrollToBottom: Bool
     @Binding var historyLoadGate: ChatHistoryLoadGate
+    @Binding var pendingScrollTargetMessageID: UUID?
 
     let inputFocusTrigger: Binding<Int>
     let internalLogAction: ((ChatMessageViewData) -> Void)?
@@ -971,6 +988,7 @@ private struct ChatContentColumn: View {
                         historyLoadGate: $historyLoadGate,
                         pendingNewMessageCount: $pendingNewMessageCount,
                         hasUnseenStreamingUpdate: $hasUnseenStreamingUpdate,
+                        pendingScrollTargetMessageID: $pendingScrollTargetMessageID,
                         actions: actions
                     )
                 }
@@ -1187,6 +1205,8 @@ private struct ChatMessageListPane: View {
     @Binding var historyLoadGate: ChatHistoryLoadGate
     @Binding var pendingNewMessageCount: Int
     @Binding var hasUnseenStreamingUpdate: Bool
+    /// 深链定位请求：非 nil 时滚动到该消息（云端分析完成推送直达结果卡），消费后清空
+    @Binding var pendingScrollTargetMessageID: UUID?
 
     /// 消息卡交互回弹：目标 @State 全在 ChatView（驱动 sheet / 全屏 cover / 侧栏），
     /// 闭包由 ChatView 构造时注入，保持单一数据源。
@@ -1421,6 +1441,13 @@ private struct ChatMessageListPane: View {
         .onChange(of: messageListSignature) { previous, current in
             handleMessageListMutation(previous: previous, current: current)
         }
+        .onChange(of: pendingScrollTargetMessageID) { _, _ in
+            scrollToPendingTargetIfPossible(proxy: proxy)
+        }
+        .onChange(of: viewModel.hasLoadedMessages) { _, _ in
+            // 冷启动兜底：深链先到、消息后加载完成时补定位
+            scrollToPendingTargetIfPossible(proxy: proxy)
+        }
         .onChange(of: scrollController.viewport) { _, viewport in
             handleViewportChange(viewport)
         }
@@ -1445,6 +1472,17 @@ private struct ChatMessageListPane: View {
     }
 
     // MARK: - IM Scroll Behavior
+
+    /// 深链定位（云端分析完成推送直达结果卡）：目标消息已在列表中才滚动，消费后清空请求；
+    /// 消息未加载（冷启动恢复中）时保留请求，等加载完成再定位。
+    private func scrollToPendingTargetIfPossible(proxy: ScrollViewProxy) {
+        guard let targetID = pendingScrollTargetMessageID,
+              viewModel.messages.contains(where: { $0.id == targetID }) else { return }
+        pendingScrollTargetMessageID = nil
+        withAnimation(.easeInOut(duration: 0.25)) {
+            proxy.scrollTo(targetID, anchor: .center)
+        }
+    }
 
     @ViewBuilder
     private var historyLoadingHeader: some View {

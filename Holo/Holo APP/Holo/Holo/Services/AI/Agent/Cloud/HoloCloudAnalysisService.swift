@@ -402,6 +402,15 @@ final class HoloCloudAnalysisService {
         }
     }
 
+    /// 点完成推送时按云端任务号定位结果消息：在途任务查登记表；
+    /// 已领取（任务位已清）按血统编号 "cloud-<任务ID>" 反查落库的报告卡。
+    /// 两者都查不到返回 nil（冷启动恢复未完成/旧版本报告无血统），调用方兜底进 AI 页。
+    func messageID(forCloudTaskId taskId: String?) -> UUID? {
+        guard let taskId, !taskId.isEmpty else { return nil }
+        if let context = activeTasks[taskId] { return context.messageID }
+        return repository.messageIdForAgentJobID("cloud-\(taskId)")
+    }
+
     private func cancelActiveIfNeeded() async {
         for (taskId, _) in activeTasks {
             try? await client.cancel(taskId: taskId)

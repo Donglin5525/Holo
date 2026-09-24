@@ -1359,6 +1359,11 @@ struct HomeView: View {
             if activeScreen != .ai {
                 navigateToScreen(.ai)
             }
+        case .cloudAnalysisReport:
+            // 完成推送点开：切到 AI 页即可，定位由 ChatView 消费（滚动到结果消息）
+            if activeScreen != .ai {
+                navigateToScreen(.ai)
+            }
         }
     }
 

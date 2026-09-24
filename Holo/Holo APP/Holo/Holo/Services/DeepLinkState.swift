@@ -86,6 +86,9 @@ enum DeepLinkTarget: Equatable {
     case receiptReview(draftID: UUID)
     /// 图片自动记账：打开最近结果（设置页结果区；FinanceView 消费）
     case receiptBookingResult(resultID: UUID)
+    /// 云端分析完成推送点开：直达 AI 页并定位到该结果的消息卡
+    /// （messageID 由通知点击时反查；查不到时仅进入 AI 页，结果卡通常在流底部）
+    case cloudAnalysisReport(messageID: UUID?)
 }
 
 /// Deep Link 状态管理器

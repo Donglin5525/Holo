@@ -594,6 +594,22 @@ final class ChatMessageRepository: ObservableObject {
         return ChatMessageType(rawValue: message.messageType)
     }
 
+    /// 按云端报告血统编号（agentJobID = "cloud-<任务ID>"）反查消息。
+    /// 完成推送点开时任务位已清（结果早被领取），只能从已落库的报告卡回溯消息。
+    func messageIdForAgentJobID(_ agentJobID: String) -> UUID? {
+        let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+        request.predicate = NSPredicate(
+            format: "deletedAt == nil AND agentResultJSON CONTAINS %@",
+            "\"agentJobID\":\"\(agentJobID)\"" as NSString
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+        request.fetchLimit = 1
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["id"]
+        let rows = (try? context.fetch(request)) ?? []
+        return rows.first?["id"] as? UUID
+    }
+
     /// 仍在 streaming 的 Agent 分析加载态消息（intent=query_analysis 且无 analysisContext）。
     /// 这正是聊天页「深度分析中」转圈卡的渲染条件；供页面驻留对账识别悬挂候选。
     func streamingAnalysisLoadingMessages() -> [(id: UUID, timestamp: Date)] {

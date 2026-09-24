@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-09-24] 云端分析完成推送点开直达报告卡：前后端双修补齐推送深链
+
+> 后端已发版（548bd9984，生产容器内 grep 验证）；iOS 随 1.0.9 入库，待东林真机验收（APNs 真推送只有真机能收，模拟器无端到端证明力）。旧版 App 收到新 payload 走 default 分支维持旧行为，无回归。
+
+**背景**：东林反馈「离开 App 后点开『深度分析完成』推送，只回到上次停留页面，打不开报告」。根因：后端 APNs 推送 payload 只有标题正文、没有任何路由字段；iOS 通知点击路由也没有远程推送分支——推送承诺「点按查看」但两端都没接。
+
+### 修复内容
+- **后端**（apnsSender / app.js / cloudAnalysisExecutor）：APNs 发送器支持 `category`（写入 aps.category）+ `custom` 自定义字段平铺 payload 顶层；三类云端任务（深度分析 / 周期回放 / 个性化方案）完成推送全部携带 taskId、taskType 与 category=CLOUD_ANALYSIS_DONE。回放与方案推送同样受益。
+- **iOS 路由**：`TodoNotificationService` 点开通知按 category 分发处新增云端分析分支——立即恢复轮询领取结果（不等 scenePhase 钩子节奏），按任务号定位消息后经新增深链目标 `DeepLinkTarget.cloudAnalysisReport(messageID:)` 直达 AI 页并滚动定位到结果卡。
+- **三级消息定位**：在途任务查登记表（activeTasks）→ 已领取按报告血统编号 `cloud-<taskId>` 反查消息库（`messageIdForAgentJobID`，锚 `"agentJobID":"..."` 精确片段，追问子报告 lineage 键名不同不会误中）→ 都查不到兜底进 AI 页，任何情况不再停在无关页面。
+- **可测性重构**：点开通知的路由逻辑从 didReceive 抽成静态函数 `routeDefaultActionTap(category:userInfo:)`（UNNotificationResponse 只能由系统构造、无法在单测实例化），配套通知点击诊断日志（notice 级，记 action/category/userInfo keys）。
+
+### 验证
+- 后端 `node --test` 52 绿（apnsSender payload 新断言：category 入 aps、custom 平铺顶层；executor 推送带 taskId/taskType/category）。
+- iOS 全量编译绿 + CloudFollowUpChainTests 8 用例绿，新增两用例锁定：`messageIdForAgentJobID` 反查（含未落库返回 nil、无血统报告不误中）；`routeDefaultActionTap` 三场景（taskId 可反查精准定位 / 查不到兜底 nil / 缺字段兜底 nil）。
+- 提交前 worktree 隔离验证：暂存树（HEAD+本批 7 文件，不含并行在途改动）独立 build-for-testing 绿，提交自洽。
+- 已知边界：模拟器 simctl push 在 App 无通知授权时不投递任何可见通知 + idb 合成点击横幅不可靠（QA 子 agent 实证），端到端以单测钉死路由逻辑 + 真机验收替代。
+
+### 真机验收清单
+1. 发起深度分析 → 退桌面等推送 → 点开：预期直接落 AI 聊天页，消息先显「云端分析中」、1~5 秒内原地变完整报告卡（领取耗时属正常）。
+2. 先打开 App 看过报告、再点残留推送：预期同样跳 AI 页并定位到该报告卡。
+
+---
+
 ## [2026-09-24] 任务提醒弹层批次翻译收尾：9 键补齐英/繁
 
 > 纯 iOS，无后端发版，无 CloudKit 部署。随 1.0.9 入库。

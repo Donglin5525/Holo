@@ -139,6 +139,77 @@ final class CloudFollowUpChainTests: XCTestCase {
         }
     }
 
+    // MARK: - 完成推送点开定位（2026-09-24 修复「点推送只回上次页面」）
+
+    @MainActor
+    func test_messageIdForAgentJobID_locatesCloudReportCard() async throws {
+        let repo = ChatMessageRepository.shared
+        await CoreDataStack.shared.waitUntilReady()
+        let cloudID = "cloud-pushroute-\(UUID().uuidString.prefix(8))"
+        let messageID = repo.addMessage(role: "assistant", content: "云端分析", intent: "query_analysis")
+        defer { repo.deleteMessage(messageID) }
+
+        // 未落库：查不到
+        XCTAssertNil(repo.messageIdForAgentJobID(cloudID))
+
+        // 落库（模拟 finalizeCloudResult 的写路径：agentJobID = cloud-任务ID）
+        repo.finalizeAgentMessage(messageID, rendered: cloudParent(agentResultID: cloudID), intent: "query_analysis")
+
+        // 反查：完成推送点开时任务位已清，只能从已落库的报告卡回溯消息
+        XCTAssertEqual(repo.messageIdForAgentJobID(cloudID), messageID)
+        // 子报告血统（lineage 里的 rootJobID/parentJobID 同为 cloud-ID）不得淹没父卡定位
+        XCTAssertNil(repo.messageIdForAgentJobID("cloud-not-exist-\(UUID().uuidString.prefix(6))"))
+    }
+
+    /// 通知点击路由（点开推送 → 深链目标）：
+    /// taskId 可反查到已落库报告卡时带 messageID 精准定位；查不到/缺字段时
+    /// 兜底进 AI 页（messageID=nil），绝不落回「无路由」。
+    @MainActor
+    func test_routeDefaultActionTap_cloudAnalysisDone_navigatesToReport() async throws {
+        let repo = ChatMessageRepository.shared
+        await CoreDataStack.shared.waitUntilReady()
+        let cloudID = "cloud-routetest-\(UUID().uuidString.prefix(8))"
+        let messageID = repo.addMessage(role: "assistant", content: "云端分析", intent: "query_analysis")
+        defer { repo.deleteMessage(messageID) }
+        repo.finalizeAgentMessage(messageID, rendered: cloudParent(agentResultID: cloudID), intent: "query_analysis")
+
+        DeepLinkState.shared.pendingTarget = nil
+        TodoNotificationService.routeDefaultActionTap(
+            category: TodoNotificationCategory.cloudAnalysisDone,
+            userInfo: ["taskId": String(cloudID.dropFirst("cloud-".count))]
+        )
+        XCTAssertEqual(
+            DeepLinkState.shared.pendingTarget,
+            .cloudAnalysisReport(messageID: messageID),
+            "taskId 能反查到已落库报告卡时应精准定位"
+        )
+
+        // navigate 对连续相同目标有「先清空再异步设置」的幂等设计，
+        // 每个场景前手动清状态，避开异步时序
+        DeepLinkState.shared.pendingTarget = nil
+        TodoNotificationService.routeDefaultActionTap(
+            category: TodoNotificationCategory.cloudAnalysisDone,
+            userInfo: ["taskId": "unknown-\(UUID().uuidString.prefix(6))"]
+        )
+        XCTAssertEqual(
+            DeepLinkState.shared.pendingTarget,
+            .cloudAnalysisReport(messageID: nil),
+            "查不到任务时兜底进 AI 页"
+        )
+
+        DeepLinkState.shared.pendingTarget = nil
+        TodoNotificationService.routeDefaultActionTap(
+            category: TodoNotificationCategory.cloudAnalysisDone,
+            userInfo: [:]
+        )
+        XCTAssertEqual(
+            DeepLinkState.shared.pendingTarget,
+            .cloudAnalysisReport(messageID: nil),
+            "payload 缺 taskId 时同样兜底进 AI 页"
+        )
+        DeepLinkState.shared.pendingTarget = nil
+    }
+
     // MARK: - 3. 习惯行构建（goal/type/unit 口径字段）
 
     @MainActor
