@@ -18,6 +18,22 @@ nonisolated struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var kind: String? = nil
     /// v21：这条数据在用户生活里意味着什么的低置信解读；旧 JSON 缺失解码为 nil 不展示。
     var interpretation: String? = nil
+    /// 已与工具台账对账的结构化数字断言（2026-09-24 报告可读性改造）：
+    /// 云端 v23 起随 claim 回传，此前仅落协议未上屏；旧 JSON 解码为 nil 不渲染图表。
+    var metricAssertions: [HoloRenderedMetricAssertion]? = nil
+}
+
+/// 报告图表消费的核验数字：值与基线均经云端交付核验（metricKey 对账），
+/// 可直接作为数字真相绘制「本期 vs 基线」对比图与指标行。
+nonisolated struct HoloRenderedMetricAssertion: Codable, Equatable, Sendable, Identifiable {
+    var metricKey: String
+    var value: Double? = nil
+    var baselineValue: Double? = nil
+    var unit: String? = nil
+    var comparison: String? = nil
+    var evidenceIDs: [String]? = nil
+
+    var id: String { metricKey }
 }
 
 nonisolated struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
@@ -39,6 +55,13 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var formula: String? = nil
     /// 对比基线的可读描述（基线值 + 基线窗口 + 对比方向）；无基线时为 nil。
     var baselineText: String? = nil
+    /// 2026-09-24 报告可读性改造：核验数值本体（与 summary 口径句同源），
+    /// 供依据卡渲染指标行；旧 JSON 解码为 nil 走纯文本。
+    var metricValue: Double? = nil
+    var metricUnit: String? = nil
+    /// 证据来源数据集（finance.transactions / health.sleep 等，稳定标识）；
+    /// 报告趋势图按它回查本机逐日序列，不可映射时不画图。
+    var datasetName: String? = nil
 }
 
 /// 证据公式的用户可读翻译。证据计算全部发生在本地工具层（HoloDataTool 等），

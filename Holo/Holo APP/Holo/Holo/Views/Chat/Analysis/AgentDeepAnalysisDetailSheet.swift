@@ -23,6 +23,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         var accentIndex: Int
         /// v21：这条数据在用户生活里意味着什么的低置信解读；旧结果为 nil 不展示。
         var interpretation: String? = nil
+        /// 已核验数字断言（本期值 vs 基线）：渲染卡内对比图；旧报告为 nil 不展示。
+        var metricAssertions: [HoloRenderedMetricAssertion]? = nil
     }
 
     struct Evidence: Equatable, Sendable {
@@ -33,6 +35,11 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         var formula: String? = nil
         /// 对比基线可读描述；无基线为 nil
         var baselineText: String? = nil
+        /// 核验数值本体（指标行大字展示）；旧结果为 nil 走纯文本
+        var metricValue: Double? = nil
+        var metricUnit: String? = nil
+        /// 来源数据集标识（趋势图回查键）；不可映射为 nil
+        var datasetName: String? = nil
     }
 
     var openingTitle: String
@@ -121,7 +128,10 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 summary: HoloCloudEvidencePresenter.sanitizeLegacyEnglishFields(Self.clean(ref.summary)),
                 drilldown: ref.financeDrilldown,
                 formula: ref.formula,
-                baselineText: ref.baselineText
+                baselineText: ref.baselineText,
+                metricValue: ref.metricValue,
+                metricUnit: ref.metricUnit,
+                datasetName: ref.datasetName
             )
         }
         let cleanedCoverage = Self.clean(result.coverageText ?? "")
@@ -180,7 +190,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 interpretation: {
                     let value = clean(section.interpretation ?? "")
                     return value.isEmpty ? nil : value
-                }()
+                }(),
+                metricAssertions: section.metricAssertions
             )
         }
     }
@@ -403,6 +414,9 @@ struct AgentDeepAnalysisDetailSheet: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isEvidenceExpanded = false
     @State private var showsShareSheet = false
+    /// 趋势速览：报告引用的数据集按本机序列回查（scope 有明确起止才画，
+    /// 回查失败/序列太短静默不显示）
+    @State private var trendCharts: [HoloReportTrendSeries] = []
 
     private var narrative: AgentDeepAnalysisNarrativeModel {
         AgentDeepAnalysisNarrativeModel(result: result)
@@ -425,6 +439,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                     opening(model)
                     recommendationsSection(model.recommendations)
                     observationsSection(model.observations)
+                    trendSection
                     dataContextSection(model)
                     if model.shouldShowClosing {
                         closingSection(model)
@@ -449,6 +464,9 @@ struct AgentDeepAnalysisDetailSheet: View {
         .presentationDetents([.medium, .large])
         .task {
             await followUpController?.loadFollowUps()
+        }
+        .task(id: trendWindowKey) {
+            await loadTrendCharts()
         }
         // 全屏形态（fullScreenCover）的返回栏：下拉关闭不可用时保证明确的退出路径
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -811,6 +829,60 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
     }
 
+    // MARK: - 趋势速览
+
+    /// 趋势窗口指纹：scope 起止变化时重新回查（追问子报告换范围场景）。
+    private var trendWindowKey: String {
+        guard let scope = result.scope, let start = scope.start, let end = scope.end else { return "none" }
+        return "\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)"
+    }
+
+    /// 报告引用的数据集里本机可画趋势的（保序去重，最多 2 个——
+    /// 图是阅读辅助，超过 2 张又变回数据堆砌）。
+    private var trendCandidateDatasets: [String] {
+        var seen = Set<String>()
+        return result.evidenceReferences
+            .compactMap(\.datasetName)
+            .filter { HoloReportTrendDataResolver.isSupported(dataset: $0) && seen.insert($0).inserted }
+            .prefix(2)
+            .map { $0 }
+    }
+
+    private func loadTrendCharts() async {
+        guard let scope = result.scope, let start = scope.start, let end = scope.end, end > start else {
+            trendCharts = []
+            return
+        }
+        var series: [HoloReportTrendSeries] = []
+        for dataset in trendCandidateDatasets {
+            if let resolved = await HoloReportTrendDataResolver.resolve(dataset: dataset, start: start, end: end) {
+                series.append(resolved)
+            }
+        }
+        trendCharts = series
+    }
+
+    @ViewBuilder
+    private var trendSection: some View {
+        if !trendCharts.isEmpty {
+            let isWeekly = trendWindowSpansWeeks
+            VStack(alignment: .leading, spacing: 12) {
+                Text("趋势速览")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.holoTextPrimary)
+                ForEach(Array(trendCharts.enumerated()), id: \.offset) { _, series in
+                    ReportTrendChart(series: series, weeklyAggregated: isWeekly)
+                }
+            }
+        }
+    }
+
+    /// 窗口 > 62 天时序列已被回查器聚合成周点（与 Resolver 的稠密阈值一致）。
+    private var trendWindowSpansWeeks: Bool {
+        guard let scope = result.scope, let start = scope.start, let end = scope.end else { return false }
+        return end.timeIntervalSince(start) > 62 * 24 * 3600
+    }
+
     private func narrativeChapter(_ observation: AgentDeepAnalysisNarrativeModel.Observation) -> some View {
         let accent = accentColor(for: observation.accentIndex)
         let dark = colorScheme == .dark
@@ -833,6 +905,12 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .lineSpacing(7)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+
+            if let assertions = observation.metricAssertions,
+               assertions.contains(where: { $0.value != nil }) {
+                ReportMetricHighlight(assertions: assertions)
+                    .padding(.top, 2)
+            }
 
             if let interpretation = observation.interpretation {
                 HStack(alignment: .top, spacing: 7) {
@@ -1027,6 +1105,10 @@ struct AgentDeepAnalysisDetailSheet: View {
             Text(evidence.label)
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.holoPrimary)
+
+            if let value = evidence.metricValue {
+                ReportEvidenceMetricRow(value: value, unit: evidence.metricUnit, baseline: nil)
+            }
 
             Text(evidence.summary)
                 .font(.system(size: 13.5, weight: .medium))

@@ -2284,17 +2284,83 @@ enum HoloAppStoreScreenshotSeeder {
                         title: "两次关键输出都发生在晚上 7 点后",
                         body: "周二的「临时改方案」和周四的「输出项目排期」都完成在晚上 7 点之后。连续几晚被临时事项占住，留给恢复的时间在变少。",
                         kind: "observation",
-                        interpretation: "晚间产出占比高时，第二天的疲惫感会滞后一天出现——周四的忙碌其实是周二加班的账。"
+                        interpretation: "晚间产出占比高时，第二天的疲惫感会滞后一天出现——周四的忙碌其实是周二加班的账。",
+                        metricAssertions: [
+                            HoloRenderedMetricAssertion(
+                                metricKey: "dynamic.habit.daily.walk.count.week",
+                                value: 2,
+                                baselineValue: 5,
+                                unit: "次",
+                                comparison: "down",
+                                evidenceIDs: []
+                            ),
+                            HoloRenderedMetricAssertion(
+                                metricKey: "dynamic.habit.daily.read.count.week",
+                                value: 1,
+                                baselineValue: 4,
+                                unit: "次",
+                                comparison: "down",
+                                evidenceIDs: []
+                            )
+                        ]
                     ),
                     HoloRenderedAgentSection(
                         title: "恢复型习惯这周停了半程",
                         body: "晚饭后散步这周只记录了 2 次，晚间阅读停在了周一。两次外卖都出现在加班的晚上，晚饭拖到了 8 点以后。",
                         kind: "observation",
-                        interpretation: "忙的时候先被牺牲的总是恢复活动，这正是「觉得很忙」体感的来源之一。"
+                        interpretation: "忙的时候先被牺牲的总是恢复活动，这正是「觉得很忙」体感的来源之一。",
+                        metricAssertions: [
+                            HoloRenderedMetricAssertion(
+                                metricKey: "dynamic.habit.daily.walk.count.week",
+                                value: 2,
+                                baselineValue: nil,
+                                unit: "次",
+                                comparison: "本周散步记录次数",
+                                evidenceIDs: []
+                            )
+                        ]
                     )
                 ],
-                evidenceReferences: [],
+                evidenceReferences: [
+                    HoloRenderedEvidenceReference(
+                        id: "seed-evidence-evening-output",
+                        summary: "本周 7 点后完成的任务 3 件，上期 1 件",
+                        financeDrilldown: nil,
+                        formula: nil,
+                        baselineText: nil,
+                        metricValue: 3,
+                        metricUnit: "件",
+                        datasetName: "task.daily"
+                    ),
+                    HoloRenderedEvidenceReference(
+                        id: "seed-evidence-walk-count",
+                        summary: "本周散步合计 2 次（上期 5 次）",
+                        financeDrilldown: nil,
+                        formula: "count(rows)",
+                        baselineText: nil,
+                        metricValue: 2,
+                        metricUnit: "次",
+                        datasetName: "habit.daily"
+                    ),
+                    HoloRenderedEvidenceReference(
+                        id: "seed-evidence-week-expense",
+                        summary: "本周支出合计 215 元（4 笔小额）",
+                        financeDrilldown: nil,
+                        formula: nil,
+                        baselineText: nil,
+                        metricValue: 215,
+                        metricUnit: "元",
+                        datasetName: "finance.transactions"
+                    )
+                ],
                 question: "我这周为什么总觉得很忙？",
+                scope: HoloRenderedAnswerScope(
+                    label: "近7天",
+                    start: startOfWeek,
+                    end: startOfWeek.addingTimeInterval(6 * 86_400),
+                    snapshotCutoffAt: nil,
+                    attribution: nil
+                ),
                 recommendations: [
                     HoloRenderedRecommendation(
                         id: "seed-busyweek-rec-1",

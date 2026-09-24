@@ -459,6 +459,14 @@ final class HoloCloudAnalysisService {
         rendered.agentJobID = cloudIdentity
         rendered.agentResultID = cloudIdentity
         rendered.rootUserQuestion = question
+        // 空态诚实化（2026-09-24 17:24 实锤：云端交付 7 条结论、手机渲染「没有
+        // 可信结论」）：claims 非空但 usableClaims 全被显示防线滤掉时标记
+        // unverifiable（副标题如实说「已查到数据但未过核验」）并打日志留取证线索，
+        // 不再与「确实没数据」混为一谈。
+        if composed.sections.isEmpty, let rawClaimCount = result.claims?.count, rawClaimCount > 0 {
+            rendered.emptyReason = .unverifiable
+            logger.error("云端结论全被显示防线滤除 rawClaims=\(rawClaimCount, privacy: .public) taskId=\(taskId, privacy: .public) —— 取证:检查各 claim 正文是否含 metricKey/下划线/等号")
+        }
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
         logger.info("云端结果已落地 claims=\(composed.sections.count, privacy: .public) narrative=\(composed.narrativeSummary != nil, privacy: .public) keyInsight=\(composed.keyInsight != nil, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
     }
@@ -502,10 +510,21 @@ final class HoloCloudAnalysisService {
             return trimmed
         }
 
-        let usableClaims = (result.claims ?? []).compactMap { claim -> (body: String, kind: String?, confidence: Double?, interpretation: String?, claimTitle: String?)? in
+        let usableClaims = (result.claims ?? []).compactMap { claim -> (body: String, kind: String?, confidence: Double?, interpretation: String?, claimTitle: String?, assertions: [HoloRenderedMetricAssertion]?)? in
             let body = (claim.displayText ?? claim.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard let usable = sanitized(body) else { return nil }
-            return (usable, claim.type, claim.confidence, sanitized(claim.interpretation), sanitized(claim.claimTitle))
+            let assertions = (claim.metricAssertions ?? []).compactMap { assertion -> HoloRenderedMetricAssertion? in
+                guard assertion.value != nil || assertion.baselineValue != nil else { return nil }
+                return HoloRenderedMetricAssertion(
+                    metricKey: assertion.metricKey,
+                    value: assertion.value,
+                    baselineValue: assertion.baselineValue,
+                    unit: assertion.unit,
+                    comparison: assertion.comparison,
+                    evidenceIDs: assertion.evidenceIDs
+                )
+            }
+            return (usable, claim.type, claim.confidence, sanitized(claim.interpretation), sanitized(claim.claimTitle), assertions.isEmpty ? nil : assertions)
         }
         var usedTitles = Set<String>()
         let sections = usableClaims.map { claim in
@@ -524,7 +543,8 @@ final class HoloCloudAnalysisService {
                 body: claim.body,
                 confidence: claim.confidence,
                 kind: claim.kind,
-                interpretation: claim.interpretation
+                interpretation: claim.interpretation,
+                metricAssertions: claim.assertions
             )
         }
         let narrativeSummary = sanitized(result.narrativeSummary)

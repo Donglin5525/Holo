@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深度分析报告图表组件重写 · 原型 v1</title>
+<style>
+  :root {
+    --primary: #F46D38;
+    --chart-blue: #3B82F6;
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --card-gradient-b: rgba(255,255,255,0.90);
+    --text: #333333;
+    --text-2: #939393;
+    --border: #F0F0F0;
+    --divider: rgba(241,245,249,0.9);
+    --card-shadow: 0 10px 16px rgba(0,0,0,0.035);
+  }
+  .dark {
+    --bg: #1C1C1E;
+    --card: #303033;
+    --card-gradient-b: rgba(31,31,33,0.9);
+    --text: #F5F5F5;
+    --text-2: #939393;
+    --border: #3A3A3C;
+    --divider: rgba(56,56,58,0.9);
+    --card-shadow: 0 10px 16px rgba(0,0,0,0.22);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px 16px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .phone { max-width: 390px; margin: 0 auto; }
+  .section-note { font-size: 13px; color: var(--text-2); margin: 28px 0 14px; padding-left: 2px; }
+  .section-note b { color: var(--text); font-size: 15px; display: block; margin-bottom: 2px; }
+  .mode-tag {
+    display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: 999px; margin-bottom: 10px; letter-spacing: 1px;
+    background: rgba(244,109,56,0.10); color: var(--primary);
+  }
+
+  /* ===== 观察卡（宿主，模拟报告页 28 圆角卡） ===== */
+  .observation-card {
+    background: linear-gradient(180deg, var(--card) 0%, var(--card-gradient-b) 100%);
+    border-radius: 28px;
+    border: 1px solid var(--border);
+    box-shadow: var(--card-shadow);
+    padding: 20px 18px 20px 20px;
+    position: relative;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .observation-card::before {
+    content: ""; position: absolute; left: 0; top: 22px; bottom: 22px;
+    width: 3px; border-radius: 2px; background: var(--accent, var(--primary));
+  }
+  .ob-label { font-size: 11px; font-weight: 700; color: var(--text-2); margin-bottom: 7px; }
+  .ob-title { font-size: 18px; font-weight: 800; line-height: 1.35; margin-bottom: 11px; letter-spacing: 0.2px; color: var(--text); }
+  .ob-body { font-size: 15.5px; line-height: 1.65; color: var(--text); opacity: 0.86; margin-bottom: 12px; }
+
+  /* ===== 形态A1：单值数字行（无面板、贴正文左缘） ===== */
+  .metric-inline { padding: 2px 0 0; }
+  .metric-inline .value {
+    font-size: 28px; font-weight: 800; font-family: "SF Pro Rounded", -apple-system, sans-serif;
+    color: var(--text); letter-spacing: 0.2px; line-height: 1.2;
+  }
+  .metric-inline .unit { font-size: 15px; font-weight: 700; color: var(--text-2); margin-left: 4px; }
+  .metric-inline .caption { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+
+  /* ===== 形态A2：水平对比条 ===== */
+  .bars { padding-top: 2px; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 10px; }
+  .bar-row .bar-label { width: 34px; flex: none; font-size: 12px; color: var(--text-2); font-weight: 500; }
+  .bar-row .bar-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(147,147,147,0.10); margin: 0 10px 0 0; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-row.current .bar-fill { background: var(--primary); }
+  .bar-row.baseline .bar-fill { background: rgba(147,147,147,0.30); }
+  .bar-row .bar-value { width: 74px; flex: none; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar-row.current .bar-value { color: var(--text); }
+  .bar-row.baseline .bar-value { color: var(--text-2); font-weight: 500; }
+  .delta-badge {
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 4px;
+    font-size: 12px; font-weight: 700; color: var(--primary);
+    background: rgba(244,109,56,0.09); border-radius: 999px; padding: 4px 10px;
+  }
+
+  /* ===== 形态B：趋势速览卡（标准 16 圆角卡） ===== */
+  .trend-section-title { font-size: 17px; font-weight: 700; margin: 26px 0 12px; color: var(--text); }
+  .trend-card {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--divider);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.03);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .trend-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .trend-head .name { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text); }
+  .trend-head .name .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--chart-blue); }
+  .trend-head .range { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .trend-note { display: inline-block; font-size: 11px; font-weight: 600; color: var(--text-2); background: rgba(147,147,147,0.10); border-radius: 999px; padding: 2px 8px; margin: 6px 0 8px; }
+  .trend-card svg { display: block; width: 100%; height: auto; }
+
+  /* ===== 依据卡指标行（形态C） ===== */
+  .evidence-card { padding: 14px 16px; }
+  .evidence-card + .evidence-card { border-top: 1px solid var(--divider); }
+  .evidence-shell { border-radius: 24px; border: 1px solid var(--border); background: var(--card); box-shadow: var(--card-shadow); overflow: hidden; margin-top: 14px; }
+  .ev-label { font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+  .ev-metric { display: flex; align-items: baseline; gap: 5px; margin-bottom: 6px; }
+  .ev-metric .value { font-size: 22px; font-weight: 800; font-family: "SF Pro Rounded", -apple-system, sans-serif; color: var(--text); }
+  .ev-metric .unit { font-size: 13px; font-weight: 700; color: var(--text-2); }
+  .ev-metric .badge { margin-left: 8px; }
+  .ev-summary { font-size: 13.5px; line-height: 1.55; color: var(--text); opacity: 0.78; }
+
+  footer { margin-top: 44px; font-size: 12px; color: var(--text-2); line-height: 1.8; border-top: 1px solid var(--border); padding-top: 16px; }
+  footer b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+
+<script>
+// ===== 数据（QA 复现报告口径的真实数字） =====
+const expenseSeries = [
+  { date: "9/18", value: 32 }, { date: "9/19", value: 0 }, { date: "9/20", value: 60 },
+  { date: "9/21", value: 0 }, { date: "9/22", value: 42 }, { date: "9/23", value: 18 }, { date: "9/24", value: 60 },
+];
+const sleepSeries = [
+  { date: "9/18", value: 7.6 }, { date: "9/19", value: 7.1 }, { date: "9/20", value: 5.2 },
+  { date: "9/21", value: 6.9 }, { date: "9/22", value: 7.3 }, { date: "9/23", value: 5.5 }, { date: "9/24", value: 6.3 },
+];
+
+// ===== SVG 折线生成：Catmull-Rom 平滑 + 渐变面积 + Y轴4刻度网格 + 末端点 =====
+function trendSVG(series, unit, colorVar) {
+  const W = 342, H = 128, PL = 34, PR = 10, PT = 8, PB = 22;
+  const max = Math.max(...series.map(p => p.value));
+  const nice = niceCeil(max);
+  function niceCeil(v) {
+    const raw = v * 1.12;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+    for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) { if (raw <= m * mag) return m * mag; }
+    return 10 * mag;
+  }
+  const x = i => PL + i * (W - PL - PR) / (series.length - 1);
+  const y = v => PT + (1 - v / nice) * (H - PT - PB);
+  // Catmull-Rom → bezier
+  let d = `M ${x(0)} ${y(series[0].value)}`;
+  for (let i = 0; i < series.length - 1; i++) {
+    const p0 = series[Math.max(0, i - 1)], p1 = series[i], p2 = series[i + 1], p3 = series[Math.min(series.length - 1, i + 2)];
+    const c1x = x(i) + (x(i + 1) - x(Math.max(0, i - 1))) / 6, c1y = y(p1.value) + (y(p2.value) - y(p0.value)) / 6;
+    const c2x = x(i + 1) - (x(Math.min(series.length - 1, i + 2)) - x(i)) / 6, c2y = y(p2.value) - (y(p3.value) - y(p1.value)) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${x(i + 1).toFixed(1)} ${y(p2.value).toFixed(1)}`;
+  }
+  const area = d + ` L ${x(series.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z`;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => nice * t);
+  const last = series[series.length - 1];
+  const fmtTick = v => v >= 1000 ? (v / 1000).toFixed(1) + "k" : (v % 1 ? v.toFixed(1) : v);
+  const xLabels = [0, Math.floor((series.length - 1) / 3), Math.floor((series.length - 1) * 2 / 3), series.length - 1];
+  return `
+  <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${series[0].date} 至 ${last.date} 趋势，从 ${series[0].value}${unit} 到 ${last.value}${unit}，最高 ${max}${unit}">
+    <defs>
+      <linearGradient id="g-${colorVar}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${cssVar(colorVar)}" stop-opacity="0.14"/>
+        <stop offset="100%" stop-color="${cssVar(colorVar)}" stop-opacity="0.005"/>
+      </linearGradient>
+    </defs>
+    ${ticks.map(t => `
+      <line x1="${PL}" x2="${W - PR}" y1="${y(t)}" y2="${y(t)}" stroke="${cssVar("--divider")}" stroke-opacity="0.75" stroke-width="1"/>
+      <text x="${PL - 6}" y="${y(t) + 3.5}" text-anchor="end" font-size="11" fill="${cssVar("--text-2")}">${fmtTick(t)}</text>
+    `).join("")}
+    ${xLabels.map(i => `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${cssVar("--text-2")}">${series[i].date}</text>`).join("")}
+    <path d="${area}" fill="url(#g-${colorVar})"/>
+    <path d="${d}" fill="none" stroke="${cssVar(colorVar)}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${x(series.length - 1)}" cy="${y(last.value)}" r="3.5" fill="${cssVar(colorVar)}" stroke="${cssVar("--card")}" stroke-width="1.5"/>
+  </svg>`;
+}
+
+const cssVarStore = { light: {}, dark: {} };
+function cssVar(name) {
+  // 简单取值器：颜色值在两套主题里的映射（与 :root/.dark 同步维护）
+  const map = {
+    light: { "--primary": "#F46D38", "--chart-blue": "#3B82F6", "--divider": "#F1F5F9", "--text-2": "#939393", "--card": "#FFFFFF", "--text": "#333333" },
+    dark:  { "--primary": "#F46D38", "--chart-blue": "#3B82F6", "--divider": "#38383A", "--text-2": "#939393", "--card": "#2C2C2E", "--text": "#F5F5F5" },
+  };
+  return map[currentMode][name] || map.light[name];
+}
+let currentMode = "light";
+
+function fmt(v) { return v >= 10000 ? (v / 10000).toFixed(2) + "万" : v.toLocaleString("zh-CN"); }
+function badge(cur, base) {
+  const r = (cur - base) / base;
+  if (Math.abs(r) < 0.005) return `<span class="delta-badge">基本持平</span>`;
+  const pct = Math.abs(r * 100), arrow = r > 0 ? "↑" : "↓";
+  return `<span class="delta-badge">${arrow} ${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}%</span>`;
+}
+
+function render() {
+  const expMax = Math.max(215, 502);
+  const sleepMax = Math.max(6.3, 7.1);
+  document.getElementById("app").innerHTML = `
+  <div class="mode-tag">${currentMode === "light" ? "浅色模式" : "深色模式"} · iPhone 报告页尺寸</div>
+
+  <div class="section-note"><b>形态 A1 · 单值断言 → 大字数字行</b>不画柱、无面板底色，数字行贴正文左缘。左缘 6.3 小时是视觉锚点，口径小字交代数据范围。</div>
+  <div class="observation-card" style="--accent:#6F8C7D">
+    <div class="ob-label">观察</div>
+    <div class="ob-title">一周多数夜晚短于自身常态</div>
+    <div class="ob-body">这周的平均睡眠时长是 6.3 小时，比你的长期常态明显更短。两个睡足 7 小时的夜晚都落在周中。</div>
+    <div class="metric-inline">
+      <div><span class="value">6.3</span><span class="unit">小时</span></div>
+      <div class="caption">本期日均睡眠 · 7 天里 7 天有睡眠记录</div>
+    </div>
+  </div>
+
+  <div class="section-note"><b>形态 A2 · 值+基线成对 → 两行水平对比条</b>标签在左、条在中、数值在右，本期橙 / 基线灰，条长按比例；徽章只给方向和幅度，不预设好坏。</div>
+  <div class="observation-card" style="--accent:#F46D38">
+    <div class="ob-label">观察</div>
+    <div class="ob-title">这周的花费比上一段少了一大半</div>
+    <div class="ob-body">本期查到的支出只有 4 笔小额，与上一段可比时间相比明显回落。</div>
+    <div class="bars">
+      <div class="bar-row current">
+        <span class="bar-label">本期</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${215 / expMax * 100}%"></div></div>
+        <span class="bar-value">${fmt(215)} 元</span>
+      </div>
+      <div class="bar-row baseline" style="margin-bottom:2px">
+        <span class="bar-label">上期</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${502 / expMax * 100}%"></div></div>
+        <span class="bar-value">${fmt(502)} 元</span>
+      </div>
+      ${badge(215, 502)}
+    </div>
+  </div>
+
+  <div class="observation-card" style="--accent:#F46D38">
+    <div class="ob-label">观察</div>
+    <div class="ob-title">睡眠比上期少了近一个小时</div>
+    <div class="ob-body">本期日均 6.3 小时，上期 7.1 小时，差距集中在周内两个短睡夜。</div>
+    <div class="bars">
+      <div class="bar-row current">
+        <span class="bar-label">本期</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${6.3 / sleepMax * 100}%"></div></div>
+        <span class="bar-value">6.3 小时</span>
+      </div>
+      <div class="bar-row baseline" style="margin-bottom:2px">
+        <span class="bar-label">上期</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${7.1 / sleepMax * 100}%"></div></div>
+        <span class="bar-value">7.1 小时</span>
+      </div>
+      ${badge(6.3, 7.1)}
+    </div>
+  </div>
+
+  <div class="section-note"><b>形态 B · 趋势速览卡</b>标准 16 圆角卡；Y 轴 4 刻度 + 浅网格（不再隐藏）；线 2.25pt + 渐变面积；数据线用图表蓝（橙只留给强调）；X 轴最多 4 个日期标签；末端点标记当前值。</div>
+  <div class="trend-section-title">趋势速览</div>
+  <div class="trend-card">
+    <div class="trend-head">
+      <span class="name"><span class="dot"></span>每日支出</span>
+      <span class="range">0 – 60 元</span>
+    </div>
+    <span class="trend-note">本机数据 · 逐日</span>
+    ${trendSVG(expenseSeries, "元", "--chart-blue")}
+  </div>
+  <div class="trend-card">
+    <div class="trend-head">
+      <span class="name"><span class="dot"></span>每日睡眠时长</span>
+      <span class="range">5.2 – 7.6 小时</span>
+    </div>
+    <span class="trend-note">本机数据 · 逐日</span>
+    ${trendSVG(sleepSeries, "小时", "--chart-blue")}
+  </div>
+
+  <div class="section-note"><b>形态 C · 依据卡指标行</b>（在「查看数据依据」展开区内，微调：语义字号 + 徽章与 A2 同款）</div>
+  <div class="evidence-shell">
+    <div class="evidence-card">
+      <div class="ev-label">依据 · 点按核对</div>
+      <div class="ev-metric">
+        <span class="value">215</span><span class="unit">元</span><span class="badge">${badge(215, 502)}</span>
+      </div>
+      <div class="ev-summary">交易明细 · 本期支出合计（来源 4 条）</div>
+    </div>
+    <div class="evidence-card">
+      <div class="ev-label">依据</div>
+      <div class="ev-metric"><span class="value">6.3</span><span class="unit">小时</span></div>
+      <div class="ev-summary">本期日均睡眠时长（7 天有效记录）</div>
+    </div>
+  </div>
+
+  <footer>
+    <b>与旧版的差别</b>：①单值不再画柱（消灭橙色大色块）②无嵌套面板（盒中盒拆除）③图表数字 28/22pt 为视觉锚点，轴标签 11pt 达可读下限 ④数据线统一图表蓝 #3B82F6，橙只用于本期条与徽章 ⑤Y 轴恢复刻度网格防失真 ⑥组件在 Swift 实现时全部走语义字体样式（支持动态字体）与 Asset Catalog 语义色（自动深色适配）。
+  </footer>`;
+}
+
+// 浅色 + 深色连续渲染（同一个 phone 容器切换重渲太麻烦，直接顺序输出两份）
+const app = document.getElementById("app");
+const wrap = document.createElement("div");
+document.body.appendChild(wrap);
+
+function renderBoth() {
+  currentMode = "light";
+  render();
+  const lightHTML = `<div style="background:var(--bg)"><div class="phone">${app.innerHTML}</div></div>`;
+  currentMode = "dark";
+  render();
+  const darkHTML = `<div class="dark" style="background:var(--bg)"><div class="phone">${app.innerHTML}</div></div>`;
+  app.remove();
+  wrap.innerHTML = `
+    <div style="max-width:820px;margin:0 auto;display:flex;gap:28px;flex-wrap:wrap;justify-content:center">
+      ${lightHTML}${darkHTML}
+    </div>
+    <div style="text-align:center;color:#939393;font-size:12px;margin-top:8px">左：浅色 · 右：深色（左右两栏可独立滚动浏览）</div>`;
+}
+renderBoth();
+</script>
+</body>
+</html>
