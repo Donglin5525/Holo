@@ -96,6 +96,20 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
     /// 带偏移前缀即用户本地日期，云端 day/month/weekend 按前缀切桶与 iOS 本地
     /// 日历同构；此前 withFullDate 把时刻截成纯日期（时段分析无数据）且按 UTC
     /// 输出，东八区凌晨交易会被切进前一天。
+    /// 问句时间词 → 冻结窗口（解析器与本地 Agent 同源：最近一周/近 N 天/本月/上月/
+    /// 今年…）。end 截到当前时刻：「今年/本月」等含未来段的语义，已发生统计只能算
+    /// 到快照截止，与快照窗口对齐。解析不出返回 nil。（internal 供单测锁定口径）
+    static func resolvedQuestionTimeRange(question: String, now: Date) -> Snapshot.AnswerTask.TimeRangePayload? {
+        guard let scope = HoloAgentTimeSemanticResolver.resolve(question, referenceDate: now),
+              let start = scope.timeRange.start,
+              let end = scope.timeRange.end else { return nil }
+        return Snapshot.AnswerTask.TimeRangePayload(
+            label: "问句指定：\(scope.matchedText)",
+            start: start.timeIntervalSince1970.rounded(),
+            end: min(end, now).timeIntervalSince1970.rounded()
+        )
+    }
+
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
@@ -154,15 +168,28 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
                 scenarioID: scenario.rawValue,
                 userQuestion: question,
                 questionKind: scenario.answerTaskKind,
-                primaryTimeRange: scenario.defaultRangeDays.map { days in
-                    let rangeStart = now.addingTimeInterval(-Double(days) * 86_400)
-                    return Snapshot.AnswerTask.TimeRangePayload(
-                        label: "最近\(days)天",
-                        start: rangeStart.timeIntervalSince1970.rounded(),
-                        end: now.timeIntervalSince1970.rounded()
-                    )
-                },
+                // 用户改写问句里的时间词优先于场景默认窗——「用户说的时间永远最准」
+                primaryTimeRange: Self.resolvedQuestionTimeRange(question: question, now: now)
+                    ?? scenario.defaultRangeDays.map { days in
+                        let rangeStart = now.addingTimeInterval(-Double(days) * 86_400)
+                        return Snapshot.AnswerTask.TimeRangePayload(
+                            label: "最近\(days)天",
+                            start: rangeStart.timeIntervalSince1970.rounded(),
+                            end: now.timeIntervalSince1970.rounded()
+                        )
+                    },
                 answerChecklist: scenario.answerChecklist
+            )
+        } else if let question = userQuestion, !question.isEmpty {
+            // 自由问句同样冻结时间窗：此前只有场景卡带窗，聊天打字问「最近一周」
+            // 时任务窗缺失，云端退回快照默认窗（180 天）全窗分析（2026-09-24 实锤）。
+            // 解析不出时间词则不带窗，保持默认窗语义，不瞎猜。
+            answerTask = Snapshot.AnswerTask(
+                scenarioID: "",
+                userQuestion: question,
+                questionKind: "general",
+                primaryTimeRange: Self.resolvedQuestionTimeRange(question: question, now: now),
+                answerChecklist: []
             )
         } else {
             answerTask = nil

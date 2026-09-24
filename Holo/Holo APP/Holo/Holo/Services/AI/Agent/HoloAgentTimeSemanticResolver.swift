@@ -220,7 +220,7 @@ nonisolated enum HoloAgentTimeSemanticResolver {
     /// 只接滚动语义前缀（近/最近/过去）；「前一个月」已被词表映射为上一自然月，不在此处理。
     /// 「最近N天」由 L1 词表正则先命中，此处实际承接的是周/月/年与「半年」。
     private static func resolveRelativeSpan(in text: String, today: Date, calendar: Calendar) -> HoloAgentResolvedTimeScope? {
-        let pattern = #"(最近|近|过去)(半|[0-9]{1,3}|[一二三四五六七八九十]{1,2})(个)?(天|日|周|星期|月|年)"#
+        let pattern = #"(最近|近|过去)(半|[0-9]{1,3}|[一二两三四五六七八九十]{1,2})(个)?(天|日|周|星期|月|年)"#
         guard let match = firstRegexMatch(pattern: pattern, in: text),
               match.captures.count >= 3,
               let unitRaw = match.captures.last else { return nil }
@@ -278,11 +278,12 @@ nonisolated enum HoloAgentTimeSemanticResolver {
         return scope(kind: .relativeSpan, matchedText: matchedText, label: label, start: start, end: end)
     }
 
-    /// 中文数字 → 整数（一~十二；更复杂的组合交给 LLM 兜底层）。
+    /// 中文数字 → 整数（一~十二；「两」是口语最高频的 2，2026-09-24 实锤
+    /// 「最近两个月」因映射表缺「两」整句解析失败、报告答成默认 180 天）。
     private static func chineseNumber(_ text: String) -> Int? {
         let simple: [String: Int] = [
-            "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
-            "六": 6, "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12
+            "一": 1, "两": 2, "二": 2, "三": 3, "四": 4,
+            "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12
         ]
         return simple[text]
     }

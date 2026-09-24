@@ -156,3 +156,97 @@ final class CloudAnswerTaskRoutingTests: XCTestCase {
         XCTAssertNil(plain["answerTask"], "无场景时不得编码 answerTask 键")
     }
 }
+
+// MARK: - 自由问句时间词冻结（2026-09-24「问近一周答 180 天」根治）
+
+/// 聊天打字的问句此前不冻结时间窗（只有场景卡带窗），云端退回快照默认窗
+/// 180 天全窗分析。现在自由问句的时间词同样进 answerTask.primaryTimeRange。
+final class CloudFreeformQuestionTimeRangeTests: XCTestCase {
+
+    private let reference = Date(timeIntervalSince1970: 1_758_253_200) // 2026-09-19 03:00 UTC（东八 11:00）
+
+    func test_最近一周_冻结为七天窗() throws {
+        let range = try XCTUnwrap(HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(
+            question: "最近一周我的睡眠时长和作息节奏有变化吗？", now: reference
+        ))
+        // 解析器口径：「最近一周」= 含今天在内的 7 个自然日，起点对齐当天零点
+        // （比精确减 168 小时更符合「按整天」的用户心智）；终点截到当前时刻
+        let calendar = Calendar(identifier: .gregorian)
+        var east = calendar
+        east.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let expectedStart = east.startOfDay(for: reference).addingTimeInterval(-6 * 86_400)
+        XCTAssertEqual(range.start, expectedStart.timeIntervalSince1970, accuracy: 1,
+                       "最近一周=含今天的 7 个自然日（9/13 00:00 起）")
+        XCTAssertEqual(range.end, reference.timeIntervalSince1970, accuracy: 1)
+        XCTAssertTrue(range.label.contains("问句指定"), "标签须注明来源是问句")
+    }
+
+    func test_近N天_支持数字变体() throws {
+        let range = try XCTUnwrap(HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(
+            question: "近30天花了多少钱", now: reference
+        ))
+        let calendar = Calendar(identifier: .gregorian)
+        var east = calendar
+        east.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let expectedStart = east.startOfDay(for: reference).addingTimeInterval(-29 * 86_400)
+        XCTAssertEqual(range.start, expectedStart.timeIntervalSince1970, accuracy: 1,
+                       "近30天=含今天的 30 个自然日")
+    }
+
+    func test_含未来段的语义_end截到当前时刻() throws {
+        let range = try XCTUnwrap(HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(
+            question: "今年我的支出结构怎么样", now: reference
+        ))
+        XCTAssertEqual(range.end, reference.timeIntervalSince1970, accuracy: 1,
+                       "「今年」含未来段，已发生统计只能算到快照截止")
+        XCTAssertLessThan(range.start, reference.timeIntervalSince1970 - 200 * 86_400,
+                          "起点应为年初")
+    }
+
+    func test_无时间词_不瞎猜返回nil() {
+        XCTAssertNil(HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(
+            question: "我的睡眠怎么样", now: reference
+        ))
+        XCTAssertNil(HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(
+            question: "", now: reference
+        ))
+    }
+}
+
+/// 2026-09-24 深夜实锤追加：「两」字缺口——「最近两个月」因中文数字映射表缺「两」
+/// 整句解析失败，报告答成默认 180 天。锁定泛化规则（N 个天/周/月/年）与「两」。
+final class CloudTwoMonthsFreezeTests: XCTestCase {
+
+    private let reference = Date(timeIntervalSince1970: 1_758_682_800) // 2026-09-24 15:00 UTC（东八 23:00）
+
+    func test_最近两个月_冻结为两个日历月窗() throws {
+        let range = try XCTUnwrap(HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(
+            question: "最近两个月花了多少钱？有什么建议吗？", now: reference
+        ))
+        let calendar = Calendar.current
+        // 近两个月 = 从「当天零点」回退两个日历月的那天 +1 起，end 含明天零点前（自然日口径）
+        let today = calendar.startOfDay(for: reference)
+        let monthBack = calendar.date(byAdding: .month, value: -2, to: today) ?? today
+        let expectedStart = calendar.date(byAdding: .day, value: 1, to: monthBack) ?? today
+        XCTAssertEqual(range.start, expectedStart.timeIntervalSince1970, accuracy: 5,
+                       "「两」必须按 2 解析成两个月窗（此前缺「两」映射导致解析失败）")
+        XCTAssertEqual(range.end, reference.timeIntervalSince1970, accuracy: 5)
+        XCTAssertTrue(range.label.contains("问句指定"))
+    }
+
+    func test_量词变体_两个星期_近两年_过去三个月_全部命中() throws {
+        let samples = [
+            "最近两个星期我的习惯坚持得怎么样",
+            "近两年换了几个城市生活",
+            "过去三个月的睡眠有变化吗",
+            "最近两周花了多少钱",
+            "最近半年的健康趋势",
+        ]
+        for question in samples {
+            XCTAssertNotNil(
+                HoloCloudAnalysisSnapshotBuilder.resolvedQuestionTimeRange(question: question, now: reference),
+                "「\(question)」应解析出时间窗"
+            )
+        }
+    }
+}
