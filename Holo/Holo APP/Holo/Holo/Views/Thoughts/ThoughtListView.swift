@@ -50,6 +50,8 @@ struct ThoughtListView: View {
     /// 浏览模式：timeline 想法 / knowledge 知识树。
     /// 每次进入固定回到「想法」，不记忆上次的浏览模式（产品要求默认落在想法列表）。
     @State private var browseMode: String = "timeline"
+    /// 浏览模式分段选中块的滑动命名空间
+    @Namespace private var browseModeNamespace
 
     /// 知识树模式下的主题管理 sheet
     @State private var showTopicManagement: Bool = false
@@ -207,7 +209,9 @@ struct ThoughtListView: View {
                     thoughtRepository: thoughtRepository,
                     topicRepository: topicRepository,
                     onNavigateToList: { node in
-                        browseMode = "timeline"
+                        withAnimation(HoloAnimation.standard) {
+                            browseMode = "timeline"
+                        }
                         // 同值重复赋值不触发 onChange，需手动重载（否则停留在旧数据）
                         let isSameNode = drawerSelection == node
                         drawerSelection = node
@@ -217,6 +221,11 @@ struct ThoughtListView: View {
                     },
                     onAIOrganize: { onAIOrganize() }
                 )
+                // 档位内容方向性过渡：知识树在右侧段，从右缘进
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .opacity
+                ))
             } else {
                 // 单列（窄/iPhone）与双栏（内容宽 ≥860）同一份结构：
                 // HoloListDetailSplit 窄档只渲染列表列，宽屏轻点卡片右栏即展详情
@@ -235,6 +244,11 @@ struct ThoughtListView: View {
                 } detail: {
                     thoughtDetailPane
                 }
+                // 想法流在左侧段，从左缘进；离场统一纯淡出避免双向位移叠加的晃动
+                .transition(.asymmetric(
+                    insertion: .move(edge: .leading).combined(with: .opacity),
+                    removal: .opacity
+                ))
             }
         }
         // 点卡片直达编辑器（详情页已下线，阅读与编辑合流到同一页面）。
@@ -498,10 +512,10 @@ struct ThoughtListView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: orgQueue.isBatchOrganizing)
-        .animation(.easeInOut(duration: 0.3), value: orgQueue.dailyLimitHit)
-        .animation(.easeInOut(duration: 0.3), value: pendingConfirmationCount)
-        .animation(.easeInOut(duration: 0.3), value: hasProcessingThoughts)
+        .animation(HoloAnimation.smooth, value: orgQueue.isBatchOrganizing)
+        .animation(HoloAnimation.smooth, value: orgQueue.dailyLimitHit)
+        .animation(HoloAnimation.smooth, value: pendingConfirmationCount)
+        .animation(HoloAnimation.smooth, value: hasProcessingThoughts)
     }
 
     // MARK: - 首次教育（第一条 AI 建议出现时，一次性）
@@ -960,7 +974,7 @@ struct ThoughtListView: View {
     private func segmentItem(title: String, icon: String, key: String) -> some View {
         let isSelected = browseMode == key
         return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 browseMode = key
             }
             HapticManager.light()
@@ -968,16 +982,20 @@ struct ThoughtListView: View {
             HStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .medium))
+                    .symbolEffect(.bounce, value: isSelected)
                 Text(title)
                     .font(.holoCaption)
             }
             .foregroundColor(isSelected ? .white : .holoTextSecondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.sm + 2)
-                    .fill(isSelected ? Color.holoPrimary : Color.clear)
-            )
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: HoloRadius.sm + 2)
+                        .fill(Color.holoPrimary)
+                        .matchedGeometryEffect(id: "browseModeSegment", in: browseModeNamespace)
+                }
+            }
         }
         .buttonStyle(.plain)
     }
@@ -1129,7 +1147,7 @@ struct ThoughtListView: View {
     private var thoughtListView: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 12) {
-                ForEach(filteredThoughts) { thought in
+                ForEach(Array(filteredThoughts.enumerated()), id: \.element) { index, thought in
                     SwipeActionView(
                         isRevealed: Binding(
                             get: { revealedThoughtId == thought.id },
@@ -1208,6 +1226,7 @@ struct ThoughtListView: View {
                         insertion: .opacity,
                         removal: .opacity.combined(with: .move(edge: .trailing))
                     ))
+                    .holoStaggeredAppear(index: index)
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)

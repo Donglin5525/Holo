@@ -59,6 +59,8 @@ struct TasksView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: TodoTab = .tasks
+    /// 顶部切换条选中胶囊的滑动命名空间
+    @Namespace private var todoTabNamespace
     /// 当前窗口宽度（v2 断点判断用）
     @Environment(\.holoContentWidth) private var holoContentWidth
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
@@ -187,6 +189,7 @@ struct TasksView: View {
     }
 
     /// v2 expanded 顶部切换条：胶囊式；「新增」呈橙色胶囊（替代吸底栏中的 + 圆钮）
+    /// 选中胶囊用 matchedGeometryEffect 在段间平滑滑动
     private var todoTopTabBar: some View {
         HStack(spacing: 8) {
             ForEach(TodoTab.allCases, id: \.self) { tab in
@@ -198,7 +201,7 @@ struct TasksView: View {
                             showAddTask = true
                         }
                     } else {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             selectedTab = tab
                         }
                     }
@@ -211,19 +214,23 @@ struct TasksView: View {
                         } else {
                             Image(systemName: tab.icon)
                                 .font(.system(size: 12, weight: .medium))
+                                .symbolEffect(.bounce, value: selectedTab == tab)
                             Text(tab.displayName)
                                 .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                         }
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(
-                            tab.isAddButton
-                                ? Color.holoPrimary
-                                : (selectedTab == tab ? Color.holoPrimary.opacity(0.15) : Color.holoCardBackground)
-                        )
-                    )
+                    .background {
+                        if tab.isAddButton {
+                            Capsule().fill(Color.holoPrimary)
+                        } else if selectedTab == tab {
+                            Capsule().fill(Color.holoPrimary.opacity(0.15))
+                                .matchedGeometryEffect(id: "todoTopTabCapsule", in: todoTabNamespace)
+                        } else {
+                            Capsule().fill(Color.holoCardBackground)
+                        }
+                    }
                     .foregroundColor(
                         tab.isAddButton
                             ? .white
@@ -252,7 +259,7 @@ struct TasksView: View {
                     showAddTask = true
                 }
             } else {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(HoloAnimation.quick) {
                     selectedTab = tab
                 }
             }

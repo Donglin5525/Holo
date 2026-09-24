@@ -136,7 +136,7 @@ struct ChatReportTabView: View {
     private func filterChip(label: String, tag: ReportScenarioTag?) -> some View {
         let isSelected = viewModel.selectedScenarioFilter == tag
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 viewModel.selectedScenarioFilter = tag
             }
         } label: {
@@ -210,8 +210,9 @@ struct ChatReportTabView: View {
                 // 按月分组：档案有「越攒越厚」的时间节奏
                 ForEach(viewModel.groupedEntries, id: \.monthLabel) { group in
                     Section {
-                        ForEach(group.entries) { entry in
+                        ForEach(Array(group.entries.enumerated()), id: \.element.id) { index, entry in
                             archiveRow(entry)
+                                .holoStaggeredAppear(index: index)
                         }
                     } header: {
                         monthHeader(group.monthLabel)

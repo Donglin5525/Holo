@@ -530,7 +530,7 @@ struct FinanceLedgerView: View {
                         guard !daySwipeState.isSwiping else { return }
                         if isWideLayout {
                             // 宽屏：右栏核对详情，编辑走右栏「编辑」入口（方案 2A）
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(HoloAnimation.quick) {
                                 selectedTransactionId = tx.id
                             }
                         } else {
@@ -561,6 +561,7 @@ struct FinanceLedgerView: View {
                             }
                         }
                     // 行离场（删除/删分期）向右滑出淡出，与想法列表同一离场语言
+                    // （不挂错峰入场：账本 DaySwipe 滑切天高频整体刷新，行行重播淡入是噪音）
                     .transition(.asymmetric(
                         insertion: .opacity,
                         removal: .opacity.combined(with: .move(edge: .trailing))
@@ -703,7 +704,7 @@ struct FinanceLedgerView: View {
             try? await Task.sleep(nanoseconds: 1_800_000_000)
             await MainActor.run {
                 guard operationMessage == message else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.enter) {
                     operationMessage = nil
                 }
             }
@@ -837,7 +838,7 @@ struct DaySwipeContainer<Content: View>: View {
             ? -UIScreen.main.bounds.width * 0.3
             : UIScreen.main.bounds.width * 0.3
 
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(HoloAnimation.enter) {
             offset = slideOut
         }
 

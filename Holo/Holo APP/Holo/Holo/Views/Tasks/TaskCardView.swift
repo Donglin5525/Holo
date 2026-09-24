@@ -94,6 +94,7 @@ struct TaskCardView: View {
                     Image(systemName: showsCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 22, weight: .medium))
                         .foregroundColor(showsCompleted ? .holoPrimary : .holoTextSecondary)
+                        .symbolEffect(.bounce, value: showsCompleted)
                 }
                 .buttonStyle(.plain)
 

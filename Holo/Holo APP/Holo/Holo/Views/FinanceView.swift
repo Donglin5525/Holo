@@ -70,6 +70,8 @@ struct FinanceView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: FinanceTab
+    /// 顶部切换条选中胶囊的滑动命名空间
+    @Namespace private var financeTabNamespace
     @State private var showAddTransaction: Bool = false
     /// Cmd+F 触发计数：切到账本 Tab 并转发给 FinanceLedgerView 打开搜索
     @State private var searchTrigger: Int = 0
@@ -306,29 +308,32 @@ struct FinanceView: View {
     }
 
     /// v2 expanded 顶部切换条：胶囊式，替代吸底导航栏
+    /// 选中胶囊用 matchedGeometryEffect 在段间平滑滑动
     private var financeTopTabBar: some View {
         HStack(spacing: 8) {
             ForEach(FinanceTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         selectedTab = tab
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 12, weight: .medium))
+                            .symbolEffect(.bounce, value: selectedTab == tab)
                         Text(tab.displayName)
                             .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(
-                            selectedTab == tab
-                                ? Color.holoPrimary.opacity(0.15)
-                                : Color.holoCardBackground
-                        )
-                    )
+                    .background {
+                        if selectedTab == tab {
+                            Capsule().fill(Color.holoPrimary.opacity(0.15))
+                                .matchedGeometryEffect(id: "financeTopTabCapsule", in: financeTabNamespace)
+                        } else {
+                            Capsule().fill(Color.holoCardBackground)
+                        }
+                    }
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -344,7 +349,7 @@ struct FinanceView: View {
     /// 单个 Tab 按钮
     private func financeTabButton(_ tab: FinanceTab) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 selectedTab = tab
             }
         } label: {

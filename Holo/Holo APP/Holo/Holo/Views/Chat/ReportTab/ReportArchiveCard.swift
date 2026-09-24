@@ -50,6 +50,7 @@ struct ReportArchiveCard: View {
                         Image(systemName: "star.fill")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color.holoStarTint)
+                            .symbolEffect(.bounce, value: entry.isFavorited)
                             .accessibilityLabel(String(localized: "已收藏"))
                     }
 

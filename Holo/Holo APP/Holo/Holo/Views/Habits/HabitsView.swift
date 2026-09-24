@@ -57,6 +57,8 @@ struct HabitsView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: HabitTab = .habits
+    /// 顶部切换条选中胶囊的滑动命名空间
+    @Namespace private var habitTabNamespace
     @State private var previousTab: HabitTab = .habits
     /// 新建习惯入口（nil = 关闭；带内容的草稿来自空状态示例磁贴）
     @State private var addHabitDraft: HabitPrefillDraft? = nil
@@ -83,7 +85,7 @@ struct HabitsView: View {
                     )
                 case .settings:
                     HabitStatsSettingsView(onBack: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             selectedTab = previousTab
                         }
                     })
@@ -124,6 +126,7 @@ struct HabitsView: View {
     // MARK: - 底部 Tab 栏
 
     /// v2 expanded 顶部切换条：胶囊式，替代吸底导航栏
+    /// 选中胶囊用 matchedGeometryEffect 在段间平滑滑动
     private var habitTopTabBar: some View {
         HStack(spacing: 8) {
             ForEach(HabitTab.allCases, id: \.self) { tab in
@@ -131,25 +134,27 @@ struct HabitsView: View {
                     if tab != selectedTab {
                         previousTab = selectedTab
                     }
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         selectedTab = tab
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 12, weight: .medium))
+                            .symbolEffect(.bounce, value: selectedTab == tab)
                         Text(tab.displayName)
                             .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(
-                            selectedTab == tab
-                                ? Color.holoPrimary.opacity(0.15)
-                                : Color.holoCardBackground
-                        )
-                    )
+                    .background {
+                        if selectedTab == tab {
+                            Capsule().fill(Color.holoPrimary.opacity(0.15))
+                                .matchedGeometryEffect(id: "habitTopTabCapsule", in: habitTabNamespace)
+                        } else {
+                            Capsule().fill(Color.holoCardBackground)
+                        }
+                    }
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -193,7 +198,7 @@ struct HabitsView: View {
             if tab != selectedTab {
                 previousTab = selectedTab
             }
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 selectedTab = tab
             }
         } label: {

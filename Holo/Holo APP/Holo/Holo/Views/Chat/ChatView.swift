@@ -175,8 +175,8 @@ struct ChatView: View {
             viewModel.clearContinuationDraft()
             close()
         }
-        .animation(.easeInOut(duration: 0.2), value: memoryInboxSnapshot)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.memoryNotice)
+        .animation(HoloAnimation.standard, value: memoryInboxSnapshot)
+        .animation(HoloAnimation.standard, value: viewModel.memoryNotice)
         .sheet(item: $viewModel.goalWorkshopLaunch) { launch in
             GoalWorkshopFlowView(launch: launch)
         }
@@ -487,7 +487,7 @@ struct ChatView: View {
                     onLaunchInChat: {
                         // 空态橱窗 CTA：切回对话并打开场景面板——
                         // 新用户第一发起就看到全部能力目录，比静默预填一句更有教育意义
-                        withAnimation(.easeInOut(duration: 0.18)) {
+                        withAnimation(HoloAnimation.standard) {
                             selectedPageTab = .chat
                         }
                         reportViewModel.markHidden()
@@ -541,7 +541,7 @@ struct ChatView: View {
                 Spacer(minLength: 0)
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) {
+                    withAnimation(HoloAnimation.standard) {
                         closeSidePanel()
                     }
                 } label: {
@@ -595,7 +595,7 @@ struct ChatView: View {
     }
 
     private func switchToReportTab() {
-        withAnimation(.easeInOut(duration: 0.18)) {
+        withAnimation(HoloAnimation.standard) {
             selectedPageTab = .report
         }
         hasVisitedReportTab = true
@@ -1080,11 +1080,11 @@ private struct ChatContentColumn: View {
                 inputFocusTrigger: inputFocusTrigger
             )
         }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.isTrulyEmptyConversation)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.streamingStatusHint)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isGoalPlanningCollecting)
+        .animation(HoloAnimation.standard, value: viewModel.isTrulyEmptyConversation)
+        .animation(HoloAnimation.standard, value: viewModel.streamingStatusHint)
+        .animation(HoloAnimation.standard, value: viewModel.isGoalPlanningCollecting)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: viewModel.showAnalysisScenarioPanel)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.activeScenarioPrefillTitle)
+        .animation(HoloAnimation.standard, value: viewModel.activeScenarioPrefillTitle)
         .onChange(of: viewModel.showAnalysisScenarioPanel) { _, isOpen in
             // 面板展开时收起键盘，保证场景目录完整可见
             if isOpen {
@@ -1287,7 +1287,7 @@ private struct ChatMessageListPane: View {
                                 // 避免展开后的长内容把操作入口瞬间推离屏幕。
                                 Task { @MainActor in
                                     await Task.yield()
-                                    withAnimation(.easeInOut(duration: 0.22)) {
+                                    withAnimation(HoloAnimation.standard) {
                                         proxy.scrollTo(message.id, anchor: .bottom)
                                     }
                                 }
@@ -1479,7 +1479,7 @@ private struct ChatMessageListPane: View {
         guard let targetID = pendingScrollTargetMessageID,
               viewModel.messages.contains(where: { $0.id == targetID }) else { return }
         pendingScrollTargetMessageID = nil
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             proxy.scrollTo(targetID, anchor: .center)
         }
     }
@@ -1523,8 +1523,8 @@ private struct ChatMessageListPane: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 30)
-        .animation(.easeOut(duration: 0.16), value: viewModel.isLoadingEarlierSession)
-        .animation(.easeOut(duration: 0.16), value: viewModel.earlierHistoryLoadFailed)
+        .animation(HoloAnimation.enter, value: viewModel.isLoadingEarlierSession)
+        .animation(HoloAnimation.enter, value: viewModel.earlierHistoryLoadFailed)
     }
 
     private var jumpToLatestButton: some View {
@@ -1775,6 +1775,9 @@ private struct ChatPageTabBar: View {
     /// 切回对话页后隐藏报告未读态
     let onSelectChat: () -> Void
 
+    /// 选中白胶囊在两段间平滑滑动
+    @Namespace private var pageTabNamespace
+
     var body: some View {
         HStack(spacing: 0) {
             pageTabButton(.chat, title: String(localized: "对话"), showsDot: false)
@@ -1792,9 +1795,11 @@ private struct ChatPageTabBar: View {
         return Button {
             guard selectedTab != tab else { return }
             if tab == .report {
-                onSelectReport()
+                withAnimation(HoloAnimation.standard) {
+                    onSelectReport()
+                }
             } else {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                withAnimation(HoloAnimation.standard) {
                     selectedTab = .chat
                 }
                 onSelectChat()
@@ -1805,7 +1810,12 @@ private struct ChatPageTabBar: View {
                 .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
-                .background(isSelected ? Color.holoCardBackground : .clear, in: Capsule())
+                .background {
+                    if isSelected {
+                        Capsule().fill(Color.holoCardBackground)
+                            .matchedGeometryEffect(id: "chatPageTabCapsule", in: pageTabNamespace)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     if showsDot {
                         Circle()

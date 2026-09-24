@@ -350,6 +350,8 @@ struct ReportTrendChart: View {
                     .foregroundStyle(Color.holoTextSecondary)
             }
         }
+        // 报告切换/数据刷新时曲线平滑插值（Point.value 是 Double，可直接作 diff 依据）
+        .animation(HoloAnimation.smooth, value: values)
         .frame(height: 128)
     }
 

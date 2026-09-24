@@ -21,6 +21,20 @@ struct CalendarRootView: View {
     @State private var showWeekNarrative = false
     @State private var showScaleDatePicker = false
     @State private var pickerDate = Calendar.current.startOfDay(for: Date())
+    /// 档位选中胶囊滑动命名空间
+    @Namespace private var scaleNamespace
+    /// 内容方向性过渡：记上次档位，按档序（日0 周1 月2 轴3）决定滑入方向
+    @State private var lastScale: CalendarScale?
+
+    /// 新档位相对上次档位的滑入方向（升档从右进，降档从左进）
+    private var scaleInsertionEdge: Edge {
+        guard let last = lastScale, last != viewModel.scale,
+              let oldIdx = CalendarScale.allCases.firstIndex(of: last),
+              let newIdx = CalendarScale.allCases.firstIndex(of: viewModel.scale) else {
+            return .trailing
+        }
+        return newIdx > oldIdx ? .trailing : .leading
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,11 +98,17 @@ struct CalendarRootView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch viewModel.scale {
-        case .day:   dayContent
-        case .week:  weekContent
-        case .month: monthlyContent
-        case .timeline: timelineContent
+        Group {
+            switch viewModel.scale {
+            case .day:   dayContent.holoScaleTransition(edge: scaleInsertionEdge)
+            case .week:  weekContent.holoScaleTransition(edge: scaleInsertionEdge)
+            case .month: monthlyContent.holoScaleTransition(edge: scaleInsertionEdge)
+            case .timeline: timelineContent.holoScaleTransition(edge: scaleInsertionEdge)
+            }
+        }
+        .onAppear { lastScale = viewModel.scale }
+        .onChange(of: viewModel.scale) { _, newScale in
+            lastScale = newScale
         }
     }
 
@@ -296,10 +316,13 @@ struct CalendarRootView: View {
                 .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(isSelected ? Color.holoCardBackground : Color.clear)
-                )
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoCardBackground)
+                            .matchedGeometryEffect(id: "calendarScaleCapsule", in: scaleNamespace)
+                    }
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .stroke(isSelected ? Color.holoPrimary.opacity(0.16) : Color.clear, lineWidth: 1)
@@ -422,5 +445,17 @@ private struct CalendarScaleDatePickerSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - 档位内容过渡
+
+/// 档位内容方向性过渡：新内容按档序从左/右滑入+淡入，旧内容纯淡出（克制，避免双向位移打架）
+private extension View {
+    func holoScaleTransition(edge: Edge) -> some View {
+        transition(.asymmetric(
+            insertion: .move(edge: edge).combined(with: .opacity),
+            removal: .opacity
+        ))
     }
 }
