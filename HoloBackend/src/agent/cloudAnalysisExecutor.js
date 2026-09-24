@@ -14,6 +14,7 @@ import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
 import { insightMaxTokensFor } from "../config.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
 import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAnalysisQueryEngine.js";
+import { createQuestionTimeResolver } from "./questionTimeResolver.js";
 
 const MAX_LLM_ROUNDS = 12;
 const MAX_PROVIDER_RETRIES = 3;
@@ -267,10 +268,17 @@ export function createCloudAnalysisExecutor({
   // token 用量记账（adminLogStore 同接口）：云端任务的 AI 调用此前完全不入
   // ai_call_logs，成本核算存在盲区。purpose 用 cloud_* 前缀与端点侧调用区分。
   aiCallLogger = null,
+  // 问句时间解析员注入点（测试用）：null = 用真解析员；传 stub 可跳过/替换
+  injectedQuestionTimeResolver = null,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
   const provider = providers.get(route.provider);
+  // 问句时间解析员（保险二）：客户端词表没命中的时间表达在此确定性解析成
+  // 冻结窗，存量旧客户端（无 answerTask）同样受益；故障静默回落不阻塞任务。
+  // 可注入 stub（测试里既有用例默认跳过解析员，避免 mock 响应序列错位）。
+  const questionTimeResolver = injectedQuestionTimeResolver
+    ?? createQuestionTimeResolver({ provider, route });
   if (!provider) {
     throw new Error(`CLOUD_ANALYSIS_PROVIDER_MISSING: ${route.provider}`);
   }
@@ -786,6 +794,36 @@ export function createCloudAnalysisExecutor({
       // 范围/类型/清单由代码声明进 system prompt，模型不得改写——「用户改写问句
       // 仍保留所选场景」与「九月只算九月」的同一真相源。
       const answerTask = normalizeAnswerTask(snapshot, task.question);
+      // 时间窗解析员补位（保险二，2026-09-24）：客户端词表没冻结窗时（词表外
+      // 口语表达或存量旧客户端无 answerTask），任务开始前确定性解析一次问句
+      // 时间；解析出即作为主时间范围（此后 executor 护栏硬约束+taskRange 回显），
+      // 解析不出保持无窗（冻结块的无窗兜底指令继续生效）。每次任务的窗口来源
+      // 进日志留痕，无窗可观测。
+      if (!answerTask.primaryTimeRange && answerTask.userQuestion) {
+        const cutoffMs = Date.parse(snapshot?.generatedAt ?? "");
+        const historyDays = Number(snapshot?.historyDays) > 0 ? Number(snapshot.historyDays) : 180;
+        const snapshotStartMs = Number.isFinite(cutoffMs)
+          ? cutoffMs - historyDays * 86_400_000
+          : Date.now() - historyDays * 86_400_000;
+        const resolvedWindow = await questionTimeResolver.resolveQuestionTime(
+          answerTask.userQuestion,
+          {
+            nowMs: Number.isFinite(cutoffMs) ? cutoffMs : Date.now(),
+            snapshotStartMs,
+            snapshotEndMs: Number.isFinite(cutoffMs) ? cutoffMs : Date.now(),
+            log,
+            logContext: { taskId: task.id },
+          }
+        );
+        if (resolvedWindow) {
+          answerTask.primaryTimeRange = resolvedWindow;
+          log(`时间窗解析 taskId=${task.id} source=resolver matched="${resolvedWindow.label}" start=${Math.floor(resolvedWindow.startMs / 1000)} end=${Math.floor(resolvedWindow.endMs / 1000)}`);
+        } else {
+          log(`时间窗解析 taskId=${task.id} source=none(词表未中且问句无显式时间/解析失败)`);
+        }
+      } else if (answerTask.primaryTimeRange) {
+        log(`时间窗解析 taskId=${task.id} source=client词表 label="${answerTask.primaryTimeRange.label}"`);
+      }
       const messages = [];
       const systemPrompted = injectServerPrompt("agent_loop", [
         { role: "user", content: task.question },

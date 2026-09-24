@@ -63,6 +63,9 @@ function makeExecutor(provider, extras = {}) {
     route: { provider: "fake", model: "m", temperature: 0.2, maxTokens: 1024 },
     providerRetries: 1,
     log: () => {},
+    // 既有用例默认跳过解析员（mock 响应序列不含解析员调用）；
+    // 解析员用例显式传 injectedQuestionTimeResolver: undefined 走真解析员。
+    injectedQuestionTimeResolver: { resolveQuestionTime: async () => null },
     ...extras,
   });
   return { database, store, executor };
@@ -1372,4 +1375,119 @@ test("任务窗护栏：timeRange 缺省默认到冻结任务窗，显式宽窗�
   assert.equal(explicit.status, "success");
   assert.equal(explicit.metrics[0].value, -319, "模型显式宽窗（个人基线场景）不得被夹紧");
   assert.ok(!(explicit.warnings ?? []).some((w) => w.includes("TIME_RANGE_DEFAULTED_TO_TASK")));
+});
+
+// —— 时间窗解析员（保险二，2026-09-24）——
+// 客户端词表没冻结窗时，任务开始前用一次小 LLM 调用确定性解析问句时间；
+// 任何故障静默回落无窗，绝不阻塞任务。
+
+const NOW_MS = new Date("2026-09-24T23:00:00+08:00").getTime();
+const SNAP_START_MS = NOW_MS - 180 * 86_400_000;
+
+function snapshotWithQuestion(question, extra = {}) {
+  return JSON.stringify({
+    version: 1,
+    generatedAt: new Date(NOW_MS).toISOString(),
+    historyDays: 180,
+    datasets: { ...SNAPSHOT.datasets },
+    statics: {},
+    ...extra,
+  });
+}
+
+test("时间窗解析员：词表外时间(国庆以来)解析成冻结窗并回显 taskRange", async () => {
+  const guoqingStartMs = new Date("2026-10-01T00:00:00+08:00").getTime();
+  // 注意国庆在快照截止之后——用「五一以来」类已发生语义不合适，改用已过去的节日锚点：
+  const parsedStartSec = Math.floor(new Date("2026-06-01T00:00:00+08:00").getTime() / 1000); // 例：6月以来
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: true, startUnix: parsedStartSec, endUnix: Math.floor(NOW_MS / 1000), matchedText: "6月以来" }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "近几个月支出平稳", displayText: "近几个月支出平稳", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-resolver", question: "6月以来花了多少钱" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("6月以来花了多少钱") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  // 解析出的窗口必须回显进结果 taskRange（iOS 据此显示范围标签）
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(result.taskRange, "解析出的窗口应回显 taskRange");
+  assert.equal(result.taskRange.start, parsedStartSec);
+  assert.ok(result.taskRange.label.includes("问句解析"), `label 应注明来源: ${result.taskRange.label}`);
+  // 第二轮模型请求的 system prompt 应包含冻结主时间范围行
+  const sysMsg = provider.calls[1].messages.find((m) => m.role === "system");
+  assert.ok(sysMsg.content.includes("主时间范围"), "冻结块应含主时间范围");
+  void guoqingStartMs;
+});
+
+test("时间窗解析员：无时间词(hasTime=false)回落无窗兜底指令，任务正常完成", async () => {
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: false }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "整体支出平稳", displayText: "整体支出平稳", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-notime", question: "我的钱都花哪了" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("我的钱都花哪了") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const sysMsg = provider.calls[1].messages.find((m) => m.role === "system");
+  assert.ok(sysMsg.content.includes("未冻结"), "无窗时应注入无窗兜底指令");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(!result.taskRange, "无时间词时不得回显窗口");
+});
+
+test("时间窗解析员：垃圾输出静默回落，任务不受阻", async () => {
+  const provider = makeProvider([
+    "我觉得这个问题需要看很多数据（无法给出JSON）",
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "结论", displayText: "结论", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-garbage", question: "最近购物花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("最近购物花了多少") });
+
+  assert.equal(await executor.run(task.id), "completed", "解析员输出垃圾不得阻塞任务");
+  const sysMsg = provider.calls[1].messages.find((m) => m.role === "system");
+  assert.ok(sysMsg.content.includes("未冻结"));
+});
+
+test("时间窗解析员：窗口越快照界被截断（交非空保留）", async () => {
+  const beyondSec = Math.floor((SNAP_START_MS - 30 * 86_400_000) / 1000); // 比快照早 30 天
+  const futureSec = Math.floor((NOW_MS + 30 * 86_400_000) / 1000);        // 比快照晚 30 天
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: true, startUnix: beyondSec, endUnix: futureSec, matchedText: "近一年" }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "年度概览", displayText: "年度概览", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-clamp", question: "近一年花了多少钱" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("近一年花了多少钱") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(Math.abs(result.taskRange.start - SNAP_START_MS / 1000) < 5, "start 应截断到快照起点");
+  assert.ok(Math.abs(result.taskRange.end - NOW_MS / 1000) < 5, "end 应截断到快照截止");
+});
+
+test("时间窗解析员：旧客户端(无 answerTask)同样触发解析", async () => {
+  const startSec = Math.floor((NOW_MS - 7 * 86_400_000) / 1000);
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: true, startUnix: startSec, endUnix: Math.floor(NOW_MS / 1000), matchedText: "最近一周" }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "一周支出", displayText: "一周支出", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-legacy", question: "最近一周花了多少钱" });
+  // 旧客户端快照：顶层无 answerTask 键
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("最近一周花了多少钱") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.taskRange.start, startSec, "旧客户端问句时间同样冻结");
 });
