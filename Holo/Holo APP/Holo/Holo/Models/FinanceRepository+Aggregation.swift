@@ -153,6 +153,10 @@ extension FinanceRepository {
 
         // 按一级分类聚合（如果是二级分类则归入父分类）
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
+        // 父一级不在活分类缓存（软删/悬空）的孤儿子分类：会在此冒充一级混入饼图
+        // 第一层。CategoryOrphanRepair 负责把数据拉回正常态，这里留痕供异常排查，
+        // 按分类去重避免热路径刷屏。
+        var orphanFallbackCategoryNames: Set<String> = []
         for tx in filtered {
             guard let txCategory = tx.category else { continue }
             // 获取一级分类
@@ -164,6 +168,7 @@ extension FinanceRepository {
                 if let parent = categoryCache[parentId] {
                     topCategory = parent
                 } else {
+                    orphanFallbackCategoryNames.insert(txCategory.name ?? "-")
                     topCategory = txCategory
                 }
             } else {
@@ -189,6 +194,12 @@ extension FinanceRepository {
                 transactionCount: value.count
             )
         }.sorted { $0.amount > $1.amount }
+
+        if !orphanFallbackCategoryNames.isEmpty {
+            NSLog("统计分析：孤儿子分类冒充一级 %d 个（%@），等待 CategoryOrphanRepair 修复数据",
+                  orphanFallbackCategoryNames.count,
+                  orphanFallbackCategoryNames.sorted().joined(separator: "、"))
+        }
 
         return aggregations
     }

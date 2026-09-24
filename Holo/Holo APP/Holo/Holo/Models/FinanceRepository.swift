@@ -123,6 +123,20 @@ class FinanceRepository {
     /// 靠它区分「没在跑 / 全组等同步身份 / 全组内容冲突」三种卡点。
     nonisolated private func runRepairPass(on bgContext: NSManagedObjectContext) {
         SeedRevivalRepair.repairIfNeeded(context: bgContext)
+        do {
+            let orphanResult = try CategoryOrphanRepair.repair(in: bgContext)
+            if orphanResult.restoredParents > 0 || orphanResult.danglingChildren > 0 {
+                NSLog("孤儿分类修复：联动恢复父一级 %d，悬空子分类 %d（悬空项需人工排查同步链）",
+                      orphanResult.restoredParents, orphanResult.danglingChildren)
+                if orphanResult.restoredParents > 0 {
+                    Task { @MainActor in
+                        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                    }
+                }
+            }
+        } catch {
+            NSLog("孤儿分类修复未保存：%@", error.localizedDescription)
+        }
         guard let cloudContainer = CoreDataStack.shared.persistentContainer as? NSPersistentCloudKitContainer else { return }
         do {
             let result = try FinanceDuplicateRepair.repair(in: bgContext) { objectID in

@@ -313,6 +313,7 @@
 		CD23808745B823D403E40BF5 /* HoloMemoryLowConfirmationBaselineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C83EA8B50350F92FC5B2DE /* HoloMemoryLowConfirmationBaselineTests.swift */; };
 		CDB1A12F6A4C1E9D2B00002 /* CategoryDeletionPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */; };
 		CDC1A12F6A4C1E9D2B00002 /* CategoryDeletionIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */; };
+		C0A11F0000000000000002 /* CategoryOrphanRepairTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A11F0000000000000001 /* CategoryOrphanRepairTests.swift */; };
 		CE8EA9314BCBBF4B8B250B2F /* HoloObserverTriggerPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6087EBD1695BA82B1E75143 /* HoloObserverTriggerPolicyTests.swift */; };
 		D0610E492DB85A4243D32A08 /* GoalWorkshopStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E327032994706FD4FC11CD /* GoalWorkshopStateTests.swift */; };
 		D0ED1557A1919415F23F2245 /* HoloProjectToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB210CE9AF03AFD0A87E2C06 /* HoloProjectToolTests.swift */; };
@@ -736,6 +737,7 @@
 		CD6240A5119CB2141BD12956 /* GoalWorkshopCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalWorkshopCoordinatorTests.swift; sourceTree = "<group>"; };
 		CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryDeletionPolicyStandaloneTests.swift; sourceTree = "<group>"; };
 		CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryDeletionIntegrationTests.swift; sourceTree = "<group>"; };
+		C0A11F0000000000000001 /* CategoryOrphanRepairTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryOrphanRepairTests.swift; sourceTree = "<group>"; };
 		D531892A7D014FFC9E0B398D /* TimelineAxisLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineAxisLayoutTests.swift; sourceTree = "<group>"; };
 		DBB9FD65AF0381026EDE40C0 /* StandaloneExecutableBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StandaloneExecutableBridgeTests.swift; sourceTree = "<group>"; };
 		DD170000000000000000A101 /* AICrashDeviceReproUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AICrashDeviceReproUITests.swift; sourceTree = "<group>"; };
@@ -999,6 +1001,7 @@
 				B71FE0A12F6A4C1E9D2D0001 /* HighlightDetectorBatchTests.swift */,
 				AA1E5A12F6A4C1E9D2B0001 /* NewUserActivationStateTests.swift */,
 				CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */,
+				C0A11F0000000000000001 /* CategoryOrphanRepairTests.swift */,
 				CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */,
 				056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */,
 				A17F5D3E8B4C21906FDAE743 /* HealthWorkoutTests.swift */,
@@ -1785,6 +1788,7 @@
 				B71FE0A12F6A4C1E9D2D0002 /* HighlightDetectorBatchTests.swift in Sources */,
 				AA1E5A12F6A4C1E9D2B0002 /* NewUserActivationStateTests.swift in Sources */,
 				CDC1A12F6A4C1E9D2B00002 /* CategoryDeletionIntegrationTests.swift in Sources */,
+				C0A11F0000000000000002 /* CategoryOrphanRepairTests.swift in Sources */,
 				CDB1A12F6A4C1E9D2B00002 /* CategoryDeletionPolicyStandaloneTests.swift in Sources */,
 				8ED2CE35A1B2F530A03B4DCC /* HealthDashboardStateTests.swift in Sources */,
 				B3E84C21906FDAE743A17F5D1 /* HealthWorkoutTests.swift in Sources */,

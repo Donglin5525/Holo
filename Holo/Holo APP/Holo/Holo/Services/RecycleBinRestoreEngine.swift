@@ -12,7 +12,7 @@
 //  - 疑似重复默认跳过（保留现有数据），预览页可强制恢复。
 //
 //  联动规则：恢复子对象时若其同模块父对象仍处于软删状态（如交易的账户、
-//  打卡记录的习惯、任务的清单），一并恢复父对象。
+//  打卡记录的习惯、任务的清单、二级分类的一级分组），一并恢复父对象。
 //
 
 import Foundation
@@ -233,10 +233,23 @@ extension RecycleBinService {
         case let task as TodoTask:
             // 清单为容器（同模块），联动恢复；goal/sourceThought 跨模块不联动（查询层已过滤兜底）
             restoreIfDeleted(task.list)
+        case let category as Category:
+            // 二级分类恢复时父一级必须一起活：留「活子+死父」孤儿会让二级分类
+            // 在统计分析聚合中冒充一级，混入饼图第一层。分类父引用是 parentId
+            // (UUID) 字段而非托管关系，需按 id 查父行。
+            restoreIfDeleted(parentCategory(of: category, in: context))
         default:
             break
         }
         return restored
+    }
+
+    private static func parentCategory(of category: Category, in context: NSManagedObjectContext) -> NSManagedObject? {
+        guard let parentId = category.parentId else { return nil }
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Category")
+        request.predicate = NSPredicate(format: "id == %@", parentId as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
     }
 
     // MARK: 内部工具
