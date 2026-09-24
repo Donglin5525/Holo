@@ -34,6 +34,7 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
             case taskDetail
             case todayAgenda
             case todayTaskSection
+            case matterExecution
         }
 
         /// 发起入口（banner 语义与 Matter 事件溯源用）
@@ -42,7 +43,35 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
         let triggerCheckItemID: UUID?
         /// 该子任务触发前的原勾选状态（撤回恢复用）
         let triggerCheckItemWasChecked: Bool
+        /// 分步推进合并提交意图（最后一步 + 原任务同一提交；规格 §8.2）
+        struct ExecutionIntent: Equatable {
+            let revisionID: UUID
+            let finalStepID: UUID?
+            let finalStepExpectedStateVersion: Int64?
+            let userAssertion: String?
+            let operationID: String
+            let sourceSurface: String
+        }
+        let executionIntent: ExecutionIntent?
         let startedAt: Date
+
+        init(
+            id: UUID,
+            taskID: UUID,
+            source: Source,
+            triggerCheckItemID: UUID? = nil,
+            triggerCheckItemWasChecked: Bool = false,
+            executionIntent: ExecutionIntent? = nil,
+            startedAt: Date
+        ) {
+            self.id = id
+            self.taskID = taskID
+            self.source = source
+            self.triggerCheckItemID = triggerCheckItemID
+            self.triggerCheckItemWasChecked = triggerCheckItemWasChecked
+            self.executionIntent = executionIntent
+            self.startedAt = startedAt
+        }
     }
 
     struct ConfirmedCompletion: Equatable {
@@ -127,12 +156,60 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
         }
     }
 
+    /// 请求「合并提交」：最后一步 + 原任务完成在同一撤回窗口内（规格 §8.2）。
+    /// 三秒内只是 pending UI，不提前保存；到期经统一事务再验并保存。
+    func requestExecutionCompletion(
+        taskID: UUID,
+        revisionID: UUID,
+        finalStepID: UUID?,
+        finalStepExpectedStateVersion: Int64?,
+        userAssertion: String?,
+        source: PendingCompletion.Source,
+        sourceSurface: String,
+        in repo: TodoRepository
+    ) {
+        if let current = pending {
+            if current.taskID == taskID && current.executionIntent != nil {
+                return // 同一任务已在窗口内：幂等
+            }
+            logger.log("连续完成：任务 \(current.taskID.uuidString, privacy: .public) 被显式确认，开启任务 \(taskID.uuidString, privacy: .public) 的撤回窗口")
+            confirm(current, in: repo)
+        }
+
+        guard let task = repo.findTask(by: taskID), !task.completed else {
+            logger.error("完成请求忽略：任务不存在或已完成 \(taskID.uuidString, privacy: .public)")
+            return
+        }
+
+        pending = PendingCompletion(
+            id: taskID,
+            taskID: taskID,
+            source: source,
+            executionIntent: PendingCompletion.ExecutionIntent(
+                revisionID: revisionID,
+                finalStepID: finalStepID,
+                finalStepExpectedStateVersion: finalStepExpectedStateVersion,
+                userAssertion: userAssertion,
+                operationID: UUID().uuidString,
+                sourceSurface: sourceSurface
+            ),
+            startedAt: Date()
+        )
+        cancelTimer()
+        cancelConfirmTimer = scheduleConfirm(Date().addingTimeInterval(Self.confirmDelay)) { [weak self] in
+            guard let self, let expiring = self.pending else { return }
+            self.confirm(expiring, in: repo)
+        }
+    }
+
     /// 撤回当前窗口：取消计时，不落库；恢复触发子任务的原勾选状态，其他已勾子项不动。
     func undo(in repo: TodoRepository) {
         guard let current = pending else { return }
         cancelTimer()
 
-        if let triggerID = current.triggerCheckItemID,
+        // 合并提交撤回：最终步骤与根都未提交，无需恢复任何状态（规格 §8.2）
+        if current.executionIntent == nil,
+           let triggerID = current.triggerCheckItemID,
            let task = repo.findTask(by: current.taskID),
            let item = (task.checkItems?.allObjects as? [CheckItem] ?? []).first(where: { $0.id == triggerID }) {
             do {
@@ -164,6 +241,34 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
             // 任务已被删除：关窗即可，无处落库
             logger.error("确认完成：任务已删除，关闭撤回窗口 \(completing.taskID.uuidString, privacy: .public)")
             pending = nil
+            return
+        }
+
+        // 合并提交：最后一步 + 根完成同一事务（失败显示未完成状态并可重试，规格 §8.2）
+        if let intent = completing.executionIntent {
+            do {
+                try HoloTaskExecutionService.shared.requestCompleteOutcome(
+                    taskID: completing.taskID,
+                    revisionID: intent.revisionID,
+                    finalStepID: intent.finalStepID,
+                    finalStepExpectedStateVersion: intent.finalStepExpectedStateVersion,
+                    userAssertion: intent.userAssertion,
+                    operationID: intent.operationID,
+                    sourceSurface: intent.sourceSurface,
+                    in: repo
+                )
+                pending = nil
+                lastConfirmed = ConfirmedCompletion(
+                    taskID: completing.taskID,
+                    source: completing.source,
+                    generatedNextOccurrence: false,
+                    confirmedAt: Date()
+                )
+            } catch {
+                pending = nil
+                lastFailure = (taskID: completing.taskID, message: error.localizedDescription)
+                logger.error("合并提交确认失败: \(error.localizedDescription, privacy: .public)")
+            }
             return
         }
 

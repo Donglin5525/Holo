@@ -56,6 +56,8 @@ const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "mode
 // 想法正文类 purpose（隐私方案 §2.5）：调用方只向日志组件传元数据摘要，
 // 不把 messages/正文传进去；adminLogStore 另有 purpose 级强制白名单双保险。
 const THOUGHT_CONTENT_PURPOSES = new Set([
+  // 任务分步推进（2026-09-25 实施规格 §11.4）：请求含任务正文快照与障碍描述，metadata-only
+  "matter_execution_plan",
   "thought_organization",
   "thought_tag_convergence",
   "thought_task_extraction",
@@ -2155,6 +2157,8 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   // Matter 对账：用户交互路径，归 chat 池（route 另有独立限流桶与 maxTokens，成本独立统计）。
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;
+  // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发，归 chat 额度池
+  if (purpose === "matter_execution_plan") return QUOTA_TYPES.chat;
   // 目标共创：产品决策（东林 2026-09-19 拍板）不占对话额度、免费用户全量开放。
   // 共创由用户主动创建、iOS 端每会话有模型请求预算保险丝，成本可控；
   // 返回 null = 不进额度预约/扣减，仅保留 route 独立限流桶兜量（同 personal_context_extraction 模式）。

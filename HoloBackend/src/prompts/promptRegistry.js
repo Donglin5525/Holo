@@ -55,6 +55,8 @@ const PROMPT_VERSIONS = {
   matter_reconciliation: 3,
   // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版
   goal_workshop: 1,
+  // 任务分步推进提案（2026-09-25 实施规格 §6.4）：proposal/clarification/cannotHelp 契约首版
+  matter_execution_plan: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

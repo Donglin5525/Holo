@@ -477,7 +477,7 @@ class TodoRepository: ObservableObject {
     /// 切换任务完成状态
     @discardableResult
     func toggleTaskCompletion(_ task: TodoTask) throws -> Bool {
-        let becameCompleted = try TodoCompletionCore.toggle(task, in: context)
+        let becameCompleted = try TodoCompletionCore.toggle(task, in: context, sourceSurface: "app.repository")
         loadActiveTasks()
         notifyDataChange()
 
@@ -492,7 +492,7 @@ class TodoRepository: ObservableObject {
 
     /// 完成任务
     func completeTask(_ task: TodoTask) throws {
-        try TodoCompletionCore.complete(task, in: context)
+        try TodoCompletionCore.complete(task, in: context, sourceSurface: "app.repository")
         loadActiveTasks()
         notifyDataChange()
         notifyTaskChange(.completed, taskId: task.id)
@@ -581,6 +581,8 @@ class TodoRepository: ObservableObject {
         let taskId = task.id
         TodoNotificationService.shared.removeReminders(for: task)
         deleteAllAttachmentFiles(for: task)
+        // 分步推进数据随真实归属清理（规格 §9.3）
+        HoloTaskExecutionRepository(context: context).purgeExecutionData(taskID: taskId)
         context.delete(task)
         try context.save()
         loadActiveTasks()
@@ -898,6 +900,7 @@ class TodoRepository: ObservableObject {
         let trashed = getTrashedTasks()
         let taskIds = trashed.map { $0.id }
         for task in trashed {
+            HoloTaskExecutionRepository(context: context).purgeExecutionData(taskID: task.id)
             context.delete(task)
         }
         try context.save()

@@ -180,12 +180,20 @@ struct MatterDetailView: View {
         Group {
             if let next {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(verbatim: "下一步")
+                    Text(verbatim: "下一步 · \(next.title)")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
-                    Text(next.title)
-                        .font(.body.weight(.medium))
                         .fixedSize(horizontal: false, vertical: true)
+                    // 分步推进在原卡内融合（2026-09-25 实施规格 §4.1）：
+                    // 未采纳=帮我拆开入口；已采纳=一个动作+一次点击。
+                    // 生成步骤不新增 TodoTask、不进 Matter 分母（E01/E04 锁定）。
+                    MatterExecutionContent(
+                        taskID: next.id,
+                        repository: TodoRepository.shared,
+                        originMatterID: matterID,
+                        sourceSurface: "matter",
+                        onDiscuss: { onDiscuss?(matterID) }
+                    )
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -287,9 +295,25 @@ struct MatterDetailView: View {
     }
 
     /// 计划行完成/撤销：走 Todo 域真实对象（INV-08 真实 ID），广播后本页即时重算。
+    /// 完成报错不再吞（2026-09-25 实施规格 §8.4-1）：分步接管任务走统一完成语义。
     private func v2Toggle(_ planTask: MatterPlanQuery.PlanTask) {
         guard let task = repository.todoTask(id: planTask.id) else { return }
-        try? TodoRepository.shared.toggleTaskCompletion(task)
+        do {
+            if task.isExecutionManaged && !task.completed {
+                // 已启用分步：直接完成 = 用户明确断言原结果（清单全勾不再自动完成根）
+                try HoloTaskExecutionService.shared.completeRootDirectly(
+                    taskID: task.id,
+                    sourceSurface: "matter.planRow",
+                    operationID: UUID().uuidString,
+                    in: TodoRepository.shared
+                )
+            } else {
+                // 普通任务或取消完成：原逻辑（重开保留步骤历史）
+                try TodoRepository.shared.toggleTaskCompletion(task)
+            }
+        } catch {
+            NSLog("[MatterDetail] 计划行完成失败: \(error.localizedDescription)")
+        }
     }
 
     // MARK: ① 头部

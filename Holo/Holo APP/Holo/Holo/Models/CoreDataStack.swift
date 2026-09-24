@@ -175,6 +175,8 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createRecycleBinEntities())
         // Matter「进行中的事」四实体（ID 逻辑外键、无跨域关系）
         entities.append(contentsOf: createMatterEntities())
+        // 任务「分步推进」三实体（ID 逻辑外键、无跨域关系；2026-09-25 实施规格 §7.2）
+        entities.append(contentsOf: createTaskExecutionEntities())
         // 目标共创会话与决策版本（ID 逻辑外键；payload 版本化信封）
         entities.append(contentsOf: createGoalWorkshopEntities())
         model.entities = entities

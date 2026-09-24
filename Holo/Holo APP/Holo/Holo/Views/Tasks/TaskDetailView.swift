@@ -245,6 +245,28 @@ struct TaskDetailView: View {
                         VStack(spacing: HoloSpacing.lg) {
                             titleSection
 
+                            // 分步推进（2026-09-25 实施规格 §4.7）：与 Matter 下一步同组件同状态；
+                            // 未采纳时展示「帮我拆开」入口，已采纳展示当前动作
+                            if let task = existingTask, !task.completed,
+                               HoloTaskExecutionRolloutPolicy.entryEnabled || task.isExecutionManaged {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(verbatim: "一步步做")
+                                        .font(.caption.weight(.bold))
+                                        .tracking(1)
+                                        .foregroundStyle(.secondary)
+                                    MatterExecutionContent(
+                                        taskID: task.id,
+                                        repository: repository,
+                                        originMatterID: nil,
+                                        sourceSurface: "taskDetail"
+                                    )
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(.tertiarySystemGroupedBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
+
                             // 来源想法紧跟标题：想法转来的任务标题常被改写，
                             // 原话是高频查看项，不能压在属性设置之后
                             if let thought = existingTask?.sourceThought {
@@ -1076,9 +1098,14 @@ struct TaskDetailView: View {
 
                 // 与任务卡同一条联动规则：子任务全勾 → 自动完成主任务；
                 // 已完成任务出现未勾子任务 → 自动回未完成，避免「父完成 + 子未完成」矛盾状态
+                // 分步接管任务（executionSchemaVersion>=1）禁止清单全勾隐式完成根（规格 §8.4-2）
                 let allChecked = !items.isEmpty && items.allSatisfy(\.isChecked)
-                if allChecked != task.completed {
-                    toggleCompletion(trigger: allChecked ? (checkItemID: item.id, wasChecked: wasChecked) : nil)
+                if task.allowsChecklistAutoCompletion {
+                    if allChecked != task.completed {
+                        toggleCompletion(trigger: allChecked ? (checkItemID: item.id, wasChecked: wasChecked) : nil)
+                    }
+                } else if !allChecked && task.completed {
+                    toggleCompletion(trigger: nil)
                 }
             }
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)

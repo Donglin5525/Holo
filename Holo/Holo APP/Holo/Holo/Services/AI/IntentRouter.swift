@@ -1154,7 +1154,18 @@ final class IntentRouter {
         }
 
         let task = matches[0]
-        try todoRepo.completeTask(task)
+        // 分步接管任务：聊天里的明确完成 = 用户对原结果的直接断言（规格 §8.5），
+        // 走统一根完成写来源回执；生成步骤保持真实历史不被补勾。
+        if task.isExecutionManaged {
+            try HoloTaskExecutionService.shared.completeRootDirectly(
+                taskID: task.id,
+                sourceSurface: "chat",
+                operationID: UUID().uuidString,
+                in: todoRepo
+            )
+        } else {
+            try todoRepo.completeTask(task)
+        }
         logger.info("任务已完成：\(task.title)")
         return RouteResult(
             text: "已完成任务：\(task.title)",

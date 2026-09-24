@@ -330,6 +330,18 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_MATTER_REQUESTS_PER_DAY ?? 120),
       },
     },
+    // 任务分步推进提案（2026-09-25 实施规格 §6.4）：单轮 JSON 契约，与对账同模型档位、独立 purpose/计费。
+    matter_execution_plan: {
+      provider: process.env.HOLO_TASK_EXECUTION_PROVIDER ?? process.env.HOLO_MATTER_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_TASK_EXECUTION_MODEL ?? process.env.HOLO_MATTER_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_TASK_EXECUTION_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_TASK_EXECUTION_MAX_TOKENS ?? 2000),
+      reasoningEffort: process.env.HOLO_TASK_EXECUTION_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_TASK_EXECUTION_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_TASK_EXECUTION_REQUESTS_PER_DAY ?? 80),
+      },
+    },
     // 情境向量：独立 purpose，不沿用 thought_embedding 的「正文已审核」假设（§7.2）；
     // 端点对 personal_context_embedding 强制先过 moderation。
     personal_context_embedding: {

@@ -308,6 +308,44 @@ class TodoNotificationService: NSObject, ObservableObject {
         try await UNUserNotificationCenter.current().add(request)
     }
 
+    // MARK: - Execution Review Reminder（分步推进等待检查，2026-09-25 实施规格 §4.5）
+
+    /// 等待检查提醒：到点只提示「可以检查一下」，不认定事情已完成。
+    /// 标识 = <taskID>-executionReview-<stepID>：与任务提醒同前缀族，
+    /// 任务完成/删除时现有 cancelReminders 前缀过滤会一并清理（操作重放不重复安排：add 同 id 覆盖）。
+    func scheduleExecutionReviewReminder(taskID: UUID, stepID: UUID, fireAt: Date, reason: String) async {
+        guard isAuthorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "可以检查一下")
+        content.body = reason.isEmpty
+            ? String(localized: "之前在等的事，看看有没有进展")
+            : String(localized: "之前在等「\(reason)」，看看有没有进展")
+        content.sound = .default
+        content.userInfo = [
+            "executionTaskID": taskID.uuidString,
+            "executionStepID": stepID.uuidString,
+        ]
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "\(taskID.uuidString)-executionReview-\(stepID.uuidString)",
+            content: content,
+            trigger: trigger
+        )
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+        } catch {
+            Self.logger.error("等待检查提醒创建失败：\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// 恢复/改期时取消等待检查提醒
+    func cancelExecutionReviewReminder(taskID: UUID, stepID: UUID) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["\(taskID.uuidString)-executionReview-\(stepID.uuidString)"]
+        )
+    }
+
     // MARK: - Cancel Notifications
 
     /// 取消任务的所有提醒

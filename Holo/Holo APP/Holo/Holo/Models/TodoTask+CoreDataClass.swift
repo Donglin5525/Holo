@@ -82,6 +82,15 @@ class TodoTask: NSManagedObject {
     /// 选中文字转任务时，被选中的文字原文快照。用于正文 ✅ 标记反向定位。
     /// nil = 非选中转化（整篇转化或纪念日生成等）。
     @NSManaged var sourceTextSnippet: String?
+
+    // MARK: - Execution（分步推进兼容字段，2026-09-25 实施规格 §7.2-A）
+
+    /// 0=普通任务（原有完成语义）；1=分步执行模型接管（清单全勾不再自动完成根）。
+    /// 数据语义由此字段固定，不随灰度 flag 改变。
+    @NSManaged var executionSchemaVersion: Int16
+
+    /// 本地快速定位当前有效版本的提示指针；完整版本选择仍需验证版本链
+    @NSManaged var activeExecutionRevisionID: UUID?
 }
 
 // MARK: - Core Data Generated Accessors

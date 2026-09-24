@@ -313,6 +313,23 @@ extension CoreDataStack {
         taskSourceTextSnippet.isOptional = true
         todoTaskAttributes.append(taskSourceTextSnippet)
 
+        // 分步推进兼容字段（2026-09-25 实施规格 §7.2-A）：
+        // executionSchemaVersion=1 表示该任务完成策略由执行模型接管（清单全勾不再自动完成根）。
+        // 数据语义由此字段固定，不随灰度 flag 改变（规格 §9.4）。
+        let taskExecutionSchemaVersion = NSAttributeDescription()
+        taskExecutionSchemaVersion.name = "executionSchemaVersion"
+        taskExecutionSchemaVersion.attributeType = .integer16AttributeType
+        taskExecutionSchemaVersion.isOptional = false
+        taskExecutionSchemaVersion.defaultValue = 0
+        todoTaskAttributes.append(taskExecutionSchemaVersion)
+
+        // 本地快速定位当前有效版本的提示指针；完整版本选择仍需验证版本链（规格 §7.2-A）
+        let taskActiveExecutionRevisionID = NSAttributeDescription()
+        taskActiveExecutionRevisionID.name = "activeExecutionRevisionID"
+        taskActiveExecutionRevisionID.attributeType = .UUIDAttributeType
+        taskActiveExecutionRevisionID.isOptional = true
+        todoTaskAttributes.append(taskActiveExecutionRevisionID)
+
         // MARK: - TodoTag Entity
         // 待办标签实体
         let todoTagEntity = NSEntityDescription()

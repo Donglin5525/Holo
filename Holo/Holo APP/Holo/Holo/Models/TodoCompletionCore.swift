@@ -17,7 +17,11 @@ enum TodoCompletionCore {
     /// 切换任务完成状态（纯数据库部分）
     /// - Returns: 切换后的完成状态
     @discardableResult
-    static func toggle(_ task: TodoTask, in context: NSManagedObjectContext) throws -> Bool {
+    static func toggle(
+        _ task: TodoTask,
+        in context: NSManagedObjectContext,
+        sourceSurface: String = "unspecified"
+    ) throws -> Bool {
         task.completed.toggle()
         if task.completed {
             task.completedAt = Date()
@@ -26,17 +30,45 @@ enum TodoCompletionCore {
             task.completedAt = nil
         }
         task.updatedAt = Date()
+        writeManagedRootReceipt(
+            task: task,
+            in: context,
+            command: task.completed ? "toggleRoot.complete" : "toggleRoot.reopen",
+            sourceSurface: sourceSurface
+        )
         try context.save()
         return task.completed
     }
 
     /// 完成任务（纯数据库部分）
-    static func complete(_ task: TodoTask, in context: NSManagedObjectContext) throws {
+    /// - Parameters:
+    ///   - saveImmediately: false = 只改状态不落库，由调用方在更大事务里统一 save
+    ///     （分步推进「最终步骤+根完成」原子提交，2026-09-25 实施规格 §8.2）
+    ///   - sourceSurface: 完成来源（回执审计；App/Widget/通知各自传值）
+    ///   - outcomeAssertion: 用户对原结果的明确断言摘要（可空）
+    static func complete(
+        _ task: TodoTask,
+        in context: NSManagedObjectContext,
+        saveImmediately: Bool = true,
+        sourceSurface: String = "unspecified",
+        operationID: String? = nil,
+        outcomeAssertion: String? = nil
+    ) throws {
         task.completed = true
         task.completedAt = Date()
         task.updatedAt = Date()
         checkOffAllItems(of: task)
-        try context.save()
+        writeManagedRootReceipt(
+            task: task,
+            in: context,
+            command: "completeRoot",
+            sourceSurface: sourceSurface,
+            operationID: operationID,
+            outcomeAssertion: outcomeAssertion
+        )
+        if saveImmediately {
+            try context.save()
+        }
     }
 
     /// 取消完成任务（纯数据库部分）
@@ -97,6 +129,30 @@ enum TodoCompletionCore {
         for item in items where !item.isChecked {
             item.isChecked = true
         }
+    }
+
+    /// 分步接管任务（executionSchemaVersion >= 1）的根完成最小来源回执。
+    /// 只写来源与命令，不存任务正文/用户内容（规格 §7.2-D）。
+    /// 生成步骤不受根完成影响——完成父任务不反证每个步骤都做过（规格 §3.3-4）。
+    private static func writeManagedRootReceipt(
+        task: TodoTask,
+        in context: NSManagedObjectContext,
+        command: String,
+        sourceSurface: String,
+        operationID: String? = nil,
+        outcomeAssertion: String? = nil
+    ) {
+        guard task.executionSchemaVersion >= 1 else { return }
+        guard let entity = NSEntityDescription.entity(forEntityName: "HoloTaskExecutionReceipt", in: context) else { return }
+        let receipt = HoloTaskExecutionReceipt(entity: entity, insertInto: context)
+        receipt.id = UUID()
+        receipt.operationID = operationID ?? UUID().uuidString
+        receipt.taskID = task.id
+        receipt.commandRaw = command
+        receipt.actorRaw = HoloTaskExecutionActor.user.rawValue
+        receipt.sourceSurface = sourceSurface
+        receipt.outcomeAssertion = outcomeAssertion
+        receipt.createdAt = Date()
     }
 
     // MARK: - 读操作（今日口径，自 TodoRepository 原样搬移）

@@ -104,7 +104,7 @@ struct HoloTodoToggleIntent: AppIntent {
             } else if task.repeatRule != nil {
                 _ = try TodoCompletionCore.completeRepeating(task, in: context)
             } else {
-                try TodoCompletionCore.complete(task, in: context)
+                try TodoCompletionCore.complete(task, in: context, sourceSurface: "widget")
             }
             HoloWidgetHabitTodoSnapshotWriter.refreshTodoSnapshot(context: context)
         }

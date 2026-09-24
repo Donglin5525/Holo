@@ -49,6 +49,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // Matter 对账（2026-09-11 方案 §12.3）：请求含 Matter 快照与用户消息，
   // 响应含状态变更建议——一律 metadata_only，标题/问题原文不落任何日志。
   'matter_reconciliation',
+  // 任务分步推进（2026-09-25 实施规格 §11.4）：请求含任务正文/清单/障碍原话，
+  // 响应含结果条件与步骤建议——一律 metadata_only，任务内容不落任何日志。
+  'matter_execution_plan',
   // 截图识别（2026-09-09 方案 §5.1）：请求含用户图片本体，识别完即弃，
   // 日志只留元数据（图片字节数/图型/置信度），任何情况下不落图片与正文。
   'vision_extraction',

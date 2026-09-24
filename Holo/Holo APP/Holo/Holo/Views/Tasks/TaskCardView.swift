@@ -449,13 +449,19 @@ struct TaskCardView: View {
 
             // 所有子项完成 → 通过 onToggleCompletion 走撤回流程自动完成父任务
             // 有子项未完成且父任务已完成/完成中 → 同样走回调取消或撤回
+            // 分步接管任务（executionSchemaVersion>=1）禁止清单全勾隐式完成根（规格 §8.4-2）：
+            // 完成根必须来自用户结果断言或直接完成；取消完成方向保持原语义。
             let items = checkItems
             guard !items.isEmpty else { return }
 
             let allChecked = items.allSatisfy(\.isChecked)
-            if allChecked && !task.completed && !isCompleting {
-                onToggleCompletion?((checkItemID: item.id, wasChecked: wasChecked))
-            } else if !allChecked && (task.completed || isCompleting) {
+            if task.allowsChecklistAutoCompletion {
+                if allChecked && !task.completed && !isCompleting {
+                    onToggleCompletion?((checkItemID: item.id, wasChecked: wasChecked))
+                } else if !allChecked && (task.completed || isCompleting) {
+                    onToggleCompletion?(nil)
+                }
+            } else if !allChecked && task.completed {
                 onToggleCompletion?(nil)
             }
         } catch {
