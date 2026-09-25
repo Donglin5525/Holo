@@ -151,7 +151,7 @@ final class FinanceTransactionDraftResolver {
 
     // MARK: 分类解析（自 IntentRouter.matchCategory 整体搬迁，2026-09-15）
     // 链路：用户纠正学习 → AI 标准科目 → 本地自定义 + catalog 别名 → 语义兜底 → note/原始候选精确 → 待分类
-    // 函数体逐行保持搬迁时原样；语义变更必须同时过聊天识图回归与本目录单测。
+    // 语义变更必须同时过聊天识图回归与本目录单测。
 
     func matchCategory(
         primaryCategory: String?,
@@ -162,9 +162,32 @@ final class FinanceTransactionDraftResolver {
         note: String,
         type: TransactionType
     ) async throws -> Category? {
-        let categoryRepo = FinanceRepository.shared
-        let categories = try await categoryRepo.getCategories(by: type)
+        let categories = try await FinanceRepository.shared.getCategories(by: type)
+        return await matchCategory(
+            primaryCategory: primaryCategory,
+            subCategory: subCategory,
+            categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
+            note: note,
+            type: type,
+            categories: categories
+        )
+    }
 
+    /// 分类解析主体（categories 注入版）。独立出来供单测构造孤儿/一级重复等
+    /// 异常库形态（2026-09-25 酸汤肥牛落待分类治理：真实库的父子挂接断裂
+    /// 曾让全部按 parentId 的子类查找失配，静默掉进「待分类」）。
+    func matchCategory(
+        primaryCategory: String?,
+        subCategory: String?,
+        categoryCandidate: String?,
+        normalizedCategoryCandidate: String?,
+        semanticCategoryHint: String?,
+        note: String,
+        type: TransactionType,
+        categories: [Category]
+    ) async -> Category? {
         let candidates = CategoryCandidateResolver.orderedCandidates(
             categoryCandidate: categoryCandidate,
             normalizedCategoryCandidate: normalizedCategoryCandidate,
@@ -190,7 +213,7 @@ final class FinanceTransactionDraftResolver {
                         $0.isTopLevel && $0.name == learned.primary && $0.type == type.rawValue
                     })
                     if let parent = parent,
-                       let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
+                       let sub = Self.subCategory(named: mealSub, under: parent, in: categories) {
                         return sub
                     }
                 }
@@ -261,16 +284,14 @@ final class FinanceTransactionDraftResolver {
                     // 餐饮类：按时间选餐段
                     let hour = Calendar.current.component(.hour, from: Date())
                     let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
-                    if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
+                    if let sub = Self.subCategory(named: mealSub, under: parent, in: categories) {
                         return sub
                     }
                 } else {
                     // 非餐饮类：用 normalizedCategoryCandidate 在该一级分类下找子类
                     if let normalized = normalizedCategoryCandidate?.trimmingCharacters(in: .whitespaces),
                        !normalized.isEmpty {
-                        if let sub = categories.first(where: {
-                            $0.parentId == parent.id && $0.name.lowercased() == normalized.lowercased()
-                        }) {
+                        if let sub = Self.subCategory(namedLower: normalized, under: parent, in: categories) {
                             return sub
                         }
                     }
@@ -302,5 +323,27 @@ final class FinanceTransactionDraftResolver {
 
         // 无法可靠匹配，返回 nil，由调用方使用「待分类」兜底
         return nil
+    }
+
+    /// 子类查找：优先按 parentId 挂接关系；挂接断裂（孤儿子类/一级分类重复导致
+    /// first 拿到的 parent 不是子类实际挂靠的那条）时退化为同名子类——
+    /// 「实体在、名字对」的库仍能落位，不静默掉进「待分类」
+    static func subCategory(named name: String, under parent: Category, in categories: [Category]) -> Category? {
+        if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == name }) {
+            return sub
+        }
+        return categories.first(where: { $0.isSubCategory && $0.name == name })
+    }
+
+    /// 同上（忽略大小写变体，供 normalizedCategoryCandidate 路径）
+    private static func subCategory(namedLower name: String, under parent: Category, in categories: [Category]) -> Category? {
+        if let sub = categories.first(where: {
+            $0.parentId == parent.id && $0.name.lowercased() == name.lowercased()
+        }) {
+            return sub
+        }
+        return categories.first(where: {
+            $0.isSubCategory && $0.name.lowercased() == name.lowercased()
+        })
     }
 }

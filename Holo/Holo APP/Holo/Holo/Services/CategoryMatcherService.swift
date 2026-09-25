@@ -210,8 +210,12 @@ class CategoryMatcherService {
         allCategories: [Category]
     ) -> Bool {
         guard let parentName = parentName(of: category, in: allCategories) else {
-            // 没有父分类（本身就是一级分类），与原始一级分类直接比较
-            return originalPrimary.lowercased() == category.name.lowercased()
+            // parentId 解析不到父实体：一级分类与原始一级直接比较；
+            // 孤儿子类（CloudKit 同步/历史恢复可致 parentId 悬空）信名字放行——
+            // 名字唯一性已由 findExactMatch 保证，此处拦截只会让「实体在、名字对」的分类全链失配
+            return category.isTopLevel
+                ? originalPrimary.lowercased() == category.name.lowercased()
+                : true
         }
         // 先尝试直接匹配
         if originalPrimary.lowercased() == parentName.lowercased() { return true }
