@@ -24,6 +24,7 @@ const PROMPT_VERSIONS = {
   thought_topic_name_v1: 1,       // v1: 候选簇≤8片段→一个主题名（不复制代表片段）
   thought_topic_summary_v1: 1,    // v1: 主题≤12片段→摘要+≤4逐字反复观点
   thought_semantic_relate_v1: 1,   // v1: 目标想法×候选主题离散判断（same_thread/related/none/insufficient + 逐字证据，无置信度）
+  thought_insight_v1: 1,           // v1: 单条笔记→观察(逐字)/推测/下一步（2026-09-24 方案 §5.1 帮我想想）
   thought_organize_a: 1,
   thought_organize_r: 1,
   thought_organize_b: 1,
