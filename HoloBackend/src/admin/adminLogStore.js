@@ -63,6 +63,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   'thought_semantic_relate_v1',
   'thought_topic_name_v1',
   'thought_topic_summary_v1',
+  // 想法按需洞察（2026-09-24 方案 §5.1）：请求含笔记原文，响应含观察/推测——
+  // 一律 metadata_only，正文与回答不落任何日志。
+  'thought_insight_v1',
   // 云端分析四通道（2026-09-10 健康域入快照拍板）：快照/回放素材含健康摘要等
   // 敏感数据，日志只允许 taskId/轮次/消息数等元数据；现状 request 本就不带内容，
   // 入清单是把口径锁死为服务器级约束——后续改代码也绕不开，健康数据不落日志。

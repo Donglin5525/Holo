@@ -413,6 +413,15 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_SUMMARY_MAX_TOKENS ?? 800),
     },
+    // 想法按需洞察（2026-09-24 方案 §5.1「帮我想想」）：单条笔记原文 →
+    // 具体问题/另一种思路/下一步探索建议，回答区分「你写过的」与「AI 推测」。
+    thought_insight_v1: {
+      provider: process.env.HOLO_THOUGHT_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_INSIGHT_TEMPERATURE ?? 0.4),
+      reasoningEffort: process.env.HOLO_THOUGHT_INSIGHT_REASONING_EFFORT ?? "low",
+      maxTokens: Number(process.env.HOLO_THOUGHT_INSIGHT_MAX_TOKENS ?? 900),
+    },
     category_pattern_induction: {
       provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
@@ -613,6 +622,24 @@ const DEFAULT_CONFIG = {
     requestLimits: {
       perMinute: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_MINUTE ?? 20),
       perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 100),
+    },
+  },
+  // 想法按需洞察（2026-09-24 方案 §5.1）：用户主动点击才发生，独立小额预算
+  thoughtInsight: {
+    enabled: process.env.HOLO_THOUGHT_INSIGHT_ENABLED !== "false",
+    privacyVerified: process.env.HOLO_THOUGHT_INSIGHT_PRIVACY_VERIFIED === "true",
+    deadlineMs: Number(process.env.HOLO_THOUGHT_INSIGHT_DEADLINE_MS ?? 45_000),
+    budgets: {
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_DAILY_MAX_CNY ?? 0.15),
+      moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_MODERATION_CNY ?? 0.0005),
+    },
+    pricing: {
+      inputPerMillionCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_OUTPUT_PRICE ?? 9),
+    },
+    requestLimits: {
+      perMinute: Number(process.env.HOLO_THOUGHT_INSIGHT_REQUESTS_PER_MINUTE ?? 10),
+      perDay: Number(process.env.HOLO_THOUGHT_INSIGHT_REQUESTS_PER_DAY ?? 50),
     },
   },
 };

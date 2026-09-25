@@ -46,6 +46,7 @@ import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudg
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
 import { createThoughtTopicInsightService } from "./thoughts/topicInsightService.js";
+import { createThoughtInsightService } from "./thoughts/thoughtInsightService.js";
 import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsightSchema.js";
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
@@ -313,6 +314,15 @@ export function createApp(overrides = {}) {
   });
 
   // 主题命名/摘要 V3（方案 §4.4/§4.5）：同预算记账类，两端点共享独立预算池
+  // 想法按需洞察（2026-09-24 方案 §5.1）：同预算记账类，独立预算池
+  const thoughtInsightService = createThoughtInsightService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
   const thoughtTopicInsightService = createThoughtTopicInsightService({
     config,
     providers,
@@ -1142,6 +1152,58 @@ export function createApp(overrides = {}) {
       }
     });
   }
+
+  // 想法按需洞察（2026-09-24 方案 §5.1「帮我想想」）：用户主动触发、
+  // 独立小额预算；隐私闸门与整理/relate 同口径（供应商留存未核实不发送真实数据）
+  const THOUGHT_INSIGHT_LIMITS = { requestBodyMaxBytes: 64 * 1024 };
+  app.post("/v1/thoughts/insight", async (context) => {
+    try {
+      if (!config.thoughtInsight?.enabled) {
+        throw new GatewayError("THOUGHT_INSIGHT_DISABLED", "Thought insight is disabled", 503);
+      }
+      const insightRoute = config.routes.thought_insight_v1;
+      const usesMockProvider = insightRoute?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtInsight.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!insightRoute) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "thought_insight_v1 route is not configured", 503);
+      }
+
+      const contentLength = Number(context.req.header("content-length") ?? 0);
+      if (contentLength > THOUGHT_INSIGHT_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${THOUGHT_INSIGHT_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+
+      const deviceId = getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_insight",
+        minuteLimit: config.thoughtInsight.requestLimits.perMinute,
+        dailyLimit: config.thoughtInsight.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const body = await readJson(context);
+      const result = await thoughtInsightService.insight({
+        deviceId,
+        subjectId: entitlement.usageSubjectId,
+        body,
+        clientSignal: context.req.raw.signal,
+      });
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
 
   app.post("/v1/asr/transcriptions", async (context) => {
     let quotaReservation = null;
