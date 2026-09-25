@@ -733,6 +733,22 @@ export function loadConfig(overrides = {}) {
         ...(overrides.thoughtTopicInsight?.requestLimits ?? {}),
       },
     },
+    thoughtInsight: {
+      ...DEFAULT_CONFIG.thoughtInsight,
+      ...overrides.thoughtInsight,
+      budgets: {
+        ...DEFAULT_CONFIG.thoughtInsight.budgets,
+        ...(overrides.thoughtInsight?.budgets ?? {}),
+      },
+      pricing: {
+        ...DEFAULT_CONFIG.thoughtInsight.pricing,
+        ...(overrides.thoughtInsight?.pricing ?? {}),
+      },
+      requestLimits: {
+        ...DEFAULT_CONFIG.thoughtInsight.requestLimits,
+        ...(overrides.thoughtInsight?.requestLimits ?? {}),
+      },
+    },
     thoughtOrganize: {
       ...DEFAULT_CONFIG.thoughtOrganize,
       ...overrides.thoughtOrganize,
