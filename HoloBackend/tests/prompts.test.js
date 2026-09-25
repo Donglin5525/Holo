@@ -145,7 +145,9 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   // 语境段后为 ~5729（红线 5710→5750），结构变更允许重划红线并升版本。
   // 1cc30301b 财务项目一期补项目路由后为 ~6141（红线 5950→6200，当时漏调、发版闸门补记）。
   // 红线 6750（v31 多提醒槽位+绝对日期规则扩容 ~6630 后上调；v30 时为 6200）：功能扩容允许重划红线并升版本。
-  assert.ok(prompt.content.length < 6750, `prompt 长度 ${prompt.content.length} 超过 6750`);
+  // 红线 8000（2026-09-25 AI 直选科目：记账意图必填 primary/subCategory + 标准收支科目表 ~7841 后上调）：
+  // 科目表静态前置、前缀缓存友好，直选失败率（菜名类）远低于原「候选词+hint」两段式。
+  assert.ok(prompt.content.length < 8000, `prompt 长度 ${prompt.content.length} 超过 8000`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红
