@@ -15,11 +15,26 @@ struct ContextPlanRunStatusView: View {
     var failureMessage: String? = nil
     var onStop: (() -> Void)? = nil
 
+    /// 运行中图标的呼吸相位（repeatForever 自_reverse，见 body）
+    @State private var breathing = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Image(systemName: iconName)
-                    .foregroundStyle(iconColor)
+                if isTerminal {
+                    Image(systemName: iconName)
+                        .foregroundStyle(iconColor)
+                } else {
+                    // 运行中：sparkles 轻呼吸（暂态卡与 ProgressView 同生命周期，播完即止）
+                    Image(systemName: iconName)
+                        .foregroundStyle(iconColor)
+                        .opacity(breathing ? 0.45 : 1)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                                breathing = true
+                            }
+                        }
+                }
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)

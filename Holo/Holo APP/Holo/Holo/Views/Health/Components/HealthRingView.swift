@@ -58,11 +58,14 @@ struct HealthRingView: View {
 struct TripleHealthRingView: View {
     let snapshot: HealthDashboardSnapshot
 
+    /// 出场扫开：页面出现后三环从 0 依次扫到当日进度（外环先动，错峰 0.08s）
+    @State private var appeared = false
+
     var body: some View {
         ZStack {
-            ring(for: snapshot.steps, size: 168, lineWidth: 13)
-            ring(for: snapshot.sleep, size: 124, lineWidth: 13)
-            ring(for: snapshot.standOrActivity, size: 80, lineWidth: 13)
+            ring(for: snapshot.steps, size: 168, lineWidth: 13, sweepDelay: 0)
+            ring(for: snapshot.sleep, size: 124, lineWidth: 13, sweepDelay: 0.08)
+            ring(for: snapshot.standOrActivity, size: 80, lineWidth: 13, sweepDelay: 0.16)
 
             Circle()
                 .fill(Color.holoCardBackground)
@@ -76,6 +79,8 @@ struct TripleHealthRingView: View {
                 Text(snapshot.bodyScoreText)
                     .font(.system(size: snapshot.bodyScore == nil ? 12 : 24, weight: .bold, design: .rounded))
                     .foregroundColor(.holoTextPrimary)
+                    .contentTransition(.numericText())
+                    .animation(HoloAnimation.smooth, value: snapshot.bodyScore)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
 
@@ -86,22 +91,26 @@ struct TripleHealthRingView: View {
             .frame(width: 52)
         }
         .frame(width: 168, height: 168)
+        .onAppear {
+            appeared = true
+        }
     }
 
-    private func ring(for metric: HealthMetricSnapshot, size: CGFloat, lineWidth: CGFloat) -> some View {
+    private func ring(for metric: HealthMetricSnapshot, size: CGFloat, lineWidth: CGFloat, sweepDelay: Double) -> some View {
         ZStack {
             Circle()
                 .stroke(Color.holoDivider, lineWidth: lineWidth)
                 .frame(width: size, height: size)
 
             Circle()
-                .trim(from: 0, to: metric.progress)
+                .trim(from: 0, to: appeared ? metric.progress : 0)
                 .stroke(
                     metric.type.color,
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .frame(width: size, height: size)
                 .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.8).delay(sweepDelay), value: appeared)
                 .animation(.easeInOut(duration: 0.45), value: metric.progress)
         }
     }

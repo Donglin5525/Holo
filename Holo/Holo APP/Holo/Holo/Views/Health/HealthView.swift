@@ -26,6 +26,8 @@ struct HealthView: View {
     @State private var trendMetric: HealthMetricType = .sleep
     @State private var isRefreshing = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    /// 切天内容滑入方向：切明天从右进、切昨天从左进（switchDay 里更新）
+    @State private var dayContentEdge: Edge = .leading
     /// 左右滑动切天的实时手势标记：快速轻扫时点击回调需同步读取，防止误触进详情/弹层
     @State private var daySwipeState = DaySwipeGestureState()
     @State private var dayData = HealthDayData()
@@ -171,6 +173,12 @@ struct HealthView: View {
                             }
                         }
                     }
+                    // 切天内容方向性滑入：id 随日期切换换身份触发过渡（滚动位置同步重置回顶部）
+                    .id(selectedDate)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: dayContentEdge).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                     .padding(HoloSpacing.md)
                 }
             }
@@ -785,6 +793,8 @@ struct HealthView: View {
     /// 左右滑动切天：与日期胶囊共用同一条边界规则（不越过今天）
     private func switchDay(forward: Bool) {
         guard let newDate = HealthDateNavigator.steppedDate(from: selectedDate, forward: forward) else { return }
+        // 内容方向性过渡：切到明天新内容从右缘进，切到昨天从左缘进（与滑动方向一致）
+        dayContentEdge = forward ? .trailing : .leading
         withAnimation(HoloAnimation.standard) {
             selectedDate = newDate
         }

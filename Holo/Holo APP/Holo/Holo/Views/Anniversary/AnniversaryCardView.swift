@@ -239,6 +239,8 @@ struct AnniversaryHeroCard: View {
                 Text("\(anniversary.displayDays)")
                     .font(.system(size: 54, weight: .heavy, design: .rounded))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(HoloAnimation.smooth, value: anniversary.displayDays)
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)

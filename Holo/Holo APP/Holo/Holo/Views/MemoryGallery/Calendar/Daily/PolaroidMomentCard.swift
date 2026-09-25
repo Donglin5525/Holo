@@ -17,6 +17,8 @@ struct PolaroidMomentCard: View {
     @State private var topIndex: Int = 0
     @State private var dragX: CGFloat = 0
     @State private var decodedImages: [UIImage?] = []
+    /// 出场落定：像照片「拍」上册页——略小、略斜、透明，弹簧回正
+    @State private var settled = false
 
     init(moment: DailyReplayMoment, onSelect: @escaping () -> Void) {
         self.moment = moment
@@ -87,10 +89,18 @@ struct PolaroidMomentCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 6)
+        .scaleEffect(settled ? 1 : 0.92)
+        .rotationEffect(.degrees(settled ? 0 : -3))
+        .opacity(settled ? 1 : 0)
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .sensoryFeedback(.selection, trigger: topIndex)
         .onAppear {
+            if !settled {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.04)) {
+                    settled = true
+                }
+            }
             guard decodedImages.isEmpty, !photos.isEmpty else { return }
             // 解码放后台：日历一天多张拍立得同时出现时，主线程逐张解原图会掉帧（体检 R0-8）
             let data = photos

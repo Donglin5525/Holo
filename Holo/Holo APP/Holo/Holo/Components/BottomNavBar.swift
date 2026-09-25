@@ -102,14 +102,15 @@ struct BottomNavBar: View {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
-                
+                    .symbolEffect(.bounce, value: isSelected)
+
                 Text(title)
                     .font(.holoTinyLabel)
                     .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
             }
         }
     }
-    
+
     /// 中央 AI 按钮
     private var centerAIButton: some View {
         VStack(spacing: 6) {
@@ -134,10 +135,12 @@ struct BottomNavBar: View {
                             .foregroundColor(.white)
                     }
 
-                    // 小黄点指示器：仅在首页时显示
+                    // 小黄点指示器：仅在首页时显示（出现/消失带轻微缩放过渡）
                     Circle()
                         .fill(selectedTab == .ai ? Color.holoChart8 : .clear)
                         .frame(width: 6, height: 6)
+                        .scaleEffect(selectedTab == .ai ? 1 : 0.3)
+                        .animation(HoloAnimation.snappy, value: selectedTab)
                 }
             }
         }
