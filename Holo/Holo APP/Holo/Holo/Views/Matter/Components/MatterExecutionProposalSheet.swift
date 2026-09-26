@@ -54,6 +54,7 @@ struct MatterExecutionProposalSheet: View {
     var body: some View {
         NavigationStack {
             content
+                .background(Color.holoBackground)
                 .navigationTitle(initialObstacle == nil ? String(localized: "帮我拆开") : String(localized: "拆小一点"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -74,6 +75,7 @@ struct MatterExecutionProposalSheet: View {
                     }
                 }
         }
+        .tint(Color.holoPrimary)
         .task {
             if phase == .generating, stepDrafts.isEmpty, clarification == nil {
                 await generate(userAnswer: nil)
@@ -131,6 +133,7 @@ struct MatterExecutionProposalSheet: View {
                 .disabled(clarificationAnswer.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: 生成中（可取消；原任务不受影响）
@@ -212,11 +215,12 @@ struct MatterExecutionProposalSheet: View {
             }
 
             Section {
-                Text(String(localized: "采纳后：原任务数不变，步骤不会出现在今天列表；「这步好了」可随时撤回。"))
+                Text(String(localized: "步骤不进今天列表，「这步好了」随时可撤回"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+        .scrollContentBackground(.hidden)
     }
 
     private var manualStepsSection: some View {
@@ -242,10 +246,10 @@ struct MatterExecutionProposalSheet: View {
 
     private var aiStepsSection: some View {
         Section(String(localized: "步骤")) {
-            ForEach(Array(stepDrafts.enumerated()), id: \.element.id) { index, draft in
+            ForEach($stepDrafts) { $draft in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        if index == 0 {
+                        if draft.id == stepDrafts.first?.id {
                             Text(String(localized: "先做"))
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.white)
@@ -253,9 +257,8 @@ struct MatterExecutionProposalSheet: View {
                                 .padding(.vertical, 2)
                                 .background(Capsule().fill(Color.holoPrimary))
                         }
-                        Text(verbatim: draft.action)
+                        TextField(String(localized: "步骤"), text: $draft.action)
                             .font(.subheadline)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                     Text(verbatim: "做到：\(draft.doneWhen)")
                         .font(.caption)
@@ -263,19 +266,7 @@ struct MatterExecutionProposalSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(index + 1)，\(draft.action)")
-            }
-            if initialObstacle == nil {
-                // 首次拆解可微调步骤文字（规格 §4.2：结果条件与计划一起确认）
-                ForEach($stepDrafts) { $draft in
-                    VStack(alignment: .leading, spacing: 4) {
-                        TextField(String(localized: "步骤"), text: $draft.action)
-                            .font(.caption)
-                        TextField(String(localized: "完成条件"), text: $draft.doneWhen)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                .accessibilityLabel(draft.action)
             }
         }
     }

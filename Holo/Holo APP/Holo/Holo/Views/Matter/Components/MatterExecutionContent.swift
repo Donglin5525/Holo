@@ -49,6 +49,7 @@ struct MatterExecutionContent: View {
                 EmptyView()
             }
         }
+        .tint(Color.holoPrimary)
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             reloadToken += 1
         }
@@ -534,6 +535,8 @@ struct MatterExecutionStepsSheet: View {
                             }
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    .background(Color.holoBackground)
                 } else {
                     Text(String(localized: "计划不存在"))
                         .foregroundStyle(.secondary)
@@ -547,6 +550,7 @@ struct MatterExecutionStepsSheet: View {
                 }
             }
         }
+        .tint(Color.holoPrimary)
     }
 
     @ViewBuilder
@@ -589,6 +593,8 @@ struct MatterExecutionWaitingSheet: View {
                     Toggle(String(localized: "明天提醒我看一眼"), isOn: $remindTomorrow)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoBackground)
             .navigationTitle(String(localized: "先等一下"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -604,6 +610,7 @@ struct MatterExecutionWaitingSheet: View {
                 }
             }
         }
+        .tint(Color.holoPrimary)
     }
 
     private func saveWaiting() {
