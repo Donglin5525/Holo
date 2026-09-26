@@ -26,20 +26,12 @@ nonisolated enum HoloTaskExecutionRolloutPolicy {
 
     private static let defaults = UserDefaults.standard
 
-    /// 首版默认：DEBUG 构建与内部灰度账号开启，正式全量待东林 P5 拍板。
-    private static var internalEnabledDefault: Bool {
-        #if DEBUG
-        return true
-        #else
-        return defaults.bool(forKey: "holoInternalGrayscaleAccount")
-        #endif
-    }
-
     static func isEnabled(_ flag: Flag) -> Bool {
         if let explicit = defaults.object(forKey: flag.rawValue) as? Bool {
             return explicit
         }
-        return internalEnabledDefault
+        // 2026-09-26 东林拍板 P5：全量默认开启；显式设置过则尊重设置（回滚=诊断页关开关）
+        return true
     }
 
     static func setEnabled(_ flag: Flag, enabled: Bool) {
