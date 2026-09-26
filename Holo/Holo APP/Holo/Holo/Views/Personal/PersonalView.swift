@@ -159,7 +159,7 @@ struct PersonalView: View {
         NavigationLink {
             HoloMembershipCenterView()
         } label: {
-            ZStack(alignment: .topTrailing) {
+            ZStack {
                 RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
                     .fill(HoloPlusTheme.darkGradient)
 
@@ -223,21 +223,6 @@ struct PersonalView: View {
                     }
                 }
                 .padding(HoloSpacing.lg)
-
-                // 「已生效」角标独立放右上角，不与标题抢一行：
-                // 系统大字号档位下标题放大后曾把同行徽章挤到文字无法渲染、
-                // 只剩底色空壳（竖条）。fixedSize 保证角标自身永不被压缩。
-                if entitlementState.isPlusActive {
-                    Text("已生效")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(HoloPlusTheme.badgeText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(HoloPlusTheme.badgeBg)
-                        .clipShape(Capsule())
-                        .fixedSize()
-                        .padding(HoloSpacing.md)
-                }
             }
             .frame(maxWidth: .infinity)
             .overlay(
