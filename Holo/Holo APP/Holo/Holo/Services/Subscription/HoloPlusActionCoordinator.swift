@@ -63,6 +63,7 @@ enum HoloPlusGateContext: Equatable {
     case naturalLanguageFinance
     case naturalLanguageTask
     case habitRetroactiveCheckIn
+    case habitPause
     case billImportAI
 
     var title: String {
@@ -91,6 +92,8 @@ enum HoloPlusGateContext: Equatable {
             return String(localized: "升级 Holo Plus，继续智能任务")
         case .habitRetroactiveCheckIn:
             return String(localized: "升级 Holo Plus，无限次补签找回断签")
+        case .habitPause:
+            return String(localized: "升级 Holo Plus，使用习惯暂停")
         case .billImportAI:
             return String(localized: "升级 Holo Plus，使用账单智能导入")
         }

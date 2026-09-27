@@ -31,6 +31,8 @@ struct HabitTileView: View {
     var onOpenDetail: (() -> Void)? = nil
     /// 长按菜单「编辑」
     var onEdit: (() -> Void)? = nil
+    /// 长按菜单「暂停习惯」（Plus 功能；无此能力的容器传 nil 隐藏）
+    var onPause: (() -> Void)? = nil
 
     // MARK: - 状态
 
@@ -649,6 +651,14 @@ struct HabitTileView: View {
                     onEdit()
                 } label: {
                     Label("编辑", systemImage: "pencil")
+                }
+            }
+
+            if let onPause {
+                Button {
+                    onPause()
+                } label: {
+                    Label("暂停", systemImage: "pause.circle")
                 }
             }
 

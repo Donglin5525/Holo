@@ -348,27 +348,32 @@ extension HabitRepository {
         return max(1, Int(round(Double(dayCount) * Double(target) / Double(periodDays))))
     }
 
+    /// 完成率分母的口径：区间天数挖掉冻结日（暂停期不拉低成绩；全历史场景从创建日到今天）
+    private func effectiveDayCount(for habit: Habit, in dateRange: ClosedRange<Date>?, calendar: Calendar) -> Int {
+        if let range = dateRange {
+            let components = calendar.dateComponents([.day], from: range.lowerBound, to: range.upperBound)
+            return max(max(components.day ?? 1, 1) + 1 - pausedDayCount(for: habit, in: range), 1)
+        }
+        let components = calendar.dateComponents([.day], from: habit.createdAt, to: Date())
+        let full = max(components.day ?? 1, 1) + 1
+        let start = calendar.startOfDay(for: habit.createdAt)
+        let today = calendar.startOfDay(for: Date())
+        return max(full - pausedDayCount(for: habit, in: start...today), 1)
+    }
+
     /// 计算打卡型习惯的完成率
     func calculateCheckInCompletionRate(for habit: Habit, in dateRange: ClosedRange<Date>?) -> Double {
         guard habit.isCheckInType else { return 0 }
 
         let calendar = Calendar.current
         let records = getRecords(for: habit, in: dateRange)
-
-        // 计算周期内的天数
-        let dayCount: Int
-        if let range = dateRange {
-            let components = calendar.dateComponents([.day], from: range.lowerBound, to: range.upperBound)
-            dayCount = max(components.day ?? 1, 1) + 1
-        } else {
-            // 全部时间：从习惯创建日期到今天
-            let components = calendar.dateComponents([.day], from: habit.createdAt, to: Date())
-            dayCount = max(components.day ?? 1, 1) + 1
-        }
+        let dayCount = effectiveDayCount(for: habit, in: dateRange, calendar: calendar)
 
         if habit.isBadHabit {
-            // 坏习惯：未打卡的天数算作成功（没有做坏习惯）
-            let checkedInCount = records.filter { $0.isCompleted }.count
+            // 坏习惯：未打卡的天数算作成功（没有做坏习惯）；冻结日的记录不计入分子（分母已挖）
+            let checkedInCount = records.filter { record in
+                record.isCompleted && !habit.isDayPaused(record.date, calendar: calendar)
+            }.count
             let controlledCount = max(dayCount - checkedInCount, 0)
             return dayCount > 0 ? Double(controlledCount) / Double(dayCount) * 100 : 0
         } else {
@@ -385,16 +390,7 @@ extension HabitRepository {
 
         let calendar = Calendar.current
         let records = getRecords(for: habit, in: dateRange)
-
-        // 计算周期内的天数
-        let dayCount: Int
-        if let range = dateRange {
-            let components = calendar.dateComponents([.day], from: range.lowerBound, to: range.upperBound)
-            dayCount = max(components.day ?? 1, 1) + 1
-        } else {
-            let components = calendar.dateComponents([.day], from: habit.createdAt, to: Date())
-            dayCount = max(components.day ?? 1, 1) + 1
-        }
+        let dayCount = effectiveDayCount(for: habit, in: dateRange, calendar: calendar)
 
         if habit.isBadHabit, let targetValue = habit.targetValueDouble {
             // 坏习惯：按天聚合值，统计未超标（值 <= 目标值）的天数 + 无记录天数
@@ -629,7 +625,8 @@ extension HabitRepository {
             cells.append(HabitStatsDayCell(
                 date: date, dayNumber: dayNumber, isInCurrentMonth: true,
                 isToday: dayStart == today,
-                hasRecord: recordDates.contains(dayStart), isOverLimit: false
+                hasRecord: recordDates.contains(dayStart), isOverLimit: false,
+                isPausedDay: habit.isDayPaused(dayStart, calendar: calendar)
             ))
         }
 
@@ -709,7 +706,8 @@ extension HabitRepository {
                 date: date, dayNumber: dayNumber, isInCurrentMonth: true,
                 isToday: dayStart == today,
                 hasRecord: hasActualRecord && !isExceeded,
-                isOverLimit: isExceeded
+                isOverLimit: isExceeded,
+                isPausedDay: habit.isDayPaused(dayStart, calendar: calendar)
             ))
         }
 
@@ -855,7 +853,9 @@ extension HabitRepository {
             record.date >= start && record.date <= today && record.isCompleted
         }.count
 
-        let expected = expectedCompletions(for: habit, inDays: days)
+        // 期望次数按有效天数折算（冻结日不计入）
+        let effectiveDays = max(days - pausedDayCount(for: habit, in: start...today), 1)
+        let expected = expectedCompletions(for: habit, inDays: effectiveDays)
 
         return HabitWindowCompletionStats(
             completedCount: min(completed, expected),

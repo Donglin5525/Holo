@@ -13,6 +13,15 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 习惯·暂停（Holo Plus 权益）——健身受伤/出差等场景让习惯「休息而不弃坑」，连续进度冻结保留，纯 iOS 无后端发版
+  - 冻结口径（东林拍板「47 天暂停 10 天回来打卡 = 48」）：暂停期间连续天数原样冻结、恢复后接着涨；实现铁律**记录优先于窗口**（暂停当天已打卡照常计数，避免「上午打卡下午暂停数字倒掉」）+ 窗口只豁免「没做」的日子（窗口外漏卡照常断，冻结≠无限豁免）+ 关窗统一到昨天（没打开 App 的日子没见过习惯回来，不算断）
+  - 统计口径：完成率/期望天数分母挖掉冻结日（暂停不拉低成绩）；统计页月历暂停日浅灰「休」标记（不红不绿）；暂停日不算补签漏卡；累计与历史记录一分不动；坏习惯暂停日不算克制也不算破戒；每周 N 次习惯整周落在暂停内则该周不参与达标判定
+  - 全链静音：活跃列表单点排除 `isPaused`，看板/今日清单/习惯提醒通知/小组件快照/AI 习惯上下文自动不含（同一数据水龙头）；打卡与数值记录统一拒绝闸（`toggleCheckIn`/`addNumericRecord`，磁贴/详情/AI 工具/小组件 Intent 共用）
+  - UI：暂停弹层（holoSheetShell 品牌壳 + 可选「到指定日期自动恢复」——懒检查，打开 App 顺手恢复，忘开不算断）+ 详情页菜单「暂停/恢复习惯」与暂停态横幅（一键恢复）+ 习惯墙底部「已暂停（N）」折叠区（灰显行+行内恢复——归档做了半年无恢复入口的前车之鉴）+ 磁贴长按菜单「暂停」（onPause 闭包注入，看板磁贴传 nil 隐藏）
+  - Plus 门控：`HoloPlusGateContext.habitPause` 走统一付费墙（标题「升级 Holo Plus，使用习惯暂停」，购买成功自动续接暂停操作）；权益对比表加「习惯暂停」行（免费✗/Plus✓）；新增 `HOLO_DEBUG_PLUS=1` 模拟器验收通道（applyScreenshotPlusOverride + 订阅同步 DEBUG 跳过防后端 free 态覆盖——比摆拍模式轻，无种子副作用）
+  - 数据：Habit 加 `isPaused`/`pausedUntil`/`pauseWindowsData` 三字段；暂停窗口史存 `[HabitPauseWindow]` Codable 数组（多次暂停不丢前账——单窗口字段会在第二次暂停时把第一次的冻结日变漏卡）；类型放 Habit.swift（主 App+Widget 两 target 共编，独立新文件 widget 不编译会炸）；**CloudKit 需真机上报三新字段生产 schema**
+  - 测试：`HabitPauseTests` 18 用例（窗口判断/冻结×好/坏/周频率/分母/漏卡/状态机/自动恢复/打卡闸）+ `HabitStreakTests` 7 + `HabitLifetimeTotalTests` 8 回归全绿；`HabitPauseSmokeUITests` 2 用例（Plus 态全链：长按暂停→弹层→折叠区→恢复回来；免费态付费墙拦截）+ 三关键画面只读判读视觉 PASS
+  - 坑在档：习惯墙空态模板卡标题与磁贴同名（都叫「散步」）致 UITest 幂等误判「已建成」——须同时判模板卡按钮不在场；XCUIElement subscript（`app.buttons["x"]`）按 identifier 匹配不认 label，精确点击必须 `NSPredicate(format: "label == %@")`
 - **后端+iOS**: 语义图谱 V3 Phase 5——新脉络建议卡全链路 + 主题命名/摘要端点 + 详情页摘要客户端
   - 主题页「新脉络建议卡」（同一时间最多一张）：✦ 最近有 N 条想法形成了新的脉络 + AI 命名回填（topic-name 端点）+ 建立主题 / 改个名字 / 以后再说（30 天冷却、簇新增 2 条提前解除）+ 不再建议这个方向（永久 tombstone）；候选簇引擎把互相相近又不属于任何主题的想法聚成簇（并查集+指纹去重，standalone 4 组 PASS）
   - 后端 `POST /v1/thoughts/topic-name`（候选簇≤8 片段→一个主题名，禁复制代表片段）与 `POST /v1/thoughts/topic-summary`（≤12 片段→摘要+≤4 反复观点，ref 白名单+逐字证据+range 严格对齐）；metadata-only/独立预算池 ¥0.20/日/隐私闸门同 relate 口径；prompt v1×2 入册+多语言白名单（输出用户直读）；mock 确定性实现；13 项新测试+全量 392/392 绿；**已随本次发版上线（隐私闸门默认拦截，供应商核实前 503）**

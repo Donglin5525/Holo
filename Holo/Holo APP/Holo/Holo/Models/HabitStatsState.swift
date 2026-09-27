@@ -197,6 +197,8 @@ struct HabitStatsDayCell: Identifiable, Equatable {
     let hasRecord: Bool
     /// 坏习惯超标标记
     let isOverLimit: Bool
+    /// 冻结日（暂停窗口内）：浅灰「休」样式，不红不绿
+    var isPausedDay: Bool = false
     var id: Date { date }
 }
 

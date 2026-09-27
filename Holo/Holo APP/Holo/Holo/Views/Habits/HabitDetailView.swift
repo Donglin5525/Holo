@@ -19,6 +19,8 @@ struct HabitDetailSnapshot {
     var frequencyTargetText: String = ""
     var habitTypeName: String = ""
     var unit: String? = nil
+    var isPaused: Bool = false
+    var pausedUntil: Date? = nil
 
     // 目标归属
     var goalTitle: String? = nil
@@ -87,6 +89,9 @@ struct HabitDetailView: View {
     /// 打卡提醒（仅打卡型；改动即保存）
     @State private var reminderMode: HabitReminderMode = .follow
     @State private var reminderTime: Date = Date()
+    /// 暂停弹层（Plus 功能，非 Plus 走统一付费墙）
+    @State private var showPauseSheet: Bool = false
+    @ObservedObject private var entitlement = HoloEntitlementState.shared
     
     // MARK: - Body
     
@@ -95,10 +100,13 @@ struct HabitDetailView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     habitHeader
+                    if snapshot.isPaused {
+                        pausedBanner
+                    }
                     recoverBanner
                     rangePicker
                     statsSection
-                    if snapshot.isCheckInType {
+                    if snapshot.isCheckInType && !snapshot.isPaused {
                         reminderSection
                     }
                     recordsSection
@@ -126,7 +134,21 @@ struct HabitDetailView: View {
                         } label: {
                             Label("编辑", systemImage: "pencil")
                         }
-                        
+
+                        if snapshot.isPaused {
+                            Button {
+                                resumeNow()
+                            } label: {
+                                Label("恢复习惯", systemImage: "play.circle")
+                            }
+                        } else {
+                            Button {
+                                requestPause()
+                            } label: {
+                                Label("暂停", systemImage: "pause.circle")
+                            }
+                        }
+
                         Button {
                             archiveHabit()
                         } label: {
@@ -168,6 +190,9 @@ struct HabitDetailView: View {
                 AddHabitSheet(onSave: {
                     refreshAll()
                 }, editingHabit: habit)
+            }
+            .sheet(isPresented: $showPauseSheet) {
+                HabitPauseSheet(habit: habit)
             }
             .sheet(isPresented: $showCustomRangeSheet) {
                 HabitCustomDateRangeSheet(
@@ -253,11 +278,16 @@ struct HabitDetailView: View {
 
             s.goalTitle = habit.goal?.title
             s.goalDomain = habit.goal?.goalDomain
-            
+            s.isPaused = habit.isPaused
+            s.pausedUntil = habit.pausedUntil
+
             if habit.isCheckInType {
                 s.streak = repo.calculateStreakInfo(for: habit)
                 s.completedCount = repo.calculatePeriodCompletionCount(for: habit, dateRange: effectiveDateRange)
-                s.totalDays = selectedPeriodDayCount ?? max(loadedRecords.count, 1)
+                // 分母挖掉冻结日：暂停期不拉低完成率
+                let rawDays = selectedPeriodDayCount ?? max(loadedRecords.count, 1)
+                let pausedDays = effectiveDateRange.map { repo.pausedDayCount(for: habit, in: $0) } ?? 0
+                s.totalDays = max(rawDays - pausedDays, 1)
                 s.completionRate = s.totalDays > 0
                     ? Double(s.completedCount) / Double(s.totalDays) * 100
                     : 0
@@ -280,6 +310,78 @@ struct HabitDetailView: View {
                 reminderTime = Calendar.current.date(from: timeComps) ?? reminderTime
             }
         }
+    }
+
+    // MARK: - 暂停 / 恢复（Plus 功能）
+
+    /// 暂停入口：非 Plus 走统一付费墙，购买成功后自动弹暂停弹层
+    private func requestPause() {
+        if entitlement.isPlusActive {
+            showPauseSheet = true
+        } else {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .habitPause) {
+                await MainActor.run {
+                    showPauseSheet = true
+                }
+            }
+        }
+    }
+
+    private func resumeNow() {
+        do {
+            try HabitRepository.shared.resumeHabit(habit)
+            HoloToastCenter.shared.show(
+                String(localized: "已恢复「\(habit.name)」，从冻结的进度接着算"),
+                type: .success
+            )
+        } catch {
+            HoloToastCenter.shared.show(error.localizedDescription, type: .error)
+        }
+    }
+
+    /// 暂停态横幅：说明进度已保留 + 一键恢复
+    private var pausedBanner: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: 22))
+                .foregroundColor(snapshot.habitColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("已暂停")
+                    .font(.holoBody.weight(.semibold))
+                    .foregroundColor(.holoTextPrimary)
+                Text(pausedSubtitleText)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                resumeNow()
+            } label: {
+                Text("恢复")
+                    .font(.holoBody.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(snapshot.habitColor))
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                .fill(snapshot.habitColor.opacity(0.08))
+        )
+    }
+
+    private var pausedSubtitleText: String {
+        if let until = snapshot.pausedUntil {
+            let formatter = DateFormatter()
+            formatter.setLocalizedDateFormatFromTemplate("M月d日")
+            return String(localized: "连续进度已保留 · 将于 \(formatter.string(from: until)) 自动恢复")
+        }
+        return String(localized: "连续进度已保留 · 随时可恢复")
     }
 
     /// 打卡提醒改动即保存（与已存值相同时跳过，避免刷新回环）

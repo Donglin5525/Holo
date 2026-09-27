@@ -42,8 +42,10 @@ final class HoloSubscriptionService: ObservableObject {
 
     func refreshStatus() async {
         #if DEBUG
-        // 截图摆拍模式下权益由 Seeder 本地置为 Plus，不与服务端同步，避免后端 free 态覆盖摆拍状态
-        if HoloAppStoreScreenshotSeeder.isRequested { return }
+        // 截图摆拍 / Plus 功能验收通道（HOLO_DEBUG_PLUS）下权益由本地置为 Plus，
+        // 不与服务端同步，避免后端 free 态覆盖摆拍状态（踩坑记录：plus-badge-squash 案）
+        if HoloAppStoreScreenshotSeeder.isRequested
+            || ProcessInfo.processInfo.environment["HOLO_DEBUG_PLUS"] == "1" { return }
         #endif
         guard let url = URL(string: "\(baseURL)/v1/subscription/status") else { return }
         entitlementState.setRefreshing(true)
