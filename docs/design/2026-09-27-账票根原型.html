@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>账票根 · 记账贴照片 — 可交互原型</title>
+<style>
+  /* ============ Holo 设计 token ============ */
+  :root{
+    --holo-primary:#F46D38;
+    --holo-primary-soft:#FCEDE5;
+    --bg:#F7F4EF;
+    --card:#FFFFFF;
+    --ink:#1C1B18;
+    --ink2:#8A857C;
+    --ink3:#B9B3A8;
+    --line:#EFEAE2;
+    --radius:16px;
+    --shadow-card:0 1px 2px rgba(60,50,35,.05),0 6px 18px rgba(60,50,35,.06);
+    --shadow-sticker:0 2px 6px rgba(60,50,35,.14),0 12px 28px rgba(60,50,35,.16);
+    --spring:cubic-bezier(.3,1.35,.5,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html{-webkit-font-smoothing:antialiased;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    background:#EDE8E0;color:var(--ink);
+    padding:0 0 80px;
+  }
+
+  /* ============ 页面框架 ============ */
+  .page-head{
+    max-width:1180px;margin:0 auto;padding:36px 24px 10px;
+  }
+  .page-head h1{font-size:22px;font-weight:700;letter-spacing:.2px;}
+  .page-head h1 .dot{color:var(--holo-primary);}
+  .page-head .sub{margin-top:8px;font-size:13px;color:var(--ink2);line-height:1.7;}
+  .decision-bar{
+    max-width:1180px;margin:14px auto 0;padding:12px 16px;
+    background:#FFF7EE;border:1px solid #F5DEC8;border-radius:12px;
+    font-size:13px;color:#7A5A38;display:flex;gap:18px;flex-wrap:wrap;
+  }
+  .decision-bar b{color:#9A5B1F;}
+  .decision-bar span{display:inline-flex;align-items:center;gap:6px;}
+  .decision-bar .tag{background:var(--holo-primary);color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:600;}
+
+  .tabs{
+    position:sticky;top:0;z-index:50;background:rgba(237,232,224,.92);backdrop-filter:blur(10px);
+    border-bottom:1px solid #DDD6CB;
+  }
+  .tabs-inner{max-width:1180px;margin:0 auto;padding:10px 24px;display:flex;gap:8px;}
+  .tab-btn{
+    border:none;background:transparent;cursor:pointer;
+    padding:8px 16px;border-radius:99px;font-size:14px;font-weight:600;color:var(--ink2);
+    transition:all .18s;
+  }
+  .tab-btn:hover{background:rgba(255,255,255,.7);}
+  .tab-btn.active{background:var(--ink);color:#fff;}
+
+  .board{max-width:1180px;margin:26px auto 0;padding:0 24px;display:none;}
+  .board.active{display:block;}
+  .board-title{font-size:15px;font-weight:700;margin-bottom:4px;}
+  .board-note{font-size:12.5px;color:var(--ink2);margin-bottom:18px;line-height:1.7;}
+
+  /* ============ iPhone 框 ============ */
+  .phone-wrap{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;}
+  .phone{
+    width:375px;height:790px;border-radius:54px;background:#1C1B18;
+    padding:10px;box-shadow:0 24px 60px rgba(40,32,20,.25);
+    flex-shrink:0;
+  }
+  .phone .screen{
+    position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;
+    background:var(--bg);display:flex;flex-direction:column;
+  }
+  .statusbar{
+    height:44px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 26px 4px;font-size:13px;font-weight:600;
+  }
+  .statusbar .right{display:flex;gap:5px;align-items:center;font-size:12px;}
+
+  /* ============ 形态切换工具条（原型层，非App UI） ============ */
+  .proto-tools{
+    width:250px;flex-shrink:0;position:sticky;top:76px;
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .proto-card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-card);}
+  .proto-card h4{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .proto-card h4 .tag{background:var(--holo-primary);color:#fff;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:600;}
+  .mode-group{display:flex;flex-direction:column;gap:8px;}
+  .mode-btn{
+    text-align:left;border:1.5px solid var(--line);background:#FDFCF9;border-radius:12px;
+    padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);
+    transition:all .15s;display:flex;flex-direction:column;gap:3px;
+  }
+  .mode-btn small{font-weight:400;font-size:11px;color:var(--ink2);line-height:1.5;}
+  .mode-btn:hover{border-color:#E0D6C8;}
+  .mode-btn.active{border-color:var(--holo-primary);background:var(--holo-primary-soft);}
+  .mode-btn.active small{color:#B0704C;}
+  .reset-btn{
+    width:100%;border:none;border-radius:10px;padding:9px;background:#F1EDE6;color:var(--ink2);
+    font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;
+  }
+  .reset-btn:hover{background:#E8E2D8;}
+  .proto-card .hint{font-size:11.5px;color:var(--ink2);line-height:1.7;}
+  .proto-card .hint b{color:var(--ink);}
+
+  /* ============ 记一笔 App 页面 ============ */
+  .app-topbar{
+    height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;
+  }
+  .app-topbar .cancel{font-size:15px;color:var(--ink2);cursor:pointer;}
+  .app-topbar .title{font-size:16px;font-weight:700;}
+  .app-topbar .save{
+    font-size:15px;font-weight:600;color:#fff;background:var(--holo-primary);
+    border-radius:99px;padding:5px 16px;cursor:pointer;
+    box-shadow:0 3px 10px rgba(244,109,56,.35);
+  }
+  .typetabs{
+    flex-shrink:0;display:flex;gap:8px;padding:2px 18px 10px;
+  }
+  .typetab{
+    padding:6px 18px;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer;
+    background:#EFEAE1;color:var(--ink2);transition:all .18s;
+  }
+  .typetab.on{background:var(--ink);color:#fff;}
+
+  .amount-zone{flex-shrink:0;padding:2px 22px 6px;}
+  .amount-row{
+    display:flex;align-items:baseline;gap:4px;user-select:none;cursor:default;
+  }
+  .amount-row .cur{font-size:24px;font-weight:700;color:var(--ink);}
+  .amount-row .val{font-size:44px;font-weight:800;letter-spacing:.5px;font-variant-numeric:tabular-nums;}
+  .amount-row .val.empty{color:var(--ink3);font-weight:600;}
+  .amount-longpress-hint{
+    display:none;font-size:10.5px;color:var(--holo-primary);margin-top:2px;
+    animation:breath 2.2s ease-in-out infinite;
+  }
+  @keyframes breath{0%,100%{opacity:.45}50%{opacity:1}}
+  .name-field{
+    margin-top:8px;display:flex;align-items:center;gap:8px;
+    border-bottom:1px solid var(--line);padding-bottom:7px;
+  }
+  .name-field input{
+    border:none;background:transparent;outline:none;font-size:14.5px;flex:1;
+    font-family:inherit;color:var(--ink);
+  }
+  .name-field input::placeholder{color:var(--ink3);}
+  .name-field .pencil{font-size:13px;color:var(--ink3);}
+
+  .app-scroll{
+    flex:1;overflow:hidden;padding:6px 16px 8px;display:flex;flex-direction:column;gap:12px;
+  }
+  .catgrid{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-card);
+    padding:12px 6px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px 4px;
+    flex-shrink:0;
+  }
+  .cat{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;padding:3px 0;border-radius:10px;}
+  .cat .ico{
+    width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    font-size:19px;background:#F5F1EA;transition:all .15s;
+  }
+  .cat span{font-size:11px;color:var(--ink2);}
+  .cat.sel .ico{background:var(--holo-primary-soft);box-shadow:inset 0 0 0 1.5px var(--holo-primary);}
+  .cat.sel span{color:var(--holo-primary);font-weight:700;}
+
+  /* ---- 票根贴纸区 ---- */
+  .receipt-zone{
+    position:relative;flex-shrink:0;min-height:0;
+    display:flex;justify-content:center;align-items:flex-end;
+    max-height:0;overflow:visible;transition:max-height .5s var(--spring);
+    padding:0 26px;
+  }
+  .receipt-zone.has{max-height:190px;}
+  .receipt-zone .stack{
+    position:relative;width:100%;height:172px;margin-top:14px;margin-bottom:10px;
+  }
+  /* 形态B：收银机出口槽 */
+  .slot-machine{display:none;}
+  body.mode-b .slot-machine{
+    display:flex;flex-direction:column;align-items:center;gap:0;width:100%;
+  }
+  .slot{
+    width:210px;height:9px;border-radius:99px;
+    background:linear-gradient(#4A433A,#2E2922);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.65);
+    position:relative;z-index:30;
+  }
+  .slot::after{
+    content:"";position:absolute;left:14px;right:14px;top:3px;height:2px;border-radius:99px;
+    background:rgba(0,0,0,.5);
+  }
+  .slot-out{
+    position:relative;width:100%;display:flex;justify-content:center;
+    overflow:hidden;max-height:0;transition:max-height .55s var(--spring);
+  }
+  .slot-out.feed{max-height:214px;}
+  .add-receipt-btn{
+    margin-top:10px;border:none;background:var(--card);border:1.5px dashed #DFD5C5;color:var(--ink2);
+    border-radius:99px;padding:7px 18px;font-size:12.5px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;gap:6px;transition:all .15s;
+  }
+  .add-receipt-btn:hover{border-color:var(--holo-primary);color:var(--holo-primary);}
+  .add-receipt-btn.full{opacity:.45;pointer-events:none;}
+
+  /* ---- 票根贴纸本体 ---- */
+  .sticker{
+    position:absolute;width:128px;height:158px;cursor:pointer;user-select:none;
+    filter:drop-shadow(0 2px 5px rgba(60,50,35,.18)) drop-shadow(0 10px 22px rgba(60,50,35,.16));
+    transition:transform .5s var(--spring),opacity .3s;
+    background:#fff;border-radius:6px;padding:6px 6px 0;
+    left:50%;top:0;
+  }
+  .sticker.tearing{
+    transition:transform .5s cubic-bezier(.5,-.3,.8,.5),opacity .45s !important;
+    opacity:0;z-index:99 !important;
+  }
+  .sticker .photo{
+    width:100%;height:112px;border-radius:4px;overflow:hidden;position:relative;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sticker .photo .emoji{font-size:36px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25));}
+  .sticker .photo .flash{
+    position:absolute;inset:0;background:rgba(255,255,255,.75);opacity:0;pointer-events:none;
+  }
+  .sticker.justland .photo .flash{animation:flashk .5s ease-out;}
+  @keyframes flashk{0%{opacity:.9}100%{opacity:0}}
+  .sticker .cap{
+    height:34px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 5px;font-size:10px;color:#5C564C;font-weight:600;
+  }
+  .sticker .cap .price{color:var(--holo-primary);font-weight:800;font-size:11px;}
+  /* 底部锯齿（票据撕边） */
+  .sticker::after{
+    content:"";position:absolute;left:0;right:0;bottom:-7px;height:8px;
+    background:#fff;
+    clip-path:polygon(0 0,100% 0,100% 30%, 97% 100%,94% 30%,91% 100%,88% 30%,85% 100%,82% 30%,79% 100%,76% 30%,73% 100%,70% 30%,67% 100%,64% 30%,61% 100%,58% 30%,55% 100%,52% 30%,49% 100%,46% 30%,43% 100%,40% 30%,37% 100%,34% 30%,31% 100%,28% 30%,25% 100%,22% 30%,19% 100%,16% 30%,13% 100%,10% 30%,7% 100%,4% 30%,0 100%);
+  }
+
+  /* ---- 信息卡 ---- */
+  .infocard{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-card);
+    padding:4px 16px;flex-shrink:0;
+  }
+  .inforow{
+    display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line);
+    font-size:13.5px;cursor:pointer;
+  }
+  .inforow:last-child{border-bottom:none;}
+  .inforow .lb{color:var(--ink2);width:44px;flex-shrink:0;}
+  .inforow .vv{flex:1;color:var(--ink);}
+  .inforow .vv.dim{color:var(--ink3);}
+  .inforow .chev{color:var(--ink3);font-size:13px;}
+  .remark-box{
+    border-bottom:1px solid var(--line);padding:10px 2px;
+  }
+  .remark-box .ph{font-size:13.5px;color:var(--ink3);}
+  .remark-box .txt{font-size:13px;color:var(--ink);line-height:1.55;}
+
+  /* ---- 数字键盘托盘 ---- */
+  .keypad-tray{
+    flex-shrink:0;background:var(--card);border-radius:20px 20px 0 0;
+    box-shadow:0 -8px 24px rgba(60,50,35,.08);
+    padding:10px 12px 22px;display:grid;
+    grid-template-columns:repeat(4,1fr);gap:7px;
+  }
+  .key{
+    height:46px;border-radius:12px;background:#F5F1EA;font-size:20px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;
+    transition:transform .08s,background .12s;color:var(--ink);
+  }
+  .key:active{transform:scale(.94);background:#EBE4D8;}
+  .key.fn{background:transparent;font-size:17px;color:var(--ink2);}
+  .key.ok{
+    background:var(--holo-primary);color:#fff;font-size:16px;font-weight:700;
+    grid-row:span 2;height:auto;
+    box-shadow:0 4px 12px rgba(244,109,56,.3);
+  }
+  /* 快门键（形态A） */
+  .key.shutter{display:none;position:relative;}
+  body.mode-a .key.shutter{display:flex;}
+  .shutter-ring{
+    width:32px;height:32px;border-radius:50%;border:2.5px solid var(--holo-primary);
+    display:flex;align-items:center;justify-content:center;transition:all .15s;
+  }
+  .shutter-ring::after{
+    content:"";width:18px;height:18px;border-radius:50%;background:var(--holo-primary);
+    transition:transform .15s;
+  }
+  .key.shutter:active .shutter-ring::after{transform:scale(.82);}
+  .key.shutter .badge{
+    position:absolute;top:-3px;right:-1px;background:var(--ink);color:#fff;
+    font-size:9px;font-weight:700;border-radius:99px;padding:1px 5px;
+  }
+  .key.shutter.full{opacity:.4;pointer-events:none;}
+  .key.shutter.full .shutter-ring{border-color:var(--ink3);}
+  .key.shutter.full .shutter-ring::after{background:var(--ink3);}
+
+  /* ---- 长按菜单（形态C）---- */
+  .lp-menu{
+    position:absolute;z-index:80;background:rgba(30,27,22,.92);backdrop-filter:blur(14px);
+    border-radius:14px;padding:6px;min-width:172px;display:none;
+    box-shadow:0 10px 30px rgba(0,0,0,.3);
+  }
+  .lp-menu.show{display:block;animation:menuin .18s var(--spring);}
+  @keyframes menuin{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+  .lp-menu .mi{
+    padding:9px 14px;border-radius:9px;font-size:13.5px;color:#fff;cursor:pointer;
+    display:flex;align-items:center;gap:8px;
+  }
+  .lp-menu .mi:hover{background:rgba(255,255,255,.12);}
+  .lp-menu .mi.dis{opacity:.4;pointer-events:none;}
+  .lp-menu .mi.danger{color:#FF9A7A;}
+
+  /* ============ 弹层：action sheet / 相册 / 查看器 ============ */
+  .sheet-mask{
+    position:absolute;inset:0;background:rgba(20,17,12,.4);z-index:90;
+    display:none;align-items:flex-end;
+  }
+  .sheet-mask.show{display:flex;animation:fadein .2s;}
+  @keyframes fadein{from{opacity:0}to{opacity:1}}
+  .action-sheet{
+    width:100%;background:rgba(248,245,240,.98);backdrop-filter:blur(16px);
+    border-radius:18px 18px 0 0;padding:8px 12px 26px;
+    transform:translateY(100%);transition:transform .32s var(--spring);
+  }
+  .sheet-mask.show .action-sheet{transform:translateY(0);}
+  .as-group{background:#fff;border-radius:13px;overflow:hidden;}
+  .as-item{
+    padding:14px;text-align:center;font-size:15.5px;cursor:pointer;
+    border-bottom:.5px solid var(--line);transition:background .12s;
+  }
+  .as-item:last-child{border-bottom:none;}
+  .as-item:active{background:#F4F0E9;}
+  .as-item b{color:var(--holo-primary);font-weight:600;}
+  .as-cancel{margin-top:9px;background:#fff;border-radius:13px;padding:14px;text-align:center;font-size:15.5px;font-weight:600;cursor:pointer;}
+  .album-sheet{
+    width:100%;background:var(--bg);border-radius:18px 18px 0 0;padding:14px 16px 26px;
+    transform:translateY(100%);transition:transform .32s var(--spring);max-height:78%;overflow-y:auto;
+  }
+  .sheet-mask.show .album-sheet{transform:translateY(0);}
+  .album-sheet h5{font-size:15px;font-weight:700;margin:2px 2px 12px;display:flex;justify-content:space-between;align-items:center;}
+  .album-sheet h5 .x{font-size:13px;color:var(--ink2);cursor:pointer;font-weight:400;}
+  .album-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+  .album-cell{
+    aspect-ratio:1;border-radius:8px;cursor:pointer;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .12s;
+  }
+  .album-cell:active{transform:scale(.93);}
+  .album-cell .emoji{font-size:32px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.28));}
+  .viewer-mask{
+    position:absolute;inset:0;background:rgba(8,7,5,.96);z-index:95;display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  }
+  .viewer-mask.show{display:flex;animation:fadein .22s;}
+  .viewer-photo{
+    width:262px;border-radius:10px;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .viewer-photo .emoji{font-size:88px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4));}
+  .viewer-cap{color:#CFC9BF;font-size:13px;display:flex;gap:14px;align-items:center;}
+  .viewer-cap .del{color:#FF9A7A;cursor:pointer;}
+  .viewer-cap .clo{cursor:pointer;}
+  .viewer-hint{position:absolute;bottom:26px;color:rgba(255,255,255,.28);font-size:11px;}
+
+  /* ============ 画板②③④ ============ */
+  .mini-phones{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;}
+  .mini-phone{
+    width:300px;border-radius:40px;background:#1C1B18;padding:8px;
+    box-shadow:0 18px 44px rgba(40,32,20,.2);flex-shrink:0;
+  }
+  .mini-phone .mscreen{
+    border-radius:33px;overflow:hidden;background:var(--bg);
+    display:flex;flex-direction:column;
+  }
+  .flow-arrow{
+    align-self:center;font-size:26px;color:var(--ink3);padding:0 4px;flex-shrink:0;
+  }
+  .flow-arrow .fa-note{font-size:11px;color:var(--ink2);text-align:center;margin-top:4px;white-space:nowrap;}
+
+  /* 详情页（画板②） */
+  .detail-head{padding:14px 20px 10px;text-align:center;}
+  .detail-head .kind{font-size:12px;color:var(--holo-primary);font-weight:700;}
+  .detail-head .amt{font-size:34px;font-weight:800;letter-spacing:.3px;}
+  .detail-badge{
+    display:inline-block;font-size:10.5px;background:#F1EDE6;color:var(--ink2);
+    border-radius:99px;padding:2px 9px;margin-top:5px;
+  }
+  .detail-receipts{
+    position:relative;height:190px;margin:8px 30px 4px;
+    display:flex;justify-content:center;align-items:flex-end;
+  }
+  .detail-label{
+    text-align:center;font-size:10.5px;color:var(--ink3);letter-spacing:1px;margin-top:2px;
+  }
+  .detail-props{background:var(--card);border-radius:14px;margin:10px 14px;padding:2px 14px;box-shadow:var(--shadow-card);}
+  .detail-actions{display:flex;gap:8px;margin:12px 14px;}
+  .detail-actions .da{
+    flex:1;background:var(--card);border-radius:12px;padding:9px 0;text-align:center;
+    font-size:12.5px;font-weight:600;color:var(--ink2);box-shadow:var(--shadow-card);
+  }
+  .detail-actions .da.hot{color:var(--holo-primary);}
+  .src-pill{
+    position:absolute;right:6px;bottom:34px;z-index:40;
+    background:rgba(28,27,24,.82);backdrop-filter:blur(8px);color:#fff;
+    font-size:9.5px;border-radius:99px;padding:3px 8px;display:flex;align-items:center;gap:4px;
+  }
+
+  /* 识图落下（画板③） */
+  .rv-evidence{
+    margin:12px 14px 0;border-radius:14px;height:120px;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-card);
+  }
+  .rv-evidence .emoji{font-size:52px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.3));}
+  .rv-rows{background:var(--card);border-radius:14px;margin:12px 14px;padding:4px 14px;box-shadow:var(--shadow-card);}
+  .rv-row{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .rv-row:last-child{border-bottom:none;}
+  .rv-row .ico{width:30px;height:30px;border-radius:9px;background:#F5F1EA;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .rv-row .n{flex:1;}
+  .rv-row .n small{display:block;font-size:10.5px;color:var(--ink3);}
+  .rv-row .a{font-weight:700;font-variant-numeric:tabular-nums;}
+  .rv-confirm{
+    margin:12px 14px;background:var(--holo-primary);color:#fff;text-align:center;border-radius:13px;
+    padding:12px;font-size:14.5px;font-weight:700;box-shadow:0 5px 14px rgba(244,109,56,.35);
+  }
+  .auto-tag{
+    display:inline-flex;align-items:center;gap:4px;background:#FFF3EA;color:#C4622C;
+    border:1px solid #F8D8C2;border-radius:99px;font-size:10px;padding:2px 8px;font-weight:600;
+  }
+
+  /* 设置（画板④） */
+  .setting-cards{display:flex;gap:20px;flex-wrap:wrap;}
+  .setting-card{
+    flex:1;min-width:300px;background:var(--card);border-radius:var(--radius);
+    box-shadow:var(--shadow-card);overflow:hidden;
+  }
+  .setting-card .verdict{
+    padding:9px 16px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;
+  }
+  .setting-card.on .verdict{background:var(--holo-primary-soft);color:#C4622C;}
+  .setting-card.off .verdict{background:#F1EDE6;color:var(--ink2);}
+  .setting-body{padding:6px 16px 16px;}
+  .switch-row{display:flex;align-items:flex-start;gap:12px;padding:14px 0 6px;border-bottom:1px solid var(--line);}
+  .switch-row .t{flex:1;}
+  .switch-row .t b{font-size:14.5px;display:block;margin-bottom:3px;}
+  .switch-row .t span{font-size:11.5px;color:var(--ink2);line-height:1.65;display:block;}
+  .ios-switch{
+    width:48px;height:29px;border-radius:99px;background:#E6E0D5;position:relative;flex-shrink:0;
+    transition:background .2s;margin-top:3px;
+  }
+  .ios-switch::after{
+    content:"";position:absolute;top:2.5px;left:2.5px;width:24px;height:24px;border-radius:50%;
+    background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:transform .2s var(--spring);
+  }
+  .ios-switch.on{background:#34C759;}
+  .ios-switch.on::after{transform:translateX(19px);}
+  .storage-note{font-size:11.5px;color:var(--ink2);line-height:1.75;padding-top:11px;}
+  .storage-note b{color:var(--ink);}
+  .storage-bar{height:6px;border-radius:99px;background:#F1EDE6;margin:8px 0 4px;overflow:hidden;}
+  .storage-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#F7A97E,var(--holo-primary));}
+  .tradeoff{font-size:12px;color:var(--ink2);line-height:1.8;padding:12px 16px;background:#FAF7F1;border-radius:0 0 var(--radius) var(--radius);}
+  .tradeoff b{color:var(--ink);}
+</style>
+</head>
+<body class="mode-a">
+
+<div class="page-head">
+  <h1>账票根 <span class="dot">·</span> 记账贴照片</h1>
+  <div class="sub">Holo「人生数据库」——账本是数字，照片是瞬间。给每笔账贴一张票根：不是表单附件，而是「贴在账本上的小票」。最多 3 张，轻点看大图，长按撕掉。</div>
+</div>
+
+<div class="decision-bar">
+  <span><i class="tag">拍板 1</i> 体验三种<b>添加交互形态</b>（右侧切换），选定一种</span>
+  <span><i class="tag">拍板 2</i> 画板④<b>识图凭证自动归档</b>默认开 / 默认关</span>
+  <span>建议先玩画板①，每个形态都贴几张、长按撕一张试试</span>
+</div>
+
+<div class="tabs">
+  <div class="tabs-inner">
+    <button class="tab-btn active" data-board="1">① 记一笔 · 可交互</button>
+    <button class="tab-btn" data-board="2">② 交易详情</button>
+    <button class="tab-btn" data-board="3">③ 识图照片自动落下</button>
+    <button class="tab-btn" data-board="4">④ 设置与存储</button>
+  </div>
+</div>
+
+<!-- ================= 画板① 记一笔（可交互） ================= -->
+<section class="board active" id="board-1">
+  <div class="board-title">记一笔 · 三种交互形态对比</div>
+  <div class="board-note">切换右侧形态 → 点对应入口 → 相册选图 → 票根贴上。轻点票根看大图；按住票根约 0.6 秒撕掉。贴满 3 张后入口自动禁用。</div>
+  <div class="phone-wrap">
+
+    <div class="proto-tools">
+      <div class="proto-card">
+        <h4><i class="tag">拍板 1</i> 添加交互形态</h4>
+        <div class="mode-group">
+          <button class="mode-btn active" data-mode="a">A · 键盘快门 + 票根贴纸<small>快门键藏在数字键盘右列，手指不离键盘区；照片从快门位置飞出贴到账上</small></button>
+          <button class="mode-btn" data-mode="b">B · 收银机小票出口<small>信息区顶部一条出票槽，照片像小票一样从槽里缓缓吐出</small></button>
+          <button class="mode-btn" data-mode="c">C · 长按金额贴图<small>长按金额数字弹出「贴凭证」——最克制，但发现性最弱（无任何可见入口）</small></button>
+        </div>
+        <button class="reset-btn" id="resetBtn">↺ 重置演示</button>
+      </div>
+      <div class="proto-card">
+        <h4>体验要点</h4>
+        <div class="hint">
+          · <b>贴 1 张</b>：单张微倾斜<br>
+          · <b>贴 2~3 张</b>：错落叠贴，最新在上，下层露出边角也可点<br>
+          · <b>长按票根</b> = 弹出菜单（撕掉 / 查看，撕掉需确认防误操作）<br>
+          · <b>轻点票根</b> = 全屏查看<br>
+          · 键盘数字可真实输入<br>
+          · 三形态「贴上后」完全一致，只在<b>入口与入场动画</b>上分高下
+        </div>
+      </div>
+    </div>
+
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="right">◉ &nbsp;▮▮▮&nbsp;ᯤ&nbsp;86</span></div>
+
+      <div class="app-topbar">
+        <span class="cancel">取消</span>
+        <span class="title">记一笔</span>
+        <span class="save" id="fakeSave">保存</span>
+      </div>
+
+      <div class="typetabs">
+        <span class="typetab on">支出</span>
+        <span class="typetab">收入</span>
+      </div>
+
+      <div class="amount-zone">
+        <div class="amount-row" id="amountRow">
+          <span class="cur">¥</span><span class="val empty" id="amtVal">0.00</span>
+        </div>
+        <div class="amount-longpress-hint" id="lpHint">↑ 长按金额 · 贴一张凭证</div>
+        <div class="name-field">
+          <input placeholder="名称" value="酸汤肥牛" id="nameInput">
+          <span class="pencil">✎</span>
+        </div>
+      </div>
+
+      <div class="app-scroll">
+        <div class="catgrid" id="catgrid">
+          <div class="cat sel"><div class="ico">🍜</div><span>餐饮</span></div>
+          <div class="cat"><div class="ico">🛍️</div><span>购物</span></div>
+          <div class="cat"><div class="ico">🚕</div><span>交通</span></div>
+          <div class="cat"><div class="ico">☕️</div><span>咖啡</span></div>
+          <div class="cat"><div class="ico">🏠</div><span>居住</span></div>
+          <div class="cat"><div class="ico">🎬</div><span>娱乐</span></div>
+          <div class="cat"><div class="ico">💊</div><span>医疗</span></div>
+          <div class="cat"><div class="ico">⋯</div><span>更多</span></div>
+        </div>
+
+        <!-- 形态B：出票槽 -->
+        <div class="slot-machine">
+          <div class="slot"></div>
+          <div class="slot-out" id="slotOut">
+            <div class="receipt-zone" id="zoneB" style="padding:14px 40px 0;">
+              <div class="stack" id="stackB"></div>
+            </div>
+          </div>
+          <button class="add-receipt-btn" id="addBtnB">📷 添加票根</button>
+        </div>
+
+        <!-- 形态A/C：票根贴纸区（信息卡上方） -->
+        <div class="receipt-zone" id="zoneA">
+          <div class="stack" id="stackA"></div>
+        </div>
+
+        <div class="infocard">
+          <div class="inforow"><span class="lb">账户</span><span class="vv">招商银行</span><span class="chev">›</span></div>
+          <div class="inforow"><span class="lb">日期</span><span class="vv">今天 12:24</span><span class="chev">›</span></div>
+          <div class="remark-box"><div class="ph">备注</div></div>
+        </div>
+      </div>
+
+      <div class="keypad-tray" id="keypad">
+        <div class="key" data-k="7">7</div><div class="key" data-k="8">8</div><div class="key" data-k="9">9</div><div class="key fn" data-k="del">⌫</div>
+        <div class="key" data-k="4">4</div><div class="key" data-k="5">5</div><div class="key" data-k="6">6</div><div class="key shutter" id="shutterBtn"><span class="shutter-ring"></span><span class="badge" id="shutterBadge" style="display:none">3</span></div>
+        <div class="key" data-k="1">1</div><div class="key" data-k="2">2</div><div class="key" data-k="3">3</div><div class="key ok" data-k="ok">保存</div>
+        <div class="key" data-k=".">.</div><div class="key" data-k="0">0</div><div class="key fn" data-k="c">C</div>
+      </div>
+
+      <!-- 长按菜单（形态C） -->
+      <div class="lp-menu" id="lpMenu">
+        <div class="mi" id="lpAdd">📷 贴一张票根</div>
+        <div class="mi danger" id="lpViewAll">👁 查看票根</div>
+      </div>
+
+      <!-- 票根长按菜单（撕掉需确认，防误操作） -->
+      <div class="lp-menu" id="stkMenu">
+        <div class="mi danger" id="stkTear">🗑 撕掉这张票根</div>
+        <div class="mi" id="stkView">👁 查看大图</div>
+      </div>
+
+      <!-- action sheet -->
+      <div class="sheet-mask" id="asMask">
+        <div class="action-sheet" id="asSheet">
+          <div class="as-group">
+            <div class="as-item" id="asCamera">📷 <b>拍照</b></div>
+            <div class="as-item" id="asAlbum">🖼 <b>从相册选择</b> <span style="color:var(--ink3);font-size:12px;">（演示直接弹相册）</span></div>
+          </div>
+          <div class="as-cancel" id="asCancel">取消</div>
+        </div>
+      </div>
+
+      <!-- 相册 -->
+      <div class="sheet-mask" id="alMask">
+        <div class="album-sheet">
+          <h5>相机胶卷 <span class="x" id="alClose">取消</span></h5>
+          <div class="album-grid" id="albumGrid"></div>
+        </div>
+      </div>
+
+      <!-- 全屏查看 -->
+      <div class="viewer-mask" id="vMask">
+        <div class="viewer-photo" id="vPhoto"><span class="emoji" id="vEmoji"></span></div>
+        <div class="viewer-cap">
+          <span class="del" id="vDel">🗑 撕掉</span>
+          <span id="vName"></span>
+          <span class="clo" id="vClose">关闭</span>
+        </div>
+        <div class="viewer-hint">真机里：双指缩放 · 左右滑切换</div>
+      </div>
+
+    </div></div>
+  </div>
+</section>
+
+<!-- ================= 画板② 交易详情 ================= -->
+<section class="board" id="board-2">
+  <div class="board-title">交易详情 · 票根区块</div>
+  <div class="board-note">详情页属性区上方放大版贴纸语言；多张时错落叠贴，轻点全屏。左：单张；右：三张（右下角来源角标示意「识图凭证自动归档」）。</div>
+  <div class="mini-phones">
+    <div class="mini-phone"><div class="mscreen">
+      <div class="statusbar"><span>9:41</span><span class="right">ᯤ 86</span></div>
+      <div class="detail-head">
+        <div class="kind">支出 · 餐饮</div>
+        <div class="amt">¥ 42.00</div>
+        <div class="detail-badge">9月27日 12:24 · 招商银行</div>
+      </div>
+      <div class="detail-receipts" id="detailOne"></div>
+      <div class="detail-label">— 票根 · 轻点查看 —</div>
+      <div class="detail-props">
+        <div class="inforow"><span class="lb">名称</span><span class="vv">酸汤肥牛</span></div>
+        <div class="inforow"><span class="lb">备注</span><span class="vv dim">无</span></div>
+        <div class="inforow"><span class="lb">来源</span><span class="vv">手动记账</span></div>
+      </div>
+      <div class="detail-actions"><div class="da">编辑</div><div class="da">复制</div><div class="da hot">记退款</div></div>
+    </div></div>
+
+    <div class="mini-phone"><div class="mscreen">
+      <div class="statusbar"><span>9:41</span><span class="right">ᯤ 86</span></div>
+      <div class="detail-head">
+        <div class="kind">支出 · 购物</div>
+        <div class="amt">¥ 399.00</div>
+        <div class="detail-badge">9月27日 15:02 · 花呗</div>
+      </div>
+      <div class="detail-receipts" id="detailThree">
+        <span class="src-pill">⚡️ 识图凭证自动归档</span>
+      </div>
+      <div class="detail-label">— 票根 ×3 · 轻点查看 —</div>
+      <div class="detail-props">
+        <div class="inforow"><span class="lb">名称</span><span class="vv">球鞋</span></div>
+        <div class="inforow"><span class="lb">备注</span><span class="vv dim">无</span></div>
+        <div class="inforow"><span class="lb">来源</span><span class="vv">识图记账</span></div>
+      </div>
+      <div class="detail-actions"><div class="da">编辑</div><div class="da">复制</div><div class="da hot">记退款</div></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ================= 画板③ 识图落下 ================= -->
+<section class="board" id="board-3">
+  <div class="board-title">识图照片自动落下 · 前后链路</div>
+  <div class="board-note">现状：识图凭证照片在确认落账后即被删除。改法：确认落账后照片自动转存为这笔账的票根（走压缩管线），并标记来源「识图凭证」。放弃确认则照旧删除，不占空间。</div>
+  <div class="mini-phones">
+    <div class="mini-phone"><div class="mscreen">
+      <div class="statusbar"><span>9:41</span><span class="right">ᯤ 86</span></div>
+      <div class="app-topbar" style="height:42px;"><span class="cancel">‹</span><span class="title" style="font-size:14.5px;">识图确认</span><span class="cancel" style="opacity:0">·</span></div>
+      <div class="rv-evidence" style="background:linear-gradient(135deg,#FFB98E,#F46D38);"><span class="emoji">🛒</span></div>
+      <div class="rv-rows">
+        <div class="rv-row"><div class="ico">🛒</div><div class="n">超市采购<small>识图 · 食品杂货</small></div><div class="a">¥86.50</div></div>
+        <div class="rv-row"><div class="ico">🧻</div><div class="n">日用百货<small>识图 · 同一小票拆分</small></div><div class="a">¥23.80</div></div>
+      </div>
+      <div class="rv-confirm">确认记 2 笔</div>
+    </div></div>
+
+    <div class="flow-arrow">→<div class="fa-note">确认落账<br>照片转存</div></div>
+
+    <div class="mini-phone"><div class="mscreen">
+      <div class="statusbar"><span>9:41</span><span class="right">ᯤ 86</span></div>
+      <div class="detail-head">
+        <div class="kind">支出 · 购物</div>
+        <div class="amt">¥ 86.50</div>
+        <div class="detail-badge">9月27日 18:40 · 微信支付</div>
+      </div>
+      <div class="detail-receipts" style="height:170px;" id="detailRv">
+        <span class="src-pill">⚡️ 票根来自识图凭证</span>
+      </div>
+      <div class="detail-label">— 无需二次操作，照片已归档 —</div>
+      <div class="detail-props">
+        <div class="inforow"><span class="lb">名称</span><span class="vv">超市采购</span></div>
+        <div class="inforow"><span class="lb">来源</span><span class="vv">识图记账 <span class="auto-tag">📷 自动归档</span></span></div>
+      </div>
+      <div class="detail-actions"><div class="da">编辑</div><div class="da">复制</div></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ================= 画板④ 设置与存储 ================= -->
+<section class="board" id="board-4">
+  <div class="board-title">识图凭证自动归档 · 开关与存储 <i class="tag" style="background:var(--holo-primary);color:#fff;border-radius:99px;padding:1px 8px;font-size:10px;font-weight:600;font-style:normal;">拍板 2</i></div>
+  <div class="board-note">开关位置：设置 → 记账。照片经统一压缩管线（原图上限 2048px、约 200–500KB/张，缩略图 300px），随 iCloud 同步，不额外占用 iCloud 之外的服务器空间。</div>
+  <div class="setting-cards">
+    <div class="setting-card on">
+      <div class="verdict">方案甲 · 默认开（我的推荐）</div>
+      <div class="setting-body">
+        <div class="switch-row">
+          <div class="t"><b>识图凭证自动归档</b><span>识图记账确认后，凭证照片自动保存为该笔账的票根</span></div>
+          <div class="ios-switch on"></div>
+        </div>
+        <div class="storage-note">
+          <b>存储占用参考</b>
+          <div class="storage-bar"><i style="width:4%"></i></div>
+          每月识图 30 次 × 约 300KB ≈ <b>9MB/月</b>；一年约 110MB。可在「设置 · 存储」一键清理全部识图票根。
+        </div>
+      </div>
+      <div class="tradeoff"><b>取舍：</b>白捡的价值最大化——用户拍照的动作本来就在，照片零成本归档；代价是对存储敏感的用户需要主动找到开关关闭。</div>
+    </div>
+
+    <div class="setting-card off">
+      <div class="verdict">方案乙 · 默认关</div>
+      <div class="setting-body">
+        <div class="switch-row">
+          <div class="t"><b>识图凭证自动归档</b><span>识图记账确认后，凭证照片自动保存为该笔账的票根</span></div>
+          <div class="ios-switch"></div>
+        </div>
+        <div class="storage-note">
+          <b>开启后的存储占用参考</b>
+          <div class="storage-bar"><i style="width:4%"></i></div>
+          每月识图 30 次 × 约 300KB ≈ <b>9MB/月</b>；一年约 110MB。可在「设置 · 存储」一键清理全部识图票根。
+        </div>
+      </div>
+      <div class="tradeoff"><b>取舍：</b>存储零侵入、最保守；代价是绝大多数用户永远不知道有这个能力，识图照片依旧确认即删——功能形同虚设，靠设置页文案很难拉起首次开启。</div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ================= 数据 ================= */
+const MAX = 3;
+const GRADS = [
+  {name:'午饭 · 酸汤肥牛', price:'¥42',  bg:'linear-gradient(135deg,#FFC08A,#F46D38)', emoji:'🍜'},
+  {name:'咖啡',           price:'¥32',  bg:'linear-gradient(135deg,#D9B08C,#8C5A3A)', emoji:'☕️'},
+  {name:'机票 · 虹桥→成都',price:'¥1280',bg:'linear-gradient(135deg,#9CC6F5,#4A7FC1)', emoji:'✈️'},
+  {name:'球鞋',           price:'¥399', bg:'linear-gradient(135deg,#B9D8B0,#5E8C4F)', emoji:'👟'},
+  {name:'超市小票',        price:'¥86',  bg:'linear-gradient(135deg,#F7E59A,#D8B23A)', emoji:'🛒'},
+  {name:'T恤',            price:'¥129', bg:'linear-gradient(135deg,#F0B8D0,#B05A86)', emoji:'🛍️'},
+];
+let photos = [];      // [{id, g}]
+let mode = 'a';
+let uid = 0;
+
+/* ================= 工具 ================= */
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+function stack(){ return mode === 'b' ? $('#stackB') : $('#stackA'); }
+function zone(){ return mode === 'b' ? $('#zoneB') : $('#zoneA'); }
+
+/* 堆叠布局：n 张时的 [rotate, offsetX] 集合（index 越大越新、越在上） */
+function layoutFor(n, i){
+  if(n === 1) return {r:-3, x:0};
+  if(n === 2) return [{r:4,  x:-16},{r:-4, x:14}][i];
+  return [{r:-8, x:-34},{r:2, x:-2},{r:-3, x:28}][i];
+}
+
+function stickerEl(p, n, i){
+  const g = GRADS[p.g];
+  const L = layoutFor(n, i);
+  const el = document.createElement('div');
+  el.className = 'sticker';
+  el.dataset.id = p.id;
+  el.dataset.final = `translateX(calc(-50% + ${L.x}px)) rotate(${L.r}deg)`;
+  el.style.transform = el.dataset.final;
+  el.style.zIndex = 10 + i;
+  el.innerHTML = `
+    <div class="photo" style="background:${g.bg}"><span class="emoji">${g.emoji}</span><span class="flash"></span></div>
+    <div class="cap"><span>${g.name}</span><span class="price">${g.price}</span></div>`;
+  bindSticker(el, p);
+  return el;
+}
+
+function renderStack(animateLast){
+  const s = stack();
+  s.innerHTML = '';
+  photos.forEach((p, i) => {
+    const el = stickerEl(p, photos.length, i);
+    s.appendChild(el);
+    if(animateLast && i === photos.length - 1) enterAnimate(el);
+  });
+  // 贴纸区高度
+  $$('.receipt-zone').forEach(z => z.classList.remove('has'));
+  if(photos.length && mode !== 'b') zone().classList.add('has');
+  $('#slotOut').classList.toggle('feed', mode === 'b' && photos.length > 0);
+  refreshEntries();
+}
+
+function refreshEntries(){
+  const full = photos.length >= MAX;
+  const sh = $('#shutterBtn');
+  sh.classList.toggle('full', full);
+  $('#shutterBadge').style.display = full ? 'block' : 'none';
+  $('#addBtnB').classList.toggle('full', full);
+  $('#addBtnB').textContent = full ? '已贴 3 张 · 长按票根可撕掉' : '📷 添加票根';
+  $('#lpAdd').classList.toggle('dis', full);
+}
+
+/* ================= 入场动画（分形态） ================= */
+function enterAnimate(el){
+  if(mode === 'a'){
+    // 从快门键飞向贴纸位
+    const from = $('#shutterBtn').getBoundingClientRect();
+    const to = el.getBoundingClientRect();
+    const dx = from.left + from.width/2 - (to.left + to.width/2);
+    const dy = from.top + from.height/2 - (to.top + to.height/2);
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px,${dy}px) rotate(0deg) scale(.22)`;
+    el.style.opacity = '.85';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.transition = '';
+      el.style.transform = el.dataset.final;
+      el.style.opacity = '1';
+      el.classList.add('justland');
+    }));
+  } else if(mode === 'c'){
+    el.style.transition = 'none';
+    el.style.transform = el.dataset.final + ' scale(.55)';
+    el.style.opacity = '0';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.transition = '';
+      el.style.transform = el.dataset.final;
+      el.style.opacity = '1';
+      el.classList.add('justland');
+    }));
+  }
+  // 形态 b 的动画由 slotOut 容器（max-height 吐出）承担，贴纸本体不需要单独动画
+}
+
+/* ================= 添加 / 撕掉 ================= */
+function addPhoto(g){
+  if(photos.length >= MAX) return;
+  photos.push({id: ++uid, g});
+  if(mode === 'b'){
+    $('#slotOut').classList.remove('feed');   // 先收槽，重放吐出动画
+    requestAnimationFrame(() => requestAnimationFrame(() => renderStack(true)));
+  } else {
+    renderStack(true);
+  }
+}
+
+function tearPhoto(id){
+  const el = stack().querySelector(`.sticker[data-id="${id}"]`);
+  if(!el) return;
+  const dir = Math.random() > .5 ? 1 : -1;
+  el.classList.add('tearing');
+  el.style.transform = `translateX(calc(-50% + ${dir*130}px)) rotate(${dir*38}deg) translateY(-150px) scale(.72)`;
+  setTimeout(() => {
+    photos = photos.filter(p => p.id !== id);
+    if(mode === 'b' && !photos.length) $('#slotOut').classList.remove('feed');
+    renderStack(false);
+  }, 460);
+}
+
+/* ================= 票根交互：轻点看 / 长按撕 ================= */
+function bindSticker(el, p){
+  let timer = null, fired = false, sx = 0, sy = 0;
+  el.addEventListener('pointerdown', e => {
+    fired = false; sx = e.clientX; sy = e.clientY;
+    timer = setTimeout(() => { fired = true; openStickerMenu(p, el); }, 600);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev =>
+    el.addEventListener(ev, e => {
+      if(ev === 'pointerup' && !fired && Math.hypot(e.clientX-sx, e.clientY-sy) < 12) openViewer(p);
+      clearTimeout(timer);
+    })
+  );
+  el.addEventListener('pointermove', e => {
+    if(Math.hypot(e.clientX-sx, e.clientY-sy) > 14) clearTimeout(timer);
+  });
+}
+
+let stkP = null;
+function openStickerMenu(p, el){
+  stkP = p;
+  const sr = document.querySelector('#board-1 .phone .screen').getBoundingClientRect();
+  const rr = el.getBoundingClientRect();
+  const m = $('#stkMenu');
+  m.style.left = Math.max(10, Math.min(rr.left - sr.left + rr.width + 8, 375 - 186)) + 'px';
+  m.style.top = Math.max(56, rr.top - sr.top + 8) + 'px';
+  m.classList.add('show');
+}
+$('#stkTear').onclick = () => { $('#stkMenu').classList.remove('show'); tearPhoto(stkP.id); };
+$('#stkView').onclick = () => { $('#stkMenu').classList.remove('show'); openViewer(stkP); };
+document.addEventListener('pointerdown', e => {
+  const m = $('#stkMenu');
+  if(m.classList.contains('show') && !m.contains(e.target)) m.classList.remove('show');
+}, true);
+
+let viewerP = null;
+function openViewer(p){
+  viewerP = p;
+  const g = GRADS[p.g];
+  $('#vPhoto').style.background = g.bg;
+  $('#vEmoji').textContent = g.emoji;
+  $('#vName').textContent = g.name;
+  $('#vMask').classList.add('show');
+}
+$('#vClose').onclick = () => $('#vMask').classList.remove('show');
+$('#vMask').onclick = e => { if(e.target.id === 'vMask') $('#vMask').classList.remove('show'); };
+$('#vDel').onclick = () => { $('#vMask').classList.remove('show'); tearPhoto(viewerP.id); };
+
+/* ================= 入口 ================= */
+function openActionSheet(){
+  if(photos.length >= MAX) return;
+  $('#asMask').classList.add('show');
+}
+$('#asCancel').onclick = () => $('#asMask').classList.remove('show');
+$('#asMask').onclick = e => { if(e.target.id === 'asMask') e.currentTarget.classList.remove('show'); };
+$('#asAlbum').onclick = () => { $('#asMask').classList.remove('show'); openAlbum(); };
+$('#asCamera').onclick = () => {
+  $('#asMask').classList.remove('show');
+  addPhoto(Math.floor(Math.random()*GRADS.length));   // 演示：拍照=随机取一张
+};
+$('#shutterBtn').onclick = openActionSheet;
+$('#addBtnB').onclick = openActionSheet;
+
+/* 相册 */
+function openAlbum(){ $('#alMask').classList.add('show'); }
+$('#alClose').onclick = () => $('#alMask').classList.remove('show');
+$('#alMask').onclick = e => { if(e.target.id === 'alMask') e.currentTarget.classList.remove('show'); };
+GRADS.forEach((g, i) => {
+  const cell = document.createElement('div');
+  cell.className = 'album-cell';
+  cell.style.background = g.bg;
+  cell.innerHTML = `<span class="emoji">${g.emoji}</span>`;
+  cell.onclick = () => { $('#alMask').classList.remove('show'); addPhoto(i); };
+  $('#albumGrid').appendChild(cell);
+});
+
+/* 长按金额（形态C） */
+(function(){
+  const row = $('#amountRow'), menu = $('#lpMenu');
+  let t = null, fired = false;
+  row.addEventListener('pointerdown', e => {
+    if(mode !== 'c') return;
+    fired = false;
+    t = setTimeout(() => {
+      fired = true;
+      const sr = $('#board-1 .phone').getBoundingClientRect();
+      const rr = row.getBoundingClientRect();
+      menu.style.left = Math.min(rr.left - sr.left + rr.width - 180, 375-190) + 'px';
+      menu.style.top = (rr.bottom - sr.top + 8) + 'px';
+      menu.classList.add('show');
+    }, 600);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev => row.addEventListener(ev, () => clearTimeout(t)));
+  row.addEventListener('pointermove', e => { if(e.movementX > 8 || e.movementY > 8) clearTimeout(t); });
+  document.addEventListener('pointerdown', e => {
+    if(!menu.contains(e.target) && e.target !== row && !row.contains(e.target)) menu.classList.remove('show');
+  });
+  $('#lpAdd').onclick = () => { menu.classList.remove('show'); openActionSheet(); };
+  $('#lpViewAll').onclick = () => { menu.classList.remove('show'); if(photos.length) openViewer(photos[photos.length-1]); };
+})();
+
+/* ================= 键盘输入 ================= */
+let amt = '';
+$$('[data-k]').forEach(k => k.addEventListener('click', () => {
+  const v = k.dataset.k;
+  if(v === 'del') amt = amt.slice(0, -1);
+  else if(v === 'c') amt = '';
+  else if(v === '.'){ if(!amt.includes('.')) amt = (amt || '0') + '.'; }
+  else { if(amt.replace('.', '').length >= 7) return; amt += v; }
+  const el = $('#amtVal');
+  if(!amt){ el.textContent = '0.00'; el.classList.add('empty'); }
+  else { el.textContent = amt; el.classList.remove('empty'); }
+}));
+
+/* 分类选中 */
+$$('#catgrid .cat').forEach(c => c.addEventListener('click', () => {
+  $$('#catgrid .cat').forEach(x => x.classList.remove('sel'));
+  c.classList.add('sel');
+}));
+
+/* ================= 形态切换 / 重置 ================= */
+$$('.mode-btn').forEach(b => b.addEventListener('click', () => {
+  $$('.mode-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  mode = b.dataset.mode;
+  document.body.className = 'mode-' + mode;
+  $('#lpHint').style.display = mode === 'c' ? 'block' : 'none';
+  $('#lpMenu').classList.remove('show');
+  $('#stkMenu').classList.remove('show');
+  $('#slotOut').classList.remove('feed');
+  // 切换形态时票根搬家到对应容器
+  if(photos.length){
+    if(mode === 'b') requestAnimationFrame(() => renderStack(false));
+    else renderStack(false);
+  }
+}));
+$('#resetBtn').onclick = () => {
+  photos = []; amt = '';
+  $('#amtVal').textContent = '0.00'; $('#amtVal').classList.add('empty');
+  $('#slotOut').classList.remove('feed');
+  renderStack(false);
+};
+$('#fakeSave').onclick = () => {
+  const b = $('#fakeSave');
+  b.textContent = '已贴 ' + photos.length + ' 张 ✓';
+  setTimeout(() => b.textContent = '保存', 1200);
+};
+
+/* ================= 静态画板票根 ================= */
+function staticStickers(host, idxs, scale){
+  idxs.forEach((g, i) => {
+    const L = layoutFor(idxs.length, i);
+    const d = document.createElement('div');
+    d.className = 'sticker';
+    d.style.width = 128*scale + 'px';
+    d.style.height = 158*scale + 'px';
+    d.style.transform = `translateX(calc(-50% + ${L.x*scale}px)) rotate(${L.r}deg)`;
+    d.style.zIndex = 10 + i;
+    d.style.top = '14px';
+    const G = GRADS[g];
+    d.innerHTML = `
+      <div class="photo" style="background:${G.bg};height:${112*scale}px"><span class="emoji" style="font-size:${36*scale}px">${G.emoji}</span></div>
+      <div class="cap"><span style="font-size:${10*scale}px">${G.name}</span><span class="price" style="font-size:${11*scale}px">${G.price}</span></div>`;
+    host.appendChild(d);
+  });
+}
+staticStickers($('#detailOne'), [0], 1.05);
+staticStickers($('#detailThree'), [3, 2, 5], .92);
+staticStickers($('#detailRv'), [4], .95);
+
+/* ================= 页签 ================= */
+$$('.tab-btn').forEach(t => t.addEventListener('click', () => {
+  $$('.tab-btn').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $$('.board').forEach(b => b.classList.remove('active'));
+  $('#board-' + t.dataset.board).classList.add('active');
+}));
+</script>
+</body>
+</html>
