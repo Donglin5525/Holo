@@ -79,6 +79,8 @@ struct FinanceView: View {
     /// 图片自动记账深链（§25.3）：待复核直达 / 最近结果
     @State private var receiptReviewDeepLink: ReceiptReviewDeepLinkID?
     @State private var showReceiptBookingSettings = false
+    /// 结转回执通知 Deep Link → 预算详情页
+    @State private var showBudgetDetail = false
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -213,6 +215,10 @@ struct FinanceView: View {
                 ReceiptBookingSettingsView()
             }
             .holoSheetWidth(.form)
+        // 结转回执通知 Deep Link 落点：预算详情页（额度构成主舞台）
+        .sheet(isPresented: $showBudgetDetail) {
+            BudgetDetailView(anchoredAccountId: nil)
+        }
         }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
@@ -224,6 +230,10 @@ struct FinanceView: View {
 
     private func handleDeepLink(_ target: DeepLinkTarget?) {
         switch target {
+        case .budgetDetail:
+            selectedTab = .ledger
+            showBudgetDetail = true
+            deepLinkState.pendingTarget = nil
         case .transactionDetail(let transactionId):
             selectedTab = .ledger
             if let transaction = FinanceRepository.shared.findTransaction(by: transactionId) {

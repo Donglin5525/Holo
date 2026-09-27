@@ -151,5 +151,6 @@ final class UserPreferenceRepository {
     private func adoptCloudBackedSettings() {
         FinanceBudgetSettings.shared.restoreFromCloudIfClean()
         PromptManager.shared.restoreFromCloudIfClean()
+        BudgetCarryoverNotificationService.shared.restoreFromCloudIfClean()
     }
 }

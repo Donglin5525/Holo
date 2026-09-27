@@ -42,6 +42,8 @@ struct FinanceLedgerView: View {
 
     /// 是否显示搜索页
     @State private var showSearch: Bool = false
+    /// 预算总览卡点击 → 预算详情页（2026-09-27 方案一期入口）
+    @State private var showBudgetDetail: Bool = false
 
     /// iPad 双栏（方案 2A）：宽屏左账本 + 右详情面板；记录在右栏核对与处理，
     /// 账本侧的日期、筛选、滚动位置在切换记录时保持不动。
@@ -153,6 +155,10 @@ struct FinanceLedgerView: View {
             }
         }
         // --- 弹窗月历（底部抽屉） ---
+        // 预算详情页（预算总览卡点击进入）
+        .sheet(isPresented: $showBudgetDetail) {
+            BudgetDetailView(anchoredAccountId: nil)
+        }
         .sheet(isPresented: $calendarState.isPopupVisible) {
             PopupCalendarSheet(calendarState: calendarState)
         }
@@ -426,9 +432,11 @@ struct FinanceLedgerView: View {
 
                 // 预算总览卡片
                 if let summary = globalBudgetSummary {
-                    BudgetSummaryCard(summary: summary, warnings: categoryWarnings)
-                        .padding(.horizontal, 14)
-                        .padding(.top, HoloSpacing.sm)
+                    BudgetSummaryCard(summary: summary, warnings: categoryWarnings) {
+                        showBudgetDetail = true
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, HoloSpacing.sm)
                         .padding(.bottom, 8)
                 }
 
