@@ -77,6 +77,7 @@ struct TopicManagementView: View {
         }
         .navigationTitle("主题管理")
         .navigationBarTitleDisplayMode(.inline)
+        .holoSheetShell()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成") { dismiss() }

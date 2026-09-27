@@ -21,6 +21,7 @@ struct ReceiptReviewListView: View {
         NavigationStack(path: $path) {
             listContent
         }
+        .holoSheetShell()
         .onAppear(perform: refresh)
     }
 

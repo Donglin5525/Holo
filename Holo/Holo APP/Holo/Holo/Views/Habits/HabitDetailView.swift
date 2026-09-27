@@ -984,6 +984,7 @@ private struct HabitCustomDateRangeSheet: View {
             }
             .navigationTitle("自定义周期")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }

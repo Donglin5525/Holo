@@ -52,6 +52,7 @@ struct GoalWorkshopFlowView: View {
             content
                 .navigationTitle("一起想清楚")
                 .navigationBarTitleDisplayMode(.inline)
+                .holoSheetShell()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         // 只关闭不放弃：进度保留，下次进入给「继续/放弃/另建」

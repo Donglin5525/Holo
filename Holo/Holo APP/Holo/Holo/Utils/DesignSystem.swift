@@ -534,6 +534,26 @@ extension View {
     }
 }
 
+// MARK: - 弹层统一壳
+
+/// Holo 弹层统一壳：品牌暖底铺满 + 隐藏 List/Form 系统灰底。
+/// 一切 sheet / fullScreenCover 内容根部必须套用（见设计规范 §8.3），
+/// 否则弹层会露出系统默认白/灰底——品牌色问题曾多次由此复发。
+struct HoloSheetShellModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Color.holoBackground.ignoresSafeArea())
+            .scrollContentBackground(.hidden)
+    }
+}
+
+extension View {
+    /// 弹层统一壳，sheet / fullScreenCover 内容根部套用。
+    func holoSheetShell() -> some View {
+        modifier(HoloSheetShellModifier())
+    }
+}
+
 // MARK: - 习惯磁贴配色
 
 extension Color {

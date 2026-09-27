@@ -62,6 +62,7 @@ struct GoalLinkManagerSheet: View {
             .listStyle(.insetGrouped)
             .navigationTitle("管理关联")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }

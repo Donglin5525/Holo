@@ -15612,38 +15612,8 @@
         }
       }
     },
-    "使用本地兜底" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Using local fallback"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用本地兜底"
-          }
-        }
-      }
-    },
-    "使用本地兜底文案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Local fallback copy"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用本地兜底文案"
-          }
-        }
-      }
-    },
+
+
     "使用真实 Query Service 与 Holo AI 开关，但不调用大模型、不修改记忆。问题正文和上下文只保留在当前临时页面。" : {
       "localizations" : {
         "en" : {

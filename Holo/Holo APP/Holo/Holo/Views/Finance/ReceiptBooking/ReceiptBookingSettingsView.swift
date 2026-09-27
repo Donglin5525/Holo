@@ -127,6 +127,7 @@ struct ReceiptBookingSettingsView: View {
         }
         .navigationTitle(Text("图片自动记账"))
         .contentMargins(.bottom, 92, for: .scrollContent)
+        .holoSheetShell()
         .task {
             refresh()
             await refreshNotificationStatus()

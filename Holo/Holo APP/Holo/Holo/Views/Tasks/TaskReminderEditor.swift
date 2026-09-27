@@ -442,6 +442,7 @@ struct ReminderDetailSheet: View {
             }
             .navigationTitle("提醒明细")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {
