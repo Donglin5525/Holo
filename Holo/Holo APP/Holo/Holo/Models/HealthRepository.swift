@@ -1482,12 +1482,44 @@ class HealthRepository: ObservableObject {
     /// 按日种子化的四指标模拟值（步数/睡眠/站立/活动）
     nonisolated static func mockDailyMetrics(for date: Date) -> (steps: Double, sleep: Double, stand: Double, active: Double) {
         var rng = SeededRandomNumberGenerator(seed: UInt64(bitPattern: Int64(Calendar.current.startOfDay(for: date).timeIntervalSince1970)) &+ 0x9E3779B1)
-        return (
-            steps: Double(rng.next(5000...12000)),
-            sleep: Double(rng.next(5...9)) + Double(rng.next(0...9)) / 10.0,
-            stand: Double(rng.next(8...14)),
-            active: Double(rng.next(18...55))
-        )
+        let steps = Double(rng.next(5000...12000))
+        let stand = Double(rng.next(8...14))
+        let active = Double(rng.next(18...55))
+        let sleep = screenshotCuratedSleep(for: date)
+            ?? Double(rng.next(5...9)) + Double(rng.next(0...9)) / 10.0
+        return (steps, sleep, stand, active)
+    }
+
+    /// 「intro-week」截图剧本的睡眠策展：本周平均 6.0h，上周 7.4h，支撑“这一周晚睡”的叙事。
+    /// 仅在 App Store 截图模式 + intro-week 剧本下生效，其余场景不改变按日种子化的随机行为。
+    nonisolated private static func screenshotCuratedSleep(for date: Date) -> Double? {
+        #if DEBUG && targetEnvironment(simulator)
+        let env = ProcessInfo.processInfo.environment
+        guard env["HOLO_APP_STORE_SCREENSHOT_MODE"] == "1",
+              env["HOLO_APP_STORE_SCREENSHOT_STORY"] == "intro-week" else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        switch formatter.string(from: date) {
+        case "2026-09-14": return 7.2
+        case "2026-09-15": return 7.6
+        case "2026-09-16": return 7.3
+        case "2026-09-17": return 7.5
+        case "2026-09-18": return 7.4
+        case "2026-09-19": return 7.1
+        case "2026-09-20": return 7.7
+        case "2026-09-21": return 5.6
+        case "2026-09-22": return 6.1
+        case "2026-09-23": return 6.4
+        case "2026-09-24": return 5.3
+        case "2026-09-25": return 6.0
+        case "2026-09-26": return 6.3
+        case "2026-09-27": return 6.5
+        default: return nil
+        }
+        #else
+        return nil
+        #endif
     }
 
     /// 生成模拟周数据

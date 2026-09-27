@@ -34,8 +34,9 @@ extension FinanceRepository {
         for tx in txns {
             let key = Calendar.current.startOfDay(for: tx.date)
             var entry = map[key] ?? (0, 0, 0)
-            if tx.transactionType == .expense { entry.exp += tx.amount.decimalValue }
-            else { entry.inc += tx.amount.decimalValue }
+            // 统计口径：退款笔按负支出并入当日支出（冲到账当月当日），不进收入
+            if tx.statisticsType == .expense { entry.exp += tx.statisticsAmount }
+            else { entry.inc += tx.statisticsAmount }
             entry.cnt += 1
             map[key] = entry
         }
@@ -96,12 +97,13 @@ extension FinanceRepository {
         type: TransactionType
     ) async throws -> [CategoryAggregation] {
         let transactions = try await getStatisticsTransactions(from: startDate, to: endDate)
-        let filtered = transactions.filter { $0.transactionType == type }
+        // 统计口径：退款笔（物理 type=income）按负支出进支出侧，冲减自身分类
+        let filtered = transactions.filter { $0.statisticsType == type }
 
         guard !filtered.isEmpty else { return [] }
 
         // 计算总金额
-        let totalAmount = filtered.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let totalAmount = filtered.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         // 按分类聚合
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
@@ -109,11 +111,11 @@ extension FinanceRepository {
             guard let category = tx.category else { continue }
             let catId = category.id
             if var entry = categoryMap[catId] {
-                entry.amount += tx.amount.decimalValue
+                entry.amount += tx.statisticsAmount
                 entry.count += 1
                 categoryMap[catId] = entry
             } else {
-                categoryMap[catId] = (category: category, amount: tx.amount.decimalValue, count: 1)
+                categoryMap[catId] = (category: category, amount: tx.statisticsAmount, count: 1)
             }
         }
 
@@ -138,11 +140,12 @@ extension FinanceRepository {
         type: TransactionType
     ) async throws -> [CategoryAggregation] {
         let transactions = try await getStatisticsTransactions(from: startDate, to: endDate)
-        let filtered = transactions.filter { $0.transactionType == type }
+        // 统计口径：退款笔按负支出进支出侧，冲减所属一级分类
+        let filtered = transactions.filter { $0.statisticsType == type }
 
         guard !filtered.isEmpty else { return [] }
 
-        let totalAmount = filtered.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let totalAmount = filtered.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         // 预加载一级分类
         let topLevelCategories = try await getTopLevelCategories(by: type)
@@ -177,11 +180,11 @@ extension FinanceRepository {
 
             let catId = topCategory.id
             if var entry = categoryMap[catId] {
-                entry.amount += tx.amount.decimalValue
+                entry.amount += tx.statisticsAmount
                 entry.count += 1
                 categoryMap[catId] = entry
             } else {
-                categoryMap[catId] = (category: topCategory, amount: tx.amount.decimalValue, count: 1)
+                categoryMap[catId] = (category: topCategory, amount: tx.statisticsAmount, count: 1)
             }
         }
 
@@ -224,19 +227,19 @@ extension FinanceRepository {
 
         guard !filtered.isEmpty else { return [] }
 
-        let totalAmount = filtered.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let totalAmount = filtered.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
-        // 按二级分类聚合
+        // 按二级分类聚合（退款笔取负值冲减；普通收入误挂支出分类时维持现状行为）
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
         for tx in filtered {
             guard let cat = tx.category else { continue }
             let catId = cat.id
             if var entry = categoryMap[catId] {
-                entry.amount += tx.amount.decimalValue
+                entry.amount += tx.statisticsAmount
                 entry.count += 1
                 categoryMap[catId] = entry
             } else {
-                categoryMap[catId] = (category: cat, amount: tx.amount.decimalValue, count: 1)
+                categoryMap[catId] = (category: cat, amount: tx.statisticsAmount, count: 1)
             }
         }
 

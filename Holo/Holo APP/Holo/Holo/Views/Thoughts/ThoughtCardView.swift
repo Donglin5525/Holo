@@ -13,11 +13,24 @@ import CoreData
 
 /// 想法卡片视图
 /// 设计参考：
-/// - 白色背景，圆角 28pt
+/// - 卡片底色，圆角 16pt，0.5pt 描边（无阴影，容器安静、正文为主角）
 /// - 顶部：日期 + 状态
 /// - 中间：内容预览（2-3 行）
 /// - 底部：标签 + 引用数
 struct ThoughtCardView: View {
+
+    // MARK: - Metrics（2026-09-25 flomo 改版：视觉参数集中，便于验收微调）
+
+    private enum Metrics {
+        /// 卡片内边距
+        static let padding: CGFloat = HoloSpacing.md
+        /// 顶部/正文/底部三区块间距
+        static let sectionSpacing: CGFloat = 12
+        /// 主题弱徽章字色强度（绿=主题语义，降强度不当强调色用）
+        static let topicBadgeTintOpacity: Double = 0.75
+        /// 标签 chip 底色透明度（统一值，前景仍用用户自选色）
+        static let tagChipBackgroundOpacity: Double = 0.08
+    }
 
     // MARK: - Properties
 
@@ -44,6 +57,8 @@ struct ThoughtCardView: View {
     var onChangeTopic: (() -> Void)?
     /// V3 新 UI：点主题徽章「从这条移除」（列表接 TopicRepository.remove）
     var onRemoveTopic: ((Topic) -> Void)?
+    /// P1（2026-09-27）：轻点主题行进入主题详情（脉络可逛）；纠错收进长按菜单
+    var onOpenTopic: ((Topic) -> Void)?
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
@@ -67,7 +82,7 @@ struct ThoughtCardView: View {
         // AI 标签名单次取用：状态徽章与底部标签行原本各查一遍，
         // 每次访问都要重新遍历 Core Data 的标签分配关系
         let aiTagNames = thought.visibleAITagNames
-        return VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
             // 顶部：日期 + 状态
             headerView(aiTagNames: aiTagNames)
 
@@ -77,12 +92,17 @@ struct ThoughtCardView: View {
             // 底部：标签 + 引用信息
             footerView(aiTagNames: aiTagNames)
         }
-        .padding(20)
+        .padding(Metrics.padding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .fill(Color.holoCardBackground)
-                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+                // 2026-09-25 flomo 改版：去阴影改细描边——阴影是卡片厚重感的主要来源，
+                // 连续浏览时让注意力回到正文（容器安静原则）
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.lg)
+                        .stroke(Color.holoBorder, lineWidth: 0.5)
+                )
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .holoHover()
@@ -235,6 +255,18 @@ struct ThoughtCardView: View {
     // MARK: - 底部区域
 
     private func footerView(aiTagNames: [String]) -> some View {
+        // P1（2026-09-27）双行分离：第一行 = 用户 #标签 + 引用数；第二行 = 主题行
+        // （来源字样区分「Holo 已归入 / 已加入」，轻点进主题、长按纠错）。
+        // spacing 0 + 主题行自带 top padding：两行全空（新用户常见）时卡片底部不多占位
+        VStack(alignment: .leading, spacing: 0) {
+            tagAndReferenceRow(aiTagNames: aiTagNames)
+            if ThoughtSemanticFeatureFlags.uiEnabled, onRemoveTopic != nil {
+                topicBadgeRow
+            }
+        }
+    }
+
+    private func tagAndReferenceRow(aiTagNames: [String]) -> some View {
         HStack(spacing: 0) {
             // V3 新 UI：AI 产出的标签退为内部索引，卡片只展示用户标签 + 主题弱徽章
             let aiNames = ThoughtSemanticFeatureFlags.uiEnabled ? [] : aiTagNames
@@ -284,10 +316,6 @@ struct ThoughtCardView: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            if ThoughtSemanticFeatureFlags.uiEnabled {
-                topicBadgeRow
-            }
-
             Spacer()
 
             // 引用信息
@@ -299,47 +327,66 @@ struct ThoughtCardView: View {
                     Text("\(refCount)")
                         .font(.holoLabel)
                 }
-                .foregroundColor(.holoPrimary)
+                // 引用数是信息不是操作：品牌橙只留给主操作（2026-09-25 颜色纪律）
+                .foregroundColor(.holoTextSecondary)
             }
         }
     }
 
-    // MARK: - V3 主题弱徽章
+    // MARK: - V3 主题行（P1 双行制）
 
-    /// 卡片底部的主题弱徽章（V3 §4.3）：来自 ThoughtTopicLink 投影，最多 2 个；
-    /// 高可信自动关联静默出现在这里，不弹窗不打扰。点击出「更改主题/从这条移除」。
-    /// 只在提供纠错入口的调用点显示（列表主路径），避免详情页等上下文出现死菜单。
+    /// 卡片底部的主题行（V3 §4.3 + P1 §3.2）：来自 ThoughtTopicLink 投影，最多 2 个。
+    /// 来源字样区分 AI/手动（AI 不冒充用户决定）；轻点进主题详情、长按出纠错菜单。
     private var topicBadgeRow: some View {
-        let topics = onRemoveTopic != nil
-            ? ThoughtTopicLinkProjection.effectiveTopics(for: thought)
-                .filter { $0.statusEnum == .active || $0.statusEnum == .classification }
-                .prefix(2)
-            : []
+        let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
+            .filter { $0.statusEnum == .active || $0.statusEnum == .classification }
+            .prefix(2)
         return Group {
             if !topics.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(Array(topics), id: \.id) { topic in
                         topicBadge(topic)
                     }
+                    Spacer(minLength: 0)
                 }
-                .padding(.leading, 12)
+                // padding 在有内容的分支内：无主题行时不占位（校验实锤 2026-09-27）
+                .padding(.top, 6)
             }
         }
     }
 
     private func topicBadge(_ topic: Topic) -> some View {
-        Button {
+        // 来源字样（P1 §3.2）：AI 高可信写「Holo 已归入」，用户手动/接受建议写「已加入」，
+        // 历史归集中性写「已归入」——AI 来源不冒充用户决定，VoiceOver 同步读出
+        let source = ThoughtTopicLinkProjection.membershipSource(of: thought, in: topic)
+        let sourceText: String
+        let sourceAX: String
+        switch source {
+        case .ai:
+            sourceText = String(localized: "Holo 已归入")
+            sourceAX = String(localized: "Holo 自动归入")
+        case .user:
+            sourceText = String(localized: "已加入")
+            sourceAX = String(localized: "你加入的")
+        default:
+            sourceText = String(localized: "已归入")
+            sourceAX = String(localized: "已归入")
+        }
+        return Button {
             HapticManager.light()
-            topicMenuTopic = topic
+            onOpenTopic?(topic)
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 9, weight: .semibold))
+                Text(sourceText)
+                    .font(.holoLabel)
                 Text(topic.title)
                     .font(.holoLabel)
+                    .fontWeight(.semibold)
                     .lineLimit(1)
             }
-            .foregroundColor(Color.holoSuccess.opacity(0.9))
+            .foregroundColor(Color.holoSuccess.opacity(Metrics.topicBadgeTintOpacity))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Color.holoSuccess.opacity(0.09))
@@ -347,9 +394,17 @@ struct ThoughtCardView: View {
             .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
+        // 轻点=进主题详情（脉络可逛）；纠错菜单收进长按（P1 行为变化，原轻点弹菜单）
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                HapticManager.light()
+                topicMenuTopic = topic
+            }
+        )
         // 徽章是子 Button，独占点击不触发卡片进详情（父子 onTapGesture 双触发坑）
         .contentShape(Rectangle())
-        .accessibilityLabel(String(localized: "主题 \(topic.title)"))
+        .accessibilityLabel(String(localized: "主题 \(topic.title)，\(sourceAX)，轻点查看脉络"))
+        .accessibilityHint(String(localized: "长按可更改或移除"))
         .confirmationDialog(
             "「\(topic.title)」· 这条想法",
             isPresented: Binding(
@@ -391,13 +446,23 @@ struct ThoughtCardView: View {
         Button {
             onTagTap?(tag.name)
         } label: {
-            // 展示叶段名（路径是存储结构，不进 UI 文案）；筛选仍用完整路径
-            Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
+            // 展示叶段名（路径是存储结构，不进 UI 文案）；筛选仍用完整路径。
+            // 有 emoji 图标时以图标代替 # 前缀，无 emoji 恢复 # 前缀（2026-09-26 R0 冒烟修复）
+            let emoji = ThoughtTagEmojiStore.emoji(forKey: tag.name)
+            HStack(spacing: 3) {
+                if let emoji {
+                    Text(emoji)
+                        .font(.system(size: 11))
+                    Text(ThoughtTagNormalizer.lastSegment(tag.name))
+                } else {
+                    Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
+                }
+            }
                 .font(.holoLabel)
                 .foregroundColor(tag.tagColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(tag.tagColor.opacity(0.1))
+                .background(tag.tagColor.opacity(Metrics.tagChipBackgroundOpacity))
                 .cornerRadius(HoloRadius.sm)
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -493,7 +558,7 @@ private struct ThoughtCardStatusBadge: View {
             Image(systemName: status.icon)
                 .font(.system(size: 9, weight: .semibold))
             Text(status.title)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.holoTinyLabel)
         }
         .foregroundColor(status.color)
         .padding(.horizontal, 7)

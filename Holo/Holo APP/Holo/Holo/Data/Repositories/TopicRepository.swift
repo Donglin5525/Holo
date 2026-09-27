@@ -181,7 +181,9 @@ final class TopicRepository {
         try context.save()
     }
 
-    /// 分类主题改名：同步 Topic 标题与已有 `主题/子标签` 路径。
+    /// 分类主题改名：只改 Topic 标题，不再连带改写用户的 `主题/子标签` 标签路径
+    /// （2026-09-27 P0-D：主题操作与用户标签解耦——AI/主题永不改写用户 #标签；
+    /// 存量同名路径保留为历史兼容，迁移报告另出，不批量改名）。
     func renameClassificationTopic(_ topic: Topic, to newTitle: String) throws {
         let normalizedTitle = ThoughtTagNormalizer.displayName(newTitle)
         guard !normalizedTitle.isEmpty,
@@ -190,38 +192,27 @@ final class TopicRepository {
         if let existing = try getByTitle(normalizedTitle), existing.id != topic.id {
             throw ThoughtError.tagInUse
         }
-        let oldTitle = topic.title
-        if try hasTagPathPrefix(oldTitle) {
-            _ = try ThoughtRepository(context: context).renameTagPathPrefix(from: oldTitle, to: normalizedTitle)
-        }
         topic.title = normalizedTitle
         topic.updatedAt = Date()
         topic.refreshAssociatedTagNamesCache()
         try context.save()
     }
 
-    /// 分类主题合并：标签路径、想法关系和来源词均迁移到保留主题。
+    /// 分类主题合并：想法关系和来源词迁移到保留主题；不再把 duplicate 标题
+    /// 前缀的标签路径改写到 keeper（P0-D 解耦，同上）。
     func mergeClassificationTopics(into keeper: Topic, from duplicate: Topic) throws {
         guard keeper != duplicate else { return }
-        if try hasTagPathPrefix(duplicate.title) {
-            _ = try ThoughtRepository(context: context).renameTagPathPrefix(from: duplicate.title, to: keeper.title)
-        }
         keeper.status = Topic.TopicStatus.classification.rawValue
         try merge(into: keeper, from: duplicate)
         keeper.refreshAssociatedTagNamesCache()
         try context.save()
     }
 
-    /// 删除分类主题：先把路径降级为“未分类/”，再删除 Topic 关系。
+    /// 删除分类主题：直接删除 Topic 关系；不再把标签路径降级为「未分类/」
+    /// （P0-D 解耦：用户标签的文字归用户所有，主题删除不碰标签）。
     @discardableResult
     func deleteClassificationTopic(_ topic: Topic) throws -> TopicDeletionResult {
-        if try hasTagPathPrefix(topic.title) {
-            _ = try ThoughtRepository(context: context).renameTagPathPrefix(
-                from: topic.title,
-                to: ThoughtThemeConstraint.unclassifiedTitle
-            )
-        }
-        return try delete(topic)
+        try delete(topic)
     }
 
     /// 升为正式（candidate → active）
@@ -338,7 +329,7 @@ final class TopicRepository {
         var pruned = 0
         for topic in topics
         where presetKeys.contains(Self.normalizedKey(title: topic.title))
-            && (topic.thoughts as? Set<Thought>)?.isEmpty == true
+            && ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: topic, includeArchived: true) == 0
             && topic.createdAt < cutoff {
             context.delete(topic)
             pruned += 1
@@ -352,34 +343,46 @@ final class TopicRepository {
 
     // MARK: - thoughtCount（实时算，不缓存，spec 决策 14）
 
+    /// 读源统一（2026-09-27 P0-A）：计数与详情列表/卡片徽章同走 link 投影裁决。
+    /// 旧 `topic.thoughts` 反向关系只是 V2 双写镜像，不再作为对外口径——
+    /// V3 AI 归入只写 link，读旧关系会漏（卡片有徽章、主题列表没有这条）。
     func thoughtCount(of topic: Topic) -> Int {
-        (topic.thoughts as? Set<Thought>)?.count ?? 0
+        ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: topic)
     }
 
     // MARK: - 按 Topic 查观点（P1.5.2）
 
-    /// 查某 Topic 下观点（走 Thought.topics 关系）
+    /// 查某 Topic 下观点。读源统一（2026-09-27 P0-A）：谓词只按 link 粗筛，
+    /// 最终成员资格由 `effectiveTopics` 投影裁决精筛（与卡片徽章同源：
+    /// 拒绝墓碑压 AI、用户决定保护、superseded 不算成员）。
     /// - Parameter includeArchived: 是否包含已归档（默认不包含）
     func fetchThoughts(byTopic topicId: UUID, includeArchived: Bool = false) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let topicPredicate = NSPredicate(format: "ANY topics.id == %@", topicId as CVarArg)
+        let topicPredicate = NSPredicate(format: "ANY topicLinks.topic.id == %@", topicId as CVarArg)
         let deletePredicate = includeArchived
             ? NSPredicate(format: "deletedAt == nil")
             : NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return ThoughtRepository.deduplicatingCopies(try context.fetch(request))
+            .filter { Self.isEffectiveMember($0, of: topicId) }
     }
 
-    /// 在某 Topic 范围内搜索
+    /// 在某 Topic 范围内搜索（读源口径与 fetchThoughts(byTopic:) 完全一致）
     func searchWithinTopic(topicId: UUID, query: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let topicPredicate = NSPredicate(format: "ANY topics.id == %@", topicId as CVarArg)
+        let topicPredicate = NSPredicate(format: "ANY topicLinks.topic.id == %@", topicId as CVarArg)
         let searchPredicate = NSPredicate(format: "content CONTAINS[cd] %@", query)
         let deletePredicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, searchPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return ThoughtRepository.deduplicatingCopies(try context.fetch(request))
+            .filter { Self.isEffectiveMember($0, of: topicId) }
+    }
+
+    /// 投影裁决成员判定：与卡片徽章 `effectiveTopics` 同一出口
+    private static func isEffectiveMember(_ thought: Thought, of topicId: UUID) -> Bool {
+        ThoughtTopicLinkProjection.effectiveTopics(for: thought).contains { $0.id == topicId }
     }
 
     // MARK: - 手动移入/移出（P1.5.6）

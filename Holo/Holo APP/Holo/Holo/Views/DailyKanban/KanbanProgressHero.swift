@@ -219,8 +219,8 @@ struct KanbanProgressHero: View {
         do {
             let transactions = try await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end)
             todayExpense = transactions
-                .filter { $0.transactionType == .expense }
-                .reduce(Decimal.zero) { $0 + ($1.amount as Decimal) }
+                .filter { $0.statisticsType == .expense }
+                .reduce(Decimal.zero) { $0 + $1.statisticsAmount }
         } catch {
             todayExpense = nil
         }

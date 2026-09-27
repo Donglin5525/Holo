@@ -10,9 +10,12 @@ import Foundation
 enum ThoughtAIClassificationPolicy {
     static let isEnabledKey = "isThoughtAutoOrganizationEnabled"
 
-    /// 未写入过设置时默认开启，保持现有用户体验。
+    /// 自动整理默认值：显式设置永远优先；未设置时——V3 新 UI 生效的构建默认停止
+    /// V2 自动整理（其标签在新 UI 不展示，继续自动跑只空耗配额），线上 Release
+    /// （旧 UI 仍展示 V2 标签）保持默认开。回滚 = 设置页显式开启（2026-09-24 方案 §6.2 停算矩阵）。
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: isEnabledKey) as? Bool ?? true
+        if let explicit = defaults.object(forKey: isEnabledKey) as? Bool { return explicit }
+        return !ThoughtSemanticFeatureFlags.uiEnabled(in: defaults)
     }
 
     /// 新想法保存后的初始整理状态。

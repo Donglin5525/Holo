@@ -19,6 +19,8 @@ extension Notification.Name {
     static let thoughtRequestTagFilter = Notification.Name("thoughtRequestTagFilter")
     /// 请求关闭想法编辑器 fullScreenCover（详情页跳转 AI 后通知列表层关闭 cover）
     static let holoRequestCloseThoughtEditor = Notification.Name("holoRequestCloseThoughtEditor")
+    /// AI 主题归类落库回执（P1 §3.2 归入回执；object 为 [thoughtId: UUID, topicTitle: String]）
+    static let thoughtTopicLinkDidCommit = Notification.Name("thoughtTopicLinkDidCommit")
 }
 
 /// 观点数据仓储

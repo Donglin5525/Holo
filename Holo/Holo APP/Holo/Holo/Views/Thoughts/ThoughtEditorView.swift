@@ -79,6 +79,8 @@ struct ThoughtEditorView: View {
     // 先用短内容的舒适起步高度，避免编辑器等待第一次布局回调时先闪出大块空白。
     @State private var editorHeight: CGFloat = 240
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
+    /// 正文选区长度（flomo 改版补：「…」菜单在有选中文字时切换「转为选中任务」）
+    @State private var editorSelectionLength: Int = 0
     /// 当前光标在编辑器视图局部坐标系内的 rect（由 MarkdownTextView 上报，候选浮层据此吸附）
     @State private var caretRect: CGRect = .zero
     /// 键盘（含工具栏）当前遮挡屏幕底部的高度；编辑器据此收缩高度上限，保证光标始终可见
@@ -188,6 +190,26 @@ struct ThoughtEditorView: View {
                             aiTagsSection
                                 .id(EditorScrollAnchor.aiTags)
                         }
+                        // 相关旧想法（B 阶段可感知能力 §5.2）：有历史时局部呈现 1-3 条
+                        // 可回原文的旧想法；无命中安静留空，不打扰记录。
+                        // id 随想法/正文版本变化——编辑后旧召回结果整体重建
+                        if let currentThoughtId, hasLoadedEditorData {
+                            if ThoughtSemanticFeatureFlags.uiEnabled,
+                               content.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10 {
+                                ThoughtInsightButton(content: content)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            if ThoughtSemanticFeatureFlags.resurfacingEnabled {
+                                ThoughtRelatedSection(
+                                    thoughtID: currentThoughtId,
+                                    content: content,
+                                    onOpenThought: { targetId in
+                                        NotificationCenter.default.post(
+                                            name: .thoughtRequestOpenEditor, object: targetId)
+                                    })
+                                    .id("\(currentThoughtId.uuidString)-\(content.count)")
+                            }
+                        }
                     }
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
@@ -205,13 +227,12 @@ struct ThoughtEditorView: View {
                 }
                 // 工具栏是编辑器卡片的一部分（见 contentSection 底部的 EditorFormatToolbar），
                 // 不需要 SwiftUI 层 safeAreaInset，也不依赖键盘附属条。
-                // 「完成」已下沉到工具栏最右（✔/纸飞机），导航栏右上只放「…」操作菜单
-                // （新建未落库时不显示——没有可分享/重整/删除的对象）。
+                // 「完成」已下沉到工具栏最右（✔/纸飞机），导航栏右上只放「…」操作菜单。
+                // 菜单本体新建会话也显示：「转为任务」自带先落库能力；
+                // 分享/重整/删除等只在已落库时出现（菜单内部按 currentThoughtId 分支）。
                 .toolbar {
-                    if currentThoughtId != nil {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            editorOptionsMenu
-                        }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        editorOptionsMenu
                     }
                 }
             }
@@ -568,6 +589,9 @@ struct ThoughtEditorView: View {
             }
         } catch {
             ThoughtLog.error("观点自动保存失败", error.localizedDescription)
+            // 保存失败必须可见（flomo 改版批4）：静默失败会让用户以为已记录；
+            // 继续编辑会再次触发防抖自动保存、退出还有 onDisappear 兜底，两者都是重试路径
+            HoloToastCenter.shared.show(String(localized: "保存失败，继续编辑会自动重试"), type: .error)
             return nil
         }
 
@@ -613,7 +637,11 @@ struct ThoughtEditorView: View {
     private func startTaskExtraction(selectedText: String? = nil, selectedRange: NSRange? = nil) {
         guard hasContent else { return }
         guard let thoughtId = persistContent(shouldDismiss: false, notifyDataChange: false),
-              let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
+              let thought = try? thoughtRepository.fetchById(thoughtId) else {
+            // 落库失败不再静默（persistContent 已弹保存失败 toast；这里补动作受阻的说明）
+            HoloToastCenter.shared.show(String(localized: "保存未完成，暂时无法转为任务"), type: .error)
+            return
+        }
         // 一次性构建完整请求，避免 sheet 闭包分两步读状态导致拿到中间态
         taskExtractionRequest = TaskExtractionRequest(
             content: selectedText ?? thought.content,
@@ -679,7 +707,12 @@ struct ThoughtEditorView: View {
                 onSuggestionCommand: handleSuggestionKeyboardCommand,
                 suggestionKeyboardEnabled: triggerContext != nil,
                 suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty,
-                onCompositionChange: handleCompositionChange
+                onCompositionChange: handleCompositionChange,
+                onSelectionLengthChange: { length in
+                    if editorSelectionLength != length {
+                        editorSelectionLength = length
+                    }
+                }
             )
             .frame(height: editorFrameHeight)
 
@@ -693,10 +726,6 @@ struct ThoughtEditorView: View {
                     if showsColorPalette {
                         showsColorPalette = false
                     }
-                },
-                onConvertToTask: {
-                    if showsColorPalette { showsColorPalette = false }
-                    pendingEditorAction = .convertToTask
                 },
                 onCamera: {
                     if showsColorPalette { showsColorPalette = false }
@@ -963,42 +992,60 @@ struct ThoughtEditorView: View {
 
     // MARK: - 「…」菜单（承接原详情页能力）
 
-    /// 导航栏右上操作菜单：分享卡 / 重新整理（条件） / 移入主题 / 查看引用 / 删除。
-    /// 「转为任务」不进菜单——工具栏已有等价按钮。
+    /// 导航栏右上操作菜单：转为任务 / 分享卡 / 重新整理（条件） / 移入主题 / 查看引用 / 删除。
+    /// 「转为任务」收进本菜单（flomo 改版批4：工具栏主位只留给语音与完成）；
+    /// 它自带先落库能力，新建会话也可用。其余操作需要已落库的对象。
+    /// 正文有选中文字时出现「转为选中文字任务」——走同一条 .convertToTask 管线
+    /// （管线内部：有选中转选中、无选中转整篇），补回工具栏按钮退役后的选区能力。
     private var editorOptionsMenu: some View {
         Menu {
-            Button {
-                showShareCard = true
-            } label: {
-                Label("生成分享卡", systemImage: "square.and.arrow.up")
-            }
-
-            // FR-05′：单条重新整理（failed/已整理均可；skipped 短文本无意义不显示）
-            if canRetryOrganization {
+            if editorSelectionLength > 0 {
                 Button {
-                    retryOrganization()
+                    pendingEditorAction = .convertToTask
                 } label: {
-                    Label("重新整理", systemImage: "arrow.clockwise")
+                    Label("转为选中文字任务", systemImage: "text.insert")
                 }
-                .disabled(retryInFlight)
             }
-
             Button {
-                showTopicPicker = true
+                startTaskExtraction()
             } label: {
-                Label("移入主题", systemImage: "folder")
+                Label("转为任务", systemImage: "checklist")
             }
 
-            Button {
-                showReferenceList = true
-            } label: {
-                Label("查看引用", systemImage: "link")
-            }
+            if currentThoughtId != nil {
+                Button {
+                    showShareCard = true
+                } label: {
+                    Label("生成分享卡", systemImage: "square.and.arrow.up")
+                }
 
-            Button(role: .destructive) {
-                showDeleteConfirm = true
-            } label: {
-                Label("删除想法", systemImage: "trash")
+                // FR-05′：单条重新整理（failed/已整理均可；skipped 短文本无意义不显示）
+                if canRetryOrganization {
+                    Button {
+                        retryOrganization()
+                    } label: {
+                        Label("重新整理", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(retryInFlight)
+                }
+
+                Button {
+                    showTopicPicker = true
+                } label: {
+                    Label("移入主题", systemImage: "folder")
+                }
+
+                Button {
+                    showReferenceList = true
+                } label: {
+                    Label("查看引用", systemImage: "link")
+                }
+
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    Label("删除想法", systemImage: "trash")
+                }
             }
         } label: {
             Image(systemName: "ellipsis.circle")

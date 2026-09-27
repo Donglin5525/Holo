@@ -108,11 +108,13 @@ struct ZoomableImageView: View {
     let image: UIImage?
     let isLoading: Bool
     var onSingleTap: (() -> Void)? = nil
+    /// 缩放状态变化透传（宿主用于让位下拉关闭等手势）
+    var onZoomingChanged: ((Bool) -> Void)? = nil
 
     var body: some View {
         ZStack {
             if let image {
-                ZoomableScrollView(image: image)
+                ZoomableScrollView(image: image, onZoomingChanged: onZoomingChanged)
             }
             if isLoading {
                 ProgressView()

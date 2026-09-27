@@ -100,6 +100,16 @@ extension CoreDataStack {
         accountRelation.maxCount = 1
         accountRelation.isOptional = true
         accountRelation.deleteRule = .nullifyDeleteRule
+
+        // 票根（照片附件）：Transaction → TransactionAttachment（一对多，cascade）
+        // UI 上限 3 张，模型不封死；附件跟随交易生命周期，不设独立软删除标记
+        let attachmentsRelation = NSRelationshipDescription()
+        attachmentsRelation.name = "attachments"
+        attachmentsRelation.destinationEntity = nil  // 稍后设置
+        attachmentsRelation.minCount = 0
+        attachmentsRelation.maxCount = 0
+        attachmentsRelation.isOptional = true
+        attachmentsRelation.deleteRule = .cascadeDeleteRule
         
         // 分期记账字段
         let installmentGroupId = NSAttributeDescription()
@@ -121,6 +131,15 @@ extension CoreDataStack {
         installmentTotal.isOptional = false
         installmentTotal.defaultValue = 0
         attributes.append(installmentTotal)
+
+        // 退款关联：退款笔指向被退的原支出交易（弱引用，nil=普通交易）。
+        // 退款笔自身 type=income、category 与原交易同款，统计层按退款笔分类冲减支出，
+        // 原交易被删悬空时不需 join 即可继续成立。
+        let refundOfTransactionId = NSAttributeDescription()
+        refundOfTransactionId.name = "refundOfTransactionId"
+        refundOfTransactionId.attributeType = .UUIDAttributeType
+        refundOfTransactionId.isOptional = true
+        attributes.append(refundOfTransactionId)
 
         // AI 来源标记
         let isAICreated = NSAttributeDescription()
@@ -221,8 +240,8 @@ extension CoreDataStack {
         let transactionSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
         attributes.append(contentsOf: transactionSoftDelete.attributes)
 
-        transactionEntity.properties = attributes + [categoryRelation, accountRelation]
-        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "financeProjectId": financeProjectId, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef, "deletedAt": transactionSoftDelete.deletedAt, "deletedBatchId": transactionSoftDelete.deletedBatchId])
+        transactionEntity.properties = attributes + [categoryRelation, accountRelation, attachmentsRelation]
+        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "refundOfTransactionId": refundOfTransactionId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "financeProjectId": financeProjectId, "importBatchId": importBatchId, "importFingerprint": importFingerprint, "importSourceRef": importSourceRef, "deletedAt": transactionSoftDelete.deletedAt, "deletedBatchId": transactionSoftDelete.deletedBatchId])
         
         // MARK: - Category Entity
         let categoryEntity = NSEntityDescription()
@@ -711,7 +730,61 @@ extension CoreDataStack {
             "deletedBatchId": financeProjectSoftDelete.deletedBatchId
         ])
 
-        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity, financeProjectEntity]
+        // MARK: - TransactionAttachment Entity
+        // 票根（交易照片附件）：与 ThoughtAttachment 同构——文件路径引用 + JPEG 二进制双存，
+        // 二进制随 CoreData 变长字段经 NSPersistentCloudKitContainer 自动映射 CKAsset 同步；
+        // 刻意不开 allowsExternalBinaryDataStorage（全 App 仅用户头像开）。
+        let transactionAttachmentEntity = NSEntityDescription()
+        transactionAttachmentEntity.name = "TransactionAttachment"
+        transactionAttachmentEntity.managedObjectClassName = "TransactionAttachment"
+
+        func attachmentAttribute(_ name: String, _ type: NSAttributeType, optional: Bool = false, defaultValue: Any? = nil) -> NSAttributeDescription {
+            let attribute = NSAttributeDescription()
+            attribute.name = name
+            attribute.attributeType = type
+            attribute.isOptional = optional
+            attribute.defaultValue = defaultValue
+            return attribute
+        }
+
+        let attachmentAttributes: [NSAttributeDescription] = [
+            attachmentAttribute("id", .UUIDAttributeType, defaultValue: UUID()),
+            // 沙盒 Documents/TransactionAttachments/<transactionId>/<attachmentId>.jpeg
+            attachmentAttribute("fileName", .stringAttributeType, defaultValue: ""),
+            attachmentAttribute("thumbnailFileName", .stringAttributeType, defaultValue: ""),
+            attachmentAttribute("sortOrder", .integer16AttributeType, defaultValue: 0),
+            // photoLibrary / camera / receiptBooking（为 AI 看照片预留来源语义）
+            attachmentAttribute("sourceType", .stringAttributeType, defaultValue: "photoLibrary"),
+            attachmentAttribute("createdAt", .dateAttributeType, defaultValue: Date()),
+            // 原图 2048px/0.8 + 缩略图 300px JPEG 双存
+            attachmentAttribute("imageData", .binaryDataAttributeType, optional: true),
+            attachmentAttribute("thumbnailData", .binaryDataAttributeType, optional: true)
+        ]
+        transactionAttachmentEntity.properties = attachmentAttributes
+        let attachmentAttributesById: [String: NSAttributeDescription] = Dictionary(
+            attachmentAttributes.map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        CoreDataStack.applyIndexes(to: transactionAttachmentEntity, on: [
+            "id": attachmentAttributesById["id"]!,
+            "sourceType": attachmentAttributesById["sourceType"]!
+        ])
+
+        // TransactionAttachment → Transaction（多对一，nullify）
+        let attachmentTransactionRelation = NSRelationshipDescription()
+        attachmentTransactionRelation.name = "transaction"
+        attachmentTransactionRelation.destinationEntity = transactionEntity
+        attachmentTransactionRelation.minCount = 0
+        attachmentTransactionRelation.maxCount = 1
+        attachmentTransactionRelation.isOptional = true
+        attachmentTransactionRelation.deleteRule = .nullifyDeleteRule
+
+        attachmentsRelation.destinationEntity = transactionAttachmentEntity
+        attachmentsRelation.inverseRelationship = attachmentTransactionRelation
+        attachmentTransactionRelation.inverseRelationship = attachmentsRelation
+        transactionAttachmentEntity.properties = attachmentAttributes + [attachmentTransactionRelation]
+
+        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity, financeProjectEntity, transactionAttachmentEntity]
     }
 
 }

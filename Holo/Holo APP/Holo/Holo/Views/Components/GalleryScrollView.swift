@@ -13,6 +13,8 @@ import UIKit
 
 struct ZoomableScrollView: UIViewRepresentable {
     let image: UIImage
+    /// 缩放状态变化回调（zoomScale > 1 = 已放大）；宿主用于让位下拉关闭等手势
+    var onZoomingChanged: ((Bool) -> Void)? = nil
 
     func makeUIView(context: Context) -> GalleryScrollView {
         let scrollView = GalleryScrollView()
@@ -43,6 +45,7 @@ struct ZoomableScrollView: UIViewRepresentable {
     func updateUIView(_ scrollView: GalleryScrollView, context: Context) {
         guard let imageView = scrollView.subviews.first as? UIImageView else { return }
         imageView.image = image
+        context.coordinator.onZoomingChanged = onZoomingChanged
         DispatchQueue.main.async {
             Self.layout(scrollView, imageView)
         }
@@ -78,6 +81,9 @@ struct ZoomableScrollView: UIViewRepresentable {
     // MARK: - Coordinator
 
     class Coordinator: NSObject, UIScrollViewDelegate {
+        var onZoomingChanged: ((Bool) -> Void)?
+        private var lastZoomingState = false
+
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             scrollView.subviews.first
         }
@@ -93,6 +99,12 @@ struct ZoomableScrollView: UIViewRepresentable {
                 width: frameSize.width,
                 height: frameSize.height
             )
+
+            let zooming = scrollView.zoomScale > scrollView.minimumZoomScale
+            if zooming != lastZoomingState {
+                lastZoomingState = zooming
+                onZoomingChanged?(zooming)
+            }
         }
 
         @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {

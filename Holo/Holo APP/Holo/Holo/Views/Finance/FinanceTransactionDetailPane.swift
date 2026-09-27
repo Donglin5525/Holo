@@ -32,6 +32,13 @@ struct FinanceTransactionDetailPane: View {
     let onEdit: () -> Void
     let onCopy: () -> Void
     let onDelete: () -> Void
+    /// 发记退款（原支出且可退时显示入口）
+    var onRecordRefund: (() -> Void)? = nil
+    /// 编辑已有退款（原交易退款属性行点击进入，多笔时先选哪笔）
+    var onEditRefunds: (() -> Void)? = nil
+
+    /// 原交易的累计退款（金额头徽章与「退款」属性行用；nil=未加载或无退款）
+    @State private var refundSummary: (count: Int, total: Decimal)? = nil
 
     var body: some View {
         Group {
@@ -43,6 +50,30 @@ struct FinanceTransactionDetailPane: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.holoBackground)
+        .task(id: transaction?.id) { await loadRefundSummary() }
+        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+            Task { await loadRefundSummary() }
+        }
+    }
+
+    /// 原交易的退款汇总（非支出交易不查）
+    private func loadRefundSummary() async {
+        guard let tx = transaction,
+              tx.transactionType == .expense,
+              !tx.isRefund else {
+            refundSummary = nil
+            return
+        }
+        let refunds = (try? await FinanceRepository.shared.getRefunds(for: tx)) ?? []
+        refundSummary = refunds.isEmpty
+            ? nil
+            : (count: refunds.count, total: refunds.reduce(Decimal(0)) { $0 + $1.amountAsDecimal })
+    }
+
+    /// 可对当前记录发起退款：普通支出（非分期、非退款笔）
+    private var canRecordRefund: Bool {
+        guard let tx = transaction else { return false }
+        return tx.transactionType == .expense && !tx.isInstallment && !tx.isRefund
     }
 
     // MARK: - 无选中：本日摘要 + 引导
@@ -100,9 +131,11 @@ struct FinanceTransactionDetailPane: View {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 // 金额头
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(tx.transactionType == .income
-                         ? String(localized: "收入")
-                         : String(localized: "支出"))
+                    Text(tx.isRefund
+                         ? String(localized: "退款")
+                         : (tx.transactionType == .income
+                            ? String(localized: "收入")
+                            : String(localized: "支出")))
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
 
@@ -114,8 +147,21 @@ struct FinanceTransactionDetailPane: View {
                         CardBadge(text: label, color: .holoPrimary)
                             .fixedSize()
                     }
+                    if tx.isRefund {
+                        CardBadge(text: String(localized: "退款"), color: .holoSuccessDark)
+                            .fixedSize()
+                    } else if let refundSummary {
+                        CardBadge(
+                            text: String(localized: "已退 \(refundSummary.total.formattedAsCurrency())"),
+                            color: .holoSuccessDark
+                        )
+                        .fixedSize()
+                    }
                 }
                 .padding(.top, HoloSpacing.xl)
+
+                // 票根区（属性区上方；有票才出现）
+                TransactionReceiptDetailSection(transaction: tx)
 
                 // 属性区
                 VStack(spacing: 0) {
@@ -124,6 +170,38 @@ struct FinanceTransactionDetailPane: View {
                     attributeRow(String(localized: "账户"),
                                  value: tx.account?.name ?? String(localized: "未指定"))
                     attributeRow(String(localized: "日期"), value: fullDateText(tx.date))
+
+                    if tx.isRefund, let originalId = tx.refundOfTransactionId,
+                       let original = FinanceRepository.shared.findTransaction(by: originalId) {
+                        attributeRow(
+                            String(localized: "关联原交易"),
+                            value: "\(original.note?.isEmpty == false ? original.note! : (original.category?.name ?? "")) · ¥\(original.formattedAmount)"
+                        )
+                    } else if let refundSummary {
+                        if let onEditRefunds {
+                            Button {
+                                onEditRefunds()
+                            } label: {
+                                HStack {
+                                    attributeRow(
+                                        String(localized: "退款"),
+                                        value: String(localized: "\(refundSummary.count) 笔 · 共 ¥\(refundSummary.total.formattedAsCurrency())")
+                                    )
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(.holoTextSecondary)
+                                        .padding(.trailing, HoloSpacing.lg)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            attributeRow(
+                                String(localized: "退款"),
+                                value: String(localized: "\(refundSummary.count) 笔 · 共 ¥\(refundSummary.total.formattedAsCurrency())")
+                            )
+                        }
+                    }
 
                     if let note = tx.note, !note.isEmpty {
                         attributeRow(String(localized: "名称"), value: note)
@@ -147,6 +225,11 @@ struct FinanceTransactionDetailPane: View {
                 HStack(spacing: HoloSpacing.md) {
                     paneAction(String(localized: "编辑"), icon: "pencil") { onEdit() }
                     paneAction(String(localized: "复制"), icon: "doc.on.doc") { onCopy() }
+                    if canRecordRefund, let onRecordRefund {
+                        paneAction(String(localized: "记退款"), icon: "arrow.uturn.backward") {
+                            onRecordRefund()
+                        }
+                    }
                     paneAction(String(localized: "删除"), icon: "trash", role: .destructive) { onDelete() }
                 }
             }

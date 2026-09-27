@@ -44,6 +44,10 @@ final class ThoughtSemanticChangeFeed {
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleRemoteChange(_:)),
             name: .NSPersistentStoreRemoteChange, object: nil)
+        // 授权变化（2026-09-24 方案 §3 P0：撤回必须取消在途任务并作废代数）
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleConsentChange(_:)),
+            name: .holoAIDataProcessingConsentDidChange, object: nil)
     }
 
     // MARK: - 事件处理
@@ -69,35 +73,68 @@ final class ThoughtSemanticChangeFeed {
         }
     }
 
-    /// 全量核对：无有效向量且未删的想法入队（启动/远端变更后的兜底对账）。
+    /// 授权变化：撤回 → 取消任务+代数+1（迟到结果落库前作废）；
+    /// 恢复 → 全量对账重新入队（重建范围与开启索引同口径）。
+    @objc private func handleConsentChange(_ note: Notification) {
+        let granted = (note.userInfo?["granted"] as? Bool) ?? false
+        Task {
+            if granted {
+                await grantConsent()
+            } else {
+                await revokeConsent()
+            }
+        }
+    }
+
+    /// 全量核对：无有效向量且未删的想法入队 embed；已有向量的入队 relate
+    /// （P0-C 存量补跑：解决「开启 relation 后已有向量的想法永不归类」——
+    /// 旧实现 relate 内联在 embed 尾部，已有向量提前 return 直接跳过）。
+    /// 分页快照入队（每页 500、创建时间倒序=最近内容优先），10 万级历史不整批进内存。
     func reconcileAllThoughts() async {
         guard let store, !isReconciling else { return }
         isReconciling = true
         defer { isReconciling = false }
         let context = CoreDataStack.shared.viewContext
-        context.performAndWait {
-            let request = Thought.fetchRequest()
-            request.predicate = NSPredicate(format: "deletedAt == nil")
-            let thoughts = (try? context.fetch(request)) ?? []
-            // 块内解出值类型快照：托管对象不能跨线程进 Task（行缓存被合并/清理后
-            // 取值得到 nil，非可选 UUID 强桥接直接崩，2026-09-13 真机 SIGTRAP 实证）
-            let snapshots: [(id: UUID, hash: String)] = thoughts.compactMap { thought in
-                guard let id = thought.value(forKey: "id") as? UUID,
-                      let content = thought.value(forKey: "content") as? String else { return nil }
-                return (id, ThoughtEmbeddingStore.contentHash(of: content))
-            }
-            Task { [snapshots] in
-                var enqueued = 0
-                for snapshot in snapshots {
-                    if await self.enqueueEmbedIfNeeded(thoughtID: snapshot.id,
-                                                        contentHash: snapshot.hash) {
-                        enqueued += 1
+        var offset = 0
+        var enqueued = 0
+        let pageSize = 500
+        while true {
+            let page: [(id: UUID, hash: String)] = await MainActor.run {
+                context.performAndWait {
+                    let request = Thought.fetchRequest()
+                    request.predicate = NSPredicate(format: "deletedAt == nil")
+                    request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+                    request.fetchLimit = pageSize
+                    request.fetchOffset = offset
+                    // 块内解出值类型快照：托管对象不能跨线程进 Task（行缓存被合并/清理后
+                    // 取值得到 nil，非可选 UUID 强桥接直接崩，2026-09-13 真机 SIGTRAP 实证）
+                    let thoughts = (try? context.fetch(request)) ?? []
+                    return thoughts.compactMap { thought in
+                        guard let id = thought.value(forKey: "id") as? UUID,
+                              let content = thought.value(forKey: "content") as? String else { return nil }
+                        return (id, ThoughtEmbeddingStore.contentHash(of: content))
                     }
                 }
-                if enqueued > 0 {
-                    self.logger.info("对账入队 \(enqueued) 条")
+            }
+            guard !page.isEmpty else { break }
+            for snapshot in page {
+                let hasVector: Bool = (try? await store.hasActiveItem(
+                    thoughtID: snapshot.id, contentHash: snapshot.hash,
+                    modelVersion: ThoughtSemanticStore.defaultModelVersion)) ?? false
+                if hasVector {
+                    // 已有向量：只补 relate（embed 无需重做）
+                    if await enqueueRelateIfNeeded(thoughtID: snapshot.id, contentHash: snapshot.hash) {
+                        enqueued += 1
+                    }
+                } else if await enqueueEmbedIfNeeded(thoughtID: snapshot.id, contentHash: snapshot.hash) {
+                    enqueued += 1
                 }
             }
+            offset += page.count
+            if page.count < pageSize { break }
+        }
+        if enqueued > 0 {
+            logger.info("对账入队 \(enqueued) 条（累计扫描 \(offset)）")
         }
     }
 
@@ -145,6 +182,30 @@ final class ThoughtSemanticChangeFeed {
         }
     }
 
+    /// relate 任务去重入队（P0-C）：同 (thought, hash) 无 pending 任务且从未跑过
+    /// （relation_candidate 无记录）才入队。跑过的重评（主题目录变更/校准升级）
+    /// 属 P2 受控重评，P0 不自动触发——避免 AI 写 link 与重评互相点火成环。
+    func enqueueRelateIfNeeded(thoughtID: UUID, contentHash: String) async -> Bool {
+        guard let store else { return false }
+        do {
+            if try await store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "relate") {
+                return false
+            }
+            if try await store.hasRelationRecord(thoughtID: thoughtID, contentHash: contentHash) {
+                return false
+            }
+            let job = ThoughtSemanticStore.SemanticJob(
+                id: UUID(), thoughtID: thoughtID, contentHash: contentHash, kind: "relate",
+                priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil,
+                consentGeneration: ThoughtSemanticFeatureFlags.consentGeneration, lastErrorCode: nil)
+            try await store.enqueueJob(job)
+            return true
+        } catch {
+            logger.error("relate 入队失败 thought=\(thoughtID)：\(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// 软删：tombstone 向量槽位（可恢复路径保留真身，恢复时按 hash 复用，§14）。
     private func handleSoftDelete(thoughtID: UUID) async {
         guard let store else { return }
@@ -174,8 +235,11 @@ final class ThoughtSemanticChangeFeed {
         await reconcileAllThoughts()
     }
 
-    /// 「删除设备智能索引」（设置页 Phase 4 接 UI）：销毁语义库与索引缓存。
+    /// 「删除设备智能索引」（设置页）：先停管线节拍并释放内存索引
+    /// （否则 30s 心跳继续用旧引用写入、checkpoint 可能把旧向量写回磁盘），
+    /// 再销毁语义库与索引缓存。销毁后可重新 bootstrap 重建。
     func destroyIndex() async throws {
+        await ThoughtSemanticPipeline.shared.shutdown()
         guard let store else { return }
         try await store.destroyAllData()
         logger.notice("设备智能索引已销毁")

@@ -197,6 +197,8 @@ extension AddTransactionSheet {
                     )
                 }
 
+                await attachPendingReceipts(to: savedTransaction)
+
                 HapticManager.success()
                 onSave(savedTransaction)
                 dismiss()
@@ -369,6 +371,8 @@ extension AddTransactionSheet {
                 )
             }
 
+            await attachPendingReceipts(to: savedTransaction)
+
             await MainActor.run {
                 HapticManager.success()
                 onSave(savedTransaction)
@@ -462,109 +466,19 @@ extension AddTransactionSheet {
 
 extension AddTransactionSheet {
 
-    /// 计算表达式结果
-    /// 支持四则运算：+、-、×、÷，遵循运算优先级（先乘除后加减）
+    /// 计算表达式结果（求值与格式化见 AmountMath；失败保留原表达式）
     func calculateExpression() {
-        let operators = ["×", "÷", "+", "-"]
-        var hasOperator = false
-        for op in operators {
-            if amountString.contains(op) {
-                hasOperator = true
-                break
-            }
+        let resolved = AmountMath.resolve(amountString)
+        if resolved != amountString {
+            amountString = resolved
+        } else if AmountMath.containsOperator(amountString) {
+            logger.error("表达式计算失败: \(amountString)")
         }
-
-        if !hasOperator {
-            return
-        }
-
-        var expression = amountString
-        expression = expression.replacingOccurrences(of: "×", with: "*")
-        expression = expression.replacingOccurrences(of: "÷", with: "/")
-
-        if let result = evaluateExpression(expression) {
-            let formatted = formatAmount(Decimal(result))
-            amountString = formatted
-        } else {
-            logger.error("表达式计算失败: \(expression)")
-        }
-    }
-
-    /// 解析并计算表达式（支持四则运算，遵循优先级）
-    func evaluateExpression(_ expression: String) -> Double? {
-        var tokens: [String] = []
-        var currentToken = ""
-
-        for char in expression {
-            if "+-*/".contains(char) {
-                if !currentToken.isEmpty {
-                    tokens.append(currentToken)
-                    currentToken = ""
-                }
-                tokens.append(String(char))
-            } else {
-                currentToken.append(char)
-            }
-        }
-        if !currentToken.isEmpty {
-            tokens.append(currentToken)
-        }
-
-        if tokens.isEmpty {
-            return nil
-        }
-
-        // 第一遍：处理乘除
-        var processedTokens = tokens
-        var i = 0
-        while i < processedTokens.count {
-            let token = processedTokens[i]
-            if token == "*" || token == "/" {
-                guard i > 0, i < processedTokens.count - 1 else { return nil }
-                guard let left = Double(processedTokens[i - 1]),
-                      let right = Double(processedTokens[i + 1]) else { return nil }
-
-                let result: Double
-                if token == "*" {
-                    result = left * right
-                } else {
-                    guard right != 0 else { return nil }
-                    result = left / right
-                }
-
-                processedTokens.replaceSubrange(i - 1...i + 1, with: [String(result)])
-            } else {
-                i += 1
-            }
-        }
-
-        // 第二遍：处理加减
-        var finalResult = Double(processedTokens[0]) ?? 0
-        i = 1
-        while i < processedTokens.count {
-            let token = processedTokens[i]
-            if token == "+" || token == "-" {
-                guard i < processedTokens.count - 1 else { break }
-                guard let right = Double(processedTokens[i + 1]) else { break }
-
-                if token == "+" {
-                    finalResult += right
-                } else {
-                    finalResult -= right
-                }
-                i += 2
-            } else {
-                i += 1
-            }
-        }
-
-        return finalResult
     }
 
     /// 格式化金额：四舍五入到2位小数
     func formatAmount(_ amount: Decimal) -> String {
-        let rounded = (amount as NSDecimalNumber).rounding(accordingToBehavior: NSDecimalNumberHandler(roundingMode: .plain, scale: 2, raiseOnExactness: false, raiseOnOverflow: false, raiseOnUnderflow: false, raiseOnDivideByZero: false))
-        return rounded.stringValue
+        AmountMath.format(amount)
     }
 
     /// 当用户修改分类时，学习映射关系

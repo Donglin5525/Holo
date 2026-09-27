@@ -196,9 +196,10 @@ struct HoloApp: App {
                 // 习惯打卡提醒 + 周一晨报：滚动重排
                 await HabitReminderScheduler.shared.handleAppActivity()
                 await WeeklyBriefScheduler.shared.handleAppActivity()
-                // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                 await BillDueReminderScheduler.shared.handleAppActivity()
                 await BudgetOverrunNotificationService.shared.handleAppActivity()
+                await BudgetCarryoverNotificationService.shared.handleAppActivity()
 
                 #if DEBUG
                 let appStoreScreenshotModeActive =
@@ -326,9 +327,10 @@ struct HoloApp: App {
                         await DailyBriefScheduler.shared.handleAppActivity()
                         await HabitReminderScheduler.shared.handleAppActivity()
                         await WeeklyBriefScheduler.shared.handleAppActivity()
-                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                         await BillDueReminderScheduler.shared.handleAppActivity()
                         await BudgetOverrunNotificationService.shared.handleAppActivity()
+                        await BudgetCarryoverNotificationService.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()

@@ -210,10 +210,11 @@ class CalendarState: ObservableObject {
             let txns = try await repository.getTransactionsForDay(selectedDate)
                 .filter { !$0.isDeleted }
             selectedDayTransactions = txns
-            selectedDayExpense = txns.filter { $0.transactionType == .expense }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-            selectedDayIncome = txns.filter { $0.transactionType == .income }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            // 统计口径：退款笔按负支出并入当日支出（冲到账当月当日），不进收入
+            selectedDayExpense = txns.filter { $0.statisticsType == .expense }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+            selectedDayIncome = txns.filter { $0.statisticsType == .income }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         } catch {
             logger.error("加载日交易失败: \(error)")
         }

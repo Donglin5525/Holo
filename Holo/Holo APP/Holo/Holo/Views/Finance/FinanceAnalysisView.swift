@@ -15,6 +15,8 @@ struct FinanceAnalysisView: View {
     @ObservedObject var state: FinanceAnalysisState
     @Binding var selectedTab: AnalysisTab
     @State private var showCustomDateSheet: Bool = false
+    /// 顶部内联时间筛选条展开态（点胶囊切换，不弹抽屉）
+    @State private var showTimeFilterBlock: Bool = false
 
     init(
         state: FinanceAnalysisState,
@@ -33,9 +35,25 @@ struct FinanceAnalysisView: View {
             // 顶部栏
             headerView
 
-            // 时间范围标签（含自定义按钮）
+            // 时间范围标签（点击内联展开筛选条，不弹抽屉）
             TimeRangeLabel(state: state) {
-                showCustomDateSheet = true
+                withAnimation(HoloAnimation.standard) {
+                    showTimeFilterBlock.toggle()
+                }
+            }
+
+            // 内联时间筛选条：点档位立即生效并收起，数据区全程可见
+            if showTimeFilterBlock {
+                TimeFilterBlock(state: state) {
+                    withAnimation(HoloAnimation.standard) {
+                        showTimeFilterBlock = false
+                    }
+                } onCustomTap: {
+                    withAnimation(HoloAnimation.standard) {
+                        showTimeFilterBlock = false
+                    }
+                    showCustomDateSheet = true
+                }
             }
 
             // Tab 栏
@@ -48,10 +66,11 @@ struct FinanceAnalysisView: View {
         .sheet(isPresented: $showCustomDateSheet) {
             CustomDateSheet(
                 startDate: .constant(state.currentDateRange.start),
-                endDate: .constant(state.currentDateRange.end.addingDays(-1))
-            ) { start, end in
-                state.setCustomDateRange(start: start, end: end)
-            }
+                endDate: .constant(state.currentDateRange.end.addingDays(-1)),
+                onConfirm: { start, end in
+                    state.setCustomDateRange(start: start, end: end)
+                }
+            )
         }
         // 节流合并：同步/导入风暴时 financeDataDidChange 连发，每条都全量重算图表会打爆主线程；
         // 首发立即刷（保持「记一笔立刻可见」），风暴窗口内只保留最新一条，终态与逐条刷新一致（体检 R0-11）

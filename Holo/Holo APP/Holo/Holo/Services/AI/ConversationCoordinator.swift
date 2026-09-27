@@ -615,10 +615,31 @@ final class ConversationCoordinator {
                     }
                 }
 
+                // 退款识别（iOS 侧识别，零后端依赖）：收入话术带退款语义时匹配候选原支出，
+                // 命中则卡片携带关联候选；用户确认后由 IntentRouter 落成退款笔（统计冲减原分类）
+                if item.intent == .recordIncome,
+                   let amountStr = item.extractedData?["amount"],
+                   let refundAmount = Decimal(string: amountStr),
+                   Self.looksLikeRefund(text: text, data: item.extractedData),
+                   let candidate = try? await FinanceRepository.shared.findRefundCandidates(
+                       amount: refundAmount,
+                       keyword: item.extractedData?["categoryCandidate"] ?? item.extractedData?["note"]
+                   ).first {
+                    renderData["refundCandidateTransactionId"] = candidate.id.uuidString
+                    let candidateTitle = candidate.note?.isEmpty == false
+                        ? candidate.note!
+                        : (candidate.category?.name ?? "")
+                    renderData["refundCandidateTitle"] = candidateTitle
+                    renderData["refundCandidateAmount"] = candidate.formattedAmount
+                    renderData["refundCandidateDate"] = Self.refundCandidateDateText(candidate.date)
+                }
+
                 renderData["confirmationStatus"] = "pending"
                 renderData["pendingKind"] = "transaction"
                 let summary: String
-                if renderData["installmentEnabled"] == "true" {
+                if renderData["refundCandidateTransactionId"] != nil {
+                    summary = "我识别到一笔退款，确认后关联原支出并自动冲减"
+                } else if renderData["installmentEnabled"] == "true" {
                     let periods = renderData["installmentPeriods"] ?? "?"
                     summary = "我识别到一笔分期支出，分 \(periods) 期，请确认后记录"
                 } else {
@@ -843,6 +864,27 @@ final class ConversationCoordinator {
         if let data = data, data["repeatEnabled"] == "true" { return true }
         let patterns = ["每隔", "每天", "每周[一二三四五六日天]", "每月\\d+号", "每周[一二三四五六日天]和"]
         return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    // MARK: 退款语义识别（iOS 侧，零后端依赖）
+
+    /// 退款词表：不含「返还」（运营商充值返还等营销语义会误触发）
+    private static let refundKeywords = ["退款", "退货", "退费", "退了款", "退回"]
+
+    /// 收入话术是否带退款语义（原话/分类候选/名称 任一命中即算）
+    static func looksLikeRefund(text: String, data: [String: String]?) -> Bool {
+        let haystacks = [text, data?["categoryCandidate"] ?? "", data?["note"] ?? ""]
+        return haystacks.contains { hay in
+            refundKeywords.contains { hay.localizedCaseInsensitiveContains($0) }
+        }
+    }
+
+    /// 候选原交易的日期短文案（如「9月23日」），确认卡展示用
+    static func refundCandidateDateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("Mdd")
+        return formatter.string(from: date)
     }
 
     private func callActionParser(

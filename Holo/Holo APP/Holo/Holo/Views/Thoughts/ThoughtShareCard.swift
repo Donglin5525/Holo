@@ -2,13 +2,67 @@
 //  ThoughtShareCard.swift
 //  Holo
 //
-//  想法分享卡：把一条想法完整排成暖纸手账风长图（正文/图片/标签/心情/时间），
+//  想法分享卡：把一条想法完整排成多种风格长图（正文/图片/标签/心情/时间），
 //  宽度固定、高度随内容生长，不做任何截断；导出图片供系统分享或存相册。
 //  渲染目标是纯 SwiftUI（ImageRenderer 不支持 UIViewRepresentable），
 //  且静态图上不得出现任何交互暗示元素（按钮/「点击」话术）。
 //
 
 import SwiftUI
+
+/// 分享图的固定版式。原始内容和导出规则由 ThoughtShareCard 统一承载。
+private enum ThoughtShareStyle: String, CaseIterable, Identifiable {
+    case journal, book, midnight, archive
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .journal: String(localized: "暖纸手账")
+        case .book: String(localized: "留白书页")
+        case .midnight: String(localized: "深夜来信")
+        case .archive: String(localized: "灵感档案")
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .journal: String(localized: "温暖记录")
+        case .book: String(localized: "安静阅读")
+        case .midnight: String(localized: "情绪片刻")
+        case .archive: String(localized: "清晰整理")
+        }
+    }
+
+    var paper: Color {
+        switch self {
+        case .journal: Color(red: 0.992, green: 0.976, blue: 0.941)
+        case .book: Color(red: 0.973, green: 0.969, blue: 0.953)
+        case .midnight: Color(red: 0.082, green: 0.125, blue: 0.153)
+        case .archive: Color(red: 0.914, green: 0.937, blue: 0.910)
+        }
+    }
+
+    var ink: Color {
+        switch self {
+        case .journal: Color(red: 0.239, green: 0.196, blue: 0.161)
+        case .book: Color(red: 0.180, green: 0.188, blue: 0.176)
+        case .midnight: Color(red: 0.957, green: 0.945, blue: 0.894)
+        case .archive: Color(red: 0.145, green: 0.216, blue: 0.180)
+        }
+    }
+
+    var accent: Color {
+        switch self {
+        case .journal: Color(red: 0.918, green: 0.345, blue: 0.047)
+        case .book: Color(red: 0.537, green: 0.373, blue: 0.267)
+        case .midnight: Color(red: 0.914, green: 0.690, blue: 0.478)
+        case .archive: Color(red: 0.306, green: 0.443, blue: 0.341)
+        }
+    }
+
+    var muted: Color { ink.opacity(self == .midnight ? 0.67 : 0.56) }
+}
 
 // MARK: - 分享卡（渲染目标）
 
@@ -17,8 +71,11 @@ struct ThoughtShareCard: View {
     let contentNodes: [HoloContentNode]
     let attachments: [ThoughtShareCardPhoto]
     let tagNames: [String]
-    let moodEmoji: String?
+    let moodLabel: String?
     let createdAt: Date
+    /// 作者署名（用户昵称）：未设置昵称时为 nil，页眉不显示也不造假占位
+    var authorName: String? = nil
+    fileprivate var style: ThoughtShareStyle = .journal
     /// 品牌尾注开关（用户可在分享面板取消）
     var showsBrandFooter: Bool = true
 
@@ -42,6 +99,11 @@ struct ThoughtShareCard: View {
                 image = retry.uiImage
             }
         }
+        // 奇数像素高度时 ImageRenderer 底行会采样出 1px 杂色线（实测纯绿，偶数高度不出现），
+        // 底缘恒为纯背景色内边距，统一裁掉 1 设备像素无视觉损失
+        if let cg = image?.cgImage {
+            image = UIImage(cgImage: cg.cropping(to: CGRect(x: 0, y: 0, width: cg.width, height: cg.height - 1)) ?? cg, scale: image?.scale ?? 1, orientation: .up)
+        }
         return image
     }
 
@@ -55,6 +117,16 @@ struct ThoughtShareCard: View {
     private let bodyFont = Font.custom("Songti SC", size: 15.5)
 
     var body: some View {
+        Group {
+            if style == .journal {
+                journalCard
+            } else {
+                alternativeCard
+            }
+        }
+    }
+
+    private var journalCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.horizontal, 28)
@@ -110,19 +182,277 @@ struct ThoughtShareCard: View {
         )
     }
 
+    // MARK: 其余三种版式（沿用同一份正文、照片和导出规则）
+
+    private var alternativeCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            alternativeHeader
+                .padding(.horizontal, 28)
+                .padding(.top, style == .book ? 36 : 28)
+
+            Rectangle()
+                .fill(style.accent.opacity(style == .midnight ? 0.60 : 0.45))
+                .frame(height: 1)
+                .padding(.horizontal, 28)
+                .padding(.top, style == .book ? 24 : 18)
+                .padding(.bottom, style == .book ? 28 : 24)
+
+            alternativeBody
+                .padding(.horizontal, 28)
+
+            alternativePhotos
+                .padding(.horizontal, 28)
+                .padding(.top, attachments.isEmpty ? 0 : 24)
+
+            alternativeTags
+                .padding(.horizontal, 28)
+                .padding(.top, tagNames.isEmpty ? 0 : 24)
+
+            if showsBrandFooter {
+                alternativeFooter
+                    .padding(.top, 32)
+            } else {
+                Spacer().frame(height: 32)
+            }
+        }
+        .frame(width: Self.cardWidth, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(style.paper)
+        .overlay(alignment: .leading) {
+            if style == .archive {
+                Rectangle()
+                    .fill(style.accent)
+                    .frame(width: 5)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var alternativeHeader: some View {
+        switch style {
+        case .book:
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("HOLO / NOTES")
+                        .font(.system(size: 10, weight: .semibold, design: .serif))
+                        .kerning(2)
+                    Spacer()
+                    shareOrnament("ShareOrnamentQuote", size: 32)
+                }
+                .foregroundColor(style.accent)
+                if let authorName {
+                    Text(authorName)
+                        .font(.custom("Songti SC", size: 28))
+                        .foregroundColor(style.ink)
+                }
+                HStack(spacing: 12) {
+                    Text(Self.dateLine(from: createdAt))
+                    if let moodLabel {
+                        Text(moodLabel)
+                    }
+                }
+                .font(.system(size: 10, weight: .medium))
+                .kerning(1)
+                .foregroundColor(style.muted)
+            }
+        case .midnight:
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top) {
+                    Text("HOLO  /  AFTER HOURS")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .kerning(1.1)
+                        .foregroundColor(style.accent)
+                    Spacer()
+                    shareOrnament("ShareOrnamentMoon", size: 34, zoom: 2)
+                }
+                if let authorName {
+                    Text(authorName)
+                        .font(.custom("Songti SC", size: 28))
+                        .foregroundColor(style.ink)
+                }
+                HStack(spacing: 12) {
+                    Text(Self.dateLine(from: createdAt))
+                    if let moodLabel {
+                        Text(moodLabel)
+                    }
+                }
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(style.muted)
+            }
+        case .archive:
+            HStack(alignment: .top, spacing: 15) {
+                VStack(spacing: 3) {
+                    Text(String(format: "%02d", Calendar.current.component(.day, from: createdAt)))
+                        .font(.system(size: 27, weight: .light, design: .rounded))
+                        .foregroundColor(style.ink)
+                    Text(Self.archiveMonthFormatter.string(from: createdAt))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(style.muted)
+                }
+                .frame(width: 59, height: 69)
+                .overlay(Rectangle().stroke(style.accent.opacity(0.55), lineWidth: 0.8))
+
+                VStack(alignment: .leading, spacing: 9) {
+                    if let authorName {
+                        Text(authorName)
+                            .font(.system(size: 12, weight: .bold))
+                            .kerning(1.4)
+                            .foregroundColor(style.accent)
+                    }
+                    Text(Self.dateLine(from: createdAt))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(style.muted)
+                    if let moodLabel {
+                        Text(moodLabel)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(style.accent)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        case .journal:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var alternativeBody: some View {
+        let font: Font = style == .archive
+            ? .system(size: 15.5)
+            : .custom("Songti SC", size: style == .midnight ? 17 : 16)
+        let attributed = Self.composedBodyAttributed(
+            nodes: contentNodes,
+            baseFont: font,
+            ink: style.ink,
+            holoDeep: style.accent,
+            inkSoft: style.muted
+        )
+        if let attributed {
+            Text(attributed)
+                .lineSpacing(style == .archive ? 8 : 10)
+                .kerning(style == .archive ? 0.1 : 0.4)
+        } else {
+            Text(" ").font(font)
+        }
+    }
+
+    @ViewBuilder
+    private var alternativePhotos: some View {
+        if attachments.count == 1, let photo = attachments.first {
+            Image(uiImage: photo.image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 284, height: style == .book ? 190 : 170)
+                .clipped()
+        } else if !attachments.isEmpty {
+            VStack(spacing: 8) {
+                ForEach(0..<photoRowCount, id: \.self) { rowIndex in
+                    HStack(spacing: 8) {
+                        ForEach(Array(attachments[(rowIndex * 2)..<min(rowIndex * 2 + 2, attachments.count)])) { photo in
+                            Image(uiImage: photo.image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 138, height: 110)
+                                .clipped()
+                        }
+                        if rowIndex * 2 + 1 >= attachments.count {
+                            Color.clear.frame(width: 138, height: 110)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var alternativeTags: some View {
+        if !tagNames.isEmpty {
+            if style == .archive {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("KEYWORDS")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .kerning(1.5)
+                        .foregroundColor(style.muted)
+                    Text(tagLine)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(style.accent)
+                }
+            } else {
+                Text(tagLine)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(style.accent)
+            }
+        }
+    }
+
+    private var tagLine: String {
+        let visible = tagNames.prefix(3).map { "#\($0)" }.joined(separator: "   ")
+        let extra = tagNames.count > 3 ? "   +\(tagNames.count - 3)" : ""
+        return visible + extra
+    }
+
+    /// 透明底手绘元素保留小幅留白，不遮盖分享内容。
+    private func shareOrnament(_ name: String, size: CGFloat, zoom: CGFloat = 1.5) -> some View {
+        Image(name)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size * zoom, height: size * zoom)
+            .frame(width: size, height: size)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+
+    private var alternativeFooter: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(style.accent.opacity(0.35))
+                .frame(height: 1)
+                .padding(.horizontal, 28)
+            HStack(spacing: 7) {
+                Image("HoloFaceLineArt")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(height: 15)
+                Text(String(localized: "HOLO · 人生数据库"))
+                    .font(.system(size: 10, weight: .semibold))
+                    .kerning(2)
+            }
+            .foregroundColor(style.muted)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 15)
+            .padding(.bottom, 26)
+        }
+    }
+
     // MARK: 头部（心情 + 日期）
 
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
-            if let moodEmoji, !moodEmoji.isEmpty {
-                Text(moodEmoji)
-                    .font(.system(size: 21))
+            shareOrnament("ShareOrnamentSprig", size: 30)
+            if let authorName {
+                Text(authorName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(ink)
+            }
+            if authorName != nil, moodLabel != nil {
+                Text("·")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(inkSoft)
+            }
+            if let moodLabel {
+                Text(moodLabel)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(inkSoft)
             }
             Spacer()
             Text(Self.dateLine(from: createdAt))
                 .font(.system(size: 10.5, weight: .semibold))
                 .kerning(1.5)
                 .foregroundColor(Color(red: 0.627, green: 0.553, blue: 0.467))
+                // 页眉加入署名后整行变挤：日期轻微缩放保单行完整，不折行不截断
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
         }
     }
 
@@ -266,6 +596,12 @@ struct ThoughtShareCard: View {
         return formatter
     }()
 
+    private static let archiveMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM"
+        return formatter
+    }()
+
     static func dateLine(from date: Date) -> String {
         // 模板按语区输出（zh: 2026年8月30日 / 周六），与设计稿「日期 · 周几 时间」一致
         let weekday = weekdayFormatter.string(from: date)
@@ -349,6 +685,10 @@ private struct PolaroidPhoto: View {
         Image(uiImage: photo.image)
             .resizable()
             .scaledToFill()
+            // fill 铁三角：竖图 fill 后远超外层槽高（白底跟着 Image 长高、下坠压尾注），
+            // 必须先钳进槽位再裁，白底才能贴合外层 frame(height:)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 2))
             .padding(5)
             .padding(.bottom, 14)
@@ -380,12 +720,17 @@ struct ThoughtShareSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("thoughtShareCard.showsBrandFooter") private var showsBrandFooter = true
+    @AppStorage("thoughtShareCard.style") private var selectedStyleRaw = ThoughtShareStyle.journal.rawValue
 
     @State private var renderedImage: UIImage?
     /// 预览专用降采样图：超长图（3x 下像素高度可破万）超过 GPU 纹理上限无法直接上屏，
     /// 但导出/分享走文件通道不受限——预览降采样，导出保持全量高清。
     @State private var previewImage: UIImage?
     @State private var saveState: SaveState = .idle
+    /// 内容解析缓存（节点 + 解码后的图片）：面板生命周期内 thought 不变，
+    /// 切换模板只重排不重新解码原图——全尺寸解码是切换卡顿的主要来源
+    @State private var parsedNodes: [HoloContentNode]?
+    @State private var parsedPhotos: [ThoughtShareCardPhoto]?
 
     private enum SaveState {
         case idle, saved, failed
@@ -393,6 +738,10 @@ struct ThoughtShareSheet: View {
 
     private let stageTop = Color(red: 0.090, green: 0.071, blue: 0.102)
     private let stageBottom = Color(red: 0.141, green: 0.102, blue: 0.125)
+
+    private var selectedStyle: ThoughtShareStyle {
+        ThoughtShareStyle(rawValue: selectedStyleRaw) ?? .journal
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -434,6 +783,10 @@ struct ThoughtShareSheet: View {
             }
             .padding(.top, 20)
             .frame(maxHeight: .infinity, alignment: .center)
+
+            templatePicker
+                .padding(.top, 12)
+                .padding(.bottom, 12)
 
             HStack {
                 Image("HoloFaceLineArt")
@@ -492,8 +845,58 @@ struct ThoughtShareSheet: View {
         )
         .preferredColorScheme(.dark)
         .presentationDetents([.large])
-        .task(id: showsBrandFooter) {
+        .task(id: "\(selectedStyleRaw)|\(showsBrandFooter)") {
             regenerateImage()
+        }
+    }
+
+    private var templatePicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 9) {
+                ForEach(ThoughtShareStyle.allCases) { style in
+                    Button {
+                        guard selectedStyle != style else { return }
+                        HapticManager.selection()
+                        renderedImage = nil
+                        previewImage = nil
+                        saveState = .idle
+                        selectedStyleRaw = style.rawValue
+                    } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(style.accent)
+                                    .frame(width: 13, height: 3)
+                                Spacer()
+                                if selectedStyle == style {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(style.accent)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            Text(style.title)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(style.ink)
+                            Text(style.caption)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(style.muted)
+                        }
+                        .padding(9)
+                        .frame(width: 100, height: 68, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 9).fill(style.paper))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9)
+                                .stroke(selectedStyle == style ? Color.holoPrimary : .white.opacity(0.18), lineWidth: selectedStyle == style ? 2 : 1)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 9))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(style.title)
+                    .accessibilityAddTraits(selectedStyle == style ? [.isSelected] : [])
+                }
+            }
+            .padding(.horizontal, 24)
         }
     }
 
@@ -514,21 +917,28 @@ struct ThoughtShareSheet: View {
 
     /// 渲染导出图。ImageRenderer 仅主线程可用；长图渲染一次性成本，配「正在生成」占位。
     private func regenerateImage() {
-        let nodes = RichContentSerializer.nodes(
-            richJSON: thought.richContentJSON,
-            fallbackPlainText: thought.content
-        )
-        let photos = thought.sortedAttachments.compactMap { attachment -> ThoughtShareCardPhoto? in
-            loadImage(for: attachment).map {
-                ThoughtShareCardPhoto(id: attachment.id, image: $0)
+        if parsedNodes == nil {
+            parsedNodes = RichContentSerializer.nodes(
+                richJSON: thought.richContentJSON,
+                fallbackPlainText: thought.content
+            )
+        }
+        if parsedPhotos == nil {
+            parsedPhotos = thought.sortedAttachments.compactMap { attachment -> ThoughtShareCardPhoto? in
+                loadImage(for: attachment).map {
+                    ThoughtShareCardPhoto(id: attachment.id, image: $0)
+                }
             }
         }
+        guard let nodes = parsedNodes, let photos = parsedPhotos else { return }
         let card = ThoughtShareCard(
             contentNodes: nodes,
             attachments: photos,
             tagNames: displayTagNames,
-            moodEmoji: thought.moodType?.emoji,
+            moodLabel: thought.moodType?.displayName,
             createdAt: thought.createdAt,
+            authorName: authorName,
+            style: selectedStyle,
             showsBrandFooter: showsBrandFooter
         )
         renderedImage = ThoughtShareCard.renderExportImage(card)
@@ -554,6 +964,13 @@ struct ThoughtShareSheet: View {
 
     private var displayTagNames: [String] {
         thought.recognizedTagNames.map { ThoughtTagNormalizer.lastSegment($0) }
+    }
+
+    /// 页眉署名：与首页问候语同源同规则（真设置过昵称才显示，兜底代词「你」不算）
+    private var authorName: String? {
+        let raw = UserDefaults.standard.string(forKey: UserDisplayNameSettings.displayNameKey)
+        guard UserDisplayNameSettings.isDisplayNameSet(raw) else { return nil }
+        return UserDisplayNameSettings.normalizedDisplayName(raw)
     }
 
     /// 分享画质优先原图（Core Data 二进制 → 文件原图），都缺失时退回缩略图

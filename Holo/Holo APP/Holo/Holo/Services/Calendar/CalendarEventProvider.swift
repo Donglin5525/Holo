@@ -178,8 +178,8 @@ struct CalendarEventProvider {
             let thoughts = try thoughtRepo.fetchThoughts(from: range.start, to: range.end)
             let events: [CalendarEvent] = thoughts.map { thought in
                 let title = thought.previewText.isEmpty ? String(localized: "未命名想法") : thought.previewText
-                // P3：经 Thought.topics 间接体现观点（取所有可见状态的观点标题）
-                let topics = (thought.topics as? Set<Topic> ?? [])
+                // P3：观点的主题标题（读源统一 P0-A：link 投影，与卡片徽章同口径）
+                let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
                     .filter(\.isVisibleTopic)
                     .map { $0.title }
                     .sorted()

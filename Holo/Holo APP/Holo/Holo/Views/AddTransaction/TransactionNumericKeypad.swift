@@ -2,7 +2,7 @@
 //  TransactionNumericKeypad.swift
 //  Holo
 //
-//  AddTransactionSheet 数字键盘视图 + 按键处理逻辑
+//  AddTransactionSheet 数字键盘：通用组件薄壳（键盘本体与求值见 HoloAmountKeypad）
 //
 
 import SwiftUI
@@ -11,120 +11,19 @@ import SwiftUI
 
 extension AddTransactionSheet {
 
-    /// 数字键盘
+    /// 数字键盘：✓ = 求值并保存；↩︎ = 收键盘跳名称输入
     var numericKeypad: some View {
-        VStack(spacing: 4) {
-            ForEach(keypadLayout, id: \.self) { row in
-                HStack(spacing: 4) {
-                    ForEach(row, id: \.self) { key in
-                        KeypadButton(key: key) {
-                            handleKeypadPress(key)
-                        }
-                    }
-                }
+        HoloAmountKeypad(
+            amountText: $amountString,
+            onConfirm: {
+                calculateExpression()
+                saveTransaction()
+            },
+            onNext: {
+                showNumericKeypad = false
+                isNoteFocused = true
             }
-        }
-        .padding(8)
+        )
     }
 
-}
-
-// MARK: - 按键处理
-
-extension AddTransactionSheet {
-
-    /// 处理键盘按键
-    func handleKeypadPress(_ key: String) {
-        // 每次按键即时触觉反馈，确保明确的交互震动
-        HapticManager.light()
-        switch key {
-        case "AC":
-            amountString = "0"
-
-        case "⌫":
-            if amountString.count > 1 {
-                amountString.removeLast()
-            } else {
-                amountString = "0"
-            }
-
-        case "✓":
-            calculateExpression()
-            saveTransaction()
-
-        case "+", "-", "×", "÷":
-            handleOperator(key)
-
-        case "↩︎":
-            showNumericKeypad = false
-            isNoteFocused = true
-
-        case ".":
-            handleDecimalPoint()
-
-        case "00":
-            handleDigit("0")
-            handleDigit("0")
-
-        default:
-            handleDigit(key)
-        }
-    }
-
-    /// 处理运算符输入
-    func handleOperator(_ op: String) {
-        if amountString == "0" {
-            return
-        }
-
-        let lastChar = amountString.last
-        if ["+", "-", "×", "÷"].contains(lastChar) {
-            amountString.removeLast()
-        }
-
-        amountString += op
-    }
-
-    /// 处理小数点输入
-    func handleDecimalPoint() {
-        let operators = ["+", "-", "×", "÷"]
-        if let lastOperatorIndex = amountString.lastIndex(where: { operators.contains(String($0)) }) {
-            let startIndex = amountString.index(after: lastOperatorIndex)
-            let lastNumberPart = String(amountString[startIndex...])
-            if lastNumberPart.contains(".") {
-                return
-            }
-        } else {
-            if amountString.contains(".") {
-                return
-            }
-        }
-
-        amountString += "."
-    }
-
-    /// 处理数字输入
-    func handleDigit(_ digit: String) {
-        if amountString == "0" {
-            amountString = digit
-            return
-        }
-
-        let operators = ["+", "-", "×", "÷"]
-        var currentNumberPart = amountString
-
-        if let lastOperatorIndex = amountString.lastIndex(where: { operators.contains(String($0)) }) {
-            let startIndex = amountString.index(after: lastOperatorIndex)
-            currentNumberPart = String(amountString[startIndex...])
-        }
-
-        if let dotIndex = currentNumberPart.firstIndex(of: ".") {
-            let decimalPart = currentNumberPart[currentNumberPart.index(after: dotIndex)...]
-            if decimalPart.count >= 2 {
-                return
-            }
-        }
-
-        amountString += digit
-    }
 }

@@ -49,6 +49,8 @@ enum MemorySignalDataAdapter {
         let transactions = (try? await FinanceRepository.shared.getAllTransactions())?
             .filter { !$0.isReconciliationAdjustment } ?? []
         let mapped = transactions.compactMap { transaction -> FinanceMemoryTransactionInput? in
+            // 消费信号只看真实消费行为：退款笔（冲减流水）不参与记忆信号
+            guard !transaction.isRefund else { return nil }
             guard let category = transaction.category else { return nil }
             let names = FinanceRepository.shared.resolveCategoryNames(from: category)
             let categoryName = names.sub ?? names.primary
@@ -108,7 +110,7 @@ enum MemorySignalDataAdapter {
         return thoughts.compactMap { thought in
             guard thought.updatedAt >= recentStart,
                   stanceCues.contains(where: { thought.content.contains($0) }) else { return nil }
-            let topics = (thought.topics as? Set<Topic>)?.map(\.title).sorted() ?? []
+            let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought).map(\.title).sorted()
             let topic = topics.first ?? "个人观点"
             return ThoughtMemoryInput(
                 id: thought.id.uuidString,

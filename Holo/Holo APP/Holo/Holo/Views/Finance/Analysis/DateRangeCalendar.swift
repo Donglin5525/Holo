@@ -44,6 +44,19 @@ struct DateRangeCalendar: View {
 
     private var monthNav: some View {
         HStack {
+            // « 按年快跳（自定义跨年不用再一个月一个月切）
+            Button {
+                withAnimation(HoloAnimation.standard) {
+                    displayMonth = displayMonth.addingMonths(-12)
+                }
+            } label: {
+                Image(systemName: "chevron.left.2")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 28, height: 32)
+            }
+            .buttonStyle(.plain)
+
             Button {
                 withAnimation(HoloAnimation.standard) {
                     displayMonth = displayMonth.addingMonths(-1)
@@ -52,7 +65,7 @@ struct DateRangeCalendar: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 32)
             }
             .buttonStyle(.plain)
 
@@ -72,7 +85,19 @@ struct DateRangeCalendar: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 32)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(HoloAnimation.standard) {
+                    displayMonth = displayMonth.addingMonths(12)
+                }
+            } label: {
+                Image(systemName: "chevron.right.2")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 28, height: 32)
             }
             .buttonStyle(.plain)
         }

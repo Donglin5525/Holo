@@ -302,10 +302,10 @@ struct KanbanBudgetSection: View {
                 let transactions = try await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end)
                 todayExpense = transactions
                     .filter { transaction in
-                        transaction.transactionType == .expense
+                        transaction.statisticsType == .expense
                             && (selected == nil || transaction.account?.id == selected?.id)
                     }
-                    .reduce(Decimal.zero) { $0 + ($1.amount as Decimal) }
+                    .reduce(Decimal.zero) { $0 + $1.statisticsAmount }
             } catch {
                 todayExpense = nil
             }

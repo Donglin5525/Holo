@@ -10,6 +10,7 @@
 
 import CoreData
 import CloudKit
+import os.log
 
 /// Core Data 数据栈单例
 /// 提供统一的 Core Data 访问入口，确保数据一致性
@@ -106,10 +107,10 @@ nonisolated class CoreDataStack {
             }
         }
 
-        container.loadPersistentStores { [weak self] _, error in
-            if let error = error {
+        Self.loadStoreAllowingRecovery(container, logger: Self.recoveryLogger) { [weak self] error in
+            if let error {
                 let nsError = error as NSError
-                fatalError("Core Data 存储加载失败：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
+                fatalError("Core Data 存储加载失败（自动恢复后仍不可用）：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
             }
             // store 装载完成后再配置主上下文：此时无进行中的装载，
             // setter 不会同步等待 CoreData 内部队列（构建线程也不持任何锁）
@@ -129,6 +130,79 @@ nonisolated class CoreDataStack {
 
         return container
     }
+
+    // MARK: - 存储装载与冲突恢复
+
+    private nonisolated static let recoveryLogger = Logger(subsystem: "com.holo.app", category: "CoreDataRecovery")
+
+    /// 装载 store；遇到模型指纹冲突（App 与小组件等扩展进程各自编译的模型分叉、
+    /// 或跨版本迁移映射缺失）时，把打不开的库文件整体改名备份后重建空库再试一次。
+    /// 背景：共享库位于 App Group，多进程都可写；指纹不一致会随进程先后随机出现，
+    /// 直接 fatalError 即「随机启动闪退」（2026-09-27 模拟器实锤）。
+    /// 备份保留在原目录可人工救援；云端有 CloudKit 副本，空库重建后可回同步。
+    nonisolated static func loadStoreAllowingRecovery(
+        _ container: NSPersistentContainer,
+        logger: Logger,
+        onFinish: @escaping (Error?) -> Void
+    ) {
+        container.loadPersistentStores { _, error in
+            guard let error, isModelMismatch(error) else {
+                onFinish(error)
+                return
+            }
+
+            let nsError = error as NSError
+            let storeURL = container.persistentStoreDescriptions.first?.url
+            let moved = storeURL.map { backupIncompatibleStoreFiles(at: $0, logger: logger) } ?? false
+            logger.fault("存储与当前模型不匹配(code \(nsError.code))，已备份冲突库=\(moved, privacy: .public)，重建空库重试。userInfo: \(nsError.userInfo)")
+
+            container.loadPersistentStores { _, retryError in
+                if let retryError {
+                    logger.fault("重建空库后仍装载失败：\(retryError.localizedDescription, privacy: .public)")
+                    onFinish(retryError)
+                    return
+                }
+                logger.notice("存储冲突恢复完成，已重建空库（旧库保留为备份）")
+                onFinish(nil)
+            }
+        }
+    }
+
+    /// 是否属于「模型指纹/迁移映射」失败族（134100 不兼容哈希、134130 找不到源模型、映射不匹配等）
+    nonisolated static func isModelMismatch(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSCocoaErrorDomain else { return false }
+        return (134100...134199).contains(nsError.code)
+    }
+
+    /// 把打不开的库三件套（sqlite/-wal/-shm）改名备份，返回是否挪动了主文件。
+    /// 备份名带时间戳，多次冲突各自留底互不覆盖。
+    nonisolated static func backupIncompatibleStoreFiles(at url: URL, logger: Logger) -> Bool {
+        let fm = FileManager.default
+        let stamp = Self.backupTimestampFormatter.string(from: Date())
+        var movedMain = false
+        for suffix in ["", "-wal", "-shm"] {
+            let source = URL(fileURLWithPath: url.path + suffix)
+            guard fm.fileExists(atPath: source.path) else { continue }
+            let name = source.lastPathComponent
+            let backup = source.deletingLastPathComponent()
+                .appendingPathComponent(name + ".conflict-backup-" + stamp)
+            do {
+                try fm.moveItem(at: source, to: backup)
+                if suffix.isEmpty { movedMain = true }
+            } catch {
+                logger.error("备份 \(source.lastPathComponent, privacy: .public) 失败：\(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return movedMain
+    }
+
+    private nonisolated static let backupTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
 
     /// 全进程唯一数据模型实例：真栈与测试栈必须共享同一份 NSManagedObjectModel。
     /// 多份实例（即使内容完全相同）会让 NSManagedObject 子类→实体映射出现全局歧义，

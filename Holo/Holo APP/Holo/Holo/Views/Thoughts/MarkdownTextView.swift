@@ -129,6 +129,9 @@ struct MarkdownTextView: UIViewRepresentable {
     /// 父视图据此在组字窗口内推迟自动保存等全页级状态变更——组字中途重渲染
     /// 会打断输入法会话，造成组字文字叠影/闪动（真机 iOS 26 实锤）。
     var onCompositionChange: ((Bool) -> Void)? = nil
+    /// 选区长度变化回调（flomo 改版补：供「…」菜单在选中文字时切换「转为选中任务」；
+    /// 只回传长度不回传文本，文本仍由 .convertToTask 管线在 UIKit 层内部取）
+    var onSelectionLengthChange: ((Int) -> Void)? = nil
 
     /// IME 组字诊断日志：同时写 os.log 与沙盒 Documents/imediag.log（环形 200KB）。
     /// 真机复现组字叠影时用 devicectl 从沙盒拉取，作为「组字窗口内 App 侧
@@ -252,6 +255,7 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onConvertToTask = onConvertToTask
         context.coordinator.onSuggestionCommand = onSuggestionCommand
         context.coordinator.onCompositionChange = onCompositionChange
+        context.coordinator.onSelectionLengthChange = onSelectionLengthChange
         context.coordinator.updateAccessibilityValue(in: textView)
         context.coordinator.onHeightChange = { height in
             let coordinator = context.coordinator
@@ -312,6 +316,7 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onConvertToTask = onConvertToTask
         context.coordinator.onSuggestionCommand = onSuggestionCommand
         context.coordinator.onCompositionChange = onCompositionChange
+        context.coordinator.onSelectionLengthChange = onSelectionLengthChange
 
         // 编辑器一旦发生过本地输入，本次编辑会话内 UITextView 就是正文事实源。
         // SwiftUI 的 State 更新、IME 状态、工具栏和自动保存都可能用不同代的 View
@@ -493,6 +498,8 @@ struct MarkdownTextView: UIViewRepresentable {
         var onSuggestionCommand: ((SuggestionKeyboardCommand) -> Void)?
         /// IME 组字状态变化回调（父视图据此推迟组字窗口内的自动保存）
         var onCompositionChange: ((Bool) -> Void)?
+        /// 选区长度变化回调（「…」菜单动态切换「转为选中任务」用）
+        var onSelectionLengthChange: ((Int) -> Void)?
         /// 最近一次上报的内容高度（诊断日志去重用）
         var lastReportedHeight: CGFloat = 0
         /// 最近一次上报的组字状态（跳变检测）
@@ -737,6 +744,8 @@ struct MarkdownTextView: UIViewRepresentable {
         func textViewDidChangeSelection(_ textView: UITextView) {
             // 组字跳变上报必须先于 markedTextRange 守卫（组字插入本身会改选区）
             reportCompositionState(textView)
+            // 选区长度回传（供「…」菜单动态项）；组字期间长度会波动，守卫后再报
+            onSelectionLengthChange?(textView.markedTextRange == nil ? textView.selectedRange.length : 0)
             // IME 组字期间不刷新 typingAttributes，防止自定义格式属性被丢弃
             guard textView.markedTextRange == nil else { return }
 
@@ -773,6 +782,9 @@ struct MarkdownTextView: UIViewRepresentable {
         func textViewDidEndEditing(_ textView: UITextView) {
             activeTrigger = nil
             publishTrigger(nil)
+            // 注意：失焦时selectedRange本身保留，这里故意不把选区长度归零——
+            // 「…」菜单的「转为选中文字任务」判定与 .convertToTask 管线必须看同一个
+            // 选区状态；失焦归零会导致菜单显示「整篇」、实际却转了残留选区的口径分裂
             // 注意：不在此处清 selectedToken。
             // 原因：token 操作菜单已改为 .sheet(item: $selectedToken)，sheet 呈现时 UITextView 会失焦，
             // 若此处同步清 selectedToken，会把刚设上的选中态立刻抹掉，菜单弹不出来（旧 confirmationDialog 的竞态根因）。

@@ -332,10 +332,36 @@ class FinanceRepository {
     }
 
     func updateTransaction(_ transaction: Transaction, updates: TransactionUpdates) async throws {
-        if let amount = updates.amount { transaction.amount = NSDecimalNumber(decimal: amount) }
+        if let amount = updates.amount {
+            // 退款笔改金额时守住业务不变式：累计退款（含本次新值）不超过原交易金额
+            if transaction.isRefund, let originalId = transaction.refundOfTransactionId,
+               let original = findTransaction(by: originalId) {
+                let refundedToOthers = try await totalRefunded(for: original) - transaction.amountAsDecimal
+                if refundedToOthers + amount > original.amountAsDecimal {
+                    throw FinanceError.refundExceedsOriginal
+                }
+            } else if !transaction.isRefund {
+                // 原交易改金额护栏：不得低于名下退款累计，否则出现「已退 > 原额」脏账
+                let refunds = try await getRefunds(for: transaction)
+                if !refunds.isEmpty {
+                    let refunded = refunds.reduce(Decimal(0)) { $0 + $1.amountAsDecimal }
+                    if amount < refunded {
+                        throw FinanceError.originalBelowRefunded(refunded: refunded)
+                    }
+                }
+            }
+            transaction.amount = NSDecimalNumber(decimal: amount)
+        }
         if let cat = updates.category {
             try validateTransactionCategory(cat)
             transaction.category = cat
+            // 原交易改分类时联动名下退款笔：退款冲减的是原分类，分类快照必须同步，
+            // 否则统计把退款算进旧分类收入、冲减错分类
+            if !transaction.isRefund {
+                for refund in try await getRefunds(for: transaction) {
+                    refund.category = cat
+                }
+            }
         }
         if let acc = updates.account { transaction.account = acc }
         if let date = updates.date { transaction.date = date }
@@ -784,6 +810,123 @@ class FinanceRepository {
         try context.save()
     }
 
+    // MARK: - 退款交易操作
+
+    /// 给一笔已有支出记退款：单独成笔（type=income、分类沿用原交易、refundOfTransactionId 指回原交易），
+    /// 统计层按退款笔分类冲减支出（冲退款到账当月）。支持多次部分退款，累计不超原额。
+    /// 到账账户默认原交易账户，可退到别的账户；删除退款笔即解除关联，无需额外清理。
+    @discardableResult
+    func addRefundTransaction(
+        original: Transaction,
+        amount: Decimal,
+        date: Date = Date(),
+        account: Account? = nil,
+        remark: String? = nil,
+        aiSourceMessageId: String? = nil,
+        aiSourceItemId: String? = nil,
+        aiCandidate: String? = nil
+    ) async throws -> Transaction {
+        guard amount > 0 else { throw FinanceError.invalidData }
+        guard original.transactionType == .expense, original.installmentGroupId == nil else {
+            throw FinanceError.invalidData
+        }
+        guard let category = original.category,
+              let targetAccount = account ?? original.account else {
+            throw FinanceError.invalidData
+        }
+        let refunded = try await totalRefunded(for: original)
+        if refunded + amount > original.amountAsDecimal {
+            throw FinanceError.refundExceedsOriginal
+        }
+
+        let transaction = Transaction(context: context)
+        transaction.id = UUID()
+        transaction.amount = NSDecimalNumber(decimal: amount)
+        transaction.type = TransactionType.income.rawValue
+        transaction.category = category
+        transaction.account = targetAccount
+        transaction.date = date
+        transaction.note = original.note
+        if let remark { transaction.remark = remark }
+        transaction.refundOfTransactionId = original.id
+        if let aiSourceMessageId {
+            transaction.isAICreated = true
+            transaction.aiCandidate = aiCandidate
+            transaction.aiSourceMessageId = aiSourceMessageId
+            transaction.aiSourceItemId = aiSourceItemId
+        }
+        transaction.createdAt = Date()
+        transaction.updatedAt = Date()
+        try context.save()
+        return transaction
+    }
+
+    /// 查询挂在某笔原交易下的全部退款笔（未删，按时间正序）
+    func getRefunds(for original: Transaction) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "refundOfTransactionId == %@", original.id as CVarArg),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+    }
+
+    /// 某笔原交易的累计退款金额
+    func totalRefunded(for original: Transaction) async throws -> Decimal {
+        let refunds = try await getRefunds(for: original)
+        return refunds.reduce(Decimal(0)) { $0 + $1.amountAsDecimal }
+    }
+
+    /// AI 退款识别的候选原交易匹配：近 90 天支出（非分期、有余量）按
+    /// 金额吻合 > 名称/分类含关键词 > 时间近 排序，取前几条供确认卡选择。
+    func findRefundCandidates(
+        amount: Decimal,
+        keyword: String?,
+        account: Account? = nil,
+        within days: Int = 90,
+        limit: Int = 5
+    ) async throws -> [Transaction] {
+        let calendar = Calendar.current
+        let since = calendar.date(byAdding: .day, value: -days, to: Date()) ?? Date.distantPast
+        let request = Transaction.fetchRequest()
+        var predicates: [NSPredicate] = [
+            NSPredicate(format: "type == %@", TransactionType.expense.rawValue),
+            NSPredicate(format: "refundOfTransactionId == nil"),  // 退款笔不能再被退
+            NSPredicate(format: "installmentGroupId == nil"),
+            NSPredicate(format: "deletedAt == nil"),
+            NSPredicate(format: "date >= %@", since as NSDate)
+        ]
+        if let account {
+            predicates.append(NSPredicate(format: "account == %@", account))
+        }
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        guard let expenses = try? context.fetch(request) else { return [] }
+
+        let unique = DuplicateRowFilter.deduplicatingCopies(expenses)
+        var scored: [(tx: Transaction, score: Int)] = []
+        for tx in unique {
+            // 余额校验在选定时由 addRefundTransaction 兜底，这里先按原额粗筛
+            var score = 0
+            if tx.amountAsDecimal == amount { score += 100 }           // 金额完全一致
+            else if tx.amountAsDecimal > amount { score += 40 }        // 可部分退
+            else { continue }                                          // 原额都不够退，不可能
+            if let keyword, !keyword.isEmpty {
+                let note = tx.note ?? ""
+                let categoryName = tx.category?.name ?? ""
+                if note.localizedCaseInsensitiveContains(keyword) { score += 60 }
+                if categoryName.localizedCaseInsensitiveContains(keyword) { score += 40 }
+            }
+            // 时间越近越可能
+            if let days = calendar.dateComponents([.day], from: tx.date, to: Date()).day {
+                score += max(0, 30 - min(days, 30))
+            }
+            scored.append((tx, score))
+        }
+        return scored.sorted { $0.score > $1.score }.prefix(limit).map(\.tx)
+    }
+
     // MARK: - 搜索
 
     /// 搜索交易记录（按备注和分类名模糊匹配）
@@ -799,6 +942,98 @@ class FinanceRepository {
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         request.fetchLimit = limit
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+    }
+
+    // MARK: - 票根（交易照片附件）
+
+    /// 给交易贴一张票根：压缩管线产出 2048px 原图 + 300px 缩略图，纯二进制双存，
+    /// 随 CoreData/CloudKit 同步（对齐 ThoughtAttachment 已验证模式，不落沙盒文件）
+    func attachReceipt(
+        to transaction: Transaction,
+        imageData rawData: Data,
+        source: TransactionAttachment.AttachmentSource
+    ) async throws -> TransactionAttachment {
+        guard transaction.receiptAttachments.count < Transaction.maxReceiptCount else {
+            throw FinanceError.receiptLimitReached(maxCount: Transaction.maxReceiptCount)
+        }
+        let attachmentId = UUID()
+        guard let processed = await AttachmentFileManager.processRawImageData(rawData, attachmentId: attachmentId) else {
+            throw FinanceError.receiptImageProcessingFailed
+        }
+        let attachment = TransactionAttachment(context: context)
+        attachment.id = attachmentId
+        attachment.fileName = processed.fileName
+        attachment.thumbnailFileName = processed.thumbnailFileName
+        attachment.sortOrder = (transaction.receiptAttachments.map(\.sortOrder).max() ?? -1) + 1
+        attachment.sourceType = source.rawValue
+        attachment.createdAt = Date()
+        attachment.imageData = processed.imageData
+        attachment.thumbnailData = processed.thumbnailData
+        attachment.transaction = transaction
+        transaction.updatedAt = Date()
+        try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        return attachment
+    }
+
+    /// 撕掉一张票根（附件删除即净，宿主交易保留）
+    func detachReceipt(_ attachment: TransactionAttachment) throws {
+        let transaction = attachment.transaction
+        context.delete(attachment)
+        transaction?.updatedAt = Date()
+        try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
+    /// 票根存储占用汇总。在一次性后台上下文上逐行读 BLOB 长度，
+    /// 避免把全部图片数据拉进常驻 viewContext（识图确认页 Jetsam 同源风险）
+    struct ReceiptStorageSummary: Sendable {
+        let count: Int
+        let bytes: Int64
+    }
+
+    func receiptStorageSummary() async -> ReceiptStorageSummary {
+        let bgContext = CoreDataStack.shared.newBackgroundContext()
+        return await bgContext.perform {
+            let request = TransactionAttachment.fetchRequest()
+            guard let attachments = try? bgContext.fetch(request) else {
+                return ReceiptStorageSummary(count: 0, bytes: 0)
+            }
+            var bytes: Int64 = 0
+            for attachment in attachments {
+                bytes += Int64(attachment.imageData?.count ?? 0)
+                bytes += Int64(attachment.thumbnailData?.count ?? 0)
+            }
+            return ReceiptStorageSummary(count: attachments.count, bytes: bytes)
+        }
+    }
+
+    /// 一键清理全部识图来源票根（交易本身不动），返回清理张数。
+    /// 设置页「清理识图票根」出口：默认开启自动归档的存储顾虑必须有释放通道
+    @discardableResult
+    func purgeReceiptBookingReceipts() throws -> Int {
+        let request = TransactionAttachment.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "sourceType == %@",
+            TransactionAttachment.AttachmentSource.receiptBooking.rawValue
+        )
+        let targets = try context.fetch(request)
+        for attachment in targets {
+            context.delete(attachment)
+        }
+        try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        return targets.count
+    }
+
+    /// 识图来源票根张数（设置页清理入口展示用；count 查询不加载图片数据）
+    func receiptBookingReceiptCount() -> Int {
+        let request = TransactionAttachment.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "sourceType == %@",
+            TransactionAttachment.AttachmentSource.receiptBooking.rawValue
+        )
+        return (try? context.count(for: request)) ?? 0
     }
 }
 
@@ -835,6 +1070,14 @@ enum FinanceError: LocalizedError {
     case staleCategoryDeletion
     /// 分类删除提交时存在未决策的冲突（预算冲突/同名子分类冲突/去向缺失）
     case categoryDeletionBlocked
+    /// 退款累计金额超过原交易金额（含分期等一期不支持发起退款的情形）
+    case refundExceedsOriginal
+    /// 原交易金额改到低于其名下退款累计（会产生「已退 > 原额」脏账）
+    case originalBelowRefunded(refunded: Decimal)
+    /// 票根数量达到上限（每笔最多 3 张）
+    case receiptLimitReached(maxCount: Int)
+    /// 票根图片处理失败（数据无法解码或压缩失败）
+    case receiptImageProcessingFailed
 
     var errorDescription: String? {
         switch self {
@@ -845,6 +1088,13 @@ enum FinanceError: LocalizedError {
         case .subCategoryRequired: return "记账必须选择二级分类"
         case .staleCategoryDeletion: return "分类数据已发生变化，请返回后重新删除"
         case .categoryDeletionBlocked: return "存在未处理的冲突，请先完成全部选择"
+        case .refundExceedsOriginal: return "退款累计金额不能超过原交易金额"
+        case .originalBelowRefunded(let refunded):
+            return "已退 \(refunded.formattedAsCurrency()) 元，金额不能低于已退金额"
+        case .receiptLimitReached(let maxCount):
+            return "每笔账最多贴 \(maxCount) 张票根"
+        case .receiptImageProcessingFailed:
+            return "图片处理失败，请换一张试试"
         }
     }
 }

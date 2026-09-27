@@ -23,6 +23,8 @@ struct DataManagementView: View {
     @State private var isCleaningImported = false
     @State private var cleanupResultText: String?
     @State private var recycleBatchCount = 0
+    /// 票根照片总占用（张数 + 字节汇总；nil=无票根不显示行）
+    @State private var receiptStorageText: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -95,6 +97,9 @@ struct DataManagementView: View {
                     ForEach(RecycleBinModule.allCases) { module in
                         moduleCountRow(module)
                     }
+                    if let receiptStorageText {
+                        receiptStorageRow(receiptStorageText)
+                    }
                 }
                 .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
@@ -120,6 +125,21 @@ struct DataManagementView: View {
                 .foregroundColor(Color.holoBorder.opacity(0.5)),
             alignment: .bottom
         )
+    }
+
+    /// 票根照片占用行（概览末行；识图票根可在「图片自动记账」设置页一键清理）
+    private func receiptStorageRow(_ text: String) -> some View {
+        HStack {
+            Text(String(localized: "票根照片"))
+                .font(.system(size: 15))
+                .foregroundColor(.holoTextPrimary)
+            Spacer()
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextSecondary)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 11)
     }
 
     private var recycleBinSection: some View {
@@ -270,6 +290,10 @@ struct DataManagementView: View {
         moduleCounts = await RecycleBinService.shared.moduleDataCounts()
         await RecycleBinService.shared.reloadBatches()
         recycleBatchCount = RecycleBinService.shared.batches.count
+        let summary = await FinanceRepository.shared.receiptStorageSummary()
+        receiptStorageText = summary.count > 0
+            ? String(localized: "\(summary.count) 张 · \(ByteCountFormatter.string(fromByteCount: summary.bytes, countStyle: .file))")
+            : nil
         isLoadingCounts = false
     }
 

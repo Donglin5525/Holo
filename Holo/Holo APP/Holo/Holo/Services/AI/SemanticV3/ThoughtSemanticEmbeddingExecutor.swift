@@ -86,6 +86,17 @@ actor ThoughtSemanticEmbeddingExecutor {
             var vector = raw.map(Float.init)
             vector = SemanticVectorMath.normalized(vector)
 
+            // 2.5 提交前复核（P0，2026-09-24 方案 §3）：embed 网络往返期间正文可能
+            // 已编辑/软删、授权可能已撤回——迟到结果以提交时刻现场为准丢弃；
+            // 编辑场景 feed 已为新版正文入队，无需补排
+            guard await revalidateBeforeCommit(thoughtID: snapshot.id,
+                                               expectedHash: job.contentHash,
+                                               jobConsentGeneration: job.consentGeneration) else {
+                try? await store.finishJob(id: job.id, state: "done", errorCode: "stale_result_dropped")
+                logger.notice("迟到向量丢弃 thought=\(job.thoughtID)（正文已变/已删/授权已撤回）")
+                return
+            }
+
             // 3. 原子落库：真身 + 索引同一轮更新（索引失败不回滚真身，可重建）
             let key = try await store.allocateVectorKey()
             let item = ThoughtSemanticStore.SemanticItem(
@@ -103,12 +114,10 @@ actor ThoughtSemanticEmbeddingExecutor {
                 try? await index.checkpoint()
             }
             try? await store.finishJob(id: job.id, state: "done")
-            await runShadowRelateIfNeeded(thoughtID: snapshot.id,
-                                          redactedText: redacted,
-                                          contentHash: job.contentHash,
-                                          vector: vector,
-                                          store: store,
-                                          index: index)
+            // relate 任务化（2026-09-27 P0-C）：不再内联执行——入队由
+            // ThoughtSemanticRelateExecutor 消费（失败退避重试、可恢复、
+            // 存量补跑同一条队列）。relation flag 由消费侧判定，此处只入队。
+            await enqueueRelateJob(thoughtID: snapshot.id, contentHash: job.contentHash, store: store)
         } catch {
             let attempt = job.attemptCount + 1
             // 协议/数据类错误直接终态；网络类退避重试（指数，封顶 1h）
@@ -122,22 +131,46 @@ actor ThoughtSemanticEmbeddingExecutor {
         }
     }
 
-    /// embed 完成后的影子关联评估（flag relation=shadow 时；失败静默不影响 embed 结果）。
-    private func runShadowRelateIfNeeded(thoughtID: UUID,
-                                         redactedText: String,
-                                         contentHash: String,
-                                         vector: [Float],
-                                         store: ThoughtSemanticStore,
-                                         index: (any LocalSemanticIndex)?) async {
-        let flag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
-        guard flag == .shadow else { return }
-        let (calibration, _) = ThoughtSemanticCalibration.current()
-        let provider = await MainActor.run { HoloBackendAIProvider() }
-        let context = await MainActor.run { CoreDataStack.shared.viewContext }
-        _ = await ThoughtTopicVerifier.shadowEvaluate(
-            thoughtID: thoughtID, redactedText: redactedText, contentHash: contentHash,
-            targetVector: vector, store: store, index: index,
-            context: context, provider: provider, calibration: calibration)
+    /// 提交前复核：ID 仍存在、未软删、当前正文 hash 与 job 一致、授权代数未变且授权仍有效。
+    private func revalidateBeforeCommit(thoughtID: UUID,
+                                        expectedHash: String,
+                                        jobConsentGeneration: Int64) async -> Bool {
+        await MainActor.run {
+            guard ThoughtSemanticFeatureFlags.consentGeneration == jobConsentGeneration,
+                  HoloAIDataProcessingConsent.shared.isGranted else { return false }
+            let context = CoreDataStack.shared.viewContext
+            var valid = false
+            context.performAndWait {
+                let request = Thought.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", thoughtID as CVarArg)
+                request.fetchLimit = 1
+                if let thought = (try? context.fetch(request))?.first,
+                   let content = thought.value(forKey: "content") as? String,
+                   ThoughtEmbeddingStore.contentHash(of: content) == expectedHash {
+                    valid = true
+                }
+            }
+            return valid
+        }
+    }
+
+    /// relate 任务入队（P0-C）：embed 完成即入队，去重交给 hasPendingJob。
+    /// 注意向量刚写入，loadVector 在消费侧必能读回。
+    private func enqueueRelateJob(thoughtID: UUID,
+                                  contentHash: String,
+                                  store: ThoughtSemanticStore) async {
+        do {
+            guard try await !store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "relate") else {
+                return
+            }
+            let job = ThoughtSemanticStore.SemanticJob(
+                id: UUID(), thoughtID: thoughtID, contentHash: contentHash, kind: "relate",
+                priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil,
+                consentGeneration: ThoughtSemanticFeatureFlags.consentGeneration, lastErrorCode: nil)
+            try await store.enqueueJob(job)
+        } catch {
+            logger.error("relate 入队失败 thought=\(thoughtID)：\(error.localizedDescription)")
+        }
     }
 
     private func isTerminalError(_ error: Error) -> Bool {

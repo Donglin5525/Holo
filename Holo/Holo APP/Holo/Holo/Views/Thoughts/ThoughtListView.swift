@@ -50,6 +50,10 @@ struct ThoughtListView: View {
     /// 筛选状态
     @State private var selectedTagName: String? = nil
     @State private var searchText: String = ""
+    /// 语义搜索命中（id → 相似度；混合召回的语义半场）
+    @State private var semanticSearchHits: [UUID: Float] = [:]
+    /// 语义搜索防抖任务
+    @State private var semanticSearchTask: Task<Void, Never>?
     /// Cmd+F 聚焦搜索栏（硬件键盘快捷键）
     @FocusState private var searchFieldFocused: Bool
     @State private var showFilterSheet: Bool = false
@@ -114,6 +118,10 @@ struct ThoughtListView: View {
     /// 批量整理提示文案（toast，nil 不显示）
     @State private var batchOrganizeNotice: String? = nil
 
+    /// P1 归入回执：AI 主题归类落库后的一次性短暂 toast（主题标题，nil 不显示）
+    @State private var topicReceiptTitle: String? = nil
+    @State private var topicReceiptTask: Task<Void, Never>? = nil
+
     /// 用户从外层「自动整理」启动批量标签整理后，完成时继续归纳主题
     @State private var shouldRunTopicConvergenceAfterBatch: Bool = false
 
@@ -160,13 +168,24 @@ struct ThoughtListView: View {
             }
         }
 
-        // 按搜索文本筛选
+        // 混合搜索（C 阶段 §8.C.1）：关键词命中优先，语义命中（不含关键词的
+        // 近义表达）补充在后；语义召回离线/未索引自动缺席，纯关键词照常
         if !searchText.isEmpty {
-            result = result.filter { thought in
-                thought.content.localizedCaseInsensitiveContains(searchText) ||
+            let query = searchText
+            let keywordMatches = result.filter { thought in
+                thought.content.localizedCaseInsensitiveContains(query) ||
                 (thought.tagArray.map(\.name) + thought.visibleAITagNames).contains {
-                    $0.localizedCaseInsensitiveContains(searchText)
+                    $0.localizedCaseInsensitiveContains(query)
                 }
+            }
+            if semanticSearchHits.isEmpty {
+                result = keywordMatches
+            } else {
+                let keywordIDs = Set(keywordMatches.map(\.id))
+                let semanticOnly = result.filter {
+                    semanticSearchHits[$0.id] != nil && !keywordIDs.contains($0.id)
+                }
+                result = keywordMatches + semanticOnly
             }
         }
 
@@ -300,6 +319,11 @@ struct ThoughtListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .holoRequestCloseThoughtEditor)) { _ in
             selectedThoughtId = nil
         }
+        // 编辑器「你之前也写过」点旧想法：切换编辑器目标（cover 重建、宽屏右栏切换）
+        .onReceive(NotificationCenter.default.publisher(for: .thoughtRequestOpenEditor)) { note in
+            guard let targetId = note.object as? UUID, targetId != selectedThoughtId else { return }
+            selectedThoughtId = targetId
+        }
         .sheet(isPresented: $showFilterSheet) {
             ThoughtFilterSheetView(initialFilters: currentFilters, onApplyFilters: { filters in
                 currentFilters = filters
@@ -389,6 +413,20 @@ struct ThoughtListView: View {
         .onChange(of: revealedThoughtId) { _, newValue in
             onRevealedCardChange?(newValue != nil)
         }
+        // P1 §3.2 归入回执：AI 落库成功广播 → 该想法在当前列表时给一次短暂 toast
+        // （不用常驻进度条；离线/未授权/无匹配是合法静默，不产生本事件）
+        .onReceive(NotificationCenter.default.publisher(for: .thoughtTopicLinkDidCommit)) { note in
+            guard let payload = note.object as? [String: Any],
+                  let thoughtId = payload["thoughtId"] as? UUID,
+                  let topicTitle = payload["topicTitle"] as? String,
+                  thoughts.contains(where: { $0.id == thoughtId }) else { return }
+            topicReceiptTitle = topicTitle
+            topicReceiptTask?.cancel()
+            topicReceiptTask = Task {
+                try? await Task.sleep(nanoseconds: 2_400_000_000)
+                if !Task.isCancelled { topicReceiptTitle = nil }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             scheduleListRefreshAfterDataChange()
         }
@@ -423,6 +461,9 @@ struct ThoughtListView: View {
 
             batchOrganizeNotice = String(localized: "标签整理完成，正在归纳主题")
             onAIOrganize()
+        }
+        .onChange(of: searchText) { _, newValue in
+            scheduleSemanticSearch(newValue)
         }
         .onChange(of: thoughts) { _, updatedThoughts in
             // 宽屏双栏：选中的想法被删除后右栏退回引导位（编辑器内联模式 dismiss() 不生效）
@@ -623,6 +664,30 @@ struct ThoughtListView: View {
         )
         .padding(.horizontal, HoloSpacing.lg)
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    // MARK: - 语义搜索（C 阶段 §8.C.1：同义问法找回，关键词优先）
+
+    /// 防抖 600ms 后发起语义召回；空词/两字以下清空语义命中。
+    /// 后端不可用/未索引静默缺席——关键词路径不受影响。
+    private func scheduleSemanticSearch(_ query: String) {
+        semanticSearchTask?.cancel()
+        guard query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else {
+            semanticSearchHits = [:]
+            return
+        }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        semanticSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            let hits = await SemanticSearchHelper.search(query: trimmed)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(HoloAnimation.quick) {
+                    semanticSearchHits = hits ?? [:]
+                }
+            }
+        }
     }
 
     // MARK: - 数据加载
@@ -968,6 +1033,23 @@ struct ThoughtListView: View {
                         try? await Task.sleep(nanoseconds: 2_500_000_000)
                         withAnimation(.easeInOut) { batchOrganizeNotice = nil }
                     }
+            } else if let receipt = topicReceiptTitle {
+                // P1 归入回执：AI 落库后的一次性短暂提示（绿色主题语义，来源可感知）
+                HStack(spacing: 4) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(String(localized: "已归入「\(receipt)」"))
+                        .font(.holoCaption)
+                }
+                .foregroundColor(Color.holoSuccess)
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.sm)
+                .background(Color.holoCardBackground.opacity(0.97))
+                .overlay(Capsule().stroke(Color.holoSuccess.opacity(0.3), lineWidth: 1))
+                .clipShape(Capsule())
+                .padding(.top, HoloSpacing.xl)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .accessibilityLabel(String(localized: "Holo 已将这条想法归入主题\(receipt)"))
             }
         }
     }
@@ -1630,6 +1712,11 @@ struct ThoughtListView: View {
                                 },
                                 onRemoveTopic: { topic in
                                     removeThoughtLocally(thought, topic: topic)
+                                },
+                                onOpenTopic: { topic in
+                                    // P1：轻点主题行进主题详情（纠错收进长按）
+                                    revealedThoughtId = nil
+                                    selectedTopicId = topic.id
                                 }
                             )
                             .contextMenu {
@@ -1756,37 +1843,51 @@ struct ThoughtListView: View {
     // MARK: - 空状态
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "lightbulb")
+        // 空态按语境区分（R3 体检实锤）：搜索/筛选无结果 ≠ 一条想法都没有——
+        // 前两者引导换关键词/换范围，只有真·零想法才引导「记录第一条」，
+        // 否则搜索落空时出现「记录第一条想法」按钮语义错位
+        let isSearching = !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+        let isFiltering = currentFilters != nil
+            || selectedTagName != nil
+            || (drawerSelection != nil && drawerSelection != .aiOrganize)
+        let icon = isSearching ? "magnifyingglass" : "lightbulb"
+        let title = isSearching ? "没有找到相关想法" : (isFiltering ? "该范围内暂无想法" : "暂无想法")
+        let caption = isSearching ? "换个关键词试试"
+            : (isFiltering ? "换个范围，或清空筛选再看看" : "一闪而过的念头，都值得留下来")
+        return VStack(spacing: 20) {
+            Image(systemName: icon)
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.3))
 
-            Text("暂无想法")
+            Text(title)
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
-            Text("一闪而过的念头，都值得留下来")
+            Text(caption)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
 
             // 空态行动按钮（激活方案 §3.2）：一键直达编辑器，替代「找右下角 +」
-            Button {
-                showAddThought = true
-            } label: {
-                Label(String(localized: "记录第一条想法"), systemImage: "plus.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 26)
-                    .padding(.vertical, 11)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.holoPrimary)
-                    )
-                    .contentShape(Rectangle())
+            // 仅真·零想法出现（搜索/筛选空态点它不符合用户当下意图）
+            if !isSearching && !isFiltering {
+                Button {
+                    showAddThought = true
+                } label: {
+                    Label(String(localized: "记录第一条想法"), systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 26)
+                        .padding(.vertical, 11)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.holoPrimary)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+                .accessibilityIdentifier("thoughtEmptyCta")
             }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
-            .accessibilityIdentifier("thoughtEmptyCta")
 
             if ICloudSyncStatusService.shared.isInitialSyncPending {
                 Text("正在从 iCloud 恢复数据，稍等片刻就会显示")

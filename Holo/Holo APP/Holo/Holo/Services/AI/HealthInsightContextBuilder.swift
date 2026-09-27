@@ -127,7 +127,8 @@ struct HoloHealthInsightDataSource: HealthInsightDataSource {
         guard let txs = try? await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end) else {
             return []
         }
-        return txs.filter { $0.transactionType == .expense }.map { tx in
+        // 健康洞察只关心真实消费行为：退款笔（负额冲减流水）不作为消费记录喂给 AI
+        return txs.filter { !$0.isRefund && $0.statisticsType == .expense }.map { tx in
             HealthInsightFinanceRecord(
                 date: tx.date,
                 searchableText: [

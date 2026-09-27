@@ -52,6 +52,7 @@ struct ThoughtRelationDecision: Codable, Equatable {
     var relation: String          // same_thread / related / none / insufficient
     var tier: String              // high / medium / low
     var verifierQuote: String?
+    var verifierRangeUTF16: [Int]?   // 证据区间（正式提交时随 basisTextHash 落库）
     var scoreFeaturesJSON: String
 }
 
@@ -66,7 +67,9 @@ enum ThoughtTopicVerifier {
     private static let logger = Logger(subsystem: "com.holo.Holo", category: "ThoughtTopicVerifier")
 
     /// 影子执行一次完整判断：召回 → 构造最小请求 → 云端验证 → 客户端二次校验 → 分层。
-    /// 返回逐候选决策（含 low）；失败返回 nil（shadow 静默，不打扰主流程）。
+    /// 返回逐候选决策（含 low）。网络类失败上抛（P0-C：relate 任务化后由执行器
+    /// 退避重试，不再静默丢弃）；候选召回为空等合法空结果返回 []。
+    /// consentGeneration：发起时授权代数快照，relate 网络往返后提交前逐项重验（P0-B）。
     static func shadowEvaluate(thoughtID: UUID,
                                redactedText: String,
                                contentHash: String,
@@ -75,7 +78,47 @@ enum ThoughtTopicVerifier {
                                index: (any LocalSemanticIndex)?,
                                context: NSManagedObjectContext,
                                provider: HoloBackendAIProvider,
-                               calibration: ThoughtSemanticCalibration) async -> [ThoughtRelationDecision]? {
+                               calibration: ThoughtSemanticCalibration,
+                               consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
+        try await evaluate(thoughtID: thoughtID, redactedText: redactedText, contentHash: contentHash,
+                           targetVector: targetVector, store: store, index: index, context: context,
+                           provider: provider, calibration: calibration, commitHighTier: false,
+                           consentGeneration: consentGeneration)
+    }
+
+    /// 正式评估（relation=on 且校准通过时）：high tier 决策原子提交为
+    /// ai/v3 + weakVisible 的有效 ThoughtTopicLink（方案 §3 P0）。
+    /// 用户拒绝墓碑与用户 active 由投影层让位（isUserDecision 优先）。
+    /// 网络类失败上抛（P0-C），由 relate 执行器退避重试。
+    static func evaluateAndCommit(thoughtID: UUID,
+                                  redactedText: String,
+                                  contentHash: String,
+                                  targetVector: [Float],
+                                  store: ThoughtSemanticStore,
+                                  index: (any LocalSemanticIndex)?,
+                                  context: NSManagedObjectContext,
+                                  provider: HoloBackendAIProvider,
+                                  calibration: ThoughtSemanticCalibration,
+                                  consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
+        try await evaluate(thoughtID: thoughtID, redactedText: redactedText, contentHash: contentHash,
+                           targetVector: targetVector, store: store, index: index, context: context,
+                           provider: provider, calibration: calibration, commitHighTier: true,
+                           consentGeneration: consentGeneration)
+    }
+
+    /// 评估内核：shadow 与正式提交共用（召回/请求/二次校验/分层一致，
+    /// 差异只在 high tier 是否落 ThoughtTopicLink）。
+    private static func evaluate(thoughtID: UUID,
+                                 redactedText: String,
+                                 contentHash: String,
+                                 targetVector: [Float],
+                                 store: ThoughtSemanticStore,
+                                 index: (any LocalSemanticIndex)?,
+                                 context: NSManagedObjectContext,
+                                 provider: HoloBackendAIProvider,
+                                 calibration: ThoughtSemanticCalibration,
+                                 commitHighTier: Bool,
+                                 consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
 
         // 1. 召回
         let recallOutcome = await ThoughtTopicCandidateEngine.recall(
@@ -116,8 +159,9 @@ enum ThoughtTopicVerifier {
         do {
             response = try await provider.semanticRelate(request)
         } catch {
-            logger.debug("relate 调用失败（shadow 静默）：\(error.localizedDescription)")
-            return nil
+            // P0-C：网络类失败上抛给 relate 执行器退避重试（不再静默返回 nil）
+            logger.debug("relate 调用失败（将由队列重试）：\(error.localizedDescription)")
+            throw error
         }
 
         // 4. 客户端二次校验（§9.2 步骤 7）：quote 逐字存在 + range 对齐 + ref 白名单
@@ -127,8 +171,7 @@ enum ThoughtTopicVerifier {
             guard allowedRefs.contains(decision.candidateRef) else { continue }
             if decision.quote != nil {
                 guard let quote = decision.quote,
-                      let range = decision.rangeUTF16, range.count == 2,
-                      (redactedText as NSString).substring(with: NSRange(location: range[0], length: range[1] - range[0])) == quote
+                      isQuoteVerbatim(quote, in: redactedText, rangeUTF16: decision.rangeUTF16)
                 else { continue } // 证据不逐字=整条丢弃
             }
             verified.append(decision)
@@ -161,19 +204,98 @@ enum ThoughtTopicVerifier {
                 relation: decision.relation,
                 tier: tier,
                 verifierQuote: decision.quote,
+                verifierRangeUTF16: decision.rangeUTF16,
                 scoreFeaturesJSON: (try? JSONEncoder().encode(features)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}")
             decisions.append(result)
 
-            // shadow 记录（无正文：features 数字 + verifier 离散结论）
+            // shadow 记录（无正文：features 数字 + verifier 离散结论；
+            // quote 原文片段随记录落库供 P1 回源——P0-B）
             try? await store.recordRelationCandidate(
                 thoughtID: thoughtID, topicID: candidate.topicID, contentHash: contentHash,
                 scoreFeatures: result.scoreFeaturesJSON,
                 verifierResult: decision.relation,
-                state: "shadow_\(tier)",
+                state: commitHighTier ? "committed_\(tier)" : "shadow_\(tier)",
                 engineVersion: engineVersion,
-                expiryDays: calibration.candidateExpiryDays)
+                expiryDays: calibration.candidateExpiryDays,
+                verifierQuote: decision.quote)
+
+            // 正式提交：仅 high tier 落有效 link（拒绝墓碑/用户 active 由投影层让位）
+            if commitHighTier, tier == "high" {
+                await commitDecision(result, thoughtID: thoughtID, contentHash: contentHash,
+                                     context: context, calibration: calibration,
+                                     consentGeneration: consentGeneration)
+            }
         }
         return decisions
+    }
+
+    /// high tier 决策原子提交：读回 thought/topic → 投影层写入 → 同一 context save。
+    /// 对象不存在/已被删/正文版本变化/授权已撤回或代数已变时静默放弃
+    /// （晚到结果不落旧版本，P0-B：relate 网络往返后逐项重验，与 embed 路径同款守卫）。
+    private static func commitDecision(_ decision: ThoughtRelationDecision,
+                                       thoughtID: UUID,
+                                       contentHash: String,
+                                       context: NSManagedObjectContext,
+                                       calibration: ThoughtSemanticCalibration,
+                                       consentGeneration: Int64) async {
+        // 授权重验必须在 context.perform 外做（MainActor 标记的 consent 读取）；
+        // 撤回后迟到的 relate 结果直接丢弃，不落库也不盖新代数
+        let consentStillValid = await MainActor.run {
+            ThoughtSemanticFeatureFlags.consentGeneration == consentGeneration
+                && HoloAIDataProcessingConsent.shared.isGranted
+        }
+        guard consentStillValid else {
+            logger.notice("迟到 relate 决策丢弃 thought=\(thoughtID)（授权已撤回或代数已变）")
+            return
+        }
+
+        let topicID = decision.topicID
+        await context.perform {
+            let thoughtRequest = Thought.fetchRequest()
+            thoughtRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", thoughtID as CVarArg)
+            thoughtRequest.fetchLimit = 1
+            guard let thought = (try? context.fetch(thoughtRequest))?.first,
+                  let currentContent = thought.value(forKey: "content") as? String,
+                  ThoughtEmbeddingStore.contentHash(of: currentContent) == contentHash else { return }
+
+            let topicRequest = Topic.fetchRequest()
+            topicRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", topicID as CVarArg)
+            topicRequest.fetchLimit = 1
+            guard let topic = (try? context.fetch(topicRequest))?.first else { return }
+
+            _ = ThoughtTopicLinkProjection.recordAIV3Decision(
+                thought: thought, topic: topic,
+                basisTextHash: contentHash,
+                decisionTier: decision.tier,
+                engineVersion: engineVersion,
+                consentGeneration: consentGeneration,
+                evidenceRange: decision.verifierRangeUTF16)
+            // 保存失败不再静默吞（P0-B）：显式记日志暴露，下一轮 relate 补跑可自愈；
+            // 成功后广播归入回执（P1 §3.2：卡片一次性短暂 toast，object 供列表过滤）
+            do {
+                try context.save()
+                NotificationCenter.default.post(
+                    name: .thoughtTopicLinkDidCommit,
+                    object: ["thoughtId": thoughtID, "topicTitle": topic.title],
+                    userInfo: ["source": "ai"])
+                // 数据变更同步广播：侧栏计数/主题详情/列表卡片都监听本通知刷新——
+                // 校验实锤（2026-09-27）：只发回执通知时三处全部滞后到下一次数据变化
+                NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            } catch {
+                logger.error("relate link 保存失败 thought=\(thoughtID) topic=\(topicID)：\(error.localizedDescription)")
+                context.rollback()
+            }
+        }
+    }
+
+    /// quote 逐字校验：range 先验边界（模型可能返回负数/倒序/越界，NSString 越界
+    /// substring 直接崩溃——2026-09-24 方案 §3 P0），切片后须与 quote 完全一致。
+    static func isQuoteVerbatim(_ quote: String, in text: String, rangeUTF16: [Int]?) -> Bool {
+        guard let range = rangeUTF16, range.count == 2,
+              range[0] >= 0, range[1] >= range[0],
+              range[1] <= text.utf16.count else { return false }
+        let ns = text as NSString
+        return ns.substring(with: NSRange(location: range[0], length: range[1] - range[0])) == quote
     }
 
     /// §10.2 分层规则（数值全部来自校准配置）。

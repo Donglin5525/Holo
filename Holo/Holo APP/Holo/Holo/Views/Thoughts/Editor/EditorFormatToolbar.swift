@@ -7,11 +7,11 @@
 //  设计原则：工具栏不是「贴在键盘上的另一块面板」，而是输入框自身的底部——
 //  沉在编辑器卡片内、与卡片同底色（holoCardBackground）、圆角随卡片一体，
 //  仅以一条发丝线（holoDivider 0.5pt）与正文区分层。
-//  布局：左侧 6 个格式/插入工具（次要文字色），右侧 3 个核心动作（品牌色）——
-//  「转为任务」图标强调，「语音输入」为实心品牌圆；
-//  完成键（编辑=✔ / 新建=纸飞机）为横向胶囊、固定最右，是整条工具栏的主操作
-//  （参考 flomo 的语言：容器宽、图形精，与语音圆之间显式留白）。
-//  宽度两档：常规屏走「呼吸版」，375pt 极窄屏由 ViewThatFits 自动落「紧凑版」防溢出。
+//  布局（2026-09-25 flomo 改版收敛）：左侧 5 个格式/插入工具（# @ 图片｜加粗 样式菜单，
+//  列表收进样式菜单），右侧 2 个动作——语音为次级灰图标，完成键（编辑=✔ / 新建=纸飞机）
+//  为横向胶囊、固定最右，是整条工具栏唯一的主操作（品牌橙只强调它）。
+//  「转为任务」移入右上「…」菜单与选中文字的系统菜单，不再争抢工具栏主位。
+//  宽度两档：常规屏工具钮 44pt 触控宽，375pt 极窄屏由 ViewThatFits 自动落紧凑档防溢出。
 //
 
 import SwiftUI
@@ -24,8 +24,6 @@ struct EditorFormatToolbar: View {
 
     /// 格式/插入动作（写入 pendingAction，由 MarkdownTextView 消费）
     var onAction: (MarkdownEditorAction) -> Void
-    /// 「转为任务」：编辑器读当前选区（有选中转选中，无选中转整篇）
-    var onConvertToTask: () -> Void
     /// 「拍照」：走相机权限流程后全屏打开相机
     var onCamera: () -> Void
     /// 「从相册选择」：前置相册读取权限后弹系统选择器
@@ -44,19 +42,19 @@ struct EditorFormatToolbar: View {
     @Binding var showsColorPalette: Bool
 
     var body: some View {
-        // 宽度两档自适应：常规屏走「呼吸版」（发送键宽胶囊、按钮间留白），
+        // 宽度两档自适应：常规屏走「呼吸版」（工具钮 44pt 宽触控、发送键宽胶囊），
         // 375pt 极窄屏自动落「紧凑版」，保证整条工具栏不溢出编辑器卡片。
         ViewThatFits(in: .horizontal) {
             toolbarRow(
+                toolWidth: 44,
                 sendPillSize: CGSize(width: 46, height: 32),
-                micTapWidth: 36,
-                taskVoiceGap: 8,
+                micTapWidth: 44,
                 voiceSendGap: 12
             )
             toolbarRow(
+                toolWidth: 38,
                 sendPillSize: CGSize(width: 42, height: 30),
-                micTapWidth: 34,
-                taskVoiceGap: 4,
+                micTapWidth: 38,
                 voiceSendGap: 6
             )
         }
@@ -77,20 +75,19 @@ struct EditorFormatToolbar: View {
 
     /// 整行：左组工具 + 弹性留白 + 右组动作。参数区分「呼吸/紧凑」两档的尺寸与间距。
     private func toolbarRow(
+        toolWidth: CGFloat,
         sendPillSize: CGSize,
         micTapWidth: CGFloat,
-        taskVoiceGap: CGFloat,
         voiceSendGap: CGFloat
     ) -> some View {
         HStack(spacing: 0) {
-            formatTools
+            formatTools(toolWidth: toolWidth)
 
             Spacer(minLength: 8)
 
             actionTools(
                 sendPillSize: sendPillSize,
                 micTapWidth: micTapWidth,
-                taskVoiceGap: taskVoiceGap,
                 voiceSendGap: voiceSendGap
             )
         }
@@ -98,32 +95,30 @@ struct EditorFormatToolbar: View {
 
     // MARK: - 格式工具组
 
-    /// 左组：内容插入（# @ 📷）+ 文字样式（B 样式菜单）+ 列表菜单
-    private var formatTools: some View {
+    /// 左组：内容插入（# @ 图片）+ 文字样式（加粗 + 样式菜单，列表收在样式菜单内）
+    private func formatTools(toolWidth: CGFloat) -> some View {
         HStack(spacing: 0) {
-            toolButton("number", String(localized: "标签")) {
+            toolButton("number", String(localized: "标签"), width: toolWidth) {
                 onAction(.insertTriggerCharacter("#"))
             }
-            toolButton("at", String(localized: "引用想法")) {
+            toolButton("at", String(localized: "引用想法"), width: toolWidth) {
                 onAction(.insertTriggerCharacter("@"))
             }
-            addImageMenuButton
+            addImageMenuButton(toolWidth: toolWidth)
 
             groupDivider
 
-            toolButton("bold", String(localized: "加粗"), active: formatState.isBold) {
+            toolButton("bold", String(localized: "加粗"), active: formatState.isBold, width: toolWidth) {
                 onAction(.toggleBold)
             }
 
-            styleMenuButton
-
-            listMenuButton
+            styleMenuButton(toolWidth: toolWidth)
         }
     }
 
-    /// 文字样式入口（菜单：斜体/下划线/文字颜色）
+    /// 文字样式入口（菜单：斜体/下划线/文字颜色/列表）
     /// 任一格式激活时入口高亮；颜色生效时右下角显示当前色圆点
-    private var styleMenuButton: some View {
+    private func styleMenuButton(toolWidth: CGFloat) -> some View {
         Menu {
             Button {
                 onAction(.toggleItalic)
@@ -140,12 +135,23 @@ struct EditorFormatToolbar: View {
             } label: {
                 Label("文字颜色", systemImage: "paintpalette")
             }
+            Divider()
+            Button {
+                onAction(.insertUnorderedList)
+            } label: {
+                Label("无序列表", systemImage: "list.bullet")
+            }
+            Button {
+                onAction(.insertOrderedList)
+            } label: {
+                Label("有序列表", systemImage: "list.number")
+            }
         } label: {
             // 不使用 textformat：中文系统下该符号的视觉形态容易被看成「格式」文字
             Image(systemName: "paintbrush.pointed")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(formatState.anyFormatActive ? .holoPrimary : .holoTextSecondary)
-                .frame(width: 32, height: 44)
+                .frame(width: toolWidth, height: 44)
                 .background(
                     RoundedRectangle(cornerRadius: 9)
                         .fill(formatState.anyFormatActive ? Color.holoPrimary.opacity(0.1) : .clear)
@@ -167,9 +173,9 @@ struct EditorFormatToolbar: View {
     }
 
     /// 添加图片入口（锚定菜单：拍照 / 从相册选择）。
-    /// 与样式/列表入口同一形态：系统菜单贴着按钮弹出，不再经过贴底 sheet——
+    /// 与样式入口同一形态：系统菜单贴着按钮弹出，不再经过贴底 sheet——
     /// sheet 在 iOS 26 呈现为悬在屏幕底部的小卡片，离编辑器远、样式突兀。
-    private var addImageMenuButton: some View {
+    private func addImageMenuButton(toolWidth: CGFloat) -> some View {
         Menu {
             Button {
                 onCamera()
@@ -185,67 +191,36 @@ struct EditorFormatToolbar: View {
             Image(systemName: "photo")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 44)
+                .frame(width: toolWidth, height: 44)
         }
         .accessibilityLabel(String(localized: "添加图片"))
     }
 
-    /// 列表入口（菜单：无序/有序）
-    private var listMenuButton: some View {        Menu {
-            Button {
-                onAction(.insertUnorderedList)
-            } label: {
-                Label("无序列表", systemImage: "list.bullet")
-            }
-            Button {
-                onAction(.insertOrderedList)
-            } label: {
-                Label("有序列表", systemImage: "list.number")
-            }
-        } label: {
-            Image(systemName: "list.bullet")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 44)
-        }
-        .accessibilityLabel(String(localized: "列表"))
-    }
-
     // MARK: - 动作组
 
-    /// 右组：转为任务（品牌色图标）+ 语音圆 + 发送胶囊。
-    /// 按钮之间显式留白（不再共用紧贴的点击区），发送胶囊是唯一的主操作形态。
+    /// 右组：语音（次级灰图标）+ 发送胶囊（唯一主操作形态）。
     private func actionTools(
         sendPillSize: CGSize,
         micTapWidth: CGFloat,
-        taskVoiceGap: CGFloat,
         voiceSendGap: CGFloat
     ) -> some View {
         HStack(spacing: 0) {
-            toolButton("checklist", String(localized: "转为任务"), tint: .holoPrimary) {
-                onConvertToTask()
-            }
-            .accessibilityHint(String(localized: "将选中的文字转为任务；未选中文字时提取整篇想法"))
-
             voiceButton(tapWidth: micTapWidth)
-                .padding(.leading, taskVoiceGap)
 
             doneButton(pillSize: sendPillSize)
                 .padding(.leading, voiceSendGap)
         }
     }
 
-    /// 语音输入：实心品牌圆，紧邻发送胶囊。
+    /// 语音输入：次级灰图标（品牌橙只留给完成键），紧邻发送胶囊。
     /// 智能总结开关收进长按菜单——低频偏好设置不占工具栏宽度。
     private func voiceButton(tapWidth: CGFloat) -> some View {
         Button {
             onVoiceInput()
         } label: {
             Image(systemName: "mic.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(Color.holoPrimary))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
                 .frame(width: tapWidth, height: 44)
         }
         .contextMenu {

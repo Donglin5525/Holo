@@ -197,10 +197,20 @@ struct FinanceView: View {
             .holoSheetWidth(.form)
         }
         .sheet(item: $deepLinkedTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) { _ in
-                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            // 退款笔深链走退款编辑层（类型/分类不属于退款语义，不进通用表单）
+            if transaction.isRefund,
+               let originalId = transaction.refundOfTransactionId,
+               let original = FinanceRepository.shared.findTransaction(by: originalId) {
+                RefundEntrySheet(original: original, editingRefund: transaction)
+            } else if transaction.isRefund {
+                // 原交易已删（悬空）：给一个原交易=自身的占位编辑层，至少能改金额日期
+                RefundEntrySheet(original: transaction, editingRefund: transaction)
+            } else {
+                AddTransactionSheet(editingTransaction: transaction) { _ in
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
+                .holoSheetWidth(.form)
             }
-            .holoSheetWidth(.form)
         }
         // 图片自动记账：待复核直达（§25.3）与最近结果
         .sheet(item: $receiptReviewDeepLink, onDismiss: {
@@ -215,10 +225,10 @@ struct FinanceView: View {
                 ReceiptBookingSettingsView()
             }
             .holoSheetWidth(.form)
+        }
         // 结转回执通知 Deep Link 落点：预算详情页（额度构成主舞台）
         .sheet(isPresented: $showBudgetDetail) {
             BudgetDetailView(anchoredAccountId: nil)
-        }
         }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
