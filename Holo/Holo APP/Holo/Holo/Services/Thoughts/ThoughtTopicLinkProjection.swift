@@ -172,6 +172,25 @@ enum ThoughtTopicLinkProjection {
             .compactMap { $0.topic }
     }
 
+    /// 主题的有效成员计数（P0-A 口径）：per-pair 裁决 + 排除已删/已归档想法
+    /// （与 fetchThoughts(byTopic:) 默认口径一致）。deletedAt 走 KVC——
+    /// 声明在 SoftDeletable 扩展，standalone 直编环境不带该文件。
+    static func effectiveActiveThoughtCount(of topic: Topic, includeArchived: Bool = false) -> Int {
+        guard let links = topic.topicLinks as? Set<ThoughtTopicLink>, !links.isEmpty else { return 0 }
+        var bestByThought: [ObjectIdentifier: (Thought, ThoughtTopicLink)] = [:]
+        for link in links {
+            guard let thought = link.thought else { continue }
+            let key = ObjectIdentifier(thought)
+            if let (_, best) = bestByThought[key], link.projectionRank >= best.projectionRank { continue }
+            bestByThought[key] = (thought, link)
+        }
+        return bestByThought.values.filter { pair in
+            pair.1.stateEnum == .active
+                && (pair.0.value(forKey: "deletedAt") as? Date) == nil
+                && (includeArchived || pair.0.isArchived == false)
+        }.count
+    }
+
     // MARK: - 存量迁移（幂等、逐批、可中断；方案 §18.2）
 
     struct BackfillReport: Codable {

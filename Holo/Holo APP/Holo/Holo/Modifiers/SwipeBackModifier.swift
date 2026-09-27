@@ -356,3 +356,14 @@ extension View {
         // Preview 中无法实际 dismiss
     }
 }
+
+// MARK: - 弹出层闸门
+
+/// window 手势弹出层闸门。全屏编辑器、sheet、alert 盖住列表时，
+/// 卡片滑动和侧栏关闭 pan 仍能收到 window 触摸；弹出期间不接收新触摸。
+enum HoloWindowGestureGate {
+    static func isOverlayPresented(_ window: UIWindow?) -> Bool {
+        guard let root = window?.rootViewController else { return false }
+        return root.presentedViewController != nil
+    }
+}
