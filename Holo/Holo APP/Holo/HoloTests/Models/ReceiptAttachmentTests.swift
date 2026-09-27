@@ -147,4 +147,33 @@ final class ReceiptAttachmentTests: XCTestCase {
         XCTAssertTrue(camera.receiptCaption.hasPrefix("拍照 · "), "拍照来源带时间：\(camera.receiptCaption)")
         XCTAssertEqual(booking.receiptCaption, "识图凭证", "识图凭证不带时间（归档时刻≠拍照时刻）")
     }
+
+    // MARK: - 全屏查看解码
+
+    func testFullyDecodedImageKeepsOriginalSizeAndSmallImageNotUpscaled() throws {
+        // 2048×1536 像素图（scale=1 固定，pt=px）：强制解码后尺寸不变（不降采样）
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 2048, height: 1536), format: format)
+        let big = renderer.image { ctx in
+            UIColor.orange.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 2048, height: 1536))
+        }
+        let bigData = try XCTUnwrap(big.jpegData(compressionQuality: 0.8))
+        let decoded = try XCTUnwrap(AttachmentFileManager.fullyDecodedImage(from: bigData))
+        XCTAssertEqual(decoded.size.width, 2048, accuracy: 4, "强制解码不降采样，保持原图尺寸")
+        XCTAssertEqual(decoded.size.height, 1536, accuracy: 4)
+        XCTAssertNotNil(decoded.cgImage, "像素数据已就绪（立即解码）")
+
+        // 小图（40×30 像素）：不被放大到 maxPixelSize 上限
+        let smallRenderer = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 30), format: format)
+        let small = smallRenderer.image { ctx in
+            UIColor.orange.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 40, height: 30))
+        }
+        let smallData = try XCTUnwrap(small.jpegData(compressionQuality: 0.8))
+        let decodedSmall = try XCTUnwrap(AttachmentFileManager.fullyDecodedImage(from: smallData))
+        XCTAssertEqual(decodedSmall.size.width, 40, accuracy: 2, "小图不放大")
+        XCTAssertEqual(decodedSmall.size.height, 30, accuracy: 2)
+    }
 }

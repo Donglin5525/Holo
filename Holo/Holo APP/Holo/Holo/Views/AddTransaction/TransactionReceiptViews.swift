@@ -475,12 +475,19 @@ struct ReceiptGalleryView: View {
 
     private func loadImages() {
         for (index, item) in liveItems.enumerated() {
+            // 第一帧：缩略图立即上屏（300px 解码毫秒级），构图完整、无空白占位
+            if let thumb = item.thumb {
+                images[index] = thumb
+            } else if let thumbData = item.attachment?.thumbnailData,
+                      let thumb = UIImage(data: thumbData) {
+                images[index] = thumb
+            }
+            // 原图后台「强制立即完整解码」后替换——交付主线程时像素已就绪，
+            // 上来即全图；不做会先渲染一帧渐进/模糊版，手势触发重绘才变清晰。
+            // 也不做 preparingForDisplay 屏幕降采样——那会让双指放大后全糊。
             guard let data = item.fullImageData else { continue }
-            // 二进制取值须在主线程；解码放后台。
-            // 全屏查看直接解码原始 2048px 数据——不做 preparingForDisplay 屏幕降采样，
-            // 否则双指放大后超过屏幕尺寸的部分全糊（「不是真正的大图」的根因）
             DispatchQueue.global(qos: .userInitiated).async {
-                let image = UIImage(data: data)
+                let image = AttachmentFileManager.fullyDecodedImage(from: data)
                 DispatchQueue.main.async {
                     if index < images.count {
                         images[index] = image
