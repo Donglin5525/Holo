@@ -20,6 +20,7 @@
   - UI：暂停弹层（holoSheetShell 品牌壳 + 可选「到指定日期自动恢复」——懒检查，打开 App 顺手恢复，忘开不算断）+ 详情页菜单「暂停/恢复习惯」与暂停态横幅（一键恢复）+ 习惯墙底部「已暂停（N）」折叠区（灰显行+行内恢复——归档做了半年无恢复入口的前车之鉴）+ 磁贴长按菜单「暂停」（onPause 闭包注入，看板磁贴传 nil 隐藏）
   - Plus 门控：`HoloPlusGateContext.habitPause` 走统一付费墙（标题「升级 Holo Plus，使用习惯暂停」，购买成功自动续接暂停操作）；权益对比表加「习惯暂停」行（免费✗/Plus✓）；新增 `HOLO_DEBUG_PLUS=1` 模拟器验收通道（applyScreenshotPlusOverride + 订阅同步 DEBUG 跳过防后端 free 态覆盖——比摆拍模式轻，无种子副作用）
   - 数据：Habit 加 `isPaused`/`pausedUntil`/`pauseWindowsData` 三字段；暂停窗口史存 `[HabitPauseWindow]` Codable 数组（多次暂停不丢前账——单窗口字段会在第二次暂停时把第一次的冻结日变漏卡）；类型放 Habit.swift（主 App+Widget 两 target 共编，独立新文件 widget 不编译会炸）；**CloudKit 需真机上报三新字段生产 schema**
+  - 交付与验收（9-28 收口）：已提交推送 7c69e5b69；真机验收 PASS——崩溃日志零闪退零击杀、共享库实查三习惯（健身/猫咪换水/维生素）暂停标记+结束日+窗口史完整落库；**CloudKit 生产 schema 已部署**（开发环境真机上报三字段核验在，浏览器代理操作 Console 执行 Deploy，同批清掉分步推进三实体/目标共创会话表/待办与交易字段等 1.0.9 各批次累积变更 8 类型+8 索引+3 安全角色，生产环境三字段回查在）
   - 测试：`HabitPauseTests` 18 用例（窗口判断/冻结×好/坏/周频率/分母/漏卡/状态机/自动恢复/打卡闸）+ `HabitStreakTests` 7 + `HabitLifetimeTotalTests` 8 回归全绿；`HabitPauseSmokeUITests` 2 用例（Plus 态全链：长按暂停→弹层→折叠区→恢复回来；免费态付费墙拦截）+ 三关键画面只读判读视觉 PASS
   - 坑在档：习惯墙空态模板卡标题与磁贴同名（都叫「散步」）致 UITest 幂等误判「已建成」——须同时判模板卡按钮不在场；XCUIElement subscript（`app.buttons["x"]`）按 identifier 匹配不认 label，精确点击必须 `NSPredicate(format: "label == %@")`
 - **后端+iOS**: 语义图谱 V3 Phase 5——新脉络建议卡全链路 + 主题命名/摘要端点 + 详情页摘要客户端
