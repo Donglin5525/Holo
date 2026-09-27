@@ -26,7 +26,13 @@ struct ThoughtAIClassificationPolicyStandaloneTests {
         }
         defaults.removePersistentDomain(forName: suiteName)
 
-        expect(ThoughtAIClassificationPolicy.isEnabled(in: defaults), "首次使用应默认开启")
+        // 2026-09-24 方案 §6.2 停算矩阵：显式设置永远优先；未设置时跟随 V3 新 UI
+        // 旗标取反（新 UI 构建默认停用 V2 自动整理，旧 UI 构建/线上 Release 默认开）
+        expect(
+            ThoughtAIClassificationPolicy.isEnabled(in: defaults)
+                == !ThoughtSemanticFeatureFlags.uiEnabled(in: defaults),
+            "未设置时默认值应与新 UI 旗标取反一致"
+        )
         defaults.set(false, forKey: ThoughtAIClassificationPolicy.isEnabledKey)
         expect(!ThoughtAIClassificationPolicy.isEnabled(in: defaults), "应读取用户关闭状态")
         defaults.removePersistentDomain(forName: suiteName)

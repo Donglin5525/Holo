@@ -358,16 +358,18 @@ final class ChatSendRouteResolverTests: XCTestCase {
         XCTAssertEqual(route, .explicitDeepAnalysis(.finance))
     }
 
-    func testEditedTextFallsBackToSessionRouting() {
-        // 用户改写问句后不再享受确定性路由（与「可改写问句」来源提示口径一致），
-        // 此时有规划会话则照旧被会话消费
+    func testEditedTextWithExplicitScenarioStillRoutesDeepAnalysis() {
+        // 9-19 发送路由重构后的合约：显式场景是用户点选的确定性分析意图，
+        // 优先于收集中的规划会话（selectAnalysisScenario 同口径：选场景即取消会话），
+        // 改写问句不改变显式意图的优先级；普通文本被会话消费由
+        // testCollectingSessionConsumesRegularText 覆盖
         let route = ChatViewModel.resolveSendRoute(
             text: finance.question + "，谢谢",
             explicitScenario: finance,
             planningStatus: .collecting,
             hasDraftForReview: false
         )
-        XCTAssertEqual(route, .goalPlanningReply)
+        XCTAssertEqual(route, .explicitDeepAnalysis(.finance))
     }
 
     func testLongTermPatternNeverRoutesExplicit() {
