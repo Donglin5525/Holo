@@ -309,6 +309,27 @@ final class ThoughtGestureGateUITests: XCTestCase {
         XCTAssertLessThan(reopened.frame.minX, 100, "再次进入侧栏应为收起态（退场重置）")
     }
 
+    /// 反复选择「全部想法」后，侧栏左边界仍应固定在屏幕左侧。
+    func test_g10b_repeatedAllThoughts_keepsSidebarLeftAligned() throws {
+        let openButton = openThoughtModule()
+        var initialX: CGFloat?
+
+        for _ in 0..<5 {
+            openButton.tap()
+            let allThoughts = app.buttons.matching(NSPredicate(format: "label == '全部想法'")).firstMatch
+            XCTAssertTrue(allThoughts.waitForExistence(timeout: 5), "侧栏应显示全部想法入口")
+            let currentX = allThoughts.frame.minX
+            if let initialX {
+                XCTAssertEqual(currentX, initialX, accuracy: 2,
+                               "重复开合侧栏不应逐次改变组织树的左边界")
+            } else {
+                initialX = currentX
+            }
+            allThoughts.tap()
+            XCTAssertTrue(openButton.waitForExistence(timeout: 5), "选中后应回到想法列表")
+        }
+    }
+
     /// G11 筛选 chips 行右滑：chips 容器自己滚，侧栏不被拉出（横向滚动让位①）
     /// 现状（2026-09-26）：侧栏形态下顶部筛选 chips 条不渲染
     /// （ThoughtSidebarRollout.isEnabled 时 filterBarView 退场），想法页暂无

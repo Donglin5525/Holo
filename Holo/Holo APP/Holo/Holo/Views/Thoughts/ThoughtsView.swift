@@ -125,54 +125,60 @@ struct ThoughtsView: View {
     }
 
     private var sidebarContainerBody: some View {
-        ZStack(alignment: .leading) {
-            Color.holoBackground.ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Color.holoBackground.ignoresSafeArea()
 
-            // 底层：侧栏内容保持原宽，外层可见宽度与笔记层共用同一位移。
-            // 拖动时只裁切，不重排标签行，避免文字换行和列表跳动。
-            // z 序条件调换：开启态侧栏提到内容层之上——offset 只挪渲染不挪布局帧，
-            // 内容层名义帧仍全屏盖着侧栏，若靠 allowsHitTesting(false) 穿透，
-            // VoiceOver 焦点也进不了侧栏（§5.10 要求开启后焦点在侧栏）
-            // 安全区（2026-09-25 真机修复）：内容遵守安全区（顶部让出状态栏、底部让出
-            // home 横条），铺满全屏的只有背景色——曾整体 ignoresSafeArea 导致状态栏
-            // 文字叠在侧栏行上、数据清理贴穿底部
-            ThoughtSidebarView(
-                scope: $scope,
-                onSelect: { closeSidebar() })
-            .frame(width: sidebarWidth)
-            .background(Color.holoCardBackground.ignoresSafeArea())
-            .frame(width: currentContentOffset, alignment: .leading)
-            .clipShape(UnevenRoundedRectangle(
-                bottomTrailingRadius: HoloRadius.lg * sidebarProgress,
-                topTrailingRadius: HoloRadius.lg * sidebarProgress))
-            // 可见范围跟着边界即时收缩；关闭态仍保持视觉、触摸、AX 三通道全关。
-            .opacity(sidebarProgress > 0 ? 1 : 0)
-            .allowsHitTesting(isSidebarDocked)
-            .accessibilityHidden(!isSidebarDocked)
-            .zIndex(sidebarProgress > 0.01 ? 1 : 0)
-
-            // 前景：内容层整体跟手右移（列表+搜索+浮动"+"同一层，§5.5）
-            contentLayer
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.holoBackground)
+                // 底层：侧栏内容保持原宽，外层可见宽度与笔记层共用同一位移。
+                // 拖动时只裁切，不重排标签行，避免文字换行和列表跳动。
+                // z 序条件调换：开启态侧栏提到内容层之上——offset 只挪渲染不挪布局帧，
+                // 内容层名义帧仍全屏盖着侧栏，若靠 allowsHitTesting(false) 穿透，
+                // VoiceOver 焦点也进不了侧栏（§5.10 要求开启后焦点在侧栏）
+                // 安全区（2026-09-25 真机修复）：内容遵守安全区（顶部让出状态栏、底部让出
+                // home 横条），铺满全屏的只有背景色——曾整体 ignoresSafeArea 导致状态栏
+                // 文字叠在侧栏行上、数据清理贴穿底部
+                ThoughtSidebarView(
+                    scope: $scope,
+                    onSelect: { closeSidebar() })
+                .frame(width: sidebarWidth)
+                .background(Color.holoCardBackground.ignoresSafeArea())
+                .frame(width: currentContentOffset, alignment: .leading)
                 .clipShape(UnevenRoundedRectangle(
-                    topLeadingRadius: HoloRadius.lg * sidebarProgress,
-                    bottomLeadingRadius: HoloRadius.lg * sidebarProgress))
-                .offset(x: currentContentOffset)
-                .shadow(color: .black.opacity(0.22 * Double(sidebarProgress)),
-                        radius: 14, x: -4, y: 0)
-                .zIndex(sidebarProgress > 0.01 ? 0 : 1)
-                // 停靠开：遮罩挡住内容层交互（§5.9 侧栏开启时正文不响应点击/滚动），
-                // 点它即收起。横向关闭拖动由容器统一的 UIKit pan 处理，
-                // 不给侧栏 ScrollView 再叠 SwiftUI DragGesture。
-                .overlay {
-                    if isSidebarDocked {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { closeSidebar() }
-                            .accessibilityHidden(true)
+                    bottomTrailingRadius: HoloRadius.lg * sidebarProgress,
+                    topTrailingRadius: HoloRadius.lg * sidebarProgress))
+                // 可见范围跟着边界即时收缩；关闭态仍保持视觉、触摸、AX 三通道全关。
+                .opacity(sidebarProgress > 0 ? 1 : 0)
+                .allowsHitTesting(isSidebarDocked)
+                .accessibilityHidden(!isSidebarDocked)
+                .zIndex(sidebarProgress > 0.01 ? 1 : 0)
+
+                // 前景：内容层整体跟手右移（列表+搜索+浮动"+"同一层，§5.5）
+                contentLayer
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.holoBackground)
+                    .clipShape(UnevenRoundedRectangle(
+                        topLeadingRadius: HoloRadius.lg * sidebarProgress,
+                        bottomLeadingRadius: HoloRadius.lg * sidebarProgress))
+                    .offset(x: currentContentOffset)
+                    .shadow(color: .black.opacity(0.22 * Double(sidebarProgress)),
+                            radius: 14, x: -4, y: 0)
+                    .zIndex(sidebarProgress > 0.01 ? 0 : 1)
+                    // 停靠开：遮罩挡住内容层交互（§5.9 侧栏开启时正文不响应点击/滚动），
+                    // 点它即收起。横向关闭拖动由容器统一的 UIKit pan 处理，
+                    // 不给侧栏 ScrollView 再叠 SwiftUI DragGesture。
+                    .overlay {
+                        if isSidebarDocked {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { closeSidebar() }
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
+            }
+            // 抽屉只在宿主可见区域内排版。列表内容或侧栏节点的理想宽度
+            // 不能反向撑大 ZStack，否则父容器居中后会让侧栏逐次右移。
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+            .clipped()
         }
         // 侧栏开启后整个区域的左滑统一关闭；方向锁使标签树纵向滚动不受影响。
         .modifier(SidebarClosePanModifier(
