@@ -452,11 +452,20 @@ extension AddTransactionSheet {
         return formatter.string(from: amount as NSDecimalNumber) ?? "¥0.00"
     }
 
-    /// 格式化的日期显示文字
+    /// 格式化的日期显示文字。编辑模式在日期后追加发生时刻到秒（发生时间只在明细页可见，列表不带）；
+    /// 新建模式不显示——交易尚未发生，且避免暗示时分可改（日期弹层只暴露日期组件）
     private var formattedSelectedDate: String {
         let f = DateFormatter()
         f.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         let text = f.string(from: selectedDate)
+        if isEditMode {
+            let t = DateFormatter()
+            t.locale = Locale(identifier: "zh_CN")
+            t.dateFormat = "HH:mm:ss"
+            let time = t.string(from: selectedDate)
+            if selectedDate.isToday { return String(localized: "\(text)（今天）") + " " + time }
+            return "\(text) \(time)"
+        }
         if selectedDate.isToday { return String(localized: "\(text)（今天）") }
         return text
     }

@@ -285,7 +285,7 @@ struct FinanceTransactionDetailPane: View {
     private func fullDateText(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月d日 EEE HH:mm"
+        formatter.dateFormat = "yyyy年M月d日 EEE HH:mm:ss"
         return formatter.string(from: date)
     }
 }
