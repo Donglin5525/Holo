@@ -15,8 +15,8 @@ struct FinanceAnalysisView: View {
     @ObservedObject var state: FinanceAnalysisState
     @Binding var selectedTab: AnalysisTab
     @State private var showCustomDateSheet: Bool = false
-    /// 顶部内联时间筛选条展开态（点胶囊切换，不弹抽屉）
-    @State private var showTimeFilterBlock: Bool = false
+    /// 顶部筛选面板展开态（时间/账户/项目互斥：同一时刻至多展开一个）
+    @State private var activeFilterPanel: AnalysisFilterPanel = .none
 
     init(
         state: FinanceAnalysisState,
@@ -38,21 +38,42 @@ struct FinanceAnalysisView: View {
             // 时间范围标签（点击内联展开筛选条，不弹抽屉）
             TimeRangeLabel(state: state) {
                 withAnimation(HoloAnimation.standard) {
-                    showTimeFilterBlock.toggle()
+                    activeFilterPanel = activeFilterPanel == .time ? .none : .time
                 }
             }
 
+            // 维度筛选胶囊行（账户/项目），三个页签数据全部随维度联动
+            ScopeFilterBar(state: state, activePanel: $activeFilterPanel)
+
             // 内联时间筛选条：点档位立即生效并收起，数据区全程可见
-            if showTimeFilterBlock {
+            if activeFilterPanel == .time {
                 TimeFilterBlock(state: state) {
                     withAnimation(HoloAnimation.standard) {
-                        showTimeFilterBlock = false
+                        activeFilterPanel = .none
                     }
                 } onCustomTap: {
                     withAnimation(HoloAnimation.standard) {
-                        showTimeFilterBlock = false
+                        activeFilterPanel = .none
                     }
                     showCustomDateSheet = true
+                }
+            }
+
+            // 账户选择面板：点选即生效并收起
+            if activeFilterPanel == .account {
+                AccountScopePanel(state: state) {
+                    withAnimation(HoloAnimation.standard) {
+                        activeFilterPanel = .none
+                    }
+                }
+            }
+
+            // 项目选择面板：点选即生效并收起
+            if activeFilterPanel == .project {
+                ProjectScopePanel(state: state) {
+                    withAnimation(HoloAnimation.standard) {
+                        activeFilterPanel = .none
+                    }
                 }
             }
 

@@ -18,6 +18,8 @@ import Charts
 /// 总览趋势卡（收支柱 + 余额线双轴同图）
 struct TrendChartView: View {
     let dataPoints: [ChartDataPoint]
+    /// 是否画余额线与右轴余额刻度（项目维度下项目不是资金容器，无余额语义，整体隐藏）
+    var showsBalanceLine: Bool = true
 
     @State private var hoveredIndex: Int? = nil
 
@@ -68,9 +70,11 @@ struct TrendChartView: View {
         HStack(spacing: HoloSpacing.lg) {
             LegendItem(color: .holoError, label: String(localized: "支出"))
             LegendItem(color: .holoSuccess, label: String(localized: "收入"))
-            LegendItem(color: .holoChart1, label: String(localized: "余额"))
+            if showsBalanceLine {
+                LegendItem(color: .holoChart1, label: String(localized: "余额"))
+            }
             Spacer()
-            if let delta = balanceDelta {
+            if showsBalanceLine, let delta = balanceDelta {
                 Text("余额较期初 \(delta > 0 ? "+" : "-")\(NumberFormatter.compactCurrency(abs(delta)))")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(delta > 0 ? .holoSuccessDark : .holoError)
@@ -92,7 +96,7 @@ struct TrendChartView: View {
     private var chartContent: some View {
         let plan = barAxisPlan
         let range = balanceValueRange
-        let balanceTicks = self.balanceTicks(range: range)
+        let balanceTicks = showsBalanceLine ? self.balanceTicks(range: range) : []
         let peakDay = peakDayIndex
 
         return trendChart(cap: plan.cap, clippedIndices: plan.clippedIndices,
@@ -185,8 +189,10 @@ struct TrendChartView: View {
                     isClipped: clippedIndices.contains(index)
                 )
             }
-            ForEach(dataPoints.indices, id: \.self) { index in
-                balanceLine(index, dataPoints[index])
+            if showsBalanceLine {
+                ForEach(dataPoints.indices, id: \.self) { index in
+                    balanceLine(index, dataPoints[index])
+                }
             }
         }
         .chartXScale(domain: xDomain)
@@ -506,9 +512,11 @@ struct TrendChartView: View {
                         .foregroundColor(.holoTextSecondary)
                 }
             }
-            Text("余额 \(NumberFormatter.compactCurrency(point.balance))")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoChart1)
+            if showsBalanceLine {
+                Text("余额 \(NumberFormatter.compactCurrency(point.balance))")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.holoChart1)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)

@@ -406,6 +406,50 @@ struct CategoryAggregation: Identifiable {
     }
 }
 
+// MARK: - 账户聚合
+
+/// 账户维度聚合数据（统计页「本期账户排行」卡）
+struct AccountAggregation: Identifiable {
+    let id = UUID()
+    let account: Account
+    let expense: Decimal
+    let income: Decimal
+    let percentage: Double      // 支出占总支出比 (0-100)
+    let transactionCount: Int
+
+    var formattedExpense: String {
+        NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "¥0.00"
+    }
+
+    var formattedCompactExpense: String {
+        NumberFormatter.compactCurrency(expense)
+    }
+}
+
+// MARK: - 财务项目聚合
+
+/// 项目维度聚合数据（统计页「本期项目排行」卡；项目统计以支出为主口径）
+struct FinanceProjectAggregation: Identifiable {
+    let id = UUID()
+    let project: FinanceProject
+    let expense: Decimal
+    let percentage: Double      // 支出占总支出比 (0-100)
+    let transactionCount: Int
+
+    /// 项目预算（未设置为 nil，UI 不显示进度）
+    var budget: Decimal? { project.budgetDecimal }
+
+    /// 预算使用进度 (0-1，可超 1)
+    var budgetProgress: Double? {
+        guard let budget, budget > 0 else { return nil }
+        return Double(truncating: (expense / budget) as NSDecimalNumber)
+    }
+
+    var formattedCompactExpense: String {
+        NumberFormatter.compactCurrency(expense)
+    }
+}
+
 // MARK: - 周期汇总
 
 /// 周期汇总数据（用于概览统计）

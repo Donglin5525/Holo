@@ -68,6 +68,30 @@ class FinanceAnalysisState: ObservableObject {
     /// 明细 Tab 当前分类筛选（从 TOP3 等入口跳转时使用）
     @Published var selectedDetailCategory: Category?
 
+    // MARK: - 维度筛选（账户/项目下钻）
+
+    /// 当前筛选的账户 id（nil = 全部账户）；与项目筛选可同时生效（取交集）
+    @Published var selectedAccountId: UUID?
+
+    /// 当前筛选的财务项目 id（nil = 全部项目）
+    @Published var selectedFinanceProjectId: UUID?
+
+    /// 筛选对象本体（loadData 回查；被删时连同筛选 id 一并回退「全部」，避免「显示全部实为筛选态」）
+    @Published private(set) var selectedAccount: Account?
+    @Published private(set) var selectedFinanceProject: FinanceProject?
+
+    /// 账户选择器列表（活账户在前、归档在后，loadData 刷新）
+    @Published private(set) var availableAccounts: [Account] = []
+
+    /// 项目选择器列表（本期有支出的按支出降序在前，其余按创建时间倒序在后）
+    @Published private(set) var availableFinanceProjects: [FinanceProject] = []
+
+    /// 本期账户排行（受项目筛选影响、不受账户筛选影响——排行卡本身是账户切换入口）
+    @Published private(set) var accountAggregations: [AccountAggregation] = []
+
+    /// 本期项目排行（受账户筛选影响、不受项目筛选影响）
+    @Published private(set) var financeProjectAggregations: [FinanceProjectAggregation] = []
+
     // MARK: - 私有属性
 
     private let repository = FinanceRepository.shared
@@ -131,6 +155,17 @@ class FinanceAnalysisState: ObservableObject {
     var isDrillingDown: Bool {
         selectedTopCategory != nil
     }
+
+    /// 当前统计维度切片（账户/项目）
+    var statisticsScope: StatisticsScope {
+        StatisticsScope(accountId: selectedAccountId, financeProjectId: selectedFinanceProjectId)
+    }
+
+    /// 是否有任一维度筛选生效
+    var isScopeFiltered: Bool { !statisticsScope.isUnfiltered }
+
+    /// 项目维度下余额线无意义（项目不是资金容器，没有「余额」），余额轴整体隐藏
+    var showsBalanceLine: Bool { selectedFinanceProjectId == nil }
 
     /// 当前显示的分类聚合（根据下钻状态返回一级或二级）
     var currentCategoryAggregations: [CategoryAggregation] {
@@ -210,6 +245,26 @@ class FinanceAnalysisState: ObservableObject {
         navigateToRange(start: shifted.start, end: shifted.end)
     }
 
+    // MARK: - 维度筛选操作（账户/项目）
+
+    /// 设置账户筛选（nil = 全部账户）：即选即生效，与时间档位同一心智
+    func setAccountFilter(_ accountId: UUID?) {
+        guard selectedAccountId != accountId else { return }
+        selectedAccountId = accountId
+        selectedChartDate = nil
+        selectedDetailCategory = nil
+        scheduleLoad()
+    }
+
+    /// 设置项目筛选（nil = 全部项目）
+    func setFinanceProjectFilter(_ projectId: UUID?) {
+        guard selectedFinanceProjectId != projectId else { return }
+        selectedFinanceProjectId = projectId
+        selectedChartDate = nil
+        selectedDetailCategory = nil
+        scheduleLoad()
+    }
+
     // MARK: - 数据加载
 
     /// 加载所有数据
@@ -236,10 +291,12 @@ class FinanceAnalysisState: ObservableObject {
 
     private func loadData(generation: Int, start: Date, end: Date) async {
         do {
-            // 加载交易数据
-            let txns = try await repository.getTransactions(from: start, to: end)
+            let scope = statisticsScope
 
-            // 年档同比：拉上一个同口径年（本地库查询，两次串行取数毫秒级）
+            // 加载交易数据（明细语义，带维度切片）
+            let txns = try await repository.getTransactions(from: start, to: end, scope: scope)
+
+            // 年档同比：拉上一个同口径年（本地库查询，两次串行取数毫秒级；同比对照随维度切片）
             var previousSummary = PeriodSummary.empty()
             var comparisonPoints: [YearComparisonPoint] = []
             if isYearView {
@@ -250,7 +307,7 @@ class FinanceAnalysisState: ObservableObject {
                     basis: yearBasis,
                     startDay: FinancePeriodSettings.shared.billingCycleStartDay
                 )
-                if let prevTxns = try? await repository.getTransactions(from: previousRange.start, to: previousRange.end) {
+                if let prevTxns = try? await repository.getTransactions(from: previousRange.start, to: previousRange.end, scope: scope) {
                     previousSummary = computePeriodSummary(from: prevTxns, range: previousRange)
                     comparisonPoints = buildYearComparisonPoints(
                         currentTxns: txns,
@@ -262,8 +319,15 @@ class FinanceAnalysisState: ObservableObject {
                 }
             }
 
-            // 计算截止到时间范围起点的累计余额
-            let balanceAtStart = repository.getCumulativeBalance(before: start)
+            // 余额曲线起点：账户筛选 = 该账户累计余额；项目筛选 = 余额线整体隐藏（起点不用）
+            let balanceAtStart: Decimal
+            if let accountId = selectedAccountId {
+                balanceAtStart = repository.getAccountCumulativeBalance(accountId: accountId, before: start)
+            } else if selectedFinanceProjectId != nil {
+                balanceAtStart = 0
+            } else {
+                balanceAtStart = repository.getCumulativeBalance(before: start)
+            }
 
             // 计算图表数据点（以累计余额为初始值）
             let points = computeChartDataPoints(
@@ -273,13 +337,37 @@ class FinanceAnalysisState: ObservableObject {
                 initialBalance: balanceAtStart
             )
 
-            // 计算分类聚合
+            // 计算分类聚合（维度内分类构成）
             let expenseAggregations = try await repository.getTopLevelCategoryAggregations(
-                from: start, to: end, type: .expense
+                from: start, to: end, type: .expense, scope: scope
             )
             let incomeAggregations = try await repository.getTopLevelCategoryAggregations(
-                from: start, to: end, type: .income
+                from: start, to: end, type: .income, scope: scope
             )
+
+            // 排行卡：账户排行不受账户筛选影响（排行本身是切换入口）、随项目切片；
+            // 项目排行反之。两卡交叉后仍各自有意义（选中项目后账户排行=该项目内各账户）。
+            let accountRankings = try await repository.getAccountAggregations(
+                from: start, to: end,
+                scope: StatisticsScope(accountId: nil, financeProjectId: selectedFinanceProjectId)
+            )
+            let projectRankings = try await repository.getFinanceProjectAggregations(
+                from: start, to: end,
+                scope: StatisticsScope(accountId: selectedAccountId, financeProjectId: nil)
+            )
+
+            // 选择器列表 + 筛选对象回查（对象被删时回退「全部」，避免显示与数据态不一致）
+            let accounts = repository.getAccounts(includeArchived: true)
+            let allProjects = FinanceProjectRepository.shared.allProjects()
+            let liveAccount = accounts.first { $0.id == selectedAccountId }
+            let liveProject = allProjects.first { $0.id == selectedFinanceProjectId }
+            if selectedAccountId != nil && liveAccount == nil { selectedAccountId = nil }
+            if selectedFinanceProjectId != nil && liveProject == nil { selectedFinanceProjectId = nil }
+
+            // 项目选择器排序：本期有支出的按支出降序在前，其余项目跟在后面
+            let rankedProjectIds = Set(projectRankings.map { $0.project.id })
+            let sortedProjects = projectRankings.map { $0.project }
+                + allProjects.filter { !rankedProjectIds.contains($0.id) }
 
             // 计算周期汇总（年档带已过周期数，供月均口径）
             let summary = computePeriodSummary(from: txns, range: (start, end))
@@ -293,6 +381,12 @@ class FinanceAnalysisState: ObservableObject {
             expenseCategoryAggregations = expenseAggregations
             incomeCategoryAggregations = incomeAggregations
             periodSummary = summary
+            accountAggregations = accountRankings
+            financeProjectAggregations = projectRankings
+            availableAccounts = accounts
+            availableFinanceProjects = sortedProjects
+            selectedAccount = liveAccount
+            selectedFinanceProject = liveProject
 
             // 清除下钻状态
             selectedTopCategory = nil
@@ -327,7 +421,8 @@ class FinanceAnalysisState: ObservableObject {
                 drillDownAggregations = try await repository.getSubCategoryAggregations(
                     parentId: category.id,
                     from: start,
-                    to: end
+                    to: end,
+                    scope: statisticsScope
                 )
             } catch {
                     logger.error("下钻加载失败: \(error)")
@@ -348,7 +443,8 @@ class FinanceAnalysisState: ObservableObject {
         return (try? await repository.getSubCategoryAggregations(
             parentId: category.id,
             from: start,
-            to: end
+            to: end,
+            scope: statisticsScope
         )) ?? []
     }
 

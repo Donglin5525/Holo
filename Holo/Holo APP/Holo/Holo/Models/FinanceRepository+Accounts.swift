@@ -233,6 +233,39 @@ extension FinanceRepository {
         return balance
     }
 
+    /// 截止到指定日期、单个账户的累计余额（该账户 initialBalance + 此前收支净额，含对账调整）。
+    /// 统计页按账户下钻时作余额曲线起点；与 getCumulativeBalance 同口径，仅圈定到所选账户。
+    func getAccountCumulativeBalance(accountId: UUID, before date: Date) -> Decimal {
+        let accountRequest = Account.fetchRequest()
+        accountRequest.predicate = NSPredicate(format: "id == %@", accountId as CVarArg)
+        accountRequest.fetchLimit = 1
+        guard let account = try? context.fetch(accountRequest).first else { return 0 }
+
+        var balance = account.initialBalance.decimalValue
+
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account.id == %@", accountId as CVarArg),
+            NSPredicate(format: "date < %@", date as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date())),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+
+        guard let transactions = try? context.fetch(request) else {
+            return balance
+        }
+
+        for tx in transactions {
+            if tx.transactionType == .income {
+                balance += tx.amount.decimalValue
+            } else {
+                balance -= tx.amount.decimalValue
+            }
+        }
+
+        return balance
+    }
+
     /// 获取净资产信息（总资产、总负债、净资产）
     func getTotalNetWorth() -> (assets: Decimal, liabilities: Decimal, netWorth: Decimal) {
         let accounts = getAccounts(includeArchived: false)
