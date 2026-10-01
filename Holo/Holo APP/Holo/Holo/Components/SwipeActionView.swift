@@ -349,7 +349,24 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             let locationInOverlay = touch.location(in: overlay)
             guard parent.isEnabled else { return false }
             guard overlay.bounds.width > 0, overlay.bounds.height > 0 else { return false }
-            return overlay.bounds.contains(locationInOverlay)
+            guard overlay.bounds.contains(locationInOverlay) else { return false }
+            // 照片、标签等内层横向列表先消费自己的滑动；window 上的卡片手势
+            // 若同时识别，会带动整张卡片露出归档/删除，甚至禁用外层滚动。
+            return !touchIsInsideHorizontalScrollView(touch)
+        }
+
+        private func touchIsInsideHorizontalScrollView(_ touch: UITouch) -> Bool {
+            var view: UIView? = touch.view
+            while let current = view, current !== overlayView?.window {
+                if let scrollView = current as? UIScrollView,
+                   scrollView.isScrollEnabled,
+                   (scrollView.alwaysBounceHorizontal ||
+                    scrollView.contentSize.width > scrollView.bounds.width + 1) {
+                    return true
+                }
+                view = current.superview
+            }
+            return false
         }
 
         /// 允许与 ScrollView 的手势同时识别
