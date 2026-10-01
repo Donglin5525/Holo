@@ -29,8 +29,10 @@ struct TrendChartView: View {
     private let barOffsetUnits: Double = 0.29    // 支出/收入柱相对当天中线的偏移（x 单位）
     private let restBarOpacity: Double = 0.78    // 非峰值日柱子透明度（峰值日实色高亮）
 
-    private var allValuesZero: Bool {
-        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 && $0.balance == 0 }
+    /// 整月无收支动作即视为空图（余额不为零也不画）：画出来只会是
+    /// 「左轴缩到 0~1 元的假轴 + 走平余额线 + 三只同值右轴刻度」，不如直接出空态
+    private var hasNoFlowActivity: Bool {
+        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
     }
 
     /// 图表动画触发值：ChartDataPoint 的 id 是每次构造的随机 UUID（不可作 diff 依据），
@@ -47,7 +49,7 @@ struct TrendChartView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             chartLegend
 
-            if dataPoints.isEmpty || allValuesZero {
+            if dataPoints.isEmpty || hasNoFlowActivity {
                 emptyChartView
                     .transition(.opacity)
             } else {
@@ -55,7 +57,7 @@ struct TrendChartView: View {
                     .transition(.opacity)
             }
         }
-        .animation(HoloAnimation.smooth, value: dataPoints.isEmpty || allValuesZero)
+        .animation(HoloAnimation.smooth, value: dataPoints.isEmpty || hasNoFlowActivity)
         .padding(HoloSpacing.md)
         .holoCard()
     }
@@ -117,10 +119,15 @@ struct TrendChartView: View {
                         ForEach(plan.clippedIndices, id: \.self) { index in
                             if let capTopY = proxy.position(forY: barTopUnit),
                                let barXPos = proxy.position(forX: breakBarX(index)) {
+                                // 标注默认画柱右侧；尖峰落在月末时右侧是右轴刻度区，
+                                // 金额会叠在刻度上（2026-10-01 东林实测 9/30 挤成一团），越界即翻到柱左侧
+                                let labelCenterX = plotFrame.minX + barXPos + barWidth / 2 + 24
+                                let placeLabelLeft = labelCenterX + 20 > plotFrame.maxX - 2
                                 clippedBreakAnnotations(
                                     capTopY: plotFrame.minY + capTopY,
                                     barXPos: plotFrame.minX + barXPos,
-                                    amountLabel: Self.axisAmountLabel(clippedAmount(index))
+                                    amountLabel: Self.axisAmountLabel(clippedAmount(index)),
+                                    placeLabelLeft: placeLabelLeft
                                 )
                             }
                         }
@@ -300,9 +307,10 @@ struct TrendChartView: View {
     }
 
     /// 断口：柱身画整根，用两道卡片底色斜缝在柱顶下方切出断口（旧版白杠深色模式刺眼、
-    /// 浅色模式不可见，且缝画在柱外空隙里等于隐身）+ 柱右侧真实值标注（原与纵轴刻度重叠）
+    /// 浅色模式不可见，且缝画在柱外空隙里等于隐身）+ 真实值标注（默认柱右侧；
+    /// `placeLabelLeft` 时翻到柱左侧并右对齐，避免与右轴刻度叠印）
     @ViewBuilder
-    private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, amountLabel: String) -> some View {
+    private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, amountLabel: String, placeLabelLeft: Bool) -> some View {
         ForEach(0..<2, id: \.self) { slashIndex in
             Capsule()
                 .fill(Color.holoCardBackground)
@@ -314,8 +322,9 @@ struct TrendChartView: View {
         Text(amountLabel)
             .font(.system(size: 9, weight: .semibold))
             .foregroundColor(.holoSuccessDark)
-            .frame(width: 40, alignment: .leading)
-            .position(x: barXPos + barWidth / 2 + 24, y: capTopY - 7)
+            .frame(width: 40, alignment: placeLabelLeft ? .trailing : .leading)
+            .position(x: placeLabelLeft ? barXPos - barWidth / 2 - 24 : barXPos + barWidth / 2 + 24,
+                      y: capTopY - 7)
     }
 
     // MARK: 数值换算
@@ -360,13 +369,18 @@ struct TrendChartView: View {
         lineY(balance, range: balanceValueRange)
     }
 
-    /// 右轴余额刻度：最小 / 中位 / 最大 三档（走平时期合并为单档）
+    /// 右轴余额刻度：最小 / 中位 / 最大 三档；三档标签重复（余额走平或波动远小于
+    /// 刻度精度，如整月只差几元）时按标签去重，避免同值刻度竖排一列
     private func balanceTicks(range: ClosedRange<Double>) -> [(unit: Double, label: String)] {
+        let candidates: [(unit: Double, label: String)]
         if range.upperBound - range.lowerBound < 0.01 {
-            return [(lineY(range.lowerBound, range: range), Self.axisAmountLabel(range.lowerBound))]
+            candidates = [(lineY(range.lowerBound, range: range), Self.axisAmountLabel(range.lowerBound))]
+        } else {
+            let values = [range.lowerBound, (range.lowerBound + range.upperBound) / 2, range.upperBound]
+            candidates = values.map { (lineY($0, range: range), Self.axisAmountLabel($0)) }
         }
-        let values = [range.lowerBound, (range.lowerBound + range.upperBound) / 2, range.upperBound]
-        return values.map { (lineY($0, range: range), Self.axisAmountLabel($0)) }
+        var seenLabels = Set<String>()
+        return candidates.filter { seenLabels.insert($0.label).inserted }
     }
 
     private func balanceTickLabel(_ axisValue: Double, ticks: [(unit: Double, label: String)]) -> String {

@@ -222,6 +222,10 @@ struct HoloApp: App {
 
                 // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
                 FinanceRepository.shared.setup()
+                #if DEBUG
+                // 财务图表/账本模拟器纵向验收合成数据（-FinanceDemoSeed 启动参数触发，幂等）
+                await FinanceDemoSeed.seedIfNeeded()
+                #endif
                 // 图片快捷指令自动记账（2026-09-14 方案 §27.2）：启动清理过期复核草案/证据（7 天），
                 // 不常驻轮询
                 ReceiptBookingResultStore.shared.purgeExpired()

@@ -486,6 +486,13 @@ struct HomeView: View {
             let hadPendingDeepLink = deepLinkState.pendingTarget != nil
             handleDeepLink()
             guard !hadPendingDeepLink else { return }
+            #if DEBUG
+            // 模拟器无头走查：启动直达财务模块（-HoloOpenFinance，idb 不可用时的导航通道）
+            if ProcessInfo.processInfo.arguments.contains("-HoloOpenFinance") {
+                navigateToScreen(.finance)
+                return
+            }
+            #endif
             if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
                 showOnboarding = true
             }
