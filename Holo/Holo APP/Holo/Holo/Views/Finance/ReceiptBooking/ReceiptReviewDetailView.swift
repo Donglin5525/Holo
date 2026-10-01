@@ -354,6 +354,14 @@ struct ReceiptReviewDetailView: View {
             }
             .disabled(!canCommit || isCommitting)
 
+            // 知情提示：默认开的自动归档必须让用户能预期照片会被保存（开关关时不显示）
+            if ReceiptBookingArchivePolicy.isAutoArchiveEnabled {
+                Text(String(localized: "确认后，凭证照片将自动归档为票根"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+            }
+
             Button {
                 dismiss()
             } label: {
@@ -555,10 +563,11 @@ struct ReceiptReviewDetailView: View {
         for index in itemStates.indices {
             refreshCategorySuggestion(index: index)
         }
-        // 本机暂存的复核证据图（确认/删除后随之删除）
-        if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id),
-           let data = try? Data(contentsOf: url) {
-            evidenceImage = UIImage(data: data)
+        // 本机暂存的复核证据图（确认/删除后随之删除）；降采样加载防整幅原图解码
+        if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id) {
+            Task { @MainActor in
+                evidenceImage = await ImageDownsampler.image(at: url)
+            }
         }
     }
 
@@ -668,6 +677,11 @@ struct ReceiptReviewDetailView: View {
                     if result.created {
                         // 只有本次新建的笔才有撤销权；幂等命中的是账本里已存在的交易，不能撤
                         committedIDs.append(result.transactionID)
+                        // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回）
+                        FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
+                            draftID: draft.id,
+                            transactionID: result.transactionID
+                        )
                     } else {
                         duplicateCount += 1
                     }

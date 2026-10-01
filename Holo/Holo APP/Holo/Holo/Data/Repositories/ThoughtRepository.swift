@@ -19,6 +19,8 @@ extension Notification.Name {
     static let thoughtRequestTagFilter = Notification.Name("thoughtRequestTagFilter")
     /// 请求关闭想法编辑器 fullScreenCover（详情页跳转 AI 后通知列表层关闭 cover）
     static let holoRequestCloseThoughtEditor = Notification.Name("holoRequestCloseThoughtEditor")
+    /// AI 主题归类落库回执（P1 §3.2 归入回执；object 为 [thoughtId: UUID, topicTitle: String]）
+    static let thoughtTopicLinkDidCommit = Notification.Name("thoughtTopicLinkDidCommit")
 }
 
 /// 观点数据仓储
@@ -570,6 +572,32 @@ class ThoughtRepository {
             NSSortDescriptor(key: "id", ascending: true)
         ]
         return try context.fetch(request)
+    }
+
+    /// 侧栏「我的 #标签」范围查询（2026-09-24 方案 §6.5）：
+    /// 全路径口径——标签路径 == pathKey，或以「pathKey/」开头（选父含全部子路径）；
+    /// 不得沿用 fetchThoughtsByAITag 的叶段合并口径（`工作/想法` ≠ `生活/想法`），
+    /// 也不混入未接受的纯 AI 标签。标签实体量级小，先匹配标签再走反向关系。
+    func fetchThoughtsByUserTag(pathKey: String) throws -> [Thought] {
+        let request = ThoughtTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        let tags = try context.fetch(request)
+        let matched = tags.filter { tag in
+            let key = ThoughtTagNormalizer.key(ThoughtTagNormalizer.displayPath(tag.name))
+            return ThoughtTagNormalizer.matchesFullPath(tagKey: key, scopePathKey: pathKey)
+        }
+        var seen = Set<UUID>()
+        var result: [Thought] = []
+        for tag in matched {
+            guard let tagThoughts = tag.thoughts as? Set<Thought> else { continue }
+            for thought in tagThoughts.sorted(by: { $0.createdAt > $1.createdAt }) {
+                guard thought.deletedAt == nil, thought.isArchived == false,
+                      seen.insert(thought.id).inserted else { continue }
+                result.append(thought)
+            }
+        }
+        result.sort { $0.createdAt > $1.createdAt }
+        return result
     }
 
     /// 获取「用户认可的标签」名称（用于 AI 打标签时优先复用）

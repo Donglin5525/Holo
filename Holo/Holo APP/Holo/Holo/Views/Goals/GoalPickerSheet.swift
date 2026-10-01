@@ -52,6 +52,7 @@ struct GoalPickerSheet: View {
             .listStyle(.plain)
             .navigationTitle("选择目标")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }

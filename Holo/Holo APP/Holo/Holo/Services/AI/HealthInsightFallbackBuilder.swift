@@ -41,7 +41,7 @@ struct HealthInsightFallbackBuilder {
         )
     }
 
-    /// 本地规则 core（LLM core 校验失败时复用）。
+    /// 本地规则 core（LLM core 校验失败时复用）。caveat 不写内部来源字样——那是诊断信息，走日志不上 UI。
     func buildFallbackCore(now: Date) -> GeneratedHealthInsight {
         GeneratedHealthInsight(
             id: "fallback-core-\(HealthInsightContextBuilder.dayKey(from: now))",
@@ -52,7 +52,7 @@ struct HealthInsightFallbackBuilder {
             suggestedAction: nil,
             confidence: 0.3,
             evidenceIds: [],
-            caveat: String(localized: "使用本地兜底文案")
+            caveat: nil
         )
     }
 }

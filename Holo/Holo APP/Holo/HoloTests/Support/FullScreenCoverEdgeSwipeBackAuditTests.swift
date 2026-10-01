@@ -33,6 +33,8 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         "HoloPlusPaywallView": "付费墙营销页：模态性质，有明确关闭按钮",
         "HoloMembershipCenterView": "会员中心页：营销/管理流程页",
         "ChatLogView": "DEBUG 诊断日志页（#if DEBUG 块内，不随正式包分发）",
+        "PhotoLibraryPickerView": "系统照片选择器（UIImagePickerController 包装）：系统自带取消与交互，不适用滑动退出（同 CameraView）",
+        "UserAvatarCropView": "头像裁剪操作页：拖动/双指缩放调整裁剪框，右滑会与拖动手势冲突，走明确取消/确认按钮（同 ThoughtEditorView 逻辑）",
     ]
 
     /// 需要右滑返回的全屏页（阅读/详情/检索类）。定义文件必须挂手势。
@@ -49,6 +51,7 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         "DailyKanbanView",         // 日看板
         "ThoughtGalleryView",      // 想法图片画廊
         "TopicDetailView",         // 主题详情
+        "ReceiptGalleryView",      // 票根图片画廊（已挂 holoEdgeSwipeBack，与朋友圈式下拉关闭共存）
     ]
 
     private static let auditFileName = "FullScreenCoverEdgeSwipeBackAuditTests.swift"

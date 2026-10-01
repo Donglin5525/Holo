@@ -20,6 +20,8 @@ struct BudgetSummaryCard: View {
 
     let summary: GlobalBudgetSummary
     let warnings: [CategoryBudgetWarning]
+    /// 整卡点击直达预算详情页（2026-09-27 方案一期入口）；nil = 不可点（保持兼容）
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 3) {
@@ -88,6 +90,10 @@ struct BudgetSummaryCard: View {
         .padding(.vertical, 10)
         // 预算卡与月度收支卡同属账本页内层信息块，不能和外层底色相同
         .holoNestedCard(cornerRadius: HoloRadius.lg)
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .onTapGesture {
+            onTap?()
+        }
     }
 
     // MARK: - Helpers

@@ -78,6 +78,13 @@ nonisolated enum ThoughtTagNormalizer {
         return key(lastSegment(lhs)) == rhsKey || lhsKey == key(lastSegment(rhs))
     }
 
+    /// 全路径匹配（侧栏浏览范围口径，2026-09-24 方案 §6.5）：
+    /// 标签路径 == scope 路径，或以「scope 路径/」开头（选父含全部子路径）。
+    /// 与 sharesIdentity 的叶段合并口径互斥使用——`工作/想法` ≠ `生活/想法`。
+    static func matchesFullPath(tagKey: String, scopePathKey: String) -> Bool {
+        tagKey == scopePathKey || tagKey.hasPrefix(scopePathKey + "/")
+    }
+
     // MARK: - Private
 
     private static func segmentKey(_ segment: String) -> String {

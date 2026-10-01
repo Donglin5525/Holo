@@ -63,6 +63,9 @@ nonisolated enum ChatCardData: Equatable {
                 installmentSummary: data["installmentSummary"],
                 installmentPeriodAmounts: data["installmentPeriodAmounts"]?
                     .split(separator: ",").map(String.init) ?? [],
+                refundCandidateTitle: nil,
+                refundCandidateAmount: nil,
+                refundCandidateDate: nil,
                 entityID: linkedEntityId(from: data),
                 itemID: itemID
             ))
@@ -85,6 +88,9 @@ nonisolated enum ChatCardData: Equatable {
                 installmentSummary: data["installmentSummary"],
                 installmentPeriodAmounts: data["installmentPeriodAmounts"]?
                     .split(separator: ",").map(String.init) ?? [],
+                refundCandidateTitle: data["refundCandidateTitle"],
+                refundCandidateAmount: data["refundCandidateAmount"],
+                refundCandidateDate: data["refundCandidateDate"],
                 entityID: linkedEntityId(from: data),
                 itemID: itemID
             ))
@@ -411,6 +417,10 @@ nonisolated struct TransactionCardData: Equatable {
     let installmentFeePerPeriod: String?
     let installmentSummary: String?
     let installmentPeriodAmounts: [String]
+    /// 退款关联候选（iOS 侧退款识别命中时携带）：确认后落成退款笔挂回原支出
+    let refundCandidateTitle: String?
+    let refundCandidateAmount: String?
+    let refundCandidateDate: String?
     /// 关联交易实体 ID（确认后从 renderData 写入）：多卡消息里整卡点击按它定位详情，
     /// 避免消息级 linkedEntityId（只保留最后一个）导致点哪张卡都打开最后一张
     var entityID: String? = nil
@@ -434,6 +444,9 @@ nonisolated struct TransactionCardData: Equatable {
 
     /// 是否分期记账
     var isInstallment: Bool { installmentEnabled }
+
+    /// 是否退款关联候选卡（确认后冲减原支出）
+    var isRefundCandidate: Bool { refundCandidateTitle != nil }
 
     /// 分期 SF Symbol 图标
     var categoryIcon: String {

@@ -345,6 +345,39 @@ final class IntentRouter {
             return RouteResult(text: "请先设置默认账户")
         }
 
+        // 退款关联（确认卡携带候选原支出）：落成退款笔挂回原交易，统计冲减原分类；
+        // 原交易失效（被删/分期）或已无可退余额则降级为普通收入，文案如实说明
+        var refundOverflowNote: String?
+        if let refundCandidateId = data["refundCandidateTransactionId"],
+           let refundUUID = UUID(uuidString: refundCandidateId),
+           let original = categoryRepo.findTransaction(by: refundUUID),
+           original.transactionType == .expense,
+           !original.isInstallment {
+            let refunded = (try? await categoryRepo.totalRefunded(for: original)) ?? 0
+            if refunded + amount <= original.amountAsDecimal {
+                let refund = try await categoryRepo.addRefundTransaction(
+                    original: original,
+                    amount: amount,
+                    date: TransactionDateResolver.resolve(from: data),
+                    account: account,
+                    aiSourceMessageId: data["aiSourceMessageId"],
+                    aiSourceItemId: data["aiSourceItemId"],
+                    aiCandidate: data["categoryCandidate"] ?? note
+                )
+                let originalTitle = original.note?.isEmpty == false
+                    ? original.note!
+                    : (original.category?.name ?? "")
+                logger.info("退款已记录并关联原支出：¥\(amount) → \(originalTitle, privacy: .public)")
+                return RouteResult(
+                    text: "退款已记录：已关联「\(originalTitle)」，自动冲减其分类支出 ¥\(amountStr)",
+                    transactionId: refund.id,
+                    linkedEntity: LinkedEntity(type: .transaction, id: refund.id),
+                    categoryUnmatched: false
+                )
+            }
+            refundOverflowNote = "这笔支出已无可退余额，退款已按普通收入记录"
+        }
+
         var isUnmatched = false
         if category == nil {
             isUnmatched = true
@@ -393,13 +426,14 @@ final class IntentRouter {
         )
 
         return RouteResult(
-            text: AIResponseTextBuilder.incomeRecorded(
-                amount: amountStr,
-                note: note,
-                accountName: account.name,
-                categoryUnmatched: isUnmatched,
-                unmatchedCategory: unmatchedText
-            ),
+            text: refundOverflowNote
+                ?? AIResponseTextBuilder.incomeRecorded(
+                    amount: amountStr,
+                    note: note,
+                    accountName: account.name,
+                    categoryUnmatched: isUnmatched,
+                    unmatchedCategory: unmatchedText
+                ),
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
             categoryUnmatched: isUnmatched,

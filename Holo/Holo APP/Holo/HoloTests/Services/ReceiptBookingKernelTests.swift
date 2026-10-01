@@ -12,6 +12,7 @@
 import XCTest
 import CoreData
 import UserNotifications
+import UIKit
 @testable import Holo
 
 @MainActor
@@ -641,5 +642,43 @@ final class ReceiptBookingKernelTests: XCTestCase {
         )
         // 撤回入口可直接调用不崩（removePending/removeDelivered 为空列表时无副作用）
         ReceiptBookingNotificationService.cancelReviewReminders(for: draftID)
+    }
+
+    // MARK: - ImageDownsampler（识图确认页原图降采样，防全尺寸解码内存尖峰）
+
+    func testDownsamplerCapsLargeImagePixelSize() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("downsampler-test-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try writeJPEG(size: CGSize(width: 5000, height: 4000), color: .systemRed, to: url)
+
+        let image = await ImageDownsampler.image(at: url)
+        let pixels = [image?.size.width, image?.size.height].compactMap { $0 }
+        XCTAssertEqual(pixels.count, 2)
+        XCTAssertEqual(pixels.max() ?? 0, 2048, accuracy: 2)
+    }
+
+    func testDownsamplerNeverUpsamplesSmallImage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("downsampler-small-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try writeJPEG(size: CGSize(width: 800, height: 600), color: .systemBlue, to: url)
+
+        let image = await ImageDownsampler.image(at: url)
+        XCTAssertEqual(image?.size.width ?? 0, 800, accuracy: 2)
+        XCTAssertEqual(image?.size.height ?? 0, 600, accuracy: 2)
+    }
+
+    private func writeJPEG(size: CGSize, color: UIColor, to url: URL) throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let data = renderer.image { ctx in
+            color.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+        }.jpegData(compressionQuality: 0.9)
+        try XCTUnwrap(data).write(to: url, options: .atomic)
     }
 }

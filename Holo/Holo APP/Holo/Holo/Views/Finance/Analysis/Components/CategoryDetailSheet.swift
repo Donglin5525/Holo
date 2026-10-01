@@ -134,11 +134,11 @@ struct CategoryDetailSheet: View {
         df.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         let dateString = df.string(from: date)
         let expense = dayTxns
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         let income = dayTxns
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         return HStack {
             Text(dateString)

@@ -27,6 +27,12 @@ struct HoloAICapability: Identifiable, Equatable {
 
 // MARK: - AI Data Processing Consent
 
+extension Notification.Name {
+    /// AI 数据处理授权变化（userInfo: granted: Bool）。语义索引 feed 监听：
+    /// 撤回即取消在途任务并作废旧代数结果；恢复即全量对账重新入队。
+    static let holoAIDataProcessingConsentDidChange = Notification.Name("holoAIDataProcessingConsentDidChange")
+}
+
 final class HoloAIDataProcessingConsent: ObservableObject {
     static let shared = HoloAIDataProcessingConsent()
 
@@ -43,11 +49,15 @@ final class HoloAIDataProcessingConsent: ObservableObject {
     func grant() {
         defaults.set(true, forKey: key)
         isGranted = true
+        NotificationCenter.default.post(name: .holoAIDataProcessingConsentDidChange, object: nil,
+                                        userInfo: ["granted": true])
     }
 
     func revoke() {
         defaults.set(false, forKey: key)
         isGranted = false
+        NotificationCenter.default.post(name: .holoAIDataProcessingConsentDidChange, object: nil,
+                                        userInfo: ["granted": false])
     }
 
     static var requiredMessage: String {

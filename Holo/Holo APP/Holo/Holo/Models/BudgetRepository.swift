@@ -214,6 +214,7 @@ class BudgetRepository {
 
     /// 按预算口径统计指定周期内的支出（总预算 = 账户全部支出；分类预算 = 含子分类）
     /// 对账调整流水不属于真实消费，不计入预算已花。
+    /// 退款笔（type=income + refundOfTransactionId）按负支出冲减已花，与收支统计口径一致。
     private func fetchSpentAmount(
         range: (start: Date, end: Date),
         accountId: UUID,
@@ -250,7 +251,39 @@ class BudgetRepository {
         }
 
         let transactions = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
-        return transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let spent = transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+
+        // 退款笔挂原交易同款分类，按退款笔自身分类冲减（含分类预算的父子分类匹配）
+        let refundRequest = Transaction.fetchRequest()
+        if let categoryId {
+            refundRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(
+                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND refundOfTransactionId != nil AND (category.id == %@ OR category.parentId == %@)",
+                    accountId as CVarArg,
+                    range.start as NSDate,
+                    range.end as NSDate,
+                    TransactionType.income.rawValue,
+                    categoryId as CVarArg,
+                    categoryId as CVarArg
+                ),
+                NSPredicate(format: "deletedAt == nil"),
+                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+            ])
+        } else {
+            refundRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(
+                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND refundOfTransactionId != nil",
+                    accountId as CVarArg,
+                    range.start as NSDate,
+                    range.end as NSDate,
+                    TransactionType.income.rawValue
+                ),
+                NSPredicate(format: "deletedAt == nil"),
+                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+            ])
+        }
+        let refunds = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(refundRequest)) ?? [])
+        return spent - refunds.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
     }
 
     /// 计算指定账户的当前总预算状态（便捷方法）

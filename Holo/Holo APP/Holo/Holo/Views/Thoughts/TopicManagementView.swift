@@ -77,6 +77,7 @@ struct TopicManagementView: View {
         }
         .navigationTitle("主题管理")
         .navigationBarTitleDisplayMode(.inline)
+        .holoSheetShell()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成") { dismiss() }
@@ -188,7 +189,7 @@ struct TopicManagementView: View {
         guard !title.isEmpty else { return }
         do {
             _ = try topicRepository.createClassificationTopic(title: title)
-            notice = String(localized: "已创建并启用「\(title)」")
+            notice = String(localized: "已创建并启用「\(title)」；加入想法后会出现在侧栏")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
@@ -250,4 +251,3 @@ struct TopicManagementView: View {
         }
     }
 }
-

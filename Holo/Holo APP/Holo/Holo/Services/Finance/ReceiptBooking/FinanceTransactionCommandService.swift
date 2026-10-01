@@ -14,6 +14,9 @@
 
 import Foundation
 import CoreData
+import os
+
+private let logger = Logger(subsystem: "com.holo.app", category: "FinanceTransactionCommandService")
 
 @MainActor
 final class FinanceTransactionCommandService {
@@ -79,5 +82,22 @@ final class FinanceTransactionCommandService {
             NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         }
         return CommitResult(transactionID: transaction.id, created: created)
+    }
+
+    /// 复核确认落账后按设置开关转存证据图为票根（一图多笔逐笔调用、每笔都挂）。
+    /// 证据 Data 在本方法同步读入——调用方随后删除证据文件不影响转存；
+    /// 压缩与落库在后台完成，失败只记日志，不阻断落账主流程。
+    func archiveEvidenceIfNeeded(draftID: UUID, transactionID: UUID) {
+        guard ReceiptBookingArchivePolicy.isAutoArchiveEnabled,
+              let url = ReceiptBookingResultStore.evidenceImageURL(for: draftID),
+              let data = try? Data(contentsOf: url),
+              let transaction = FinanceRepository.shared.findTransaction(by: transactionID) else { return }
+        Task {
+            do {
+                _ = try await FinanceRepository.shared.attachReceipt(to: transaction, imageData: data, source: .receiptBooking)
+            } catch {
+                logger.error("识图凭证归档票根失败（draft \(draftID, privacy: .public)）：\(error.localizedDescription)")
+            }
+        }
     }
 }

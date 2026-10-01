@@ -13,22 +13,43 @@ struct KanbanBudgetSection: View {
     @State private var accounts: [Account] = []
     @State private var selectedAccountHasBudget = true
     @State private var todayExpense: Decimal?
+    // 结转回执横幅（2026-09-27 方案一期）：指纹未读且有结转才展示
+    @State private var carryoverBannerText: String?
+    @State private var carryoverFingerprint: String?
+    @State private var showBudgetDetail = false
 
     /// 选中的账户 ID，空字符串表示"全部账户"（跨账户汇总）
     @AppStorage("kanbanBudgetSelectedAccountId") private var selectedAccountId: String = ""
 
     var body: some View {
-        if cardData != nil || !selectedAccountHasBudget {
-            section
-                .onAppear { loadBudget() }
-        } else {
-            EmptyView()
-                .onAppear { loadBudget() }
+        Group {
+            if cardData != nil || !selectedAccountHasBudget {
+                section
+                    .onAppear { loadBudget() }
+            } else {
+                EmptyView()
+                    .onAppear { loadBudget() }
+            }
+        }
+        .sheet(isPresented: $showBudgetDetail) {
+            BudgetDetailView(anchoredAccountId: selectedAccountId.isEmpty ? nil : UUID(uuidString: selectedAccountId))
         }
     }
 
     private var section: some View {
         VStack(spacing: 8) {
+            if let bannerText = carryoverBannerText {
+                BudgetCarryoverBanner(
+                    text: bannerText,
+                    onTap: {
+                        markCarryoverRead()
+                        showBudgetDetail = true
+                    },
+                    onDismiss: {
+                        markCarryoverRead()
+                    }
+                )
+            }
             sectionHeader
 
             VStack(spacing: 12) {
@@ -49,6 +70,11 @@ struct KanbanBudgetSection: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).stroke(Color.holoBorder, lineWidth: 1))
             .shadow(color: HoloShadow.card, radius: 4, y: 1)
+            .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .onTapGesture {
+                // 整卡直达预算详情页（额度构成主舞台 + 严格开关 + 编辑入口）
+                showBudgetDetail = true
+            }
         }
     }
 
@@ -207,9 +233,50 @@ struct KanbanBudgetSection: View {
         loadBudget()
     }
 
+    // MARK: - 结转回执横幅
+
+    /// 有结转且指纹未读 → 展示横幅；点击或关闭即已读，同一周期不重现
+    private func refreshCarryoverBanner() {
+        guard let summary = BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month),
+              summary.totalCarryoverDeduction > 0 else {
+            carryoverBannerText = nil
+            carryoverFingerprint = nil
+            return
+        }
+        var entries: [(id: UUID, periodStart: Date, deduction: Decimal)] = []
+        for account in accounts {
+            guard let budget = BudgetRepository.shared.getTotalBudget(forAccount: account.id, period: .month),
+                  let status = BudgetRepository.shared.computeBudgetStatus(budget: budget),
+                  status.carryoverDeduction > 0 else {
+                continue
+            }
+            entries.append((id: status.id, periodStart: status.periodStartDate, deduction: status.carryoverDeduction))
+        }
+        guard let fingerprint = BudgetCarryoverNotificationService.carryoverFingerprint(entries),
+              !BudgetCarryoverNotificationService.isReceiptRead(fingerprint) else {
+            carryoverBannerText = nil
+            carryoverFingerprint = nil
+            return
+        }
+        let deduction = NumberFormatter.compactCurrency(summary.totalCarryoverDeduction)
+        let effective = NumberFormatter.compactCurrency(summary.totalBudgetAmount)
+        carryoverFingerprint = fingerprint
+        carryoverBannerText = String(localized: "上月超支 \(deduction) 已结转 · 本月额度 \(effective)")
+    }
+
+    private func markCarryoverRead() {
+        if let carryoverFingerprint {
+            BudgetCarryoverNotificationService.shared.markReceiptRead(carryoverFingerprint)
+        }
+        withAnimation {
+            carryoverBannerText = nil
+        }
+    }
+
     private func loadBudget() {
         Task { @MainActor in
             accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+            refreshCarryoverBanner()
 
             // 选中的账户可能已被删除，回退到"全部账户"
             let selected = accounts.first(where: { $0.id.uuidString == selectedAccountId })
@@ -235,10 +302,10 @@ struct KanbanBudgetSection: View {
                 let transactions = try await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end)
                 todayExpense = transactions
                     .filter { transaction in
-                        transaction.transactionType == .expense
+                        transaction.statisticsType == .expense
                             && (selected == nil || transaction.account?.id == selected?.id)
                     }
-                    .reduce(Decimal.zero) { $0 + ($1.amount as Decimal) }
+                    .reduce(Decimal.zero) { $0 + $1.statisticsAmount }
             } catch {
                 todayExpense = nil
             }
@@ -324,4 +391,39 @@ private struct BudgetCardData {
         f.locale = Locale(identifier: "zh_CN")
         return f
     }()
+}
+
+/// 结转回执横幅：月初额度被结转扣减时置于预算卡上方，
+/// 样式沿用 ChatMemoryNoticeBar 胶囊语言（品牌色描边 + ultraThinMaterial）
+private struct BudgetCarryoverBanner: View {
+    let text: String
+    let onTap: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Button(action: onTap) {
+                Label(text, systemImage: "arrow.uturn.down.circle.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(5)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 7)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+        .frame(maxWidth: .infinity, alignment: .center)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
 }

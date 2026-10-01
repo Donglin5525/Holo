@@ -26,11 +26,17 @@ public class Transaction: NSManagedObject {
     @NSManaged public var updatedAt: Date
     @NSManaged public var category: Category?
     @NSManaged public var account: Account?
+    /// 票根（照片附件）一对多，cascade；UI 上限 3 张，模型不封死
+    @NSManaged public var attachments: NSSet?
 
     // 分期记账字段
     @NSManaged public var installmentGroupId: UUID?
     @NSManaged public var installmentIndex: Int16
     @NSManaged public var installmentTotal: Int16
+
+    /// 退款关联：退款笔指向被退的原支出交易。nil=普通交易。
+    /// 弱引用（裸 UUID，同 financeProjectId 模式）：原交易被删时悬空，退款笔照常冲减自身分类支出。
+    @NSManaged public var refundOfTransactionId: UUID?
 
     // AI 来源标记
     @NSManaged public var isAICreated: Bool
@@ -66,8 +72,31 @@ public class Transaction: NSManagedObject {
 
     // MARK: - Computed Properties
 
+    /// 每笔账最多贴几张票根（产品拍板 3 张；模型一对多不封死，仅 UI 与仓库层护栏）
+    static let maxReceiptCount = 3
+
+    /// 按 sortOrder 排序的票根列表（旧→新）
+    public var receiptAttachments: [TransactionAttachment] {
+        let set = attachments as? Set<TransactionAttachment> ?? []
+        return set.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     /// 是否为分期交易
     var isInstallment: Bool { installmentGroupId != nil }
+
+    /// 是否为退款笔（关联原支出的冲减流水）
+    var isRefund: Bool { refundOfTransactionId != nil }
+
+    /// 统计口径类型（收支统计/分类聚合/预算）：退款笔按支出侧参与（冲减原分类），不算收入。
+    /// 余额计算不用这个——退款笔物理上是 income，余额层照常加回。
+    var statisticsType: TransactionType {
+        isRefund ? .expense : transactionType
+    }
+
+    /// 统计口径金额：退款笔取负值，在支出侧聚合时自然冲减。
+    var statisticsAmount: Decimal {
+        isRefund ? -amountAsDecimal : amountAsDecimal
+    }
 
     /// 分期显示文字，如 "3/12期"；跨年分期会带上年份，如 "2027·11/12期"
     var installmentLabel: String? {

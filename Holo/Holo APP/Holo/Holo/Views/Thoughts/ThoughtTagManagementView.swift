@@ -72,6 +72,7 @@ struct ThoughtTagManagementView: View {
             }
             .navigationTitle("标签治理")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }

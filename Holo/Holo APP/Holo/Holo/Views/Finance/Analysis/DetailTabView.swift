@@ -89,11 +89,11 @@ struct DetailTabView: View {
         while current < end {
             let dayTxns = grouped[current] ?? []
             let expense = dayTxns
-                .filter { $0.transactionType == .expense }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .filter { $0.statisticsType == .expense }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
             let income = dayTxns
-                .filter { $0.transactionType == .income }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .filter { $0.statisticsType == .income }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
             points.append(ChartDataPoint(
                 date: current,
@@ -286,11 +286,11 @@ struct DetailTabView: View {
     private func periodSummary(for date: Date) -> some View {
         let periodTxns = transactionsForPeriod(date)
         let expense = periodTxns
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         let income = periodTxns
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         return HStack(spacing: HoloSpacing.lg) {
             HStack(spacing: HoloSpacing.xs) {
@@ -488,11 +488,11 @@ struct DetailTabView: View {
 
     private func dateHeader(date: Date, transactions: [Transaction]) -> some View {
         let expense = transactions
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         let income = transactions
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         return HStack(spacing: HoloSpacing.sm) {
             Text(DetailTabFormatters.dayWeekday.string(from: date))

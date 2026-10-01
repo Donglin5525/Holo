@@ -33,11 +33,12 @@ struct FinanceAnalysisContextBuilder {
         do {
             let transactions = try await repo.getStatisticsTransactions(from: startInclusive, to: endExclusive)
 
-            let expenses = transactions.filter { $0.transactionType == .expense }
-            let incomes = transactions.filter { $0.transactionType == .income }
+            // 统计口径：退款笔按负支出进支出侧（AI 与统计页数字保持同一口径）
+            let expenses = transactions.filter { $0.statisticsType == .expense }
+            let incomes = transactions.filter { $0.statisticsType == .income }
 
-            let totalExpense = expenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-            let totalIncome = incomes.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            let totalExpense = expenses.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+            let totalIncome = incomes.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
             guard totalExpense != 0 || totalIncome != 0 || !transactions.isEmpty else {
                 return nil
@@ -88,8 +89,8 @@ struct FinanceAnalysisContextBuilder {
                 let compEndExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: compEnd))
                 if let compEndExcl = compEndExclusive {
                     let compTransactions = try await repo.getStatisticsTransactions(from: compStartDay, to: compEndExcl)
-                    let compExpenses = compTransactions.filter { $0.transactionType == .expense }
-                    previousPeriodExpense = compExpenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                    let compExpenses = compTransactions.filter { $0.statisticsType == .expense }
+                    previousPeriodExpense = compExpenses.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
                     categoryTrends = buildCategoryTrends(
                         currentCategoryAggregations: categoryAggregations,
@@ -285,10 +286,10 @@ struct FinanceAnalysisContextBuilder {
         for tx in transactions {
             let cycleStart = BillingCycleCalculator.currentCycleRange(startDay: cycleStartDay, reference: tx.date).start
             var entry = cycleMap[cycleStart] ?? (0, 0)
-            if tx.transactionType == .expense {
-                entry.expense += tx.amount.decimalValue
+            if tx.statisticsType == .expense {
+                entry.expense += tx.statisticsAmount
             } else {
-                entry.income += tx.amount.decimalValue
+                entry.income += tx.statisticsAmount
             }
             cycleMap[cycleStart] = entry
         }

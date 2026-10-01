@@ -74,7 +74,9 @@ struct TopicDetailView: View {
         guard let earliest = dates.min(), let latest = dates.max() else {
             return String(localized: "持续 1 天")
         }
-        let days = (Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0) + 1
+        let calendar = Calendar.current
+        let days = (calendar.dateComponents([.day], from: calendar.startOfDay(for: earliest),
+                                           to: calendar.startOfDay(for: latest)).day ?? 0) + 1
         return String(localized: "持续 \(max(1, days)) 天")
     }
 
@@ -83,16 +85,7 @@ struct TopicDetailView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     if let topic {
-                        heroSection(topic)
-                        // V3 新 UI：AI 摘要卡（生成失败/离线静默隐藏，§4.5）
-                        if ThoughtSemanticFeatureFlags.uiEnabled {
-                            topicSummarySection(topic)
-                        }
-                        // V3 新 UI：关键词是 AI 标签派生，退为内部索引（摘要/观点区随 Phase 5 摘要端点接入）
-                        if !ThoughtSemanticFeatureFlags.uiEnabled {
-                            keywordRow
-                        }
-                        thoughtListSection
+                        topicContentSections(topic)
                     } else {
                         missingTopicView
                     }
@@ -241,6 +234,139 @@ struct TopicDetailView: View {
         return .init(summary: record.summary, viewpoints: viewpoints)
     }
 
+    // MARK: - 构成行与交集标签（P1 §3.3，2026-09-27）
+
+    /// 主题页主体区块（body 过重抽出的子表达式；区块顺序=方案 §3.3 首屏顺序）
+    @ViewBuilder
+    private func topicContentSections(_ topic: Topic) -> some View {
+        heroSection(topic)
+        // 构成行：让 AI 自动归类的贡献可见（你加入 N · Holo 找到 M）
+        if ThoughtSemanticFeatureFlags.uiEnabled, !thoughts.isEmpty {
+            membershipSplitSection
+        }
+        // V3 新 UI：AI 摘要卡（生成失败/离线静默隐藏，§4.5）
+        if ThoughtSemanticFeatureFlags.uiEnabled {
+            topicSummarySection(topic)
+        }
+        // V3 新 UI：关键词是 AI 标签派生，退为内部索引（摘要/观点区随 Phase 5 摘要端点接入）
+        if !ThoughtSemanticFeatureFlags.uiEnabled {
+            keywordRow
+        }
+        if ThoughtSemanticFeatureFlags.uiEnabled, thoughts.count >= 2 {
+            timelineEndpointsSection
+        }
+        // 交集标签：成员用过的 #标签（点按进入标签范围，双向桥）
+        if ThoughtSemanticFeatureFlags.uiEnabled {
+            memberTagChipsSection
+        }
+        thoughtListSection
+    }
+
+    /// 成员构成：你加入 N 条 · Holo 找到 M 条（历史归集单独一档，不冒充任何一类）。
+    /// 让 AI 自动归类的贡献可见——这是「AI 显著生效」最直接的证据位。
+    private var membershipSplitSection: some View {
+        let split = membershipSplit
+        return HStack(spacing: 8) {
+            splitPill(title: String(localized: "你加入 \(split.userCount) 条"),
+                      detail: String(localized: "手动放入或接受建议"),
+                      color: .holoPrimary)
+            splitPill(title: String(localized: "Holo 找到 \(split.aiCount) 条"),
+                      detail: String(localized: "高可信自动归入"),
+                      color: .holoSuccess)
+            if split.legacyCount > 0 {
+                splitPill(title: String(localized: "历史归集 \(split.legacyCount) 条"),
+                          detail: String(localized: "早期整理"),
+                          color: .holoTextSecondary)
+            }
+        }
+    }
+
+    private struct MembershipSplit { var userCount = 0; var aiCount = 0; var legacyCount = 0 }
+
+    private var membershipSplit: MembershipSplit {
+        var split = MembershipSplit()
+        for thought in thoughts {
+            guard let topic else { break }
+            switch ThoughtTopicLinkProjection.membershipSource(of: thought, in: topic) {
+            case .user: split.userCount += 1
+            case .ai: split.aiCount += 1
+            case .legacy: split.legacyCount += 1
+            case nil: break
+            }
+        }
+        return split
+    }
+
+    private func splitPill(title: String, detail: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.holoCaption)
+                .fontWeight(.semibold)
+                .foregroundColor(color)
+            Text(detail)
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextPlaceholder)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+            .fill(color.opacity(0.06)))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 成员里你用过的 #标签（≤3，按条数）：点按进入标签范围——主题页对标签页的回桥。
+    @ViewBuilder
+    private var memberTagChipsSection: some View {
+        let chips = memberTagChips
+        if !chips.isEmpty {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                Text("成员里你用过的 #标签")
+                    .font(.holoLabel)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+                HStack(spacing: 8) {
+                    ForEach(chips, id: \.name) { item in
+                        Button {
+                            // 复用编辑器「查看标签」通道：ThoughtsView 接收后切标签范围
+                            NotificationCenter.default.post(
+                                name: .thoughtRequestTagFilter, object: item.name)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text("#\(ThoughtTagNormalizer.lastSegment(item.name))")
+                                    .font(.holoCaption)
+                                Text("×\(item.count)")
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoTextPlaceholder)
+                            }
+                            .foregroundColor(.holoPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.holoPrimary.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "标签\(item.name)，\(item.count) 条想法用过，点按查看"))
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var memberTagChips: [(name: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for thought in thoughts {
+            for name in thought.recognizedTagNames {
+                counts[name, default: 0] += 1
+            }
+        }
+        return counts
+            .sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { (name: $0.key, count: $0.value) }
+    }
+
     /// 摘要卡：摘要 + 可重建 + 反复提到的观点（点跳来源想法）
     @ViewBuilder
     private func topicSummarySection(_ topic: Topic) -> some View {
@@ -282,6 +408,18 @@ struct TopicDetailView: View {
                     .foregroundColor(.holoTextPrimary.opacity(0.85))
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // 过期态（方案 §3 P1：成员变化后旧摘要不冒充最新——标「可更新」）
+                if summaryBasisRevision < topic.topicRevision {
+                    HStack(spacing: 5) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 10))
+                        Text("主题有新内容，摘要可更新")
+                            .font(.holoTinyLabel)
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.top, 2)
+                }
 
                 if !content.viewpoints.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
@@ -362,6 +500,57 @@ struct TopicDetailView: View {
 
     // MARK: - 关键词筛选行（长按管理）
 
+    /// 不依赖 AI 的主题价值：让用户立即看到同一方向最早与最近的记录。
+    /// 数据按创建时间倒序读取，首尾两条可直接回到原文。
+    private var timelineEndpointsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("从最初到现在")
+                .font(.holoLabel)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoTextPrimary)
+
+            if let first = thoughts.last, let latest = thoughts.first {
+                timelineEndpointRow(first, label: "最早记录")
+                timelineEndpointRow(latest, label: "最近记录")
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: HoloRadius.lg)
+            .fill(Color.holoCardBackground))
+    }
+
+    private func timelineEndpointRow(_ thought: Thought, label: String) -> some View {
+        Button {
+            selectedThoughtId = thought.id
+        } label: {
+            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                Circle()
+                    .fill(themeColor)
+                    .frame(width: 6, height: 6)
+                    .padding(.top, 6)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(label) · \(thought.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                    Text(thought.content)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.top, 5)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "\(label)，查看来源想法"))
+    }
+
     private var keywordRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -429,6 +618,15 @@ struct TopicDetailView: View {
                                 ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thought.id)
                             } : nil
                         )
+                        // P1 校验补链：主题页是纠错的天然阵地——成员卡长按可「从这个主题移除」
+                        //（卡片列表的主题行纠错是长按隐藏手势，这里给一个语境明确的可见兜底）
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                removeMember(thought)
+                            } label: {
+                                Label("从这个主题移除", systemImage: "leaf.slash")
+                            }
+                        }
                     }
                 }
             }
@@ -450,6 +648,19 @@ struct TopicDetailView: View {
     }
 
     // MARK: - 编辑操作
+
+    /// 成员纠错（P1 校验补链）：从当前主题移除一条想法（写拒绝墓碑，AI 不复活）
+    private func removeMember(_ thought: Thought) {
+        guard let topic else { return }
+        do {
+            try topicRepository.remove(thoughtId: thought.id, fromTopic: topic.id)
+            HapticManager.light()
+            actionNotice = String(localized: "已从「\(topic.title)」移除")
+            Task { await loadData() }
+        } catch {
+            HoloToastCenter.shared.show(String(localized: "移除失败，请重试"), type: .error)
+        }
+    }
 
     private func applyIcon(_ emoji: String) {
         guard let topic else { return }

@@ -37,11 +37,22 @@ struct FinanceLedgerView: View {
     /// 复制目标日期
     @State private var copyTargetDate: Date = Date()
 
+    /// 记退款的目标原交易（长按菜单 / iPad 详情面板发起）
+    @State private var refundTarget: Transaction? = nil
+
+    /// 正在编辑的退款笔（点退款行直接进退款编辑层）
+    @State private var refundEditing: Transaction? = nil
+
+    /// 详情面板退款属性行点击：先列名下退款笔，选一笔去编辑
+    @State private var refundListTarget: Transaction? = nil
+
     /// 长按日期快速记账：弹出 Sheet 时使用的预设日期
     @State private var quickAddDate: Date? = nil
 
     /// 是否显示搜索页
     @State private var showSearch: Bool = false
+    /// 预算总览卡点击 → 预算详情页（2026-09-27 方案一期入口）
+    @State private var showBudgetDetail: Bool = false
 
     /// iPad 双栏（方案 2A）：宽屏左账本 + 右详情面板；记录在右栏核对与处理，
     /// 账本侧的日期、筛选、滚动位置在切换记录时保持不动。
@@ -128,7 +139,14 @@ struct FinanceLedgerView: View {
                 transaction: selectedTransaction,
                 daySummary: daySummaryForPane,
                 onEdit: {
-                    if let tx = selectedTransaction { editingTransaction = tx }
+                    if let tx = selectedTransaction {
+                        // 退款笔不走通用编辑表单（类型/分类不属于退款语义），弹退款编辑层
+                        if tx.isRefund {
+                            refundEditing = tx
+                        } else {
+                            editingTransaction = tx
+                        }
+                    }
                 },
                 onCopy: {
                     if let tx = selectedTransaction {
@@ -141,6 +159,12 @@ struct FinanceLedgerView: View {
                         transactionToDelete = tx
                         if tx.isInstallment { showInstallmentDeleteOptions = true }
                     }
+                },
+                onRecordRefund: {
+                    if let tx = selectedTransaction { refundTarget = tx }
+                },
+                onEditRefunds: {
+                    if let tx = selectedTransaction { refundListTarget = tx }
                 }
             )
         }
@@ -153,6 +177,10 @@ struct FinanceLedgerView: View {
             }
         }
         // --- 弹窗月历（底部抽屉） ---
+        // 预算详情页（预算总览卡点击进入）
+        .sheet(isPresented: $showBudgetDetail) {
+            BudgetDetailView(anchoredAccountId: nil)
+        }
         .sheet(isPresented: $calendarState.isPopupVisible) {
             PopupCalendarSheet(calendarState: calendarState)
         }
@@ -160,6 +188,26 @@ struct FinanceLedgerView: View {
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 calendarState.refreshAfterDataChange()
                 showOperationMessage(String(localized: "记账已保存"), isError: false)
+            }
+        }
+        // 记退款（从原支出发起）：成功后刷新日历与统计
+        .sheet(item: $refundTarget) { original in
+            RefundEntrySheet(original: original)
+                .onDisappear { calendarState.refreshAfterDataChange() }
+        }
+        // 编辑退款笔：按退款笔解析原交易后进入同一弹层
+        .sheet(item: $refundEditing) { refund in
+            RefundEntrySheet(
+                original: refund.refundOfTransactionId.flatMap { FinanceRepository.shared.findTransaction(by: $0) } ?? refund,
+                editingRefund: refund
+            )
+            .onDisappear { calendarState.refreshAfterDataChange() }
+        }
+        // 详情面板退款属性行 → 名下退款列表 → 选一笔进退款编辑层
+        .sheet(item: $refundListTarget) { original in
+            RefundPickerSheet(original: original) { refund in
+                refundListTarget = nil
+                refundEditing = refund
             }
         }
         // 长按日期快速记账 Sheet
@@ -382,15 +430,20 @@ struct FinanceLedgerView: View {
         return calendarState.liveDayTransactions.first { $0.id == id }
     }
 
-    /// 无选中时右栏的本日摘要
+    /// 可对一笔交易发起退款：普通支出（非分期、自身非退款笔）
+    private func canRecordRefund(_ tx: Transaction) -> Bool {
+        tx.transactionType == .expense && !tx.isInstallment && !tx.isRefund
+    }
+
+    /// 无选中时右栏的本日摘要（统计口径：退款笔按负支出冲减当日支出）
     private var daySummaryForPane: FinanceTransactionDetailPane.DaySummary {
         let dayTx = calendarState.liveDayTransactions
         let expense = dayTx
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal.zero) { $0 + ($1.amountAsDecimal) }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal.zero) { $0 + ($1.statisticsAmount) }
         let income = dayTx
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal.zero) { $0 + ($1.amountAsDecimal) }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal.zero) { $0 + ($1.statisticsAmount) }
         return .init(expense: expense, income: income, count: dayTx.count)
     }
 
@@ -426,10 +479,12 @@ struct FinanceLedgerView: View {
 
                 // 预算总览卡片
                 if let summary = globalBudgetSummary {
-                    BudgetSummaryCard(summary: summary, warnings: categoryWarnings)
-                        .padding(.horizontal, 14)
-                        .padding(.top, HoloSpacing.sm)
-                        .padding(.bottom, 8)
+                    BudgetSummaryCard(summary: summary, warnings: categoryWarnings) {
+                        showBudgetDetail = true
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, HoloSpacing.sm)
+                    .padding(.bottom, 8)
                 }
 
                 // 交易列表（支持左右滑动切换日期）：滑动状态隔离在子容器，
@@ -533,13 +588,20 @@ struct FinanceLedgerView: View {
                             withAnimation(HoloAnimation.quick) {
                                 selectedTransactionId = tx.id
                             }
+                        } else if tx.isRefund {
+                            // 退款笔不走通用编辑表单，直接进退款编辑层
+                            refundEditing = tx
                         } else {
                             editingTransaction = tx
                         }
                     }
                     .contextMenu {
                             Button {
-                                editingTransaction = tx
+                                if tx.isRefund {
+                                    refundEditing = tx
+                                } else {
+                                    editingTransaction = tx
+                                }
                             } label: {
                                 Label("编辑", systemImage: "pencil")
                             }
@@ -549,6 +611,14 @@ struct FinanceLedgerView: View {
                                 copyTargetDate = tx.date
                             } label: {
                                 Label("复制", systemImage: "doc.on.doc")
+                            }
+
+                            if canRecordRefund(tx) {
+                                Button {
+                                    refundTarget = tx
+                                } label: {
+                                    Label("记退款", systemImage: "arrow.uturn.backward")
+                                }
                             }
 
                             Button(role: .destructive) {

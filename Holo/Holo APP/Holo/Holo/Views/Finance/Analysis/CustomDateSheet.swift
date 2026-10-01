@@ -2,22 +2,13 @@
 //  CustomDateSheet.swift
 //  Holo
 //
-// 自定义日期范围选择弹窗（点两次自动完成：选开始 → 自动进入选结束 → 自动应用）
+// 自定义起止日期日历（统计分析页时间筛选条里的「自定义」入口）。
+// 点两次自动完成：选开始 → 自动进入选结束 → 自动应用。
+// 日历头部 «/» 支持按年快跳，跨年不用逐月翻。
 //
 
 import SwiftUI
 
-// MARK: - CustomDateSheet
-
-/// 自定义日期范围选择弹窗
-///
-/// 交互流程（点两次完成筛选）：
-/// 1. 进入默认在「开始」阶段，点击日历选开始日期
-/// 2. 选完后自动切换到「结束」阶段
-/// 3. 点击日历选结束日期 → 自动应用并关闭
-///
-/// 日历用自制的 `DateRangeCalendar`（范围内铺浅品牌色 + 首尾端点圆形高亮），
-/// 原生 DatePicker(.graphical) 不支持范围高亮。
 struct CustomDateSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var startDate: Date
@@ -42,8 +33,6 @@ struct CustomDateSheet: View {
         _tempEndDate = State(initialValue: endDate.wrappedValue)
     }
 
-    // MARK: - 编辑日期类型
-
     enum EditingDate {
         case start
         case end
@@ -51,24 +40,17 @@ struct CustomDateSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .center, spacing: HoloSpacing.lg) {
-                // 阶段提示
-                phaseHint
-
-                // 开始/结束卡片（点击可回到对应阶段重选）
-                dateRangeDisplay
-
-                // 范围月历（范围内铺浅品牌色，首尾端点圆形高亮）
-                datePickerSection
-
-                Spacer()
-
-                // 兜底完成按钮（主流程靠自动推进，按钮作为备选）
-                confirmButton
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .center, spacing: HoloSpacing.lg) {
+                    phaseHint
+                    dateRangeDisplay
+                    datePickerSection
+                    confirmButton
+                }
+                .padding(HoloSpacing.lg)
             }
-            .padding(HoloSpacing.lg)
             .background(Color.holoBackground)
-            .navigationTitle("选择日期范围")
+            .navigationTitle("自定义起止日期")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -91,6 +73,7 @@ struct CustomDateSheet: View {
              : String(localized: "② 点击日历选择结束日期"))
             .font(.holoCaption)
             .foregroundColor(.holoPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - 日期范围显示

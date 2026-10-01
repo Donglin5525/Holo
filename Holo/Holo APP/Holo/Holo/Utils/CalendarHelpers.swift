@@ -63,6 +63,7 @@ nonisolated extension Date {
     func addingDays(_ d: Int) -> Date { Calendar.current.date(byAdding: .day, value: d, to: self) ?? self }
     func addingMonths(_ m: Int) -> Date { Calendar.current.date(byAdding: .month, value: m, to: self) ?? self }
     func addingWeeks(_ w: Int) -> Date { Calendar.current.date(byAdding: .weekOfYear, value: w, to: self) ?? self }
+    func addingYears(_ y: Int) -> Date { Calendar.current.date(byAdding: .year, value: y, to: self) ?? self }
 }
 
 // MARK: - 月历网格生成

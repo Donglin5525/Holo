@@ -15,6 +15,8 @@ struct FinanceSettingsView: View {
     @State private var showClearFinanceSheet = false
     /// 图片自动记账待复核数量（§11 角标）
     @State private var receiptDraftCount = 0
+    /// 严格预算模式首次开启说明弹层（2026-09-27 方案一期：规则透明化）
+    @State private var showStrictModeIntro = false
 
     var body: some View {
         NavigationStack {
@@ -76,6 +78,38 @@ struct FinanceSettingsView: View {
         }
         .background(Color.holoBackground)
         }
+        .sheet(isPresented: $showStrictModeIntro) { strictModeIntroSheet }
+    }
+
+    // MARK: - 严格预算模式首次开启说明
+
+    /// 首次开启（App 生命周期内第一次从全关到开）弹一次，讲清宽限期与总预算口径
+    private var strictModeIntroSheet: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            Text("严格预算模式已开启")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.holoTextPrimary)
+                .padding(.top, 24)
+
+            BudgetStrictModeRulesContent()
+                .padding(.horizontal, 20)
+
+            Button {
+                showStrictModeIntro = false
+            } label: {
+                Text("我知道了")
+                    .font(.system(size: 15, weight: .medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(Color.holoPrimary)
+                    .foregroundColor(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .holoSheetShell()
     }
 }
 
@@ -251,7 +285,7 @@ private extension FinanceSettingsView {
                 }
             }
 
-            HoloSettingsFootnote(text: String(localized: "超支多少，下个月的预算额度就扣多少（最低扣到 0）；省下的钱不累积，下月不超支就自动恢复原额度。"))
+            HoloSettingsFootnote(text: String(localized: "超支多少，下个月的预算额度就扣多少（最低扣到 0）；省下的钱不累积，下月不超支就自动恢复原额度。仅作用于账户总预算，分类预算不结转。"))
         })
     }
 
@@ -270,7 +304,14 @@ private extension FinanceSettingsView {
     private func strictModeBinding(for account: Account) -> Binding<Bool> {
         Binding(
             get: { budgetSettings.isEnabled(for: account.id) },
-            set: { $0 ? budgetSettings.enable(for: account.id) : budgetSettings.disable(for: account.id) }
+            set: { enabled in
+                if enabled { budgetSettings.enable(for: account.id) } else { budgetSettings.disable(for: account.id) }
+                // 首次开启弹一次说明：宽限期 / 总预算口径 / 结转规则，规则不透明的惩罚系统会被当成 bug
+                if enabled && !UserDefaults.standard.bool(forKey: "financeBudget.strictMode.introShown") {
+                    UserDefaults.standard.set(true, forKey: "financeBudget.strictMode.introShown")
+                    showStrictModeIntro = true
+                }
+            }
         )
     }
 }

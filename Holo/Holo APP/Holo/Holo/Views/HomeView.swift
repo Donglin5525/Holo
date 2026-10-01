@@ -1314,6 +1314,9 @@ struct HomeView: View {
             pendingFinanceEvidenceReviewDeepLink = nil
             navigateToScreen(.finance)
             deepLinkState.pendingTarget = nil
+        case .budgetDetail:
+            // 结转回执通知：切到财务模块，pendingTarget 由 FinanceView 消费弹预算详情页
+            navigateToScreen(.finance)
         case .transactionDetail:
             navigateToScreen(.finance)
         case .financeAnalysis(let link):

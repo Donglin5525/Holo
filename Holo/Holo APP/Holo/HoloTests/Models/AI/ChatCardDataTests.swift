@@ -460,7 +460,10 @@ final class ChatCardDataTests: XCTestCase {
             installmentPeriods: nil,
             installmentFeePerPeriod: nil,
             installmentSummary: nil,
-            installmentPeriodAmounts: []
+            installmentPeriodAmounts: [],
+            refundCandidateTitle: nil,
+            refundCandidateAmount: nil,
+            refundCandidateDate: nil
         )
     }
 

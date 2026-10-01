@@ -67,6 +67,8 @@ enum DeepLinkTarget: Equatable {
     case weeklyBrief
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
+    /// 预算详情页（结转回执通知点击进入；FinanceView 消费弹层）
+    case budgetDetail
     case transactionDetail(transactionId: UUID)
     case financeAnalysis(FinanceAnalysisDeepLink)
     case financeEvidenceReview(FinanceEvidenceReviewDeepLink)

@@ -71,6 +71,10 @@ struct SwipeActionView<Content: View>: View {
                 // 只有用户真正开始左滑后才显示操作层，避免状态动画泄露危险操作。
                 .opacity(offset < -0.5 ? 1 : 0)
                 .allowsHitTesting(offset < -0.5)
+                // 闭合态必须同步从无障碍树摘除（2026-09-26 R1 实锤）：opacity(0) 不摘 AX，
+                // 7 张卡的归档/删除幽灵按钮常驻 AX 且 isHittable=true——VoiceOver 可聚焦
+                // 看不见的按钮，XCUITest 泄露断言也被幽灵误触；AX 可见性必须与视觉一致
+                .accessibilityHidden(offset >= -0.5)
 
             content
                 .offset(x: offset)
@@ -148,6 +152,10 @@ struct SwipeActionView<Content: View>: View {
                 .frame(maxHeight: .infinity)
                 .background(Color(.systemGray6))
             }
+            // 露出态标识随视觉露出翻转：闭合态幽灵按钮（opacity 0）在 iOS 26 的
+            // XCUITest automation 树里仍存在且 isHittable 不可靠，手势门禁以
+            // revealed 标识是否出现为准，不依赖 AX 遮挡判定
+            .accessibilityIdentifier(offset < -0.5 ? "swipe-archive-revealed" : "swipe-archive")
 
             Button {
                 showDeleteConfirmation = true
@@ -167,6 +175,7 @@ struct SwipeActionView<Content: View>: View {
                 .frame(maxHeight: .infinity)
                 .background(Color.red.opacity(0.08))
             }
+            .accessibilityIdentifier(offset < -0.5 ? "swipe-delete-revealed" : "swipe-delete")
         }
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
@@ -334,11 +343,13 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
         /// 只在 overlay 区域内的触摸才响应
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            guard parent.isEnabled else { return false }
             guard let overlay = overlayView else { return false }
+            // 编辑器/弹窗盖着时不响应（window 手势摸得到弹层触摸，见 HoloWindowGestureGate）
+            if HoloWindowGestureGate.isOverlayPresented(overlay.window) { return false }
+            let locationInOverlay = touch.location(in: overlay)
+            guard parent.isEnabled else { return false }
             guard overlay.bounds.width > 0, overlay.bounds.height > 0 else { return false }
-            let location = touch.location(in: overlay)
-            return overlay.bounds.contains(location)
+            return overlay.bounds.contains(locationInOverlay)
         }
 
         /// 允许与 ScrollView 的手势同时识别

@@ -268,6 +268,18 @@ struct ResolvedTransactionDraft: Sendable, Equatable {
     let sourceKey: String
     let schemaVersion: Int
 
-    /// AI 候选（分类待确认时供编辑学习链）
+    /// AI 候选（分类待确认时供学习链）
     let aiCandidate: String?
+}
+
+// MARK: - 识图凭证自动归档（票根）
+
+/// 设置开关：确认落账后证据图自动转存为该笔交易的票根。
+/// 默认开；关闭只影响未来落账，不追溯删除已归档票根（2026-09-27 拍板）。
+enum ReceiptBookingArchivePolicy {
+    static let autoArchiveKey = "receiptBookingAutoArchiveEnabled"
+
+    static var isAutoArchiveEnabled: Bool {
+        UserDefaults.standard.object(forKey: autoArchiveKey) as? Bool ?? true
+    }
 }

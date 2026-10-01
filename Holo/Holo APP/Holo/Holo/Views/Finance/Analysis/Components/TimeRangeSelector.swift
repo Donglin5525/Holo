@@ -77,43 +77,48 @@ struct TimeRangeLabel: View {
 
     private var dateRangeText: String {
         let (start, end) = state.currentDateRange
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMd")
-        let startStr = df.string(from: start)
-        let endStr = df.string(from: end.addingDays(-1)) // end 是开区间，显示前一天
-        return "\(startStr) - \(endStr)"
+        // 最小信息原则：年档只标年份、季档只标第几季度（完整起止收在弹层里查），
+        // 避免「2026年1月25日 - 2027年1月24日」长文案把胶囊撑到换行
+        return TimeRange.pillLabel(timeRange: state.timeRange, start: start, end: end)
     }
 
-    /// 是否可以切换（始终可以切换）
-    private var canNavigate: Bool {
-        true
+    /// 年档在区间尾部附口径小字（记账起始日=1 时两口径等价，不显示）
+    private var yearBasisSuffix: String? {
+        guard state.timeRange == .year, state.yearBasisSwitchAvailable else { return nil }
+        return "· \(state.yearBasis.displayName)"
     }
 
     var body: some View {
         HStack(spacing: HoloSpacing.sm) {
             Spacer()
-            // 上一时间段按钮
-            if canNavigate {
-                Button {
-                    state.navigate(.previous)
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.holoCardBackground)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
+            // 上一时间段按钮（历史不设限）
+            Button {
+                state.navigate(.previous)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoCardBackground)
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
 
-            // 日期范围标签：点击直接进入起止日期选择（融合原「自定义」入口）
+            // 日期范围标签：点击直接进入起止日期选择（融合原「自定义」入口；年档口径选项也收在这里）
             Button {
                 onCustomTap()
             } label: {
                 HStack(spacing: 4) {
                     Text(dateRangeText)
                         .font(.holoCaption)
+                        .lineLimit(1)
+
+                    if let suffix = yearBasisSuffix {
+                        Text(suffix)
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
 
                     Image(systemName: "calendar")
                         .font(.system(size: 10, weight: .medium))
@@ -126,20 +131,21 @@ struct TimeRangeLabel: View {
             }
             .buttonStyle(.plain)
 
-            // 下一时间段按钮
-            if canNavigate {
-                Button {
-                    state.navigate(.next)
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.holoCardBackground)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
+            // 下一时间段按钮（当前/未来周期禁用：窗口末端已越过现在）
+            let canGoNext = state.canNavigateToNext
+            Button {
+                state.navigate(.next)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoCardBackground)
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
+            .opacity(canGoNext ? 1 : 0.3)
+            .disabled(!canGoNext)
 
             Spacer()
         }

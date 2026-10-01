@@ -46,6 +46,11 @@ struct TransactionChatCard: View {
             // 分类 + 记录日期
             categoryDateRow
 
+            // 退款关联信息（确认后冲减原支出）
+            if data.isRefundCandidate, data.requiresConfirmation {
+                refundCandidateInfo
+            }
+
             // 分期信息
             if data.isInstallment, data.requiresConfirmation {
                 installmentInfo
@@ -91,6 +96,37 @@ struct TransactionChatCard: View {
             return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
         }
         return nil
+    }
+
+    // MARK: - Refund Candidate Info
+
+    /// 退款关联块：显示将冲减的原支出，确认前让用户核对关联对象
+    private var refundCandidateInfo: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 11))
+                Text(String(localized: "退款 · 关联原支出"))
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundColor(.holoSuccessDark)
+
+            if let title = data.refundCandidateTitle {
+                let amountText = data.refundCandidateAmount.map { " · ¥\($0)" } ?? ""
+                let dateText = data.refundCandidateDate.map { " · \($0)" } ?? ""
+                Text("\(title)\(amountText)\(dateText)")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Text(String(localized: "确认后自动冲减该笔支出，不计入收入"))
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(.holoTextSecondary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoSuccess.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Installment Info

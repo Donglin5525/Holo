@@ -14,10 +14,10 @@ import CoreData
 struct TopicService {
 
     /// 取一条观点的主展示主题：thoughts.count 最高的可见 Topic；无则 nil（spec 决策 11）
-    /// - Note: 不用 updatedAt（iCloud 跨设备时钟不可靠）、不用缓存 thoughtCount
+    /// - Note: 不用 updatedAt（iCloud 跨设备时钟不可靠）、不用缓存 thoughtCount。
+    ///   读源统一（2026-09-27 P0-A）：走 link 投影，V3 AI 归入的关系同样参与。
     func primaryDisplayTopic(for thought: Thought) -> Topic? {
-        guard let topics = thought.topics as? Set<Topic> else { return nil }
-        return topics
+        ThoughtTopicLinkProjection.effectiveTopics(for: thought)
             .filter(\.isVisibleTopic)
             .max { topicThoughtCount($0) < topicThoughtCount($1) }
     }
@@ -27,6 +27,7 @@ struct TopicService {
     /// AND `assignment.tag ∈ activeTopic.associatedTags`
     /// AND `assignment.source ∈ [.ai, .confirmedAI]`
     /// AND `assignment.rejectedAt == nil`
+    /// 读源统一（P0-A）：成员资格走 link 投影裁决，与卡片徽章同口径。
     func isAbsorbed(_ assignment: ThoughtTagAssignment) -> Bool {
         guard let thought = assignment.thought,
               let tag = assignment.tag else { return false }
@@ -34,19 +35,19 @@ struct TopicService {
         guard source == .ai || source == .confirmedAI else { return false }
         guard assignment.rejectedAt == nil else { return false }
 
-        guard let topics = thought.topics as? Set<Topic> else { return false }
-        for topic in topics where topic.isVisibleTopic {
-            let topicThoughts = topic.thoughts as? Set<Thought> ?? []
+        // effectiveTopics 产出的即有效成员，只需再判标签交集
+        for topic in ThoughtTopicLinkProjection.effectiveTopics(for: thought)
+        where topic.isVisibleTopic {
             let topicTags = topic.associatedTags as? Set<ThoughtTag> ?? []
-            if topicThoughts.contains(thought) && topicTags.contains(tag) {
+            if topicTags.contains(tag) {
                 return true
             }
         }
         return false
     }
 
-    /// Topic 的观点数（实时算）
+    /// Topic 的观点数（实时算；P0-A 投影口径，与侧栏计数同源）
     private func topicThoughtCount(_ topic: Topic) -> Int {
-        (topic.thoughts as? Set<Thought>)?.count ?? 0
+        ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: topic)
     }
 }

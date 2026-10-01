@@ -40,6 +40,13 @@ final class TopicServiceTests: XCTestCase {
         return t
     }
 
+    /// 存量旧关系 → link 迁移（与生产 backfill 同路径；读源统一 P0-A 后
+    /// 裸旧关系不是合法读态，造数后补一次回填再断言）
+    private func backfillLegacy(_ ctx: NSManagedObjectContext) throws {
+        _ = try ThoughtTopicLinkProjection.backfillLegacyLinks(in: ctx)
+        try ctx.save()
+    }
+
     @discardableResult
     private func makeTopic(
         in ctx: NSManagedObjectContext,
@@ -96,7 +103,7 @@ final class TopicServiceTests: XCTestCase {
         let t2 = try makeThought(in: ctx)
         topicA.addThoughts([thought, t2])
         thought.addTopics([topicA, topicB])
-        try ctx.save()
+        try backfillLegacy(ctx)
 
         let primary = service.primaryDisplayTopic(for: thought)
 
@@ -118,7 +125,7 @@ final class TopicServiceTests: XCTestCase {
         let assignment = try makeAssignment(in: ctx, thought: thought, tagName: "coding", source: .ai)
         topic.addThoughts(thought)
         topic.addAssociatedTags(try tagOf(assignment))
-        try ctx.save()
+        try backfillLegacy(ctx)
 
         XCTAssertTrue(service.isAbsorbed(assignment))
     }
@@ -142,7 +149,7 @@ final class TopicServiceTests: XCTestCase {
         let assignment2 = try makeAssignment(in: ctx, thought: thought2, tagName: "coding", source: .ai)
         // 仅 assignment1 的 tag 进 topic.associatedTags
         topic.addAssociatedTags(try tagOf(assignment1))
-        try ctx.save()
+        try backfillLegacy(ctx)
 
         XCTAssertTrue(service.isAbsorbed(assignment1))
         XCTAssertFalse(service.isAbsorbed(assignment2))

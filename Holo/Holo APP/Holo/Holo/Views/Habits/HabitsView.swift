@@ -260,6 +260,12 @@ struct HabitListView: View {
     @State private var editTarget: Habit? = nil
     /// 待执行操作（在 onDismiss 中执行，确保 sheet 完全销毁后再操作 Core Data）
     @State private var pendingAction: PendingHabitAction? = nil
+    /// 暂停中的习惯（折叠区数据，id 已快照）
+    @State private var pausedItems: [HabitTileItem] = []
+    @State private var isPausedSectionExpanded: Bool = false
+    /// 暂停弹层目标（磁贴长按「暂停」发起；Plus 门控通过后才置值）
+    @State private var pauseTarget: Habit? = nil
+    @ObservedObject private var entitlement = HoloEntitlementState.shared
 
     /// 磁贴墙列数：宽屏按可用宽度自适应（每块磁贴至少约 240pt，最多 4 列），
     /// 窄屏/手机保持两列——修复 12.9 寸横屏下磁贴稀疏（空态 2+1 排布）的松散感
@@ -294,7 +300,7 @@ struct HabitListView: View {
                         )
                     }
 
-                    if tileItems.isEmpty && hasLoadedOnce {
+                    if tileItems.isEmpty && pausedItems.isEmpty && hasLoadedOnce {
                         emptyStateView
                     } else {
                         LazyVGrid(columns: tileColumns, spacing: HoloSpacing.md) {
@@ -305,15 +311,33 @@ struct HabitListView: View {
                                     weekPattern: weekPatterns[item.id] ?? [],
                                     waveToken: waveToken,
                                     onOpenDetail: { selectedHabit = HabitSelection(id: item.id) },
-                                    onEdit: { editTarget = item.habit }
+                                    onEdit: { editTarget = item.habit },
+                                    onPause: { requestPause(item.habit) }
                                 )
                             }
+                        }
+
+                        if !pausedItems.isEmpty {
+                            HabitPausedSection(
+                                items: pausedItems,
+                                isExpanded: $isPausedSectionExpanded,
+                                onOpenDetail: { id in
+                                    selectedHabit = HabitSelection(id: id)
+                                },
+                                onResume: { id in
+                                    try? HabitRepository.shared.resumeHabitById(id)
+                                }
+                            )
                         }
                     }
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
+                // 第三个 sheet 独立挂本节点（同一节点挂两个 sheet 会互相吞掉）
+                .sheet(item: $pauseTarget) { habit in
+                    HabitPauseSheet(habit: habit)
+                }
             }
             // 编辑 sheet 必须挂在 ScrollView 节点：与详情 sheet 分属不同节点，
             // 同一视图挂两个 .sheet 会互相吞掉（踩坑速查表「sheet 关闭后界面异常」）
@@ -376,6 +400,26 @@ struct HabitListView: View {
 
     // MARK: - 数据加载
 
+    /// 暂停入口（Plus 功能）：非 Plus 走统一付费墙，购买成功后自动弹暂停弹层
+    private func requestPause(_ habit: Habit) {
+        // 只捕获 id，付费墙期间对象可能变化（非可选 @NSManaged 跨异步访问前科）
+        let habitId = habit.id
+        if entitlement.isPlusActive {
+            openPauseSheet(habitId: habitId)
+        } else {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .habitPause) {
+                await MainActor.run {
+                    openPauseSheet(habitId: habitId)
+                }
+            }
+        }
+    }
+
+    private func openPauseSheet(habitId: UUID) {
+        pauseTarget = (repository.activeHabits + repository.pausedHabits)
+            .first { $0.id == habitId }
+    }
+
     private func loadHabits() {
         // 必须同步执行：@Published activeHabits 更新会触发 objectWillChange，
         // 导致 SwiftUI 重渲染。如果用 Task 延迟更新 tileItems 数组，
@@ -384,10 +428,14 @@ struct HabitListView: View {
             tileItems = []
             todayProgress = (0, 0)
             weekPatterns = [:]
+            pausedItems = []
             return
         }
 
         tileItems = repository.activeHabits.enumerated().map { index, habit in
+            HabitTileItem(id: habit.id, habit: habit, index: index)
+        }
+        pausedItems = repository.pausedHabits.enumerated().map { index, habit in
             HabitTileItem(id: habit.id, habit: habit, index: index)
         }
         let newProgress = repository.getTodayCheckInProgress()
@@ -520,6 +568,110 @@ struct HabitListView: View {
 }
 
 // MARK: - Preview
+
+// MARK: - 已暂停折叠区
+
+/// 习惯墙底部「已暂停」折叠区：恢复入口必须可见（归档做了半年无恢复入口的教训）
+struct HabitPausedSection: View {
+    let items: [HabitTileItem]
+    @Binding var isExpanded: Bool
+    var onOpenDetail: (UUID) -> Void
+    var onResume: (UUID) -> Void
+
+    var body: some View {
+        VStack(spacing: HoloSpacing.sm) {
+            Button {
+                withAnimation(HoloAnimation.quick) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "pause.circle")
+                        .font(.system(size: 13))
+                        .foregroundColor(.holoTextSecondary)
+                    Text(String(localized: "已暂停（\(items.count)）"))
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                        .fill(Color.holoCardBackground.opacity(0.6))
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 0) {
+                    ForEach(items) { item in
+                        HabitPausedRow(
+                            habit: item.habit,
+                            onOpenDetail: { onOpenDetail(item.id) },
+                            onResume: { onResume(item.id) }
+                        )
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                        .fill(Color.holoCardBackground)
+                )
+            }
+        }
+    }
+}
+
+/// 暂停习惯行：灰显图标与名称，行尾一键恢复；整行点按进详情
+private struct HabitPausedRow: View {
+    let habit: Habit
+    var onOpenDetail: () -> Void
+    var onResume: () -> Void
+
+    var body: some View {
+        HStack(spacing: HoloSpacing.md) {
+            habit.iconImage(size: 20)
+                .saturation(0)
+                .opacity(0.55)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(habit.name)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
+                Text(String(localized: "连续进度已保留"))
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+            }
+
+            Spacer()
+
+            Button {
+                onResume()
+            } label: {
+                Text(String(localized: "恢复"))
+                    .font(.holoBody.weight(.semibold))
+                    .foregroundColor(habit.habitColor)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(habit.habitColor.opacity(0.12))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onOpenDetail()
+        }
+    }
+}
 
 #Preview {
     HabitsView()

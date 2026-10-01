@@ -313,8 +313,8 @@ enum HoloTodaySnapshotBuilder {
             let end = calendar2.date(byAdding: .day, value: 1, to: start) ?? start
             let transactions = try await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end)
             let spent = transactions
-                .filter { $0.transactionType == .expense }
-                .reduce(Decimal.zero) { $0 + ($1.amount as Decimal) }
+                .filter { $0.statisticsType == .expense }
+                .reduce(Decimal.zero) { $0 + $1.statisticsAmount }
             overview = HoloTodayOverview(
                 spentToday: spent,
                 budgetAtRisk: budgetSummary?.isOverBudget == true

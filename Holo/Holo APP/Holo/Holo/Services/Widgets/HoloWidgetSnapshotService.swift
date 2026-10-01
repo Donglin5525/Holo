@@ -170,7 +170,7 @@ final class HoloWidgetSnapshotService {
         }
 
         let expenses = transactions.filter {
-            $0.transactionType == .expense && $0.date >= weekStart && $0.date < tomorrow
+            $0.statisticsType == .expense && $0.date >= weekStart && $0.date < tomorrow
         }
 
         return (0..<7).map { offset -> HoloWidgetDailyExpense in
@@ -180,7 +180,7 @@ final class HoloWidgetSnapshotService {
             }
             let sum = expenses
                 .filter { $0.date >= day && $0.date < dayEnd }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
             let isToday = offset == 6
             let weekdayName = isToday ? "今" : Self.weekdayShortNames[calendar.component(.weekday, from: day) - 1]
             return HoloWidgetDailyExpense(weekdayText: weekdayName, amount: sum.doubleValue, isToday: isToday)
@@ -196,11 +196,11 @@ final class HoloWidgetSnapshotService {
         }
 
         var buckets: [String: Bucket] = [:]
-        for transaction in monthTransactions where transaction.transactionType == .expense {
+        for transaction in monthTransactions where transaction.statisticsType == .expense {
             let name = transaction.category?.name ?? "未分类"
             let colorHex = transaction.category?.color ?? "#F46D38"
             buckets[name, default: Bucket(name: name, colorHex: colorHex, sum: 0)]
-                .sum += transaction.amount.decimalValue
+                .sum += transaction.statisticsAmount
         }
 
         return buckets.values

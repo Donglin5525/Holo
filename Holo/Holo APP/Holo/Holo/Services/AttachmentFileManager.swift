@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import ImageIO
 import os.log
 
 nonisolated enum AttachmentFileManager {
@@ -152,6 +153,23 @@ nonisolated enum AttachmentFileManager {
             }
             return UIImage(data: data)
         }.value
+    }
+
+    /// 强制立即完整解码图片数据，返回像素已就绪的 UIImage（maxPixelSize 仅为上限，不会放大原图）。
+    /// UIImage(data:) 是惰性解码——首帧渲染时才解，会出现渐进/模糊版、交互触发重绘后才变清晰；
+    /// 全屏查看器等「第一帧即高清」的场景必须走这里。
+    static func fullyDecodedImage(from data: Data, maxPixelSize: CGFloat = 4096) -> UIImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: cgImage)
     }
 
     // MARK: - 加载图片

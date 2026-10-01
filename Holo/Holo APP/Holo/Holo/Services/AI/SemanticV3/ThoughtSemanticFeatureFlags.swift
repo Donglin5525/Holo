@@ -37,8 +37,13 @@ enum ThoughtSemanticFeatureFlags {
 
     /// 新 UI 生效判定：显式设置永远优先；未设置时 Debug 构建默认开（开发与真机验收
     /// 通道），Release 默认关（= 小流量闸门：生产放量只需改默认值或远端下发）。
-    static var uiEnabled: Bool {
-        if UserDefaults.standard.object(forKey: prefix + "ui") != nil { return ui }
+    static var uiEnabled: Bool { uiEnabled(in: .standard) }
+
+    /// 可注入版本（停算矩阵等策略判定与测试用）。
+    static func uiEnabled(in defaults: UserDefaults) -> Bool {
+        if defaults.object(forKey: prefix + "ui") != nil {
+            return defaults.bool(forKey: prefix + "ui")
+        }
         #if DEBUG
         return true
         #else
@@ -69,10 +74,21 @@ enum ThoughtSemanticFeatureFlags {
         discoveryEnabled || discovery == .shadow
     }
 
-    /// 旧想法重新遇见（Topic 详情相关旧想法 + 看板卡）。
+    /// 旧想法重新遇见（编辑器「你之前也写过」区 + 后续看板卡）。
     static var resurfacing: Bool {
         get { UserDefaults.standard.bool(forKey: prefix + "resurfacing") }
         set { UserDefaults.standard.set(newValue, forKey: prefix + "resurfacing") }
+    }
+
+    /// 相关旧想法生效判定（与 uiEnabled 同纪律）：显式设置优先；未设置时
+    /// Debug 默认开（真机验收通道），Release 默认关（灰度放量闸门）。
+    static var resurfacingEnabled: Bool {
+        if UserDefaults.standard.object(forKey: prefix + "resurfacing") != nil { return resurfacing }
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
     }
 
     // MARK: - 授权代数（方案 §5.3）

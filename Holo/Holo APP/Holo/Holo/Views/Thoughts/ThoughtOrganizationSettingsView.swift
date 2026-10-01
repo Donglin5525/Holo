@@ -64,6 +64,7 @@ struct ThoughtOrganizationSettingsView: View {
             }
             .navigationTitle("整理设置")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .sheet(isPresented: $showTagManagement) {
                 ThoughtTagManagementView()
             }

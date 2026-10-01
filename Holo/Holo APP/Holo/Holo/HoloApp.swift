@@ -172,6 +172,13 @@ struct HoloApp: App {
             .task {
                 await SensitiveDebugDataMigration.runIfNeeded()
                 await HoloSubscriptionService.shared.refreshStatus()
+                #if DEBUG
+                // Plus 功能验收通道：HOLO_DEBUG_PLUS=1 本地按 Plus 展示（不落盘、不与服务端同步权益）。
+                // 放服务端刷新之后：后端免费态先落、本地覆盖最后写，测试机无网/有网都成立。
+                if ProcessInfo.processInfo.environment["HOLO_DEBUG_PLUS"] == "1" {
+                    HoloEntitlementState.shared.applyScreenshotPlusOverride()
+                }
+                #endif
 
                 // 检查通知权限状态
                 TodoNotificationService.shared.checkAuthorizationStatus()
@@ -189,9 +196,10 @@ struct HoloApp: App {
                 // 习惯打卡提醒 + 周一晨报：滚动重排
                 await HabitReminderScheduler.shared.handleAppActivity()
                 await WeeklyBriefScheduler.shared.handleAppActivity()
-                // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                 await BillDueReminderScheduler.shared.handleAppActivity()
                 await BudgetOverrunNotificationService.shared.handleAppActivity()
+                await BudgetCarryoverNotificationService.shared.handleAppActivity()
 
                 #if DEBUG
                 let appStoreScreenshotModeActive =
@@ -323,9 +331,10 @@ struct HoloApp: App {
                         await DailyBriefScheduler.shared.handleAppActivity()
                         await HabitReminderScheduler.shared.handleAppActivity()
                         await WeeklyBriefScheduler.shared.handleAppActivity()
-                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                         await BillDueReminderScheduler.shared.handleAppActivity()
                         await BudgetOverrunNotificationService.shared.handleAppActivity()
+                        await BudgetCarryoverNotificationService.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()

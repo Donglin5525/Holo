@@ -23,6 +23,8 @@ enum TodoNotificationCategory {
     static let weeklyBrief = "WEEKLY_BRIEF"
     static let billDue = "TODO_BILL_DUE"
     static let budgetOverrun = "TODO_BUDGET_OVERRUN"
+    /// 严格预算模式 · 月初结转回执（点击直达预算详情页）
+    static let budgetCarryover = "TODO_BUDGET_CARRYOVER"
     /// 云端分析/回放/方案完成推送（后端 APNs 远程推送，payload 随带 taskId/taskType）
     static let cloudAnalysisDone = "CLOUD_ANALYSIS_DONE"
 }
@@ -184,6 +186,14 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
+        // 严格预算模式 · 月初结转回执（无操作按钮，点击直达预算详情页）
+        let budgetCarryoverCategory = UNNotificationCategory(
+            identifier: BudgetCarryoverNotificationService.categoryIdentifier,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
         // 图片自动记账结果（无操作按钮，点击直达待复核项/最近结果；2026-09-14 方案 §25.3）
         let receiptBookingCategory = UNNotificationCategory(
             identifier: ReceiptBookingNotificationService.categoryIdentifier,
@@ -195,7 +205,7 @@ class TodoNotificationService: NSObject, ObservableObject {
         UNUserNotificationCenter.current().setNotificationCategories([
             taskCategory, dailyCategory, memoryInsightCategory,
             anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory,
-            billDueCategory, budgetOverrunCategory, receiptBookingCategory
+            billDueCategory, budgetOverrunCategory, receiptBookingCategory, budgetCarryoverCategory
         ])
         Self.logger.info("已注册通知分类")
     }
@@ -584,6 +594,9 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
         case TodoNotificationCategory.budgetOverrun:
             Self.logger.info("预算超支通知 Deep Link")
             DeepLinkState.shared.navigate(to: .finance)
+        case BudgetCarryoverNotificationService.categoryIdentifier:
+            Self.logger.info("结转回执通知 Deep Link")
+            DeepLinkState.shared.navigate(to: .budgetDetail)
         case TodoNotificationCategory.cloudAnalysisDone:
             // 云端分析完成推送：点开 = 要看结果。立即恢复轮询领取（幂等，
             // 不等 scenePhase 钩子的节奏），再按任务号定位消息直达到结果卡

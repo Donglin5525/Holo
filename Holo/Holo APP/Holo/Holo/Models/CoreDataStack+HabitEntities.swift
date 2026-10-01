@@ -113,6 +113,28 @@ extension CoreDataStack {
         habitIsArchived.isOptional = false
         habitIsArchived.defaultValue = false
         habitAttributes.append(habitIsArchived)
+
+        // 是否暂停中（暂时无法执行；连续天数冻结，详见 HabitPauseWindow）
+        let habitIsPaused = NSAttributeDescription()
+        habitIsPaused.name = "isPaused"
+        habitIsPaused.attributeType = .booleanAttributeType
+        habitIsPaused.isOptional = false
+        habitIsPaused.defaultValue = false
+        habitAttributes.append(habitIsPaused)
+
+        // 计划恢复日（可选；到日后打开 App 自动恢复）
+        let habitPausedUntil = NSAttributeDescription()
+        habitPausedUntil.name = "pausedUntil"
+        habitPausedUntil.attributeType = .dateAttributeType
+        habitPausedUntil.isOptional = true
+        habitAttributes.append(habitPausedUntil)
+
+        // 历次暂停窗口（[HabitPauseWindow] 的 Codable 编码）
+        let habitPauseWindowsData = NSAttributeDescription()
+        habitPauseWindowsData.name = "pauseWindowsData"
+        habitPauseWindowsData.attributeType = .binaryDataAttributeType
+        habitPauseWindowsData.isOptional = true
+        habitAttributes.append(habitPauseWindowsData)
         
         // 排序顺序
         let habitSortOrder = NSAttributeDescription()

@@ -192,12 +192,12 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         )
     }
 
-    /// 晚间（22:00–06:00）餐饮类支出笔数。
+    /// 晚间（22:00–06:00）餐饮类支出笔数（退款笔不算消费行为）。
     private static func nighttimeMealCount(_ txs: [Transaction]) -> Int {
         let mealKeywords = ["餐", "食", "吃", "外卖", "宵夜", "饭", "饮"]
         let calendar = Calendar.current
         return txs.filter { tx in
-            guard tx.transactionType == .expense else { return false }
+            guard !tx.isRefund, tx.statisticsType == .expense else { return false }
             let hour = calendar.component(.hour, from: tx.date)
             let isNighttime = hour >= 22 || hour < 6
             let name = tx.category?.name ?? ""
@@ -205,32 +205,33 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         }.count
     }
 
-    /// 本期各分类支出笔数。
+    /// 本期各分类支出笔数（退款笔不算消费行为）。
     private static func categoryCounts(_ txs: [Transaction]) -> [String: Int] {
         var counts: [String: Int] = [:]
-        for tx in txs where tx.transactionType == .expense {
+        for tx in txs where !tx.isRefund && tx.statisticsType == .expense {
             let name = tx.category?.name ?? "未分类"
             counts[name, default: 0] += 1
         }
         return counts
     }
 
-    /// 本期各分类支出金额。
+    /// 本期各分类支出金额（统计口径：退款笔按负值冲减）。
     private static func categoryAmounts(_ txs: [Transaction]) -> [String: Double] {
         var amounts: [String: Double] = [:]
-        for tx in txs where tx.transactionType == .expense {
+        for tx in txs where tx.statisticsType == .expense {
             let name = tx.category?.name ?? "未分类"
-            amounts[name, default: 0] += tx.amount.doubleValue
+            amounts[name, default: 0] += Double(truncating: tx.statisticsAmount as NSDecimalNumber)
         }
         return amounts
     }
 
     private static func expenseCount(_ txs: [Transaction]) -> Int {
-        txs.filter { $0.transactionType == .expense }.count
+        txs.filter { !$0.isRefund && $0.statisticsType == .expense }.count
     }
 
     private static func totalExpense(_ txs: [Transaction]) -> Double {
-        txs.filter { $0.transactionType == .expense }.reduce(0.0) { $0 + $1.amount.doubleValue }
+        txs.filter { $0.statisticsType == .expense }
+            .reduce(0.0) { $0 + Double(truncating: $1.statisticsAmount as NSDecimalNumber) }
     }
 
     private static func keyword(from parameters: [String: String]) -> String {

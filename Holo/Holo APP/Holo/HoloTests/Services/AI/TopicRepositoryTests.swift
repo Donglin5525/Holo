@@ -40,6 +40,16 @@ final class TopicRepositoryTests: XCTestCase {
         return t
     }
 
+    /// 存量旧关系 → link 迁移（与生产 backfill bootstrap 同路径）。
+    /// 读源统一（2026-09-27 P0-A）后，裸旧关系不是合法读态——生产写点全部
+    /// 双写 link，存量经启动回填；测试直接摆旧关系后同样补一次回填。
+    @discardableResult
+    private func backfillLegacy(_ ctx: NSManagedObjectContext) throws -> ThoughtTopicLinkProjection.BackfillReport {
+        let report = try ThoughtTopicLinkProjection.backfillLegacyLinks(in: ctx)
+        try ctx.save()
+        return report
+    }
+
     // MARK: - 创建
 
     func test_创建主题默认candidate状态() throws {
@@ -142,7 +152,7 @@ final class TopicRepositoryTests: XCTestCase {
         let dup = try repo.create(title: "编程实践 2")
         let thought = try makeThought(in: ctx)
         dup.addThoughts(thought)
-        try ctx.save()
+        try backfillLegacy(ctx)
 
         try repo.merge(into: keeper, from: dup)
 
@@ -160,7 +170,7 @@ final class TopicRepositoryTests: XCTestCase {
         let t1 = try makeThought(in: ctx)
         let t2 = try makeThought(in: ctx)
         topic.addThoughts([t1, t2])
-        try ctx.save()
+        try backfillLegacy(ctx)
         XCTAssertEqual(repo.thoughtCount(of: topic), 2)
     }
 

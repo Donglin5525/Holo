@@ -22,6 +22,7 @@ struct FinanceDateRangeNavigator {
         end: Date,
         timeRange: TimeRange,
         direction: FinanceDateRangeNavigationDirection,
+        yearBasis: FinanceYearBasis = .calendar,
         calendar: Calendar = .current
     ) -> (start: Date, end: Date)? {
         guard end > start else { return nil }
@@ -39,6 +40,19 @@ struct FinanceDateRangeNavigator {
                 )
                 let newEnd = BillingCycleCalculator.cycleEnd(from: newStart, startDay: startDay, calendar: calendar)
                 return (newStart, newEnd)
+            }
+
+            // 年维度按口径平移（记账年 = 12 个账期，自然年 = 日历年）
+            if resolvedRange == .year {
+                let shifted = BillingCycleCalculator.shiftedYearRange(
+                    start: start,
+                    end: end,
+                    offset: direction.multiplier,
+                    basis: yearBasis,
+                    startDay: FinancePeriodSettings.shared.billingCycleStartDay,
+                    calendar: calendar
+                )
+                return shifted
             }
 
             guard let newStart = shiftedStart(
@@ -92,6 +106,13 @@ struct FinanceDateRangeNavigator {
         if calendar.component(.day, from: start) == 1,
            calendar.date(byAdding: .month, value: 1, to: start) == end {
             return .month
+        }
+        // 记账年窗口：start 为某年 1 月的有效起始日且 end == 平移 12 个账期
+        //（自然年窗口已在上方命中；此处只补 startDay≠1 的记账年）
+        if calendar.component(.month, from: start) == 1,
+           startDayComponent == startDay,
+           BillingCycleCalculator.shiftedCycleStart(start, startDay: startDay, offset: 12, calendar: calendar) == end {
+            return .year
         }
         return nil
     }
@@ -151,5 +172,13 @@ struct FinanceAnalysisLoadGate {
 
     func accepts(_ generation: Int) -> Bool {
         generation == latestGeneration
+    }
+}
+
+/// 翻页闸门：窗口末端已越过 now（当前或未来周期）时禁用右翻，
+/// 杜绝一路翻进没有任何记录的未来；左翻不设限（历史随时可看）。
+enum FinanceAnalysisNextGate {
+    static func canNavigateNext(rangeEnd: Date, now: Date) -> Bool {
+        rangeEnd <= now
     }
 }
