@@ -4,7 +4,9 @@
 // 不可信（评测实证：美元小票被整体归一化成 ¥），货币判定以逐字抄录的
 // amountOriginalText 为准，命中外币符号一律强制拒识。
 
-export const FOREIGN_MONEY_PATTERN = /[$€£]|USD|EUR|GBP|JPY|HKD|NT\$/i;
+// 「JP¥」里 ¥ 不是字母 Y，旧模式 JPY 匹配不到它；中文货币名（日元/美元等）同理
+// 是金额原文里可能逐字出现的外币信号，一并收录。
+export const FOREIGN_MONEY_PATTERN = /[$€£]|JP¥|USD|EUR|GBP|JPY|HKD|NT\$|美元|日元|欧元|英镑|港元|港币/i;
 
 // v2（docs/finance/plans/2026-09-14-Holo图片账单快捷指令自动记账完整方案.md §7/§26）：
 // 为「自动落账」升级契约——支付状态 + 逐笔字段级置信度 + 分类语义候选。
@@ -156,13 +158,27 @@ export function normalizeUnderstanding(raw) {
     guards.push({ field: "transactions", reason: "invalid_entries_dropped" });
   }
 
-  // 护栏一（货币红线）：金额原文或 currency 命中外币符号 → 强制拒识。
+  // 护栏一（货币红线）：实付金额本身是外币 → 强制拒识。
   // 不信模型自己填的 currency（评测实证它会把 USD 小票填成 CNY）。
+  // 2026-10-01 境外人民币结算放行（微信支付境外消费账单实证：标价 6070 日元 +
+  // 汇率明细 + 实付 ¥254.45）：这类账单实付的是人民币，不是外币。判定以逐笔
+  // 金额原文为最强信号，分三档：
+  //   任一笔 amountOriginalText 命中外币 → 拒（实付外币）；
+  //   逐笔原文全部齐全且干净、仅顶层字段沾到外币（模型抄到标价/汇率行）→ 放行，
+  //     currency 由输出层钳回 CNY，guard 记录供观测；
+  //   逐笔原文缺失 → 回落旧口径：顶层 amountOriginalText / currency 命中即拒。
   const amountOriginalText = clampString(source.amountOriginalText, 60);
   const currency = clampString(source.currency, 8) ?? "CNY";
   const foreignByOriginalText = amountOriginalText !== null && FOREIGN_MONEY_PATTERN.test(amountOriginalText);
   const foreignByCurrency = currency !== null && !/CNY|RMB|人民币/i.test(currency);
-  if (transactions.length > 0 && (foreignByOriginalText || foreignByCurrency)) {
+  const foreignByTopLevel = foreignByOriginalText || foreignByCurrency;
+  const anyForeignPerTransaction = transactions.some(
+    (transaction) => transaction.amountOriginalText !== null
+      && FOREIGN_MONEY_PATTERN.test(transaction.amountOriginalText)
+  );
+  const everyTransactionTextPresent = transactions.length > 0
+    && transactions.every((transaction) => transaction.amountOriginalText !== null);
+  if (transactions.length > 0 && (anyForeignPerTransaction || (foreignByTopLevel && !everyTransactionTextPresent))) {
     guards.push({
       field: "transactions",
       reason: "foreign_currency_forced_reject",
@@ -171,6 +187,13 @@ export function normalizeUnderstanding(raw) {
     });
     transactions = [];
     imageType = "foreign_currency";
+  } else if (transactions.length > 0 && foreignByTopLevel) {
+    guards.push({
+      field: "currency",
+      reason: "foreign_settled_in_cny_allowed",
+      amountOriginalText,
+      currency,
+    });
   }
 
   // 护栏二（v2 支付状态红线）：未完成支付（待付/失败/已取消）绝不允许保留消费候选。

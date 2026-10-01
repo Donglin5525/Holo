@@ -1421,7 +1421,7 @@ export function createApp(overrides = {}) {
         {
           type: "text",
           // 图片之后的收尾提醒放在最近位置：货币符号先看原文再输出（外币红线最近一次强提醒）
-          text: "提醒：先核对图中金额的货币符号原文，再输出理解单。非人民币一律 foreign_currency 且 transactions 为空。",
+          text: "提醒：先核对图中「合计/实付金额」行的货币符号原文，再输出理解单。实付金额本身是外币才 foreign_currency 且 transactions 为空；图中有外币标价但实付人民币的境外账单（如微信境外消费），按人民币实付正常记账。",
         },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${request.image}` } },
       ]);

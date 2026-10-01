@@ -47,7 +47,10 @@ const PROMPT_VERSIONS = {
   // paymentStatusOriginalText/逐笔 amountOriginalText/字段级 confidence/分类语义候选。
   // v3（2026-09-19 一图多笔）：逐笔 paymentChannel——微信支付服务通知流同图两笔
   // 渠道不同（信用卡/零钱）实证，账户需逐笔匹配；契约同步 bump UNDERSTANDING_SCHEMA_VERSION=3。
-  vision_extraction: 3,
+  // v4（2026-10-01 境外人民币结算）：货币红线从「图中出现外币一律拒」精确为
+  // 「实付金额本身是外币才拒」——微信境外消费账单（标价日元+实付 ¥）实证被误拒；
+  // 新增境外人民币结算少样本示例；护栏同步按逐笔金额原文分档（understandingContract.js）。
+  vision_extraction: 4,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
   // v2（2026-09-23 Matter 计划修订）：新增 addTask 提案类型——用户表达计划外新步骤时
   // 建议加入计划（title ≤20字动作短语，一次最多 2 条，planTaskTitles 去重），恒需用户确认。
