@@ -28,7 +28,6 @@ struct TrendChartView: View {
     private let barTopUnit: Double = 90          // 柱带：0...90（柱轴上限映射到 90，顶部留断口标注空间）
     private let lineBandLow: Double = 8          // 线带：8...94（余额最小值→8，最大值→94，铺满全高穿柱而过）
     private let lineBandHigh: Double = 94
-    private let barOffsetUnits: Double = 0.29    // 支出/收入柱相对当天中线的偏移（x 单位）
     private let restBarOpacity: Double = 0.78    // 非峰值日柱子透明度（峰值日实色高亮）
 
     /// 整月无收支动作即视为空图（余额不为零也不画）：画出来只会是
@@ -335,8 +334,16 @@ struct TrendChartView: View {
 
     // MARK: 数值换算
 
+    /// 每日双柱几何：组内缝必须小于组间缝，否则前一天的收入柱和后一天的支出柱
+    /// 贴成一团，读成「同一个时间点三根柱」（2026-10-03 东林实报 9/29+9/30 连续两天
+    /// 有收支时穿帮）。月视图 30 天绘图区每分到约 10pt：柱宽 3.2 + 偏移 ±0.20 时
+    /// 组内缝 ≈0.8pt、组间缝 ≈2.8pt；周视图等稀疏档（≤14 天）柱加宽，比例同样成立。
+    private var barOffsetUnits: Double {
+        dataPoints.count > 14 ? 0.20 : 0.18
+    }
+
     private var barWidth: CGFloat {
-        dataPoints.count > 14 ? 4.2 : 8
+        dataPoints.count > 14 ? 3.2 : 6
     }
 
     private var xDomain: ClosedRange<Double> {

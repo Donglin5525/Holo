@@ -119,7 +119,9 @@ struct OverviewTabView: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            HStack(spacing: 0) {
+            // 三列必须同构对齐：任一列行数不同就会被 HStack 垂直居中整体下坠
+            //（净收入列无日均小字时标题/金额比左右两列低半行），顶部对齐 + 空槽占位钉死
+            HStack(alignment: .top, spacing: 0) {
                 PeriodSummaryItem(
                     title: String(localized: "总支出"),
                     amount: state.periodSummary.formattedExpense,
@@ -201,6 +203,8 @@ struct OverviewTabView: View {
 // MARK: - Period Summary Item
 
 /// 周期汇总项
+/// 四行槽位（标题/金额/副标题/徽标）每行恒占位：某列缺「日均」或徽标时其余列不塌位，
+/// 配合外层 HStack(.top) 保证三列的标题行与金额行各在同一水平线
 struct PeriodSummaryItem: View {
     let title: String
     let amount: String
@@ -221,20 +225,17 @@ struct PeriodSummaryItem: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
-            if !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
-            }
+            Text(subtitle.isEmpty ? " " : subtitle)
+                .font(.system(size: 11))
+                .foregroundColor(.holoTextSecondary)
+                .lineLimit(1)
+                .opacity(subtitle.isEmpty ? 0 : 1)
 
-            if let badge {
-                Text(badge.text)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(badge.color)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
+            Text(badge?.text ?? " ")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(badge?.color ?? .clear)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
     }
