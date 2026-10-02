@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案C · 实体页生长</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body { background:#EDEAE4; font-family:-apple-system,'PingFang SC','Helvetica Neue',sans-serif; display:flex; justify-content:center; padding:32px 16px 64px; }
+  .stage { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+
+  .brief { width:300px; position:sticky; top:32px; }
+  .brief h1 { font-size:19px; color:#1F1B16; margin-bottom:6px; }
+  .brief .tagline { font-size:13px; color:#8A8378; margin-bottom:14px; line-height:1.5; }
+  .brief .point { background:#fff; border-radius:12px; padding:12px 14px; margin-bottom:8px; font-size:12.5px; color:#4A443C; line-height:1.55; box-shadow:0 1px 4px rgba(31,27,22,.06); }
+  .brief .point b { color:#1F1B16; }
+  .brief .hint { font-size:11.5px; color:#B0A899; margin-top:12px; line-height:1.6; }
+
+  .phone { width:390px; height:844px; background:#FDFCF8; border-radius:44px; box-shadow:0 24px 60px rgba(31,27,22,.22), 0 0 0 10px #1F1B16, 0 0 0 12px #3A342C; overflow:hidden; position:relative; flex-shrink:0; }
+  .screen { height:100%; overflow-y:auto; display:none; }
+  .screen.active { display:block; }
+  .statusbar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:13px; font-weight:600; color:#1F1B16; position:sticky; top:0; z-index:10; background:linear-gradient(#FDFCF8 80%, rgba(253,252,248,0)); }
+  .content { padding:0 16px 40px; }
+
+  .card { background:#fff; border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 1px 4px rgba(31,27,22,.05); }
+  .card-title { font-size:13px; font-weight:600; color:#1F1B16; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+  .card-title .sub { font-size:10px; color:#8A8378; font-weight:400; }
+
+  .pagehead { display:flex; align-items:center; padding:6px 4px 10px; }
+  .pagehead .title { flex:1; text-align:center; font-size:17px; font-weight:600; color:#1F1B16; }
+  .iconbtn { width:32px; height:32px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(31,27,22,.08); display:flex; align-items:center; justify-content:center; font-size:15px; color:#4A443C; cursor:pointer; border:none; }
+
+  /* 账户|项目 双模式切换（现有形态） */
+  .modeswitch { display:flex; background:rgba(31,27,22,.05); border-radius:12px; padding:3px; margin-bottom:12px; }
+  .modeswitch .m { flex:1; text-align:center; font-size:13px; padding:7px 0; border-radius:10px; color:#8A8378; cursor:pointer; transition:all .18s; }
+  .modeswitch .m.on { background:#fff; color:#1F1B16; font-weight:600; box-shadow:0 1px 3px rgba(31,27,22,.08); }
+
+  .acct { display:flex; align-items:center; gap:11px; padding:11px 4px; border-bottom:1px solid rgba(31,27,22,.04); cursor:pointer; }
+  .acct:last-child { border-bottom:none; }
+  .acct .ai { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .acct .amid { flex:1; min-width:0; }
+  .acct .anm { font-size:14px; font-weight:600; color:#1F1B16; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .acct .ameta { font-size:10.5px; color:#8A8378; margin-top:2px; }
+  .acct .abal { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .acct .abal.neg { color:#E5484D; }
+  .acct .arr { color:#C9C2B6; font-size:13px; margin-left:4px; }
+
+  .proj { display:flex; align-items:center; gap:11px; padding:11px 4px; border-bottom:1px solid rgba(31,27,22,.04); cursor:pointer; }
+  .proj:last-child { border-bottom:none; }
+  .proj .pi { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; }
+  .proj .pmid { flex:1; min-width:0; }
+  .proj .pnm { font-size:14px; font-weight:600; color:#1F1B16; }
+  .proj .pmeta { font-size:10.5px; color:#8A8378; margin-top:2px; }
+  .proj .pnum { text-align:right; }
+  .proj .pspent { font-size:14px; font-weight:600; color:#E5484D; font-variant-numeric:tabular-nums; }
+  .proj .ptrack { width:90px; height:5px; border-radius:4px; background:rgba(31,27,22,.07); margin-top:5px; overflow:hidden; }
+  .proj .pfill { height:100%; border-radius:4px; }
+
+  /* 全览页 */
+  .entity-card { border-radius:16px; padding:16px; margin-bottom:12px; color:#fff; position:relative; }
+  .entity-card.wechat { background:linear-gradient(135deg,#3E9B6F,#2F7D58); }
+  .entity-card.tokyo { background:linear-gradient(135deg,#F46D38,#E0522B); }
+  .entity-card .r1 { display:flex; align-items:center; gap:10px; }
+  .entity-card .big-icon { width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .entity-card .ename { font-size:19px; font-weight:700; }
+  .entity-card .eperiod { font-size:11px; opacity:.85; margin-top:2px; }
+  .entity-card .badge { margin-left:auto; font-size:10px; background:rgba(255,255,255,.25); border-radius:10px; padding:3px 9px; }
+  .entity-card .stat3 { display:flex; margin-top:14px; }
+  .entity-card .c3 { flex:1; }
+  .entity-card .c3 + .c3 { border-left:1px solid rgba(255,255,255,.25); padding-left:12px; }
+  .entity-card .c3 .k { font-size:10px; opacity:.8; }
+  .entity-card .c3 .v { font-size:16px; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
+
+  .timefilter { display:flex; gap:7px; padding:2px 2px 12px; }
+  .tf-chip { flex:1; text-align:center; font-size:12px; padding:7px 0; border-radius:18px; background:#fff; color:#8A8378; cursor:pointer; box-shadow:0 1px 4px rgba(31,27,22,.05); transition:all .18s; }
+  .tf-chip.on { background:#F46D38; color:#fff; font-weight:600; box-shadow:none; }
+
+  .summary { display:flex; }
+  .summary .cell { flex:1; text-align:center; }
+  .summary .cell + .cell { border-left:1px solid rgba(31,27,22,.06); }
+  .summary .k { font-size:11px; color:#8A8378; }
+  .summary .v { font-size:17px; font-weight:600; margin:3px 0 2px; font-variant-numeric:tabular-nums; }
+  .summary .v.red { color:#E5484D; }
+  .summary .v.green { color:#2FA96E; }
+  .summary .s { font-size:10px; color:#B0A899; }
+
+  .bars { display:flex; align-items:flex-end; gap:5px; height:110px; padding:0 2px; }
+  .barwrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+  .bar { width:100%; max-width:16px; border-radius:3px 3px 1px 1px; background:#E5484D; opacity:.82; transition:height .4s cubic-bezier(.2,.8,.2,1); }
+  .bar.peak { opacity:1; }
+  .barlab { font-size:9px; color:#B0A899; }
+
+  .cat-row { margin-bottom:10px; }
+  .cat-row .l1 { display:flex; justify-content:space-between; font-size:12px; color:#4A443C; margin-bottom:4px; font-variant-numeric:tabular-nums; }
+  .cat-row .l1 b { font-weight:500; }
+  .cat-row .track { height:6px; border-radius:4px; background:rgba(31,27,22,.06); overflow:hidden; }
+  .cat-row .fill { height:100%; border-radius:4px; transition:width .4s; }
+
+  .txn { display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px solid rgba(31,27,22,.04); }
+  .txn:last-child { border-bottom:none; }
+  .txn .ti { width:32px; height:32px; border-radius:9px; background:rgba(31,27,22,.05); display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .txn .tmid { flex:1; min-width:0; }
+  .txn .tnote { font-size:13px; color:#1F1B16; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .txn .tdate { font-size:10px; color:#B0A899; margin-top:1px; }
+  .txn .tamt { font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .txn .tamt.out { color:#E5484D; }
+  .txn .tamt.in { color:#2FA96E; }
+
+  .bottomtabs { display:flex; background:#fff; border-top:1px solid rgba(31,27,22,.06); padding:8px 0 22px; position:sticky; bottom:0; }
+  .bottomtabs .b { flex:1; text-align:center; font-size:10px; color:#B0A899; cursor:pointer; }
+  .bottomtabs .b .i { font-size:19px; margin-bottom:2px; }
+  .bottomtabs .b.on { color:#F46D38; font-weight:600; }
+
+  .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:28px; background:rgba(31,27,22,.85); color:#fff; font-size:12px; border-radius:20px; padding:8px 18px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:99; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="brief">
+    <h1>方案 C · 实体页生长</h1>
+    <div class="tagline">想看谁，就去谁的家：统计页<b>完全不动</b>，把现有的「账户详情页」「项目详情页」升级成<b>数据全览</b>——入口就是账户 Tab 和项目列表，零新导航。</div>
+    <div class="point"><b>solves 东林两大顾虑：</b><br>① 长名：实体名在详情页大卡里，「招商银行信用卡」完整两行空间；<br>② 时间不锁死：全览页自带时间尺，默认「全程」（账户=开户至今 / 项目=项目期间），月/年/自定义自由切。</div>
+    <div class="point"><b>入口心智最自然</b>：财务页「账户」Tab 点任何账户 → 它的全量数据；顶部「账户|项目」切换（现有形态）→ 点项目 → 项目全量数据。统计页回归纯粹的全局统计。</div>
+    <div class="point"><b>代价</b>：统计页本身仍然看不到维度数据（东林最初的观察点「统计分析只有总数」在该页不解决——解在实体页）；需要动两个既有详情页的改版量。</div>
+    <div class="hint">👉 右侧手机可以点：账户列表点「微信支付」进全览；返回后切「项目」模式点「东京旅行」；全览页内时间档可切。</div>
+  </div>
+
+  <div class="phone">
+    <!-- ===== 屏1：账户列表 ===== -->
+    <div class="screen active" id="s-list">
+      <div class="statusbar"><span>9:41</span><span>●●● ●●</span></div>
+      <div class="content">
+        <div class="pagehead">
+          <button class="iconbtn">‹</button>
+          <div class="title">账户与项目</div>
+          <div class="iconbtn">＋</div>
+        </div>
+
+        <div class="modeswitch">
+          <div class="m on" id="m-acct" onclick="mode('acct')">账户</div>
+          <div class="m" id="m-proj" onclick="mode('proj')">项目</div>
+        </div>
+
+        <!-- 账户模式 -->
+        <div id="list-acct">
+          <div class="card">
+            <div class="card-title">总净资产 <span class="sub">5 个账户</span></div>
+            <div style="font-size:26px;font-weight:700;font-variant-numeric:tabular-nums">¥28,640</div>
+            <div style="font-size:10.5px;color:#8A8378;margin-top:2px">资产 ¥33,120 · 负债 ¥4,480</div>
+          </div>
+          <div class="card">
+            <div class="acct" onclick="go('wechat')">
+              <div class="ai" style="background:#3E9B6F1E">💚</div>
+              <div class="amid"><div class="anm">微信支付</div><div class="ameta">数字钱包 · 318 笔</div></div>
+              <div class="abal">¥3,240</div><div class="arr">›</div>
+            </div>
+            <div class="acct" onclick="go('ccb')">
+              <div class="ai" style="background:#4C7DD01E">💳</div>
+              <div class="amid"><div class="anm">招商银行信用卡</div><div class="ameta">信用卡 · 本月账单 ¥614</div></div>
+              <div class="abal neg">-¥4,480</div><div class="arr">›</div>
+            </div>
+            <div class="acct" onclick="toast('现金全览（原型只铺了两个账户）')">
+              <div class="ai" style="background:#22C55E1E">💵</div>
+              <div class="amid"><div class="anm">现金</div><div class="ameta">现金 · 42 笔</div></div>
+              <div class="abal">¥860</div><div class="arr">›</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 项目模式 -->
+        <div id="list-proj" style="display:none">
+          <div class="card">
+            <div class="card-title">进行中项目 <span class="sub">合计已花 ¥23,460</span></div>
+            <div class="proj" onclick="go('tokyo')">
+              <div class="pi" style="background:#F46D381E">🗾</div>
+              <div class="pmid"><div class="pnm">东京旅行</div><div class="pmeta">9/18 – 9/26 · 已完成 · 34 笔</div></div>
+              <div class="pnum"><div class="pspent">¥6,847</div><div class="ptrack"><div class="pfill" style="width:86%;background:#F46D38"></div></div></div>
+            </div>
+            <div class="proj" onclick="toast('装修全览（原型只铺了东京旅行）')">
+              <div class="pi" style="background:#9B7EF21E">🔨</div>
+              <div class="pmid"><div class="pnm">装修</div><div class="pmeta">8/2 – 至今 · 进行中 · 47 笔</div></div>
+              <div class="pnum"><div class="pspent">¥23,460</div><div class="ptrack"><div class="pfill" style="width:47%;background:#9B7EF2"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bottomtabs">
+        <div class="b"><div class="i">🏠</div>首页</div>
+        <div class="b on"><div class="i">💰</div>财务</div>
+        <div class="b"><div class="i">💬</div>Holo</div>
+        <div class="b"><div class="i">👤</div>我的</div>
+      </div>
+    </div>
+
+    <!-- ===== 屏2：实体全览页 ===== -->
+    <div class="screen" id="s-detail">
+      <div class="statusbar"><span>9:41</span><span>●●● ●●</span></div>
+      <div class="content">
+        <div class="pagehead">
+          <button class="iconbtn" onclick="back()">‹</button>
+          <div class="title" id="d-title">数据全览</div>
+          <div style="width:32px"></div>
+        </div>
+
+        <div class="entity-card" id="d-card"></div>
+
+        <div class="timefilter" id="d-timefilter">
+          <div class="tf-chip on" onclick="pickTime(this,0)">全程</div>
+          <div class="tf-chip" onclick="pickTime(this,1)">今年</div>
+          <div class="tf-chip" onclick="pickTime(this,2)">本月</div>
+          <div class="tf-chip" onclick="toast('自定义起止日历')">自定义</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">汇总 <span class="sub" id="d-sum-sub"></span></div>
+          <div class="summary" id="d-summary"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">支出趋势 <span class="sub" id="d-trend-sub"></span></div>
+          <div class="bars" id="d-bars"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">分类构成 <span class="sub" id="d-cat-sub"></span></div>
+          <div id="d-cats"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">交易流水 <span class="sub" id="d-txn-sub"></span></div>
+          <div id="d-txns"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = {
+  wechat: {
+    title:'微信支付 · 数据全览', icon:'💚', theme:'wechat',
+    period:'2021/6/8 开户至今 · 318 笔', badge:'日常主力',
+    cardStats:[['当前余额','¥3,240'],['全程支出','¥18,740'],['全程收入','¥9,860']],
+    ranges:[
+      {label:'全程 · 开户至今', trendSub:'按月', days:['5月','6月','7月','8月','9月','10月'], trend:[3120,2850,4380,3660,5120,5210], expense:'¥18,740', count:'318 笔', avg:'月均 ¥2,680',
+       cats:[['餐饮',2180,'#F46D38'],['购物',1210,'#34C77B'],['交通',860,'#F7B551'],['日用',620,'#5B8DEF'],['娱乐',340,'#9B7EF2']]},
+      {label:'今年 · 2026', trendSub:'按月', days:['1月','3月','5月','7月','9月','10月'], trend:[2280,3120,2850,4380,5120,5210], expense:'¥9,640', count:'121 笔', avg:'月均 ¥1,377',
+       cats:[['餐饮',1180,'#F46D38'],['购物',620,'#34C77B'],['交通',430,'#F7B551'],['日用',310,'#5B8DEF']]},
+      {label:'本月 · 10月', trendSub:'按日', days:['1','2','3','4','5','6','7'], trend:[210,480,60,320,150,90,86], expense:'¥1,396', count:'17 笔', avg:'日均 ¥199',
+       cats:[['餐饮',620,'#F46D38'],['购物',430,'#34C77B'],['交通',210,'#F7B551'],['日用',136,'#5B8DEF']]},
+    ],
+    txns:[
+      ['☕️','Manner 咖啡','10/6 09:12',-22],
+      ['🥬','盒马 买菜','10/5 19:30',-96],
+      ['🎮','Steam 秋促','10/3 22:41',-137],
+      ['🧧','朋友转账','10/2 15:08',+200],
+    ]
+  },
+  ccb: {
+    title:'招商银行信用卡 · 数据全览', icon:'💳', theme:'wechat',
+    period:'2024/3/12 开户至今 · 41 笔', badge:'信用账户',
+    cardStats:[['当前欠款','-¥4,480'],['全程支出','¥8,430'],['本月账单','¥614']],
+    ranges:[
+      {label:'全程 · 开户至今', trendSub:'按账单月', days:['24/5','24/9','25/1','25/5','25/9','26/3'], trend:[1600,2100,1450,3120,980,1560], expense:'¥8,430', count:'41 笔', avg:'月均 ¥490',
+       cats:[['购物',3260,'#34C77B'],['餐饮',2280,'#F46D38'],['居住',1480,'#5B8DEF'],['娱乐',980,'#9B7EF2'],['交通',430,'#F7B551']]},
+      {label:'今年 · 2026', trendSub:'按月', days:['4月','5月','6月','7月','8月','9月'], trend:[980,620,1240,560,1120,690], expense:'¥5,210', count:'22 笔', avg:'月均 ¥744',
+       cats:[['购物',2280,'#34C77B'],['餐饮',1620,'#F46D38'],['居住',880,'#5B8DEF']]},
+      {label:'本月 · 10月', trendSub:'按日', days:['1','2','3','4','5','6','7'], trend:[0,128,0,486,0,0,0], expense:'¥614', count:'3 笔', avg:'日均 ¥88',
+       cats:[['购物',486,'#34C77B'],['餐饮',128,'#F46D38']]},
+    ],
+    txns:[
+      ['🛒','山姆会员店 月度采购','10/4 16:22',-486],
+      ['🍜','一兰拉面','10/2 19:40',-128],
+      ['✈️','东航 值机升舱','9/28 07:15',-680],
+    ]
+  },
+  tokyo: {
+    title:'东京旅行 · 数据全览', icon:'🗾', theme:'tokyo',
+    period:'2026/9/18 – 9/26 · 9 天 · 34 笔', badge:'已完成',
+    cardStats:[['总支出','¥6,847'],['预算','¥8,000 · 剩 ¥1,153'],['日均','¥761']],
+    ranges:[
+      {label:'全程 · 9/18 – 9/26', trendSub:'项目期间 · 按日', days:['18','19','20','21','22','23','24','25','26'], trend:[320,580,850,1240,960,720,1180,497,500], expense:'¥6,847', count:'34 笔', avg:'日均 ¥761',
+       cats:[['餐饮',2180,'#F46D38'],['住宿',1920,'#5B8DEF'],['购物',1180,'#34C77B'],['交通',980,'#F7B551'],['娱乐',587,'#9B7EF2']]},
+      {label:'今年 · 2026', trendSub:'按月', days:['9月'], trend:[6847], expense:'¥6,847', count:'34 笔', avg:'9月',
+       cats:[['餐饮',2180,'#F46D38'],['住宿',1920,'#5B8DEF'],['购物',1180,'#34C77B'],['交通',980,'#F7B551'],['娱乐',587,'#9B7EF2']]},
+      {label:'本月 · 10月', trendSub:'项目已完成', days:['—'], trend:[0], expense:'¥0', count:'0 笔', avg:'本月无支出',
+       cats:[]},
+    ],
+    txns:[
+      ['🧭','新宿 → 涩谷 车票','9/26 18:40',-203],
+      ['🍣','筑地市场 寿司晚餐','9/25 20:15',-412],
+      ['🏨','上野 民宿续住','9/24 15:00',-320],
+      ['💊','便利店 药妆','9/25 11:02',-186],
+    ]
+  }
+};
+
+let current = null;
+
+function go(key){
+  current = DATA[key];
+  document.getElementById('d-title').textContent = current.title;
+  document.getElementById('d-card').className = 'entity-card ' + current.theme;
+  document.getElementById('d-card').innerHTML = `
+    <div class="r1">
+      <div class="big-icon">${current.icon}</div>
+      <div><div class="ename" style="font-size:${current.title.length>14?16:19}px">${current.title.split(' · ')[0]}</div>
+      <div class="eperiod">${current.period}</div></div>
+      <div class="badge">${current.badge}</div>
+    </div>
+    <div class="stat3">${current.cardStats.map(s=>`<div class="c3"><div class="k">${s[0]}</div><div class="v">${s[1]}</div></div>`).join('')}</div>
+  `;
+  renderRange(0);
+  document.querySelectorAll('#d-timefilter .tf-chip').forEach((c,i)=>c.classList.toggle('on', i===0));
+  switchScreen('s-detail');
+}
+function back(){ switchScreen('s-list'); }
+function switchScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById(id).scrollTop = 0;
+}
+function mode(m){
+  document.getElementById('m-acct').classList.toggle('on', m==='acct');
+  document.getElementById('m-proj').classList.toggle('on', m==='proj');
+  document.getElementById('list-acct').style.display = m==='acct' ? 'block' : 'none';
+  document.getElementById('list-proj').style.display = m==='proj' ? 'block' : 'none';
+}
+function renderRange(i){
+  const r = current.ranges[i];
+  document.getElementById('d-sum-sub').textContent = r.label;
+  document.getElementById('d-trend-sub').textContent = r.trendSub;
+  document.getElementById('d-cat-sub').textContent = r.label.split(' · ')[0];
+  document.getElementById('d-txn-sub').textContent = '最近几笔';
+
+  document.getElementById('d-summary').innerHTML = `
+    <div class="cell"><div class="k">支出</div><div class="v red">${r.expense}</div><div class="s">${r.count}</div></div>
+    <div class="cell"><div class="k">节奏</div><div class="v">${r.avg.split(' ')[1] ? '¥'+r.avg.split(' ').slice(1).join('') : r.avg}</div><div class="s">${r.avg.split(' ')[0]}</div></div>
+    <div class="cell"><div class="k">趋势</div><div class="v green">—</div><div class="s">见下图</div></div>
+  `;
+
+  const max = Math.max(...r.trend, 1);
+  document.getElementById('d-bars').innerHTML = r.days.map((d,idx)=>`
+    <div class="barwrap"><div class="bar ${r.trend[idx]===max&&max>1?'peak':''}" style="height:${Math.max(r.trend[idx]/max*100,3)}%"></div><div class="barlab">${d}</div></div>
+  `).join('');
+
+  const catTotal = r.cats.reduce((s,c)=>s+c[1],0);
+  document.getElementById('d-cats').innerHTML = r.cats.length ? r.cats.map(c=>`
+    <div class="cat-row">
+      <div class="l1"><b>${c[0]}</b><span>¥${c[1].toLocaleString()} · ${Math.round(c[1]/catTotal*100)}%</span></div>
+      <div class="track"><div class="fill" style="width:${c[1]/catTotal*100}%;background:${c[2]}"></div></div>
+    </div>
+  `).join('') : '<div style="font-size:12px;color:#B0A899;text-align:center;padding:14px 0">该区间无支出</div>';
+
+  document.getElementById('d-txns').innerHTML = current.txns.map(t=>`
+    <div class="txn"><div class="ti">${t[0]}</div><div class="tmid"><div class="tnote">${t[1]}</div><div class="tdate">${t[2]}</div></div><div class="tamt ${t[3]<0?'out':'in'}">${t[3]<0?'-':'+'}¥${Math.abs(t[3]).toLocaleString()}</div></div>
+  `).join('');
+}
+function pickTime(el, i){
+  document.querySelectorAll('#d-timefilter .tf-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderRange(i);
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+</script>
+</body>
+</html>

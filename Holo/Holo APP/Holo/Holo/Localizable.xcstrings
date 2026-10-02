@@ -1,6 +1,57 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "导出交易记录为 CSV/JSON，可含小票图片" : {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "導出交易記錄為 CSV/JSON，可含小票圖片"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export transactions as CSV/JSON, with optional receipt images"
+          }
+        }
+      }
+    },
+    "包含小票图片" : {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含小票圖片"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include receipt images"
+          }
+        }
+      }
+    },
+    "打包为 ZIP：账目数据 + 按日期命名的小票图片" : {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打包為 ZIP：賬目數據 + 按日期命名的小票圖片"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bundled as ZIP: ledger data + receipt images named by date"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {
@@ -17737,85 +17788,8 @@
         }
       }
     },
-    "账户排行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Account Ranking"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "帳戶排行"
-          }
-        }
-      }
-    },
-    "项目排行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Project Ranking"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "項目排行"
-          }
-        }
-      }
-    },
-    "按本期支出" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "by expense this period"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按本期支出"
-          }
-        }
-      }
-    },
-    "还没有项目，记账时可以把交易挂到项目上（如旅行、装修）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No projects yet. Attach transactions to a project when recording (e.g. travel, renovation)."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有項目，記帳時可以把交易掛到項目上（如旅行、裝修）"
-          }
-        }
-      }
-    },
-    "预算 %d%%" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Budget %d%%"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預算 %d%%"
-          }
-        }
-      }
+    "全部账户" : {
+
     },
     "全部跳过" : {
       "localizations" : {
@@ -17829,54 +17803,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部跳過"
-          }
-        }
-      }
-    },
-    "选择账户或项目" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose an Account or Project"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇帳戶或項目"
-          }
-        }
-      }
-    },
-    "汇总所有账户与项目" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All accounts and projects combined"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "彙總所有帳戶與項目"
-          }
-        }
-      }
-    },
-    "统计 · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stats · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "統計 · %@"
           }
         }
       }
@@ -68984,6 +68910,406 @@
         }
       }
     },
+    "还没有项目，记账时可以把交易挂到项目上（如旅行、装修）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No projects yet. Attach transactions to a project when recording (e.g. travel, renovation)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有項目，記帳時可以把交易掛到項目上（如旅行、裝修）"
+          }
+        }
+      }
+    },
+    "按本期支出排序" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By expense this period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按本期支出排序"
+          }
+        }
+      }
+    },
+    "项目支出合计" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total project spending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目支出合計"
+          }
+        }
+      }
+    },
+    "有支出的项目" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projects with spending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有支出的項目"
+          }
+        }
+      }
+    },
+    "账户支出合计" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total account spending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帳戶支出合計"
+          }
+        }
+      }
+    },
+    "支出第一" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top spending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支出第一"
+          }
+        }
+      }
+    },
+    "本期无支出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No spend this period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本期無支出"
+          }
+        }
+      }
+    },
+    "项目总支出（全程）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total spending (all time)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目總支出（全程）"
+          }
+        }
+      }
+    },
+    "全程日均" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily average"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全程日均"
+          }
+        }
+      }
+    },
+    "看项目全程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View full project span"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看項目全程"
+          }
+        }
+      }
+    },
+    "本期汇总" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Period summary"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本期彙總"
+          }
+        }
+      }
+    },
+    "交易流水" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transactions"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交易流水"
+          }
+        }
+      }
+    },
+    "该时间范围内无支出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No spending in this range"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該時間範圍內無支出"
+          }
+        }
+      }
+    },
+    "该时间范围内无交易" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No transactions in this range"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該時間範圍內無交易"
+          }
+        }
+      }
+    },
+    "无支出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No spending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無支出"
+          }
+        }
+      }
+    },
+    "当前余额" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current balance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前餘額"
+          }
+        }
+      }
+    },
+    "本期支出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spending this period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本期支出"
+          }
+        }
+      }
+    },
+    "本期收入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income this period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本期收入"
+          }
+        }
+      }
+    },
+    "净额" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Net"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淨額"
+          }
+        }
+      }
+    },
+    "至今" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "to present"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至今"
+          }
+        }
+      }
+    },
+    "共 %lld 个项目" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld projects in total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 個項目"
+          }
+        }
+      }
+    },
+    "%lld 个账户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld accounts"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個帳戶"
+          }
+        }
+      }
+    },
+    "预算已用 %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Budget used %lld%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預算已用 %lld%%"
+          }
+        }
+      }
+    },
+    "剩 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ left"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩 %@"
+          }
+        }
+      }
+    },
+    "收入 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收入 %@"
+          }
+        }
+      }
+    },
     "还没解决 · %lld" : {
       "localizations" : {
         "en" : {
@@ -72518,6 +72844,9 @@
         }
       }
     },
+    "选择账户" : {
+
+    },
     "选择转移目标分类" : {
       "localizations" : {
         "en" : {
@@ -74965,6 +75294,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預算 %@"
+          }
+        }
+      }
+    },
+    "预算 %d%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Budget %d%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預算 %d%%"
           }
         }
       }

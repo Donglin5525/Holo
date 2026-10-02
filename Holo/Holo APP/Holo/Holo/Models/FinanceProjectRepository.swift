@@ -194,6 +194,22 @@ final class FinanceProjectRepository {
             .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
     }
 
+    /// 项目全程区间（统计页「看项目全程」用）：startDate/endDate 缺失时按首末笔
+    /// 支出日期补齐（AI/手动建的项目常没填期间），两者皆空返回 nil。
+    /// 返回的 end 为排他上界（含末笔当天），与自定义时间组件同一语义。
+    func projectSpan(of project: FinanceProject) -> (start: Date, end: Date)? {
+        let txns = fetchExpenseTransactions(forProject: project.id)
+        let first = [project.startDate, txns.map(\.date).min()].compactMap { $0 }.min()
+        let last = [project.endDate, txns.map(\.date).max()].compactMap { $0 }.max()
+        guard let start = first, let lastDay = last else { return nil }
+
+        let calendar = Calendar.current
+        if let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: lastDay)) {
+            return (calendar.startOfDay(for: start), endExclusive)
+        }
+        return (start, lastDay.addingTimeInterval(86400))
+    }
+
     /// 项目分类构成（一级分类口径：二级分类归入父分类，与统计页「类别对比」一致）
     func categoryAggregations(forProject projectId: UUID) -> [CategoryAggregation] {
         let transactions = fetchExpenseTransactions(forProject: projectId)

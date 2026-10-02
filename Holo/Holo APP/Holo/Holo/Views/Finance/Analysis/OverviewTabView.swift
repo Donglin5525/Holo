@@ -45,29 +45,12 @@ struct OverviewTabView: View {
                 }
 
                 // 收支趋势：收支柱（下层）+ 余额线（上层）同画布分区
-                //（项目维度下无余额语义，余额线与右轴整体隐藏）
-                TrendChartView(dataPoints: state.chartDataPoints, showsBalanceLine: state.showsBalanceLine)
+                TrendChartView(dataPoints: state.chartDataPoints)
 
                 // 年档 + 自然年口径 + 设有「每年」预算：年预算进度卡
                 //（预算周期自身管理起止，一期只挂自然年口径，记账年视图下不显示）
                 if state.isYearView && state.yearBasis == .calendar {
                     YearBudgetProgressCard()
-                }
-
-                // 账户排行：点行 = 只看该账户（排行随项目筛选切片，不受账户筛选影响）
-                AccountRankingCard(
-                    aggregations: state.accountAggregations,
-                    selectedAccountId: state.selectedAccountId
-                ) { accountId in
-                    state.setAccountFilter(accountId)
-                }
-
-                // 项目排行：点行 = 只看该项目（无项目支出的月份整卡隐藏）
-                FinanceProjectRankingCard(
-                    aggregations: state.financeProjectAggregations,
-                    selectedProjectId: state.selectedFinanceProjectId
-                ) { projectId in
-                    state.setFinanceProjectFilter(projectId)
                 }
 
                 // TOP3 分类

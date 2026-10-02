@@ -232,4 +232,40 @@ final class StatisticsScopeTests: XCTestCase {
         let balance = repo.getAccountCumulativeBalance(accountId: UUID(), before: Date())
         XCTAssertEqual(balance, 0)
     }
+
+    // MARK: - 项目全程区间（「看项目全程」）
+
+    func test_projectSpan_prefersStoredDates() throws {
+        let cal = Calendar.current
+        let start = cal.date(from: DateComponents(year: 2026, month: 9, day: 18))!
+        let end = cal.date(from: DateComponents(year: 2026, month: 9, day: 26))!
+        let project = try projectRepo.create(name: "东京旅行", icon: "🗾", color: "#FF9500", note: nil, startDate: start, endDate: end, budgetAmount: nil)
+
+        // 存储起止日齐全：直接采用（不依赖交易）
+        let span = projectRepo.projectSpan(of: project)
+        XCTAssertNotNil(span)
+        XCTAssertEqual(span?.start, cal.startOfDay(for: start))
+        // end 为排他上界：endDate 当天的次日零点
+        XCTAssertEqual(span?.end, cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: end)))
+    }
+
+    func test_projectSpan_backfillsFromTransactionsWhenDatesMissing() async throws {
+        // AI/手动建的项目常没填期间：按首末笔支出日期补齐
+        let project = try projectRepo.create(name: "装修", icon: "🔨", color: "#8B5CF6")
+        let cal = Calendar.current
+        let first = cal.date(byAdding: .day, value: -20, to: Date())!
+        let last = cal.date(byAdding: .day, value: -2, to: Date())!
+        try await addExpense(100, account: cashAccount, project: project, date: first)
+        try await addExpense(80, account: cashAccount, project: project, date: last)
+
+        let span = projectRepo.projectSpan(of: project)
+        XCTAssertEqual(span?.start, cal.startOfDay(for: first))
+        XCTAssertEqual(span?.end, cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)))
+    }
+
+    func test_projectSpan_emptyProjectReturnsNil() throws {
+        // 无交易且无期间：没有全程可言
+        let project = try projectRepo.create(name: "空项目", icon: "🫙", color: "#64748B")
+        XCTAssertNil(projectRepo.projectSpan(of: project))
+    }
 }
