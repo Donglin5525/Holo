@@ -17737,54 +17737,6 @@
         }
       }
     },
-    "全部账户" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Accounts"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部帳戶"
-          }
-        }
-      }
-    },
-    "全部项目" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Projects"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部項目"
-          }
-        }
-      }
-    },
-    "选择项目" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select Project"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇項目"
-          }
-        }
-      }
-    },
     "账户排行" : {
       "localizations" : {
         "en" : {
@@ -17833,22 +17785,6 @@
         }
       }
     },
-    "本期无支出" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No spend this period"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本期無支出"
-          }
-        }
-      }
-    },
     "还没有项目，记账时可以把交易挂到项目上（如旅行、装修）" : {
       "localizations" : {
         "en" : {
@@ -17893,6 +17829,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部跳過"
+          }
+        }
+      }
+    },
+    "选择账户或项目" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an Account or Project"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇帳戶或項目"
+          }
+        }
+      }
+    },
+    "汇总所有账户与项目" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All accounts and projects combined"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "彙總所有帳戶與項目"
+          }
+        }
+      }
+    },
+    "统计 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stats · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統計 · %@"
           }
         }
       }
@@ -72530,22 +72514,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇訂閱方案"
-          }
-        }
-      }
-    },
-    "选择账户" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select Account"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇帳戶"
           }
         }
       }

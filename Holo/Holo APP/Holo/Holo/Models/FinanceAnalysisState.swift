@@ -247,19 +247,21 @@ class FinanceAnalysisState: ObservableObject {
 
     // MARK: - 维度筛选操作（账户/项目）
 
-    /// 设置账户筛选（nil = 全部账户）：即选即生效，与时间档位同一心智
+    /// 设置账户筛选（nil = 全部）：单视角语义，与项目互斥；即选即生效
     func setAccountFilter(_ accountId: UUID?) {
         guard selectedAccountId != accountId else { return }
         selectedAccountId = accountId
+        selectedFinanceProjectId = nil
         selectedChartDate = nil
         selectedDetailCategory = nil
         scheduleLoad()
     }
 
-    /// 设置项目筛选（nil = 全部项目）
+    /// 设置项目筛选（nil = 全部）：单视角语义，与账户互斥
     func setFinanceProjectFilter(_ projectId: UUID?) {
         guard selectedFinanceProjectId != projectId else { return }
         selectedFinanceProjectId = projectId
+        selectedAccountId = nil
         selectedChartDate = nil
         selectedDetailCategory = nil
         scheduleLoad()

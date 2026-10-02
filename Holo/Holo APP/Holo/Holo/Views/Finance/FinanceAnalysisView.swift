@@ -15,8 +15,10 @@ struct FinanceAnalysisView: View {
     @ObservedObject var state: FinanceAnalysisState
     @Binding var selectedTab: AnalysisTab
     @State private var showCustomDateSheet: Bool = false
-    /// 顶部筛选面板展开态（时间/账户/项目互斥：同一时刻至多展开一个）
-    @State private var activeFilterPanel: AnalysisFilterPanel = .none
+    /// 顶部内联时间筛选条展开态（点胶囊切换，不弹抽屉）
+    @State private var showTimeFilterBlock: Bool = false
+    /// 维度视角切换层（点标题唤起）：全部 / 账户 / 项目 三段单选
+    @State private var showDimensionSheet: Bool = false
 
     init(
         state: FinanceAnalysisState,
@@ -38,42 +40,21 @@ struct FinanceAnalysisView: View {
             // 时间范围标签（点击内联展开筛选条，不弹抽屉）
             TimeRangeLabel(state: state) {
                 withAnimation(HoloAnimation.standard) {
-                    activeFilterPanel = activeFilterPanel == .time ? .none : .time
+                    showTimeFilterBlock.toggle()
                 }
             }
 
-            // 维度筛选胶囊行（账户/项目），三个页签数据全部随维度联动
-            ScopeFilterBar(state: state, activePanel: $activeFilterPanel)
-
             // 内联时间筛选条：点档位立即生效并收起，数据区全程可见
-            if activeFilterPanel == .time {
+            if showTimeFilterBlock {
                 TimeFilterBlock(state: state) {
                     withAnimation(HoloAnimation.standard) {
-                        activeFilterPanel = .none
+                        showTimeFilterBlock = false
                     }
                 } onCustomTap: {
                     withAnimation(HoloAnimation.standard) {
-                        activeFilterPanel = .none
+                        showTimeFilterBlock = false
                     }
                     showCustomDateSheet = true
-                }
-            }
-
-            // 账户选择面板：点选即生效并收起
-            if activeFilterPanel == .account {
-                AccountScopePanel(state: state) {
-                    withAnimation(HoloAnimation.standard) {
-                        activeFilterPanel = .none
-                    }
-                }
-            }
-
-            // 项目选择面板：点选即生效并收起
-            if activeFilterPanel == .project {
-                ProjectScopePanel(state: state) {
-                    withAnimation(HoloAnimation.standard) {
-                        activeFilterPanel = .none
-                    }
                 }
             }
 
@@ -92,6 +73,10 @@ struct FinanceAnalysisView: View {
                     state.setCustomDateRange(start: start, end: end)
                 }
             )
+        }
+        // 维度视角切换层：点标题唤起，全部/账户/项目三段单选
+        .sheet(isPresented: $showDimensionSheet) {
+            DimensionSwitcherSheet(state: state)
         }
         // 节流合并：同步/导入风暴时 financeDataDidChange 连发，每条都全量重算图表会打爆主线程；
         // 首发立即刷（保持「记一笔立刻可见」），风暴窗口内只保留最新一条，终态与逐条刷新一致（体检 R0-11）
@@ -121,6 +106,18 @@ struct FinanceAnalysisView: View {
 
     // MARK: - 顶部栏
 
+    /// 标题文案随视角切换：默认「统计分析」，选定维度后「统计 · 微信支付」，
+    /// 让「当前在看谁」始终钉在页面最顶上
+    private var headerTitle: String {
+        if let account = state.selectedAccount {
+            return String(localized: "统计 · \(account.name)")
+        }
+        if let project = state.selectedFinanceProject {
+            return String(localized: "统计 · \(project.name)")
+        }
+        return String(localized: "统计分析")
+    }
+
     private var headerView: some View {
         HStack {
             Button {
@@ -137,9 +134,23 @@ struct FinanceAnalysisView: View {
 
             Spacer()
 
-            Text("统计分析")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+            // 标题即视角切换器：点开底部选择层，选账户或项目后全页联动
+            Button {
+                showDimensionSheet = true
+            } label: {
+                HStack(spacing: 5) {
+                    Text(headerTitle)
+                        .font(.holoTitle)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                }
+            }
+            .buttonStyle(.plain)
 
             Spacer()
 
