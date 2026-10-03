@@ -113,13 +113,10 @@ struct ScopeTxnRow: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(Color.holoBackground)
-                if let sfName = transaction.category?.icon, UIImage(systemName: sfName) != nil {
-                    Image(systemName: sfName)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                } else if let emoji = transaction.category?.icon, !emoji.isEmpty {
-                    Text(emoji)
-                        .font(.system(size: 14))
+                // 分类 icon 字段存的是图标键名（cat_transport 等），必须走统一渲染器
+                // 解析成资产图/emoji/兜底图形；直接当 SF Symbol 或文本渲染会露出键名截断
+                if let category = transaction.category {
+                    transactionCategoryIcon(category, size: 24)
                 } else {
                     Image(systemName: "diamond.fill")
                         .font(.system(size: 13))

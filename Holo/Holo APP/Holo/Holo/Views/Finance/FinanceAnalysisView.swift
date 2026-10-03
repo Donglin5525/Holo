@@ -62,7 +62,7 @@ struct FinanceAnalysisView: View {
             // 内容区
             tabContent
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .sheet(isPresented: $showCustomDateSheet) {
             CustomDateSheet(
                 startDate: .constant(state.currentDateRange.start),
@@ -107,9 +107,9 @@ struct FinanceAnalysisView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .frame(width: 36, height: 36)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(Circle())
                     .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
             }
@@ -117,8 +117,8 @@ struct FinanceAnalysisView: View {
             Spacer()
 
             Text("统计分析")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
@@ -149,9 +149,9 @@ struct FinanceAnalysisView: View {
             }
         } label: {
             Text(tab.displayName)
-                .font(.holoCaption)
+                .holoText(.supporting)
                 .fontWeight(selectedTab == tab ? .semibold : .medium)
-                .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.xs)
                 .background(
@@ -168,28 +168,33 @@ struct FinanceAnalysisView: View {
 
     // MARK: - Tab 内容
 
-    @ViewBuilder
+    /// 加载态不能走 if/else 分支替换：isLoading 每次刷新（含「看项目全程」切范围、
+    /// 记账后数据变更）都会翻真，换分支会把整个页签子树拆掉重建，项目/账户
+    /// 子视图的选中态随之丢失、被弹回列表（2026-10-03 模拟器实锤）。
+    /// 内容常驻、加载指示做覆盖层，子树身份才稳定。
     private var tabContent: some View {
-        if state.isLoading {
-            loadingView
-        } else {
-            switch selectedTab {
-            case .overview:
-                OverviewTabView(state: state) { category in
-                    state.selectDetailCategory(category)
-                    withAnimation(HoloAnimation.standard) {
-                        selectedTab = .detail
-                    }
+        tabContentBody
+            .overlay { if state.isLoading { loadingView } }
+    }
+
+    @ViewBuilder
+    private var tabContentBody: some View {
+        switch selectedTab {
+        case .overview:
+            OverviewTabView(state: state) { category in
+                state.selectDetailCategory(category)
+                withAnimation(HoloAnimation.standard) {
+                    selectedTab = .detail
                 }
-            case .detail:
-                DetailTabView(state: state)
-            case .category:
-                CategoryTabView(state: state)
-            case .project:
-                ProjectTabView(state: state)
-            case .account:
-                AccountTabView(state: state)
             }
+        case .detail:
+            DetailTabView(state: state)
+        case .category:
+            CategoryTabView(state: state)
+        case .project:
+            ProjectTabView(state: state)
+        case .account:
+            AccountTabView(state: state)
         }
     }
 
@@ -201,8 +206,8 @@ struct FinanceAnalysisView: View {
                 .progressViewStyle(CircularProgressViewStyle(tint: .holoPrimary))
 
             Text("加载中...")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
