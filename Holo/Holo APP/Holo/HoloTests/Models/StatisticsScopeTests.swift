@@ -211,6 +211,144 @@ final class StatisticsScopeTests: XCTestCase {
         XCTAssertEqual(aggScoped.first?.amount, 50, "维度筛选下的分类聚合只算该维度金额")
     }
 
+    // MARK: - 项目内分类下钻（2026-10-04 项目×分类交叉查看）
+
+    /// 项目子视图「点分类横条展开二级」的数据通道：二级聚合带项目范围，
+    /// 退款负冲到二级、范围外交易不计入（记账规则要求交易挂二级科目，不造直挂一级数据）
+    func test_subCategoryAggregations_respectProjectScope() async throws {
+        let transport = Holo.Category.create(
+            in: context, name: "交通", icon: "airplane", color: "#5856D6",
+            type: TransactionType.expense.rawValue
+        )
+        let flight = Holo.Category.create(
+            in: context, name: "机票", icon: "airplane", color: "#5856D6",
+            type: TransactionType.expense.rawValue, parentId: transport.id
+        )
+        let train = Holo.Category.create(
+            in: context, name: "火车", icon: "tram.fill", color: "#5856D6",
+            type: TransactionType.expense.rawValue, parentId: transport.id
+        )
+        try? context.save()
+
+        let tokyo = try projectRepo.create(name: "东京旅行", icon: "🗾", color: "#FF9500")
+        let w = window
+
+        // 挂项目：机票 100 + 火车 30
+        let flightTxn = try await repo.addTransaction(
+            amount: 100, type: .expense, category: flight,
+            account: cashAccount, date: Date(), note: nil, financeProject: tokyo
+        )
+        try await repo.addTransaction(
+            amount: 30, type: .expense, category: train,
+            account: cashAccount, date: Date(), note: nil, financeProject: tokyo
+        )
+        // 挂项目的机票退款 40（统计口径按负支出冲减机票二级）
+        let refund = Transaction(context: context)
+        refund.id = UUID()
+        refund.amount = NSDecimalNumber(decimal: 40)
+        refund.type = TransactionType.income.rawValue
+        refund.category = flight
+        refund.account = cashAccount
+        refund.date = Date()
+        refund.refundOfTransactionId = flightTxn.id
+        refund.financeProjectId = tokyo.id
+        try context.save()
+        // 不挂项目的机票 20（不该进项目口径）
+        try await repo.addTransaction(
+            amount: 20, type: .expense, category: flight,
+            account: cashAccount, date: Date(), note: nil
+        )
+
+        let scope = StatisticsScope(accountId: nil, financeProjectId: tokyo.id)
+        let scoped = try await repo.getSubCategoryAggregations(
+            parentId: transport.id, from: w.start, to: w.end, scope: scope
+        )
+        let all = try await repo.getSubCategoryAggregations(
+            parentId: transport.id, from: w.start, to: w.end
+        )
+
+        XCTAssertEqual(scoped.count, 2, "项目内交通二级构成 = 机票 + 火车两行")
+        XCTAssertEqual(scoped.first { $0.category.id == flight.id }?.amount, 60, "机票 100 - 退款 40 = 60")
+        XCTAssertEqual(scoped.first { $0.category.id == train.id }?.amount, 30)
+        XCTAssertEqual(all.first { $0.category.id == flight.id }?.amount, 80, "全量口径含不挂项目的 20")
+    }
+
+    /// 类别页签项目筛选器的数据通道：一级聚合按项目切片，全量口径不受影响
+    func test_topLevelCategoryAggregations_projectScopeSlicesByProject() async throws {
+        let tokyo = try projectRepo.create(name: "东京旅行", icon: "🗾", color: "#FF9500")
+        try await addExpense(100, account: cashAccount, project: tokyo)
+        try await addExpense(20, account: cashAccount)
+
+        let w = window
+        let diningId = try XCTUnwrap(lunchCategory.parentId, "setUp 的午餐应挂在餐饮下")
+        let scoped = try await repo.getTopLevelCategoryAggregations(
+            from: w.start, to: w.end, type: .expense,
+            scope: StatisticsScope(accountId: nil, financeProjectId: tokyo.id)
+        )
+        let all = try await repo.getTopLevelCategoryAggregations(
+            from: w.start, to: w.end, type: .expense
+        )
+
+        XCTAssertEqual(scoped.first { $0.category.id == diningId }?.amount, 100, "项目筛选下只算挂项目的交易（二级归并一级）")
+        XCTAssertEqual(all.first { $0.category.id == diningId }?.amount, 120, "全量口径不受筛选影响")
+    }
+
+    /// 子视图流水筛选状态机：一级含二级归并、二级精确匹配、chip 文案、复位
+    func test_scopeCategoryFilterModel_topThenSubFiltering() async throws {
+        let transport = Holo.Category.create(
+            in: context, name: "交通", icon: "airplane", color: "#5856D6",
+            type: TransactionType.expense.rawValue
+        )
+        let flight = Holo.Category.create(
+            in: context, name: "机票", icon: "airplane", color: "#5856D6",
+            type: TransactionType.expense.rawValue, parentId: transport.id
+        )
+        let train = Holo.Category.create(
+            in: context, name: "火车", icon: "tram.fill", color: "#5856D6",
+            type: TransactionType.expense.rawValue, parentId: transport.id
+        )
+        try? context.save()
+
+        let t1 = try await repo.addTransaction(
+            amount: 100, type: .expense, category: flight,
+            account: cashAccount, date: Date(), note: nil
+        )
+        let t2 = try await repo.addTransaction(
+            amount: 30, type: .expense, category: train,
+            account: cashAccount, date: Date(), note: nil
+        )
+        let t3 = try await repo.addTransaction(
+            amount: 20, type: .expense, category: lunchCategory,
+            account: cashAccount, date: Date(), note: nil
+        )
+
+        let w = window
+        let model = ScopeCategoryFilterModel(
+            scope: StatisticsScope(accountId: nil, financeProjectId: UUID()),
+            dateRange: { w },
+            repository: repo
+        )
+
+        // 无筛选：全量
+        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id, t2.id, t3.id])
+        XCTAssertFalse(model.hasFilter)
+
+        // 点一级「交通」：含旗下机票 + 火车（二级归并一级）
+        model.tapTop(CategoryAggregation(category: transport, amount: 130, percentage: 100, transactionCount: 2))
+        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id, t2.id])
+        XCTAssertEqual(model.filterLabelText, "交通")
+
+        // 点二级「机票」：精确匹配
+        model.tapSub(CategoryAggregation(category: flight, amount: 100, percentage: 77, transactionCount: 1))
+        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id])
+        XCTAssertEqual(model.filterLabelText, "交通 · 机票")
+
+        // 复位（chip 的 ×）
+        model.reset()
+        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id, t2.id, t3.id])
+        XCTAssertNil(model.filterLabelText)
+    }
+
     // MARK: - 账户维度余额线起点
 
     func test_accountCumulativeBalance_initialPlusPriorFlow() async throws {

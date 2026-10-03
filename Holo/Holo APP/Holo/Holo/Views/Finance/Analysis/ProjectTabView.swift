@@ -35,7 +35,7 @@ struct ProjectTabView: View {
                 listView
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     // MARK: - 列表层
@@ -74,7 +74,7 @@ struct ProjectTabView: View {
                         Text(String(localized: "按本期支出排序"))
                             .font(.holoLabel)
                             .fontWeight(.semibold)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
 
                         let spentById = Dictionary(
                             state.financeProjectAggregations.map { ($0.project.id, $0.expense) },
@@ -90,7 +90,7 @@ struct ProjectTabView: View {
                         }
                     }
                     .padding(HoloSpacing.md)
-                    .holoCard()
+                    .holoSurface()
                 }
             }
             .padding(HoloSpacing.lg)
@@ -137,12 +137,12 @@ struct ProjectTabView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(project.name)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
 
                     Text(Self.metaText(project))
                         .font(.system(size: 10.5))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
 
@@ -152,7 +152,7 @@ struct ProjectTabView: View {
                     if let spent, spent > 0 {
                         Text(NumberFormatter.compactCurrency(spent))
                             .font(.system(size: 14.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         if let income, income > 0 {
                             // 本期进账（退款已在支出侧冲减，不重复出现于此）
                             Text(String(localized: "收入 \(NumberFormatter.compactCurrency(income))"))
@@ -163,7 +163,7 @@ struct ProjectTabView: View {
                             let pct = Int(Double(truncating: (spent / budget * 100) as NSDecimalNumber))
                             Text(String(localized: "预算已用 \(pct)%"))
                                 .font(.system(size: 10))
-                                .foregroundColor(spent > budget ? .holoError : .holoTextSecondary)
+                                .foregroundColor(spent > budget ? .holoError : .holoToolTextSecondary)
                         }
                     } else if let income, income > 0 {
                         // 本期只有进账没有支出的项目：露出收入，避免行内空白
@@ -172,7 +172,7 @@ struct ProjectTabView: View {
                             .foregroundColor(.holoSuccess)
                         Text(String(localized: "本期收入"))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     } else {
                         Text(String(localized: "本期无支出"))
                             .font(.system(size: 11))
@@ -236,6 +236,19 @@ private struct ProjectInsightView: View {
     @State private var totalIncome: Decimal = 0
     @State private var spanDays: Int?
 
+    /// 分类筛选（点分类横条展开二级+筛流水），时间范围取自全局时间档
+    @StateObject private var categoryFilter: ScopeCategoryFilterModel
+
+    init(state: FinanceAnalysisState, project: FinanceProject, onBack: @escaping () -> Void) {
+        self.state = state
+        self.project = project
+        self.onBack = onBack
+        _categoryFilter = StateObject(wrappedValue: ScopeCategoryFilterModel(
+            scope: StatisticsScope(accountId: nil, financeProjectId: project.id),
+            dateRange: { state.currentDateRange }
+        ))
+    }
+
     /// 重载键：项目 + 当前时间范围（含排他上界），任一变化即重取
     private var reloadKey: String {
         let (start, end) = state.currentDateRange
@@ -245,6 +258,8 @@ private struct ProjectInsightView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.lg) {
+                ScopeSubHeaderView(title: project.name, onBack: onBack)
+
                 headerCard
 
                 spanQuickBar
@@ -257,32 +272,28 @@ private struct ProjectInsightView: View {
                         Text(String(localized: "分类构成"))
                             .font(.holoLabel)
                             .fontWeight(.semibold)
-                            .foregroundColor(.holoTextPrimary)
-                        ScopeCategoryBars(aggregations: insight.expenseAggregations)
-                    }
-                    .padding(HoloSpacing.md)
-                    .holoCard()
-
-                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                        Text(String(localized: "交易流水"))
-                            .font(.holoLabel)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.holoTextPrimary)
-
-                        if insight.transactions.isEmpty {
-                            Text(String(localized: "该时间范围内无交易"))
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, HoloSpacing.md)
-                        } else {
-                            ForEach(insight.transactions.suffix(30).reversed(), id: \.id) { txn in
-                                ScopeTxnRow(transaction: txn)
+                            .foregroundColor(.holoToolText)
+                        ScopeCategoryBars(
+                            aggregations: insight.expenseAggregations,
+                            selectedCategoryId: categoryFilter.selectedTop?.id,
+                            selectedSubCategoryId: categoryFilter.selectedSub?.id,
+                            subAggregations: categoryFilter.subAggregations,
+                            onSelect: { item in
+                                withAnimation(HoloAnimation.quick) {
+                                    categoryFilter.tapTop(item)
+                                }
+                            },
+                            onSelectSub: { item in
+                                withAnimation(HoloAnimation.quick) {
+                                    categoryFilter.tapSub(item)
+                                }
                             }
-                        }
+                        )
                     }
                     .padding(HoloSpacing.md)
-                    .holoCard()
+                    .holoSurface()
+
+                    transactionSection(insight)
                 } else {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .holoPrimary))
@@ -291,10 +302,66 @@ private struct ProjectInsightView: View {
             }
             .padding(HoloSpacing.lg)
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .task(id: reloadKey) {
+            // 时间档变化后二级聚合随旧范围过期，连筛选一起复位
+            categoryFilter.reset()
             await load()
         }
+    }
+
+    // MARK: 交易流水（随分类筛选联动）
+
+    private func transactionSection(_ insight: FinanceAnalysisState.ScopeInsight) -> some View {
+        let visible = categoryFilter.filter(insight.transactions)
+        // 筛选态显示全部命中并带笔数；无筛选维持最近 30 条防长列表
+        let display = categoryFilter.hasFilter ? visible.reversed() : visible.suffix(30).reversed()
+
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: HoloSpacing.sm) {
+                Text(categoryFilter.hasFilter
+                     ? String(localized: "交易流水 · \(visible.count) 笔")
+                     : String(localized: "交易流水"))
+                    .font(.holoLabel)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoToolText)
+
+                if let label = categoryFilter.filterLabelText {
+                    Button {
+                        withAnimation(HoloAnimation.quick) {
+                            categoryFilter.reset()
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text(label)
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+            }
+
+            if visible.isEmpty {
+                Text(insight.transactions.isEmpty
+                     ? String(localized: "该时间范围内无交易")
+                     : String(localized: "该分类在此范围无交易"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, HoloSpacing.md)
+            } else {
+                ForEach(display, id: \.id) { txn in
+                    ScopeTxnRow(transaction: txn)
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .holoSurface()
     }
 
     private func load() async {
@@ -428,7 +495,7 @@ private struct ProjectInsightView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Text(String(localized: "当前范围：\(TimeRange.pillLabel(timeRange: state.timeRange, start: state.currentDateRange.start, end: state.currentDateRange.end))"))
                     .font(.system(size: 11.5))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(2)
 
                 Spacer(minLength: HoloSpacing.sm)
@@ -465,7 +532,7 @@ private struct ProjectInsightView: View {
             Text(String(localized: "本期汇总"))
                 .font(.holoLabel)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             HStack(spacing: 0) {
                 ScopeHeadCell(title: String(localized: "支出"), value: insight.summary.formattedExpense, subtitle: "\(insight.summary.transactionCount) 笔", valueColor: .holoError)
@@ -474,7 +541,7 @@ private struct ProjectInsightView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 }
 
@@ -485,13 +552,13 @@ struct ScopeHeadCell: View {
     let title: String
     let value: String
     var subtitle: String = ""
-    var valueColor: Color = .holoTextPrimary
+    var valueColor: Color = .holoToolText
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
 
             Text(value)
@@ -511,7 +578,7 @@ struct ScopeHeadCell: View {
         .padding(HoloSpacing.md)
         .background(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
         )
     }
@@ -526,10 +593,10 @@ struct ScopeEmptyHintView: View {
         VStack(spacing: HoloSpacing.sm) {
             Image(systemName: systemIcon)
                 .font(.system(size: 32, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.6))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.6))
             Text(text)
                 .font(.system(size: 12.5))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

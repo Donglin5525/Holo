@@ -97,5 +97,72 @@ enum FinanceDemoSeed {
         }
         diag("seeded \(created)/\(plan.count) transactions")
     }
+
+    /// 统计页「项目×分类」走查种子（-FinanceProjectSeed 触发，幂等）：
+    /// 一个项目 + 跨多个二级科目的挂靠支出，供项目/类别页签交叉筛选验收。
+    /// 科目取预设支出二级分类的前若干个——预设结构随版本变，走查只关心
+    /// 「多科目挂靠」这个形状，不锁定具体科目名。
+    static func seedProjectIfNeeded() async {
+        guard ProcessInfo.processInfo.arguments.contains("-FinanceProjectSeed") else { return }
+        let repo = FinanceRepository.shared
+        let projectRepo = FinanceProjectRepository.shared
+
+        // 幂等：已有「东京旅行」项目即跳过，保证走查可重复启动
+        guard !projectRepo.allProjects().contains(where: { $0.name == "东京旅行" }) else {
+            diag("skip: project already present")
+            return
+        }
+        guard let tokyo = try? projectRepo.create(name: "东京旅行", icon: "🗾", color: "#FF9500") else {
+            diag("FAILED: project create")
+            return
+        }
+
+        guard let account = (try? await repo.getDefaultAccount()) ?? repo.getAccounts().first,
+              let subCategories = (try? await repo.getCategories(by: .expense))?.filter({ $0.isSubCategory }),
+              subCategories.count >= 4 else {
+            diag("FAILED: account/category presets not ready")
+            return
+        }
+
+        let calendar = Calendar.current
+        let now = Date()
+        // 挂项目的支出：近 3 天、分散 4 个不同二级科目（一二级归并走查都能看到）
+        let plan: [(offsetDay: Int, amount: Decimal, categoryIndex: Int, note: String)] = [
+            (0, 128, 0, "机场大巴"),
+            (0, 45, 1, "便利店早饭"),
+            (1, 1890, 2, "机票"),
+            (1, 320, 3, "一兰拉面"),
+            (2, 76, 0, "地铁"),
+            (2, 420, 1, "寿司晚餐"),
+        ]
+
+        var created = 0
+        for item in plan {
+            guard let date = calendar.date(byAdding: .day, value: -item.offsetDay, to: now),
+                  item.categoryIndex < subCategories.count else { continue }
+            do {
+                _ = try await repo.addTransaction(
+                    amount: item.amount,
+                    type: .expense,
+                    category: subCategories[item.categoryIndex],
+                    account: account,
+                    date: date,
+                    note: item.note,
+                    financeProject: tokyo
+                )
+                created += 1
+            } catch {
+                diag("project seed addTransaction FAILED: \(error)")
+            }
+        }
+        // 不挂项目的对照交易 1 笔（验证项目口径不混入全局账）
+        if let sub = subCategories.first {
+            _ = try? await repo.addTransaction(
+                amount: 33, type: .expense, category: sub,
+                account: account, date: now, note: "不挂项目的对照"
+            )
+        }
+        diag("project seeded \(created)/\(plan.count) transactions")
+    }
 }
 #endif

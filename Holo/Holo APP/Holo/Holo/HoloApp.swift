@@ -236,6 +236,8 @@ struct HoloApp: App {
                 #if DEBUG
                 // 财务图表/账本模拟器纵向验收合成数据（-FinanceDemoSeed 启动参数触发，幂等）
                 await FinanceDemoSeed.seedIfNeeded()
+                // 统计页「项目×分类」走查种子（-FinanceProjectSeed 触发，幂等）
+                await FinanceDemoSeed.seedProjectIfNeeded()
                 #endif
                 // 图片快捷指令自动记账（2026-09-14 方案 §27.2）：启动清理过期复核草案/证据（7 天），
                 // 不常驻轮询

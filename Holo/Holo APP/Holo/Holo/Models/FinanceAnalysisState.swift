@@ -82,6 +82,16 @@ class FinanceAnalysisState: ObservableObject {
     /// 本期各项目支出聚合（项目页签列表）
     @Published private(set) var financeProjectAggregations: [FinanceProjectAggregation] = []
 
+    // MARK: - 类别页签项目筛选（2026-10-04 东林需求：项目×分类交叉查看）
+
+    /// 类别页签的项目筛选（nil = 全部项目）。只驱动本页签的独立取数，
+    /// 不污染共享的 expense/incomeCategoryAggregations（总览页签也在用）
+    @Published var categoryProjectFilter: FinanceProject?
+
+    /// 类别页签筛选态聚合（categoryProjectFilter 非 nil 时有效；nil 时视图直接读共享聚合）
+    @Published private(set) var categoryTabExpenseAggregations: [CategoryAggregation] = []
+    @Published private(set) var categoryTabIncomeAggregations: [CategoryAggregation] = []
+
     // MARK: - 私有属性
 
     private let repository = FinanceRepository.shared
@@ -331,6 +341,11 @@ class FinanceAnalysisState: ObservableObject {
             selectedTopCategory = nil
             drillDownAggregations = []
 
+            // 类别页签项目筛选随时间档联动重算（独立聚合，不影响共享数据）
+            if categoryProjectFilter != nil {
+                await loadCategoryTabAggregations(start: start, end: end)
+            }
+
         } catch {
             if loadGate.accepts(generation) {
                 logger.error("加载数据失败: \(error)")
@@ -386,20 +401,61 @@ class FinanceAnalysisState: ObservableObject {
         setCustomDateRange(start: span.start, end: span.end)
     }
 
+    // MARK: - 类别页签项目筛选
+
+    /// 类别页签切换项目筛选：清下钻（二级数据是旧口径）并重取本页签聚合
+    func setCategoryProjectFilter(_ project: FinanceProject?) {
+        guard categoryProjectFilter?.id != project?.id else { return }
+        categoryProjectFilter = project
+        selectedTopCategory = nil
+        drillDownAggregations = []
+        if project != nil {
+            let (start, end) = currentDateRange
+            Task {
+                await loadCategoryTabAggregations(start: start, end: end)
+            }
+        } else {
+            categoryTabExpenseAggregations = []
+            categoryTabIncomeAggregations = []
+        }
+    }
+
+    /// 类别页签筛选态聚合取数（fetch 后再校验筛选未变，防旧请求覆盖新选择）
+    private func loadCategoryTabAggregations(start: Date, end: Date) async {
+        guard let project = categoryProjectFilter else { return }
+        let scope = StatisticsScope(accountId: nil, financeProjectId: project.id)
+        let expense = (try? await repository.getTopLevelCategoryAggregations(
+            from: start, to: end, type: .expense, scope: scope
+        )) ?? []
+        let income = (try? await repository.getTopLevelCategoryAggregations(
+            from: start, to: end, type: .income, scope: scope
+        )) ?? []
+        guard categoryProjectFilter?.id == project.id else { return }
+        categoryTabExpenseAggregations = expense
+        categoryTabIncomeAggregations = income
+    }
+
+    /// 类别页签下钻/弹窗取数应带的项目范围
+    private var categoryScope: StatisticsScope {
+        categoryProjectFilter.map { StatisticsScope(accountId: nil, financeProjectId: $0.id) } ?? .all
+    }
+
     // MARK: - 下钻操作
 
-    /// 进入下钻模式（查看一级分类下的二级分类）
+    /// 进入下钻模式（查看一级分类下的二级分类；选了项目时下钻数据同范围）
     func drillDown(category: Category) {
         guard category.isTopLevel else { return }
         selectedTopCategory = category
 
         let (start, end) = currentDateRange
+        let scope = categoryScope
         Task {
             do {
                 drillDownAggregations = try await repository.getSubCategoryAggregations(
                     parentId: category.id,
                     from: start,
-                    to: end
+                    to: end,
+                    scope: scope
                 )
             } catch {
                     logger.error("下钻加载失败: \(error)")
@@ -414,13 +470,14 @@ class FinanceAnalysisState: ObservableObject {
         drillDownAggregations = []
     }
 
-    /// 加载子科目聚合数据（不修改下钻状态，用于弹窗展示）
+    /// 加载子科目聚合数据（不修改下钻状态，用于弹窗展示；选了项目时同范围）
     func loadSubCategoryAggregations(for category: Category) async -> [CategoryAggregation] {
         let (start, end) = currentDateRange
         return (try? await repository.getSubCategoryAggregations(
             parentId: category.id,
             from: start,
-            to: end
+            to: end,
+            scope: categoryScope
         )) ?? []
     }
 

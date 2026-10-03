@@ -567,3 +567,188 @@ extension Color {
         scheme == .dark ? 0.30 : 0.16
     }
 }
+
+
+// MARK: - V2 工具界面（与首页品牌光球隔离）
+
+extension Color {
+    static let holoToolBackground = Color("ToolBackground")
+    static let holoToolSurface = Color("ToolSurface")
+    static let holoToolInset = Color("ToolInset")
+    static let holoToolText = Color("ToolText")
+    static let holoToolTextSecondary = Color("ToolTextSecondary")
+    static let holoToolBorder = Color("ToolBorder")
+    static let holoToolAction = Color("ToolAction")
+    static let holoToolOnAction = Color("ToolOnAction")
+}
+
+extension HoloSpacing {
+    static let page: CGFloat = 20
+}
+
+/// 按内容角色缩放文字；图标仍使用自己的尺寸，金额不靠缩小字号适配。
+enum HoloTextRole {
+    case pageTitle, sectionTitle, body, supporting, metadata, amount
+
+    var size: CGFloat {
+        switch self {
+        case .pageTitle: return 28
+        case .sectionTitle: return 20
+        case .body: return 17
+        case .supporting: return 15
+        case .metadata: return 13
+        case .amount: return 32
+        }
+    }
+
+    var relativeTo: Font.TextStyle {
+        switch self {
+        case .pageTitle: return .title
+        case .sectionTitle: return .title3
+        case .body: return .body
+        case .supporting: return .subheadline
+        case .metadata: return .caption
+        case .amount: return .largeTitle
+        }
+    }
+
+    var weight: Font.Weight {
+        switch self {
+        case .pageTitle, .sectionTitle: return .semibold
+        case .amount: return .medium
+        default: return .regular
+        }
+    }
+}
+
+struct HoloTextStyle: ViewModifier {
+    let role: HoloTextRole
+    @ScaledMetric private var pointSize: CGFloat
+
+    init(role: HoloTextRole) {
+        self.role = role
+        _pointSize = ScaledMetric(wrappedValue: role.size, relativeTo: role.relativeTo)
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: pointSize, weight: role.weight))
+    }
+}
+
+/// 连续内容不包卡片；独立操作用轻描边；只有真正悬浮的容器才使用阴影。
+enum HoloSurfaceRole {
+    case continuous, independent, floating
+}
+
+struct HoloSurfaceStyle: ViewModifier {
+    let role: HoloSurfaceRole
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch role {
+        case .continuous:
+            content
+        case .independent:
+            content
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                        .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+                }
+        case .floating:
+            content
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous)
+                        .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+                }
+                .shadow(color: HoloShadow.card, radius: 8, y: 3)
+        }
+    }
+}
+
+enum HoloActionRole {
+    case primary, secondary, destructive
+}
+
+/// 只负责外观和按压反馈，不附加保存、重试或触觉等业务副作用。
+struct HoloActionStyle: ButtonStyle {
+    let role: HoloActionRole
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .holoText(.body)
+            .fontWeight(.medium)
+            .padding(.horizontal, HoloSpacing.md)
+            .frame(minHeight: 44)
+            .foregroundStyle(foreground)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                    .strokeBorder(role == .secondary ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
+            }
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.5)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? nil : HoloAnimation.quick, value: configuration.isPressed)
+    }
+
+    private var foreground: Color {
+        role == .secondary ? .holoToolText : (role == .destructive ? .white : .holoToolOnAction)
+    }
+
+    private var background: Color {
+        switch role {
+        case .primary: return .holoToolAction
+        case .secondary: return .holoToolSurface
+        case .destructive: return .holoErrorDark
+        }
+    }
+}
+
+/// 局部状态由调用方提供真实文案和恢复动作，不自行制造进度或成功状态。
+struct HoloInlineState: View {
+    enum Kind { case loading, empty, failure }
+    let kind: Kind
+    let message: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                if kind == .loading {
+                    ProgressView().tint(Color.holoToolAction)
+                } else {
+                    Image(systemName: kind == .failure ? "exclamationmark.circle" : "tray")
+                        .foregroundStyle(kind == .failure ? Color.holoError : Color.holoToolTextSecondary)
+                        .accessibilityHidden(true)
+                }
+                Text(message)
+                    .holoText(.supporting)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+extension View {
+    func holoText(_ role: HoloTextRole) -> some View {
+        modifier(HoloTextStyle(role: role))
+    }
+
+    func holoSurface(_ role: HoloSurfaceRole = .independent) -> some View {
+        modifier(HoloSurfaceStyle(role: role))
+    }
+}
