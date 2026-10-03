@@ -361,6 +361,17 @@ const MIGRATIONS = [
       ALTER TABLE agent_cloud_analysis_tasks ADD COLUMN updated_at_ms INTEGER;
     `,
   },
+  {
+    id: 21,
+    description: 'Apple refresh token 加密留存表（2026-10-04 体检 P02：账号删除撤销 SIWA 凭证需 refresh token——此前误传 identity token 撤销从未生效；TN3194。应用层 AES-256-GCM 加密后入库）',
+    up: `
+      CREATE TABLE IF NOT EXISTS apple_refresh_tokens (
+        apple_sub TEXT PRIMARY KEY,
+        refresh_token TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

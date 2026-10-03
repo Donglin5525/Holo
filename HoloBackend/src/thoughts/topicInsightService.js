@@ -136,7 +136,7 @@ export function createThoughtTopicInsightService({
           finalize("completed", moderationFeeMicro());
           clearTimeout(deadlineTimer);
           return {
-            schemaVersion: 1,
+            schemaVersion: parsed.schemaVersion,
             operationId: parsed.operationId,
             outcome: "deferred",
             reasonCode: "moderation_blocked",
@@ -232,14 +232,15 @@ export function createThoughtTopicInsightService({
     finalize("completed", committedMicro + moderationFeeMicro());
     if (kind === "name") {
       return {
-        schemaVersion: 1,
+        schemaVersion: parsed.schemaVersion,
         operationId: parsed.operationId,
         name: validated.name,
+        ...(parsed.schemaVersion === 2 ? { outcome: validated.outcome, definition: validated.definition, members: validated.members } : {}),
         usage: usagePayload(),
       };
     }
     return {
-      schemaVersion: 1,
+      schemaVersion: parsed.schemaVersion,
       operationId: parsed.operationId,
       summary: validated.summary,
       viewpoints: validated.viewpoints,
@@ -257,8 +258,8 @@ export function createThoughtTopicInsightService({
       clientSignal,
       parseRequest: validateTopicNameRequest,
       validateOutput: validateTopicNameOutput,
-      userPayload: (parsed) => ({ representatives: parsed.representatives }),
-      estimateOutputTokens: 200,
+      userPayload: (parsed) => ({ schemaVersion: parsed.schemaVersion, representatives: parsed.representatives }),
+      estimateOutputTokens: body.schemaVersion === 2 ? 1200 : 200,
     });
   }
 

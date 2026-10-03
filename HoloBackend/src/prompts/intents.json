@@ -1,7 +1,7 @@
 {
-  "version": 4,
-  "updatedAt": "2026-09-25",
-  "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。 v3（财务项目）：record_expense 增 projectCandidate 槽位——仅在用户明确提到上下文给出的进行中项目名时照抄填写，未提及不填。 v4（今天减负）：新增 today_relief 只读意图——当日已有安排的减负/重新选择；intent_recognition 同步升 V32。",
+  "version": 5,
+  "updatedAt": "2026-10-04",
+  "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。 v3（财务项目）：record_expense 增 projectCandidate 槽位——仅在用户明确提到上下文给出的进行中项目名时照抄填写，未提及不填。 v4（今天减负）：新增 today_relief 只读意图——当日已有安排的减负/重新选择；intent_recognition 同步升 V32。 v5（项目收支同权对账）：record_income 增 projectCandidate 槽位（与 record_expense 同规则），对齐客户端 1.0.9 已上线口径。",
   "intents": [
     {
       "ids": [
@@ -22,7 +22,7 @@
       "ids": [
         "record_income"
       ],
-      "summary": "记收入。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（格式同支出）。",
+      "summary": "记收入。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（格式同支出）；用户明确提到进行中项目名时填 projectCandidate（照抄项目名，未提及不填）。",
       "requiredFields": [
         "amount"
       ],

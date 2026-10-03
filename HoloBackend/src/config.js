@@ -1,6 +1,12 @@
 const DEFAULT_CONFIG = {
   auth: {
     enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
+    // 设备会话强制（2026-10-04 体检 S01）：true 时设备路由必须携带与设备号同主体的
+    // 设备会话 JWT（客户端持 Ed25519 私钥挑战签名换取）。默认 false——
+    // 必须等携带会话的客户端版本完成铺量后才能打开，否则旧版本全体 401。
+    enforceDeviceSession: process.env.HOLO_ENFORCE_DEVICE_SESSION === "true",
+    deviceSessionTtlSeconds: Number(process.env.HOLO_DEVICE_SESSION_TTL_SECONDS ?? 86_400),
+    deviceSessionChallengeTtlSeconds: Number(process.env.HOLO_DEVICE_SESSION_CHALLENGE_TTL_SECONDS ?? 300),
     appleClientIds: csv(
       process.env.HOLO_APPLE_CLIENT_IDS ?? "com.tangyuxuan.holo-app,com.holo.Holo",
     ),
@@ -16,6 +22,9 @@ const DEFAULT_CONFIG = {
       keyId: process.env.APPLE_KEY_ID ?? "",
       clientId: process.env.APPLE_REVOKE_CLIENT_ID ?? "com.tangyuxuan.holo-app",
       privateKeyPem: process.env.APPLE_PRIVATE_KEY_PEM ?? "",
+      // P02：refresh token 落库加密密钥（base64 32 字节或任意字符串派生）。
+      // 未配置时 token 不入库，撤销退化为 REFRESH_TOKEN_UNAVAILABLE 引导路径。
+      tokenEncryptionKey: process.env.HOLO_APPLE_TOKEN_ENCRYPTION_KEY ?? "",
     },
     // APNs 推送（云端分析完成通知）：密钥内容必须显式配置（APNS_KEY_CONTENT），
     // 不回落 APPLE_PRIVATE_KEY_PEM——那把 key 未必勾了 APNs，误用只会得到隐晦的 403。
@@ -409,7 +418,7 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_SEMANTIC_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_SEMANTIC_TEMPERATURE ?? 0),
       reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
-      maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 512),
+      maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 1400),
     },
     // 主题命名/摘要 V3（§4.4/§4.5）：命名是轻量归纳（短输出），摘要是带反复观点的结构化 JSON。
     thought_topic_name_v1: {
@@ -417,7 +426,7 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_TEMPERATURE ?? 0.3),
       reasoningEffort: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REASONING_EFFORT ?? "none",
-      maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_MAX_TOKENS ?? 256),
+      maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_MAX_TOKENS ?? 1600),
     },
     thought_topic_summary_v1: {
       provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -784,7 +793,10 @@ export function loadConfig(overrides = {}) {
     },
     asrProvider: overrides.asrProvider,
     appleIdentityVerifier: overrides.appleIdentityVerifier,
+    appleRevokeService: overrides.appleRevokeService,
+    appleTokenStore: overrides.appleTokenStore,
     holoSessionService: overrides.holoSessionService,
+    deviceSessionService: overrides.deviceSessionService,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
     quotaActionLedgerStore: overrides.quotaActionLedgerStore,

@@ -94,7 +94,7 @@ test("validateTopicNameRequest 接受合法请求并归一化代表片段", () =
 });
 
 test("validateTopicNameRequest 拒绝越界：片段数>8、重复 ref、超长文本、坏 envelope", () => {
-  assert.throws(() => validateTopicNameRequest(nameBody({ schemaVersion: 2 })));
+  assert.throws(() => validateTopicNameRequest(nameBody({ schemaVersion: 3 })));
   const tooMany = nameBody();
   tooMany.representatives = Array.from({ length: TOPIC_NAME_LIMITS.representativeMaxCount + 1 }, (_, i) => ({
     ref: `R${i}`, text: `片段 ${i}`,
@@ -277,4 +277,24 @@ test("预算：共享池日预算耗尽返回 429 BUDGET_EXCEEDED", async () => 
   assert.equal(second.status, 429);
   const body = await second.json();
   assert.equal(body.error.code, "BUDGET_EXCEEDED");
+});
+
+test("V2 新主题至少三条独立原文支持，桥接假簇可以返回 no_topic", () => {
+  const representatives = ["今天跑了五公里，开始备战半马。","周日做了长距离跑，试了新跑鞋。","左膝不舒服，本周跑步减量。"].map((text,i)=>({ref:`N${i}`,text}));
+  const request = validateTopicNameRequest(nameBody({schemaVersion:2,representatives}));
+  const members = representatives.map(r=>({ref:r.ref,quote:r.text.slice(0,6),rangeUTF16:[0,6]}));
+  const output = {outcome:"topic",name:"跑步训练",definition:"围绕个人跑步、训练和跑步伤痛的记录",members};
+  assert.equal(validateTopicNameOutput(output,request).members.length,3);
+  assert.equal(validateTopicNameOutput({...output,members:members.slice(0,2)},request).malformed,true);
+  assert.equal(validateTopicNameOutput({...output,members:[members[0],members[0],members[2]]},request).malformed,true);
+  assert.equal(validateTopicNameOutput({...output,members:[{...members[0],quote:"编造原文"},...members.slice(1)]},request).malformed,true);
+  assert.equal(validateTopicNameOutput({outcome:"no_topic"},request).outcome,"no_topic");
+});
+test("V2 新主题长正文与 emoji 证据按 UTF16 校验", () => {
+  const representatives = Array.from({length:3},(_,i)=>({ref:`N${i}`,text:"😀"+"长".repeat(500)+"训练"+i}));
+  const request=validateTopicNameRequest(nameBody({schemaVersion:2,representatives}));
+  const members=representatives.map(r=>({ref:r.ref,quote:"😀",rangeUTF16:[0,2]}));
+  const output={outcome:"topic",name:"长文训练",definition:"测试完整长正文契约",members};
+  assert.equal(validateTopicNameOutput(output,request).members.length,3);
+  assert.deepEqual(validateTopicNameOutput({...output,members:[{...members[0],rangeUTF16:[0,1]},...members.slice(1)]},request).members[0].rangeUTF16,[0,2]);
 });

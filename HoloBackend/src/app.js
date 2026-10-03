@@ -22,7 +22,9 @@ import { createRequestLogger } from "./middleware/requestLogger.js";
 import { createDatabase } from "./db/database.js";
 import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
 import { createAppleRevokeService } from "./auth/appleRevokeService.js";
+import { createAppleTokenStore } from "./auth/appleTokenStore.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
+import { createDeviceSessionService } from "./auth/deviceSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt, buildVisionExtractionMessages } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
@@ -289,7 +291,23 @@ export function createApp(overrides = {}) {
     clientId: config.auth.appleRevoke?.clientId,
     privateKeyPem: config.auth.appleRevoke?.privateKeyPem,
   });
+  // P02：授权码换得的 refresh token 加密留存，账号删除时凭它真正撤销 SIWA 凭证
+  const appleTokenStore = config.appleTokenStore ?? createAppleTokenStore(database.db, {
+    encryptionKey: config.auth.appleRevoke?.tokenEncryptionKey,
+  });
   const holoSessionService = config.holoSessionService ?? createConfiguredSessionService(config.auth);
+  // 设备会话服务（S01）：与用户会话共用同一签名密钥、不同 audience（holo-device）；
+  // 密钥未配置或不足 32 字节时为 null（端点报 503、强制开关下 getDeviceId 报
+  // AUTH_UNAVAILABLE 失败关闭，与用户会话同语义）。
+  const deviceSessionService = config.deviceSessionService
+    ?? (Buffer.byteLength(String(config.auth.sessionSecret ?? ""), "utf8") >= 32
+      ? createDeviceSessionService({
+        secret: config.auth.sessionSecret,
+        issuer: config.auth.sessionIssuer,
+        ttlSeconds: config.auth.deviceSessionTtlSeconds,
+        challengeTtlSeconds: config.auth.deviceSessionChallengeTtlSeconds,
+      })
+      : null);
   const contentModeration =
     config.contentModeration ?? createContentModerationService(config.moderation);
 
@@ -431,21 +449,79 @@ export function createApp(overrides = {}) {
     }
   });
 
-  // App Store Guideline 5.1.1v：账号删除时撤销 Sign in with Apple 凭证。
-  // 客户端在删除账号前把用户的 identity token 发到这里，后端用 .p8 私钥签 client_secret
-  // 后调 Apple /auth/revoke 撤销。先验证 identity token，防止用任意字符串滥用撤销端点。
+  // App Store Guideline 5.1.1v / TN3194：账号删除时撤销 Sign in with Apple 凭证。
+  // P02（2026-10-04 体检）：撤销接口只认 access/refresh token——此前误传 identity
+  // token（hint=id_token），撤销从未真正生效。现在：登录时客户端把授权码报到
+  // register-revocation-token，后端换 refresh token 加密留存；删除时凭留存 token
+  // 真正撤销并即焚。历史账号无留存 token 时返回 ok=false（200），删除流程照常
+  // 继续并由客户端给出官方撤销指引——不以撤销失败阻断账号删除。
+  app.post("/v1/auth/apple/register-revocation-token", async (context) => {
+    try {
+      const request = await readJson(context);
+      let identity;
+      try {
+        identity = await appleIdentityVerifier.verify(request.identityToken);
+      } catch {
+        throw new GatewayError("INVALID_APPLE_IDENTITY", "Apple identity token is invalid", 401);
+      }
+      if (!appleRevokeService.isConfigured() || !appleTokenStore.configured) {
+        throw new GatewayError("APPLE_REVOKE_NOT_CONFIGURED", "Apple credential revocation is not configured", 503);
+      }
+      try {
+        const { refreshToken } = await appleRevokeService.exchangeAuthorizationCode(request.authorizationCode);
+        appleTokenStore.save(identity.sub, refreshToken);
+      } catch (error) {
+        throw new GatewayError(
+          "APPLE_TOKEN_EXCHANGE_FAILED",
+          error.message || "Apple authorization code exchange failed",
+          502,
+        );
+      }
+      context.header("Cache-Control", "no-store");
+      return context.json({ ok: true });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   app.post("/v1/auth/apple/revoke", async (context) => {
     try {
       const request = await readJson(context);
+      let identity;
       try {
-        await appleIdentityVerifier.verify(request.identityToken);
+        identity = await appleIdentityVerifier.verify(request.identityToken);
       } catch {
         throw new GatewayError("INVALID_APPLE_IDENTITY", "Apple identity token is invalid", 401);
       }
       if (!appleRevokeService.isConfigured()) {
         throw new GatewayError("APPLE_REVOKE_NOT_CONFIGURED", "Apple credential revocation is not configured", 503);
       }
-      await appleRevokeService.revoke(request.identityToken);
+      // 请求携带新鲜授权码时先换先存（覆盖旧 token），再走留存凭证撤销
+      if (typeof request.authorizationCode === "string" && request.authorizationCode.length > 0
+        && appleTokenStore.configured) {
+        try {
+          const { refreshToken } = await appleRevokeService.exchangeAuthorizationCode(request.authorizationCode);
+          appleTokenStore.save(identity.sub, refreshToken);
+        } catch {
+          // 换取失败不阻断撤销——继续用已留存的 token
+        }
+      }
+      const storedToken = appleTokenStore.lookup(identity.sub);
+      if (!storedToken) {
+        context.header("Cache-Control", "no-store");
+        return context.json({ ok: false, reason: "REFRESH_TOKEN_UNAVAILABLE" });
+      }
+      try {
+        await appleRevokeService.revoke(storedToken);
+      } catch (error) {
+        throw new GatewayError(
+          "APPLE_REVOKE_FAILED",
+          error.message || "Apple credential revocation failed",
+          502,
+        );
+      }
+      // 撤销成功即焚：SIWA 凭证已吊销，留存凭证完成使命
+      appleTokenStore.remove(identity.sub);
       context.header("Cache-Control", "no-store");
       return context.json({ ok: true });
     } catch (error) {
@@ -530,6 +606,48 @@ export function createApp(overrides = {}) {
     }
   });
 
+  // 设备会话（S01）：持钥证明换短效 JWT。挑战一次性防重放；同一签名密钥不同 audience。
+  app.post("/v1/auth/device/challenge", async (context) => {
+    try {
+      if (!deviceSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Device session secret is not configured", 503);
+      }
+      await readJson(context);
+      context.header("Cache-Control", "no-store");
+      return context.json(deviceSessionService.issueChallenge());
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.post("/v1/auth/device/session", async (context) => {
+    try {
+      if (!deviceSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Device session secret is not configured", 503);
+      }
+      const request = await readJson(context);
+      let token;
+      try {
+        token = await deviceSessionService.issueSession({
+          deviceId: request.deviceId,
+          publicKey: request.publicKey,
+          signature: request.signature,
+          challenge: request.challenge,
+        });
+      } catch (error) {
+        throw new GatewayError("INVALID_DEVICE_BINDING", error.message, 401);
+      }
+      const session = await deviceSessionService.verifySession(token);
+      context.header("Cache-Control", "no-store");
+      return context.json({
+        token,
+        expiresAt: session.expiresAt,
+      });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   const subscriptionStatusFor = (deviceId) => {
     const entitlement = entitlementResolver.resolve(deviceId);
     const status = buildSubscriptionStatus(entitlement, quotaActionLedgerStore);
@@ -538,9 +656,9 @@ export function createApp(overrides = {}) {
     return status;
   };
 
-  app.get("/v1/subscription/status", (context) => {
+  app.get("/v1/subscription/status", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       context.header("Cache-Control", "no-store");
       return context.json(subscriptionStatusFor(deviceId));
     } catch (error) {
@@ -550,7 +668,7 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/subscription/sync", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const verified = await appleReceiptVerifier.verify(request);
       entitlementStore.upsertVerified(deviceId, verified);
@@ -564,7 +682,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/subscription/acceptance", async (context) => {
     try {
       await requireInternalDiagnostics(context, holoSessionService);
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       if (request.mode === "followPurchase") {
         acceptanceStore.clear(deviceId);
@@ -583,7 +701,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/subscription/acceptance/reset", async (context) => {
     try {
       await requireInternalDiagnostics(context, holoSessionService);
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       if (entitlement.source !== "acceptance") {
         throw new GatewayError(
@@ -613,7 +731,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const quotaType = quotaTypeForPurpose(purpose);
       const quotaActionId = resolveQuotaActionId(request, purpose);
@@ -927,7 +1045,7 @@ export function createApp(overrides = {}) {
       if (!allowedEmbeddingPurposes.has(purpose)) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
-      if (purpose === "personal_context_embedding") {
+      if (contentModeration.isEnabled()) {
         const moderationResult = await contentModeration.moderate(texts.join("\n"));
         if (!moderationResult.passed) {
           throw new GatewayError(
@@ -943,7 +1061,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const requestLimits = {
         perMinute: route.requestLimits?.perMinute ?? config.limits.chatRequestsPerMinute,
         perDay: route.requestLimits?.perDay ?? config.limits.chatRequestsPerDay,
@@ -1009,7 +1127,7 @@ export function createApp(overrides = {}) {
         );
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const usage = usageStore.consume({
         deviceId,
@@ -1060,7 +1178,7 @@ export function createApp(overrides = {}) {
         );
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const usage = usageStore.consume({
         deviceId,
@@ -1128,7 +1246,7 @@ export function createApp(overrides = {}) {
           );
         }
 
-        const deviceId = getDeviceId(context, config);
+        const deviceId = await getDeviceId(context, config);
         const entitlement = entitlementResolver.resolve(deviceId);
         const usage = usageStore.consume({
           deviceId,
@@ -1181,7 +1299,7 @@ export function createApp(overrides = {}) {
         );
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const usage = usageStore.consume({
         deviceId,
@@ -1210,7 +1328,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/asr/transcriptions", async (context) => {
     let quotaReservation = null;
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const formData = await context.req.formData();
       const audio = formData.get("audio");
       if (!isUploadedFile(audio)) {
@@ -1308,7 +1426,7 @@ export function createApp(overrides = {}) {
   // 不复用 holoSession：该 session 仅用于内部诊断，且客户端在正式版不会携带。
   app.post("/v1/reports", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       if (typeof request.messageId !== "string" || request.messageId.trim().length === 0) {
@@ -1382,7 +1500,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const caption = typeof request.text === "string" ? request.text.trim().slice(0, 500) : "";
       if (typeof request.image !== "string" || request.image.length === 0) {
@@ -1522,7 +1640,7 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/feedback", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       if (!FEEDBACK_CATEGORIES.has(request.category)) {
@@ -1595,7 +1713,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/ai/agent/cloud/start", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       const question = typeof request.question === "string" ? request.question.trim() : "";
@@ -1648,7 +1766,7 @@ export function createApp(overrides = {}) {
   app.put("/v1/ai/agent/cloud/:id/snapshot", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.get(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1687,7 +1805,7 @@ export function createApp(overrides = {}) {
   app.get("/v1/ai/agent/cloud/:id", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.getDecrypted(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1717,7 +1835,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/ai/agent/cloud/:id/ack", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.get(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1733,7 +1851,7 @@ export function createApp(overrides = {}) {
   // 低频上报（启动/令牌轮换），轻限流防刷。
   app.post("/v1/ai/agent/cloud/device-token", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const token = typeof request.token === "string" ? request.token.trim().toLowerCase() : "";
       if (!/^[0-9a-f]{64}$/.test(token)) {
@@ -1759,7 +1877,7 @@ export function createApp(overrides = {}) {
   app.delete("/v1/ai/agent/cloud/:id", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.get(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1777,7 +1895,7 @@ export function createApp(overrides = {}) {
   // 仅收白名单技术字段，不收任何用户内容。
   app.post("/v1/ai/agent/telemetry", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       const usage = usageStore.consume({
@@ -2017,14 +2135,40 @@ function rejectClientRouting(request) {
   }
 }
 
-function getDeviceId(context, config) {
+async function getDeviceId(context, config) {
   const deviceId = context.req.header("x-holo-device-id");
   if (deviceId) {
+    // S01（2026-10-04）：编号只是标识不是凭证。强制开启时必须出示与编号同主体的
+    // 设备会话（客户端持钥挑战签名换取），防止伪造/冒用编号创建云任务或在他人
+    // 编号边界内活动。单点收口——所有调用 getDeviceId 的设备路由自动复用同一规则。
+    if (config.auth.enforceDeviceSession) {
+      if (!config.deviceSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Device session secret is not configured", 503);
+      }
+      const bearer = context.req.header("authorization");
+      const token = bearer?.startsWith("Bearer ") ? bearer.slice("Bearer ".length) : null;
+      if (!token) {
+        throw new GatewayError("DEVICE_SESSION_REQUIRED", "Device session is required", 401);
+      }
+      let session;
+      try {
+        session = await config.deviceSessionService.verifySession(token);
+      } catch {
+        throw new GatewayError("INVALID_DEVICE_SESSION", "Device session is invalid or expired", 401);
+      }
+      if (session.sub !== deviceId) {
+        throw new GatewayError("DEVICE_SESSION_MISMATCH", "Device session does not match device id", 403);
+      }
+    }
     return deviceId;
   }
 
   if (config.auth.enforceAppAttest) {
     throw new GatewayError("APP_ATTEST_REQUIRED", "App Attest assertion is required", 401);
+  }
+
+  if (config.auth.enforceDeviceSession) {
+    throw new GatewayError("DEVICE_SESSION_REQUIRED", "Device session is required", 401);
   }
 
   return "debug-device";

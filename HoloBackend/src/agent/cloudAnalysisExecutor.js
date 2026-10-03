@@ -30,10 +30,29 @@ function sanitizeToken(value) {
  * 旧客户端不附带时按保守默认任务运行，不破坏旧协议。字段缺省用 unknown/空，
  * 不让模型补猜——任务范围由代码冻结，模型只负责在范围内工作。
  */
+// S03（2026-10-04 体检）：快照覆盖完整性提取——iOS 快照每个数据集携带
+// totalRows（截断前总量）与 coveredFrom（快照内最老一行）；此处原样回显进
+// 结果，客户端据此在报告范围行标注截断。旧快照无元数据时 total=provided。
+function snapshotCoverage(snapshot) {
+  const datasets = snapshot?.datasets;
+  if (!datasets || typeof datasets !== "object") return null;
+  const coverage = {};
+  for (const [name, dataset] of Object.entries(datasets)) {
+    const provided = Array.isArray(dataset?.rows) ? dataset.rows.length : 0;
+    const total = Number.isInteger(dataset?.totalRows) ? dataset.totalRows : provided;
+    coverage[name] = {
+      totalRows: total,
+      providedRows: provided,
+      truncated: provided < total,
+      coveredFrom: typeof dataset?.coveredFrom === "string" ? dataset.coveredFrom : null,
+    };
+  }
+  return coverage;
+}
+
 function normalizeAnswerTask(snapshot, fallbackQuestion) {
   const raw = snapshot?.answerTask;
-  const cutoffISO = snapshot?.generatedAt ?? null;
-  const questionKindWhitelist = new Set(["fact", "comparison", "diagnosis", "correlation", "decision", "general"]);
+  const cutoffISO = snapshot?.generatedAt ?? null;  const questionKindWhitelist = new Set(["fact", "comparison", "diagnosis", "correlation", "decision", "general"]);
   const task = {
     scenarioID: typeof raw?.scenarioID === "string" && raw.scenarioID ? raw.scenarioID : null,
     userQuestion: typeof raw?.userQuestion === "string" && raw.userQuestion.trim()
@@ -185,9 +204,12 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
     const hasAssertion = (sanitized.metricAssertions ?? []).length > 0;
     const hasEvidence = (sanitized.evidenceIDs ?? []).length > 0;
     const text = `${sanitized.displayText ?? ""}${sanitized.summary ?? ""}`;
-    // 已有工具证据的会话里，含数字的 claim 既无断言也无引用 = 未经核验的数字，
-    // 剥离（定性 claim 保留）。整场没查到任何指标的会话按降级保留并警告。
-    if (ledgerHasMetrics && !hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
+    // 含数字的 claim 既无断言也无引用 = 未经核验的数字，一律剥离（定性 claim 保留）。
+    // 2026-10-04 体检 S02：此前「整场没查到指标」的会话按降级保留数字结论——
+    // 合成复现实锤空数据 + 编造「本月支出 99999 元」可穿透防线交付 completed。
+    // 现在无论台账是否有数，数字结论必须挂得上断言/引用，挂不上就剥离；
+    // 全部剥空走既有诚实失败路径（修复轮 → 仍空 → failed）。
+    if (!hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
       warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
       continue;
     }
@@ -965,6 +987,9 @@ export function createCloudAnalysisExecutor({
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),
             warnings: verified.warnings,
+            // S03（2026-10-04 体检）：快照覆盖完整性回显——截断发生时客户端
+            // 在报告范围行如实标注，截断明细不再冒充全量
+            snapshotCoverage: snapshotCoverage(snapshot),
             snapshotCutoffAt: answerTask.snapshotCutoffAt,
             taskRange: answerTask.primaryTimeRange
               ? {

@@ -411,8 +411,10 @@ test("执行器全循环：need_tools→工具结果→final_claims→完成即�
 test("final_claims 叙事契约：模型未产出叙事字段时落 null，不伪造", async () => {
   const provider = makeProvider([
     agentJson("final_claims", {
+      // 定性表述（无数字）：本用例只验叙事字段契约，不依赖交付核验的数字规则；
+      // S02 收紧后数字 claim 无断言/引用会被剥离（体检 2026-10-04）
       claims: [{
-        displayText: "本月餐饮支出合计 102 元",
+        displayText: "本月餐饮支出主要集中在工作日",
         metricAssertions: [],
         evidenceIDs: ["finance.transactions#0"],
       }],
@@ -997,6 +999,40 @@ test("交付核验：数字断言与 Ledger 对不上 → 剥离该断言并记 
   assert.equal(result.claims.length, 1);
   assert.equal(result.claims[0].metricAssertions.length, 0);
   assert.ok(result.warnings.some((w) => w.startsWith("METRIC_MISMATCH")), "须记录对账失败警告");
+});
+
+test("交付核验 S02：空台账编造数字结论 → 剥离后诚实 failed（体检 2026-10-04 合成复现回归）", async () => {
+  // 体检 E02 场景：空快照 + 模型不调工具直接 final_claims「本月支出 99999 元」——
+  // 修复前该结论以 completed 交付（仅 NO_TOOL_EVIDENCE 警告，客户端照常呈现）；
+  // 修复后数字 claim 无断言/引用一律剥离，修复轮仍编造则诚实失败，
+  // 无证据数字不再能冒充事实。注意：正常如实回答「记录不足」的定性 observation
+  // （无数字）不受影响，仍可交付。
+  const fabricated = () => agentJson("final_claims", {
+    claims: [{
+      id: "c1",
+      type: "observation",
+      summary: "本月支出 99999 元",
+      displayText: "本月支出 99999 元",
+      metricAssertions: [],
+      evidenceIDs: [],
+    }],
+  });
+  const provider = makeProvider([fabricated(), fabricated()]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-no-evidence", question: "本月支出多少" });
+  store.attachSnapshot({
+    id: task.id,
+    snapshot: JSON.stringify({
+      version: 1,
+      generatedAt: "2026-10-04T00:00:00Z",
+      historyDays: 180,
+      datasets: {},
+    }),
+  });
+
+  assert.equal(await executor.run(task.id), "failed");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `失败原因须诚实可解释，实际：${failure}`);
 });
 
 test("交付核验：narrativeSummary 出现 Ledger 不支持的数字 → 清空该字段（iOS 有回退不丢事实）", async () => {

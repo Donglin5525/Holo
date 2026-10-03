@@ -82,8 +82,10 @@ test("revoke posts the expected form body to Apple and resolves ok on 2xx", asyn
 
   const { service } = await makeServiceFixture({ fetch: fetchImpl });
 
-  const identityToken = "identity-token-from-apple";
-  const result = await service.revoke(identityToken);
+  // P02（2026-10-04 体检）：撤销只认 refresh token——此前误传 identity token
+  // 且 hint 用 id_token，撤销从未真正生效
+  const refreshToken = "refresh-token-from-code-exchange";
+  const result = await service.revoke(refreshToken);
 
   assert.deepEqual(result, { ok: true });
   assert.equal(calls.length, 1);
@@ -93,26 +95,60 @@ test("revoke posts the expected form body to Apple and resolves ok on 2xx", asyn
 
   const params = new URLSearchParams(calls[0].init.body);
   assert.equal(params.get("client_id"), CLIENT_ID);
-  assert.equal(params.get("token"), identityToken);
-  assert.equal(params.get("token_type_hint"), "id_token");
+  assert.equal(params.get("token"), refreshToken);
+  assert.equal(params.get("token_type_hint"), "refresh_token");
   const clientSecret = params.get("client_secret");
   assert.ok(typeof clientSecret === "string" && clientSecret.length > 0);
+});
+
+test("exchangeAuthorizationCode swaps the code for a refresh token", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: "at", refresh_token: "rt-123", id_token: "idt" }),
+    };
+  };
+
+  const { service } = await makeServiceFixture({ fetch: fetchImpl });
+  const { refreshToken } = await service.exchangeAuthorizationCode("auth-code-abc");
+
+  assert.equal(refreshToken, "rt-123");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://appleid.apple.com/auth/oauth2/token");
+  const params = new URLSearchParams(calls[0].init.body);
+  assert.equal(params.get("grant_type"), "authorization_code");
+  assert.equal(params.get("code"), "auth-code-abc");
+  assert.equal(params.get("client_id"), CLIENT_ID);
+  assert.ok(params.get("client_secret"));
+});
+
+test("exchangeAuthorizationCode throws when Apple omits the refresh token", async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ access_token: "at" }),
+  });
+  const { service } = await makeServiceFixture({ fetch: fetchImpl });
+  await assert.rejects(() => service.exchangeAuthorizationCode("code"), /no refresh token/);
 });
 
 test("revoke throws when Apple responds with a non-2xx status", async () => {
   const fetchImpl = async () => ({ ok: false, status: 400 });
   const { service } = await makeServiceFixture({ fetch: fetchImpl });
-  await assert.rejects(() => service.revoke("identity-token"), /Apple revoke failed with status 400/);
+  await assert.rejects(() => service.revoke("refresh-token"), /Apple revoke failed with status 400/);
 });
 
-test("revoke rejects an empty identity token before calling Apple", async () => {
+test("revoke rejects an empty token before calling Apple", async () => {
   let called = false;
   const fetchImpl = async () => {
     called = true;
     return { ok: true, status: 200 };
   };
   const { service } = await makeServiceFixture({ fetch: fetchImpl });
-  await assert.rejects(() => service.revoke(""), /Apple identity token is required/);
+  await assert.rejects(() => service.revoke(""), /Apple refresh token is required/);
   assert.equal(called, false);
 });
 
