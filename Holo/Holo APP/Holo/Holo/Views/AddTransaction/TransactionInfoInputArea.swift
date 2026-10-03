@@ -26,12 +26,10 @@ extension AddTransactionSheet {
 
             Divider().padding(.leading, 44)
 
-            // 项目行（仅支出；点击弹窗选择挂靠的财务项目）
-            if transactionType == .expense {
-                financeProjectRow
+            // 项目行（收支都可挂靠；点击弹窗选择挂靠的财务项目）
+            financeProjectRow
 
-                Divider().padding(.leading, 44)
-            }
+            Divider().padding(.leading, 44)
 
             // 日期行（点击弹窗选择）
             dateRow
@@ -564,10 +562,12 @@ extension AddTransactionSheet {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        // 不挂项目
+                        // 不挂项目（记忆只在支出域生效——收入挂项目低频，误挂比漏挂伤害大）
                         Button {
                             selectedProject = nil
-                            lastSelectedFinanceProjectId = nil
+                            if transactionType == .expense {
+                                lastSelectedFinanceProjectId = nil
+                            }
                             withAnimation(HoloAnimation.enter) {
                                 showProjectPicker = false
                             }
@@ -594,7 +594,9 @@ extension AddTransactionSheet {
 
                             Button {
                                 selectedProject = project
-                                lastSelectedFinanceProjectId = project.id.uuidString
+                                if transactionType == .expense {
+                                    lastSelectedFinanceProjectId = project.id.uuidString
+                                }
                                 withAnimation(HoloAnimation.enter) {
                                     showProjectPicker = false
                                 }

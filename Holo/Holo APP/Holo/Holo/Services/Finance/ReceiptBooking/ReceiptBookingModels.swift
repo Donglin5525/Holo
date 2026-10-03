@@ -71,6 +71,8 @@ enum ReceiptBookingReason: String, Sendable, Equatable, CaseIterable {
     case reviewAccountChoiceUnavailable = "review.accountChoiceUnavailable"
     case reviewProjectChoiceUnavailable = "review.projectChoiceUnavailable"
     case reviewProjectAmbiguous = "review.projectAmbiguous"
+    /// 已停用（2026-10-04 项目收支同权，收入可挂项目，门禁不再产生此原因）：
+    /// 保留 case 供历史复核草案解码，勿在新链路使用
     case reviewProjectNotSupportedForIncome = "review.projectNotSupportedForIncome"
     case reviewContractGuarded = "review.contractGuarded"
     /// 旧契约（schemaVersion<2 或缺字段级置信度）：缺字段一律复核，不用整体 confidence 冒充

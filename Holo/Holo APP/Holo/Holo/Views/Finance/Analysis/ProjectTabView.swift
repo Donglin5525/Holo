@@ -43,13 +43,19 @@ struct ProjectTabView: View {
     private var listView: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.lg) {
-                // 页签汇总头：本期项目支出合计 + 有支出的项目数
+                // 页签汇总头：本期项目收支合计 + 有支出的项目数
                 HStack(spacing: HoloSpacing.sm) {
                     ScopeHeadCell(
                         title: String(localized: "项目支出合计"),
                         value: totalSpentText,
                         subtitle: rangeSubtitle,
                         valueColor: .holoError
+                    )
+                    ScopeHeadCell(
+                        title: String(localized: "项目收入合计"),
+                        value: totalIncomeText,
+                        subtitle: String(localized: "退款已冲减支出"),
+                        valueColor: .holoSuccess
                     )
                     ScopeHeadCell(
                         title: String(localized: "有支出的项目"),
@@ -74,9 +80,13 @@ struct ProjectTabView: View {
                             state.financeProjectAggregations.map { ($0.project.id, $0.expense) },
                             uniquingKeysWith: { $0 + $1 }
                         )
+                        let incomeById = Dictionary(
+                            state.financeProjectAggregations.map { ($0.project.id, $0.income) },
+                            uniquingKeysWith: { $0 + $1 }
+                        )
 
                         ForEach(state.availableFinanceProjects, id: \.id) { project in
-                            projectRow(project, spent: spentById[project.id])
+                            projectRow(project, spent: spentById[project.id], income: incomeById[project.id])
                         }
                     }
                     .padding(HoloSpacing.md)
@@ -93,18 +103,25 @@ struct ProjectTabView: View {
         )
     }
 
+    private var totalIncomeText: String {
+        NumberFormatter.compactCurrency(
+            state.financeProjectAggregations.reduce(Decimal(0)) { $0 + $1.income }
+        )
+    }
+
     private var spentProjectCount: Int {
         state.financeProjectAggregations.filter { $0.expense > 0 }.count
     }
 
     private var rangeSubtitle: String {
+        // 三格汇总头里每格宽度有限，用 M.d 短格式避免「10月1日 - 10月…」被截断
         let (start, end) = state.currentDateRange
         let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMd")
+        df.dateFormat = "M.d"
         return "\(df.string(from: start)) - \(df.string(from: end.addingDays(-1)))"
     }
 
-    private func projectRow(_ project: FinanceProject, spent: Decimal?) -> some View {
+    private func projectRow(_ project: FinanceProject, spent: Decimal?, income: Decimal?) -> some View {
         Button {
             selectedProject = project
         } label: {
@@ -136,12 +153,26 @@ struct ProjectTabView: View {
                         Text(NumberFormatter.compactCurrency(spent))
                             .font(.system(size: 14.5, weight: .semibold, design: .rounded))
                             .foregroundColor(.holoTextPrimary)
+                        if let income, income > 0 {
+                            // 本期进账（退款已在支出侧冲减，不重复出现于此）
+                            Text(String(localized: "收入 \(NumberFormatter.compactCurrency(income))"))
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoSuccess)
+                        }
                         if let budget = project.budgetDecimal {
                             let pct = Int(Double(truncating: (spent / budget * 100) as NSDecimalNumber))
                             Text(String(localized: "预算已用 \(pct)%"))
                                 .font(.system(size: 10))
                                 .foregroundColor(spent > budget ? .holoError : .holoTextSecondary)
                         }
+                    } else if let income, income > 0 {
+                        // 本期只有进账没有支出的项目：露出收入，避免行内空白
+                        Text(NumberFormatter.compactCurrency(income))
+                            .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.holoSuccess)
+                        Text(String(localized: "本期收入"))
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoTextSecondary)
                     } else {
                         Text(String(localized: "本期无支出"))
                             .font(.system(size: 11))
@@ -202,6 +233,7 @@ private struct ProjectInsightView: View {
 
     /// 全程口径头卡数据（不随时间档变化）
     @State private var totalSpent: Decimal = 0
+    @State private var totalIncome: Decimal = 0
     @State private var spanDays: Int?
 
     /// 重载键：项目 + 当前时间范围（含排他上界），任一变化即重取
@@ -267,8 +299,9 @@ private struct ProjectInsightView: View {
 
     private func load() async {
         // 头卡全程口径（一次性）
-        if totalSpent == 0 {
+        if totalSpent == 0 && totalIncome == 0 {
             totalSpent = FinanceProjectRepository.shared.totalExpense(forProject: project.id)
+            totalIncome = FinanceProjectRepository.shared.totalIncome(forProject: project.id)
             if let span = FinanceProjectRepository.shared.projectSpan(of: project) {
                 let days = Calendar.current.dateComponents([.day], from: span.start, to: span.end).day ?? 0
                 spanDays = max(days, 1)
@@ -317,6 +350,20 @@ private struct ProjectInsightView: View {
             HStack(spacing: 0) {
                 headerStat(title: String(localized: "项目总支出（全程）"), value: NumberFormatter.compactCurrency(totalSpent))
 
+                Divider().frame(height: 32).overlay(Color.white.opacity(0.3))
+                headerStat(title: String(localized: "项目总收入（全程）"), value: NumberFormatter.compactCurrency(totalIncome))
+
+                Divider().frame(height: 32).overlay(Color.white.opacity(0.3))
+                headerStat(
+                    title: String(localized: "净投入（支出−收入）"),
+                    value: {
+                        let net = totalSpent - totalIncome
+                        return net < 0
+                            ? String(localized: "净收益 \(NumberFormatter.compactCurrency(-net))")
+                            : NumberFormatter.compactCurrency(net)
+                    }()
+                )
+
                 if let budget = project.budgetDecimal {
                     Divider().frame(height: 32).overlay(Color.white.opacity(0.3))
                     headerStat(
@@ -325,11 +372,6 @@ private struct ProjectInsightView: View {
                             ? String(localized: "超支 \(NumberFormatter.compactCurrency(totalSpent - budget))")
                             : String(localized: "剩 \(NumberFormatter.compactCurrency(budget - totalSpent))")
                     )
-                }
-
-                if let spanDays, totalSpent > 0 {
-                    Divider().frame(height: 32).overlay(Color.white.opacity(0.3))
-                    headerStat(title: String(localized: "全程日均"), value: NumberFormatter.compactCurrency(totalSpent / Decimal(spanDays)))
                 }
             }
         }
@@ -343,12 +385,18 @@ private struct ProjectInsightView: View {
         )
     }
 
-    /// 头卡副标题：期间 + 天数；状态由右上胶囊承担，不进副标题
+    /// 头卡副标题：期间 + 天数 + 全程日均（状态由右上胶囊承担，不进副标题；
+    /// 日均随收支同权从格子收进副标题，给净投入腾位）
     private var headerMetaText: String {
         var parts: [String] = []
         let span = ProjectTabView.metaText(project, includesStatus: false)
         if !span.isEmpty { parts.append(span) }
-        if let spanDays { parts.append("\(spanDays) 天") }
+        if let spanDays {
+            parts.append("\(spanDays) 天")
+            if totalSpent > 0 {
+                parts.append(String(localized: "日均 \(NumberFormatter.compactCurrency(totalSpent / Decimal(spanDays)))"))
+            }
+        }
         return parts.joined(separator: " · ")
     }
 

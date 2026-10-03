@@ -343,7 +343,7 @@ extension FinanceRepository {
         .sorted { $0.expense > $1.expense }
     }
 
-    /// 时间范围内各财务项目的支出聚合（支出口径含退款负冲）。
+    /// 时间范围内各财务项目的收支聚合（支出侧含退款负冲，statisticsType 口径）。
     /// 项目已删除（查不到对象）的挂靠交易不计入；按支出降序。
     func getFinanceProjectAggregations(
         from startDate: Date,
@@ -354,15 +354,14 @@ extension FinanceRepository {
         let expenseTxns = transactions.filter { $0.statisticsType == .expense }
         let totalExpense = expenseTxns.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
-        var map: [UUID: (expense: Decimal, count: Int)] = [:]
-        for tx in expenseTxns {
+        var map: [UUID: (expense: Decimal, income: Decimal, count: Int)] = [:]
+        for tx in transactions {
             guard let projectId = tx.financeProjectId else { continue }
-            if var entry = map[projectId] {
-                entry.expense += tx.statisticsAmount
-                entry.count += 1
-                map[projectId] = entry
+            let entry = map[projectId] ?? (expense: 0, income: 0, count: 0)
+            if tx.statisticsType == .expense {
+                map[projectId] = (entry.expense + tx.statisticsAmount, entry.income, entry.count + 1)
             } else {
-                map[projectId] = (expense: tx.statisticsAmount, count: 1)
+                map[projectId] = (entry.expense, entry.income + tx.statisticsAmount, entry.count + 1)
             }
         }
         guard !map.isEmpty else { return [] }
@@ -382,6 +381,7 @@ extension FinanceRepository {
             return FinanceProjectAggregation(
                 project: project,
                 expense: value.expense,
+                income: value.income,
                 percentage: Double(truncating: percentage as NSDecimalNumber),
                 transactionCount: value.count
             )

@@ -88,7 +88,7 @@ final class FinanceTransactionDraftResolver {
         }
     }
 
-    // MARK: 项目解析（方案 §21.3 优先级与安全规则）
+    // MARK: 项目解析（方案 §21.3 优先级；2026-10-04 起收支同权，收入挂项目不再是冲突）
 
     /// - Parameters:
     ///   - imageCandidateTexts: 理解单里的项目候选原文（merchant/summary/items，方案 §21.3 首版口径）
@@ -99,26 +99,23 @@ final class FinanceTransactionDraftResolver {
         choice: ReceiptProjectChoice,
         caption: String?,
         imageCandidateTexts: [String?],
-        transactionDate: Date,
-        typeIsIncome: Bool
-    ) -> (resolution: ReceiptProjectResolution, dateOutsideRange: Bool, incomeConflict: Bool) {
+        transactionDate: Date
+    ) -> (resolution: ReceiptProjectResolution, dateOutsideRange: Bool) {
         let repo = FinanceProjectRepository.shared
         let activeProjects = repo.activeProjects()
 
-        func attached(_ project: FinanceProject) -> (ReceiptProjectResolution, Bool, Bool) {
+        func attached(_ project: FinanceProject) -> (ReceiptProjectResolution, Bool) {
             let outside = Self.isDate(transactionDate, outsideRangeOf: project)
-            // 收入/退款不允许挂项目：显式配置不能被静默忽略（方案 §21.3）
-            let incomeConflict = typeIsIncome
-            return (.resolved(id: project.id, name: project.name), outside, incomeConflict)
+            return (.resolved(id: project.id, name: project.name), outside)
         }
 
         switch choice {
         case .noProject:
-            return (.none, false, false)
+            return (.none, false)
 
         case .fixed(let projectID):
             guard let project = activeProjects.first(where: { $0.id == projectID }) else {
-                return (.fixedUnavailable(id: projectID), false, false)
+                return (.fixedUnavailable(id: projectID), false)
             }
             return attached(project)
 
@@ -128,17 +125,17 @@ final class FinanceTransactionDraftResolver {
                !caption.isEmpty {
                 let exact = activeProjects.filter { $0.name == caption }
                 if exact.count == 1 { return attached(exact[0]) }
-                if exact.count > 1 { return (.ambiguous, false, false) }
+                if exact.count > 1 { return (.ambiguous, false) }
             }
             // 2. 图片候选（merchant/summary/items）经现有保守匹配，唯一命中才挂
             for candidate in imageCandidateTexts.compactMap({ $0 })
             where !candidate.trimmingCharacters(in: .whitespaces).isEmpty {
                 let (matched, ambiguous) = FinanceProjectRepository.matchProjectCandidate(candidate, in: activeProjects)
                 if let matched { return attached(matched) }
-                if ambiguous { return (.ambiguous, false, false) }
+                if ambiguous { return (.ambiguous, false) }
             }
             // 3. 零命中：正常不挂项目
-            return (.none, false, false)
+            return (.none, false)
         }
     }
 

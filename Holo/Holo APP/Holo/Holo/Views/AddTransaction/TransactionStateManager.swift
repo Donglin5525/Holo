@@ -18,10 +18,10 @@ extension AddTransactionSheet {
         amountString = formatAmount(absoluteAmount)
         selectedCategory = transaction.category
         selectedAccount = transaction.account
-        // 收入不挂项目（与票根 §21.3 口径一致）：历史脏收入不回填，编辑保存即解除挂靠
-        selectedProject = transaction.transactionType == .expense
-            ? transaction.financeProjectId.flatMap { FinanceProjectRepository.shared.findProject(by: $0) }
-            : nil
+        // 收支都可挂靠（2026-10-04 定稿）：编辑回填原挂靠，退款笔照常回填其继承挂靠
+        selectedProject = transaction.financeProjectId.flatMap {
+            FinanceProjectRepository.shared.findProject(by: $0)
+        }
         note = InstallmentNoteSanitizer.clean(transaction.note) ?? ""
         remark = transaction.remark ?? ""
         selectedDate = transaction.date

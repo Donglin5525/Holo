@@ -97,6 +97,13 @@ struct FinanceProjectListView: View {
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            if summary.totalIncome > 0 {
+                Text("收入 \(formatAmount(summary.totalIncome)) · 净投入 \(formatAmount(summary.totalExpense - summary.totalIncome))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             if summary.totalBudget > 0 {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {

@@ -428,18 +428,24 @@ struct AccountAggregation: Identifiable {
 
 // MARK: - 财务项目聚合
 
-/// 项目维度聚合数据（统计页「本期项目排行」卡；项目统计以支出为主口径）
+/// 项目维度聚合数据（统计页「项目」页签列表；项目=一件事的资金全景，收支同权）
 struct FinanceProjectAggregation: Identifiable {
     let id = UUID()
     let project: FinanceProject
+    /// 支出侧合计（statisticsAmount 口径：退款负冲在内）
     let expense: Decimal
+    /// 收入侧合计（非退款收入）
+    let income: Decimal
     let percentage: Double      // 支出占总支出比 (0-100)
     let transactionCount: Int
+
+    /// 净投入 = 支出 − 收入（负值即项目回血超过投入）
+    var netAmount: Decimal { expense - income }
 
     /// 项目预算（未设置为 nil，UI 不显示进度）
     var budget: Decimal? { project.budgetDecimal }
 
-    /// 预算使用进度 (0-1，可超 1)
+    /// 预算使用进度 (0-1，可超 1)；预算只约束支出
     var budgetProgress: Double? {
         guard let budget, budget > 0 else { return nil }
         return Double(truncating: (expense / budget) as NSDecimalNumber)

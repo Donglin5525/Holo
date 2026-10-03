@@ -33,7 +33,6 @@ struct ReceiptBookingPolicyInput: Sendable, Equatable {
     let fixedAccountUnavailable: Bool
     let projectChoiceUnavailable: Bool
     let projectAmbiguous: Bool
-    let incomeWithAttachedProject: Bool
     let transactionDateOutsideProjectRange: Bool
 
     // 语义重查结论
@@ -140,10 +139,6 @@ enum ReceiptBookingPolicy {
         }
         if input.projectAmbiguous {
             reasons.append(.reviewProjectAmbiguous)
-        }
-        // 收入/退款 + 挂项目冲突（方案 §21.3 项目安全规则）
-        if tx.typeIsIncome && input.incomeWithAttachedProject {
-            reasons.append(.reviewProjectNotSupportedForIncome)
         }
         if input.transactionDateOutsideProjectRange {
             reasons.append(.reviewDateOutsideProjectRange)

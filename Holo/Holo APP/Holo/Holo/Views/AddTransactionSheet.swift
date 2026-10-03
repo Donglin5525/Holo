@@ -360,10 +360,13 @@ struct AddTransactionSheet: View {
             loadQuickTags(for: newValue)
         }
         .onChange(of: transactionType) { _, newValue in
-            // 收入不挂项目（与票根 §21.3 口径一致）：收入态挂靠恒为空。
+            // 挂靠记忆只在支出域生效（防「上次项目」误挂到收入——2026-10 bug 根源）：
+            // 新增流程切收入清掉预选值；编辑流程切型保留（正在编辑的这笔归属用户最清楚）。
             // 切回支出时编辑模式回原交易挂靠、新增模式恢复上次记忆（preset 优先）
             if newValue == .income {
-                selectedProject = nil
+                if editingTransaction == nil {
+                    selectedProject = nil
+                }
             } else if let transaction = editingTransaction {
                 selectedProject = transaction.financeProjectId.flatMap {
                     FinanceProjectRepository.shared.findProject(by: $0)

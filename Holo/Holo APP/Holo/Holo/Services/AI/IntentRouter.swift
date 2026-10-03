@@ -389,6 +389,16 @@ final class IntentRouter {
             return RouteResult(text: "分类信息异常，请重试")
         }
 
+        // 项目挂靠（收支同权）：模型仅在用户显式提及项目名时回传 projectCandidate（上下文已附进行中清单）
+        let projectCandidate = data["projectCandidate"]
+        let (matchedProject, projectAmbiguous) = FinanceProjectRepository.matchProjectCandidate(
+            projectCandidate,
+            in: FinanceProjectRepository.shared.activeProjects()
+        )
+        if projectCandidate != nil {
+            logger.info("收入项目挂靠匹配：candidate=\(projectCandidate ?? "nil"), matched=\(matchedProject?.name ?? "nil"), ambiguous=\(projectAmbiguous)")
+        }
+
         let transaction = try await categoryRepo.addTransaction(
             amount: amount,
             type: .income,
@@ -396,6 +406,7 @@ final class IntentRouter {
             account: account,
             date: TransactionDateResolver.resolve(from: data),
             note: note,
+            financeProject: matchedProject,
             // AI 来源字段与交易同一次 save 落库（§24.4）
             aiSourceMessageId: data["aiSourceMessageId"],
             aiSourceItemId: data["aiSourceItemId"],
@@ -433,7 +444,7 @@ final class IntentRouter {
                     accountName: account.name,
                     categoryUnmatched: isUnmatched,
                     unmatchedCategory: unmatchedText
-                ),
+                ) + projectFollowUpText(matched: matchedProject, ambiguous: projectAmbiguous),
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
             categoryUnmatched: isUnmatched,

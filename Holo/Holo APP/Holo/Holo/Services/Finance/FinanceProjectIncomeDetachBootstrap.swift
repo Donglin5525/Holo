@@ -2,10 +2,12 @@
 //  FinanceProjectIncomeDetachBootstrap.swift
 //  Holo
 //
-//  一次性清洗：收入交易解除项目挂靠（2026-10-04 拍板）。
-//  手动表单「记住上次项目」曾不分收支预选，收入模式项目行隐藏无从取消，
-//  存量收入被静默挂上项目；表单侧已修，本清洗追溯存量。
-//  独立薄文件（只被 App 引用）：清洗本体在 FinanceProjectRepository 纯 context 函数，
+//  一次性迁移：项目挂靠口径对齐「项目=一件事的资金全景」（2026-10-04 定稿）。
+//  两步串行（同一后台队列）：①清洗——收入交易解除挂靠（清「记住上次项目」bug 的
+//  存量误挂）；②回填——退款笔挂靠继承原交易（项目支出负冲与全局对账）。
+//  表单/AI/票根侧同批已放开收入挂靠；本迁移只处理存量。清洗在前回填在后：
+//  先清掉全部误挂，再把「有主」的退款按不变式补回。
+//  独立薄文件（只被 App 引用）：迁移本体在 FinanceProjectRepository 纯 context 函数，
 //  便于单测不依赖启动链。
 //
 
@@ -28,15 +30,18 @@ enum FinanceProjectIncomeDetachBootstrap {
                 let detached: Int = try await stack.performBackgroundTask { context in
                     try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
                 }
+                let backfilled: Int = try await stack.performBackgroundTask { context in
+                    try FinanceProjectRepository.backfillRefundProjectAttachments(in: context)
+                }
                 UserDefaults.standard.set(true, forKey: onceKey)
-                logger.info("收入项目挂靠清洗完成 detached=\(detached)")
-                if detached > 0 {
+                logger.info("项目挂靠口径迁移完成 detached=\(detached) refundBackfilled=\(backfilled)")
+                if detached > 0 || backfilled > 0 {
                     await MainActor.run {
                         NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
                     }
                 }
             } catch {
-                logger.error("收入项目挂靠清洗失败，下次启动重试：\(error.localizedDescription)")
+                logger.error("项目挂靠口径迁移失败，下次启动重试：\(error.localizedDescription)")
             }
         }
     }

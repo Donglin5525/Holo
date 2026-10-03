@@ -369,9 +369,16 @@ class FinanceRepository {
         if let note = updates.note { transaction.note = note.isEmpty ? nil : note }
         if let remark = updates.remark { transaction.remark = remark.isEmpty ? nil : remark }
         if let tags = updates.tags { transaction.tags = tags }
-        // 项目挂靠三态：外层 nil=不修改；内层 nil=解除挂靠；非 nil=改挂该项目
+        // 项目挂靠三态：外层 nil=不修改；内层 nil=解除挂靠；非 nil=改挂该项目。
+        // 原交易改挂/解除时联动名下退款笔（挂靠恒等于原交易，项目负冲才不脱钩）
         if let financeProjectId = updates.financeProjectId {
             transaction.financeProjectId = financeProjectId
+            if !transaction.isRefund {
+                for refund in try await getRefunds(for: transaction) {
+                    refund.financeProjectId = financeProjectId
+                    refund.updatedAt = Date()
+                }
+            }
         }
         transaction.updatedAt = Date()
         try context.save()
@@ -849,6 +856,8 @@ class FinanceRepository {
         transaction.note = original.note
         if let remark { transaction.remark = remark }
         transaction.refundOfTransactionId = original.id
+        // 退款挂靠继承原交易：「退款挂靠恒等于原交易」不变式——项目支出侧负冲与全局对账
+        transaction.financeProjectId = original.financeProjectId
         if let aiSourceMessageId {
             transaction.isAICreated = true
             transaction.aiCandidate = aiCandidate

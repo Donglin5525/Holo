@@ -63,7 +63,6 @@ final class ReceiptBookingKernelTests: XCTestCase {
         fixedAccountUnavailable: Bool = false,
         projectChoiceUnavailable: Bool = false,
         projectAmbiguous: Bool = false,
-        incomeWithAttachedProject: Bool = false,
         transactionDateOutsideProjectRange: Bool = false,
         hasHighCertaintyDuplicate: Bool = false,
         hasAmbiguousDuplicate: Bool = false,
@@ -80,7 +79,6 @@ final class ReceiptBookingKernelTests: XCTestCase {
             fixedAccountUnavailable: fixedAccountUnavailable,
             projectChoiceUnavailable: projectChoiceUnavailable,
             projectAmbiguous: projectAmbiguous,
-            incomeWithAttachedProject: incomeWithAttachedProject,
             transactionDateOutsideProjectRange: transactionDateOutsideProjectRange,
             hasHighCertaintyDuplicate: hasHighCertaintyDuplicate,
             hasAmbiguousDuplicate: hasAmbiguousDuplicate,
@@ -184,14 +182,14 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertTrue(reasons.contains(.reviewAccountChoiceUnavailable))
     }
 
-    func testIncomeWithAttachedProjectRequiresReview() {
+    func testIncomeWithAttachedProjectCanAutoCommit() {
+        // 2026-10-04 项目收支同权：收入挂项目不再触发复核，高置信直接自动写
         let tx = ReceiptBookingPolicyTransaction(amount: 39.9, typeIsIncome: true, confidenceAmount: 0.99, confidenceDirection: 0.99, confidencePaymentStatus: 0.99)
         let decision = ReceiptBookingPolicy.evaluate(
-            input: makeInput(paymentStatus: "refunded", transactions: [tx], incomeWithAttachedProject: true),
+            input: makeInput(paymentStatus: "refunded", transactions: [tx]),
             mode: .autoWhenSafe
         )
-        guard case .needsReview(let reasons) = decision else { return XCTFail("收入挂项目必须复核") }
-        XCTAssertTrue(reasons.contains(.reviewProjectNotSupportedForIncome))
+        XCTAssertEqual(decision, .autoCommit)
     }
 
     func testRefundWithEvidenceCanAutoCommit() {

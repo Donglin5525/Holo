@@ -4,9 +4,12 @@
 //
 //  财务项目数据仓库：项目增删改查 + 交易挂靠 + 项目视角聚合。
 //
-//  口径铁律（与全 App 统一口径一致，见 FinanceTransactionOccurrencePolicy）：
-//  - 明细列表（项目详情交易流）= 明细语义：已发生 + 含对账调整流水
-//  - 支出统计（总支出/进度/分类构成）= 统计语义：已发生 + 排对账调整 + 仅支出
+//  口径铁律（与全 App 统一口径一致，见 Transaction.statisticsType）：
+//  - 项目是「一件事」的资金全景，收支都可挂靠（2026-10-04 方向定稿）
+//  - 总支出（统计语义）= 已发生 + 排对账调整 + 支出侧（含退款负冲，退款挂靠继承原交易）
+//  - 总收入（统计语义）= 已发生 + 排对账调整 + 收入侧（退款不算收入——已在支出侧冲减）
+//  - 净投入 = 总支出 − 总收入；预算只约束支出
+//  - 明细列表（项目详情交易流）= 明细语义：已发生 + 含对账调整流水，收支都出现
 //  挂项目的交易在余额/分类统计/预算中按普通交易参与，本项目只提供项目视角汇总。
 //
 
@@ -151,17 +154,35 @@ final class FinanceProjectRepository {
         return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
-    /// 项目支出交易（统计口径：已发生 + 排对账调整 + 仅支出）
+    /// 项目支出侧交易（统计口径：已发生 + 排对账调整 + 支出侧——退款笔挂靠继承原交易，
+    /// 金额取 statisticsAmount 负值在聚合时自然冲减，与全局统计同构）
     func fetchExpenseTransactions(forProject projectId: UUID, asOf snapshotDate: Date = Date()) -> [Transaction] {
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "financeProjectId == %@", projectId as CVarArg),
             FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate),
             FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate(),
-            NSPredicate(format: "type == %@", TransactionType.expense.rawValue),
+            NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate(format: "type == %@", TransactionType.expense.rawValue),
+                NSPredicate(format: "refundOfTransactionId != nil")
+            ]),
             NSPredicate(format: "deletedAt == nil")
         ])
         request.relationshipKeyPathsForPrefetching = ["category"]
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
+    /// 项目收入侧交易（统计口径：已发生 + 排对账调整 + 收入且非退款——退款在支出侧冲减）
+    func fetchIncomeTransactions(forProject projectId: UUID, asOf snapshotDate: Date = Date()) -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "financeProjectId == %@", projectId as CVarArg),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate(),
+            NSPredicate(format: "type == %@", TransactionType.income.rawValue),
+            NSPredicate(format: "refundOfTransactionId == nil"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
         return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
@@ -188,17 +209,29 @@ final class FinanceProjectRepository {
 
     // MARK: - 项目视角聚合
 
-    /// 项目总支出（统计口径）
+    /// 项目总支出（统计口径：支出侧含退款负冲）
     func totalExpense(forProject projectId: UUID, asOf snapshotDate: Date = Date()) -> Decimal {
         fetchExpenseTransactions(forProject: projectId, asOf: snapshotDate)
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+    }
+
+    /// 项目总收入（统计口径：收入且非退款）
+    func totalIncome(forProject projectId: UUID, asOf snapshotDate: Date = Date()) -> Decimal {
+        fetchIncomeTransactions(forProject: projectId, asOf: snapshotDate)
             .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
     }
 
+    /// 项目净投入 = 总支出 − 总收入（负值即项目已回血超过投入）
+    func netAmount(forProject projectId: UUID, asOf snapshotDate: Date = Date()) -> Decimal {
+        totalExpense(forProject: projectId, asOf: snapshotDate)
+            - totalIncome(forProject: projectId, asOf: snapshotDate)
+    }
+
     /// 项目全程区间（统计页「看项目全程」用）：startDate/endDate 缺失时按首末笔
-    /// 支出日期补齐（AI/手动建的项目常没填期间），两者皆空返回 nil。
+    /// 交易日期补齐（收支都参与——进账也是这件事的资金轨迹），两者皆空返回 nil。
     /// 返回的 end 为排他上界（含末笔当天），与自定义时间组件同一语义。
     func projectSpan(of project: FinanceProject) -> (start: Date, end: Date)? {
-        let txns = fetchExpenseTransactions(forProject: project.id)
+        let txns = fetchExpenseTransactions(forProject: project.id) + fetchIncomeTransactions(forProject: project.id)
         let first = [project.startDate, txns.map(\.date).min()].compactMap { $0 }.min()
         let last = [project.endDate, txns.map(\.date).max()].compactMap { $0 }.max()
         guard let start = first, let lastDay = last else { return nil }
@@ -210,12 +243,13 @@ final class FinanceProjectRepository {
         return (start, lastDay.addingTimeInterval(86400))
     }
 
-    /// 项目分类构成（一级分类口径：二级分类归入父分类，与统计页「类别对比」一致）
+    /// 项目分类构成（一级分类口径：二级分类归入父分类，与统计页「类别对比」一致；
+    /// 支出侧含退款负冲，退款分类已联动原交易）
     func categoryAggregations(forProject projectId: UUID) -> [CategoryAggregation] {
         let transactions = fetchExpenseTransactions(forProject: projectId)
         guard !transactions.isEmpty else { return [] }
 
-        let totalAmount = transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let totalAmount = transactions.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
         for tx in transactions {
@@ -230,11 +264,11 @@ final class FinanceProjectRepository {
             }
 
             if var entry = categoryMap[topCategory.id] {
-                entry.amount += tx.amount.decimalValue
+                entry.amount += tx.statisticsAmount
                 entry.count += 1
                 categoryMap[topCategory.id] = entry
             } else {
-                categoryMap[topCategory.id] = (category: topCategory, amount: tx.amount.decimalValue, count: 1)
+                categoryMap[topCategory.id] = (category: topCategory, amount: tx.statisticsAmount, count: 1)
             }
         }
 
@@ -294,13 +328,50 @@ final class FinanceProjectRepository {
         return stale.count
     }
 
+    /// 一次性迁移（与上面清洗配套，启动时先清洗后回填）：退款笔挂靠继承原交易。
+    /// 「退款挂靠恒等于原交易」是不变式——原支出挂了项目，名下退款须同挂，
+    /// 项目支出侧负冲才与全局统计对账。此函数回填存量（新退款在创建时已自动继承）。
+    /// 含软删退款（与清洗对称）；幂等，返回回填笔数。
+    nonisolated static func backfillRefundProjectAttachments(
+        in context: NSManagedObjectContext
+    ) throws -> Int {
+        let attachedRequest = Transaction.fetchRequest()
+        attachedRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "financeProjectId != nil"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        var projectByOriginalId: [UUID: UUID] = [:]
+        for tx in try context.fetch(attachedRequest) where tx.refundOfTransactionId == nil {
+            projectByOriginalId[tx.id] = tx.financeProjectId
+        }
+        guard !projectByOriginalId.isEmpty else { return 0 }
+
+        let refundRequest = Transaction.fetchRequest()
+        refundRequest.predicate = NSPredicate(format: "refundOfTransactionId != nil")
+        let now = Date()
+        var backfilled = 0
+        for refund in try context.fetch(refundRequest) {
+            guard let originalId = refund.refundOfTransactionId,
+                  let targetProjectId = projectByOriginalId[originalId],
+                  refund.financeProjectId != targetProjectId else { continue }
+            refund.financeProjectId = targetProjectId
+            refund.updatedAt = now
+            backfilled += 1
+        }
+        guard backfilled > 0 else { return 0 }
+        try context.save()
+        return backfilled
+    }
+
     // MARK: - 汇总
 
     /// 项目列表页顶部汇总：只统计进行中项目
     struct Summary {
         var activeCount: Int = 0
-        /// 进行中项目合计已花
+        /// 进行中项目合计已花（支出侧含退款负冲）
         var totalExpense: Decimal = 0
+        /// 进行中项目合计收入（收入且非退款）
+        var totalIncome: Decimal = 0
         /// 进行中项目合计预算（仅设有预算的项目）
         var totalBudget: Decimal = 0
     }
@@ -310,6 +381,7 @@ final class FinanceProjectRepository {
         for project in allProjects() where project.statusEnum == .active {
             result.activeCount += 1
             result.totalExpense += totalExpense(forProject: project.id, asOf: snapshotDate)
+            result.totalIncome += totalIncome(forProject: project.id, asOf: snapshotDate)
             if let budget = project.budgetDecimal {
                 result.totalBudget += budget
             }
