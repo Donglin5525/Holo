@@ -7,7 +7,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 5,                 // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止
-  intent_recognition: 31,           // v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图（个人情境规划）
+  intent_recognition: 32,           // v32: 新增 today_relief 只读意图（今天减负：当日安排的重新选择/减负）；v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图（个人情境规划）
   memory_insight_generation: 11,    // v11: 健康域入回顾（health 卡片类型+健康语义口径：分期缺失不当 0 解读/就寝时刻分钟编码/环比差额表达/上期对比字段）；v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
@@ -61,6 +61,8 @@ const PROMPT_VERSIONS = {
   goal_workshop: 1,
   // 任务分步推进提案（2026-09-25 实施规格 §6.4）：proposal/clarification/cannotHelp 契约首版
   matter_execution_plan: 2,
+  // 「今天减负」当日安排整理（2026-10-03 实施方案 §11）：proposal/clarification/cannotHelp 契约首版
+  today_relief_plan: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

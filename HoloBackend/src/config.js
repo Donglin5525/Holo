@@ -330,6 +330,19 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_MATTER_REQUESTS_PER_DAY ?? 120),
       },
     },
+    // 「今天减负」当日安排整理（2026-10-03 实施方案 §11）：单轮 JSON 契约，
+    // 默认跟任务分步模型路由；temperature 0.2 / maxTokens 2500 / reasoning none。
+    today_relief_plan: {
+      provider: process.env.HOLO_TODAY_RELIEF_PROVIDER ?? process.env.HOLO_TASK_EXECUTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_TODAY_RELIEF_MODEL ?? process.env.HOLO_TASK_EXECUTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_TODAY_RELIEF_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_TODAY_RELIEF_MAX_TOKENS ?? 2500),
+      reasoningEffort: process.env.HOLO_TODAY_RELIEF_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_TODAY_RELIEF_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_TODAY_RELIEF_REQUESTS_PER_DAY ?? 80),
+      },
+    },
     // 任务分步推进提案（2026-09-25 实施规格 §6.4）：单轮 JSON 契约，与对账同模型档位、独立 purpose/计费。
     matter_execution_plan: {
       provider: process.env.HOLO_TASK_EXECUTION_PROVIDER ?? process.env.HOLO_MATTER_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",

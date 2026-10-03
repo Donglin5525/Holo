@@ -59,6 +59,8 @@ const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "mode
 const THOUGHT_CONTENT_PURPOSES = new Set([
   // 任务分步推进（2026-09-25 实施规格 §11.4）：请求含任务正文快照与障碍描述，metadata-only
   "matter_execution_plan",
+  // 「今天减负」当日安排整理（2026-10-03 方案 §11.6）：请求含任务/日程/用户表达，metadata-only
+  "today_relief_plan",
   "thought_organization",
   "thought_tag_convergence",
   "thought_task_extraction",
@@ -2221,6 +2223,9 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;
   // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发，归 chat 额度池
   if (purpose === "matter_execution_plan") return QUOTA_TYPES.chat;
+  // 「今天减负」当日安排整理（2026-10-03 方案 §11.4）：用户主动触发，归 chat 额度池；
+  // 采用/手动操作/继续步骤调用 AI 为 0（客户端只有整理生成走本 purpose）。
+  if (purpose === "today_relief_plan") return QUOTA_TYPES.chat;
   // 目标共创：产品决策（东林 2026-09-19 拍板）不占对话额度、免费用户全量开放。
   // 共创由用户主动创建、iOS 端每会话有模型请求预算保险丝，成本可控；
   // 返回 null = 不进额度预约/扣减，仅保留 route 独立限流桶兜量（同 personal_context_extraction 模式）。

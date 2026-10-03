@@ -58,6 +58,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // 目标共创（2026-09-17 完整开发计划任务 3）：请求含用户愿望原话与会话快照，
   // 响应含目标定义与行动建议——一律 metadata_only，原话/标题/草案不落任何日志。
   'goal_workshop',
+  // 「今天减负」当日安排整理（2026-10-03 方案 §11.6）：请求含任务标题/日程/用户表达，
+  // 响应含安排建议——一律 metadata_only，表达与任务正文不落任何日志。
+  'today_relief_plan',
   // 想法语义关联 V3（2026-09-10 方案 §16.2）：请求含用户想法正文与主题代表片段，
   // 响应含逐字证据——一律 metadata_only，正文与证据不落任何日志/缓存/错误。
   'thought_semantic_relate_v1',

@@ -48,6 +48,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   matter_reconciliation: "matter_reconciliation",
   goal_workshop: "goal_workshop",
   matter_execution_plan: "matter_execution_plan",
+  today_relief_plan: "today_relief_plan",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，
