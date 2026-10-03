@@ -169,8 +169,9 @@ struct ProjectTabView: View {
         .buttonStyle(.plain)
     }
 
-    /// 行内期间/状态描述：项目期间 + 状态；无期间信息只显示状态
-    static func metaText(_ project: FinanceProject) -> String {
+    /// 行内期间/状态描述：项目期间 + 状态；无期间信息只显示状态。
+    /// `includesStatus: false` 给项目头卡用——状态已由右上胶囊承担，副标题再带一遍「进行中」是重复
+    static func metaText(_ project: FinanceProject, includesStatus: Bool = true) -> String {
         var parts: [String] = []
         let df = DateFormatter()
         df.setLocalizedDateFormatFromTemplate("Md")
@@ -183,7 +184,9 @@ struct ProjectTabView: View {
             }
             parts.append(text)
         }
-        parts.append(project.statusEnum.displayText)
+        if includesStatus {
+            parts.append(project.statusEnum.displayText)
+        }
         return parts.joined(separator: " · ")
     }
 }
@@ -296,7 +299,7 @@ private struct ProjectInsightView: View {
                         .foregroundColor(.white)
                         .lineLimit(2)
 
-                    Text(ProjectTabView.metaText(project) + (spanDays.map { " · \($0) 天" } ?? ""))
+                    Text(headerMetaText)
                         .font(.system(size: 10.5))
                         .foregroundColor(.white.opacity(0.85))
                 }
@@ -340,6 +343,15 @@ private struct ProjectInsightView: View {
         )
     }
 
+    /// 头卡副标题：期间 + 天数；状态由右上胶囊承担，不进副标题
+    private var headerMetaText: String {
+        var parts: [String] = []
+        let span = ProjectTabView.metaText(project, includesStatus: false)
+        if !span.isEmpty { parts.append(span) }
+        if let spanDays { parts.append("\(spanDays) 天") }
+        return parts.joined(separator: " · ")
+    }
+
     private func headerStat(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -359,9 +371,12 @@ private struct ProjectInsightView: View {
 
     // MARK: 「看项目全程」快捷条
 
+    /// 当前筛选范围已等于项目全程时快捷条没有意义（按钮点了不动作，范围顶部胶囊也在显示），
+    /// 整条隐藏；用户切到别的档位（本月等）再出现，提供一键回全程
     @ViewBuilder
     private var spanQuickBar: some View {
-        if FinanceProjectRepository.shared.projectSpan(of: project) != nil {
+        if let span = FinanceProjectRepository.shared.projectSpan(of: project),
+           state.currentDateRange.start != span.start || state.currentDateRange.end != span.end {
             HStack(spacing: HoloSpacing.sm) {
                 Text(String(localized: "当前范围：\(TimeRange.pillLabel(timeRange: state.timeRange, start: state.currentDateRange.start, end: state.currentDateRange.end))"))
                     .font(.system(size: 11.5))
@@ -437,12 +452,12 @@ struct ScopeHeadCell: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
-            if !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.system(size: 9.5))
-                    .foregroundColor(.holoTextPlaceholder)
-                    .lineLimit(1)
-            }
+            // 副标题行恒占位（空则用空格撑住行高）：三格并列时内容等高，
+            // 否则带「29 笔」的格子内容整体居中上浮，三格金额基线错位
+            Text(subtitle.isEmpty ? " " : subtitle)
+                .font(.system(size: 9.5))
+                .foregroundColor(.holoTextPlaceholder)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(HoloSpacing.md)

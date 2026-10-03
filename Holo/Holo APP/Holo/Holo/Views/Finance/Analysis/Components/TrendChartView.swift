@@ -60,7 +60,7 @@ struct TrendChartView: View {
         }
         .animation(HoloAnimation.smooth, value: dataPoints.isEmpty || hasNoFlowActivity)
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: 图例（右侧：余额较期初变化）
@@ -112,7 +112,7 @@ struct TrendChartView: View {
                     if let index = hoveredIndex,
                        let slotXPos = proxy.position(forX: Double(index)), let plotFrame {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.holoTextPrimary.opacity(0.05))
+                            .fill(Color.holoToolText.opacity(0.05))
                             .frame(width: plotFrame.width / CGFloat(dataPoints.count), height: plotFrame.height)
                             .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
                     }
@@ -140,7 +140,7 @@ struct TrendChartView: View {
                     if let plotFrame, let lastPoint = dataPoints.last {
                         Text(lastPoint.label)
                             .font(.system(size: 10))
-                            .foregroundStyle(Color.holoTextSecondary)
+                            .foregroundStyle(Color.holoToolTextSecondary)
                             .frame(width: plotFrame.width, alignment: .trailing)
                             .position(x: plotFrame.midX, y: plotFrame.maxY + 10)
                     }
@@ -202,7 +202,7 @@ struct TrendChartView: View {
                     if let axisValue = value.as(Double.self) {
                         Text(tickLabel(axisValue))
                             .font(.system(size: 10))
-                            .foregroundStyle(Color.holoTextSecondary)
+                            .foregroundStyle(Color.holoToolTextSecondary)
                     }
                 }
             }
@@ -318,7 +318,7 @@ struct TrendChartView: View {
     private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, amountLabel: String, placeLabelLeft: Bool) -> some View {
         ForEach(0..<2, id: \.self) { slashIndex in
             Capsule()
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 .frame(width: barWidth + 3, height: 1.6)
                 .rotationEffect(.degrees(-24))
                 .position(x: barXPos, y: capTopY + 6.5 + CGFloat(slashIndex) * 4.5)
@@ -483,16 +483,9 @@ struct TrendChartView: View {
         return bestIndex
     }
 
-    /// 轴刻度金额紧凑口径：万 / 千 / 整数
+    /// 轴刻度金额紧凑口径：万 / 千 / 整数（实现收在 NumberFormatter.compactAxisAmount，可单测）
     private static func axisAmountLabel(_ value: Double) -> String {
-        if abs(value) < 1 { return value == 0 ? "0" : "" }
-        let absValue = abs(value)
-        if absValue >= 10_000 {
-            return String(format: String(localized: "%.1f万"), value / 10_000)
-        } else if absValue >= 1_000 {
-            return String(format: String(localized: "%.1f千"), value / 1_000)
-        }
-        return String(format: "%.0f", value)
+        NumberFormatter.compactAxisAmount(value)
     }
 
     // MARK: Tooltip
@@ -501,7 +494,7 @@ struct TrendChartView: View {
         VStack(spacing: 2) {
             Text(dateLabel)
                 .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             HStack(spacing: 6) {
                 if point.expense > 0 {
                     Text("-\(NumberFormatter.compactCurrency(point.expense))")
@@ -516,7 +509,7 @@ struct TrendChartView: View {
                 if point.expense == 0 && point.income == 0 {
                     Text("无收支")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
             if showsBalanceLine {
@@ -529,7 +522,7 @@ struct TrendChartView: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
         )
         .fixedSize()
@@ -542,11 +535,11 @@ struct TrendChartView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(height: 160)
         .frame(maxWidth: .infinity)
@@ -569,5 +562,5 @@ struct TrendChartView: View {
         Spacer()
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

@@ -134,6 +134,18 @@ final class FinanceChartScaleTests: XCTestCase {
         XCTAssertLessThan(inset, tinySectorSpan)
     }
 
+    func testCompactAxisAmountShowsMidTickExactly() {
+        // 2.5万上限的中档刻度是 1.25万：一位小数会写成 1.2万，
+        // 与顶格「2.5万」同图对不上账（2026-10-03 东林项目页签截图实报）
+        XCTAssertEqual(NumberFormatter.compactAxisAmount(0), "0")
+        XCTAssertEqual(NumberFormatter.compactAxisAmount(0.5), "")
+        XCTAssertEqual(NumberFormatter.compactAxisAmount(500), "500")
+        XCTAssertTrue(NumberFormatter.compactAxisAmount(12_500).hasPrefix("1.25"), String(NumberFormatter.compactAxisAmount(12_500)))
+        XCTAssertTrue(NumberFormatter.compactAxisAmount(25_000).hasPrefix("2.5"), String(NumberFormatter.compactAxisAmount(25_000)))
+        XCTAssertTrue(NumberFormatter.compactAxisAmount(1_500).hasPrefix("1.5"), String(NumberFormatter.compactAxisAmount(1_500)))
+        XCTAssertEqual(NumberFormatter.compactAxisAmount(800), "800")
+    }
+
     func testPieChartUsesChartPaletteForImportedPlaceholderGrayCategories() {
         XCTAssertTrue(FinanceCategoryChartColor.shouldUseChartPalette(hex: "#64748B"))
         XCTAssertTrue(FinanceCategoryChartColor.shouldUseChartPalette(hex: "#6B7280"))
