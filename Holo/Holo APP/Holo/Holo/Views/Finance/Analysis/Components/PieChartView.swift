@@ -459,40 +459,58 @@ struct PieChartView: View {
                 ? bendPoint.x + labelHorizontalLength
                 : bendPoint.x - labelHorizontalLength
 
-            var linePath = Path()
-            linePath.move(to: layout.lineStart)
-            linePath.addLine(to: bendPoint)
-            linePath.addLine(to: CGPoint(x: lineEndX, y: layout.bendY))
-            context.stroke(
-                linePath,
-                with: .color(Color.holoTextSecondary.opacity(labelOpacity * 0.5)),
-                lineWidth: 0.8
-            )
-
-            // 引导线末端标签
+            // 引导线末端标签（小扇区名字并入文本，大扇区只画百分比，名字在扇区内部）
             let textPoint = CGPoint(
                 x: isRightSide ? lineEndX + 3 : lineEndX - 3,
                 y: layout.bendY
             )
 
-            if isSmallSector {
-                let combinedText = "\(agg.category.name) \(agg.formattedPercentage)"
-                context.draw(
-                    Text(combinedText)
-                        .font(.system(size: 9))
-                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
-                    at: textPoint,
-                    anchor: isRightSide ? .leading : .trailing
-                )
+            let label: Text = isSmallSector
+                ? Text("\(agg.category.name) \(agg.formattedPercentage)")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color.holoToolTextSecondary.opacity(labelOpacity))
+                : Text(agg.formattedPercentage)
+                    .font(.system(size: 9))
+                    .foregroundColor(Color.holoToolTextSecondary.opacity(labelOpacity))
+
+            // 标签完整可见钳制：正左/正右方向的弯折点离画布边缘不足一个文本宽时，
+            // 锚点式绘制会把首（尾）字符画出画布被裁（实锤：「16.2%」被裁成「6.2%）。
+            // 实测文本宽度，连同引导线水平段终点一起收回画布内。
+            let textSize = context.resolve(label)
+                .measure(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+            var clampedTextX = textPoint.x
+            var clampedLineEndX = lineEndX
+            if isRightSide {
+                // 左锚：文本右缘 = x + width，不得超出画布右缘
+                let overflow = clampedTextX + textSize.width - size.width
+                if overflow > 0 {
+                    clampedTextX -= overflow
+                    clampedLineEndX = max(bendPoint.x, clampedTextX - 3)
+                }
             } else {
-                context.draw(
-                    Text(agg.formattedPercentage)
-                        .font(.system(size: 9))
-                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
-                    at: textPoint,
-                    anchor: isRightSide ? .leading : .trailing
-                )
+                // 右锚：文本左缘 = x - width，不得越出画布左缘
+                let overflow = textSize.width - clampedTextX
+                if overflow > 0 {
+                    clampedTextX += overflow
+                    clampedLineEndX = min(bendPoint.x, clampedTextX + 3)
+                }
             }
+
+            var linePath = Path()
+            linePath.move(to: layout.lineStart)
+            linePath.addLine(to: bendPoint)
+            linePath.addLine(to: CGPoint(x: clampedLineEndX, y: layout.bendY))
+            context.stroke(
+                linePath,
+                with: .color(Color.holoToolTextSecondary.opacity(labelOpacity * 0.5)),
+                lineWidth: 0.8
+            )
+
+            context.draw(
+                label,
+                at: CGPoint(x: clampedTextX, y: layout.bendY),
+                anchor: isRightSide ? .leading : .trailing
+            )
         }
     }
 
@@ -525,7 +543,7 @@ struct PieChartView: View {
             if let agg = focusedAggregation {
                 Text(agg.category.name)
                     .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                     .transition(.opacity)
                 Text(agg.formattedCompactAmount)
@@ -537,7 +555,7 @@ struct PieChartView: View {
             } else {
                 Text(NumberFormatter.compactCurrency(totalAmount))
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
             }
@@ -559,10 +577,10 @@ struct PieChartView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.pie")
                 .font(.system(size: 60, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(height: 300)
         .frame(maxWidth: .infinity)
@@ -611,6 +629,6 @@ private func SectorPath(
         Spacer()
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }
 
