@@ -269,6 +269,31 @@ final class FinanceProjectRepository {
         return (nil, false)
     }
 
+    // MARK: - 历史口径清洗
+
+    /// 一次性迁移（启动入口见 FinanceProjectIncomeDetachBootstrap）：收入交易解除项目挂靠。
+    /// 口径=收入不挂项目（与票根 §21.3 一致）；手动表单「记住上次项目」曾不分收支预选，
+    /// 收入模式项目行隐藏无从取消，存量收入被静默挂上项目，此处追溯清理。
+    /// 含软删交易（恢复后也不再带项目）；幂等，无匹配即零改动。返回清洗笔数。
+    nonisolated static func detachProjectsFromIncomeTransactions(
+        in context: NSManagedObjectContext
+    ) throws -> Int {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "type == %@", TransactionType.income.rawValue),
+            NSPredicate(format: "financeProjectId != nil")
+        ])
+        let stale = try context.fetch(request)
+        guard !stale.isEmpty else { return 0 }
+        let now = Date()
+        for transaction in stale {
+            transaction.financeProjectId = nil
+            transaction.updatedAt = now
+        }
+        try context.save()
+        return stale.count
+    }
+
     // MARK: - 汇总
 
     /// 项目列表页顶部汇总：只统计进行中项目

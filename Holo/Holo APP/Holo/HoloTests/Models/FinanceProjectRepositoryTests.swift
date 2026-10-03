@@ -280,6 +280,49 @@ final class FinanceProjectRepositoryTests: XCTestCase {
         XCTAssertNil(project.endDate)
     }
 
+    // MARK: - 收入挂靠清洗（一次性迁移）
+
+    func test_detachProjectsFromIncomeTransactions_clearsIncomeKeepsExpense() async throws {
+        let project = try makeProject()
+        let dirtyIncome = try await repo.addTransaction(
+            amount: 5000, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "工资", financeProject: project
+        )
+        let expense = try await addExpense(60, project: project)
+
+        let detached = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+
+        XCTAssertEqual(detached, 1)
+        XCTAssertNil(dirtyIncome.financeProjectId)
+        XCTAssertEqual(expense.financeProjectId, project.id)
+    }
+
+    func test_detachProjectsFromIncomeTransactions_idempotent() async throws {
+        let project = try makeProject()
+        _ = try await repo.addTransaction(
+            amount: 100, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "退款", financeProject: project
+        )
+        _ = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+
+        let second = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+        XCTAssertEqual(second, 0)
+    }
+
+    func test_detachProjectsFromIncomeTransactions_includesSoftDeleted() async throws {
+        let project = try makeProject()
+        let deletedIncome = try await repo.addTransaction(
+            amount: 100, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "脏收入", financeProject: project
+        )
+        deletedIncome.deletedAt = Date()
+        try context.save()
+
+        let detached = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+        XCTAssertEqual(detached, 1)
+        XCTAssertNil(deletedIncome.financeProjectId)
+    }
+
     // MARK: - Private
 
     private var todayRange: (start: Date, end: Date) {

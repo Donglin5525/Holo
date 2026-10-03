@@ -359,6 +359,19 @@ struct AddTransactionSheet: View {
         .onChange(of: selectedCategory) { _, newValue in
             loadQuickTags(for: newValue)
         }
+        .onChange(of: transactionType) { _, newValue in
+            // 收入不挂项目（与票根 §21.3 口径一致）：收入态挂靠恒为空。
+            // 切回支出时编辑模式回原交易挂靠、新增模式恢复上次记忆（preset 优先）
+            if newValue == .income {
+                selectedProject = nil
+            } else if let transaction = editingTransaction {
+                selectedProject = transaction.financeProjectId.flatMap {
+                    FinanceProjectRepository.shared.findProject(by: $0)
+                }
+            } else {
+                loadDefaultProject()
+            }
+        }
         .onChange(of: isNoteFocused) { _, newValue in
             if newValue {
                 showNumericKeypad = false

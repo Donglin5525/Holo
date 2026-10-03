@@ -69,6 +69,9 @@ struct HoloApp: App {
         // V3 Phase 1：存量想法-主题关系一次性回填 ThoughtTopicLink（幂等，后台执行）
         ThoughtTopicLinkBackfillBootstrap.performIfNeeded()
 
+        // 一次性清洗：收入交易解除项目挂靠（口径=收入不挂项目；表单侧同批已修，此处清存量）
+        FinanceProjectIncomeDetachBootstrap.performIfNeeded()
+
         // V3 Phase 2：本机语义索引冷启动装配（幂等；默认 flag off 不产生网络行为）
         Task.detached(priority: .utility) {
             await ThoughtSemanticPipeline.shared.bootstrap()
