@@ -69,7 +69,8 @@ struct MonthlySummaryCard: View {
             }
         }
         .padding(20)
-        // 月度卡片位于账本页的大卡片容器内，使用独立表面保持层级清晰
+        // 月度卡片位于账本页的白色大面板内，必须是带底色的嵌套卡；
+        // holoSurface 体系(independent/floating 均白底)在白面板上会隐形
         .holoNestedCard()
     }
 
