@@ -29,7 +29,7 @@ final class HoloWidgetSnapshotService {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor in
-                    await self?.refreshFinanceSnapshot()
+                    self?.scheduleRefresh(.finance)
                 }
             }
         )
@@ -40,8 +40,8 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.refreshThoughtMemorySnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.thought)
                 }
             }
         )
@@ -52,7 +52,9 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshHabitSnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.habit)
+                }
             }
         )
 
@@ -62,7 +64,9 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshTodoSnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.todo)
+                }
             }
         )
 
@@ -72,7 +76,9 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshGoalSnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.goal)
+                }
             }
         )
 
@@ -82,9 +88,57 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshAnniversarySnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.anniversary)
+                }
             }
         )
+    }
+
+    // MARK: - 密集刷新合并（R12，2026-10-04 体检）
+    //
+    // 单一监听下短时间多条记录/一批同步会逐次重做全部快照查询与 reload。这里把同 kind
+    // 的密集请求合并进一个短窗任务：窗口内新到的变更并入下一轮；正在跑的轮次结束后
+    // 若又有脏标记则再跑一轮——最后一次变更永远会被执行，不丢更新。
+    // refreshAllSnapshots（启动/手动全量刷新）不走合并，保持即时。
+
+    private enum RefreshKind {
+        case finance, thought, habit, todo, goal, anniversary
+    }
+
+    private var pendingKinds: Set<RefreshKind> = []
+    private var isFlushScheduled = false
+    /// 财务刷新代数：异步轮次结束时若已有更新的请求，过期轮次不得覆盖新结果
+    private var financeGeneration = 0
+
+    /// 合并窗口：密集变更在此时间内只安排一轮刷新
+    private static let coalesceWindow: TimeInterval = 0.3
+
+    private func scheduleRefresh(_ kind: RefreshKind) {
+        pendingKinds.insert(kind)
+        guard !isFlushScheduled else { return }
+        isFlushScheduled = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.coalesceWindow))
+            guard let self else { return }
+            self.isFlushScheduled = false
+            self.flushPendingRefreshes()
+        }
+    }
+
+    private func flushPendingRefreshes() {
+        let kinds = pendingKinds
+        pendingKinds.removeAll()
+        if kinds.contains(.thought) { refreshThoughtMemorySnapshot() }
+        if kinds.contains(.habit) { refreshHabitSnapshot() }
+        if kinds.contains(.todo) { refreshTodoSnapshot() }
+        if kinds.contains(.goal) { refreshGoalSnapshot() }
+        if kinds.contains(.anniversary) { refreshAnniversarySnapshot() }
+        if kinds.contains(.finance) {
+            Task { @MainActor in
+                await self.refreshFinanceSnapshot()
+            }
+        }
     }
 
     func refreshAllSnapshots() async {
@@ -120,6 +174,10 @@ final class HoloWidgetSnapshotService {
     }
 
     func refreshFinanceSnapshot(date: Date = Date()) async {
+        // R12：代数守卫——期间来了新请求时，过期轮次直接作废，由新一轮负责写入
+        financeGeneration += 1
+        let myGeneration = financeGeneration
+
         FinanceRepository.shared.setup()
 
         let calendar = Calendar.current
@@ -147,6 +205,7 @@ final class HoloWidgetSnapshotService {
             updatedAt: date
         )
 
+        guard myGeneration == financeGeneration else { return }
         try? store.writeFinance(snapshot)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.finance.rawValue)
     }

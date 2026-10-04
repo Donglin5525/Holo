@@ -79,7 +79,19 @@ actor USearchSemanticIndex: LocalSemanticIndex {
         let tmp = dir.appendingPathComponent("index-\(generation + 1).tmp.usearch")
         try? FileManager.default.removeItem(at: tmp)
         try idx.save(path: tmp.path)
-        _ = try? FileManager.default.replaceItemAt(url, withItemAt: tmp)
+        // R15（2026-10-04 体检）：发布失败必须如实暴露——首次创建走 moveItemAt，
+        // 替换已有文件走 replaceItemAt；失败清理临时文件、保留最后成功版本，
+        // 不推进 generation/checkpoint（否则冷启动反复重建而内部状态自称已保存成功）
+        do {
+            if FileManager.default.fileExists(atPath: url.path) {
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
+            } else {
+                try FileManager.default.moveItem(at: tmp, to: url)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: tmp)
+            throw LocalSemanticIndexError.checkpointFailed(detail: error.localizedDescription)
+        }
         generation += 1
         lastCheckpoint = Date()
     }
