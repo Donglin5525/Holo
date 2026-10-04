@@ -720,7 +720,9 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   const prompt = await response.json();
 
   // v23: 财务深析五层深挖法 + claimTitle 点破式标题（2026-09-21 财务深析改造）
-  assert.equal(prompt.version, 24);
+  // v25: 目录驱动字段原则（字段能力标记随目录上云，新字段零提示词教学）
+  assert.equal(prompt.version, 25);
+  assert.match(prompt.content, /HOLO_AGENT_CATALOG_DRIVEN_FIELDS_V25/);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);

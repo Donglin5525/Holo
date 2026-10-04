@@ -155,7 +155,7 @@ final class PromptManager {
         .analysisPrompt: 5,             // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
         .annualReview: 2,               // v2: 年度回放升级为完整阅读长度
         .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
-        .flexibleQueryPlanner: 4,       // v4: 聚合查询禁止生成易破坏 JSON 的纠错说明
+        .flexibleQueryPlanner: 5,       // v5: 过滤条件补 projectNames 财务项目名精确匹配（对齐后端 flexible_query_planner v4，接收端 FiltersDTO 同步补键）；v4: 聚合查询禁止生成易破坏 JSON 的纠错说明
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .memoryDomainExtraction: 2,     // v2: 用户价值门槛 + 任务截止覆盖 + 财务常态过滤
         .memoryCrossDomainFusion: 2,    // v2: 过滤仅因时间重合而拼接的普通状态
@@ -1133,12 +1133,13 @@ final class PromptManager {
         | amountLessThan | number? | 金额小于 |
         | amountLessThanOrEqual | number? | 金额小于等于 |
         | amountEqual | number? | 金额等于 |
-        | keywords | string[] | 关键词子串匹配（note/remark/tags/category），最多10个，每个最长20字符 |
+        | keywords | string[] | 关键词子串匹配（note/remark/tags/category/project），最多10个，每个最长20字符 |
         | excludedKeywords | string[] | 排除关键词，最多20个 |
         | categoryNames | string[] | 分类名精确匹配 |
         | startDate | string? | 起始日期 yyyy-MM-dd |
         | endDate | string? | 结束日期 yyyy-MM-dd |
         | accountNames | string[] | 账户名筛选 |
+        | projectNames | string[] | 财务项目名精确匹配（如「东京旅行」），仅在用户明确提到项目名时填写 |
         | includeNote | bool | 默认 true |
         | includeRemark | bool | 默认 true |
         | includeTags | bool | 默认 true |
@@ -1202,6 +1203,7 @@ final class PromptManager {
               "startDate": null,
               "endDate": null,
               "accountNames": [],
+              "projectNames": [],
               "includeNote": true,
               "includeRemark": true,
               "includeTags": true,
@@ -1226,17 +1228,17 @@ final class PromptManager {
 
         用户：「我上一次买一整条烟过去多久了？金额大于200」
         ```json
-        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"findLatestTransaction","filters":{"type":"expense","amountGreaterThan":200,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["香烟","买烟","整条烟"],"excludedKeywords":["烟花","烟台","电子烟"],"categoryNames":[],"startDate":null,"endDate":null,"accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"elapsedTimeSinceTransaction","sort":{"field":"date","direction":"desc"},"limit":1,"explanationHints":[{"approximateConstraint":{"field":"amount","reason":"金额>200近似约束一整条烟"}},{"noExplicitRecord":{"note":"备注可能没写'一整条'，基于金额+关键词推断"}}]}}
+        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"findLatestTransaction","filters":{"type":"expense","amountGreaterThan":200,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["香烟","买烟","整条烟"],"excludedKeywords":["烟花","烟台","电子烟"],"categoryNames":[],"startDate":null,"endDate":null,"accountNames":[],"projectNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"elapsedTimeSinceTransaction","sort":{"field":"date","direction":"desc"},"limit":1,"explanationHints":[{"approximateConstraint":{"field":"amount","reason":"金额>200近似约束一整条烟"}},{"noExplicitRecord":{"note":"备注可能没写'一整条'，基于金额+关键词推断"}}]}}
         ```
 
         用户：「这个月超过50的外卖有几次」
         ```json
-        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"countTransactions","filters":{"type":"expense","amountGreaterThan":50,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["外卖","美团","饿了么","打包"],"excludedKeywords":[],"categoryNames":["外卖"],"startDate":"2026-06-01","endDate":"2026-06-30","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"none","sort":null,"limit":20,"explanationHints":[]}}
+        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"countTransactions","filters":{"type":"expense","amountGreaterThan":50,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["外卖","美团","饿了么","打包"],"excludedKeywords":[],"categoryNames":["外卖"],"startDate":"2026-06-01","endDate":"2026-06-30","accountNames":[],"projectNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"none","sort":null,"limit":20,"explanationHints":[]}}
         ```
 
         用户：「最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱」
         ```json
-        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"sumAmount","filters":{"type":"expense","amountGreaterThan":null,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["麦当劳"],"excludedKeywords":[],"categoryNames":[],"startDate":"{{thirtyDaysAgoDate}}","endDate":"{{todayISODate}}","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"averageAmount","averageUnit":"meal","sort":{"field":"date","direction":"desc"},"limit":20,"explanationHints":[]}}
+        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"sumAmount","filters":{"type":"expense","amountGreaterThan":null,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["麦当劳"],"excludedKeywords":[],"categoryNames":[],"startDate":"{{thirtyDaysAgoDate}}","endDate":"{{todayISODate}}","accountNames":[],"projectNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"averageAmount","averageUnit":"meal","sort":{"field":"date","direction":"desc"},"limit":20,"explanationHints":[]}}
         ```
 
         只回复 JSON。

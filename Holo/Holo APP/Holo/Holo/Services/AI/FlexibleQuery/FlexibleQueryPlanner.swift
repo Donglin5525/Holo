@@ -251,6 +251,7 @@ final class FlexibleQueryPlanner {
         let startDate: String?
         let endDate: String?
         let accountNames: [String]?
+        let projectNames: [String]?
         let includeNote: Bool?
         let includeRemark: Bool?
         let includeTags: Bool?
@@ -276,6 +277,7 @@ final class FlexibleQueryPlanner {
             startDate: dto.filters.startDate,
             endDate: dto.filters.endDate,
             accountNames: dto.filters.accountNames ?? [],
+            projectNames: dto.filters.projectNames ?? [],
             includeNote: dto.filters.includeNote ?? true,
             includeRemark: dto.filters.includeRemark ?? true,
             includeTags: dto.filters.includeTags ?? true,
@@ -356,9 +358,12 @@ final class FlexibleQueryPlanner {
             throw FlexibleQueryPlanValidationError.hardcodedValueDetected
         }
 
-        // 8. 操作与过滤条件一致性
+        // 8. 操作与过滤条件一致性（accountNames/projectNames 同为圈定条件——
+        // 漏算会让「东京旅行花了多少钱」这类纯项目聚合计划被误判非法）
         let hasNoFilters = plan.filters.keywords.isEmpty
             && plan.filters.categoryNames.isEmpty
+            && plan.filters.accountNames.isEmpty
+            && (plan.filters.projectNames?.isEmpty ?? true)
             && plan.filters.amountGreaterThan == nil
             && plan.filters.amountGreaterThanOrEqual == nil
             && plan.filters.amountLessThan == nil

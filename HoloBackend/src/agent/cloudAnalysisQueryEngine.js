@@ -657,8 +657,16 @@ export function buildCloudToolCatalog(snapshot) {
   for (const [name, dataset] of Object.entries(datasets)) {
     // 字段说明必须进目录：模型不知道 text 是「备注、说明和标签合并文本」，
     // 就永远不会拿备注做归因（2026-08-31 验收：音乐 3316 的「TIMA音乐盛典」备注被漏）。
+    // 能力标记（{可筛·可组}）必须随字段上目录（2026-10-04 目录驱动 v25）：iOS 侧
+    // filterable/groupable 声明随快照序列化上云，此前拼目录时被丢弃，模型只能靠
+    // 提示词逐字段枚举教学——标记进目录后，新字段只改 iOS 声明即可被模型自动使用。
     const fields = (dataset.fields ?? [])
-      .map((f) => `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}${f.description ? `(${f.description})` : ""}`)
+      .map((f) => {
+        const tags = [f.filterable ? "可筛" : null, f.groupable ? "可组" : null]
+          .filter(Boolean)
+          .join("·");
+        return `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}${f.description ? `(${f.description})` : ""}${tags ? `{${tags}}` : ""}`;
+      })
       .join(" ");
     // 截断元数据（2026-10-04 体检 E19）：iOS 快照每数据集带 totalRows（截断前
     // 总量）/coveredFrom（快照内最老一行）时在目录如实声明——此前 rows=N 是
