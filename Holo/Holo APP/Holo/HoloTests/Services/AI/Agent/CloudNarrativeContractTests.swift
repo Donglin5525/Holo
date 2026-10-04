@@ -245,3 +245,48 @@ extension CloudNarrativeContractTests {
         XCTAssertNil(result.claims?.first?.metricAssertions)
     }
 }
+
+// MARK: - AI02 交付核验标注（2026-10-04 体检 G0：后端 warnings 首次被客户端消费）
+
+extension CloudNarrativeContractTests {
+
+    func test_核验标注_撤回类警告优先映射为撤回文案() {
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["CLAIM_NUMBERS_UNVERIFIED:c1:9999"]),
+            "部分结论未通过核验，已撤回处理"
+        )
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["METRIC_MISMATCH:dynamic.x", "NO_TOOL_EVIDENCE"]),
+            "部分结论未通过核验，已撤回处理"
+        )
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["QUALITATIVE_CLAIM_NO_EVIDENCE:c1"]),
+            "部分结论未通过核验，已撤回处理"
+        )
+    }
+
+    func test_核验标注_仅降级类警告映射为定性观察文案() {
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["NO_TOOL_EVIDENCE"]),
+            "本轮未查到量化数据，结论为定性观察"
+        )
+    }
+
+    func test_核验标注_空或非撤回警告不上屏() {
+        XCTAssertNil(HoloCloudAnalysisService.verificationNote(for: []))
+        XCTAssertNil(HoloCloudAnalysisService.verificationNote(for: ["EVIDENCE_DROPPED:c1"]))
+        XCTAssertNil(HoloCloudAnalysisService.verificationNote(for: ["NARRATIVE_INCONSISTENT:title"]))
+    }
+
+    func test_核验标注_随范围行展示且旧消息JSON解码兼容() throws {
+        // 旧消息 JSON 无 verificationNote 字段：解码为 nil，范围行展示不受影响
+        let legacyJSON = #"{"label": "本月", "start": null, "end": null, "snapshotCutoffAt": null}"#
+        let scope = try JSONDecoder().decode(HoloRenderedAnswerScope.self, from: Data(legacyJSON.utf8))
+        XCTAssertNil(scope.verificationNote)
+        XCTAssertFalse(scope.displayLabel.contains("核验"))
+        // 带标注时随范围行括注展示（与截断标注同一渲染通道）
+        var annotated = scope
+        annotated.verificationNote = "部分结论未通过核验，已撤回处理"
+        XCTAssertTrue(annotated.displayLabel.contains("部分结论未通过核验"))
+    }
+}

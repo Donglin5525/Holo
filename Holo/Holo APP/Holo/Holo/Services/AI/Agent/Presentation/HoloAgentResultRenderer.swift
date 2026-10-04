@@ -128,6 +128,9 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
     /// S03 截断标注（2026-10-04 体检）：快照数据集发生 2000 行截断时如实随
     /// 范围行展示；旧消息 JSON 缺失时为 nil。
     var truncatedNote: String? = nil
+    /// AI02 交付核验标注（2026-10-04 体检）：云端交付核验发生结论撤回/降级时
+    /// 如实随范围行展示；旧消息 JSON 缺失时为 nil。
+    var verificationNote: String? = nil
 
     var displayLabel: String {
         var trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -144,6 +147,9 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
         }
         if let truncatedNote, !truncatedNote.isEmpty {
             trimmed += "（\(truncatedNote)）"
+        }
+        if let verificationNote, !verificationNote.isEmpty {
+            trimmed += "（\(verificationNote)）"
         }
         // 滚动窗口（近半年/模型解析/用户点选）的起止是算出来的，用户不知道具体日期，必须晒出来；
         // 词表命中的自然周期（本月/上月/今年）边界不言自明，不加冗余。

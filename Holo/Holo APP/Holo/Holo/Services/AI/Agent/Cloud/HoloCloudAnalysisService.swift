@@ -481,8 +481,32 @@ final class HoloCloudAnalysisService {
         if truncatedCount > 0, rendered.scope != nil {
             rendered.scope?.truncatedNote = "部分数据已按上限截断"
         }
+        // AI02 交付核验标注（2026-10-04 体检）：后端 warnings 此前解码后全 App
+        // 无消费——核验撤回/降级对用户不可见。现在翻译成一句人话随范围行展示；
+        // 哪条结论被撤由后端负责（单一真相源），客户端不做第二套核验器。
+        if let note = Self.verificationNote(for: result.warnings ?? []), rendered.scope != nil {
+            rendered.scope?.verificationNote = note
+        }
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
         logger.info("云端结果已落地 claims=\(composed.sections.count, privacy: .public) narrative=\(composed.narrativeSummary != nil, privacy: .public) keyInsight=\(composed.keyInsight != nil, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
+    }
+
+    /// AI02 交付核验警告 → 用户可读标注（2026-10-04 体检）：撤回类优先
+    /// （编数/无证据结论已被服务端撤回，幸存结论正常交付）；仅降级类时说明
+    /// 结论为定性观察。操作提示类警告不上屏。纯函数，供契约测试共用。
+    nonisolated static func verificationNote(for warnings: [String]) -> String? {
+        let withdrawnPrefixes = [
+            "METRIC_MISMATCH", "METRIC_UNKNOWN",
+            "CLAIM_NUMBERS_UNVERIFIED", "NUMERIC_CLAIM_UNVERIFIED",
+            "QUALITATIVE_CLAIM_NO_EVIDENCE",
+        ]
+        if warnings.contains(where: { warning in withdrawnPrefixes.contains { warning.hasPrefix($0) } }) {
+            return "部分结论未通过核验，已撤回处理"
+        }
+        if warnings.contains(where: { $0.hasPrefix("NO_TOOL_EVIDENCE") }) {
+            return "本轮未查到量化数据，结论为定性观察"
+        }
+        return nil
     }
 
     /// 诚实范围标注：冻结任务回显优先（场景默认窗/用户改写后仍由服务端冻结），

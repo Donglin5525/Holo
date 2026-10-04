@@ -143,19 +143,47 @@ function numberMatchesAllowed(value, allowed) {
   return false;
 }
 
+// 空台账定性拦截（2026-10-04 体检 AI02-C / R01）词表：整场没有任何指标入账时，
+// 含定性规律表述且不带诚实降级说明的 claim 不可能有数据支持。只收窄用于
+// ledgerHasMetrics === false 的实锤场景；有台账时的逐条定性-证据绑定属
+// factRole 语义分层（AI02 第二步），不用词表粗规则扩大拦截面。
+const QUALITATIVE_PATTERN_TOKENS = [
+  "主要", "为主", "最多", "最少", "持续上升", "持续下降", "不断上升", "不断下降",
+  "越来越多", "越来越少", "大幅", "显著", "集中在", "大部分", "多为", "偏多", "偏少",
+  "高频", "习惯性", "总是", "每次都",
+];
+const HONEST_LIMITATION_TOKENS = [
+  "无法判断", "不能判断", "无法确定", "说不准", "记录不足", "数据不足", "没有足够",
+  "暂无数据", "尚未记录", "未记录", "看不出", "缺少",
+];
+
+function containsAnyToken(text, tokens) {
+  return tokens.some((token) => text.includes(token));
+}
+
 /**
  * 交付核验（2026-09-19 方案任务1 §3.4）：final_claims 落库/提交额度/推送「完成」
  * 之前的云端专用闸门。「JSON 合法」不等于「可交付」：
  * - 空 claims 不允许完成（可解释缺口必须以 claim 形式说出，或走诚实失败）；
  * - 每条数字断言必须与本次工具 Ledger 一致（metricKey 存在 + 数值对上），
- *   对不上的断言降级剥离并记 warning，不回退为「整个证据池都当依据」；
+ *   对不上的断言降级剥离并记 warning；
  * - 引用不存在的 evidence ID 直接剥离；
- * - title/narrativeSummary/keyInsight 出现 Ledger 与 claims 都不支持的数字时清空
- *   该叙事字段（iOS 端有 claims 拼接回退，不丢事实）。
- * 返回 { claims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
+ * - 正文数字核验（2026-10-04 体检 AI02-A，堵 R02/R03）：displayText/summary 里的
+ *   可核对数字必须被 Ledger 已核验值、本条保留断言或所引证据原文支持——此前
+ *   正文从不数字对账，挂一条合法引用即可让编造金额（真实 74 写 9999）照常交付。
+ *   对不上 → 整条撤回进修复轮，不再「剥断言留正文」；
+ * - 空台账定性拦截（AI02-C，堵 R01）：整场无指标入账时，定性规律表述
+ *   （"主要/最多/持续上升"）且无诚实降级说明的 claim 撤回，不再仅记
+ *   NO_TOOL_EVIDENCE 后照常 completed；
+ * - claimTitle/title/narrativeSummary/keyInsight 出现 Ledger 与 claims 都不支持的
+ *   数字时清空该字段（iOS 端有 claims 拼接回退，不丢事实）。
+ * 撤回的 claim 记入 droppedClaims（带原因摘要）：主循环据此触发修复轮，
+ * 修复轮后仍被撤回的 claim 不交付。
+ * 返回 { claims, droppedClaims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
  */
-function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
+function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts }) {
   const warnings = [];
+  const dropped = [];
   const ledgerHasMetrics = metricLedger.size > 0;
   // 同 metricKey 可能对应多个分组（中文分组 sanitize 撞名），断言与任一分组值对上即通过
   const ledgerByMetricKey = new Map();
@@ -211,6 +239,36 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
     // 全部剥空走既有诚实失败路径（修复轮 → 仍空 → failed）。
     if (!hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
       warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
+      dropped.push({ id: sanitized.id ?? null, reason: "数字既无断言也无引用支撑", excerpt: text.slice(0, 60) });
+      continue;
+    }
+    // 正文数字核验（AI02-A）：白名单 = Ledger 已核验值 + 本条保留断言 +
+    // 本条所引证据的原文摘要数字。行证据的单笔金额（excerpt 里出现）与
+    // 聚合值都能过；凭空编造或心算差值（未查派生指标）对不上 → 整条撤回。
+    // 数值与口径交给确定性计算，模型负责解释——与报告 AI02 产品决策一致。
+    const claimNumbersAllowed = [...ledgerNumbers];
+    for (const assertion of sanitized.metricAssertions ?? []) {
+      if (assertion.value != null) claimNumbersAllowed.push(assertion.value);
+      if (assertion.baselineValue != null) claimNumbersAllowed.push(assertion.baselineValue);
+    }
+    for (const id of sanitized.evidenceIDs ?? []) {
+      const excerpt = evidenceTexts.get(id);
+      if (excerpt) claimNumbersAllowed.push(...extractCheckableNumbers(excerpt));
+    }
+    const badBodyNumbers = extractCheckableNumbers(text)
+      .filter((n) => !numberMatchesAllowed(n, claimNumbersAllowed));
+    if (badBodyNumbers.length > 0) {
+      warnings.push(`CLAIM_NUMBERS_UNVERIFIED:${sanitized.id ?? "claim"}:${badBodyNumbers.join("/")}`);
+      dropped.push({ id: sanitized.id ?? null, reason: `数字与工具结果不一致（${badBodyNumbers.join("/")}）`, excerpt: text.slice(0, 60) });
+      continue;
+    }
+    // 空台账定性拦截（AI02-C）：无任何指标入账时定性规律不可能有数据支持；
+    // 诚实降级（"记录不足/无法判断"）与一般性建议不受影响。
+    if (!ledgerHasMetrics
+      && containsAnyToken(text, QUALITATIVE_PATTERN_TOKENS)
+      && !containsAnyToken(text, HONEST_LIMITATION_TOKENS)) {
+      warnings.push(`QUALITATIVE_CLAIM_NO_EVIDENCE:${sanitized.id ?? "claim"}`);
+      dropped.push({ id: sanitized.id ?? null, reason: "无数据支持却输出定性规律", excerpt: text.slice(0, 60) });
       continue;
     }
     // claimTitle 数字一致性：标题里出现的数字必须被本条正文/断言或 Ledger 支持，
@@ -259,6 +317,7 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
 
   return {
     claims,
+    droppedClaims: dropped,
     warnings: [...new Set(warnings)],
     title: output.title ?? null,
     narrativeSummary: output.narrativeSummary ?? null,
@@ -865,6 +924,9 @@ export function createCloudAnalysisExecutor({
       const metricEvidence = new Map();
       const rowsEvidence = new Map();
       const validEvidenceIDs = new Set();
+      // 证据 ID → 原文摘要（AI02-A 正文数字白名单用）：claim 引用某条证据时，
+      // 证据原文里出现的数字（行样本的单笔金额、派生指标值）视为可支持数字。
+      const evidenceTexts = new Map();
 
       function collectEvidence(toolRequests, toolResults) {
         toolResults.forEach((result, index) => {
@@ -890,7 +952,12 @@ export function createCloudAnalysisExecutor({
             validEvidenceIDs.add(`dynamic-${metric.metricKey}`);
           }
           for (const event of result.events ?? []) {
-            if (typeof event?.id === "string" && event.id) validEvidenceIDs.add(event.id);
+            if (typeof event?.id === "string" && event.id) {
+              validEvidenceIDs.add(event.id);
+              if (typeof event.excerpt === "string" && event.excerpt) {
+                evidenceTexts.set(event.id, event.excerpt);
+              }
+            }
           }
           const request = toolRequests[index];
           if (request?.tool === "snapshot_rows" && Array.isArray(result.events)) {
@@ -960,14 +1027,21 @@ export function createCloudAnalysisExecutor({
           const verified = verifyDelivery(output, {
             metricLedger: metricEvidence,
             validEvidenceIDs,
+            evidenceTexts,
           });
-          if (verified.emptyClaims && !deliveryRepairUsed) {
+          // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
+          // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；
+          // 第二次仍不过则只交付幸存 claims（全撤光走下方诚实失败）。
+          if ((verified.emptyClaims || verified.droppedClaims.length > 0) && !deliveryRepairUsed) {
             deliveryRepairUsed = true;
-            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（空 claims），请求重发`);
+            const repairDetail = verified.droppedClaims.length > 0
+              ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
+              : "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。";
+            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（empty=${verified.emptyClaims} dropped=${verified.droppedClaims.length}），请求重发`);
             messages.push({ role: "assistant", content: validation.content });
             messages.push({
               role: "user",
-              content: "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。",
+              content: repairDetail,
             });
             continue;
           }

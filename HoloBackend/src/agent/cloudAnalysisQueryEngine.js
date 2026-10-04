@@ -604,9 +604,15 @@ export function createCloudAnalysisQueryEngine() {
     if (metrics.length === 0) {
       // 空结论必须可解释：说清时间窗内多少行、数据集总共多少行、快照截止在哪，
       // 模型才能区分「真没数据」与「时间窗不对」——这是 P0「缺口可解释」的引擎侧。
-      const totalRows = dataset.rows?.length ?? 0;
+      // 截断元数据（2026-10-04 体检 E19）：iOS 快照带 totalRows（截断前总量）时
+      // 如实反映，模型看到的规模不再被 2000 行上限低估；旧快照无元数据保持原样。
+      const providedRows = dataset.rows?.length ?? 0;
+      const totalRows = Number.isInteger(dataset?.totalRows) && dataset.totalRows > providedRows
+        ? dataset.totalRows
+        : providedRows;
+      const truncationNote = totalRows > providedRows ? `（快照仅提供 ${providedRows} 行）` : "";
       const windowNote = currentWindow
-        ? `；时间窗 ${describeWindow(currentWindow)} 内 0 行（数据集共 ${totalRows} 行，快照截止 ${cutoffMs != null ? new Date(cutoffMs).toISOString().slice(0, 10) : "未知"}）`
+        ? `；时间窗 ${describeWindow(currentWindow)} 内 0 行（数据集共 ${totalRows} 行${truncationNote}，快照截止 ${cutoffMs != null ? new Date(cutoffMs).toISOString().slice(0, 10) : "未知"}）`
         : "";
       return toolResultEnvelope(toolRequestID, tool, {
         status: "empty",
@@ -654,8 +660,21 @@ export function buildCloudToolCatalog(snapshot) {
     const fields = (dataset.fields ?? [])
       .map((f) => `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}${f.description ? `(${f.description})` : ""}`)
       .join(" ");
-    const rows = dataset.rows?.length ?? 0;
-    lines.push(`【${name}】rows=${rows} fields: ${fields}`);
+    // 截断元数据（2026-10-04 体检 E19）：iOS 快照每数据集带 totalRows（截断前
+    // 总量）/coveredFrom（快照内最老一行）时在目录如实声明——此前 rows=N 是
+    // 截断后的 provided 数，模型把截断明细当全量，年度/高记录量总额被低估。
+    // 非截断数据集保持原格式，既有契约不变。
+    const providedRows = dataset.rows?.length ?? 0;
+    const truncatedTotal = Number.isInteger(dataset?.totalRows) && dataset.totalRows > providedRows
+      ? dataset.totalRows
+      : null;
+    const rowsNote = truncatedTotal != null
+      ? `rows=${providedRows}/${truncatedTotal}（快照截断，明细非全量；涉及总额/历史的结论须注明可能不完整）`
+      : `rows=${providedRows}`;
+    const coveredFromNote = typeof dataset?.coveredFrom === "string" && dataset.coveredFrom
+      ? ` coveredFrom=${dataset.coveredFrom}`
+      : "";
+    lines.push(`【${name}】${rowsNote}${coveredFromNote} fields: ${fields}`);
   }
   const statics = Object.keys(snapshot?.statics ?? {});
   if (statics.length > 0) {

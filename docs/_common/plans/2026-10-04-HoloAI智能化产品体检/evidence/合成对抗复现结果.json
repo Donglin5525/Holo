@@ -1,0 +1,105 @@
+[
+  {
+    "label": "空数据定性事实",
+    "status": "completed",
+    "claims": [
+      {
+        "id": "c1",
+        "type": "observation",
+        "summary": "支出以餐饮外卖为主",
+        "displayText": "支出以餐饮外卖为主",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "prohibitedInferences": [],
+        "interpretation": null,
+        "claimTitle": null,
+        "confidence": 0.5
+      }
+    ],
+    "warnings": [
+      "NO_TOOL_EVIDENCE"
+    ],
+    "evidence": [],
+    "failureReason": null
+  },
+  {
+    "label": "合法引用但正文编数",
+    "status": "completed",
+    "claims": [
+      {
+        "id": "c1",
+        "type": "observation",
+        "summary": "最近总支出 9999 元",
+        "displayText": "最近总支出 9999 元",
+        "evidenceIDs": [
+          "dynamic.finance_transactions.total.all"
+        ],
+        "metricAssertions": [],
+        "prohibitedInferences": [],
+        "interpretation": null,
+        "claimTitle": null,
+        "confidence": 0.5
+      }
+    ],
+    "warnings": [],
+    "evidence": [
+      {
+        "kind": "metric",
+        "metricKey": "dynamic.finance_transactions.total.all",
+        "dataset": "finance.transactions",
+        "group": null,
+        "value": -74,
+        "unit": "元",
+        "baselineValue": null,
+        "formula": "sum(amount)",
+        "sourceCount": 2
+      }
+    ],
+    "failureReason": null
+  },
+  {
+    "label": "对账失败但引用存在",
+    "status": "completed",
+    "claims": [
+      {
+        "id": "c1",
+        "type": "observation",
+        "summary": "最近总支出 9999 元",
+        "displayText": "最近总支出 9999 元",
+        "evidenceIDs": [
+          "dynamic.finance_transactions.total.all"
+        ],
+        "metricAssertions": [],
+        "prohibitedInferences": [],
+        "interpretation": null,
+        "claimTitle": null,
+        "confidence": 0.5
+      }
+    ],
+    "warnings": [
+      "METRIC_MISMATCH:dynamic.finance_transactions.total.all"
+    ],
+    "evidence": [
+      {
+        "kind": "metric",
+        "metricKey": "dynamic.finance_transactions.total.all",
+        "dataset": "finance.transactions",
+        "group": null,
+        "value": -74,
+        "unit": "元",
+        "baselineValue": null,
+        "formula": "sum(amount)",
+        "sourceCount": 2
+      }
+    ],
+    "failureReason": null
+  },
+  {
+    "label": "空数据无引用数字已拦截",
+    "status": "failed",
+    "claims": [],
+    "warnings": [],
+    "evidence": [],
+    "failureReason": "模型未能产出可核验的结论（无 claim），请换个问法或稍后重试"
+  }
+]
