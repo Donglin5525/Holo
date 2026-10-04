@@ -1,5 +1,6 @@
 import Accelerate
 import Foundation
+import SQLite3
 
 // V3 Phase 2 standalone：本机语义库（SQLite）+ Flat 索引 + 向量数学的行为锁定。
 // USearch 索引实现的行为由 spike（15/15）与主工程编译+模拟器冒烟覆盖。
@@ -29,8 +30,9 @@ struct ThoughtSemanticStoreStandaloneTests {
         await flatIndexBehavior()
         vectorMath()
         try await destroySemantics(tmp)
+        try await malformedVectorAndOpenContract(tmp)
         try? FileManager.default.removeItem(at: tmp)
-        print("PASS: store生命周期+Float16往返+版本判定+job去重/领取/取消+flat检索正确性+销毁重建+向量数学")
+        print("PASS: store生命周期+Float16往返+版本判定+job去重/领取/取消+flat检索正确性+销毁重建+向量数学+R03/R14异常契约")
     }
 
     // MARK: - 1. store 生命周期与 CRUD
@@ -190,5 +192,101 @@ struct ThoughtSemanticStoreStandaloneTests {
         let v = SemanticVectorMath.normalized([3, 4])
         check(abs(SemanticVectorMath.cosineSimilarity(v, v) - 1) < 0.001, "自相似≈1")
         check(SemanticVectorMath.normalized([0, 0]) == [0, 0], "零向量原样返回")
+    }
+
+    // MARK: - 6. R03/R14 异常输入契约（2026-10-04 体检回归）
+
+    static func malformedVectorAndOpenContract(_ root: URL) async throws {
+        // —— R03 写入契约：维度为正数且等于向量元素数，先校验后落库 ——
+        let store = await ThoughtSemanticStore(root: root)
+        try await store.open()
+        let key = try await store.allocateVectorKey()
+        let id = UUID()
+        func draft(dim: Int) -> ThoughtSemanticStore.SemanticItem {
+            ThoughtSemanticStore.SemanticItem(id: id, contentHash: "contract", modelVersion: "m",
+                                              dimension: dim, vectorKey: key, state: "active",
+                                              priority: 0, lastAccessedAt: nil, updatedAt: Date())
+        }
+        var threw = false
+        do { try await store.upsertItem(draft(dim: 4), vector: .init(repeating: Float16(1), count: 3)) }
+        catch { threw = true }
+        check(threw, "维度与向量元素数不一致必须抛错")
+        threw = false
+        do { try await store.upsertItem(draft(dim: 0), vector: []) }
+        catch { threw = true }
+        check(threw, "非正维度必须抛错")
+        check(try await store.loadAllActiveVectors(modelVersion: "m").isEmpty, "被拒数据不得落库")
+        // 合法写入对照：契约只拦坏数据，不伤正常路径
+        try await store.upsertItem(draft(dim: 4), vector: .init(repeating: Float16(0.5), count: 4))
+        await store.close()
+
+        // —— R03 读取契约：历史坏行（负维度 / 短 BLOB）隔离跳过，不崩溃 ——
+        let dbPath = root.appendingPathComponent("ThoughtSemanticV3/semantic.sqlite")
+        let negativeDimID = UUID()
+        let shortBlobID = UUID()
+        try injectRawVectorRow(into: dbPath, id: negativeDimID, modelVersion: "m",
+                               dimension: -1, vectorKey: 9001, blob: Data([0x00, 0x00]))
+        try injectRawVectorRow(into: dbPath, id: shortBlobID, modelVersion: "m",
+                               dimension: 1024, vectorKey: 9002, blob: Data([0x00, 0x00]))
+        let reopened = await ThoughtSemanticStore(root: root)
+        try await reopened.open()
+        let rows = try await reopened.loadAllActiveVectors(modelVersion: "m")
+        check(rows.count == 1 && rows[0].vector.count == 4, "坏行被隔离，仅合法行返回，实测 \(rows.count) 行")
+        check(try await reopened.activeVector(thoughtID: negativeDimID, contentHash: "dirty", modelVersion: "m") == nil,
+              "负维度行读取安全拒绝")
+        check(try await reopened.loadVector(thoughtID: shortBlobID) == nil, "短 BLOB 行读取安全拒绝")
+        check(try await reopened.item(thoughtID: negativeDimID)?.vectorKey == 9001, "元数据行正常读回（key 范围内）")
+
+        // —— R14 打开失败：错误码必须是真实打开结果，不得是关闭后查询所得 MISUSE(21) ——
+        let occupied = root.appendingPathComponent("occupied-root")
+        try Data("not a directory".utf8).write(to: occupied)
+        var probe: OpaquePointer?
+        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        let realRC = sqlite3_open_v2(occupied.appendingPathComponent("ThoughtSemanticV3/semantic.sqlite").path,
+                                     &probe, flags, nil)
+        if let probe { sqlite3_close_v2(probe) }
+        check(realRC != SQLITE_OK && realRC != SQLITE_MISUSE, "探针路径应真实打开失败，rc=\(realRC)")
+        let blocked = await ThoughtSemanticStore(root: occupied)
+        do {
+            try await blocked.open()
+            check(false, "目录被文件占据时必须打开失败")
+        } catch let error as ThoughtSemanticStore.StoreError {
+            guard case .openFailed(let code) = error else {
+                check(false, "应为 openFailed，实际 \(error)")
+                return
+            }
+            check(code == realRC, "错误码应为真实打开结果 \(realRC)，实测 \(code)（旧实现关闭后误查恒得 21）")
+        }
+    }
+
+    /// 绕过生产写入契约直接插坏行（模拟历史脏数据）。仅限本套件临时库使用。
+    private static func injectRawVectorRow(into dbPath: URL, id: UUID, contentHash: String = "dirty",
+                                           modelVersion: String, dimension: Int32,
+                                           vectorKey: Int64, blob: Data) throws {
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK, let db else {
+            preconditionFailure("测试注入库打不开")
+        }
+        defer { sqlite3_close_v2(db) }
+        let sql = """
+            INSERT INTO semantic_item(id, thought_id, content_hash, model_version, dimension,
+                                      vector_key, state, priority, last_accessed_at, updated_at, vector_f16)
+            VALUES(?1, ?1, ?2, ?3, ?4, ?5, 'active', 0, NULL, ?6, ?7)
+            """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt else {
+            preconditionFailure("坏行 prepare 失败")
+        }
+        defer { sqlite3_finalize(stmt) }
+        var uuid = id.uuid
+        withUnsafeBytes(of: &uuid) { sqlite3_bind_blob(stmt, 1, $0.baseAddress, 16, transient) }
+        sqlite3_bind_text(stmt, 2, contentHash, -1, transient)
+        sqlite3_bind_text(stmt, 3, modelVersion, -1, transient)
+        sqlite3_bind_int(stmt, 4, dimension)
+        sqlite3_bind_int64(stmt, 5, vectorKey)
+        sqlite3_bind_double(stmt, 6, Date().timeIntervalSince1970)
+        blob.withUnsafeBytes { sqlite3_bind_blob(stmt, 7, $0.baseAddress, Int32(blob.count), transient) }
+        guard sqlite3_step(stmt) == SQLITE_DONE else { preconditionFailure("坏行插入失败") }
     }
 }

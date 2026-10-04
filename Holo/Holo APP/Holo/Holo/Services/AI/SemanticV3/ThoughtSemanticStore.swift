@@ -15,6 +15,7 @@
 
 import Foundation
 import SQLite3
+import os
 
 /// SQLITE_TRANSIENT 是 C 宏，Swift 侧需手工等价定义
 private let SQLITE_TRANSIENT_DESTRUCTOR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
@@ -26,7 +27,11 @@ actor ThoughtSemanticStore {
         case sqlFailed(code: Int32, sql: String)
         case schemaVersionUnsupported(Int)
         case jobNotFound(UUID)
+        /// R03（2026-10-04 体检）：维度与向量元素数不一致 / 非正维度，写入前拒绝落库
+        case invalidVector(dimension: Int, vectorCount: Int)
     }
+
+    private nonisolated static let logger = Logger(subsystem: "com.holo.app", category: "ThoughtSemanticStore")
 
     // MARK: - 行类型
 
@@ -112,9 +117,12 @@ actor ThoughtSemanticStore {
         guard db == nil else { return }
         var handle: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
-        guard sqlite3_open_v2(dbPath.path, &handle, flags, nil) == SQLITE_OK, let handle else {
+        // R14（2026-10-04 体检）：错误码直接取 open 返回值——打开失败后句柄随时释放，
+        // 旧写法先 close 再 errcode 查的是已关闭连接，恒得 MISUSE(21)，真实故障原因被掩盖。
+        let rc = sqlite3_open_v2(dbPath.path, &handle, flags, nil)
+        guard rc == SQLITE_OK, let handle else {
             if let handle { sqlite3_close_v2(handle) }
-            throw StoreError.openFailed(code: sqlite3_errcode(handle))
+            throw StoreError.openFailed(code: rc)
         }
         db = handle
         sqlite3_busy_timeout(handle, 5_000)
@@ -142,8 +150,26 @@ actor ThoughtSemanticStore {
 
     // MARK: - semantic_item
 
+    /// R03（2026-10-04 体检）向量统一读取契约：维度必须为正数，且 BLOB 字节数严格等于
+    /// 维度×Float16(2字节)。不满足按坏行返回 nil（调用方隔离等待重建）——禁止按库内
+    /// dimension 直接构造数组或索引 Float16 指针（负维度崩溃 / 短 BLOB 越界读）。
+    /// 所有向量读取入口必须走这里，不得各自猜测合法长度。
+    private func decodeF16Vector(_ stmt: OpaquePointer, dimensionCol: Int32, blobCol: Int32) -> [Float]? {
+        let dim = Int(sqlite3_column_int64(stmt, dimensionCol))
+        guard dim > 0,
+              sqlite3_column_type(stmt, blobCol) == SQLITE_BLOB,
+              let blob = sqlite3_column_blob(stmt, blobCol),
+              sqlite3_column_bytes(stmt, blobCol) == dim * MemoryLayout<Float16>.size else { return nil }
+        let pointer = blob.assumingMemoryBound(to: Float16.self)
+        return (0..<dim).map { Float(pointer[$0]) }
+    }
+
     /// 写入/更新向量真身（Float16 blob）。
     func upsertItem(_ item: SemanticItem, vector: [Float16]) throws {
+        // R03 写入契约：维度为正数且与向量元素数一致，先校验再落库——读写共享同一份长度契约。
+        guard item.dimension > 0, vector.count == item.dimension else {
+            throw StoreError.invalidVector(dimension: item.dimension, vectorCount: vector.count)
+        }
         try exec("BEGIN IMMEDIATE")
         defer { try? exec("COMMIT") }
         try bindExec("""
@@ -168,14 +194,13 @@ actor ThoughtSemanticStore {
         var rows: [(UUID, UInt64, [Float])] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             guard let id = uuidCol(stmt, 0) else { continue }
-            let key = UInt64(sqlite3_column_int64(stmt, 1))
-            let dim = Int(sqlite3_column_int(stmt, 2))
-            var vector = [Float](repeating: 0, count: dim)
-            if let blob = sqlite3_column_blob(stmt, 3) {
-                let ptr = blob.assumingMemoryBound(to: Float16.self)
-                for i in 0..<dim { vector[i] = Float(ptr[i]) }
+            let keyInt = sqlite3_column_int64(stmt, 1)
+            guard keyInt >= 0, let vector = decodeF16Vector(stmt, dimensionCol: 2, blobCol: 3) else {
+                // 坏行隔离：跳过加载等待管线按原文重建，不终止进程、不动原文
+                Self.logger.error("语义索引坏行已隔离待重建：thought=\(id.uuidString, privacy: .public) dim=\(Int(sqlite3_column_int64(stmt, 2)), privacy: .public) blobBytes=\(Int(sqlite3_column_bytes(stmt, 3)), privacy: .public)")
+                continue
             }
-            rows.append((id, key, vector))
+            rows.append((id, UInt64(keyInt), vector))
         }
         return rows
     }
@@ -189,13 +214,7 @@ actor ThoughtSemanticStore {
             """, .uuid(thoughtID), .text(contentHash), .text(modelVersion))
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
-        let dim = Int(sqlite3_column_int64(stmt, 0))
-        var vector = [Float](repeating: 0, count: dim)
-        if let blob = sqlite3_column_blob(stmt, 1) {
-            let ptr = blob.assumingMemoryBound(to: Float16.self)
-            for i in 0..<dim { vector[i] = Float(ptr[i]) }
-        }
-        return vector
+        return decodeF16Vector(stmt, dimensionCol: 0, blobCol: 1)
     }
 
     /// 相同 contentHash/modelVersion 已完成则跳过（管线第 2 步版本判定）。
@@ -217,13 +236,7 @@ actor ThoughtSemanticStore {
             """, .uuid(thoughtID))
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
-        let dim = Int(sqlite3_column_int64(stmt, 0))
-        var vector = [Float](repeating: 0, count: dim)
-        if let blob = sqlite3_column_blob(stmt, 1) {
-            let ptr = blob.assumingMemoryBound(to: Float16.self)
-            for i in 0..<dim { vector[i] = Float(ptr[i]) }
-        }
-        return vector
+        return decodeF16Vector(stmt, dimensionCol: 0, blobCol: 1)
     }
 
     /// 记录一次影子关联决策（relation_candidate 表，Phase 3 shadow 主产物）。
@@ -396,12 +409,15 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         guard let rowID = uuidCol(stmt, 0) else { return nil }
+        let keyInt = sqlite3_column_int64(stmt, 4)
+        // R03：metadata 读取同样守住 key/维度范围契约，坏行按不存在处理
+        guard keyInt >= 0 else { return nil }
         return SemanticItem(
             id: rowID,
             contentHash: String(cString: sqlite3_column_text(stmt, 1)),
             modelVersion: String(cString: sqlite3_column_text(stmt, 2)),
             dimension: Int(sqlite3_column_int(stmt, 3)),
-            vectorKey: UInt64(sqlite3_column_int64(stmt, 4)),
+            vectorKey: UInt64(keyInt),
             state: String(cString: sqlite3_column_text(stmt, 5)),
             priority: Int(sqlite3_column_int(stmt, 6)),
             lastAccessedAt: dateCol(stmt, 7),

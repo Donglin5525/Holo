@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-10-04] 代码体检第一批修复：语义库向量读写契约、记忆锚点折叠、SQLite 打开错误码
+
+> 纯 iOS 无发版。对应 2026-10-04 全面代码体检（docs/_common/plans/2026-10-04-Holo-App-Code-Review/）第一阶段两个最小交付单元：R03+R14 语义库、R04 记忆锚点。三项同属「异常输入终止进程」类：坏向量行在读取时崩溃、重复记忆锚点拖垮后台融合、打开失败后误查已关闭连接让诊断失真。修法共同点：读写共享同一份契约，坏数据挡在进库之前。
+
+**修法**：
+- **R03 向量契约**：`ThoughtSemanticStore` 新增统一 `decodeF16Vector` 读取契约（维度必须为正数且 BLOB 字节数严格等于维度×2），`loadAllActiveVectors`/`activeVector`/`loadVector`/`topicProfile` 四路读取全走同一函数——坏行隔离跳过并落日志，等待管线按原文重建（负维度不再构造数组崩溃、短 BLOB 不再越界读）；`upsertItem` 写入侧同契约先校验后落库（新 `StoreError.invalidVector`）；`item()` 的 vector_key 补范围守卫。主题向量缓存（并行在途批次新增）同享该契约。
+- **R04 锚点折叠**：`HoloMemoryIdentity.canonicalAnchors` 定死折叠规则——完全重复折叠为一条，同 stableKey 仅 displayLabel 不同的冲突按字典序保留确定一条，不再随数组顺序随机；`HoloMemoryRecord` 构造即规范化（写入入口单点收口）；跨域候选构建器先规范化再建唯一键字典——历史脏数据（Codable 解码绕过 init）不再触发 `Dictionary(uniqueKeysWithValues:)` 崩溃，且折叠结果与输入顺序无关。
+- **R14 打开错误码**：`sqlite3_open_v2` 失败直接报返回值，不再 close 后 `errcode` 误查已关闭连接（恒得 MISUSE(21)，真实故障原因如 CANTOPEN/IOERR 被掩盖）。
+
+**验证**：两套 standalone 回归套件绿——语义库套件新增「R03/R14 异常契约」段（写入拒绝/被拒不落库/历史坏行隔离/合法写入对照/打开错误码与真实 rc 一致）；新增跨域融合安全套件与独立 runner（`scripts/run-cross-domain-fusion-standalone.sh`，不挂 pbxproj 零工程侵入）：完全重复折叠身份不变、冲突重复不崩溃且与输入顺序无关。体检探针红转绿：fusion-duplicate 由 SIGTRAP(-5) 变 exit 0，semantic 两探针由「读时崩溃」变「写时拒绝」（探针未接住拒绝错误故仍非零，机制符合设计，正式验收以仓库入口用例为准）。干净 HEAD worktree（仅含本批文件）Release 构建绿+套件复跑绿。R05/R06 任务输入验证与存储恢复协议（R01/R02/R16）按体检整改顺序随后续批次跟进。
+
 ## [2026-10-04] HoloAI 目录驱动字段原则：加字段零提示词教学，「分析东京旅行花费」项目维度全链打通
 
 > 后端需发版一次（agent_loop v25 + 云端目录标记），此后新增字段零提示词改动。背景：东林问「分析这次东京旅游的花费」能不能被准确识别——调研实锤数据层早已全通（每笔交易带 project 字段上云、云端引擎对任意声明字段可筛可组），唯独「教学方法」是逐字段手工枚举写进提示词的：深度分析提示词没教过项目维度，模型只会按时间+分类泛化估算；单值快问链路后端规划器教了 projectNames 槽位但 iOS 接收端 FiltersDTO 缺键静默丢弃；validate 的「无过滤条件」判定也漏算 projectNames/accountNames，纯项目聚合计划会被误判非法。四处同病：字段能力靠人工逐个教学，永无止境。

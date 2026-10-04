@@ -219,7 +219,10 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         self.primaryDomain = primaryDomain
         self.sourceDomains = sourceDomains
         self.subjectKey = subjectKey
-        self.anchorRefs = anchorRefs
+        // R04（2026-10-04 体检）：构造即规范化——所有程序化创建（含落库前）都在唯一入口
+        // 折叠重复锚点。stableID 只由 stableKey 集合决定，折叠不影响身份。
+        // 注意：Codable 解码绕过本 init，历史脏数据由读取方（builder 等）再走 canonicalAnchors。
+        self.anchorRefs = HoloMemoryIdentity.canonicalAnchors(anchorRefs)
         self.claimKind = claimKind
         self.persistenceClass = persistenceClass
         self.displaySummary = displaySummary
