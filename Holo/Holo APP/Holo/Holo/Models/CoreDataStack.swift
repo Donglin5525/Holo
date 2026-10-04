@@ -39,6 +39,11 @@ nonisolated class CoreDataStack {
     /// 等待 store 加载完毕的 continuation 列表
     nonisolated(unsafe) private var _storeLoadContinuations: [CheckedContinuation<Void, Never>] = []
 
+    /// R01（2026-10-04 体检）：加载终态。true = 成功或失败已定，后续等待方立即返回。
+    /// 失败不再终止进程；失败原因存 _storeLoadError 供恢复门如实展示。
+    nonisolated(unsafe) private var _storeLoadSettled = false
+    nonisolated(unsafe) private var _storeLoadError: Error?
+
     /// 持久化容器（线程安全延迟初始化）
     /// 首次访问时创建容器并异步加载 store，不阻塞调用线程。
     /// 构建期间不得持有 lock：store 加载完成回调需要拿 lock 置位 _storeLoaded，
@@ -108,19 +113,32 @@ nonisolated class CoreDataStack {
         }
 
         Self.loadStoreAllowingRecovery(container, logger: Self.recoveryLogger) { [weak self] error in
+            guard let self else { return }
+            self.lock.lock()
+            let continuations: [CheckedContinuation<Void, Never>]
             if let error {
-                let nsError = error as NSError
-                fatalError("Core Data 存储加载失败（自动恢复后仍不可用）：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
+                // R01（2026-10-04 体检）：加载失败是可恢复状态，不再终止进程——
+                // 记录失败原因、置终态并唤醒所有等待方；恢复门（StoreConflictRecoveryGate）
+                // 在等待返回后如实说明并保留原库等待救援。破坏性重建必须有完整数据保护前提。
+                Self.recoveryLogger.fault("Core Data 存储加载失败（自动恢复后仍不可用），进入可恢复失败状态：\(error.localizedDescription, privacy: .public)\n\((error as NSError).userInfo)")
+                self._storeLoadError = error
+                self._storeLoadSettled = true
+                continuations = self._storeLoadContinuations
+                self._storeLoadContinuations = []
+                self.lock.unlock()
+                for continuation in continuations {
+                    continuation.resume()
+                }
+                return
             }
             // store 装载完成后再配置主上下文：此时无进行中的装载，
             // setter 不会同步等待 CoreData 内部队列（构建线程也不持任何锁）
             container.viewContext.automaticallyMergesChangesFromParent = true
             container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
 
-            guard let self else { return }
-            self.lock.lock()
             self._storeLoaded = true
-            let continuations = self._storeLoadContinuations
+            self._storeLoadSettled = true
+            continuations = self._storeLoadContinuations
             self._storeLoadContinuations = []
             self.lock.unlock()
             for continuation in continuations {
@@ -153,8 +171,17 @@ nonisolated class CoreDataStack {
 
             let nsError = error as NSError
             let storeURL = container.persistentStoreDescriptions.first?.url
-            let moved = storeURL.map { backupIncompatibleStoreFiles(at: $0, logger: logger) } ?? false
-            logger.fault("存储与当前模型不匹配(code \(nsError.code))，已备份冲突库=\(moved, privacy: .public)，重建空库重试。userInfo: \(nsError.userInfo)")
+            // R02（2026-10-04 体检）：备份完整性是重建的硬前提——三件套没挪干净
+            // （目录权限/空间异常/未合并 WAL/扩展并发访问）就重建空库，会永久丢失
+            // 未合并事务。此时放弃自动重建，走可恢复失败状态，原库原地保留待救援。
+            let backup = storeURL.map { backupIncompatibleStoreFiles(at: $0, logger: logger) }
+                ?? ConflictBackupResult()
+            guard backup.isComplete else {
+                logger.fault("冲突库备份不完整（main=\(backup.hasMainFile, privacy: .public)，failed=\(backup.failedFiles.joined(separator: ","), privacy: .public)），放弃自动重建以保护原数据")
+                onFinish(error)
+                return
+            }
+            logger.fault("存储与当前模型不匹配(code \(nsError.code))，已完整备份冲突库，重建空库重试。userInfo: \(nsError.userInfo)")
 
             container.loadPersistentStores { _, retryError in
                 if let retryError {
@@ -165,9 +192,7 @@ nonisolated class CoreDataStack {
                 logger.notice("存储冲突恢复完成，已重建空库（旧库保留为备份）")
                 // D03（2026-10-04 体检）：恢复事件落标记，主 App 启动时据此向用户
                 // 说明「发生了什么 + 旧数据在哪」——空库静默当正常成功是信任事故
-                if moved {
-                    recordConflictRecoveryMarker(storeURL: storeURL, logger: logger)
-                }
+                recordConflictRecoveryMarker(storeURL: storeURL, backup: backup, logger: logger)
                 onFinish(nil)
             }
         }
@@ -180,12 +205,23 @@ nonisolated class CoreDataStack {
         return (134100...134199).contains(nsError.code)
     }
 
-    /// 把打不开的库三件套（sqlite/-wal/-shm）改名备份，返回是否挪动了主文件。
+    /// 冲突库备份结果（R02，2026-10-04 体检）：三件套各自的搬运结果必须完整上报。
+    /// 主文件挪走而 WAL/SHM 落下时，未合并事务随旧文件丢失——只有全部成功才算
+    /// 完整备份，才允许重建空库。
+    struct ConflictBackupResult: Equatable {
+        var movedFileURLs: [URL] = []
+        var failedFiles: [String] = []
+        var hasMainFile = false
+
+        var isComplete: Bool { hasMainFile && failedFiles.isEmpty }
+    }
+
+    /// 把打不开的库三件套（sqlite/-wal/-shm）改名备份，返回逐文件结果。
     /// 备份名带时间戳，多次冲突各自留底互不覆盖。
-    nonisolated static func backupIncompatibleStoreFiles(at url: URL, logger: Logger) -> Bool {
+    nonisolated static func backupIncompatibleStoreFiles(at url: URL, logger: Logger) -> ConflictBackupResult {
         let fm = FileManager.default
         let stamp = Self.backupTimestampFormatter.string(from: Date())
-        var movedMain = false
+        var result = ConflictBackupResult()
         for suffix in ["", "-wal", "-shm"] {
             let source = URL(fileURLWithPath: url.path + suffix)
             guard fm.fileExists(atPath: source.path) else { continue }
@@ -194,12 +230,14 @@ nonisolated class CoreDataStack {
                 .appendingPathComponent(name + ".conflict-backup-" + stamp)
             do {
                 try fm.moveItem(at: source, to: backup)
-                if suffix.isEmpty { movedMain = true }
+                result.movedFileURLs.append(backup)
+                if suffix.isEmpty { result.hasMainFile = true }
             } catch {
+                result.failedFiles.append(source.lastPathComponent)
                 logger.error("备份 \(source.lastPathComponent, privacy: .public) 失败：\(error.localizedDescription, privacy: .public)")
             }
         }
-        return movedMain
+        return result
     }
 
     private nonisolated static let backupTimestampFormatter: DateFormatter = {
@@ -242,19 +280,17 @@ nonisolated class CoreDataStack {
         try? FileManager.default.removeItem(at: url)
     }
 
-    private nonisolated static func recordConflictRecoveryMarker(storeURL: URL?, logger: Logger) {
+    /// 落恢复标记：备份清单直接来自本次备份结果——R02 修复旧实现的目录前缀扫描
+    /// （`store.sqlite.conflict-backup-` 前缀匹配不到 `-wal`/`-shm` 备份，
+    /// 导出清单会漏掉 WAL 中尚未合并的内容）。
+    private nonisolated static func recordConflictRecoveryMarker(storeURL: URL?, backup: ConflictBackupResult, logger: Logger) {
         guard let storeURL, let markerURL = conflictRecoveryMarkerURL else {
             logger.error("冲突恢复标记写入失败：无法定位标记路径")
             return
         }
-        let fm = FileManager.default
-        let dir = storeURL.deletingLastPathComponent()
-        let backups = (try? fm.contentsOfDirectory(atPath: dir.path))?
-            .filter { $0.hasPrefix(storeURL.lastPathComponent + ".conflict-backup-") }
-            .sorted() ?? []
         let payload = MarkerPayload(
             occurredAt: Date(),
-            backupFileNames: backups
+            backupFileNames: backup.movedFileURLs.map(\.lastPathComponent)
         )
         do {
             let data = try JSONEncoder().encode(payload)
@@ -396,7 +432,9 @@ nonisolated class CoreDataStack {
     }
 
     /// 等待 store 加载完毕（在 HomeView.task 中 await 调用）
-    /// 若 store 已加载则立即返回；否则挂起当前协程直到 loadPersistentStores 完成
+    /// 若 store 已加载则立即返回；否则挂起当前协程直到 loadPersistentStores 完成。
+    /// R01（2026-10-04 体检）：失败也是终态——等待方会被唤醒而不是永久挂起；
+    /// 失败原因经 storeLoadError() 查询，由恢复门如实展示。
     func waitUntilReady() async {
         prepareIfNeeded()
 
@@ -406,10 +444,17 @@ nonisolated class CoreDataStack {
         if didLoad {
             return
         }
+        // 失败终态：不再挂起，让调用方尽快继续（随后各自暴露失败状态）
+        let settled = lock.withLock {
+            _storeLoadSettled
+        }
+        if settled {
+            return
+        }
 
         await withCheckedContinuation { continuation in
             let shouldResume = lock.withLock {
-                if _storeLoaded {
+                if _storeLoaded || _storeLoadSettled {
                     return true
                 }
                 _storeLoadContinuations.append(continuation)
@@ -420,6 +465,11 @@ nonisolated class CoreDataStack {
                 continuation.resume()
             }
         }
+    }
+
+    /// 存储加载失败原因（R01）；nil = 成功或尚未到终态。恢复门据此向用户说明。
+    nonisolated func storeLoadError() -> Error? {
+        lock.withLock { _storeLoadError }
     }
 
     // MARK: - Context Management
