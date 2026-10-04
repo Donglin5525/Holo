@@ -3962,6 +3962,22 @@
         }
       }
     },
+    "%lld 张图片加载失败，未保存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld photo(s) failed to load and weren't saved"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 張圖片載入失敗，未儲存"
+          }
+        }
+      }
+    },
     "%lld 张图片读取失败，已添加其余图片" : {
       "localizations" : {
         "en" : {
@@ -26390,6 +26406,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "圖片想法"
+          }
+        }
+      }
+    },
+    "图片正在加载，完成后自动保存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos are still loading. They'll be saved automatically."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片正在載入，完成後自動儲存"
           }
         }
       }
