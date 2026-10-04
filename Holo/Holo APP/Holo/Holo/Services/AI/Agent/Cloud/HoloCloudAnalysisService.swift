@@ -295,9 +295,15 @@ final class HoloCloudAnalysisService {
                         } else {
                             finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID)
                         }
-                        // R1 确认制：结果已落地本地，回执服务端销毁密文副本。
-                        // ack 失败无妨——结果留存 ≤7 天，属可接受的隐私延迟。
-                        try? await client.ackResult(taskId: taskId)
+                        // R1 确认制（D02 收紧，2026-10-04 体检）：ack 即焚不可逆，
+                        // 必须确认结果已编码并持久化（agentResultJSON 可回读）才回执
+                        // 销毁云端副本。落库校验失败时保留副本（云端留存 ≤7 天），
+                        // 下次启动 recoverIfNeeded 重领补写——不因本地保存失败丢结果。
+                        if repository.agentResultJSON(context.messageID) != nil {
+                            try? await client.ackResult(taskId: taskId)
+                        } else {
+                            logger.error("云端结果落库校验失败，保留云端副本待重领 taskId=\(taskId, privacy: .public) messageId=\(context.messageID, privacy: .public)")
+                        }
                         return
                     }
                     // completed 但无结果（结果已失效或被领取）：如实落败，不再挂到超时
@@ -466,6 +472,14 @@ final class HoloCloudAnalysisService {
         if composed.sections.isEmpty, let rawClaimCount = result.claims?.count, rawClaimCount > 0 {
             rendered.emptyReason = .unverifiable
             logger.error("云端结论全被显示防线滤除 rawClaims=\(rawClaimCount, privacy: .public) taskId=\(taskId, privacy: .public) —— 取证:检查各 claim 正文是否含 metricKey/下划线/等号")
+        }
+        // S03 截断如实标注（2026-10-04 体检）：任一数据集发生 2000 行截断时，
+        // 范围行带上说明——明细被截断不冒充全量，金额统计的覆盖边界用户可见
+        let truncatedCount = (result.snapshotCoverage ?? [:]).values
+            .filter { $0.truncated == true }
+            .count
+        if truncatedCount > 0, rendered.scope != nil {
+            rendered.scope?.truncatedNote = "部分数据已按上限截断"
         }
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
         logger.info("云端结果已落地 claims=\(composed.sections.count, privacy: .public) narrative=\(composed.narrativeSummary != nil, privacy: .public) keyInsight=\(composed.keyInsight != nil, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")

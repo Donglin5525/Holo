@@ -163,6 +163,11 @@ nonisolated class CoreDataStack {
                     return
                 }
                 logger.notice("存储冲突恢复完成，已重建空库（旧库保留为备份）")
+                // D03（2026-10-04 体检）：恢复事件落标记，主 App 启动时据此向用户
+                // 说明「发生了什么 + 旧数据在哪」——空库静默当正常成功是信任事故
+                if moved {
+                    recordConflictRecoveryMarker(storeURL: storeURL, logger: logger)
+                }
                 onFinish(nil)
             }
         }
@@ -203,6 +208,66 @@ nonisolated class CoreDataStack {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
+
+    // MARK: - 冲突恢复用户可见状态（D03，2026-10-04 体检）
+
+    /// 冲突恢复事件：发生时间 + 备份文件路径。落库目录内的标记文件（App Group 共享，
+    /// 主 App / 扩展进程谁触发恢复都能记录）；用户确认后删除标记。
+    struct ConflictRecoveryEvent: Equatable {
+        let occurredAt: Date
+        let backupFileURLs: [URL]
+    }
+
+    private nonisolated static var conflictRecoveryMarkerURL: URL? {
+        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            return nil
+        }
+        return container.appendingPathComponent("store-conflict-recovery.json", isDirectory: false)
+    }
+
+    nonisolated static func pendingConflictRecoveryEvent() -> ConflictRecoveryEvent? {
+        guard let url = conflictRecoveryMarkerURL,
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode(MarkerPayload.self, from: data) else { return nil }
+        let fm = FileManager.default
+        let backups = decoded.backupFileNames
+            .map { url.deletingLastPathComponent().appendingPathComponent($0) }
+            .filter { fm.fileExists(atPath: $0.path) }
+        return ConflictRecoveryEvent(occurredAt: decoded.occurredAt, backupFileURLs: backups)
+    }
+
+    /// 用户已知晓恢复事件（看过说明/导出过备份）后清除标记
+    nonisolated static func acknowledgeConflictRecovery() {
+        guard let url = conflictRecoveryMarkerURL else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private nonisolated static func recordConflictRecoveryMarker(storeURL: URL?, logger: Logger) {
+        guard let storeURL, let markerURL = conflictRecoveryMarkerURL else {
+            logger.error("冲突恢复标记写入失败：无法定位标记路径")
+            return
+        }
+        let fm = FileManager.default
+        let dir = storeURL.deletingLastPathComponent()
+        let backups = (try? fm.contentsOfDirectory(atPath: dir.path))?
+            .filter { $0.hasPrefix(storeURL.lastPathComponent + ".conflict-backup-") }
+            .sorted() ?? []
+        let payload = MarkerPayload(
+            occurredAt: Date(),
+            backupFileNames: backups
+        )
+        do {
+            let data = try JSONEncoder().encode(payload)
+            try data.write(to: markerURL, options: .atomic)
+        } catch {
+            logger.error("冲突恢复标记写入失败：\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private struct MarkerPayload: Codable {
+        let occurredAt: Date
+        let backupFileNames: [String]
+    }
 
     /// 全进程唯一数据模型实例：真栈与测试栈必须共享同一份 NSManagedObjectModel。
     /// 多份实例（即使内容完全相同）会让 NSManagedObject 子类→实体映射出现全局歧义，

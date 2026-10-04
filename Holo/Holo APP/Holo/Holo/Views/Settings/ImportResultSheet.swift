@@ -318,7 +318,7 @@ struct ImportResultSheet: View {
         do {
             if check.isNewAccount {
                 // 期初 = 账单末行余额 − 本批净流水 → 当前余额恰好等于账单末行余额，无需生成流水
-                repo.updateAccount(check.account, initialBalance: .some(.some(billBalance - check.batchNet)))
+                try repo.updateAccount(check.account, initialBalance: .some(.some(billBalance - check.batchNet)))
             } else {
                 _ = try repo.adjustBalance(
                     account: check.account,

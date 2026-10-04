@@ -60,10 +60,13 @@ nonisolated final class APIClient {
         let maxStepInProgressRetries = 5
         // 步锁退避序列（测试注入零延迟用）
         let stepInProgressDelay = stepInProgressDelayForAttempt
+        // 设备会话 401 刷新重试只做一次（S01）
+        var didRetryAfterSessionRefresh = false
 
         while true {
             do {
-                let urlRequest = try request.toURLRequest()
+                var urlRequest = try request.toURLRequest()
+                await HoloDeviceSessionManager.shared.attachAuthorization(to: &urlRequest)
 
                 logger.debug("API 请求: \(request.method.rawValue) \(request.baseURL)\(request.path)")
 
@@ -77,6 +80,14 @@ nonisolated final class APIClient {
                 let decoded = try JSONDecoder().decode(T.self, from: data)
                 return Response(value: decoded, httpResponse: httpResponse)
             } catch let error as APIError {
+                // S01 设备会话被拒（服务端强制开关开启后会话缺失/失效）：刷新会话重试一次，
+                // 不占普通重试预算；主体不匹配（403）不属于可刷新问题，走原错误上抛。
+                if case .deviceSessionRejected = error, !didRetryAfterSessionRefresh {
+                    didRetryAfterSessionRefresh = true
+                    HoloDeviceSessionManager.shared.invalidate()
+                    continue
+                }
+
                 // §8.2：STEP_IN_PROGRESS——后端正在处理同一 step，独立退避重试同一请求
                 if case .stepInProgress = error, stepInProgressRetries < maxStepInProgressRetries {
                     stepInProgressRetries += 1
@@ -132,7 +143,8 @@ nonisolated final class APIClient {
                 for attempt in 0...maxRetries {
                     var didYieldContent = false
                     do {
-                        let urlRequest = try request.toURLRequest()
+                        var urlRequest = try request.toURLRequest()
+                        await HoloDeviceSessionManager.shared.attachAuthorization(to: &urlRequest)
 
                         if attempt > 0 {
                             logger.debug("SSE 流式重试（第\(attempt)次）: \(request.baseURL)\(request.path)")
@@ -220,6 +232,11 @@ nonisolated final class APIClient {
         }
     }
 
+    // MARK: - 设备会话注入（S01）
+
+    // 注入逻辑统一收敛在 HoloDeviceSessionManager.attachAuthorization(to:)——
+    // 直连 URLSession 的服务（订阅/语音/云快照上传）调用同一实现，规则只有一份。
+
     // MARK: - HTTP 响应验证
 
     /// 后端错误响应结构
@@ -266,6 +283,11 @@ nonisolated final class APIClient {
         case 429:
             throw APIError.rateLimited(backendMessage)
         case 401:
+            // 设备会话类拒绝是可恢复的（刷新会话重试），与其余 401 区分（S01）
+            if let code = backendError?.code,
+               ["DEVICE_SESSION_REQUIRED", "INVALID_DEVICE_SESSION"].contains(code) {
+                throw APIError.deviceSessionRejected
+            }
             throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "安全校验失败，请重试"))
         case 400...499:
             throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "请求参数无效"))

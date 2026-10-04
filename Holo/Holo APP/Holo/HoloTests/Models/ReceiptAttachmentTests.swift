@@ -31,7 +31,7 @@ final class ReceiptAttachmentTests: XCTestCase {
         )
 
         repo = FinanceRepository(context: context)
-        account = repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
+        account = try repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
 
         let parentCategory = Holo.Category.create(
             in: context, name: "餐饮", icon: "fork.knife", color: "#FF9500",

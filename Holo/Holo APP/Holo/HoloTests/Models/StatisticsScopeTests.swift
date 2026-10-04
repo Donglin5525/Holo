@@ -34,8 +34,8 @@ final class StatisticsScopeTests: XCTestCase {
 
         repo = FinanceRepository(context: context)
         projectRepo = FinanceProjectRepository(finance: repo)
-        cashAccount = repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
-        wechatAccount = repo.addAccount(name: "微信支付", type: .digital, initialBalance: 0)
+        cashAccount = try repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
+        wechatAccount = try repo.addAccount(name: "微信支付", type: .digital, initialBalance: 0)
 
         let parentCategory = Holo.Category.create(
             in: context, name: "餐饮", icon: "fork.knife", color: "#FF9500",
@@ -112,7 +112,7 @@ final class StatisticsScopeTests: XCTestCase {
     }
 
     func test_scope_archivedAccount_stillSelectable() async throws {
-        let oldCard = repo.addAccount(name: "旧储蓄卡", type: .bank, initialBalance: 0)
+        let oldCard = try repo.addAccount(name: "旧储蓄卡", type: .bank, initialBalance: 0)
         let t1 = try await addExpense(120, account: oldCard)
         try repo.archiveAccount(oldCard)
 
@@ -352,7 +352,7 @@ final class StatisticsScopeTests: XCTestCase {
     // MARK: - 账户维度余额线起点
 
     func test_accountCumulativeBalance_initialPlusPriorFlow() async throws {
-        let card = repo.addAccount(name: "储蓄卡", type: .bank, initialBalance: 1000)
+        let card = try repo.addAccount(name: "储蓄卡", type: .bank, initialBalance: 1000)
         // 时间窗起点之前的交易：+200
         try await repo.addTransaction(
             amount: 200, type: .income, category: lunchCategory,

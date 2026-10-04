@@ -125,6 +125,9 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
     var snapshotCutoffAt: Date?
     /// 查询窗口来源；旧消息 JSON 缺失时为 nil，退回旧格式。
     var attribution: HoloAgentTimeRangeAttribution? = nil
+    /// S03 截断标注（2026-10-04 体检）：快照数据集发生 2000 行截断时如实随
+    /// 范围行展示；旧消息 JSON 缺失时为 nil。
+    var truncatedNote: String? = nil
 
     var displayLabel: String {
         var trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -138,6 +141,9 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
         }
         if provenance == .unspecified {
             trimmed = "默认范围"
+        }
+        if let truncatedNote, !truncatedNote.isEmpty {
+            trimmed += "（\(truncatedNote)）"
         }
         // 滚动窗口（近半年/模型解析/用户点选）的起止是算出来的，用户不知道具体日期，必须晒出来；
         // 词表命中的自然周期（本月/上月/今年）边界不言自明，不加冗余。

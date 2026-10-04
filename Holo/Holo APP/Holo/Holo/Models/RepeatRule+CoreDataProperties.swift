@@ -109,8 +109,13 @@ extension RepeatRule {
             // 检查是否使用"第N个周X"模式
             if monthWeekOrdinal > 0, let weekday = monthWeekdayValue {
                 return nextNthWeekdayOfMonth(from: fromDate, ordinal: Int(monthWeekOrdinal), weekday: weekday, calendar: calendar)
+            } else if monthDay > 0 {
+                // 固定日期模式：真正落在所选「每月 N 日」上
+                // （2026-10-04 修复：此前忽略 monthDay 直接 fromDate+1 个月，
+                //  选「每月15日」实际生成「每月4日」）
+                return nextFixedDayOfMonth(from: fromDate, day: Int(monthDay), calendar: calendar)
             } else {
-                // 固定日期模式
+                // 无固定日配置的旧数据：保持原「加一个月」行为
                 return calendar.date(byAdding: .month, value: repeatInterval, to: fromDate)
             }
 
@@ -129,6 +134,28 @@ extension RepeatRule {
 
         // 找到下个月的第N个周X
         return nthWeekdayOfMonth(for: nextMonth, ordinal: ordinal, weekday: weekday, calendar: calendar)
+    }
+
+    /// 「每月 day 日」严格晚于 fromDate 的下一次出现。
+    /// 当月该日尚未过且存在则落在当月；否则顺延 repeatInterval 个月。
+    /// 目标日在某月不存在时（如 31 日遇小月）钳到当月最后一天。
+    private func nextFixedDayOfMonth(from fromDate: Date, day: Int, calendar: Calendar) -> Date? {
+        let step = max(1, Int(repeatInterval))
+        let startComponents = calendar.dateComponents([.year, .month], from: fromDate)
+
+        func occurrence(year: Int?, month: Int?) -> Date? {
+            guard let firstOfMonth = calendar.date(from: DateComponents(year: year, month: month, day: 1)),
+                  let daysInMonth = calendar.range(of: .day, in: .month, for: firstOfMonth)?.count else { return nil }
+            return calendar.date(from: DateComponents(year: year, month: month, day: min(day, daysInMonth)))
+        }
+
+        if let sameMonth = occurrence(year: startComponents.year, month: startComponents.month), sameMonth > fromDate {
+            return sameMonth
+        }
+        // 顺延 step 个月（12 月跨年归位交给 date(from:) 的组件语义）
+        guard let anchor = calendar.date(byAdding: .month, value: step, to: fromDate) else { return nil }
+        let nextComponents = calendar.dateComponents([.year, .month], from: anchor)
+        return occurrence(year: nextComponents.year, month: nextComponents.month)
     }
 
     /// 找到指定月份的第N个周X

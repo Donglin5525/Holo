@@ -45,6 +45,17 @@ final class HoloCloudAnalysisClient {
             var warnings: [String]? = nil
             /// 快照截止时间（诚实边界展示）；旧结果缺失解码为 nil。
             var snapshotCutoffAt: String? = nil
+            /// S03 快照覆盖完整性回显（2026-10-04 体检）：按数据集的总量/提供量/
+            /// 截断标记；旧结果缺失解码为 nil。
+            var snapshotCoverage: [String: DatasetCoverage]? = nil
+
+            struct DatasetCoverage: Decodable {
+                var totalRows: Int? = nil
+                var providedRows: Int? = nil
+                var truncated: Bool? = nil
+                var coveredFrom: String? = nil
+            }
+
             /// 冻结任务的主时间范围回显（Unix 秒，客户端发起时冻结）；旧结果缺失解码为 nil。
             var taskRange: CloudTaskRange? = nil
 
@@ -168,6 +179,8 @@ final class HoloCloudAnalysisClient {
         request.timeoutInterval = 60
         request.httpBody = snapshotJSON
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+        // S01：直连上传也带设备会话（与 APIClient 主链路同一注入规则）
+        await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
         let (data, response) = try await urlSession.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.serverError("无效响应") }
         guard (200..<300).contains(http.statusCode) else {

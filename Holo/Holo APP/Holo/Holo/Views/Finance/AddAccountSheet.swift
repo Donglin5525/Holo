@@ -417,37 +417,44 @@ struct AddAccountSheet: View {
 
         let limitDecimal: Decimal? = creditLimit.isEmpty ? nil : Decimal(string: creditLimit)
 
-        switch mode {
-        case .create:
-            let balance = Decimal(string: initialBalance) ?? 0
-            let account = FinanceRepository.shared.addAccount(
-                name: trimmedName,
-                type: selectedType,
-                color: selectedColor,
-                initialBalance: balance,
-                notes: notes.isEmpty ? nil : notes,
-                billingDay: selectedType.isCreditCard ? billingDay : nil,
-                dueDay: selectedType.isCreditCard ? dueDay : nil,
-                creditLimit: selectedType.isCreditCard ? limitDecimal : nil
-            )
-            onComplete(account)
-            dismiss()
+        // D01（2026-10-04 体检）：持久化成功才算保存成功——失败保留输入、
+        // 弹错不关页，不让用户以为存好了重启却找不到
+        do {
+            switch mode {
+            case .create:
+                let balance = Decimal(string: initialBalance) ?? 0
+                let account = try FinanceRepository.shared.addAccount(
+                    name: trimmedName,
+                    type: selectedType,
+                    color: selectedColor,
+                    initialBalance: balance,
+                    notes: notes.isEmpty ? nil : notes,
+                    billingDay: selectedType.isCreditCard ? billingDay : nil,
+                    dueDay: selectedType.isCreditCard ? dueDay : nil,
+                    creditLimit: selectedType.isCreditCard ? limitDecimal : nil
+                )
+                onComplete(account)
+                dismiss()
 
-        case .edit(let account):
-            FinanceRepository.shared.updateAccount(
-                account,
-                name: trimmedName,
-                color: selectedColor,
-                notes: notes.isEmpty ? nil : notes,
-                billingDay: selectedType.isCreditCard ? billingDay : nil,
-                dueDay: selectedType.isCreditCard ? dueDay : nil,
-                creditLimit: selectedType.isCreditCard ? limitDecimal : nil,
-                initialBalance: initialBalanceChanged
-                    ? .some(.some(newInitialBalance))
-                    : nil
-            )
-            onComplete(account)
-            dismiss()
+            case .edit(let account):
+                try FinanceRepository.shared.updateAccount(
+                    account,
+                    name: trimmedName,
+                    color: selectedColor,
+                    notes: notes.isEmpty ? nil : notes,
+                    billingDay: selectedType.isCreditCard ? billingDay : nil,
+                    dueDay: selectedType.isCreditCard ? dueDay : nil,
+                    creditLimit: selectedType.isCreditCard ? limitDecimal : nil,
+                    initialBalance: initialBalanceChanged
+                        ? .some(.some(newInitialBalance))
+                        : nil
+                )
+                onComplete(account)
+                dismiss()
+            }
+        } catch {
+            errorMessage = String(localized: "保存失败：\(error.localizedDescription)")
+            showError = true
         }
     }
 }

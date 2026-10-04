@@ -134,6 +134,7 @@ struct HoloApp: App {
     /// 业务根视图与启动链；hosted test 下不挂载（见 init 注释）。
     private var appRoot: some View {
         ContentView()
+            .modifier(StoreConflictRecoveryGate())
             .preferredColorScheme(darkModeManager.colorScheme)
             .onOpenURL { url in
                 guard url.isFileURL else {
@@ -291,6 +292,8 @@ struct HoloApp: App {
                         HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
                         // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
                         HoloCloudAnalysisService.shared.recoverIfNeeded()
+                    // 设备会话预热（S01）：提前持钥换会话，首个业务请求不必等两段往返
+                    HoloDeviceSessionManager.shared.warmUp()
                     }
                     // 遥测增量上报：上次会话的锁屏/租约/终态事件落服务端，出障可查
                     Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }

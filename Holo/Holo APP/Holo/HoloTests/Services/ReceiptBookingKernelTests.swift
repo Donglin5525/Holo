@@ -278,7 +278,7 @@ final class ReceiptBookingKernelTests: XCTestCase {
 
     /// 组一个可入账的最小草案；账户为栈内即建对象，分类用 setUp 种好的一对
     private func makeDraft(sourceKey: String) throws -> ResolvedTransactionDraft {
-        let account = repo.addAccount(name: "测试原子写\(UUID().uuidString.prefix(6))", type: .cash)
+        let account = try repo.addAccount(name: "测试原子写\(UUID().uuidString.prefix(6))", type: .cash)
         createdAccount = account
         return ResolvedTransactionDraft(
             itemKey: ReceiptBookingIdempotency.itemKey(index: 0),

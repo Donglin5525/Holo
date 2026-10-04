@@ -30,7 +30,8 @@ enum ExportFormat: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .csv: return "通用表格格式，Excel/Numbers 可直接打开"
-        case .json: return "完整备份格式，含分类和账户数据"
+        // JSON 目前只能导出、没有对应的导入恢复入口，不得自称「完整备份」（2026-10-04 体检 D04）
+        case .json: return "结构化财务导出，含分类和账户数据，暂不支持导入恢复"
         }
     }
     

@@ -204,3 +204,101 @@ final class HoloTaskCompletionCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.lastConfirmed, "失败不应置成功回执")
     }
 }
+
+// MARK: - T01 月度固定日期语义（2026-10-04 体检回归锁定）
+//
+// 修复前 monthDay 只存不算（fromDate+1 个月），选「每月15日」实际生成「每月4日」。
+// 独立 XCTestCase 与完成协调测试共享本文件（HoloTests 逐文件挂 pbxproj，
+// 并行会话在途改动 pbxproj 时不新增文件挂载）。
+
+@MainActor
+final class RepeatRuleMonthlyDayTests: XCTestCase {
+
+    private var context: NSManagedObjectContext!
+
+    override func setUp() async throws {
+        context = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(context, ["RepeatRule"])
+    }
+
+    override func tearDown() async throws {
+        try CoreDataTestSupport.clearEntities(context, ["RepeatRule"])
+        context = nil
+    }
+
+    private func makeMonthlyRule(day: Int16, interval: Int16 = 1) -> RepeatRule {
+        let rule = context.insertTestObject(RepeatRule.self)
+        rule.id = UUID()
+        rule.type = RepeatType.monthly.rawValue
+        rule.monthDay = day
+        rule.interval = interval
+        return rule
+    }
+
+    private func makeDate(_ y: Int, _ m: Int, _ d: Int) -> Date {
+        var components = DateComponents()
+        components.year = y
+        components.month = m
+        components.day = d
+        components.hour = 9
+        return Calendar.current.date(from: components)!
+    }
+
+    private func assertDay(_ date: Date?, _ y: Int, _ m: Int, _ d: Int, _ message: String) {
+        guard let date else {
+            XCTFail("\(message)：日期为 nil")
+            return
+        }
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        XCTAssertEqual(components.year, y, message)
+        XCTAssertEqual(components.month, m, message)
+        XCTAssertEqual(components.day, d, message)
+    }
+
+    /// 月内目标日尚未过：落在当月（10月4日 + 每月15日 → 10月15日）
+    func test固定日期_月内未过落当月() throws {
+        let rule = makeMonthlyRule(day: 15)
+        assertDay(rule.nextDueDate(from: makeDate(2026, 10, 4)), 2026, 10, 15, "月内未过应落当月15日")
+    }
+
+    /// 月内目标日已过：顺延下月（10月20日 + 每月15日 → 11月15日）
+    func test固定日期_已过顺延下月() throws {
+        let rule = makeMonthlyRule(day: 15)
+        assertDay(rule.nextDueDate(from: makeDate(2026, 10, 20)), 2026, 11, 15, "已过15日应顺延11月15日")
+    }
+
+    /// 当天即目标日：严格晚于当前到期日（10月15日 + 每月15日 → 11月15日）
+    func test固定日期_当天不重复生成() throws {
+        let rule = makeMonthlyRule(day: 15)
+        assertDay(rule.nextDueDate(from: makeDate(2026, 10, 15)), 2026, 11, 15, "完成当天不应再生成同日实例")
+    }
+
+    /// 月末缺失日钳到当月最后一天（1月31日 + 每月31日 → 2月28日，2026 非闰年）
+    func test固定日期_小月钳到月末() throws {
+        let rule = makeMonthlyRule(day: 31)
+        assertDay(rule.nextDueDate(from: makeDate(2026, 1, 15)), 2026, 1, 31, "1月应有31日")
+        assertDay(rule.nextDueDate(from: makeDate(2026, 1, 31)), 2026, 2, 28, "2月无31日应钳到28日")
+    }
+
+    /// 每 N 个月：顺延时按间隔跳月（1月15日 + 间隔2 → 3月15日）
+    func test固定日期_顺延按间隔跳月() throws {
+        let rule = makeMonthlyRule(day: 15, interval: 2)
+        assertDay(rule.nextDueDate(from: makeDate(2026, 1, 10)), 2026, 1, 15, "月内未过先落1月15日")
+        assertDay(rule.nextDueDate(from: makeDate(2026, 1, 15)), 2026, 3, 15, "间隔2个月应跳到3月15日")
+    }
+
+    /// 旧数据兜底：无 monthDay 的月度规则保持原「加一个月」行为
+    func test旧数据无固定日_保持原行为() throws {
+        let rule = makeMonthlyRule(day: 0)
+        let next = rule.nextDueDate(from: makeDate(2026, 10, 4))
+        assertDay(next, 2026, 11, 4, "无固定日配置保持原行为（+1个月）")
+    }
+
+    /// untilDate 边界仍生效：下一次越过结束日期时返回 nil
+    func test固定日期_结束日期边界仍生效() throws {
+        let rule = makeMonthlyRule(day: 15)
+        rule.untilDate = makeDate(2026, 10, 31)
+        XCTAssertNil(rule.nextDueDate(from: makeDate(2026, 10, 20)), "11月15日越过结束日期应返回 nil")
+        assertDay(rule.nextDueDate(from: makeDate(2026, 10, 4)), 2026, 10, 15, "结束日期前的下一次正常生成")
+    }
+}

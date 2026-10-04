@@ -298,7 +298,9 @@ struct RepeatPicker: View {
                 .foregroundColor(.holoTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
-                ForEach([EndConditionType.never, .onDate, .afterCount], id: \.self) { type in
+                // 「重复次数」暂不开放（2026-10-04 T01：untilCount 结束检查未实现，
+                // 选了也不会停止；补齐系列计数后再恢复入口）
+                ForEach([EndConditionType.never, .onDate], id: \.self) { type in
                     Button {
                         withAnimation(HoloAnimation.quick) {
                             endConditionType = type
@@ -319,6 +321,14 @@ struct RepeatPicker: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+
+            // 存量「按次数结束」任务的如实说明：该规则完善前会一直重复
+            if endConditionType == .afterCount {
+                Text("「重复次数」完善前暂不生效，此任务会一直重复；建议改用指定日期结束。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // 指定日期 - 使用紧凑的行内显示

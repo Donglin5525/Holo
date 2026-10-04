@@ -317,14 +317,16 @@ enum HoloTodaySnapshotBuilder {
                 .reduce(Decimal.zero) { $0 + $1.statisticsAmount }
             overview = HoloTodayOverview(
                 spentToday: spent,
-                budgetAtRisk: budgetSummary?.isOverBudget == true
+                budgetAtRisk: budgetSummary?.isOverBudget == true,
+                budgetConfigured: budgetSummary != nil
             )
             sectionStates[.overview] = .content
         } catch {
             // 支出取数失败：spentToday 保持 nil（显示 --，不误报 ¥0）。
             overview = HoloTodayOverview(
                 spentToday: nil,
-                budgetAtRisk: BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)?.isOverBudget == true
+                budgetAtRisk: BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)?.isOverBudget == true,
+                budgetConfigured: BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month) != nil
             )
             sectionStates[.overview] = .content
         }

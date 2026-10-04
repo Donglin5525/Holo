@@ -29,7 +29,7 @@ final class FinanceReconciliationTests: XCTestCase {
         try CoreDataTestSupport.clearEntities(context, ["Transaction", "Category", "Account"])
 
         repo = FinanceRepository(context: context)
-        account = repo.addAccount(name: "测试储蓄卡", type: .bank, initialBalance: 100)
+        account = try repo.addAccount(name: "测试储蓄卡", type: .bank, initialBalance: 100)
 
         // 手动种对账分类依赖的父分类（「其他收入」/「其他」）。
         // 不跑 repo.setup()：它会触发 CoreDataStack.shared 在同进程注册第二份实体模型，污染后续测试类。
@@ -221,18 +221,18 @@ final class FinanceReconciliationTests: XCTestCase {
 
     func test_updateAccount_initialBalance_semantics() throws {
         // 不传 → 不改
-        repo.updateAccount(account, name: "改名")
+        try repo.updateAccount(account, name: "改名")
         XCTAssertEqual(account.initialBalance.decimalValue, 100)
 
         // 传 .some(.some(250)) → 改为 250，余额随之跳变
         try context.save()
-        repo.updateAccount(account, initialBalance: .some(.some(250)))
+        try repo.updateAccount(account, initialBalance: .some(.some(250)))
         XCTAssertEqual(account.initialBalance.decimalValue, 250)
         XCTAssertEqual(repo.getAccountBalance(account), 250)
 
         // 改期初应使既有锚点失效（自洽检测会发现）
         repo.markReconciled(account, balance: 250)
-        repo.updateAccount(account, initialBalance: .some(.some(300)))
+        try repo.updateAccount(account, initialBalance: .some(.some(300)))
         if case .broken = repo.getReconciliationStatus(account) {} else {
             XCTFail("改期初应使既有锚点失效")
         }

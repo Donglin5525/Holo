@@ -795,6 +795,13 @@ final class ChatMessageRepository: ObservableObject {
         messageForUpdate(messageId)?.contextPlanJSON
     }
 
+    /// Agent 结果 JSON 回读（D02，2026-10-04 体检：普通云分析 ack 前的落库校验，
+    /// 与规划草案同规则——回执发出后云端密文副本销毁，未确认持久化就销毁 = 唯一
+    /// 可恢复结果可能丢失。返回 nil 表示未落库/消息不存在，调用方不得回执销毁）。
+    func agentResultJSON(_ messageId: UUID) -> String? {
+        messageForUpdate(messageId)?.agentResultJSON
+    }
+
     /// Agent 恢复回填：按 message id 结束原 streaming 消息，并写入结构化 Agent 结果。
     func finalizeAgentMessage(_ messageId: UUID,
                               rendered: HoloRenderedAgentResult,

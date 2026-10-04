@@ -30,6 +30,12 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         struct Dataset: Encodable {
             let fields: [FieldDef]
             let rows: [[String: JSONValue]]
+            /// S03 完整性元数据（2026-10-04 体检）：截断前总行数；
+            /// 与 rows.count 不同 = 该数据集发生过截断。旧后端忽略此字段（增量安全）。
+            var totalRows: Int? = nil
+            /// 快照内最老一行的发生时间（ISO8601）——截断发生时即「真实覆盖下界」，
+            /// 更早的数据未进入快照，云端据此不得把截断明细冒充全量
+            var coveredFrom: String? = nil
         }
         /// 冻结回答任务（AnalysisAnswerTaskV1，2026-09-19 提示词方案 P1）：
         /// 用户选择的场景、主时间范围与回答清单随快照上云，后端注入 system
@@ -137,7 +143,8 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             for schema in catalog.datasets {
                 let rows = await source.rows(source: schema.name, timeRange: range)
                 guard !rows.isEmpty else { continue }
-                let limited = Array(rows.sorted { $0.occurredAt > $1.occurredAt }.prefix(maxRows))
+                let sorted = rows.sorted { $0.occurredAt > $1.occurredAt }
+                let limited = Array(sorted.prefix(maxRows))
                 datasets[schema.name] = Snapshot.Dataset(
                     fields: schema.fields.map {
                         Snapshot.FieldDef(name: $0.name, type: $0.type.rawValue, unit: $0.unit, description: $0.description)
@@ -157,7 +164,10 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
                         }
                         if !row.excerpt.isEmpty { fields["excerpt"] = .text(row.excerpt) }
                         return fields
-                    }
+                    },
+                    // S03：如实携带总量与覆盖下界，2000 行截断不再是黑箱
+                    totalRows: rows.count,
+                    coveredFrom: limited.last.map { isoFormatter.string(from: $0.occurredAt) }
                 )
             }
         }

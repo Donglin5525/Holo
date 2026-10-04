@@ -22,6 +22,9 @@ enum APIError: LocalizedError {
     case stepInProgress(String?)
     /// §8.2：409 STEP_ID_CONFLICT——同一 stepID 提交了不同 payload（终态协议错误，不重试）
     case stepIdConflict(String?)
+    /// S01：401 设备会话缺失/失效（DEVICE_SESSION_REQUIRED / INVALID_DEVICE_SESSION）
+    /// ——刷新设备会话后重试一次可恢复；主体不匹配（403）不走此通道
+    case deviceSessionRejected
 
     var errorDescription: String? {
         switch self {
@@ -47,6 +50,8 @@ enum APIError: LocalizedError {
             return message ?? String(localized: "相同请求正在后端处理中，稍后重试")
         case .stepIdConflict(let message):
             return message ?? String(localized: "请求步标识冲突：同一 step 提交了不同内容")
+        case .deviceSessionRejected:
+            return String(localized: "安全校验失败，请重试")
         }
     }
 
@@ -107,6 +112,7 @@ enum APIError: LocalizedError {
         case .serverError: return "SERVER_ERROR"
         case .stepInProgress: return "STEP_IN_PROGRESS"
         case .stepIdConflict: return "STEP_ID_CONFLICT"
+        case .deviceSessionRejected: return "DEVICE_SESSION_REJECTED"
         }
     }
 

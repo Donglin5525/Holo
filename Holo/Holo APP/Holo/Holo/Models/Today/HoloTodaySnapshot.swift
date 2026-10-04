@@ -224,6 +224,9 @@ nonisolated struct HoloTodayOverview: Equatable, Sendable {
     let spentToday: Decimal?
     /// 确定性超支/达风险阈值时为 true，提升为 attention signal。
     let budgetAtRisk: Bool
+    /// 是否设置了总预算；nil = 未知（旧快照/读取不可用）。
+    /// nil 不能当「已设置」——没设预算时不得显示「预算正常」（2026-10-04 体检 U04）。
+    let budgetConfigured: Bool?
 
-    static let unavailable = HoloTodayOverview(spentToday: nil, budgetAtRisk: false)
+    static let unavailable = HoloTodayOverview(spentToday: nil, budgetAtRisk: false, budgetConfigured: nil)
 }

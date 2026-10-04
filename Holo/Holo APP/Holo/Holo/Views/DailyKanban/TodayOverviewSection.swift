@@ -84,7 +84,12 @@ struct TodayOverviewSection: View {
         if overview.budgetAtRisk {
             return String(localized: "预算超支")
         }
-        return String(localized: "预算正常")
+        // 没设预算/读取不可用时不给「正常」的安心感（2026-10-04 体检 U04）
+        switch overview.budgetConfigured {
+        case .some(false): return String(localized: "尚未设置预算")
+        case .some(true): return String(localized: "预算正常")
+        case nil: return "--"
+        }
     }
 
     private var divider: some View {

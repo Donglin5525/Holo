@@ -30,7 +30,7 @@ final class FinanceProjectRepositoryTests: XCTestCase {
 
         repo = FinanceRepository(context: context)
         projectRepo = FinanceProjectRepository(finance: repo)
-        account = repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
+        account = try repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
 
         // 普通交易分类必须是二级（validateTransactionCategory 的规则）
         let parentCategory = Holo.Category.create(

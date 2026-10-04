@@ -66,6 +66,8 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
         request.timeoutInterval = 90
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+        // S01：直连上传也带设备会话（与 APIClient 主链路同一注入规则）
+        await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
 
         let body = Self.multipartBody(
             audioData: audioData,

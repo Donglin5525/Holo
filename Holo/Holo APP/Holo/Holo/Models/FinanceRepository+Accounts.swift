@@ -60,6 +60,8 @@ extension FinanceRepository {
     // MARK: 账户 CRUD
 
     /// 创建新账户
+    /// - Throws: 持久化失败抛错（D01：保存失败不得静默走成功路径——
+    ///   磁盘/数据库异常时调用方必须让用户看到失败并保留输入）
     @discardableResult
     func addAccount(
         name: String,
@@ -71,7 +73,7 @@ extension FinanceRepository {
         billingDay: Int? = nil,
         dueDay: Int? = nil,
         creditLimit: Decimal? = nil
-    ) -> Account {
+    ) throws -> Account {
         let accountColor = color ?? type.defaultColor
         let sortOrder = Int16(getAccounts(includeArchived: true).count)
 
@@ -91,12 +93,13 @@ extension FinanceRepository {
             if let dueDay = dueDay { account.dueDay = NSNumber(value: dueDay) }
             if let creditLimit = creditLimit { account.creditLimit = NSDecimalNumber(decimal: creditLimit) }
         }
-        try? context.save()
+        try context.save()
         return account
     }
 
     /// 更新账户信息
     /// - Parameter initialBalance: 双层 Optional 区分「不改」（nil）与「改为某值/0」（.some）；修改会使余额直接跳变，并使已有对账锚点失效
+    /// - Throws: 持久化失败抛错（同 D01 口径）
     func updateAccount(
         _ account: Account,
         name: String? = nil,
@@ -107,7 +110,7 @@ extension FinanceRepository {
         dueDay: Int? = nil,
         creditLimit: Decimal?? = nil,
         initialBalance: Decimal?? = nil
-    ) {
+    ) throws {
         if let name = name { account.name = name }
         if let icon = icon { account.customIcon = icon }
         if let color = color { account.color = color }
@@ -118,7 +121,7 @@ extension FinanceRepository {
         if case .some(let limit) = creditLimit { account.creditLimit = limit.map { NSDecimalNumber(decimal: $0) } }
         if case .some(.some(let balance)) = initialBalance { account.initialBalance = NSDecimalNumber(decimal: balance) }
         account.updatedAt = Date()
-        try? context.save()
+        try context.save()
     }
 
     /// 删除账户前的业务守卫（有交易的账户不可删除、默认账户不可删除）。

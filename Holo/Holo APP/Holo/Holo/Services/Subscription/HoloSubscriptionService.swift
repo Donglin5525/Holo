@@ -56,6 +56,8 @@ final class HoloSubscriptionService: ObservableObject {
             request.httpMethod = "GET"
             request.timeoutInterval = 30
             request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+            // S01：设备会话头与 APIClient 主链路同一注入规则
+            await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
 
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
@@ -269,6 +271,8 @@ final class HoloSubscriptionService: ObservableObject {
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+        // S01：设备会话头与 APIClient 主链路同一注入规则
+        await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
         request.httpBody = try JSONEncoder().encode(
             HoloSubscriptionSyncRequest(
                 productId: transaction.productID,
