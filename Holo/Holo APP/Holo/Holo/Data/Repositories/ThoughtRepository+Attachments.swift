@@ -16,28 +16,37 @@ extension ThoughtRepository {
     // MARK: - 添加附件
 
     /// 为想法添加图片附件。视图层只传原始 Data，解码/压缩全部后台执行，数据存入 CoreData。
+    /// R07（2026-10-04 体检）：图片处理是长挂起点，期间父想法可能被删除/清理/远端删除——
+    /// 只持稳定 objectID 跨挂起点，回来后重新解析并确认仍存在，绝不写回已删除对象。
     @discardableResult
     func addAttachment(imageData: Data, to thought: Thought, sourceType: String = "photoLibrary") async throws -> ThoughtAttachment {
         let attachmentId = UUID()
+        let thoughtObjectID = thought.objectID
 
         guard let result = await AttachmentFileManager.processRawImageData(imageData, attachmentId: attachmentId) else {
             Self.thoughtAttachmentLogger.error("处理附件图片失败, thoughtId: \(thought.id.uuidString)")
             throw AttachmentError.saveFailed
         }
 
-        let order = Int16(thought.sortedAttachments.count)
+        guard let liveThought = try? context.existingObject(with: thoughtObjectID) as? Thought,
+              !liveThought.isDeleted, liveThought.deletedAt == nil else {
+            Self.thoughtAttachmentLogger.error("父想法在图片处理期间被删除，附件不落库, thoughtId: \(thought.id.uuidString)")
+            throw AttachmentError.parentDeleted
+        }
+
+        let order = Int16(liveThought.sortedAttachments.count)
         let attachment = ThoughtAttachment.create(
             in: context,
             fileName: result.fileName,
             thumbnailFileName: result.thumbnailFileName,
-            thought: thought,
+            thought: liveThought,
             order: order,
             sourceType: sourceType,
             imageData: result.imageData,
             thumbnailData: result.thumbnailData
         )
 
-        thought.updatedAt = Date()
+        liveThought.updatedAt = Date()
         try context.save()
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         return attachment

@@ -15,63 +15,80 @@ extension TodoRepository {
 
     // MARK: - 添加附件
 
-    /// 为任务添加图片附件（图片数据存入 CoreData，支持 iCloud 同步）
+    /// 为任务添加图片附件（图片数据存入 CoreData，支持 iCloud 同步）。
+    /// R07（2026-10-04 体检）：图片处理是长挂起点，期间父任务可能被删除/清理/远端同步删除——
+    /// 只持稳定 objectID 跨挂起点，回来后重新解析并确认仍存在，绝不写回已删除对象。
     @discardableResult
     func addAttachment(image: UIImage, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
         let attachmentId = UUID()
         let taskId = task.id
+        let taskObjectID = task.objectID
 
         guard let result = await AttachmentFileManager.processImageData(image, attachmentId: attachmentId) else {
             Self.attachmentLogger.error("处理附件图片失败, taskId: \(taskId.uuidString)")
             throw AttachmentError.saveFailed
         }
 
-        let order = Int16(task.sortedAttachments.count)
+        guard let liveTask = try? context.existingObject(with: taskObjectID) as? TodoTask,
+              !liveTask.isDeleted, liveTask.deletedAt == nil else {
+            Self.attachmentLogger.error("父任务在图片处理期间被删除，附件不落库, taskId: \(taskId.uuidString)")
+            throw AttachmentError.parentDeleted
+        }
+
+        let order = Int16(liveTask.sortedAttachments.count)
         let attachment = TaskAttachment.create(
             in: context,
             fileName: result.fileName,
             thumbnailFileName: result.thumbnailFileName,
-            task: task,
+            task: liveTask,
             order: order,
             sourceType: sourceType,
             imageData: result.imageData,
             thumbnailData: result.thumbnailData
         )
 
-        task.updatedAt = Date()
+        liveTask.updatedAt = Date()
         try context.save()
         loadActiveTasks()
-        notifyDataChange(taskId: task.id)
+        notifyDataChange(taskId: liveTask.id)
         return attachment
     }
 
     /// 为任务添加相册图片附件。视图层只传原始 Data，解码/压缩全部后台执行，数据存入 CoreData。
+    /// R07：挂起后重解析父任务，同上。
     @discardableResult
     func addAttachment(imageData: Data, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
         let attachmentId = UUID()
         let taskId = task.id
+        let taskObjectID = task.objectID
 
         guard let result = await AttachmentFileManager.processRawImageData(imageData, attachmentId: attachmentId) else {
             Self.attachmentLogger.error("处理附件图片失败, taskId: \(taskId.uuidString)")
             throw AttachmentError.saveFailed
         }
 
-        let order = Int16(task.sortedAttachments.count)
+        guard let liveTask = try? context.existingObject(with: taskObjectID) as? TodoTask,
+              !liveTask.isDeleted, liveTask.deletedAt == nil else {
+            Self.attachmentLogger.error("父任务在图片处理期间被删除，附件不落库, taskId: \(taskId.uuidString)")
+            throw AttachmentError.parentDeleted
+        }
+
+        let order = Int16(liveTask.sortedAttachments.count)
         let attachment = TaskAttachment.create(
             in: context,
             fileName: result.fileName,
             thumbnailFileName: result.thumbnailFileName,
-            task: task,
+            task: liveTask,
             order: order,
             sourceType: sourceType,
             imageData: result.imageData,
             thumbnailData: result.thumbnailData
         )
 
-        task.updatedAt = Date()
+        liveTask.updatedAt = Date()
         try context.save()
         loadActiveTasks()
-        notifyDataChange(taskId: task.id)
+        notifyDataChange(taskId: liveTask.id)
         return attachment
     }
 
@@ -141,6 +158,8 @@ extension TodoRepository {
 enum AttachmentError: LocalizedError {
     case saveFailed
     case tooManyAttachments
+    /// R07：父记录在图片处理期间被删除，附件不落库
+    case parentDeleted
 
     var errorDescription: String? {
         switch self {
@@ -148,6 +167,8 @@ enum AttachmentError: LocalizedError {
             return String(localized: "保存附件失败")
         case .tooManyAttachments:
             return String(localized: "附件数量已达上限（最多 9 张）")
+        case .parentDeleted:
+            return String(localized: "原记录已被删除，图片未保存")
         }
     }
 }
