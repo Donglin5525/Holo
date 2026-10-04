@@ -36,6 +36,7 @@ SUITES=(
   "MemoryDecisionContract|$TESTS/Services/AI/HoloMemoryDecisionContractStandaloneTests.swift|$FIXTURES,$BASE_MODELS,$APP/Services/AI/MemoryCore/HoloMemoryDecisionPolicy.swift"
   "MemoryDecisionPolicyV4|$TESTS/Services/AI/HoloMemoryDecisionPolicyStandaloneTests.swift|$FIXTURES,$BASE_MODELS,$MEMORY_POLICY_DEPS,$APP/Services/AI/MemoryRepository/HoloMemoryCompactionService.swift"
   "MemoryClarification|$TESTS/Services/AI/HoloMemoryClarificationStandaloneTests.swift|$FIXTURES,$BASE_MODELS,$MEMORY_POLICY_DEPS,$APP/Services/AI/MemoryClarification/HoloMemoryClarificationModels.swift,$APP/Services/AI/MemoryClarification/HoloMemoryClarificationCoordinator.swift"
+  "MemoryQualityMetrics|$TESTS/Services/AI/HoloMemoryQualityMetricsStandaloneTests.swift|$FIXTURES,$BASE_MODELS,$MEMORY_POLICY_DEPS,$APP/Services/AI/MemoryRepository/HoloMemoryCompactionService.swift,$APP/Services/AI/MemoryDiagnostics/HoloMemoryQualityMetrics.swift,$APP/Services/AI/MemoryDiagnostics/HoloMemoryDiagnosticsIdentity.swift,$APP/Models/AI/HoloAICapability.swift,$APP/Models/AI/HoloPersonalContextControls.swift,$APP/Services/AI/MemoryQuery/HoloMemoryQueryService.swift,$APP/Services/AI/MemoryQuery/HoloMemoryQueryIntent.swift,$APP/Services/AI/MemoryQuery/HoloMemoryQueryRouter.swift,$APP/Services/AI/MemoryQuery/HoloMemoryRefreshCoordinator.swift,$APP/Services/AI/MemoryClarification/HoloMemoryClarificationModels.swift,$APP/Services/AI/MemoryClarification/HoloMemoryClarificationCoordinator.swift,$APP/Services/Subscription/HoloServerFeatureFlags.swift"
 )
 
 FILTER="${1:-}"

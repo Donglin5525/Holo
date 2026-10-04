@@ -23,6 +23,17 @@ nonisolated struct HoloMemoryQualitySnapshot: Codable, Equatable, Sendable {
     /// shadow 对照：v3 与 v4 结论一致的次数 / 不一致的 v3→v4 迁移对计数。
     var shadowAgreeCount: Int
     var shadowDisagreeCounts: [String: Int]
+    // MARK: 体检 G0 分域漏斗（§12.4 每层保留分母与来源域；全部聚合数字，不含正文）
+    /// 分域输入：每域本轮进入观察/萃取的信号或来源条数。
+    var domainInputCounts: [String: Int]
+    /// 分域批次结果：key 形如 "finance:succeeded"/"thought:failed:Type"（仅类型名）。
+    var domainBatchOutcomeCounts: [String: Int]
+    /// 校验拒绝原因分布（rejection rawValue → 次数）。
+    var validatorRejectionReasonCounts: [String: Int]
+    /// 落库记录用途分布（useLevel rawValue → 次数；无版本元数据记 "unversioned"）。
+    var useLevelCounts: [String: Int]
+    /// 实际生效：真正写入仓库的新增/更新条数（区别于生成数与通过数）。
+    var committedMutationCount: Int
 
     static let empty = HoloMemoryQualitySnapshot(
         queryCount: 0,
@@ -37,7 +48,12 @@ nonisolated struct HoloMemoryQualitySnapshot: Codable, Equatable, Sendable {
         maximumConcurrentMemoryAIJobs: 0,
         decisionRouteCounts: [:],
         shadowAgreeCount: 0,
-        shadowDisagreeCounts: [:]
+        shadowDisagreeCounts: [:],
+        domainInputCounts: [:],
+        domainBatchOutcomeCounts: [:],
+        validatorRejectionReasonCounts: [:],
+        useLevelCounts: [:],
+        committedMutationCount: 0
     )
 
     var queryHitRate: Double {
@@ -139,6 +155,33 @@ actor HoloMemoryQualityMetrics {
         case .askWhenRelevant: return "ask"
         case .discard: return "discard"
         }
+    }
+
+    // MARK: G0 分域漏斗记录
+
+    func recordDomainInput(domain: String, count: Int) {
+        guard count > 0 else { return }
+        state.domainInputCounts[domain, default: 0] += count
+    }
+
+    func recordDomainBatch(domain: String, outcome: String) {
+        state.domainBatchOutcomeCounts["\(domain):\(outcome)", default: 0] += 1
+    }
+
+    func recordValidatorRejections(_ reasons: [String]) {
+        for reason in reasons {
+            state.validatorRejectionReasonCounts[reason, default: 0] += 1
+        }
+    }
+
+    func recordUseLevels(_ levels: [String]) {
+        for level in levels {
+            state.useLevelCounts[level, default: 0] += 1
+        }
+    }
+
+    func recordCommittedMutations(_ count: Int) {
+        state.committedMutationCount += max(0, count)
     }
 
     func snapshot() -> HoloMemoryQualitySnapshot { state }

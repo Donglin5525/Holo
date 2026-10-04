@@ -135,8 +135,8 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
                 [],
                 observationKey: batchKey,
                 domain: .thought,
-                extractorVersion: 1,
-                promptVersion: 1,
+                extractorVersion: HoloMemoryPipelineVersions.personalExtractorVersion,
+                promptVersion: HoloMemoryPipelineVersions.personalPromptVersion,
                 completedAt: Date()
             )
             return
@@ -148,13 +148,20 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
         // 幂等都只看父键，部分组成功时重跑仅补缺失组（组键各自幂等）。
         let groups = Dictionary(grouping: records) { $0.primaryDomain ?? .thought }
         for (domain, group) in groups {
-            _ = try await repository.applyObservationBatch(
+            let upserts = try await repository.applyObservationBatch(
                 group,
                 observationKey: domain == .thought ? batchKey : "\(batchKey)#\(domain.rawValue)",
                 domain: domain,
-                extractorVersion: 1,
-                promptVersion: 1,
+                extractorVersion: HoloMemoryPipelineVersions.personalExtractorVersion,
+                promptVersion: HoloMemoryPipelineVersions.personalPromptVersion,
                 completedAt: Date()
+            )
+            // G0：用途分布与实际生效分开计数（区别于生成数）。
+            await HoloMemoryQualityMetrics.shared.recordUseLevels(
+                group.map { $0.decisionMetadata?.v2?.useLevel.rawValue ?? "unversioned" }
+            )
+            await HoloMemoryQualityMetrics.shared.recordCommittedMutations(
+                upserts.filter { $0 == .inserted || $0 == .updated }.count
             )
         }
         if !groups.keys.contains(.thought) {
@@ -162,8 +169,8 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
                 [],
                 observationKey: batchKey,
                 domain: .thought,
-                extractorVersion: 1,
-                promptVersion: 1,
+                extractorVersion: HoloMemoryPipelineVersions.personalExtractorVersion,
+                promptVersion: HoloMemoryPipelineVersions.personalPromptVersion,
                 completedAt: Date()
             )
         }
@@ -249,6 +256,8 @@ enum HoloPersonalContextExtractionJob {
         var skippedReason: String?
         /// R1 四域：各域本轮流经情况（诊断/按域隔离用）。
         var domainNotes: [String: String] = [:]
+        /// G0 处理水位：各域游标累计进度（扫描/已处理/生成等），供诊断快照留存。
+        var domainProgress: [String: HoloContextExtractionProgress] = [:]
     }
 
     /// 四域轮转指针键：保证游标公平推进（不总从同一域开始）。
@@ -274,6 +283,8 @@ enum HoloPersonalContextExtractionJob {
         guard controls.allowsExtraction else {
             return PassOutcome(skippedReason: "extraction-gate-closed")
         }
+        // G0 身份快照：每次实际开跑前记录开关/闸门/管线版本（仅元数据）。
+        logger.info("\(HoloMemoryDiagnosticsIdentity.current().logLine, privacy: .public)")
 
         guard let repository = try? await HoloMemoryRuntime.shared.repository() else {
             return PassOutcome(skippedReason: "repository-unavailable")
@@ -314,13 +325,23 @@ enum HoloPersonalContextExtractionJob {
                 if consumedBudget { usedBatches += 1 }
                 if let cursor = try? await writer.loadCursor(domain: domain) {
                     outcome.progress = outcome.progress.byAdding(cursor.progress)
+                    outcome.domainProgress[domain] = cursor.progress
                 }
                 outcome.domainNotes[domain] = batch.hasMore ? "more" : "caught-up"
+                // G0 分域漏斗：批次结果计数（追平/还有存货都算成功跑完的批）。
+                await HoloMemoryQualityMetrics.shared.recordDomainBatch(
+                    domain: domain,
+                    outcome: batch.hasMore ? "more" : "caughtUp"
+                )
                 nextPointer = (pointer + offset) % domains.count
             } catch {
                 // 按域隔离：失败只影响本域本批，游标本域不推进，下轮重试；继续其他域。
                 outcome.progress.failedBatches += 1
                 outcome.domainNotes[domain] = "failed:\(String(describing: type(of: error)))"
+                await HoloMemoryQualityMetrics.shared.recordDomainBatch(
+                    domain: domain,
+                    outcome: "failed:\(String(describing: type(of: error)))"
+                )
             }
         }
         defaults.set(nextPointer, forKey: roundRobinKey)
@@ -347,6 +368,8 @@ nonisolated struct HoloPersonalContextDiagnosticsSnapshot: Codable, Equatable, S
     var lastPlanningCoverage: String?
     var lastPlanningRawFallbackUsed: Bool?
     var lastPlanningGateClosed: Bool?
+    /// G0 处理水位：各域游标累计进度（Optional 保证旧快照 JSON 可继续解码）。
+    var lastExtractionDomainProgress: [String: HoloContextExtractionProgress]?
 }
 
 nonisolated enum HoloPersonalContextDiagnostics {
@@ -376,6 +399,7 @@ nonisolated enum HoloPersonalContextDiagnostics {
             snapshot.lastExtractionRanBatches = outcome.ranBatches
             snapshot.lastExtractionCreatedTotal = outcome.progress.createdRecords
             snapshot.lastExtractionSkipReason = outcome.skippedReason
+            snapshot.lastExtractionDomainProgress = outcome.domainProgress
         }, defaults: defaults)
     }
 
