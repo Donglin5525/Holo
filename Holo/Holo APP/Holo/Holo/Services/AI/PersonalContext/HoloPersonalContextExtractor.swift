@@ -105,6 +105,8 @@ nonisolated struct HoloContextExtractionCursorState: Codable, Equatable, Sendabl
 
 nonisolated enum HoloPersonalContextPromptBuilder {
     /// 萃取输入包 prompt：来源片段（含 role/时间）、供合并的既有候选。
+    /// G1 修复（A06）：来源契约完整进 Prompt——业务状态、归属、领域、种类、血缘
+    /// 与记录时间同等保留；下游模型才能区分「计划/已发生」「本人/代购/引用」。
     static func extractionPrompt(
         packageSegments: [HoloContextSegment],
         sourcesByID: [String: HoloContextSourceSnapshot],
@@ -115,12 +117,27 @@ nonisolated enum HoloPersonalContextPromptBuilder {
             let source = sourcesByID[segment.sourceID]
             var fields = "\"sourceID\":\(jsonString(segment.sourceID))"
             fields += ",\"revision\":\(jsonString(segment.revision))"
-            if let role = source?.role { fields += ",\"role\":\(jsonString(role))" }
-            if let recorded = source?.sourceCreatedAt {
-                fields += ",\"recordedAt\":\(jsonString(iso(recorded)))"
-            }
-            if let event = source?.eventTime {
-                fields += ",\"eventTime\":\(jsonString(iso(event)))"
+            if let source {
+                fields += ",\"sourceDomain\":\(jsonString(source.sourceDomain))"
+                fields += ",\"sourceKind\":\(jsonString(source.sourceKind))"
+                if let role = source.role { fields += ",\"role\":\(jsonString(role))" }
+                if let authorship = source.authorship {
+                    fields += ",\"authorship\":\(jsonString(authorship))"
+                }
+                if let businessState = source.businessState, !businessState.isEmpty {
+                    let entries = businessState
+                        .sorted { $0.key < $1.key }
+                        .map { "\(jsonString($0.key)):\(jsonString($0.value))" }
+                    fields += ",\"businessState\":{" + entries.joined(separator: ",") + "}"
+                }
+                if let lineageRootIDs = source.lineageRootIDs, !lineageRootIDs.isEmpty {
+                    let ids = lineageRootIDs.map { jsonString($0) }.joined(separator: ",")
+                    fields += ",\"lineageRootIDs\":[" + ids + "]"
+                }
+                fields += ",\"recordedAt\":\(jsonString(iso(source.sourceCreatedAt)))"
+                if let event = source.eventTime {
+                    fields += ",\"eventTime\":\(jsonString(iso(event)))"
+                }
             }
             fields += ",\"plainText\":\(jsonString(segment.text))"
             lines.append("{" + fields + "}")
@@ -134,6 +151,8 @@ nonisolated enum HoloPersonalContextPromptBuilder {
     }
 
     /// 核验 prompt：候选声明 + 引用原文片段；批量（每包候选上限 16）。
+    /// 核验器必须看到与萃取同一份来源契约（状态/归属/血缘），否则无法核对
+    /// 「计划被写成已发生」「他人被写成本人」类语义偏差。
     static func verificationPrompt(
         candidates: [HoloContextExtractionCandidateDTO],
         sourcesByID: [String: HoloContextSourceSnapshot]
@@ -158,7 +177,25 @@ nonisolated enum HoloPersonalContextPromptBuilder {
         }
         var sourceLines: [String] = []
         for (id, source) in sourcesByID.sorted(by: { $0.key < $1.key }) {
-            sourceLines.append("{\"sourceID\":" + jsonString(id) + ",\"plainText\":" + jsonString(source.plainText) + "}")
+            var fields = "\"sourceID\":" + jsonString(id)
+            fields += ",\"sourceDomain\":" + jsonString(source.sourceDomain)
+            fields += ",\"sourceKind\":" + jsonString(source.sourceKind)
+            if let role = source.role { fields += ",\"role\":" + jsonString(role) }
+            if let authorship = source.authorship {
+                fields += ",\"authorship\":" + jsonString(authorship)
+            }
+            if let businessState = source.businessState, !businessState.isEmpty {
+                let entries = businessState
+                    .sorted { $0.key < $1.key }
+                    .map { "\(jsonString($0.key)):\(jsonString($0.value))" }
+                fields += ",\"businessState\":{" + entries.joined(separator: ",") + "}"
+            }
+            if let lineageRootIDs = source.lineageRootIDs, !lineageRootIDs.isEmpty {
+                let ids = lineageRootIDs.map { jsonString($0) }.joined(separator: ",")
+                fields += ",\"lineageRootIDs\":[" + ids + "]"
+            }
+            fields += ",\"plainText\":" + jsonString(source.plainText)
+            sourceLines.append("{" + fields + "}")
         }
         let candidatesJSON = lines.joined(separator: ",")
         let sourcesJSON = sourceLines.joined(separator: ",")
@@ -258,9 +295,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         guard sourceIndex.conflictingIDs.isEmpty else { throw ExtractionError.conflictingSources }
         let page = sourceIndex.sources
         guard !page.isEmpty else {
-            // 全量追平：清游标从头对账（新修改由 watermark 语义进入下一轮）。
-            if nextCursor == nil && cursor.sourceCursor != nil {
-                cursor.sourceCursor = nil
+            // 全库追平：保留水位（G1 修复——不再清游标重启全历史对账）。
+            // (updatedAt,id) 时间轴下任何修改都会推高 updatedAt 自然重进页；
+            // 清空重扫只会反复全库扫描、放大幂等查询，且与「最早 N 条截断」缺陷
+            // 叠加时形成空页→重置→再截断的死循环。watermark 如实记录本轮时间。
+            if nextCursor == nil {
                 cursor.watermark = now
                 try await writer.saveCursor(cursor, domain: domain)
             }
@@ -284,11 +323,14 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             guard !package.isEmpty else { break }
             remaining = remainder
 
-            // 本包批次键：身份 = 包内来源修订 + 版本，重试幂等粒度为包。
+            // 本包批次键：身份 = 包内来源修订 + 包内片段范围 + 版本，重试幂等粒度为包。
+            // G1 修复（A08）：单条长来源切段跨多包时，仅凭来源修订无法区分包——第一包
+            // 成功落 receipt 后第二包被幂等跳过。段范围指纹让同来源的不同包各自幂等。
             let packageSourceIDs = Set(package.map(\.sourceID))
             let packageSources = page.filter { packageSourceIDs.contains($0.sourceID) }
             let packageBatchKey = Self.batchKey(
                 sources: packageSources,
+                segments: package,
                 extractorVersion: cursor.extractorVersion,
                 policyVersion: cursor.admissionPolicyVersion
             )
@@ -424,9 +466,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
 
     // MARK: - 记录构造
 
-    /// 稳定批次键：source revision + extractorVersion + policyVersion。
+    /// 稳定批次键：source revision + 包内片段范围 + extractorVersion + policyVersion。
+    /// 切段是同修订来源上的确定性纯函数，段范围指纹在同一修订内稳定、跨修订自然失效。
     static func batchKey(
         sources: [HoloContextSourceSnapshot],
+        segments: [HoloContextSegment],
         extractorVersion: Int,
         policyVersion: Int
     ) -> String {
@@ -434,7 +478,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             .sorted { $0.sourceID < $1.sourceID }
             .map { "\($0.sourceID)@\($0.revisionDigest)" }
             .joined(separator: ",")
-        return "pc-batch-\(HoloContextSuppressionKeys.stableDigest("v\(extractorVersion)|p\(policyVersion)|\(identity)"))"
+        let segmentIdentity = segments
+            .map { "\($0.sourceID)#\($0.utf16Location)-\($0.utf16RangeEnd)" }
+            .sorted()
+            .joined(separator: ",")
+        return "pc-batch-\(HoloContextSuppressionKeys.stableDigest("v\(extractorVersion)|p\(policyVersion)|\(identity)|\(segmentIdentity)"))"
     }
 
     /// String → 既有记忆域（快照域是开放字符串；未知回落 thought）。

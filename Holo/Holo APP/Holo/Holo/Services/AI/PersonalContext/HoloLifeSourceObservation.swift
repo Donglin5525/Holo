@@ -61,52 +61,39 @@ struct HoloFinanceContextSourcePaging: HoloContextSourcePaging {
         limit: Int,
         baseline: Date?
     ) async throws -> (sources: [HoloContextSourceSnapshot], nextCursor: HoloContextSourceCursor?) {
-        let request = Transaction.fetchRequest()
-        // 活源：未软删（作废/删除的交易不再产出新候选；删除经修订回查对账发现）。
-        request.predicate = NSPredicate(format: "deletedAt == nil")
-        request.sortDescriptors = [
-            NSSortDescriptor(key: "updatedAt", ascending: true),
-            NSSortDescriptor(key: "id", ascending: true)
-        ]
-        request.fetchLimit = cursor == nil ? limit : limit * 2
-        let results = try repository.context.fetch(request)
-        let filtered = results.drop { transaction in
-            guard let after = cursor?.updatedAt else { return false }
-            if transaction.updatedAt < after { return true }
-            let lastKey = HoloLifeSourceKeys.financeKey(transaction.id)
-            return transaction.updatedAt == after && lastKey <= cursor?.sourceID ?? ""
-        }
-        let page = Array(filtered.prefix(limit)).filter { transaction in
-            !(baseline != nil && transaction.updatedAt < baseline!)
-        }
-        let snapshots = page.map { transaction in
-            let categoryText = transaction.category.map { category in
-                repository.resolveCategoryNames(from: category).sub.map { "\($0)" } ?? category.name ?? ""
-            } ?? ""
-            var businessState: [String: String] = [
-                "type": transaction.type,
-            ]
-            if !categoryText.isEmpty { businessState["category"] = categoryText }
-            if transaction.installmentGroupId != nil { businessState["installment"] = "true" }
-            return HoloContextSourceSnapshot(
-                sourceID: HoloLifeSourceKeys.financeKey(transaction.id),
-                sourceDomain: "finance",
-                sourceKind: "transaction",
-                revisionDigest: Self.revisionDigest(transaction),
-                sourceCreatedAt: transaction.createdAt,
-                sourceUpdatedAt: transaction.updatedAt,
-                plainText: Self.observationText(transaction, categoryText: categoryText),
-                sensitivity: .normal,
-                accessGeneration: 1,
-                eventTime: transaction.date,
-                businessState: businessState
-            )
-        }
-        guard let last = page.last else { return ([], nil) }
-        return (snapshots, HoloContextSourceCursor(
-            updatedAt: last.updatedAt,
-            sourceID: HoloLifeSourceKeys.financeKey(last.id)
-        ))
+        try HoloContextCursorPagination.page(
+            context: repository.context,
+            entityName: "Transaction",
+            alivePredicate: NSPredicate(format: "deletedAt == nil"),
+            cursor: cursor,
+            baseline: baseline,
+            limit: limit,
+            time: { (transaction: Transaction) in transaction.updatedAt },
+            cursorKey: { (transaction: Transaction) in HoloLifeSourceKeys.financeKey(transaction.id) },
+            makeSnapshot: { (transaction: Transaction) in
+                let categoryText = transaction.category.map { category in
+                    self.repository.resolveCategoryNames(from: category).sub.map { "\($0)" } ?? category.name ?? ""
+                } ?? ""
+                var businessState: [String: String] = [
+                    "type": transaction.type,
+                ]
+                if !categoryText.isEmpty { businessState["category"] = categoryText }
+                if transaction.installmentGroupId != nil { businessState["installment"] = "true" }
+                return HoloContextSourceSnapshot(
+                    sourceID: HoloLifeSourceKeys.financeKey(transaction.id),
+                    sourceDomain: "finance",
+                    sourceKind: "transaction",
+                    revisionDigest: Self.revisionDigest(transaction),
+                    sourceCreatedAt: transaction.createdAt,
+                    sourceUpdatedAt: transaction.updatedAt,
+                    plainText: Self.observationText(transaction, categoryText: categoryText),
+                    sensitivity: .normal,
+                    accessGeneration: 1,
+                    eventTime: transaction.date,
+                    businessState: businessState
+                )
+            }
+        )
     }
 
     /// 模型可见正文：分类 + 备注（金额不进正文，§3.10；商品线索在 note/remark）。
@@ -149,50 +136,38 @@ struct HoloTaskContextSourcePaging: HoloContextSourcePaging {
         limit: Int,
         baseline: Date?
     ) async throws -> (sources: [HoloContextSourceSnapshot], nextCursor: HoloContextSourceCursor?) {
-        let request = TodoTask.fetchRequest()
-        // 活源：未删未归档；完成/撤销状态如实进 businessState（§3.1：创建不等于发生）。
-        request.predicate = NSPredicate(format: "deletedFlag == NO AND archived == NO")
-        request.sortDescriptors = [
-            NSSortDescriptor(key: "updatedAt", ascending: true),
-            NSSortDescriptor(key: "id", ascending: true)
-        ]
-        request.fetchLimit = cursor == nil ? limit : limit * 2
-        let results = try repository.context.fetch(request)
-        let filtered = results.drop { task in
-            guard let after = cursor?.updatedAt else { return false }
-            if task.updatedAt < after { return true }
-            let lastKey = HoloLifeSourceKeys.taskKey(task.id)
-            return task.updatedAt == after && lastKey <= cursor?.sourceID ?? ""
-        }
-        let page = Array(filtered.prefix(limit)).filter { task in
-            !(baseline != nil && task.updatedAt < baseline!)
-        }
-        let snapshots = page.map { task in
-            var businessState: [String: String] = [
-                "completed": task.completed ? "true" : "false",
-            ]
-            if let completedAt = task.completedAt {
-                businessState["completedAt"] = ISO8601DateFormatter().string(from: completedAt)
+        try HoloContextCursorPagination.page(
+            context: repository.context,
+            entityName: "TodoTask",
+            // 活源：未删未归档；完成/撤销状态如实进 businessState（§3.1：创建不等于发生）。
+            alivePredicate: NSPredicate(format: "deletedFlag == NO AND archived == NO"),
+            cursor: cursor,
+            baseline: baseline,
+            limit: limit,
+            time: { (task: TodoTask) in task.updatedAt },
+            cursorKey: { (task: TodoTask) in HoloLifeSourceKeys.taskKey(task.id) },
+            makeSnapshot: { (task: TodoTask) in
+                var businessState: [String: String] = [
+                    "completed": task.completed ? "true" : "false",
+                ]
+                if let completedAt = task.completedAt {
+                    businessState["completedAt"] = ISO8601DateFormatter().string(from: completedAt)
+                }
+                return HoloContextSourceSnapshot(
+                    sourceID: HoloLifeSourceKeys.taskKey(task.id),
+                    sourceDomain: "task",
+                    sourceKind: "todoTask",
+                    revisionDigest: Self.revisionDigest(task),
+                    sourceCreatedAt: task.createdAt,
+                    sourceUpdatedAt: task.updatedAt,
+                    plainText: Self.observationText(task),
+                    sensitivity: .normal,
+                    accessGeneration: 1,
+                    eventTime: task.completedAt ?? task.plannedStart ?? task.updatedAt,
+                    businessState: businessState
+                )
             }
-            return HoloContextSourceSnapshot(
-                sourceID: HoloLifeSourceKeys.taskKey(task.id),
-                sourceDomain: "task",
-                sourceKind: "todoTask",
-                revisionDigest: Self.revisionDigest(task),
-                sourceCreatedAt: task.createdAt,
-                sourceUpdatedAt: task.updatedAt,
-                plainText: Self.observationText(task),
-                sensitivity: .normal,
-                accessGeneration: 1,
-                eventTime: task.completedAt ?? task.plannedStart ?? task.updatedAt,
-                businessState: businessState
-            )
-        }
-        guard let last = page.last else { return ([], nil) }
-        return (snapshots, HoloContextSourceCursor(
-            updatedAt: last.updatedAt,
-            sourceID: HoloLifeSourceKeys.taskKey(last.id)
-        ))
+        )
     }
 
     /// 模型可见正文：标题 + 正文（状态走 businessState，不塞正文重复表达）。

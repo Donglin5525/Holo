@@ -21,6 +21,8 @@ import OSLog
 extension ThoughtRepository {
     /// 情境萃取分页查询：(updatedAt, id) 稳定排序的 updatedAt 游标。
     /// 与 fetchAll 同一可见性口径（未删除未归档）。
+    /// G1 修复：游标时间下推 predicate + 同秒 count 自适应放大窗口（同秒批量导入
+    /// 不被固定 2x 余量截断）；同秒内按 id 精确推进。
     func fetchContextCandidates(
         afterUpdatedAt: Date?,
         afterID: UUID?,
@@ -36,8 +38,17 @@ extension ThoughtRepository {
             NSSortDescriptor(key: "updatedAt", ascending: true),
             NSSortDescriptor(key: "id", ascending: true)
         ]
-        // 多取一页余量用于游标过滤；上限翻倍防极端同秒批量。
-        request.fetchLimit = afterID == nil ? limit : limit * 2
+        if let afterUpdatedAt {
+            let sameSecond = NSFetchRequest<NSNumber>(entityName: "Thought")
+            sameSecond.predicate = NSPredicate(
+                format: "deletedAt == nil AND isArchived == NO AND updatedAt == %@",
+                afterUpdatedAt as NSDate
+            )
+            let sameSecondCount = (try? context.count(for: sameSecond)) ?? 0
+            request.fetchLimit = limit + sameSecondCount
+        } else {
+            request.fetchLimit = limit
+        }
         let results = try context.fetch(request)
         guard let afterID, let afterUpdatedAt else { return Array(results.prefix(limit)) }
         // 跳过游标位置及之前的记录（同 updatedAt 时按 id 比较）。
