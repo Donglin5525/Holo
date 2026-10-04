@@ -316,9 +316,10 @@ class TodoRepository: ObservableObject {
         plannedEnd: Date? = nil
     ) throws -> TodoTask {
         if plannedStart != nil || plannedEnd != nil {
+            // R06（2026-10-04 体检）：非法时段抛可捕获错误——precondition 是进程终止，catch 接不住
             guard let start = plannedStart, let end = plannedEnd,
                   TodoTask.isValidPlannedRange(start, end) else {
-                preconditionFailure("计划时间段必须成对、同一天且开始早于结束")
+                throw TaskInputError.invalidPlannedRange
             }
         }
         let task = TodoTask.create(
@@ -402,6 +403,13 @@ class TodoRepository: ObservableObject {
         reminders: Set<TaskReminder>? = nil,
         plannedTime: TaskPlannedTimeUpdate? = nil
     ) throws {
+        // R06（2026-10-04 体检）：先验证后变更——旧实现在检查前已改其他字段，
+        // 抛错会留下部分修改的对象
+        if case .set(let newStart, let newEnd) = plannedTime {
+            guard TodoTask.isValidPlannedRange(newStart, newEnd) else {
+                throw TaskInputError.invalidPlannedRange
+            }
+        }
         if let title = title { task.title = title }
         if let description = description { task.desc = description }
         if let status = status { task.taskStatus = status }
@@ -422,9 +430,6 @@ class TodoRepository: ObservableObject {
         }
         switch plannedTime {
         case .set(let start, let end):
-            guard TodoTask.isValidPlannedRange(start, end) else {
-                preconditionFailure("计划时间段必须同一天且开始早于结束")
-            }
             task.plannedStart = start
             task.plannedEnd = end
         case .clear:
@@ -718,6 +723,18 @@ class TodoRepository: ObservableObject {
         monthDay: Int? = nil,
         untilDate: Date? = nil
     ) throws -> RepeatRule {
+        // R05（2026-10-04 体检）：写入入口统一验证——手动 UI 有界，此为兜底；
+        // AI/导入入口已在建任务前整单验证。非法即抛，不产生半成品规则。
+        try RepeatRuleContract.validatedInterval(interval)
+        switch type {
+        case .weekly, .custom:
+            try RepeatRuleContract.validatedWeekdays(weekdays ?? [])
+        case .daily, .monthly, .yearly:
+            break
+        }
+        if let monthDay {
+            try RepeatRuleContract.validatedMonthDay(monthDay)
+        }
         let rule = RepeatRule.create(in: context, type: type, task: task)
 
         if let weekdays = weekdays {
@@ -752,6 +769,16 @@ class TodoRepository: ObservableObject {
         monthWeekday: Weekday? = nil,
         untilCount: Int? = nil
     ) throws {
+        // R05：变更前统一验证，非法即抛不改对象
+        if let monthDay = monthDay {
+            try RepeatRuleContract.validatedMonthDay(monthDay)
+        }
+        if let monthWeekOrdinal = monthWeekOrdinal {
+            try RepeatRuleContract.validatedMonthWeekOrdinal(monthWeekOrdinal)
+        }
+        if let untilCount = untilCount {
+            try RepeatRuleContract.validatedUntilCount(untilCount)
+        }
         if let monthDay = monthDay {
             rule.monthDay = Int16(monthDay)
         }

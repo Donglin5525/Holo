@@ -23,9 +23,11 @@ struct PlannedTimeRangeSheet: View {
 
     private let calendar = Calendar.current
 
-    /// 当天 23:59，结束时刻与自动修正的上界（保证不跨天）
+    /// 当天 23:59，结束时刻与自动修正的上界（保证不跨天）。
+    /// R06（2026-10-04 体检）：日界按日历推进——夏令时切换日一天可能是 23/25 小时，
+    /// 固定 24 小时会算到次日（洛杉矶春令时日实测得到次日 00:59）。
     private var endOfDayBound: Date {
-        calendar.startOfDay(for: plannedStart).addingTimeInterval(24 * 3600 - 60)
+        PlannedRangeContract.dayEnd(from: plannedStart, calendar: calendar)
     }
 
     var body: some View {
@@ -120,7 +122,7 @@ struct PlannedTimeRangeSheet: View {
             DatePicker(
                 "开始",
                 selection: $plannedStart,
-                in: ...calendar.startOfDay(for: plannedStart).addingTimeInterval(24 * 3600 - 15 * 60),
+                in: ...PlannedRangeContract.startUpperBound(from: plannedStart, calendar: calendar),
                 displayedComponents: .hourAndMinute
             )
             .font(.holoBody)

@@ -567,6 +567,14 @@ final class IntentRouter {
             }
         }
 
+        // R05（2026-10-04 体检）：AI 输出不是可信常量——重复参数先整单验证再动库。
+        // 旧顺序先建任务后建规则：非法参数会留下没有重复规则的任务半成品，
+        // 40000 级别的间隔在 Int16 窄化时直接终止进程。
+        let repeatSetup = Self.parseRepeatSetup(from: data)
+        if case .invalid(let reason) = repeatSetup {
+            return RouteResult(text: "这条重复规则没法设置：\(reason)。任务没有创建，请调整后重试。")
+        }
+
         let task = try todoRepo.createTask(
             title: title,
             list: targetList,
@@ -577,36 +585,16 @@ final class IntentRouter {
             checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles
         )
 
-        // 重复任务：创建 RepeatRule
-        if data["repeatEnabled"] == "true", let repeatTypeStr = data["repeatType"] {
-            let repeatType = RepeatType(rawValue: repeatTypeStr) ?? .daily
-            let interval = data["repeatInterval"].flatMap { Int($0) } ?? 1
-
-            let weekdays: [Weekday]?
-            let monthDay: Int?
-
-            switch repeatType {
-            case .custom:
-                weekdays = data["repeatWeekdays"]?
-                    .split(separator: ",")
-                    .compactMap { Weekday(rawValue: Int($0) ?? 0) }
-                monthDay = nil
-            case .monthly:
-                weekdays = nil
-                monthDay = data["repeatMonthDay"].flatMap { Int($0) }
-            default:
-                weekdays = nil
-                monthDay = nil
-            }
-
+        // 重复任务：参数已通过 RepeatRuleContract 整单验证，这里只负责落库
+        if case .ready(let ruleType, let interval, let weekdays, let monthDay) = repeatSetup {
             _ = try todoRepo.createRepeatRule(
-                type: repeatType,
+                type: ruleType,
                 for: task,
                 weekdays: weekdays,
                 interval: interval,
                 monthDay: monthDay
             )
-            logger.info("重复规则已创建：\(repeatType.rawValue) interval=\(interval)")
+            logger.info("重复规则已创建：\(ruleType.rawValue) interval=\(interval)")
         }
 
         logger.info("任务已创建：\(title)")
@@ -616,6 +604,53 @@ final class IntentRouter {
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )
+    }
+
+    // MARK: - 重复参数解析与整单验证（R05）
+
+    private enum RepeatSetup {
+        case none
+        case invalid(String)
+        case ready(type: RepeatType, interval: Int, weekdays: [Weekday]?, monthDay: Int?)
+    }
+
+    /// 解析并整单验证 AI/确认卡的重复参数；非法返回 .invalid（附用户可读原因），不触发任何写入。
+    /// 间隔上限 1…365 与月日 1…31 为 2026-10-04 与东林定案的产品契约。
+    private static func parseRepeatSetup(from data: [String: String]) -> RepeatSetup {
+        guard data["repeatEnabled"] == "true", let typeRaw = data["repeatType"] else { return .none }
+        let type = RepeatType(rawValue: typeRaw) ?? .daily
+
+        do {
+            let weekdays: [Weekday]?
+            let monthDay: Int?
+            switch type {
+            case .custom:
+                let parsed = data["repeatWeekdays"]?
+                    .split(separator: ",")
+                    .compactMap { Weekday(rawValue: Int($0) ?? 0) } ?? []
+                try RepeatRuleContract.validatedWeekdays(parsed)
+                weekdays = parsed
+                monthDay = nil
+            case .monthly:
+                weekdays = nil
+                if let raw = data["repeatMonthDay"].flatMap({ Int($0) }) {
+                    try RepeatRuleContract.validatedMonthDay(raw)
+                    monthDay = raw
+                } else {
+                    monthDay = nil
+                }
+            case .daily, .weekly, .yearly:
+                weekdays = nil
+                monthDay = nil
+            }
+            let interval = data["repeatInterval"].flatMap { Int($0) } ?? 1
+            try RepeatRuleContract.validatedInterval(interval)
+            return .ready(type: type, interval: interval, weekdays: weekdays, monthDay: monthDay)
+        } catch let error as TaskInputError {
+            return .invalid(error.userMessage)
+        } catch {
+            return .invalid("重复规则参数不合法")
+        }
     }
 
     // MARK: - Modify Task Items
