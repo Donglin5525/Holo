@@ -33,6 +33,8 @@ struct HealthView: View {
     @State private var dayData = HealthDayData()
     @State private var insightViewModel = HealthInsightViewModel()
     @State private var selectedEvidenceInsight: GeneratedHealthInsight?
+    /// 日期数据加载代数（R10，2026-10-04 体检）：快速切天时旧请求不得覆盖新日期
+    @State private var dateLoadGeneration = 0
 
     /// 宽屏双栏（通宵冲刺 D1）：expanded 档左（hero+指标+数据源）/右（洞察+生活闭环+周趋势），
     /// 修复单列卡片流在 iPad 全宽拉伸的「放大版 iPhone」观感；iPhone/竖屏单列不变。
@@ -109,7 +111,7 @@ struct HealthView: View {
             await insightViewModel.load()
         }
         .onChange(of: selectedDate) {
-            Task { await loadDateData() }
+            Task { await loadDateData(for: selectedDate) }
         }
         .sheet(item: $selectedEvidenceInsight) { insight in
             HealthInsightEvidenceSheet(insight: insight, evidence: insightViewModel.snapshot?.evidence ?? [])
@@ -780,14 +782,24 @@ struct HealthView: View {
 
     private func refreshAll() async {
         await repository.refresh()
-        await loadDateData()
+        await loadDateData(for: selectedDate)
     }
 
-    private func loadDateData() async {
-        dayData = await repository.fetchDayData(for: selectedDate)
-        weeklySleepData = await repository.fetchWeeklyData(for: .sleep, endingOn: selectedDate)
-        weeklyStepsData = await repository.fetchWeeklyData(for: .steps, endingOn: selectedDate)
-        weeklyWorkoutData = await repository.fetchWeeklyData(for: .workout, endingOn: selectedDate)
+    private func loadDateData(for date: Date) async {
+        // R10（2026-10-04 体检）：日期作为请求身份——四路查询一律用捕获的日期，
+        // 不在 await 后读变化中的 selectedDate；发布前核对代数，过期请求整体丢弃，
+        // 不再出现「标题是新日期、数值来自旧日期」或「日数据与周数据来自不同日期」
+        dateLoadGeneration += 1
+        let generation = dateLoadGeneration
+        let day = await repository.fetchDayData(for: date)
+        let sleep = await repository.fetchWeeklyData(for: .sleep, endingOn: date)
+        let steps = await repository.fetchWeeklyData(for: .steps, endingOn: date)
+        let workout = await repository.fetchWeeklyData(for: .workout, endingOn: date)
+        guard generation == dateLoadGeneration else { return }
+        dayData = day
+        weeklySleepData = sleep
+        weeklyStepsData = steps
+        weeklyWorkoutData = workout
     }
 
     /// 左右滑动切天：与日期胶囊共用同一条边界规则（不越过今天）

@@ -17,6 +17,8 @@ struct HealthDetailView: View {
     @StateObject private var repository = HealthRepository.shared
     @State private var weeklyData: [DailyHealthData] = []
     @State private var isLoading = true
+    /// 日/周加载共享代数（R10，2026-10-04 体检）：快速切天时过期请求不发布、不提前关加载态
+    @State private var detailLoadGeneration = 0
     @State private var currentValue: Double = 0
     @State private var currentAvailability: HealthMetricAvailability = .noData
     @State private var sleepDetail: HealthSleepDetail?
@@ -97,13 +99,13 @@ struct HealthDetailView: View {
             WorkoutSessionDetailSheet(session: session)
         }
         .task {
-            await loadDateData()
-            await loadWeeklyData()
+            await loadDateData(for: selectedDate)
+            await loadWeeklyData(for: selectedDate)
         }
         .onChange(of: selectedDate) {
             Task {
-                await loadDateData()
-                await loadWeeklyData()
+                await loadDateData(for: selectedDate)
+                await loadWeeklyData(for: selectedDate)
             }
         }
     }
@@ -376,26 +378,38 @@ struct HealthDetailView: View {
         )
     }
 
-    private func loadDateData() async {
-        let data = await repository.fetchDayData(for: selectedDate)
+    private func loadDateData(for date: Date) async {
+        // R10（2026-10-04 体检）：日期作为请求身份，await 后不读变化中的 selectedDate；
+        // 各分支取齐全部数据后一次性发布，不再出现数值/明细来自不同日期的混合态
+        detailLoadGeneration += 1
+        let generation = detailLoadGeneration
+        let data = await repository.fetchDayData(for: date)
         switch type {
         case .steps:
+            let hourly = await repository.fetchHourlySteps(for: date)
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.steps
             currentAvailability = data.steps > 0 ? .available : .noData
-            hourlySteps = await repository.fetchHourlySteps(for: selectedDate)
+            hourlySteps = hourly
         case .sleep:
+            // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
+            let detail = await repository.fetchSleepDetailRange(from: date, to: date).first
+            let timeline = await repository.fetchSleepTimeline(forWakeDay: date)
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.sleep
             currentAvailability = data.sleep > 0 ? .available : .noData
-            // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
-            sleepDetail = await repository.fetchSleepDetailRange(from: selectedDate, to: selectedDate).first
-            sleepTimeline = await repository.fetchSleepTimeline(forWakeDay: selectedDate)
+            sleepDetail = detail
+            sleepTimeline = timeline
         case .standHours:
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.standHours
             currentAvailability = data.standHours > 0 ? .available : (data.activeMinutes > 0 ? .unsupported : .noData)
         case .activeMinutes:
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.activeMinutes
             currentAvailability = data.activeMinutes > 0 ? .available : .noData
         case .workout:
+            guard generation == detailLoadGeneration else { return }
             workoutSessions = data.workoutSessions
             currentValue = data.workoutMinutes
             currentAvailability = data.workoutMinutes > 0 ? .available : .noData
@@ -535,9 +549,14 @@ struct HealthDetailView: View {
         }
     }
 
-    private func loadWeeklyData() async {
+    private func loadWeeklyData(for date: Date) async {
+        detailLoadGeneration += 1
+        let generation = detailLoadGeneration
         isLoading = true
-        weeklyData = await repository.fetchWeeklyData(for: type, endingOn: selectedDate)
+        let data = await repository.fetchWeeklyData(for: type, endingOn: date)
+        // R10：过期请求不发布，也不替新请求提前关掉加载态
+        guard generation == detailLoadGeneration else { return }
+        weeklyData = data
         isLoading = false
     }
 
