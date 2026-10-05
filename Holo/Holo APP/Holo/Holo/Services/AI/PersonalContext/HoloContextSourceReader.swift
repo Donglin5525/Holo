@@ -191,6 +191,7 @@ nonisolated enum HoloContextCursorPagination {
         cursor: HoloContextSourceCursor?,
         baseline: Date?,
         limit: Int,
+        timeKey: String = "updatedAt",
         time: (T) -> Date,
         cursorKey: (T) -> String,
         makeSnapshot: (T) -> HoloContextSourceSnapshot
@@ -199,15 +200,15 @@ nonisolated enum HoloContextCursorPagination {
         var predicates = [alivePredicate]
         if let cursor {
             // 时间轴下推：只取游标位置及之后的记录，最早 N 条截断不再可能。
-            predicates.append(NSPredicate(format: "updatedAt >= %@", cursor.updatedAt as NSDate))
+            predicates.append(NSPredicate(format: "%K >= %@", timeKey, cursor.updatedAt as NSDate))
         }
         if let baseline {
             // 学习基线下推：基线之前的来源不进窗口（清空后不得偷偷读回）。
-            predicates.append(NSPredicate(format: "updatedAt >= %@", baseline as NSDate))
+            predicates.append(NSPredicate(format: "%K >= %@", timeKey, baseline as NSDate))
         }
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         request.sortDescriptors = [
-            NSSortDescriptor(key: "updatedAt", ascending: true),
+            NSSortDescriptor(key: timeKey, ascending: true),
             NSSortDescriptor(key: "id", ascending: true)
         ]
         if let cursor {
@@ -215,7 +216,7 @@ nonisolated enum HoloContextCursorPagination {
             let sameSecond = NSFetchRequest<NSNumber>(entityName: entityName)
             sameSecond.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
                 alivePredicate,
-                NSPredicate(format: "updatedAt == %@", cursor.updatedAt as NSDate)
+                NSPredicate(format: "%K == %@", timeKey, cursor.updatedAt as NSDate)
             ])
             let sameSecondCount = try context.count(for: sameSecond)
             request.fetchLimit = limit + sameSecondCount

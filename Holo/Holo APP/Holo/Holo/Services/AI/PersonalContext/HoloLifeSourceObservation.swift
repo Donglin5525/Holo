@@ -24,11 +24,15 @@ enum HoloLifeSourceKeys {
     static let taskPrefix = "task:"
     static let habitPrefix = "habit:"
     static let habitCheckinPrefix = "habit-checkin:"
+    static let conversationPrefix = "conversation:"
+    static let goalPrefix = "goal:"
 
     static func financeKey(_ id: UUID) -> String { financePrefix + id.uuidString }
     static func taskKey(_ id: UUID) -> String { taskPrefix + id.uuidString }
     static func habitKey(_ id: UUID) -> String { habitPrefix + id.uuidString }
     static func habitCheckinKey(_ id: UUID) -> String { habitCheckinPrefix + id.uuidString }
+    static func conversationKey(_ id: UUID) -> String { conversationPrefix + id.uuidString }
+    static func goalKey(_ id: UUID) -> String { goalPrefix + id.uuidString }
 
     /// sourceKey 的域归属（无前缀 = thought 存量）。
     static func domain(of sourceKey: String) -> String {
@@ -36,12 +40,15 @@ enum HoloLifeSourceKeys {
         if sourceKey.hasPrefix(taskPrefix) { return "task" }
         if sourceKey.hasPrefix(habitCheckinPrefix) { return "habit" }
         if sourceKey.hasPrefix(habitPrefix) { return "habit" }
+        if sourceKey.hasPrefix(conversationPrefix) { return "conversation" }
+        if sourceKey.hasPrefix(goalPrefix) { return "goal" }
         return "thought"
     }
 
     /// 去掉域前缀的实体 ID（thought 原样返回）。
     static func entityID(of sourceKey: String) -> String {
-        for prefix in [financePrefix, taskPrefix, habitCheckinPrefix, habitPrefix]
+        for prefix in [financePrefix, taskPrefix, habitCheckinPrefix, habitPrefix,
+                       conversationPrefix, goalPrefix]
         where sourceKey.hasPrefix(prefix) {
             return String(sourceKey.dropFirst(prefix.count))
         }
@@ -324,12 +331,144 @@ struct HoloHabitContextSourcePaging: HoloContextSourcePaging {
     }
 }
 
-// MARK: - 四域注册表与修订回查
+// MARK: - 对话域分页（体检 G1：对话接入个人情境来源）
+
+@MainActor
+struct HoloConversationContextSourcePaging: HoloContextSourcePaging {
+    let context: NSManagedObjectContext
+
+    @MainActor
+    func fetchContextSourcePage(
+        after cursor: HoloContextSourceCursor?,
+        limit: Int,
+        baseline: Date?
+    ) async throws -> (sources: [HoloContextSourceSnapshot], nextCursor: HoloContextSourceCursor?) {
+        try HoloContextCursorPagination.page(
+            context: context,
+            entityName: "ChatMessage",
+            // 只学用户原话：助手回复不进学习源（AI 产物不作为本人事实的第二来源）；
+            // 流式未完成与已删除消息不入窗口。
+            alivePredicate: NSPredicate(
+                format: "deletedAt == nil AND isStreaming == NO AND role == %@",
+                "user"
+            ),
+            cursor: cursor,
+            baseline: baseline,
+            limit: limit,
+            timeKey: "timestamp",
+            time: { (message: ChatMessage) in message.timestamp },
+            cursorKey: { (message: ChatMessage) in HoloLifeSourceKeys.conversationKey(message.id) },
+            makeSnapshot: { (message: ChatMessage) in
+                HoloContextSourceSnapshot(
+                    sourceID: HoloLifeSourceKeys.conversationKey(message.id),
+                    sourceDomain: "conversation",
+                    sourceKind: "chatMessage",
+                    revisionDigest: Self.revisionDigest(message),
+                    sourceCreatedAt: message.timestamp,
+                    sourceUpdatedAt: message.timestamp,
+                    plainText: HoloContextPlainTextNormalizer.normalize(message.content).plainText,
+                    sensitivity: .normal,
+                    accessGeneration: 1,
+                    eventTime: message.timestamp,
+                    role: "user",
+                    businessState: ["messageType": message.messageType]
+                )
+            }
+        )
+    }
+
+    /// 修订摘要：时间 + 内容稳定摘要（消息编辑/删除触发重学；软删由回查 deleted 哨兵发现）。
+    @MainActor
+    static func revisionDigest(_ message: ChatMessage) -> String {
+        let content = [
+            message.role,
+            message.content,
+            message.deletedAt.map { ISO8601DateFormatter().string(from: $0) } ?? "alive",
+        ].joined(separator: "|")
+        return "\(message.timestamp.timeIntervalSince1970)-\(HoloContextSuppressionKeys.stableDigest(content))"
+    }
+}
+
+// MARK: - 目标域分页（体检 G1：目标接入个人情境来源）
+
+@MainActor
+struct HoloGoalContextSourcePaging: HoloContextSourcePaging {
+    let context: NSManagedObjectContext
+
+    @MainActor
+    func fetchContextSourcePage(
+        after cursor: HoloContextSourceCursor?,
+        limit: Int,
+        baseline: Date?
+    ) async throws -> (sources: [HoloContextSourceSnapshot], nextCursor: HoloContextSourceCursor?) {
+        try HoloContextCursorPagination.page(
+            context: context,
+            entityName: "Goal",
+            // 目标无软删（物理删除由回查 deleted 哨兵发现）；三态状态如实进 businessState。
+            alivePredicate: NSPredicate(format: "TRUEPREDICATE"),
+            cursor: cursor,
+            baseline: baseline,
+            limit: limit,
+            time: { (goal: Goal) in goal.updatedAt },
+            cursorKey: { (goal: Goal) in HoloLifeSourceKeys.goalKey(goal.id) },
+            makeSnapshot: { (goal: Goal) in
+                var businessState: [String: String] = [
+                    "status": goal.status,
+                    "goalKind": goal.goalKind,
+                ]
+                if let deadline = goal.deadline {
+                    businessState["deadline"] = ISO8601DateFormatter().string(from: deadline)
+                }
+                return HoloContextSourceSnapshot(
+                    sourceID: HoloLifeSourceKeys.goalKey(goal.id),
+                    sourceDomain: "goal",
+                    sourceKind: "goal",
+                    revisionDigest: Self.revisionDigest(goal),
+                    sourceCreatedAt: goal.createdAt,
+                    sourceUpdatedAt: goal.updatedAt,
+                    plainText: Self.observationText(goal),
+                    sensitivity: .normal,
+                    accessGeneration: 1,
+                    eventTime: goal.createdAt,
+                    businessState: businessState
+                )
+            }
+        )
+    }
+
+    /// 模型可见正文：标题 + 意向描述（现状/动机），状态走 businessState。
+    @MainActor
+    static func observationText(_ goal: Goal) -> String {
+        var parts = ["目标「\(goal.title)」"]
+        for optional in [goal.summary, goal.desiredOutcome, goal.motivation] {
+            let text = optional?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !text.isEmpty { parts.append(text) }
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// 修订摘要：意向与状态任一变化即新修订。
+    @MainActor
+    static func revisionDigest(_ goal: Goal) -> String {
+        let content = [
+            goal.title,
+            goal.summary ?? "",
+            goal.desiredOutcome ?? "",
+            goal.motivation ?? "",
+            goal.status,
+            goal.deadline.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+            goal.completedAt.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+        ].joined(separator: "|")
+        return "\(goal.updatedAt.timeIntervalSince1970)-\(HoloContextSuppressionKeys.stableDigest(content))"
+    }
+}
+
+// MARK: - 六域注册表与修订回查
 
 @MainActor
 enum HoloLifeSourceObservation {
-    /// R1 接入的四域（thought 走既有实现；轮询顺序稳定保证游标公平推进）。
-    static let domains: [String] = ["thought", "finance", "task", "habit"]
+    /// R1 四域 + G1 六域（thought 走既有实现；轮询顺序稳定保证游标公平推进）。
+    static let domains: [String] = ["thought", "finance", "task", "habit", "conversation", "goal"]
 
     static func makePaging(
         domain: String,
@@ -344,6 +483,10 @@ enum HoloLifeSourceObservation {
             return HoloTaskContextSourcePaging(repository: TodoRepository(context: context))
         case "habit":
             return HoloHabitContextSourcePaging(repository: HabitRepository(context: context, observesRemoteChanges: false))
+        case "conversation":
+            return HoloConversationContextSourcePaging(context: context)
+        case "goal":
+            return HoloGoalContextSourcePaging(context: context)
         default:
             return nil
         }
@@ -401,6 +544,24 @@ enum HoloLifeSourceObservation {
                     } else {
                         revisions[sourceKey] = "deleted"
                     }
+                }
+            case "conversation":
+                let request = ChatMessage.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
+                if let message = (try? context.fetch(request))?.first {
+                    revisions[sourceKey] = message.deletedAt == nil
+                        ? HoloConversationContextSourcePaging.revisionDigest(message)
+                        : "deleted"
+                } else {
+                    revisions[sourceKey] = "deleted"
+                }
+            case "goal":
+                let request = Goal.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
+                if let goal = (try? context.fetch(request))?.first {
+                    revisions[sourceKey] = HoloGoalContextSourcePaging.revisionDigest(goal)
+                } else {
+                    revisions[sourceKey] = "deleted"
                 }
             default:
                 if let thought = try? thoughtRepository.fetchById(uuid) {
