@@ -236,6 +236,13 @@
   - 清理死代码（旧 SwiftUI 版工具栏 / 未接入的颜色选择器 / 快速记录工具栏）
 
 ### Bug Fixes
+- **iOS**: 预算不动根治——「记了东京旅游项目的消费预算条一直不动」（东林 10-5 反馈）根因不是项目消费被排除（计算层 fetchSpentAmount 谓词只有账户/时间窗/类型/软删/对账排除，挂项目交易从不缺席，FinanceProjectRepository 头注释铁律+既有单测钉死），真凶是**刷新断链**：预算卡/账本汇总/今天页全部只靠 `.financeDataDidChange` 通知重算，而 FinanceRepository 核心写方法落库后一个都不广播，只有财务页 FAB/深链/退款等零星入口各自补发——AI 说话记账（IntentRouter）、聊天内编辑、搜索页/账户详情/证据复核内编辑表单全部漏发，用户用这些入口记账后全 App 预算停在旧数
+  - 修复A（单一水龙头）：通知下沉仓库层——addTransaction/updateTransaction/deleteTransaction/分期三方法/addRefundTransaction/bookTransactionAtomically 落库成功后统一广播一次；分期组逐笔落库不逐笔广播（整组一次）；bookTransactionAtomically 幂等命中提前返回不广播；今后任何新入口自动获得刷新，不再依赖入口层自觉补发。入口层既有补发（FinanceView/HomeView/AddTransactionSheet 退款）暂保留为兜底冗余（双发只多重算一次，无害；三文件有并行在途改动本轮不碰，待收口后统一清理）
+  - 修复B：KanbanBudgetSection 补 `.onReceive(.financeDataDidChange)`（旧版看板 flag 路径；看板常驻时 onAppear 不重触发，此前即使通知发了也不刷新）；新版「今天减负」页不渲染该组件，不受影响
+  - 修复C（口径对齐）：预算已花查询补挂 `occurredPredicate()` 与统计入口同源——未到期的未来分期/计划流水不再计入预算已花（兑现 FinanceTransactionOccurrencePolicy 头注释「余额、统计、预算只消费已发生流水」的文档承诺，此前预算是唯一漏挂的聚合点、方向为多算）
+  - 测试：BudgetRepository 加测试注入构造（`init(testContext:)` + accountsProvider 可替换，单例生产路径不变），补上预算计算零直接单测缺口；新增 `BudgetRepositoryTests` 14 用例——挂项目支出计入总预算/分类预算（父子分类匹配）、跨账户消费不串账户、挂项目退款负冲、老 startDate 周期推进当月、全局汇总只含有预算账户、未来日期支出与未到期分期排除（口径钉死）、通知契约 6 条（增/改/删/退款/12 期分期整组恰好一次/票根幂等命中不重发）
+  - 验证：新套件 14/14 绿；全量 HoloTests 405 用例本域零红（8 红全为并行会话在途中间态——被测源码 ChatCardData/Thought 语义域/DataExportService 均 M 状态实锤，与本改动无交集）；隔离 worktree（HEAD+本批文件）构建绿（主工作区构建红系并行会话实时中间态 HoloMemoryActivationPolicy，非本批引入）；模拟器五大入口走查过——账本页记账 ¥37 不切页同屏四刷新实锤（今日 ¥0→¥37/交易列表出账/本月支出 +37/预算条 0%→1.85% 绿色填充）、今天页今日概况 ¥37 同步、想法/任务/HoloAI 授权门正常、恢复门弹收正常、全程零闪退；顺手修 CoreDataStoreRecoveryTests 既有红（04bcac325 改 ConflictBackupResult 三件套漏改测试断言，补 hasMainFile/isComplete 断言）；纯 iOS 无发版
+  - 账户口径缝隙（非 bug，产品语义）在档：预算绑账户，「全部账户」汇总只统计设了预算账户的消费——若消费记在无预算账户（如支付宝）则数字层面确实不进任何预算；已交东林 30 秒自查清单定位，确认错位后另立项「跨账户总预算」
 - **iOS**: 个人页 Plus 卡「已生效」徽章被挤成空壳竖条修复（东林真机反馈）
   - 根因：徽章与「Holo Plus」大标题同行，标题用 Font.title 随系统字号放大且 fixedSize 寸土不让；大字号档位下徽章被逐字压缩到渲染不出任何字形，只剩米色胶囊底色挂在标题右侧（竖条空壳）。默认字号下空间刚好够，此前验收未暴露
   - 修复：徽章独立放卡片右上角（topTrailing 角标 + fixedSize 自保），不再与标题抢一行，任何 Dynamic Type 档位稳定；「已生效」全局仅此一处

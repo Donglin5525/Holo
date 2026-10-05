@@ -288,7 +288,14 @@ class FinanceRepository {
     }
     
     // MARK: - Transaction Operations
-    
+
+    /// 交易写操作落库后的统一广播（单一水龙头）：预算/账本/看板/统计/今天页等
+    /// 视图均监听 `.financeDataDidChange` 重算；入口层不得各自补发——
+    /// 任何新入口漏发该通知，用户看到的预算与汇总就停在旧数。
+    private func broadcastFinanceDataDidChange() {
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
     @discardableResult
     func addTransaction(
         amount: Decimal,
@@ -328,6 +335,7 @@ class FinanceRepository {
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
         try context.save()
+        broadcastFinanceDataDidChange()
         return transaction
     }
 
@@ -382,11 +390,13 @@ class FinanceRepository {
         }
         transaction.updatedAt = Date()
         try context.save()
+        broadcastFinanceDataDidChange()
     }
-    
+
     func deleteTransaction(_ transaction: Transaction) async throws {
         context.delete(transaction)
         try context.save()
+        broadcastFinanceDataDidChange()
     }
 
     /// 根据 ID 查找交易记录
@@ -523,6 +533,7 @@ class FinanceRepository {
         }
 
         try context.save()
+        broadcastFinanceDataDidChange()
         return transactions
     }
 
@@ -588,6 +599,7 @@ class FinanceRepository {
         }
 
         try context.save()
+        broadcastFinanceDataDidChange()
         return updated
     }
 
@@ -797,6 +809,8 @@ class FinanceRepository {
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
         try context.save()
+        // 幂等命中（已存在）在上面提前返回，走到 save 必为新落库
+        broadcastFinanceDataDidChange()
         return (transaction, true)
     }
 
@@ -815,6 +829,7 @@ class FinanceRepository {
             context.delete(tx)
         }
         try context.save()
+        broadcastFinanceDataDidChange()
     }
 
     // MARK: - 退款交易操作
@@ -867,6 +882,7 @@ class FinanceRepository {
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
         try context.save()
+        broadcastFinanceDataDidChange()
         return transaction
     }
 

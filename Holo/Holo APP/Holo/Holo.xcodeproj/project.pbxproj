@@ -368,6 +368,7 @@
 		F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */; };
 		F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */; };
 		F1AC00000000000000000FC2 /* StatisticsScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC1 /* StatisticsScopeTests.swift */; };
+		F1AC00000000000000000FD2 /* BudgetRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */; };
 		F1AC00000000000000000FB3 /* ReceiptAttachmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA2 /* ReceiptAttachmentTests.swift */; };
 		F1AC00000000000000000FC4 /* FinanceProjectWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */; };
 		F1AC09090000000000000001 /* ReceiptBookingKernelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */; };
@@ -799,6 +800,7 @@
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceProjectRepositoryTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FC1 /* StatisticsScopeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StatisticsScopeTests.swift; sourceTree = "<group>"; };
+		F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetRepositoryTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FA2 /* ReceiptAttachmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptAttachmentTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceProjectWalkthroughUITests.swift; sourceTree = "<group>"; };
 		F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingKernelTests.swift; sourceTree = "<group>"; };
@@ -1041,6 +1043,7 @@
 				6C0D1E2F3A4B5C6D7E8F90A1 /* AmountMathTests.swift */,
 				F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */,
 				F1AC00000000000000000FC1 /* StatisticsScopeTests.swift */,
+				F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */,
 				F1AC00000000000000000FA2 /* ReceiptAttachmentTests.swift */,
 				69443339474AF4E0071C08EA /* GoalWorkshopStoreTests.swift */,
 				6C8B3B3BE3ECC2E23DC175E2 /* GoalWorkshopCommitTests.swift */,
@@ -1869,6 +1872,7 @@
 				7A1B2C3D4E5F60718293A4B5 /* AmountMathTests.swift in Sources */,
 				F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */,
 				F1AC00000000000000000FC2 /* StatisticsScopeTests.swift in Sources */,
+				F1AC00000000000000000FD2 /* BudgetRepositoryTests.swift in Sources */,
 				F1AC00000000000000000FB3 /* ReceiptAttachmentTests.swift in Sources */,
 				F38D3889CE87698AECF36EAF /* GoalWorkshopStoreTests.swift in Sources */,
 				BC59E00B27BFC9CD15E7DF45 /* GoalWorkshopCommitTests.swift in Sources */,

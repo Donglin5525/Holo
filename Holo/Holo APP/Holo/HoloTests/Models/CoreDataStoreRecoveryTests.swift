@@ -53,7 +53,8 @@ final class CoreDataStoreRecoveryTests: XCTestCase {
 
         let moved = CoreDataStack.backupIncompatibleStoreFiles(at: storeURL, logger: logger)
 
-        XCTAssertTrue(moved, "主库文件应被挪走")
+        XCTAssertTrue(moved.hasMainFile, "主库文件应被挪走")
+        XCTAssertTrue(moved.isComplete, "三件套应全部搬走成功：\(moved.failedFiles)")
         XCTAssertFalse(FileManager.default.fileExists(atPath: storeURL.path), "原位不应再留主库文件")
 
         let leftovers = try FileManager.default.contentsOfDirectory(at: workDir, includingPropertiesForKeys: nil)
@@ -65,7 +66,7 @@ final class CoreDataStoreRecoveryTests: XCTestCase {
     func test_backupIncompatibleStoreFiles_returnsFalseWhenNothingToMove() throws {
         let storeURL = workDir.appendingPathComponent("HoloDataModel.sqlite")
         let moved = CoreDataStack.backupIncompatibleStoreFiles(at: storeURL, logger: logger)
-        XCTAssertFalse(moved, "目录里没有库文件时不应报告已备份")
+        XCTAssertFalse(moved.hasMainFile, "目录里没有库文件时不应报告已备份")
     }
 
     // MARK: - 端到端：指纹冲突 → 备份 → 重建成功

@@ -31,6 +31,11 @@ struct KanbanBudgetSection: View {
                     .onAppear { loadBudget() }
             }
         }
+        // 看板常驻时 onAppear 不会重触发（记账后从别处切回不重算），
+        // 必须监听仓库层广播才能实时刷新已花与进度条
+        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+            loadBudget()
+        }
         .sheet(isPresented: $showBudgetDetail) {
             BudgetDetailView(anchoredAccountId: selectedAccountId.isEmpty ? nil : UUID(uuidString: selectedAccountId))
         }
