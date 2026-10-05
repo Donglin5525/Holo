@@ -738,9 +738,13 @@ nonisolated enum HoloMemoryDecisionInputDeriver {
         now: Date
     ) -> HoloMemoryEvidenceVerdict {
         if let payload {
-            // 个人情境：admission 是核验结论的投影（adviceEligible 仅在 supported 时授予）。
+            // 个人情境：admission 是核验结论的投影（adviceEligible 仅在 supported/qualified 时授予）。
             if payload.admission.level == .forbidden { return .unsupported }
             if payload.admission.level != .adviceEligible { return .unreviewed }
+            // G2（A09）：读结构化核验结论——qualified 走限定建议分支（useLevel=
+            // qualifiedAdvice），不再与 supported 合流成无条件事实；旧记录无该
+            // 字段按 supported 处理（历史口径）。
+            if payload.admission.verificationVerdict == "qualified" { return .qualified }
             if !record.counterEvidenceRefs.isEmpty || record.state == .disputed {
                 return .contradicted
             }
@@ -766,7 +770,7 @@ nonisolated enum HoloMemoryDecisionInputDeriver {
         // 过去状态不得写成当前事实（§6.4 时效）：只有「当前状态类」命题按时效判过期；
         // recurring/association/tension 表达「曾出现/曾同期」，validTo 是观察窗，
         // 过时由 freshness 半衰期治理（与 isExpired 同一口径）。
-        if isCurrentStateClaim(record),
+        if HoloMemoryDecisionPolicy.isCurrentStateClaim(record),
            record.validTo.map({ $0 < now }) == true {
             return .unsupported
         }
@@ -860,21 +864,16 @@ nonisolated enum HoloMemoryDecisionInputDeriver {
         if let end = payload?.temporal?.validTo, end < now { return true }
         // 只有「当前状态类」命题按 record.validTo 判过期；recurring/association/tension
         // 的 validTo 是观察窗（表达「曾出现/曾同期」），过时由 freshness 半衰期治理。
-        if isCurrentStateClaim(record), record.validTo.map({ $0 < now }) == true {
+        if HoloMemoryDecisionPolicy.isCurrentStateClaim(record), record.validTo.map({ $0 < now }) == true {
             return true
         }
         return false
     }
 
     /// 当前状态类命题：描述「现在如何」，过期即失真。关系/规律类表达「曾出现」，不适用。
-    private static func isCurrentStateClaim(_ record: HoloMemoryRecord) -> Bool {
-        switch record.claimKind {
-        case .observedFact, .phaseShift, .lifeEvent, .explicitPreference:
-            return true
-        case .recurringPattern, .association, .tension, .hypothesis:
-            return false
-        }
-    }
+    /// G2（A05/F08）：明确偏好不在此列——偏好持续有效直至用户修改，不因观察窗
+    /// 结束而失效（否则每日调度窗一过，昨天刚学的偏好就被重新裁决为 discard，
+    /// 与召回层的结论相反）。实现在 HoloMemoryDecisionPolicy（跨类型共用）。
 }
 
 // MARK: - 五路裁决（§7）
@@ -924,6 +923,18 @@ nonisolated struct HoloMemoryFiveWayDecision: Equatable, Sendable {
 }
 
 nonisolated enum HoloMemoryDecisionPolicy {
+    /// 当前状态类命题：描述「现在如何」，过期即失真。关系/规律类表达「曾出现」，不适用。
+    /// G2（A05/F08）：明确偏好不在此列——偏好持续有效直至用户修改，不因观察窗
+    /// 结束而失效（否则每日调度窗一过，昨天刚学的偏好就被重新裁决为 discard，
+    /// 与召回层的结论相反）。裁决层与召回层共用本口径。
+    static func isCurrentStateClaim(_ record: HoloMemoryRecord) -> Bool {
+        switch record.claimKind {
+        case .observedFact, .phaseShift, .lifeEvent:
+            return true
+        case .explicitPreference, .recurringPattern, .association, .tension, .hypothesis:
+            return false
+        }
+    }
     static let currentVersion = 4
 
     /// v4 五路决策开关的规范 key；HoloAIFeatureFlags 同名属性从这里读取。

@@ -47,6 +47,11 @@ nonisolated enum HoloDomainMemoryOutputValidator {
         let allowedAnchorKeys = Set(package.signals.flatMap { $0.anchors.map(\.stableKey) })
         let allowedAnchorTypes = Set(package.allowedAnchorTypes)
         let allowedClaims = Set(package.allowedClaimKinds)
+        // G2（A01/A02）：证据 → 信号查找表——数值事实与来源限制都由程序持有。
+        let signalByEvidenceID: [String: HoloDomainMemorySignal] = Dictionary(
+            package.signals.map { ($0.evidence.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var records: [HoloMemoryRecord] = []
         var rejections: [HoloDomainMemoryValidationRejection] = []
 
@@ -85,6 +90,16 @@ nonisolated enum HoloDomainMemoryOutputValidator {
             }
 
             let evidence = uniqueEvidenceIDs.compactMap { evidenceByID[$0] }
+            // G2（A01）：数值由程序持有，模型只能引用——摘要中出现的每个数字都必须
+            // 命中被引证据的程序事实（数值/样本量/口径描述），编造即整条拒绝。
+            let referencedSignals = uniqueEvidenceIDs.compactMap { signalByEvidenceID[$0] }
+            if candidateNumbersEscapeFacts(
+                summaries: [candidate.displaySummary, candidate.aiUseSummary],
+                signals: referencedSignals
+            ) {
+                rejections.append(.fabricatedValue)
+                continue
+            }
             do {
                 let id = try HoloMemoryIdentity.makeStableID(
                     scope: .domain,
@@ -104,14 +119,22 @@ nonisolated enum HoloDomainMemoryOutputValidator {
                     persistenceClass: candidate.persistenceClass,
                     displaySummary: String(candidate.displaySummary.prefix(500)),
                     aiUseSummary: String(candidate.aiUseSummary.prefix(500)),
-                    prohibitedInferences: candidate.prohibitedInferences.map {
-                        String(HoloDomainSignalBuilder.sanitizeUserText($0).prefix(300))
-                    },
+                    prohibitedInferences: {
+                        // G2（A02）：来源限制由程序合并，模型只能增加——漏回边界
+                        // 条件时被引证据的禁止推断仍然生效。
+                        let sourceLimits = referencedSignals.flatMap { $0.prohibitedInferences }
+                        let modelLimits = candidate.prohibitedInferences.map {
+                            String(HoloDomainSignalBuilder.sanitizeUserText($0).prefix(300))
+                        }
+                        return Array(Set(sourceLimits + modelLimits)).sorted()
+                    }(),
                     evidenceRefs: evidence,
                     upstreamMemoryIDs: [],
                     counterEvidenceRefs: [],
-                    validFrom: package.window.start,
-                    validTo: package.window.end,
+                    // G2（A03）：观察窗=证据覆盖的真实窗口，不用调度窗替代；
+                    // 缺窗口的证据回落包窗口。
+                    validFrom: evidence.compactMap(\.validFrom).min() ?? package.window.start,
+                    validTo: evidence.compactMap(\.validTo).max() ?? package.window.end,
                     lastSupportedAt: evidence.map(\.observedAt).max(),
                     confidenceScore: min(0.9, 0.55 + Double(evidence.count) * 0.1),
                     freshnessScore: 1,
@@ -213,6 +236,49 @@ nonisolated enum HoloDomainMemoryOutputValidator {
             }
         }
         return (values, conflictingIDs)
+    }
+
+    /// 摘要数字提取（千分位与小数）；统计口径描述文本里的数字同样计入允许集合
+    ///（「90天餐饮支出」的 90 是程序口径，不是模型发明）。
+    private static func numbers(in text: String) -> [Double] {
+        guard let regex = try? NSRegularExpression(pattern: "[0-9][0-9,\\.]*") else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).compactMap { match in
+            guard let matchRange = Range(match.range, in: text) else { return nil }
+            let raw = text[matchRange].replacingOccurrences(of: ",", with: "")
+            return Double(raw)
+        }
+    }
+
+    /// G2（A01）：返回 true 表示摘要中存在逃逸出程序事实的数字。
+    /// 允许集合 = 被引证据的 numericFacts 值 ∪ 样本量 ∪ 口径描述文本中的数字。
+    /// 证据不带任何程序事实（如用户原文类信号）时不启用该检查。
+    static func candidateNumbersEscapeFacts(
+        summaries: [String],
+        signals: [HoloDomainMemorySignal]
+    ) -> Bool {
+        var allowed = Set<Double>()
+        var hasNumericFacts = false
+        for signal in signals {
+            for value in signal.numericFacts.values {
+                allowed.insert(value)
+                hasNumericFacts = true
+            }
+            if let sampleCount = signal.evidence.sampleCount {
+                allowed.insert(Double(sampleCount))
+            }
+            if let definition = signal.evidence.aggregateDefinition {
+                numbers(in: definition).forEach { allowed.insert($0) }
+            }
+        }
+        guard hasNumericFacts else { return false }
+        let tolerance = 0.000_001
+        for summary in summaries {
+            for number in numbers(in: summary) where !allowed.contains(where: { abs($0 - number) < tolerance }) {
+                return true
+            }
+        }
+        return false
     }
 
     private static func summaryIsSafe(_ value: String) -> Bool {

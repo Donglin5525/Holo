@@ -96,6 +96,20 @@ struct HoloMemoryFeedbackService: Sendable {
         let predecessorVersionID = record.versionID
         record.displaySummary = sanitized
         record.aiUseSummary = sanitized
+        // G2（A10）：纠正创建用户权威修订——结构化命题与摘要必须一致改写，
+        // 否则下游消费仍读到 payload 里的旧说法（「纠正生效」只停留在展示层）。
+        if var payload = record.personalContext?.v1 {
+            payload.statement = sanitized
+            payload.admission = HoloContextAdmissionV1(
+                level: .adviceEligible,
+                policyVersion: payload.admission.policyVersion,
+                decidedAt: now,
+                reason: "用户权威修订",
+                verificationVerdict: "supported",
+                verdictQualifiers: nil
+            )
+            record.personalContext = HoloPersonalContextPayloadEnvelope(v1: payload)
+        }
         record.userDecision = .corrected
         record.state = .active
         record.adoptionMetadata = HoloMemoryAdoptionMetadata(

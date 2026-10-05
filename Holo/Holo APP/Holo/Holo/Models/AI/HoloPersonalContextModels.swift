@@ -517,17 +517,26 @@ nonisolated struct HoloContextAdmissionV1: Codable, Equatable, Sendable {
     var decidedAt: Date
     /// 简短可审计理由（refs/结论级，不含原文）。
     var reason: String?
+    /// G2（A09）：结构化核验结论（"supported"/"qualified"）——qualified 永远
+    /// 不能自动成为无条件事实；Optional 保证旧快照 JSON 无损解码。
+    var verificationVerdict: String?
+    /// 核验器给出的必要限定（与 reason 文本分开，供结构化使用）。
+    var verdictQualifiers: [String]?
 
     init(
         level: HoloContextAdmissionLevel,
         policyVersion: Int,
         decidedAt: Date,
-        reason: String? = nil
+        reason: String? = nil,
+        verificationVerdict: String? = nil,
+        verdictQualifiers: [String]? = nil
     ) {
         self.level = level
         self.policyVersion = policyVersion
         self.decidedAt = decidedAt
         self.reason = reason
+        self.verificationVerdict = verificationVerdict
+        self.verdictQualifiers = verdictQualifiers
     }
 }
 

@@ -89,7 +89,11 @@ nonisolated enum HoloContextAccessPolicy {
                 continue
             }
             // 用户控制：新控制胜过旧请求。
-            guard ![.rejected, .markedIrrelevant, .forgotten, .corrected].contains(record.userDecision) else {
+            // G2（A10）：corrected 不再一刀切排除——纠正创建的是用户权威修订的
+            // 当前版本（state 已恢复 active，摘要与结构已同步改写），把纠正后的
+            // 记录挡在规划外会让「纠正生效」变成空话；rejected/irrelevant/forgotten
+            // 仍阻断。
+            guard ![.rejected, .markedIrrelevant, .forgotten].contains(record.userDecision) else {
                 excluded[record.id] = .userDecisionBlocked
                 continue
             }

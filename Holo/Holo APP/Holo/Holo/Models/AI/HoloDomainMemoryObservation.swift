@@ -113,6 +113,8 @@ nonisolated enum HoloDomainMemoryValidationRejection: String, Equatable, Sendabl
     case forgedEvidence
     case forgedAnchor
     case invalidSummary
+    /// 体检 G2（A01）：摘要数值与程序持有的事实值不一致（编造/篡改统计）。
+    case fabricatedValue
     case invalidExistingMemoryOperation
     case invalidRecord
 }

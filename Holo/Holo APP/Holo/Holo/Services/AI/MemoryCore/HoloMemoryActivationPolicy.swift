@@ -260,8 +260,16 @@ nonisolated enum HoloMemoryRecallPolicy {
         )
     }
 
+    /// G2（A05）：召回层与裁决层共用同一过期语义——命题适用期（temporal.validTo）
+    /// 与「当前状态类」的观察窗过期；显式 TTL（expiresAt，仅 drift 信号使用）仍生效。
+    /// 此前本层只看 expiresAt（记忆记录恒 nil，形同不过期），与裁决层按 validTo
+    /// 的结论相反：同一条记忆一处判废一处放行。
     static func isExpired(_ record: HoloMemoryRecord, now: Date) -> Bool {
-        record.expiresAt.map { $0 <= now } ?? false
+        if let end = record.personalContext?.v1?.temporal?.validTo, end < now { return true }
+        if HoloMemoryDecisionPolicy.isCurrentStateClaim(record),
+           record.validTo.map({ $0 < now }) == true { return true }
+        if let expiresAt = record.expiresAt, expiresAt <= now { return true }
+        return false
     }
 
     static func isEligible(_ record: HoloMemoryRecord, now: Date) -> Bool {
@@ -276,10 +284,14 @@ nonisolated enum HoloMemoryRecallPolicy {
         guard HoloMemoryUsefulnessPolicy.isEligible(record) else {
             return .lowValueOrUnsupported
         }
-        // 五路决策使用权限（§11.2）：普通事实召回只放行 factEligible；
-        // 元数据缺失=旧记录按旧口径；不可靠解码/其余等级一律保守拦截。
+        // 五路决策使用权限（§11.2）：事实级正常召回；限定建议（qualifiedAdvice）
+        // 与长廊「Holo 会参考」同口径放行——注入信封会带限定表达标记，由 prompt
+        // 规则约束 AI 不得当确定事实使用，不在查询层二次拦截（否则裁决层判「可用」
+        // 的记忆永无消费出口，与 UI 承诺矛盾，2026-10-03 实锤）。
+        // 元数据缺失=旧记录按旧口径；不可靠解码一律保守拦截。
         if let v2 = record.decisionMetadata?.v2 {
-            guard v2.isReliablyDecoded, v2.useLevel == .factEligible else {
+            guard v2.isReliablyDecoded,
+                  v2.useLevel == .factEligible || v2.useLevel == .qualifiedAdvice else {
                 return .useLevelRestricted
             }
         }

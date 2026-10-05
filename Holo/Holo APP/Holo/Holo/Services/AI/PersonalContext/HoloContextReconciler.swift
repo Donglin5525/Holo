@@ -97,15 +97,19 @@ nonisolated enum HoloContextReconciler {
                 )
             case .supported, .qualified:
                 let qualifiers = verdict.requiredQualifiers ?? []
-                let level: HoloContextAdmissionLevel = .adviceEligible
+                // G2（A09）：核验结论结构化保存——qualified 与 supported 同为
+                // 建议级准入，但 verdict 分开携带，下游裁决与消费不再靠 reason
+                // 文本猜原始核验结果；qualified 永远不能自动成为无条件事实。
                 return decision(
                     for: candidate,
                     epistemic: epistemic,
                     admission: .init(
-                        level: level,
+                        level: .adviceEligible,
                         policyVersion: admissionPolicyVersion,
                         decidedAt: now,
-                        reason: verdict.verdict == .qualified ? "qualified：\(qualifiers.joined(separator: "；"))" : (verdict.reason ?? "supported")
+                        reason: verdict.verdict == .qualified ? "qualified：\(qualifiers.joined(separator: "；"))" : (verdict.reason ?? "supported"),
+                        verificationVerdict: verdict.verdict == .qualified ? "qualified" : "supported",
+                        verdictQualifiers: qualifiers.isEmpty ? nil : qualifiers
                     ),
                     verdictQualifiers: qualifiers,
                     existingRecords: existingRecords,
