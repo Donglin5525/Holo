@@ -481,8 +481,27 @@ struct YearComparisonChartView: View {
     }
 
     private var chartBody: some View {
+        GeometryReader { geometry in
+            chartBody(
+                slotWidthPt: ChartBarPairLayout.estimatedSlotWidthPt(
+                    containerWidthPt: geometry.size.width,
+                    pointCount: points.count
+                )
+            )
+        }
+        .frame(height: 168)
+    }
+
+    private func chartBody(slotWidthPt: CGFloat) -> some View {
         let ceiling = yCeiling
         let domain: ClosedRange<Double> = -0.5...Double(max(points.count - 1, 0)) + 0.5
+        // 双柱偏移按 pt 封顶（与 TrendChartView 同治：年档 12 桶宽槽下比例偏移
+        // 会把柱子推离刻度、组内缝比柱宽还宽）
+        let offset = ChartBarPairLayout.barOffsetUnits(
+            pointCount: points.count,
+            slotWidthPt: slotWidthPt,
+            barWidth: 5
+        )
 
         return Chart {
             ForEach(points.indices, id: \.self) { index in
@@ -492,7 +511,7 @@ struct YearComparisonChartView: View {
                 // 上年对照柱（上年数据全年存在，未来桶照画）
                 if Double(truncating: point.previous as NSDecimalNumber) > 0 {
                     BarMark(
-                        x: .value("期", Double(index) - 0.17),
+                        x: .value("期", Double(index) - offset),
                         yStart: .value("起点", 0.0),
                         yEnd: .value("金额", Double(truncating: point.previous as NSDecimalNumber)),
                         width: .fixed(5)
@@ -505,7 +524,7 @@ struct YearComparisonChartView: View {
                 let currentValue = Double(truncating: point.current as NSDecimalNumber)
                 if !point.isFuture && currentValue > 0 {
                     BarMark(
-                        x: .value("期", Double(index) + 0.17),
+                        x: .value("期", Double(index) + offset),
                         yStart: .value("起点", 0.0),
                         yEnd: .value("金额", currentValue),
                         width: .fixed(5)
@@ -521,23 +540,6 @@ struct YearComparisonChartView: View {
         }
         .chartXScale(domain: domain)
         .chartYScale(domain: 0...ceiling)
-        .chartXAxis {
-            AxisMarks(values: xTickIndices) { value in
-                AxisValueLabel {
-                    if let axisValue = value.as(Double.self),
-                       points.indices.contains(Int(axisValue.rounded())) {
-                        let point = points[Int(axisValue.rounded())]
-                        Text(point.label)
-                            .font(.system(size: 9))
-                            .foregroundStyle(
-                                point.isFuture
-                                    ? Color.holoTextPlaceholder.opacity(0.6)
-                                    : Color.holoTextSecondary
-                            )
-                    }
-                }
-            }
-        }
         .chartYAxis {
             AxisMarks(position: .leading, values: [0.0, ceiling * 0.5, ceiling]) { value in
                 AxisGridLine()
@@ -561,6 +563,25 @@ struct YearComparisonChartView: View {
             GeometryReader { geometry in
                 // plotFrame 是 Anchor，需经 GeometryReader 解引用成 CGRect（与 TrendChartView 同画法）
                 let plotFrame = proxy.plotFrame.map { geometry[$0] }
+
+                // X 轴刻度自绘：AxisValueLabel 位置不可控会右偏（2026-10-07 实测），
+                // 与柱子共用 position(forX:) 坐标系
+                if let plotFrame {
+                    ForEach(xTickIndices, id: \.self) { tick in
+                        if let xPos = proxy.position(forX: tick),
+                           points.indices.contains(Int(tick.rounded())) {
+                            let point = points[Int(tick.rounded())]
+                            Text(point.label)
+                                .font(.system(size: 9))
+                                .foregroundStyle(
+                                    point.isFuture
+                                        ? Color.holoTextPlaceholder.opacity(0.6)
+                                        : Color.holoToolTextSecondary
+                                )
+                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
+                        }
+                    }
+                }
 
                 DirectionalChartGestureOverlay(
                     onChanged: { location in

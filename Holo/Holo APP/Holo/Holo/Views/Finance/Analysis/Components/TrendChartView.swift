@@ -8,6 +8,8 @@
 //  - 极淡横向网格随左轴刻度铺满全高；余额信息另外在卡头「较期初」与点按明细里可读
 //  - 单日尖峰超过次高值 2 倍且有效天数 ≥5 时，柱轴上限压缩并对尖峰柱做「断口」截断
 //  - 横向拖动/点按查看单日（柱后高亮带 + 明细），纵向手势交还页面滚动，点空白收起
+//  - X 轴刻度文字全部由 chartOverlay 自绘（AxisValueLabel 位置不可控会右偏，
+//    2026-10-07 实测 Mac/iOS 柱子对不上刻度），与柱子/气泡共用 position(forX:) 坐标系
 //
 
 import SwiftUI
@@ -93,91 +95,27 @@ struct TrendChartView: View {
     // MARK: 图表组装
 
     private var chartContent: some View {
-        let plan = barAxisPlan
-        let range = balanceValueRange
-        let balanceTicks = showsBalanceLine ? self.balanceTicks(range: range) : []
-        let peakDay = peakDayIndex
+        GeometryReader { geometry in
+            let plan = barAxisPlan
+            let range = balanceValueRange
+            let balanceTicks = showsBalanceLine ? self.balanceTicks(range: range) : []
+            let peakDay = peakDayIndex
+            let slotWidthPt = ChartBarPairLayout.estimatedSlotWidthPt(
+                containerWidthPt: geometry.size.width,
+                pointCount: dataPoints.count
+            )
 
-        return trendChart(cap: plan.cap, clippedIndices: plan.clippedIndices,
-                          peakDayIndex: peakDay, balanceTicks: balanceTicks)
-            .animation(HoloAnimation.smooth, value: animatedSignature)
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    let overlayFrame = geometry.frame(in: .local)
-                    let plotFrame = proxy.plotFrame.map { geometry[$0] }
-
-                    // —— 触摸当日：柱后淡色高亮带 ——
-                    // position(forX/Y:) 返回的是绘图区（plot area）内坐标，作为全图 overlay 坐标使用时必须补回 plotFrame 偏移，
-                    // 否则高亮带/气泡整体左移一个 Y 轴刻度栏宽（≈3 天），看起来「不跟手、有错位」
-                    if let index = hoveredIndex,
-                       let slotXPos = proxy.position(forX: Double(index)), let plotFrame {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.holoToolText.opacity(0.05))
-                            .frame(width: plotFrame.width / CGFloat(dataPoints.count), height: plotFrame.height)
-                            .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
-                    }
-
-                    // —— 断口截断标注 ——
-                    if let plotFrame {
-                        ForEach(plan.clippedIndices, id: \.self) { index in
-                            if let capTopY = proxy.position(forY: barTopUnit),
-                               let barXPos = proxy.position(forX: breakBarX(index)) {
-                                // 标注默认画柱右侧；尖峰落在月末时右侧是右轴刻度区，
-                                // 金额会叠在刻度上（2026-10-01 东林实测 9/30 挤成一团），越界即翻到柱左侧
-                                let labelCenterX = plotFrame.minX + barXPos + barWidth / 2 + 24
-                                let placeLabelLeft = labelCenterX + 20 > plotFrame.maxX - 2
-                                clippedBreakAnnotations(
-                                    capTopY: plotFrame.minY + capTopY,
-                                    barXPos: plotFrame.minX + barXPos,
-                                    amountLabel: Self.axisAmountLabel(clippedAmount(index)),
-                                    placeLabelLeft: placeLabelLeft
-                                )
-                            }
-                        }
-                    }
-
-                    // —— 末位日期自绘（原因见 axisLabelIndices 注释）：右对齐钉在绘图区右缘 ——
-                    if let plotFrame, let lastPoint = dataPoints.last {
-                        Text(lastPoint.label)
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.holoToolTextSecondary)
-                            .frame(width: plotFrame.width, alignment: .trailing)
-                            .position(x: plotFrame.midX, y: plotFrame.maxY + 10)
-                    }
-
-                    // —— 触摸手势：拖动/点按查看单日，纵向手势交还页面滚动 ——
-                    DirectionalChartGestureOverlay(
-                        onChanged: { location in
-                            hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
-                        },
-                        onEnded: { _ in
-                            hoveredIndex = nil
-                        },
-                        onCancelled: {
-                            hoveredIndex = nil
-                        },
-                        onTap: { location in
-                            hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame)
-                        }
-                    )
-
-                    // —— 触摸态：明细 tooltip ——
-                    if let index = hoveredIndex,
-                       let anchorXPos = proxy.position(forX: Double(index)), let plotFrame {
-                        amountTooltip(
-                            point: dataPoints[index],
-                            dateLabel: ChartTooltipDateLabel.string(for: dataPoints[index], points: dataPoints),
-                            x: min(max(plotFrame.minX + anchorXPos, 60), overlayFrame.width - 60),
-                            y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), overlayFrame.height - 16)
-                        )
-                    }
-                }
-            }
-            .frame(height: 200)
+            return trendChart(cap: plan.cap, clippedIndices: plan.clippedIndices,
+                              peakDayIndex: peakDay, balanceTicks: balanceTicks,
+                              slotWidthPt: slotWidthPt)
+                .animation(HoloAnimation.smooth, value: animatedSignature)
+        }
+        .frame(height: 200)
     }
 
     private func trendChart(cap: Double, clippedIndices: [Int],
-                            peakDayIndex: Int?, balanceTicks: [(unit: Double, label: String)]) -> some View {
+                            peakDayIndex: Int?, balanceTicks: [(unit: Double, label: String)],
+                            slotWidthPt: CGFloat) -> some View {
         Chart {
             ForEach(dataPoints.indices, id: \.self) { index in
                 flowBars(
@@ -185,7 +123,8 @@ struct TrendChartView: View {
                     dataPoints[index],
                     cap: cap,
                     isPeakDay: index == peakDayIndex,
-                    isClipped: clippedIndices.contains(index)
+                    isClipped: clippedIndices.contains(index),
+                    slotWidthPt: slotWidthPt
                 )
             }
             if showsBalanceLine {
@@ -196,17 +135,6 @@ struct TrendChartView: View {
         }
         .chartXScale(domain: xDomain)
         .chartYScale(domain: 0...plotUnitMax)
-        .chartXAxis {
-            AxisMarks(values: xAxisTickValues) { value in
-                AxisValueLabel {
-                    if let axisValue = value.as(Double.self) {
-                        Text(tickLabel(axisValue))
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.holoToolTextSecondary)
-                    }
-                }
-            }
-        }
         .chartYAxis {
             // 左轴：收支柱刻度（含 0 基线网格）
             AxisMarks(position: .leading, values: [0.0, barY(cap * 0.5, cap: cap), barY(cap, cap: cap)]) { value in
@@ -236,23 +164,108 @@ struct TrendChartView: View {
                 .padding(.leading, 2)
                 .padding(.trailing, 2)
         }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                let overlayFrame = geometry.frame(in: .local)
+                let plotFrame = proxy.plotFrame.map { geometry[$0] }
+
+                // —— X 轴刻度自绘（含末位）：Swift Charts 的 AxisValueLabel 摆放位置不可控，
+                //    2026-10-07 Mac/iOS 实测相对数据点整体右偏 0.25-0.4 槽，柱子/气泡全对不上
+                //    刻度文字；改用与柱子同一坐标系（position(forX:)）自绘，位置即数据点位置 ——
+                if let plotFrame {
+                    ForEach(axisLabelIndices, id: \.index) { tick in
+                        if let xPos = proxy.position(forX: Double(tick.index)) {
+                            Text(tick.label)
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.holoToolTextSecondary)
+                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
+                        }
+                    }
+                    if let lastXPos = proxy.position(forX: Double(dataPoints.count - 1)) {
+                        Text(dataPoints[dataPoints.count - 1].label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                            .position(x: plotFrame.minX + lastXPos, y: plotFrame.maxY + 10)
+                    }
+                }
+
+                // —— 触摸当日：柱后淡色高亮带 ——
+                // position(forX/Y:) 返回的是绘图区（plot area）内坐标，作为全图 overlay 坐标使用时必须补回 plotFrame 偏移，
+                // 否则高亮带/气泡整体左移一个 Y 轴刻度栏宽（≈3 天），看起来「不跟手、有错位」
+                if let index = hoveredIndex,
+                   let slotXPos = proxy.position(forX: Double(index)), let plotFrame {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.holoToolText.opacity(0.05))
+                        .frame(width: plotFrame.width / CGFloat(dataPoints.count), height: plotFrame.height)
+                        .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
+                }
+
+                // —— 断口截断标注 ——
+                if let plotFrame {
+                    ForEach(clippedIndices, id: \.self) { index in
+                        if let capTopY = proxy.position(forY: barTopUnit),
+                           let barXPos = proxy.position(forX: breakBarX(index, slotWidthPt: slotWidthPt)) {
+                            // 标注默认画柱右侧；尖峰落在月末时右侧是右轴刻度区，
+                            // 金额会叠在刻度上（2026-10-01 东林实测 9/30 挤成一团），越界即翻到柱左侧
+                            let labelCenterX = plotFrame.minX + barXPos + barWidthPt / 2 + 24
+                            let placeLabelLeft = labelCenterX + 20 > plotFrame.maxX - 2
+                            clippedBreakAnnotations(
+                                capTopY: plotFrame.minY + capTopY,
+                                barXPos: plotFrame.minX + barXPos,
+                                barWidthPt: barWidthPt,
+                                amountLabel: Self.axisAmountLabel(clippedAmount(index)),
+                                placeLabelLeft: placeLabelLeft
+                            )
+                        }
+                    }
+                }
+
+                // —— 触摸手势：拖动/点按查看单日，纵向手势交还页面滚动 ——
+                DirectionalChartGestureOverlay(
+                    onChanged: { location in
+                        hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
+                    },
+                    onEnded: { _ in
+                        hoveredIndex = nil
+                    },
+                    onCancelled: {
+                        hoveredIndex = nil
+                    },
+                    onTap: { location in
+                        hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame)
+                    }
+                )
+
+                // —— 触摸态：明细 tooltip ——
+                if let index = hoveredIndex,
+                   let anchorXPos = proxy.position(forX: Double(index)), let plotFrame {
+                    amountTooltip(
+                        point: dataPoints[index],
+                        dateLabel: ChartTooltipDateLabel.string(for: dataPoints[index], points: dataPoints),
+                        x: min(max(plotFrame.minX + anchorXPos, 60), overlayFrame.width - 60),
+                        y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), overlayFrame.height - 16)
+                    )
+                }
+            }
+        }
     }
 
     /// 某天的支出/收入成对柱；峰值日整柱实色高亮；截断柱画「断口」：主柱 + 留白 + 小帽
     @ChartContentBuilder
-    private func flowBars(_ index: Int, _ point: ChartDataPoint, cap: Double, isPeakDay: Bool, isClipped: Bool) -> some ChartContent {
+    private func flowBars(_ index: Int, _ point: ChartDataPoint, cap: Double, isPeakDay: Bool, isClipped: Bool, slotWidthPt: CGFloat) -> some ChartContent {
         let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
         let incomeVal = Double(truncating: point.income as NSDecimalNumber)
         let opacity = isPeakDay ? 1.0 : restBarOpacity
+        let offset = barOffsetUnits(slotWidthPt: slotWidthPt)
 
-        flowBar(x: Double(index) - barOffsetUnits, value: expenseVal, cap: cap,
-                color: .holoError, opacity: opacity, isClipped: isClipped && expenseVal >= incomeVal)
-        flowBar(x: Double(index) + barOffsetUnits, value: incomeVal, cap: cap,
-                color: .holoSuccess, opacity: opacity, isClipped: isClipped && incomeVal > expenseVal)
+        flowBar(x: Double(index) - offset, value: expenseVal, cap: cap,
+                color: .holoError, opacity: opacity, isClipped: isClipped && expenseVal >= incomeVal, barWidthPt: barWidthPt)
+        flowBar(x: Double(index) + offset, value: incomeVal, cap: cap,
+                color: .holoSuccess, opacity: opacity, isClipped: isClipped && incomeVal > expenseVal, barWidthPt: barWidthPt)
     }
 
     @ChartContentBuilder
-    private func flowBar(x: Double, value: Double, cap: Double, color: Color, opacity: Double, isClipped: Bool) -> some ChartContent {
+    private func flowBar(x: Double, value: Double, cap: Double, color: Color, opacity: Double, isClipped: Bool, barWidthPt: CGFloat) -> some ChartContent {
         if value > 0 {
             if isClipped {
                 // 截断柱画整根到量程顶，由 clippedBreakAnnotations 用卡片底色斜缝
@@ -261,7 +274,7 @@ struct TrendChartView: View {
                     x: .value("日期", x),
                     yStart: .value("起点", 0.0),
                     yEnd: .value("金额", barTopUnit),
-                    width: .fixed(barWidth)
+                    width: .fixed(barWidthPt)
                 )
                 .cornerRadius(2)
                 .foregroundStyle(color.opacity(opacity))
@@ -270,7 +283,7 @@ struct TrendChartView: View {
                     x: .value("日期", x),
                     yStart: .value("起点", 0.0),
                     yEnd: .value("金额", barY(value, cap: cap)),
-                    width: .fixed(barWidth)
+                    width: .fixed(barWidthPt)
                 )
                 .cornerRadius(2)
                 .foregroundStyle(color.opacity(opacity))
@@ -295,11 +308,12 @@ struct TrendChartView: View {
     // MARK: 断口标注（只接收坐标结果）
 
     /// 断口柱的 x 位置（x 单位）
-    private func breakBarX(_ index: Int) -> Double {
+    private func breakBarX(_ index: Int, slotWidthPt: CGFloat) -> Double {
         let point = dataPoints[index]
         let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
         let incomeVal = Double(truncating: point.income as NSDecimalNumber)
-        return Double(index) + (incomeVal > expenseVal ? barOffsetUnits : -barOffsetUnits)
+        let offset = barOffsetUnits(slotWidthPt: slotWidthPt)
+        return Double(index) + (incomeVal > expenseVal ? offset : -offset)
     }
 
     /// 断口柱的真实金额
@@ -315,11 +329,11 @@ struct TrendChartView: View {
     /// 浅色模式不可见，且缝画在柱外空隙里等于隐身）+ 真实值标注（默认柱右侧；
     /// `placeLabelLeft` 时翻到柱左侧并右对齐，避免与右轴刻度叠印）
     @ViewBuilder
-    private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, amountLabel: String, placeLabelLeft: Bool) -> some View {
+    private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, barWidthPt: CGFloat, amountLabel: String, placeLabelLeft: Bool) -> some View {
         ForEach(0..<2, id: \.self) { slashIndex in
             Capsule()
                 .fill(Color.holoToolSurface)
-                .frame(width: barWidth + 3, height: 1.6)
+                .frame(width: barWidthPt + 3, height: 1.6)
                 .rotationEffect(.degrees(-24))
                 .position(x: barXPos, y: capTopY + 6.5 + CGFloat(slashIndex) * 4.5)
         }
@@ -328,7 +342,7 @@ struct TrendChartView: View {
             .font(.system(size: 9, weight: .semibold))
             .foregroundColor(.holoSuccessDark)
             .frame(width: 40, alignment: placeLabelLeft ? .trailing : .leading)
-            .position(x: placeLabelLeft ? barXPos - barWidth / 2 - 24 : barXPos + barWidth / 2 + 24,
+            .position(x: placeLabelLeft ? barXPos - barWidthPt / 2 - 24 : barXPos + barWidthPt / 2 + 24,
                       y: capTopY - 7)
     }
 
@@ -336,29 +350,20 @@ struct TrendChartView: View {
 
     /// 每日双柱几何：组内缝必须小于组间缝，否则前一天的收入柱和后一天的支出柱
     /// 贴成一团，读成「同一个时间点三根柱」（2026-10-03 东林实报 9/29+9/30 连续两天
-    /// 有收支时穿帮）。月视图 30 天绘图区每分到约 10pt：柱宽 3.2 + 偏移 ±0.20 时
-    /// 组内缝 ≈0.8pt、组间缝 ≈2.8pt；周视图等稀疏档（≤14 天）柱加宽，比例同样成立。
-    private var barOffsetUnits: Double {
-        dataPoints.count > 14 ? 0.20 : 0.18
+    /// 有收支时穿帮）。窄槽（月视图 ≈10pt/槽）沿用既有槽宽比例；宽槽（周粒度 12 桶
+    /// 在 Mac/iPad 可达 ≈80pt/槽）按 pt 封顶——比例偏移会把柱子推离槽位中心、
+    /// 组内缝拉到比柱宽还宽，柱子看着不在它的刻度上（2026-10-07 东林实报）。
+    private func barOffsetUnits(slotWidthPt: CGFloat) -> Double {
+        ChartBarPairLayout.barOffsetUnits(pointCount: dataPoints.count, slotWidthPt: slotWidthPt)
     }
 
-    private var barWidth: CGFloat {
-        dataPoints.count > 14 ? 3.2 : 6
+    private var barWidthPt: CGFloat {
+        ChartBarPairLayout.barWidth(pointCount: dataPoints.count)
     }
 
     private var xDomain: ClosedRange<Double> {
         let upper = Double(max(dataPoints.count - 1, 0)) + 0.5
         return -0.5...upper
-    }
-
-    private var xAxisTickValues: [Double] {
-        axisLabelIndices.map { Double($0.index) }
-    }
-
-    private func tickLabel(_ axisValue: Double) -> String {
-        let dataIndex = Int(axisValue.rounded())
-        guard dataIndex < dataPoints.count else { return "" }
-        return dataPoints[dataIndex].label
     }
 
     private func balanceValue(_ point: ChartDataPoint) -> Double {
@@ -400,10 +405,9 @@ struct TrendChartView: View {
         ticks.first { abs($0.unit - axisValue) < 0.01 }?.label ?? ""
     }
 
-    /// 数据点多（>14）时 X 轴稀疏展示（5 格 + 末位自绘）。
-    /// 末位数据点不进刻度层：横轴刻度文字层的右缘被尾侧余额刻度轴截掉一段，
-    /// 末位标签无论居中还是改锚点都会被钳位到边界上、与倒数第二格叠印——
-    /// 改由 chartOverlay 在绘图区右下角右对齐自绘（与断口标注同一画法）。
+    /// 数据点多（>14）时 X 轴稀疏展示（5 格 + 末位）。
+    /// 末位数据点不进刻度层——现已全刻度自绘（见 chartOverlay 注释），这里保留原
+    /// 稀疏节奏：前 5 格 + overlay 里补末位，避免 90 桶全画挤成一团。
     private var axisLabelIndices: [(index: Int, label: String)] {
         let count = dataPoints.count
         guard count > 1 else { return [] }

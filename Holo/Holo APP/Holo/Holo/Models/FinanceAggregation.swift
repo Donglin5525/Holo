@@ -250,6 +250,41 @@ struct ChartDataPoint: Identifiable {
     var hasTransactions: Bool { transactionCount > 0 }
 }
 
+// MARK: - 柱对几何
+
+/// 收支柱+收入柱成对排布的几何参数。
+/// 既有画法是按槽宽比例（0.18/0.20）偏移——那是月视图 30 桶窄槽（≈10pt）下调出来的；
+/// 周粒度 12 桶在宽画布上槽宽可达 ≈80pt，比例偏移把支出柱推离槽位中心 14pt、
+/// 组内缝拉到 22pt（比柱宽还宽），一对柱读成两根独立柱，且收入为 0 时柱子看着
+/// 不在它的刻度上。偏移按「柱宽+组内缝」的 pt 封顶，窄槽小图自动退化为原比例。
+enum ChartBarPairLayout {
+    /// 组内目标缝（pt）：与月视图窄槽下比例偏移的实际缝同量级
+    static let targetInnerGapPt: CGFloat = 1.5
+    /// 轴带估算（pt）：左轴金额标签 + 右轴余额标签 + plot 两侧 padding。
+    /// 只用于把 pt 换算成槽位单位，误差 10% 内偏移无感
+    static let estimatedAxisGutterPt: CGFloat = 56
+
+    static func barWidth(pointCount: Int) -> CGFloat {
+        pointCount > 14 ? 3.2 : 6
+    }
+
+    /// 双柱偏移（槽位单位）＝ min(槽宽比例, 封顶 pt ÷ 槽宽)
+    static func barOffsetUnits(pointCount: Int, slotWidthPt: CGFloat, barWidth overrideBarWidth: CGFloat? = nil) -> Double {
+        let ratio: Double = pointCount > 14 ? 0.20 : 0.18
+        guard slotWidthPt > 0 else { return ratio }
+        let barWidth = overrideBarWidth ?? barWidth(pointCount: pointCount)
+        let capPt = Double((barWidth + targetInnerGapPt) / 2)
+        let offsetPt = min(ratio * Double(slotWidthPt), capPt)
+        return offsetPt / Double(slotWidthPt)
+    }
+
+    /// 槽宽估算（pt）：容器宽减轴带
+    static func estimatedSlotWidthPt(containerWidthPt: CGFloat, pointCount: Int) -> CGFloat {
+        guard pointCount > 0 else { return 0 }
+        return max((containerWidthPt - estimatedAxisGutterPt) / CGFloat(pointCount), 1)
+    }
+}
+
 // MARK: - 图表触摸命中
 
 /// Swift Charts 的坐标读取以 plot area 为基准，触摸点也必须先换算到同一坐标系。
