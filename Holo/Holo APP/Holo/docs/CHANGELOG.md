@@ -2,6 +2,9 @@
 
 ## 2026-10-07
 
+### fix
+- **首页光球循环化重写（东林 10-7 反馈「圈应该一直转，而不是像 gif 转一半立马回到开始」）** — 根因：三环旋转等持续动画用 repeatForever 挂相位在 @State 上，五条件门控每次翻转（切模块往返/回前台/开关变化）都触发「无动画归零→从 0 重启」，视觉即 gif 式回卷；根治：中心球三环旋转/中心光点呼吸/整体呼吸与背景光球光晕浮动/弧线旋转/光点闪烁全部改 TimelineView(.animation) 驱动，角度与呼吸相位只由绝对时间戳的纯函数决定（三环 90/60/45s 周期保持原参数，呼吸 4s 正弦等效替代），跨暂停恢复/门控翻转/页面遮挡相位数学连续，不存在任何重置路径；顺带删除全部重启机制（synchronize 两函数+isAnimating/ringRotation×3/centerPulse/breathScale/orbDrift/arcRotation/dotTwinkle 九个动画 @State+六个 onChange+onAppear/onDisappear 动画钩子），门控收敛为 TimelineView paused 单参数（动效开关/前台/首页可见三条件，永转拍板不变，进度弹簧仍尊重 ReduceMotion）；并行批次 hunks 零裹挟（refreshProgress 的 configured 归零段/庆祝改手动/Tool 色板/resident 注入照旧还原留工作区）。验证：worktree(HEAD+两文件)隔离编译绿+模拟器截帧 diff 旋转确认（球区域 3800/3400px/4秒与基线同量级）+切模块往返后继续转实证。纯iOS无发版
+
 ### feat
 - **习惯模块交互重构 V1 全链 + 痕迹「缝线日课」B 方案落地（东林全程验收拍板）** — 按方案 docs/habits/plans/2026-10-06-V1 实施 G0-G6：今天/回顾/管理三页签容器（开关 holo.habits.interactionV1.enabled 默认开=东林拍板，显式 false 回退旧磁贴墙）；今天页连续行（图标+名字+摘要=详情入口、右侧动作区独立命中、三十天缝线痕迹整行入口）、三种记录方式（打卡/计数±/测量）、撤销契约（scoped undo 撤销条+行内−双通道）、补签补记（窗口内 sign/窗口外 backfill+Plus 额度链）、暂停恢复折叠区、里程碑首播、幂等前移+重复提交控制+错误行内映射（HabitActionCoordinator）；数据层投影器（一次批量取数内存聚合：打卡连续与 repository 完全同口径含部分冻结折算、数值连续新只读口径、真实0有效）；管理页三生命周期+归档恢复；详情操作条+记录编辑+归档横幅；AddHabitSheet 三方式卡渐进配置；展示全关闭 configured.v1 标记（看板真空列表不回退「显示全部」）。10-6 真机验收四修：黑屏（VM 主线程等库→warmUp 后台就绪）/emoji 图标走 HabitIconRenderable 统一扩展/数值截断/信息密度收紧。**10-7 痕迹 B 方案「缝线日课」定稿落地**：行痕迹 7→30 天（HabitTrailDay 增暂停/今天/创建前三标记），四态形状区分不靠颜色——实针=记录、空心针=补录（东林否决回针双线后重设计）、针眼=漏做、细搭线=暂停日（不算断）、空圈=今天指针，习惯创建前空位不渲染（不是漏做）；落针/拆针动效 transition+snappy 弹簧。验证：13 个 Habit* 套件 126 测全绿（含 30 天四态断言+凌晨跑测试 hour 落未来的时钟脆弱性根治）；模拟器播种四习惯浅/深色截图逐行亲验；XCUITest「缝线打卡落针与拆针」PASS（按钮态/连续天数/今天针脚/计数/撤销条五点联动正确）。挂账：新文案「最近30天记录」英繁翻译随 1.0.9 i18n 尾。纯iOS无发版
 

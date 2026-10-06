@@ -185,8 +185,6 @@ struct HomeView: View {
             // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）
             homeContent
                 .environment(\.holoMotionSurfaceIsActive, homeMotionIsVisible)
-                .onChange(of: motionScenePhase) { _, _ in synchronizeBackgroundMotion() }
-                .onChange(of: homeMotionIsVisible) { _, _ in synchronizeBackgroundMotion() }
                 .opacity(activeScreen == nil ? 1 : 0)
                 .allowsHitTesting(activeScreen == nil)
                 .accessibilityHidden(activeScreen != nil)
@@ -904,100 +902,84 @@ struct HomeView: View {
     private var homeMotionIsVisible: Bool {
         activeScreen == nil && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage
     }
-    @State private var orbDrift: CGFloat = 0
-    @State private var arcRotation: Double = 0
-    @State private var dotTwinkle: Double = 1.0
-
     private var backgroundDecorations: some View {
-        ZStack {
-            // 中心大橙色光晕 — 缓慢浮动
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0)],
-                        center: .center, startRadius: 0, endRadius: 250
+        TimelineView(.animation(minimumInterval: 0.1, paused: !backgroundMotionActive)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            // 原参数正弦化：光晕浮动 0↔1（6s 周期）、弧线 60s/圈、闪烁 1↔0.3（4s 周期）；
+            // 相位只依赖绝对时间，跨暂停/恢复/门控翻转连续，无「转一半跳回起点」重置
+            let drift = CGFloat(0.5 + 0.5 * sin(2 * .pi * t / 6))
+            let arc = (t / 60).truncatingRemainder(dividingBy: 1) * 360
+            let twinkle = 0.65 + 0.35 * sin(2 * .pi * t / 4)
+            return ZStack {
+                // 中心大橙色光晕 — 缓慢浮动
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 250
+                        )
                     )
-                )
-                .frame(width: 500, height: 500)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .offset(y: orbDrift * 8)
-                .blur(radius: 80)
+                    .frame(width: 500, height: 500)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .offset(y: drift * 8)
+                    .blur(radius: 80)
 
-            // 右上紫 — 对向浮动
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0)],
-                        center: .center, startRadius: 0, endRadius: 210
+                // 右上紫 — 对向浮动
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 210
+                        )
                     )
-                )
-                .frame(width: 420, height: 420)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .offset(x: 100, y: -40 + orbDrift * -6)
-                .blur(radius: 65)
+                    .frame(width: 420, height: 420)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .offset(x: 100, y: -40 + drift * -6)
+                    .blur(radius: 65)
 
-            // 左下蓝 — 独立节奏
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0)],
-                        center: .center, startRadius: 0, endRadius: 190
+                // 左下蓝 — 独立节奏
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 190
+                        )
                     )
-                )
-                .frame(width: 380, height: 380)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .offset(x: -80, y: 60 + orbDrift * 10)
-                .blur(radius: 55)
+                    .frame(width: 380, height: 380)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .offset(x: -80, y: 60 + drift * 10)
+                    .blur(radius: 55)
 
-            // 装饰弧线 — 缓慢旋转
-            Circle()
-                .trim(from: 0, to: 0.3)
-                .stroke(Color.holoPrimary.opacity(0.15), style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                .frame(width: 380, height: 380)
-                .rotationEffect(.degrees(-30 + arcRotation * 0.3))
+                // 装饰弧线 — 缓慢旋转
+                Circle()
+                    .trim(from: 0, to: 0.3)
+                    .stroke(Color.holoPrimary.opacity(0.15), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    .frame(width: 380, height: 380)
+                    .rotationEffect(.degrees(-30 + arc * 0.3))
 
-            Circle()
-                .trim(from: 0.4, to: 0.7)
-                .stroke(Color.holoPurple.opacity(0.12), style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                .frame(width: 350, height: 350)
-                .rotationEffect(.degrees(60 + arcRotation * 0.5))
+                Circle()
+                    .trim(from: 0.4, to: 0.7)
+                    .stroke(Color.holoPurple.opacity(0.12), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    .frame(width: 350, height: 350)
+                    .rotationEffect(.degrees(60 + arc * 0.5))
 
-            // 弧线上的光点 — 闪烁
-            decorDot(color: .holoPrimary, size: 5, radius: 190, angle: -10, opacity: dotTwinkle)
-            decorDot(color: .holoPrimary, size: 3, radius: 190, angle: 70, opacity: dotTwinkle * 0.7)
-            decorDot(color: .holoPurple, size: 4, radius: 175, angle: 150, opacity: dotTwinkle * 0.8)
-            decorDot(color: .holoPurple, size: 3, radius: 175, angle: 210, opacity: dotTwinkle * 0.6)
-            decorDot(color: .holoInfo, size: 4, radius: 160, angle: 300, opacity: dotTwinkle * 0.9)
+                // 弧线上的光点 — 闪烁
+                decorDot(color: .holoPrimary, size: 5, radius: 190, angle: -10, opacity: twinkle)
+                decorDot(color: .holoPrimary, size: 3, radius: 190, angle: 70, opacity: twinkle * 0.7)
+                decorDot(color: .holoPurple, size: 4, radius: 175, angle: 150, opacity: twinkle * 0.8)
+                decorDot(color: .holoPurple, size: 3, radius: 175, angle: 210, opacity: twinkle * 0.6)
+                decorDot(color: .holoInfo, size: 4, radius: 160, angle: 300, opacity: twinkle * 0.9)
+            }
+            .allowsHitTesting(false)
         }
-        .allowsHitTesting(false)
         // v2：光球/弧线按手机画布设计（最大 500pt），大屏四角露黑；
         // 整组渐变无文字，缩放无损，宽屏放大铺满
         .scaleEffect(homeWidthTier == .expanded ? 1.7 : (homeWidthTier == .medium ? 1.3 : 1.0))
-        .onAppear { synchronizeBackgroundMotion() }
-        .onChange(of: brandMotionEnabled) { _, _ in synchronizeBackgroundMotion() }
     }
 
-
-    /// 光球、弧线、闪烁持续运转（不受系统减少动态效果约束，东林 2026-10-06 拍板）；
-    /// 仅在动效开关开启、前台且首页可见时播放。
-    private func synchronizeBackgroundMotion() {
-        var transaction = SwiftUI.Transaction(animation: nil)
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            orbDrift = 0
-            arcRotation = 0
-            dotTwinkle = 1
-        }
-        guard brandMotionEnabled, homeMotionIsVisible, motionScenePhase == .active else { return }
-            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-                orbDrift = 1.0
-            }
-            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) {
-                arcRotation = 360
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                dotTwinkle = 0.3
-            }
+    /// 背景光球的门：动效开关开启、首页可见、App 前台。减少动态效果不停转（2026-10-06 拍板）。
+    private var backgroundMotionActive: Bool {
+        brandMotionEnabled && homeMotionIsVisible && motionScenePhase == .active
     }
 
     /// 装饰光点
