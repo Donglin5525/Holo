@@ -118,6 +118,7 @@ class HabitRepository: ObservableObject {
             _ = context
         }
         autoResumeExpiredPausesIfNeeded()
+        HabitPauseWindowRepair.repairIfNeeded(context: context)
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil And isPaused == NO")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
@@ -141,7 +142,7 @@ class HabitRepository: ObservableObject {
     private var lastAutoResumeCheckDay: Date?
 
     private func autoResumeExpiredPausesIfNeeded() {
-        let calendar = Calendar.current
+        let calendar = HabitDayClock.calendar
         let today = calendar.startOfDay(for: Date())
         if let last = lastAutoResumeCheckDay, last == today { return }
         lastAutoResumeCheckDay = today
@@ -153,7 +154,9 @@ class HabitRepository: ObservableObject {
             guard let until = habit.pausedUntil else { continue }
             if calendar.startOfDay(for: until) <= today {
                 do {
-                    try resumeHabit(habit)
+                    // 恢复日当天也冻结：自动恢复是静默的，用户可能不知道习惯已回来
+                    // （出境深夜到点恢复实锤），恢复日漏卡不该断。手动恢复不冻结。
+                    try resumeHabit(habit, freezesResumeDay: true)
                 } catch {
                     logger.error("自动恢复暂停习惯失败: \(error)")
                 }
@@ -341,7 +344,7 @@ class HabitRepository: ObservableObject {
         if !isReady { setup() }
         guard !habit.isPaused else { return }
 
-        let calendar = Calendar.current
+        let calendar = HabitDayClock.calendar
         habit.isPaused = true
         habit.pausedUntil = until.map { calendar.startOfDay(for: $0) }
         var windows = habit.pauseWindows
@@ -358,11 +361,13 @@ class HabitRepository: ObservableObject {
     }
 
     /// 恢复暂停的习惯：窗口关到昨天（今天即回到今日清单），连续天数从冻结处接续
-    func resumeHabit(_ habit: Habit) throws {
+    /// - Parameter freezesResumeDay: 静默的定时恢复传 true，恢复日当天一并冻结
+    ///   （用户可能不知道习惯已回来）；手动恢复传默认 false，当天照常站岗
+    func resumeHabit(_ habit: Habit, freezesResumeDay: Bool = false) throws {
         if !isReady { setup() }
         guard habit.isPaused else { return }
 
-        let calendar = Calendar.current
+        let calendar = HabitDayClock.calendar
         let today = calendar.startOfDay(for: Date())
 
         habit.isPaused = false
@@ -374,7 +379,9 @@ class HabitRepository: ObservableObject {
                 // 当天暂停当天恢复：没有冻结任何一天，窗口无效不落库
                 windows.remove(at: index)
             } else {
-                windows[index].endDate = calendar.date(byAdding: .day, value: -1, to: today)
+                windows[index].endDate = freezesResumeDay
+                    ? today
+                    : calendar.date(byAdding: .day, value: -1, to: today)
             }
         }
         habit.pauseWindows = windows
@@ -1329,7 +1336,13 @@ class HabitRepository: ObservableObject {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return [:] }
 
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND deletedAt == nil", week.start as NSDate, week.end as NSDate)
+        // 打卡型周点阵口径：只认完成记录。取消打卡保留记录行（isCompleted 翻回
+        // NO 以便恢复备注），漏掉这个过滤会让取消后点阵仍把当天画成已打。
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND deletedAt == nil AND isCompleted == YES",
+            week.start as NSDate,
+            week.end as NSDate
+        )
         let records = (try? context.fetch(request)) ?? []
         guard !records.isEmpty else { return [:] }
 
@@ -1479,6 +1492,76 @@ struct DailyHabitData: Identifiable, Equatable {
         let formatter = DateFormatter()
         formatter.dateFormat = "MM-dd"
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - 习惯日历（时区钉定）
+
+/// 习惯「一天」的基准时区，钉在北京时间。
+/// 暂停窗口的起点/终点、定时恢复的到期比较都必须用同一套日界：2026-10 国庆出境期间
+/// 定时暂停在东九区到点自动恢复，窗口边界按当地零点写入，回国后天格判定整体位移，
+/// 冻结周破出半个洞导致断签。写入侧钉定后，窗口数据不再随时区漂移。
+enum HabitDayClock {
+    static var calendar: Calendar {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? calendar.timeZone
+        return calendar
+    }
+
+    static func startOfDay(_ date: Date) -> Date {
+        calendar.startOfDay(for: date)
+    }
+}
+
+// MARK: - 暂停窗口边界自愈
+
+/// 把异时区写出的非整日窗口边界对齐回北京时间整日界（起点向下取整、终点向上进位，
+/// 只放宽不收紧）。幂等：已对齐的边界不动。随数据加载运行，写坏的窗口在回国后
+/// 首次加载即被修复，无需一次性迁移。
+enum HabitPauseWindowRepair {
+    private static var calendar: Calendar { HabitDayClock.calendar }
+
+    static func repairIfNeeded(context: NSManagedObjectContext) {
+        let request = Habit.fetchRequest()
+        let habits = (try? context.fetch(request)) ?? []
+
+        var didChange = false
+        for habit in habits {
+            let windows = habit.pauseWindows
+            guard !windows.isEmpty else { continue }
+
+            var repaired: [HabitPauseWindow] = []
+            var changed = false
+            for var window in windows {
+                guard let end = window.endDate else {
+                    repaired.append(window)
+                    continue
+                }
+                let snappedStart = calendar.startOfDay(for: window.startDate)
+                var snappedEnd = calendar.startOfDay(for: end)
+                if snappedEnd != end {
+                    snappedEnd = calendar.date(byAdding: .day, value: 1, to: snappedEnd) ?? end
+                }
+                if window.startDate != snappedStart {
+                    window.startDate = snappedStart
+                    changed = true
+                }
+                if end != snappedEnd {
+                    window.endDate = snappedEnd
+                    changed = true
+                }
+                repaired.append(window)
+            }
+
+            if changed {
+                habit.pauseWindows = repaired
+                didChange = true
+            }
+        }
+
+        if didChange {
+            try? context.save()
+        }
     }
 }
 

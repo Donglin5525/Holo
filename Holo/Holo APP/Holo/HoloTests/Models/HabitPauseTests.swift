@@ -305,9 +305,11 @@ final class HabitPauseTests: XCTestCase {
         XCTAssertTrue(records.isEmpty)
     }
 
-    func test_到期自动恢复_打开即恢复且不算断() throws {
+    func test_到期自动恢复_恢复日一并冻结() throws {
         let (repo, ctx) = try makeRepo()
-        // pausedUntil = 昨天（已到期）：加载时自动恢复，窗口关到前天
+        // pausedUntil = 昨天（已到期）：加载时自动恢复，恢复日 = 今天。
+        // 自动恢复是静默的：用户可能没打开过习惯页（出境深夜到点恢复实锤），
+        // 恢复日也冻结——漏卡不断，从明天起重新站岗
         let habit = makeHabit(in: ctx, createdAt: dayStart(30))
         habit.isPaused = true
         habit.pausedUntil = dayStart(1)
@@ -318,11 +320,30 @@ final class HabitPauseTests: XCTestCase {
 
         XCTAssertFalse(habit.isPaused)
         XCTAssertTrue(repo.activeHabits.contains { $0.id == habit.id })
-        // 窗口 [3天前, 昨天]：计划昨天恢复但今天才打开 App——
-        // 关窗到昨天（没见过习惯回来的日子全冻结），今天起重新站岗
-        XCTAssertFalse(habit.isDayPaused(Date()))
+        // 窗口 [3天前, 今天]：计划昨天恢复但今天才打开 App，
+        // 昨天和今天都算没见过的日子，全冻结
+        XCTAssertEqual(habit.pauseWindows.last?.endDate, dayStart(0))
+        XCTAssertTrue(habit.isDayPaused(Date()))
         XCTAssertTrue(habit.isDayPaused(dayStart(1)))
         XCTAssertTrue(habit.isDayPaused(dayStart(2)))
+    }
+
+    func test_手动恢复_关窗到昨天_恢复日照常站岗() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, createdAt: dayStart(30))
+        habit.isPaused = true
+        // 定时暂停未到期就手动恢复：走手动语义（恢复日站岗），不触发自动恢复的冻结
+        habit.pausedUntil = Calendar.current.date(byAdding: .day, value: 3, to: Date())
+        habit.pauseWindows = [HabitPauseWindow(startDate: dayStart(3), endDate: nil)]
+        try ctx.save()
+
+        try repo.resumeHabit(habit)
+
+        // 手动恢复是用户在场操作：恢复日当天照常要求打卡，只冻结到昨天
+        XCTAssertEqual(habit.pauseWindows.last?.endDate, dayStart(1))
+        XCTAssertFalse(habit.isDayPaused(Date()))
+        XCTAssertTrue(habit.isDayPaused(dayStart(1)))
+        XCTAssertNil(habit.pausedUntil)
     }
 
     func test_未到期_不自动恢复() throws {
@@ -337,5 +358,83 @@ final class HabitPauseTests: XCTestCase {
 
         XCTAssertTrue(habit.isPaused)
         XCTAssertTrue(repo.pausedHabits.contains { $0.id == habit.id })
+    }
+
+    // MARK: - 窗口边界自愈（异时区写坏的对齐回整日）
+
+    func test_窗口修复_异时刻终点进位到次日零点() throws {
+        let (repo, ctx) = try makeRepo()
+        let calendar = Calendar.current
+        // 模拟东九区关窗写出的边界：昨天 23:00（北京时间）= 当地零点
+        let skewedEnd = calendar.date(byAdding: .hour, value: 23, to: dayStart(1))!
+        let habit = makeHabit(in: ctx, createdAt: dayStart(30))
+        habit.pauseWindows = [HabitPauseWindow(startDate: dayStart(3), endDate: skewedEnd)]
+        try ctx.save()
+
+        HabitPauseWindowRepair.repairIfNeeded(context: ctx)
+
+        // 终点进位到今天零点：昨天整天回到冻结区
+        XCTAssertEqual(habit.pauseWindows.first?.endDate, dayStart(0))
+        XCTAssertEqual(habit.pauseWindows.first?.startDate, dayStart(3))
+        XCTAssertTrue(habit.isDayPaused(dayStart(1)))
+    }
+
+    func test_窗口修复_已对齐边界幂等不动() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, createdAt: dayStart(30))
+        habit.pauseWindows = [HabitPauseWindow(startDate: dayStart(3), endDate: dayStart(1))]
+        try ctx.save()
+        let before = habit.pauseWindows
+
+        HabitPauseWindowRepair.repairIfNeeded(context: ctx)
+
+        XCTAssertEqual(habit.pauseWindows, before)
+    }
+
+    func test_窗口修复_时区破洞冻结周恢复整周冻结() throws {
+        let (repo, ctx) = try makeRepo()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let thisWeek = calendar.dateInterval(of: .weekOfYear, for: today)!
+        let lastWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: thisWeek.start)!
+
+        let habit = makeHabit(in: ctx, frequency: .weekly, createdAt: dayStart(70))
+        habit.targetCountValue = 1
+        // 前几周每周中段打卡一次
+        for weekOffset in [2, 3, 4] {
+            let weekStart = calendar.date(byAdding: .weekOfYear, value: -weekOffset, to: thisWeek.start)!
+            try makeRecord(in: ctx, habitId: habit.id, date: calendar.date(byAdding: .day, value: 3, to: weekStart)!)
+        }
+        // 上周整周暂停，但终点被异时区关窗写成周六 23:00——周日破洞，整周冻结判定失效
+        let skewedEnd = calendar.date(byAdding: .hour, value: 23, to: calendar.date(byAdding: .day, value: 5, to: lastWeekStart)!)!
+        habit.pauseWindows = [HabitPauseWindow(startDate: lastWeekStart, endDate: skewedEnd)]
+        try ctx.save()
+
+        // 破洞：上周按 0 次完成判定，连续断在暂停周
+        XCTAssertEqual(repo.calculateStreakInfo(for: habit).value, 0)
+
+        HabitPauseWindowRepair.repairIfNeeded(context: ctx)
+
+        // 修复：上周整周冻结跳过，连续从冻结处接续（当前周未达标不计，回看 3 周）
+        let info = repo.calculateStreakInfo(for: habit)
+        XCTAssertEqual(info.value, 3)
+        XCTAssertEqual(info.unit, .week)
+    }
+
+    // MARK: - 周点阵口径（取消打卡当天不算命中）
+
+    func test_周点阵_取消打卡当天不算命中() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, createdAt: dayStart(30))
+        try ctx.save()
+        repo.setup()
+
+        try repo.toggleCheckIn(for: habit)
+        XCTAssertTrue(repo.getWeekCompletionPatterns()[habit.id]?.last == true)
+
+        // 取消打卡：记录行保留（isCompleted 翻回 NO），点阵不得再把今天算命中
+        try repo.toggleCheckIn(for: habit)
+        let pattern = repo.getWeekCompletionPatterns()[habit.id]
+        XCTAssertTrue(pattern == nil || pattern?.last == false)
     }
 }
