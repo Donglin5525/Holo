@@ -49,14 +49,23 @@ struct SyncDiagnosticsView: View {
 
             summaryRow(label: String(localized: "账号状态"), value: status.accountStatusText)
             summaryRow(
+                label: String(localized: "iCloud 环境"),
+                value: CloudKitRuntimeAvailability.currentEnvironment?.displayName
+                    ?? String(localized: "未启用（当前构建不含 iCloud 同步）")
+            )
+            summaryRow(
                 label: String(localized: "CloudKit 同步能力"),
                 value: CloudKitRuntimeAvailability.isAvailable
                     ? String(localized: "已启用")
                     : String(localized: "未启用（当前构建不含 iCloud 同步）")
             )
             summaryRow(
-                label: String(localized: "最近同步成功"),
-                value: status.lastSyncTime.map(status.formatTime) ?? "—"
+                label: String(localized: "最近上传成功"),
+                value: status.lastExportTime.map(status.formatTime) ?? "—"
+            )
+            summaryRow(
+                label: String(localized: "最近接收成功"),
+                value: status.lastImportTime.map(status.formatTime) ?? "—"
             )
             summaryRow(
                 label: String(localized: "最近同步失败"),
@@ -64,14 +73,37 @@ struct SyncDiagnosticsView: View {
             )
             summaryRow(
                 label: String(localized: "当前错误"),
-                value: status.lastErrorMessage ?? String(localized: "无"),
+                value: currentErrorText,
                 isError: true
             )
+
+            // 上传正常但从未收到过云端数据：多设备场景的关键排查线索。
+            // 正式版与开发版连的是同一容器下两个隔离的数据库，两端各自「同步正常」
+            // 却互相同步不上时，先对两端的这一行。
+            if status.neverReceivedFromCloud {
+                Divider()
+                Text("本机从未从 iCloud 收到过数据。如果你在其他设备也用 Holo：请确认那台设备能正常上传，且两端连的是同一个 iCloud 环境（本机：\(CloudKitRuntimeAvailability.currentEnvironment?.displayName ?? "未知")）")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoInfo)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+    }
+
+    /// 当前错误带方向前缀（上传失败/下载失败），定位到具体链路
+    private var currentErrorText: String {
+        guard let message = status.lastErrorMessage else { return String(localized: "无") }
+        let directionPrefix: String
+        switch status.lastErrorDirection {
+        case "export": directionPrefix = String(localized: "上传失败：")
+        case "import": directionPrefix = String(localized: "下载失败：")
+        default: directionPrefix = ""
+        }
+        return directionPrefix + message
     }
 
     private func summaryRow(label: String, value: String, isError: Bool = false) -> some View {

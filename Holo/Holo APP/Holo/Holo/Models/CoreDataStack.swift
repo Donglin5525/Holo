@@ -219,19 +219,25 @@ nonisolated class CoreDataStack {
     /// 把打不开的库三件套（sqlite/-wal/-shm）改名备份，返回逐文件结果。
     /// 备份名带时间戳，多次冲突各自留底互不覆盖。
     nonisolated static func backupIncompatibleStoreFiles(at url: URL, logger: Logger) -> ConflictBackupResult {
+        moveStoreFiles(at: url, suffix: ".conflict-backup-", logger: logger)
+    }
+
+    /// 三件套改名备份的通用实现（冲突恢复与 Cloud 重拉共用）：
+    /// 备份名 = 原名 + suffix + 时间戳，可由 stripBackupSuffix 逆转。
+    nonisolated static func moveStoreFiles(at url: URL, suffix: String, logger: Logger) -> ConflictBackupResult {
         let fm = FileManager.default
         let stamp = Self.backupTimestampFormatter.string(from: Date())
         var result = ConflictBackupResult()
-        for suffix in ["", "-wal", "-shm"] {
-            let source = URL(fileURLWithPath: url.path + suffix)
+        for fileSuffix in ["", "-wal", "-shm"] {
+            let source = URL(fileURLWithPath: url.path + fileSuffix)
             guard fm.fileExists(atPath: source.path) else { continue }
             let name = source.lastPathComponent
             let backup = source.deletingLastPathComponent()
-                .appendingPathComponent(name + ".conflict-backup-" + stamp)
+                .appendingPathComponent(name + suffix + stamp)
             do {
                 try fm.moveItem(at: source, to: backup)
                 result.movedFileURLs.append(backup)
-                if suffix.isEmpty { result.hasMainFile = true }
+                if fileSuffix.isEmpty { result.hasMainFile = true }
             } catch {
                 result.failedFiles.append(source.lastPathComponent)
                 logger.error("备份 \(source.lastPathComponent, privacy: .public) 失败：\(error.localizedDescription, privacy: .public)")
@@ -246,6 +252,110 @@ nonisolated class CoreDataStack {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
+
+    // MARK: - Cloud 重拉（P2：从 iCloud 重新拉取全部数据，2026-10-06）
+
+    nonisolated static let cloudRepullBackupSuffix = ".cloudrepull-backup-"
+
+    /// P2·从 iCloud 重新拉取：卸载当前库 → 三件套备份（只保留最近一份）→ 重建空库。
+    /// 空库的 CloudKit mirroring 没有服务端游标，会自动从云端全量导入——等同新设备首连。
+    /// 备份完整性是硬前提：三件套没挪干净就把已挪走的挪回原位再抛错，绝不在中间态上重建空库。
+    func backupAndRebuildStoreForCloudRepull() async throws -> [URL] {
+        await waitUntilReady()
+        guard let container = lock.withLock({ _persistentContainer }),
+              let storeURL = container.persistentStoreDescriptions.first?.url else {
+            throw CloudRepullError.storeUnavailable
+        }
+
+        // 卸载 store：同步关闭三件套文件句柄并停掉活跃 mirroring 会话；
+        // 进程内其他读取都动态走 persistentContainer computed，清缓存后自动落到新容器
+        try unloadStores(of: container)
+
+        Self.removeCloudRepullBackups(around: storeURL)
+        let backup = Self.moveStoreFiles(at: storeURL, suffix: Self.cloudRepullBackupSuffix, logger: Self.recoveryLogger)
+        guard backup.isComplete else {
+            // 已挪走的尽力挪回原位；回滚本身失败时仍如实报告备份不完整（原数据以备份文件形态留存）
+            try? Self.revertBackupFiles(backup.movedFileURLs, logger: Self.recoveryLogger)
+            throw CloudRepullError.backupIncomplete(failed: backup.failedFiles)
+        }
+        Self.recoveryLogger.notice("Cloud 重拉：已完整备份本机库（\(backup.movedFileURLs.count) 个文件），重建空库等待云端全量导入")
+
+        try await rebuildContainerAfterStoreSwap()
+        return backup.movedFileURLs
+    }
+
+    /// P2·回滚：丢弃重拉产生的新库，把备份三件套放回原位并重建。
+    func restoreStoreFromCloudRepullBackup(_ backupFiles: [URL]) async throws {
+        await waitUntilReady()
+        guard let container = lock.withLock({ _persistentContainer }),
+              let storeURL = container.persistentStoreDescriptions.first?.url else {
+            throw CloudRepullError.storeUnavailable
+        }
+
+        try unloadStores(of: container)
+
+        // 丢弃当前库三件套（重拉产生的新库）；删不掉时后续挪回会失败并如实抛错
+        for fileSuffix in ["", "-wal", "-shm"] {
+            let url = URL(fileURLWithPath: storeURL.path + fileSuffix)
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        try Self.revertBackupFiles(backupFiles, logger: Self.recoveryLogger)
+        Self.recoveryLogger.notice("Cloud 重拉：已恢复重拉前的本机库备份")
+
+        try await rebuildContainerAfterStoreSwap()
+    }
+
+    /// 卸载容器的全部 store：同步关闭文件句柄（之后文件改名/删除才干净），
+    /// 同时清空 viewContext 待处理更改。
+    private func unloadStores(of container: NSPersistentContainer) throws {
+        container.viewContext.reset()
+        let coordinator = container.persistentStoreCoordinator
+        for store in coordinator.persistentStores {
+            try coordinator.remove(store)
+        }
+    }
+
+    /// 清空容器缓存并触发懒重建（新库装载 + CloudKit mirroring 启动），等待新库 settle
+    private func rebuildContainerAfterStoreSwap() async throws {
+        lock.withLock {
+            _persistentContainer = nil
+            _storeLoaded = false
+            _storeLoadSettled = false
+            _storeLoadError = nil
+        }
+        _ = persistentContainer
+        await waitUntilReady()
+        if let error = storeLoadError() {
+            throw CloudRepullError.rebuildFailed(error)
+        }
+    }
+
+    /// 把备份三件套按命名规则逆转回原名（原名 = 备份名去掉「suffix + 时间戳」尾段）
+    nonisolated static func revertBackupFiles(_ backupURLs: [URL], logger: Logger) throws {
+        for backup in backupURLs {
+            let name = backup.lastPathComponent
+            guard let range = name.range(of: cloudRepullBackupSuffix) else { continue }
+            let originalName = String(name[..<range.lowerBound])
+            let destination = backup.deletingLastPathComponent().appendingPathComponent(originalName)
+            do {
+                try FileManager.default.moveItem(at: backup, to: destination)
+            } catch {
+                logger.fault("Cloud 重拉备份恢复失败：\(name) → \(originalName)：\(error.localizedDescription, privacy: .public)")
+                throw CloudRepullError.restoreFailed(name)
+            }
+        }
+    }
+
+    /// 只保留最近一份重拉备份：开始新备份前清掉历史重拉备份（含三件套各文件）
+    nonisolated static func removeCloudRepullBackups(around storeURL: URL) {
+        let directory = storeURL.deletingLastPathComponent()
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return }
+        for file in files where file.contains(cloudRepullBackupSuffix) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+        }
+    }
 
     // MARK: - 冲突恢复用户可见状态（D03，2026-10-04 体检）
 
@@ -617,6 +727,32 @@ extension NSManagedObjectContext {
         // 保存剩余数据
         if !hasChanges {
             try save()
+        }
+    }
+}
+
+/// Cloud 重拉（P2）的失败形态：每一条都如实对应一个可诊断的断点，
+/// 不用笼统的 unknown error 掩盖具体环节。
+enum CloudRepullError: LocalizedError {
+    /// 容器/库地址不可得（理论上仅出现在启动未完成的极短窗口）
+    case storeUnavailable
+    /// 三件套没备份完整：绝不允许在此状态重建空库（原文件已尝试挪回）
+    case backupIncomplete(failed: [String])
+    /// 备份文件恢复失败（文件名）：当前库已被丢弃，这是最严重的状态，需要人工救援
+    case restoreFailed(String)
+    /// 重建后的新库装载失败（底层错误）
+    case rebuildFailed(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .storeUnavailable:
+            return String(localized: "本机数据库尚未就绪，请稍后重试")
+        case .backupIncomplete(let failed):
+            return String(localized: "备份本机数据未完成（") + failed.joined(separator: ", ") + String(localized: "），已保持原样，未做任何改动")
+        case .restoreFailed(let file):
+            return String(localized: "恢复备份失败（") + file + String(localized: "），请勿退出本页并联系支持")
+        case .rebuildFailed(let error):
+            return String(localized: "重建本机数据库失败：") + error.localizedDescription
         }
     }
 }

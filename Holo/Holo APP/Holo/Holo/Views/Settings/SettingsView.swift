@@ -76,6 +76,42 @@ struct SettingsView: View {
         }
     }
 
+    /// iCloud 同步区块的上传/下载方向行：进行中转圈、成功带时间、失败带原因，
+    /// 单方向四态互斥（数据来自 ICloudSyncStatusService 的 DirectionStatusLine）
+    private func syncDirectionRow(line: ICloudSyncStatusService.DirectionStatusLine, iconName: String) -> some View {
+        HStack(spacing: HoloSpacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .fill(line.hasError ? Color.holoError.opacity(0.1) : Color.holoPrimary.opacity(0.1))
+                    .frame(width: 40, height: 40)
+
+                if line.isInProgress {
+                    ProgressView()
+                        .tint(.blue)
+                } else {
+                    Image(systemName: iconName)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(line.hasError ? .holoError : .holoPrimary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.title)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+
+                Text(line.detail)
+                    .font(.system(size: 12))
+                    .foregroundColor(line.hasError ? .holoError : .holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 12)
+    }
+
     // MARK: - Observed Objects
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
@@ -519,6 +555,8 @@ struct SettingsView: View {
 
     @State private var iCloudRefreshToast: String?
     @State private var showSyncDiagnostics = false
+    @State private var showCloudRepullConfirm = false
+    @State private var showCloudRepull = false
 
     private var iCloudSyncSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -564,44 +602,26 @@ struct SettingsView: View {
                 Divider()
                     .padding(.leading, 56)
 
-                // 同步状态
-                HStack(spacing: HoloSpacing.md) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(iCloudSyncStatus.isSyncing ? Color.blue.opacity(0.1) : Color.holoPrimary.opacity(0.1))
-                            .frame(width: 40, height: 40)
+                // 同步状态：上传/下载两个方向各自可见——
+                // 「已上传本机数据」不再盖住「从未收到过云端数据」，开始（转圈）与结束（时间/失败）都看得见
+                syncDirectionRow(
+                    line: iCloudSyncStatus.exportStatusLine,
+                    iconName: "icloud.and.arrow.up"
+                )
 
-                        if iCloudSyncStatus.isSyncing {
-                            ProgressView()
-                                .tint(.blue)
-                        } else {
-                            Image(systemName: "icloud.and.arrow.down")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.holoPrimary)
-                        }
-                    }
+                Divider()
+                    .padding(.leading, 56)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("同步状态")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                syncDirectionRow(
+                    line: iCloudSyncStatus.importStatusLine,
+                    iconName: "icloud.and.arrow.down"
+                )
 
-                        Text(iCloudSyncStatus.statusDisplayText)
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-
-                        Text(iCloudSyncStatus.syncStatusDetailText)
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary.opacity(0.75))
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, 12)
-
-                // 同步自检指引：账号可用但本机从未完成过任何同步事件，多半是系统
-                // 设置里 Holo 的 iCloud 权限被关——给出明确指引，不再静默等待
+                // 同步自检指引：账号可用但从未收到过云端数据。
+                // 分支一：连上传都没发生过 → 大概率是系统设置里 Holo 的 iCloud 权限被关；
+                // 分支二：上传正常但从未收到 → 大概率是另一台设备没在上传（或两端连的
+                // 不是同一个 iCloud 环境：一边开发版一边正式版）——旧版在这里只会显示
+                // 「已上传本机数据」，把真正的问题完全盖住。
                 if iCloudSyncStatus.isInitialSyncPending {
                     Divider()
                         .padding(.leading, 56)
@@ -612,53 +632,24 @@ struct SettingsView: View {
                                 .fill(Color.holoInfo.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
-                            Image(systemName: "icloud.slash")
+                            Image(systemName: iCloudSyncStatus.neverReceivedFromCloud ? "icloud.and.arrows" : "icloud.slash")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.holoInfo)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("同步尚未开始")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+                            Text(iCloudSyncStatus.neverReceivedFromCloud ? "还未收到云端数据" : "同步尚未开始")
+                                .holoText(.body)
+                                .foregroundColor(.holoToolText)
 
-                            Text("请在 系统设置 → 顶部你的名字 → iCloud → 保存到 iCloud 中，确认 Holo 的开关已打开")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
-                                .lineLimit(3)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, HoloSpacing.md)
-                    .padding(.vertical, 12)
-                }
-
-                // 错误信息
-                if iCloudSyncStatus.lastErrorMessage != nil {
-                    Divider()
-                        .padding(.leading, 56)
-
-                    HStack(spacing: HoloSpacing.md) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                .fill(Color.holoError.opacity(0.1))
-                                .frame(width: 40, height: 40)
-
-                            Image(systemName: "exclamationmark.icloud")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.holoError)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("最近错误")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
-
-                            Text(iCloudSyncStatus.lastErrorMessage ?? "")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoError)
-                                .lineLimit(2)
+                            Text(
+                                iCloudSyncStatus.neverReceivedFromCloud
+                                    ? "本机数据已上传 iCloud，但从未收到过云端数据。如果你在其他设备也用 Holo，请检查那台设备的同步状态；正式版与开发版连的是两个不同的 iCloud 数据库，数据互不可见"
+                                    : "请在 系统设置 → 顶部你的名字 → iCloud → 保存到 iCloud 中，确认 Holo 的开关已打开"
+                            )
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
 
                         Spacer()
@@ -733,8 +724,8 @@ struct SettingsView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(iCloudSyncStatus.isRefreshing ? String(localized: "正在请求同步…") : String(localized: "请求同步并检查状态"))
-                                .font(.holoBody)
+                            Text(iCloudSyncStatus.isRefreshing ? String(localized: "正在同步…") : String(localized: "立即同步"))
+                                .holoText(.body)
                                 .foregroundColor(.holoInfo)
 
                             if let toast = iCloudRefreshToast {
@@ -773,32 +764,90 @@ struct SettingsView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("同步诊断")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+                                .holoText(.body)
+                                .foregroundColor(.holoToolText)
 
                             Text("查看同步状态与最近的错误记录")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
 
                         Spacer()
 
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoTextSecondary.opacity(0.5))
+                            .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                     }
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.vertical, 12)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+
+                // 从 iCloud 重新拉取（P2）：以云端为准重建本机库。有备份护栏，
+                // 放在同步诊断之后——常规用户永远不需要点它，换机/数据可疑时它是救命入口。
+                if CloudKitRuntimeAvailability.isAvailable {
+                    Divider()
+                        .padding(.leading, 56)
+
+                    Button {
+                        showCloudRepullConfirm = true
+                    } label: {
+                        HStack(spacing: HoloSpacing.md) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                    .fill(Color.holoPrimary.opacity(0.1))
+                                    .frame(width: 40, height: 40)
+
+                                Image(systemName: "arrow.triangle.2.circlepath.icloud")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.holoPrimary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("从 iCloud 重新拉取")
+                                    .holoText(.body)
+                                    .foregroundColor(.holoToolText)
+
+                                Text("以云端数据为准覆盖本机（自动备份，可恢复）")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.holoToolTextSecondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
+                        }
+                        .padding(.horizontal, HoloSpacing.md)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .alert("从 iCloud 重新拉取全部数据", isPresented: $showCloudRepullConfirm) {
+                        Button("取消", role: .cancel) {}
+                        Button("开始拉取", role: .destructive) {
+                            showCloudRepull = true
+                        }
+                    } message: {
+                        Text("本机当前数据将被删除，并用 iCloud 云端数据完整替换。开始前会自动备份本机数据，完成后可一键恢复。此过程需要保持网络连接，可能需要几分钟，期间不建议使用其他功能。")
+                    }
+                }
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             .sheet(isPresented: $showSyncDiagnostics) {
                 NavigationStack {
                     SyncDiagnosticsView()
                 }
+            }
+            .fullScreenCover(isPresented: $showCloudRepull) {
+                CloudRepullView()
+                    .task {
+                        // 弹层即启动：确认弹层是唯一的入口闸，这里不再二次确认
+                        await CloudRepullService.shared.start()
+                    }
             }
             // 手动同步的真实结果异步到达（探针上传事件落地或超时），转发到按钮下的提示位
             .onReceive(iCloudSyncStatus.$refreshToast) { toast in
