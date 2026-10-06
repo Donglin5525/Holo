@@ -1195,8 +1195,20 @@ class HabitRepository: ObservableObject {
                 checkPeriodStart = prevPeriod
                 continue
             }
+            // 部分冻结的周期：冻结日不承担打卡义务，目标按可打卡天数比例折算（向上取整）。
+            // 暂停横跨周格时（如周日为一周之始，9/28~10/4 盖住上礼拜 6/7 天），砍剩一两天的
+            // 周期仍按满额目标判负必然误伤——冻结语义必须同时作用于天数和目标。
+            let periodDays = calendar.dateComponents([.day], from: checkPeriodStart, to: periodEnd).day ?? 0
+            let lastDay = calendar.date(byAdding: .day, value: -1, to: periodEnd) ?? checkPeriodStart
+            let frozenDays = pausedDayCount(for: habit, in: checkPeriodStart...lastDay)
+            let effectiveTarget: Int
+            if frozenDays > 0, periodDays > 0 {
+                effectiveTarget = max(1, Int(ceil(Double(target) * Double(periodDays - frozenDays) / Double(periodDays))))
+            } else {
+                effectiveTarget = target
+            }
             let count = periodCount(habit, checkPeriodStart, periodEnd)
-            guard count >= target else { break }
+            guard count >= effectiveTarget else { break }
 
             streak += 1
             guard let prevPeriod = calendar.date(byAdding: periodComponent, value: -1, to: checkPeriodStart) else { break }

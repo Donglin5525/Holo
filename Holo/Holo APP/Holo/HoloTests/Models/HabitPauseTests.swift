@@ -438,3 +438,4 @@ final class HabitPauseTests: XCTestCase {
         XCTAssertTrue(pattern == nil || pattern?.last == false)
     }
 }
+
