@@ -51,14 +51,20 @@ struct FinanceSettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
-                    // 记账周期模块
-                    billingCycleSection
+                    // 排序原则：干活的入口在上（分类管理/图片记账为最高频）、
+                    // 设一次不太动的开关居中、危险区永远垫底（2026-10-06 东林反馈重排）
 
-                    // 图片自动记账（快捷指令入口，2026-09-14 方案 §11）
+                    // 分类管理（最高频，置顶）
+                    categorySection
+
+                    // 图片自动记账（高频入口，账本页顶栏另有直达）
                     automationSection
 
                     // 预算模块
                     strictBudgetSection
+
+                    // 记账周期模块
+                    billingCycleSection
 
                     // 显示设置模块
                     displaySection
@@ -68,9 +74,6 @@ struct FinanceSettingsView: View {
 
                     // 危险区：清空财务数据（进 30 天回收站，设置-数据管理-最近删除可恢复）
                     clearDataSection
-
-                    // 分类管理模块
-                    categorySection
                 }
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
@@ -165,7 +168,8 @@ private extension FinanceSettingsView {
 private extension FinanceSettingsView {
 
     var automationSection: some View {
-        HoloSettingsSection(title: "自动化") {
+        // 直呼功能名不包「自动化」抽象分组：设置页里它是高频入口而非低频概念
+        HoloSettingsSection(title: "图片自动记账") {
             NavigationLink {
                 ReceiptBookingSettingsView()
             } label: {

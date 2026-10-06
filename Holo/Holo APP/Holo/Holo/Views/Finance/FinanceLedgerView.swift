@@ -54,6 +54,15 @@ struct FinanceLedgerView: View {
     /// 预算总览卡点击 → 预算详情页（2026-09-27 方案一期入口）
     @State private var showBudgetDetail: Bool = false
 
+    // --- 图片自动记账（顶栏直达，2026-10-06 东林反馈「放出来」） ---
+    /// 有待复核直达复核列表
+    @State private var showReceiptReviewList: Bool = false
+    /// 无待复核进图片记账页（最近结果 / 快捷指令设置）
+    @State private var showReceiptBookingEntry: Bool = false
+    /// 待复核数量：顶栏按钮角标，不进设置页也能看见「有账等你确认」
+    @State private var receiptDraftCount: Int = 0
+    @Environment(\.scenePhase) private var scenePhase
+
     /// iPad 双栏（方案 2A）：宽屏左账本 + 右详情面板；记录在右栏核对与处理，
     /// 账本侧的日期、筛选、滚动位置在切换记录时保持不动。
     @Environment(\.holoContentWidth) private var ledgerContentWidth
@@ -229,6 +238,22 @@ struct FinanceLedgerView: View {
         .onChange(of: searchTrigger) { _, _ in
             showSearch = true
         }
+        // 图片自动记账：有待复核直达复核列表，无则进图片记账页（与 FinanceView 深链同款弹层）
+        .sheet(isPresented: $showReceiptReviewList, onDismiss: refreshReceiptDraftCount) {
+            ReceiptReviewListView()
+                .holoSheetWidth(.form)
+        }
+        .sheet(isPresented: $showReceiptBookingEntry, onDismiss: refreshReceiptDraftCount) {
+            NavigationStack {
+                ReceiptBookingSettingsView()
+            }
+            .holoSheetWidth(.form)
+        }
+        // 角标刷新：进页 + 回前台（快捷指令多在 App 后台跑完，草稿在后台落盘）
+        .onAppear { refreshReceiptDraftCount() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshReceiptDraftCount() }
+        }
         // 复制交易日期选择
         .sheet(item: $copyingTransaction) { tx in
             NavigationStack {
@@ -304,6 +329,37 @@ struct FinanceLedgerView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
+                    // 图片自动记账按钮：待复核有账时挂数字角标；
+                    // 点击有待复核直达复核列表，无则进图片记账页
+                    Button {
+                        if receiptDraftCount > 0 {
+                            showReceiptReviewList = true
+                        } else {
+                            showReceiptBookingEntry = true
+                        }
+                    } label: {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.holoToolSurface)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                            .overlay(alignment: .topTrailing) {
+                                if receiptDraftCount > 0 {
+                                    Text(receiptDraftCount >= 100 ? "99+" : "\(receiptDraftCount)")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(Color.holoError))
+                                        .fixedSize()
+                                        .offset(x: 4, y: -3)
+                                }
+                            }
+                    }
+                    .accessibilityLabel(Text("图片自动记账"))
+
                     // 搜索按钮
                     Button { showSearch = true } label: {
                         Image(systemName: "magnifyingglass")
@@ -363,6 +419,11 @@ struct FinanceLedgerView: View {
         if calendarState.selectedDate.isToday { return String(localized: "今日账本") }
         let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMMd")
         return f.string(from: calendarState.selectedDate)
+    }
+
+    /// 待复核角标刷新：读草稿目录计数（轻量小文件，与设置页同款口径）
+    private func refreshReceiptDraftCount() {
+        receiptDraftCount = ReceiptBookingResultStore.shared.loadDrafts().count
     }
     
     // MARK: - 拖拽手柄（控制月历展开/收起）
