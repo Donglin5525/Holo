@@ -40,27 +40,45 @@ class HabitRepository: ObservableObject {
     @Published private(set) var isReady: Bool = false
     
     // MARK: - Properties
-    
+
     /// 主上下文（延迟初始化，避免进入模块前就阻塞主线程）
     lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
-    
+
+    /// 是否监听共享库远程变更（仅主 App 进程为 true）
+    private let observesRemoteChanges: Bool
+
+    /// 就绪门判定覆写（仅供单测注入；nil = 生产默认判定）
+    private let readinessGateOverride: (() -> Bool)?
+
     // MARK: - Initialization
-    
-    private init() { observesRemoteChanges = true }
+
+    private init() {
+        observesRemoteChanges = true
+        readinessGateOverride = nil
+    }
 
     /// 注入自定义 context（测试用 in-memory；生产仍走 shared 单例）
     /// 与 Finance/Todo/Thought 等其他 Repository 保持一致的注入入口，
     /// 用于在不污染单例的前提下跑隔离测试。
     /// observesRemoteChanges 传 false 供小组件扩展进程使用：远程变更判定需要
     /// 比对主 App 共享 viewContext，而触碰它会在扩展进程内把 App 容器建出来。
-    init(context: NSManagedObjectContext, observesRemoteChanges: Bool = true) {
+    /// readinessGateOverride 仅供就绪门单测注入；生产实例一律走默认判定。
+    init(context: NSManagedObjectContext, observesRemoteChanges: Bool = true,
+         readinessGateOverride: (() -> Bool)? = nil) {
         // lazy 属性须在全部存储属性初始化后再赋值，顺序不能颠倒
         self.observesRemoteChanges = observesRemoteChanges
+        self.readinessGateOverride = readinessGateOverride
         self.context = context
     }
 
-    /// 是否监听共享库远程变更（仅主 App 进程为 true）
-    private let observesRemoteChanges: Bool
+    /// 就绪门：共享 store 未装载完成期间，对 viewContext 的任何 fetch 都会同步
+    /// 等待装载队列、阻塞调用线程（2026-09-17 三方锁与 2026-10-06 模块黑屏同源）。
+    /// 生产语义下只有「用共享主上下文 + store 未就绪」的实例需要推迟；
+    /// 注入独立 context 的测试实例天然旁路，共享 store 装载完成后恒放行。
+    func shouldDeferSetup() -> Bool {
+        if let readinessGateOverride { return readinessGateOverride() }
+        return context === CoreDataStack.shared.viewContext && !CoreDataStack.shared.isReady
+    }
 
     /// Repository 的资源都由 ARC/Core Data 自行释放，无需切回主执行器做析构。
     /// 显式使用 nonisolated 可避开旧系统兼容析构 thunk 在 XCTest 宿主中的重复释放崩溃。
@@ -68,10 +86,40 @@ class HabitRepository: ObservableObject {
 
     func setup() {
         guard !isReady else { return }
+        // 就绪门：store 未装载完成时推迟（绝不在此阻塞调用线程），
+        // 排队等就绪后补跑并广播，拦截期间已上屏的空列表视图自动拿到数据。
+        // 18 处「用到才初始化」调用点全部经此漏斗，一处设卡全量受护。
+        if shouldDeferSetup() {
+            scheduleDeferredSetup()
+            return
+        }
+        performSetupNow()
+    }
+
+    /// 就绪门放行后的实际初始化（不走门，供排队补跑复用；
+    /// store 加载失败终态下照常执行——fetch 进 catch 落空列表，不构成循环）
+    private func performSetupNow() {
         _ = context
         registerRemoteChangeRefreshIfNeeded()
-        loadActiveHabits()
+        performLoadActiveHabits()
         isReady = true
+    }
+
+    /// 就绪门排队（幂等）：挂起协程等 store 装载终态（成功或失败均会返回），
+    /// 完成后补跑 setup 并广播一次。绝不阻塞任何线程。
+    private var deferredSetupInFlight = false
+
+    private func scheduleDeferredSetup() {
+        guard !deferredSetupInFlight else { return }
+        deferredSetupInFlight = true
+        Task { [weak self] in
+            await CoreDataStack.shared.waitUntilReady()
+            guard let self else { return }
+            self.deferredSetupInFlight = false
+            guard !self.isReady else { return }
+            self.performSetupNow()
+            NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
+        }
     }
 
     // MARK: - iCloud 远程变更刷新
@@ -113,10 +161,19 @@ class HabitRepository: ObservableObject {
     // MARK: - 数据加载
 
     /// 加载活跃习惯列表（暂停中的不进 activeHabits：看板/通知/小组件/AI 上下文都从这里取数，暂停即全链路安静）
+    /// 外部直呼入口（GoalRepository/看板/GoalWorkshop/AI 数据源）同样过就绪门：
+    /// store 未装载时排队随 deferred setup 补跑，绝不阻塞调用线程。
     func loadActiveHabits() {
-        if !isReady {
-            _ = context
+        if shouldDeferSetup() {
+            scheduleDeferredSetup()
+            return
         }
+        performLoadActiveHabits()
+    }
+
+    /// 就绪门放行后的实际加载（旧实现这里的 `if !isReady { _ = context }` 是
+    /// 「触碰 viewContext 阻塞等装载」的等待 hack，正是本门要消灭的阻塞点）
+    private func performLoadActiveHabits() {
         autoResumeExpiredPausesIfNeeded()
         HabitPauseWindowRepair.repairIfNeeded(context: context)
         let request = Habit.fetchRequest()
@@ -202,6 +259,13 @@ class HabitRepository: ObservableObject {
 
     /// 根据 ID 查找习惯（目标数据源等跨模块引用用）
     func findHabit(by id: UUID) -> Habit? {
+        // 就绪门：深链/推送冷启动直达详情会在装载完成前走到这里，
+        // 宁可短暂返回 nil（弹层兜底文案，deferred setup 广播后视图刷新自愈）
+        // 也不在主线程同步等装载队列。
+        if shouldDeferSetup() {
+            scheduleDeferredSetup()
+            return nil
+        }
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1

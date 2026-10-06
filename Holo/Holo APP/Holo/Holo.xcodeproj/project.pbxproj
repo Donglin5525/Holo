@@ -300,6 +300,7 @@
 		B71FE0A12F6A4C1E9D2B0002 /* HabitLifetimeTotalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0001 /* HabitLifetimeTotalTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0004 /* HabitStreakTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0003 /* HabitStreakTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0106 /* HabitPauseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0105 /* HabitPauseTests.swift */; };
+		B71FE0A12F6A4C1E9D2B0204 /* HabitRepositoryReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0203 /* HabitRepositoryReadinessTests.swift */; };
 		B71FE0A12F6A4C1E9D2C0002 /* HabitTypeConversionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2C0001 /* HabitTypeConversionTests.swift */; };
 		B71FE0A12F6A4C1E9D2D0002 /* HighlightDetectorBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2D0001 /* HighlightDetectorBatchTests.swift */; };
 		B823CFF61B19E8075CC1CB35 /* HoloProfileToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F5DD88C8E720D0DE219D78 /* HoloProfileToolTests.swift */; };
@@ -753,6 +754,7 @@
 		B71FE0A12F6A4C1E9D2B0001 /* HabitLifetimeTotalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitLifetimeTotalTests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2B0003 /* HabitStreakTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitStreakTests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2B0105 /* HabitPauseTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPauseTests.swift; sourceTree = "<group>"; };
+		B71FE0A12F6A4C1E9D2B0203 /* HabitRepositoryReadinessTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitRepositoryReadinessTests.swift; sourceTree = "<group>"; };
 		HBV1TEST0000000000000001 /* HabitPresentationProjectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPresentationProjectorTests.swift; sourceTree = "<group>"; };
 		HBV1TEST0000000000000002 /* HabitRetroactivePolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitRetroactivePolicyTests.swift; sourceTree = "<group>"; };
 		HBV1TEST0000000000000003 /* HabitActionCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitActionCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -1071,6 +1073,7 @@
 				HBV1TEST0000000000000002 /* HabitRetroactivePolicyTests.swift */,
 				B71FE0A12F6A4C1E9D2B0003 /* HabitStreakTests.swift */,
 				B71FE0A12F6A4C1E9D2B0105 /* HabitPauseTests.swift */,
+				B71FE0A12F6A4C1E9D2B0203 /* HabitRepositoryReadinessTests.swift */,
 				B71FE0A12F6A4C1E9D2C0001 /* HabitTypeConversionTests.swift */,
 				B71FE0A12F6A4C1E9D2D0001 /* HighlightDetectorBatchTests.swift */,
 				AA1E5A12F6A4C1E9D2B0001 /* NewUserActivationStateTests.swift */,
@@ -1913,6 +1916,7 @@
 				B71FE0A12F6A4C1E9D2B0002 /* HabitLifetimeTotalTests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0004 /* HabitStreakTests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0106 /* HabitPauseTests.swift in Sources */,
+				B71FE0A12F6A4C1E9D2B0204 /* HabitRepositoryReadinessTests.swift in Sources */,
 				HBV1TEST0000000000000011 /* HabitPresentationProjectorTests.swift in Sources */,
 				HBV1TEST0000000000000012 /* HabitRetroactivePolicyTests.swift in Sources */,
 				HBV1TEST0000000000000013 /* HabitActionCoordinatorTests.swift in Sources */,
