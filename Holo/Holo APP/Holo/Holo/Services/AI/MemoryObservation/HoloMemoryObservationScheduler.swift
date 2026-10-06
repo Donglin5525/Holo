@@ -160,7 +160,7 @@ actor HoloMemoryObservationScheduler {
         }
         return HoloMemorySchedulerDebugSnapshot(
             targets: snapshots,
-            aiCallsToday: state.aiCallDates.filter { Self.isSameDayUTC($0, now) }.count,
+            aiCallsToday: state.aiCallDates.filter { Self.isSameLocalDay($0, now) }.count,
             dailyCallLimit: dailyCallLimit,
             isRunning: isRunning
         )
@@ -211,7 +211,7 @@ actor HoloMemoryObservationScheduler {
             return [.dataProcessingConsentMissing]
         }
 
-        let todayCalls = state.aiCallDates.filter { Self.isSameDayUTC($0, now) }.count
+        let todayCalls = state.aiCallDates.filter { Self.isSameLocalDay($0, now) }.count
         var effectiveResources = resourceSnapshot
         effectiveResources.dailyAICallCount += todayCalls
         if case .deferred(let reason) = HoloMemoryResourceBudget.evaluate(effectiveResources) {
@@ -225,7 +225,7 @@ actor HoloMemoryObservationScheduler {
 
         var events: [HoloMemorySchedulerEvent] = []
         for entry in ready {
-            let callsToday = state.aiCallDates.filter { Self.isSameDayUTC($0, now) }.count
+            let callsToday = state.aiCallDates.filter { Self.isSameLocalDay($0, now) }.count
             if resourceSnapshot.dailyAICallCount + callsToday >= resourceSnapshot.dailyAICallLimit {
                 events.append(.deferredByResource(.dailyBudgetExhausted))
                 break
@@ -301,7 +301,7 @@ actor HoloMemoryObservationScheduler {
                 let previousAttempt = state.retryByObservationKey[key]?.attempt ?? 0
                 let attempt = previousAttempt + 1
                 let delay = error is HoloMemoryCommitValidationRefused
-                    ? Self.secondsUntilNextUTCDay(now)
+                    ? Self.secondsUntilNextLocalDay(now)
                     : min(pow(2, Double(attempt - 1)) * 60, 6 * 60 * 60)
                 let retryAt = now.addingTimeInterval(delay)
                 state.retryByObservationKey[key] = HoloMemoryRetryState(
@@ -329,11 +329,12 @@ actor HoloMemoryObservationScheduler {
         now: Date
     ) -> Bool {
         guard let last = state.lastSuccessfulAtByTarget[target.stableKey] else { return false }
-        var calendar = Calendar(identifier: .iso8601)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        // 频控的「天/周」是用户生活日历，跟设备本地时区；钉 UTC 会让北京下午起
+        // 「新的一天」提前到来，每域一天被跑两次（2026-10-06 成本体检实锤）。
+        let calendar = Calendar.current
         switch target {
         case .domain:
-            return Self.isSameDayUTC(last, now)
+            return calendar.isDate(last, inSameDayAs: now)
         case .crossDomain:
             let lhs = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: last)
             let rhs = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
@@ -347,16 +348,12 @@ actor HoloMemoryObservationScheduler {
         defaults.set(data, forKey: stateKey)
     }
 
-    private nonisolated static func isSameDayUTC(_ lhs: Date, _ rhs: Date) -> Bool {
-        var calendar = Calendar(identifier: .iso8601)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        return calendar.dateComponents([.year, .month, .day], from: lhs) ==
-            calendar.dateComponents([.year, .month, .day], from: rhs)
+    private nonisolated static func isSameLocalDay(_ lhs: Date, _ rhs: Date) -> Bool {
+        Calendar.current.isDate(lhs, inSameDayAs: rhs)
     }
 
-    private nonisolated static func secondsUntilNextUTCDay(_ now: Date) -> TimeInterval {
-        var calendar = Calendar(identifier: .iso8601)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    private nonisolated static func secondsUntilNextLocalDay(_ now: Date) -> TimeInterval {
+        let calendar = Calendar.current
         let nextMidnight = calendar.nextDate(
             after: now,
             matching: DateComponents(hour: 0, minute: 0),

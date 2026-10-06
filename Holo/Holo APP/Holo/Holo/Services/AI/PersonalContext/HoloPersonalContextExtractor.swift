@@ -142,12 +142,16 @@ nonisolated enum HoloPersonalContextPromptBuilder {
             fields += ",\"plainText\":\(jsonString(segment.text))"
             lines.append("{" + fields + "}")
         }
-        let existing = existingCandidates.map { payload in
-            "{\"contextID\":\(jsonString(payload.contextID)),\"statement\":\(jsonString(payload.statement))}"
-        }
+        let existing = existingCandidates
+            .sorted { $0.contextID < $1.contextID }
+            .map { payload in
+                "{\"contextID\":\(jsonString(payload.contextID)),\"statement\":\(jsonString(payload.statement))}"
+            }
         let sourcesJSON = lines.joined(separator: ",")
         let existingJSON = existing.joined(separator: ",")
-        return "{\"sources\":[" + sourcesJSON + "],\"existingCandidates\":[" + existingJSON + "]}"
+        // existingCandidates 是跨包稳定块：按 contextID 钉死排序并置于 JSON 开头，
+        // 相邻包之间请求前缀一致，上下文缓存按命中价（约原价 2%-4%）计费。
+        return "{\"existingCandidates\":[" + existingJSON + "],\"sources\":[" + sourcesJSON + "]}"
     }
 
     /// 核验 prompt：候选声明 + 引用原文片段；批量（每包候选上限 16）。
@@ -240,6 +244,9 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     static let candidatesPerPackageLimit = 16
     /// 页大小（方案 §6 初始预算：源分页 50）。
     static let pageSize = 50
+    /// 发给模型的既有候选上限（宽召回超量时的截断闸）：当前库容远低于此，正常
+    /// 使用下预筛即全量；上限把「请求体积随情境记录增长」的曲线钉成恒定。
+    static let promptCandidateLimit = 300
 
     let paging: any HoloContextSourcePaging
     let llm: any HoloPersonalContextLLMCalling
@@ -343,8 +350,15 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             var batchRecords: [HoloMemoryRecord] = []
 
             // 萃取调用（每包重读既有记录：同页先处理包的产出参与后续包归并）。
+            // Reconciler 本地归并用全量 existingRecords；发给模型的候选清单走宽召回
+            // 预筛（同域/文字重合/近 7 天三路并集 + 上限），请求体积不随库无限增长。
             let existingRecords = try await writer.existingContextRecords()
-            let existingCandidates = existingRecords.compactMap(\.personalContext?.v1)
+            let existingCandidates = Self.promptCandidatePayloads(
+                from: existingRecords,
+                package: package,
+                sourcesByID: sourcesByID,
+                now: now
+            )
             let extractionRaw = try await llm.extract(
                 prompt: HoloPersonalContextPromptBuilder.extractionPrompt(
                     packageSegments: package,
@@ -462,6 +476,66 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         try await writer.saveCursor(cursor, domain: domain)
 
         return outcome
+    }
+
+    // MARK: - 模型候选预筛（宽召回）
+
+    /// 发给模型的既有候选：同域全带 ∪ 文字重合 ∪ 近 7 天更新，超上限按
+    /// 重合 > 同域 > 近期 > 更新时间截断。本地 Reconciler 归并不受此影响
+    /// （它拿全量 existingRecords）；预筛只作用于请求文本。
+    static func promptCandidatePayloads(
+        from records: [HoloMemoryRecord],
+        package: [HoloContextSegment],
+        sourcesByID: [String: HoloContextSourceSnapshot],
+        now: Date
+    ) -> [HoloPersonalContextPayloadV1] {
+        guard !records.isEmpty else { return [] }
+        let packageDomains = Set(
+            package.compactMap { sourcesByID[$0.sourceID]?.sourceDomain }
+        )
+        let packageBigrams = Self.bigrams(
+            package.map(\.text).joined()
+        )
+        let recentCutoff = now.addingTimeInterval(-7 * 86_400)
+
+        let scored = records.map { record -> (record: HoloMemoryRecord, overlap: Bool, sameDomain: Bool, recent: Bool) in
+            let payload = record.personalContext?.v1
+            return (
+                record,
+                payload.map { !Self.bigrams($0.statement).isDisjoint(with: packageBigrams) } ?? false,
+                record.primaryDomain.map { packageDomains.contains($0.rawValue) } ?? false,
+                record.updatedAt >= recentCutoff
+            )
+        }
+
+        let recall = scored.filter { $0.overlap || $0.sameDomain || $0.recent }
+        var selected: [(record: HoloMemoryRecord, overlap: Bool, sameDomain: Bool, recent: Bool)]
+        if recall.count <= promptCandidateLimit {
+            selected = recall
+        } else {
+            selected = Array(recall
+                .sorted {
+                    if $0.overlap != $1.overlap { return $0.overlap }
+                    if $0.sameDomain != $1.sameDomain { return $0.sameDomain }
+                    if $0.recent != $1.recent { return $0.recent }
+                    return $0.record.updatedAt != $1.record.updatedAt
+                        ? $0.record.updatedAt > $1.record.updatedAt
+                        : $0.record.id < $1.record.id
+                }
+                .prefix(promptCandidateLimit))
+        }
+
+        return selected.compactMap { $0.record.personalContext?.v1 }
+    }
+
+    /// 字符 bigram 集合：宽召回用（两段文本共享任一双字串即视为相关），
+    /// 比分词轻、比单字准，足以承担「宁多带不漏带」的召回职责。
+    nonisolated private static func bigrams(_ text: String) -> Set<String> {
+        let chars = Array(text)
+        guard chars.count >= 2 else { return [] }
+        return Set(
+            zip(chars, chars.dropFirst()).map { "\($0)\($1)" }
+        )
     }
 
     // MARK: - 记录构造

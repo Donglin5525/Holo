@@ -139,6 +139,7 @@
 		95619DFF0EBA0EEF490770AA /* ChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95619DFE0EBA0EEF490770AA /* ChatCardDataTests.swift */; };
 		966CA04115BD433897FD624A /* HoloAgentEvalRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9B84B710394A3BA3AB29EB /* HoloAgentEvalRunnerTests.swift */; };
 		9682024D9CADB38D9428A7CC /* HoloDomainObservationSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048596AA782988EDBDCD636D /* HoloDomainObservationSecurityTests.swift */; };
+		B2C3D4E5F60718293A4B5C6D /* MemoryExtractionCostSlimTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */; };
 		96927771A8D4AB323E51A193 /* HoloMemoryForgettingStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B002B03577194E1D3B9144 /* HoloMemoryForgettingStandaloneTests.swift */; };
 		9740ACD02B22BDD96B4A30EA /* CoreDataTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 622BFBA66EE5B9248A677503 /* CoreDataTestSupport.swift */; };
 		979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B57258B3AC80A00F4E30F35 /* TodoTaskPlannedTimeRangeTests.swift */; };
@@ -445,6 +446,7 @@
 		01D12F979B323B1B7D656B4D /* HoloMemoryConsumerPolicyIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryConsumerPolicyIntegrationTests.swift; sourceTree = "<group>"; };
 		01D1CD88D4AF51CCA9C5425C /* HoloConversationToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloConversationToolTests.swift; sourceTree = "<group>"; };
 		048596AA782988EDBDCD636D /* HoloDomainObservationSecurityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloDomainObservationSecurityTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryExtractionCostSlimTests.swift; sourceTree = "<group>"; };
 		04CE0547F36E4EFCCAA8080F /* HoloMemoryToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryToolTests.swift; sourceTree = "<group>"; };
 		056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDashboardStateTests.swift; sourceTree = "<group>"; };
 		081616C70BE2576056656476 /* ThoughtAIClassificationPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtAIClassificationPolicyStandaloneTests.swift; sourceTree = "<group>"; };
@@ -918,6 +920,7 @@
 				0A5D83E33ACABE38F2A79B79 /* HoloCrossDomainFusionStandaloneTests.swift */,
 				976992B49B18745C696A05F9 /* HoloDomainMemoryObserverIntegrationTests.swift */,
 				048596AA782988EDBDCD636D /* HoloDomainObservationSecurityTests.swift */,
+				A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */,
 				80E45E5C115F57CB16E57702 /* HoloLegacyMemoryStoreRegressionTests.swift */,
 				904EB7A6B077C5326B91A4A4 /* HoloLongTermMemoryMigrationStandaloneTests.swift */,
 				BD9072B04A04CEFFDFC02564 /* HoloMemoryAccessPolicyStandaloneTests.swift */,
@@ -1975,6 +1978,7 @@
 				79D46B6D1522AC1F37F57E81 /* HoloCrossDomainFusionStandaloneTests.swift in Sources */,
 				3F9C04B6A4A90A7A96D14DAE /* HoloDomainMemoryObserverIntegrationTests.swift in Sources */,
 				9682024D9CADB38D9428A7CC /* HoloDomainObservationSecurityTests.swift in Sources */,
+				B2C3D4E5F60718293A4B5C6D /* MemoryExtractionCostSlimTests.swift in Sources */,
 				0009867F6020999D115D66EB /* HoloLegacyMemoryStoreRegressionTests.swift in Sources */,
 				C80F76C7E8D88DB03C70179C /* HoloLongTermMemoryMigrationStandaloneTests.swift in Sources */,
 				4B6A953DB90277DC3F7E13F1 /* HoloMemoryAccessPolicyStandaloneTests.swift in Sources */,

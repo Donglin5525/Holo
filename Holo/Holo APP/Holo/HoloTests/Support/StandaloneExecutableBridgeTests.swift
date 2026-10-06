@@ -408,102 +408,107 @@ func test_081_HoloSemanticMemoryIdentityStandaloneTests() async throws {
     HoloSemanticMemoryIdentityStandaloneTests.main()
 }
 
-func test_082_SemanticDomainMemorySignalsTests() async throws {
+func test_082_MemoryExtractionCostSlimTests() async throws {
+    // 来源：Services/AI/MemoryExtractionCostSlimTests.swift
+    try MemoryExtractionCostSlimTests.main()
+}
+
+func test_083_SemanticDomainMemorySignalsTests() async throws {
     // 来源：Services/AI/SemanticDomainMemorySignalsTests.swift
     try SemanticDomainMemorySignalsTests.main()
 }
 
-func test_083_StructuredDomainMemorySignalsTests() async throws {
+func test_084_StructuredDomainMemorySignalsTests() async throws {
     // 来源：Services/AI/StructuredDomainMemorySignalsTests.swift
     StructuredDomainMemorySignalsTests.main()
 }
 
-func test_084_ThoughtAIClassificationPolicyStandaloneTests() async throws {
+func test_085_ThoughtAIClassificationPolicyStandaloneTests() async throws {
     // 来源：Services/AI/ThoughtAIClassificationPolicyStandaloneTests.swift
     ThoughtAIClassificationPolicyStandaloneTests.main()
 }
 
-func test_085_ThoughtTagConvergenceJobStoreStandaloneTests() async throws {
+func test_086_ThoughtTagConvergenceJobStoreStandaloneTests() async throws {
     // 来源：Services/AI/ThoughtTagConvergenceJobStoreStandaloneTests.swift
     ThoughtTagConvergenceJobStoreStandaloneTests.main()
 }
 
-func test_086_ThoughtThemeConstraintStandaloneTests() async throws {
+func test_087_ThoughtThemeConstraintStandaloneTests() async throws {
     // 来源：Services/AI/ThoughtThemeConstraintStandaloneTests.swift
     ThoughtThemeConstraintStandaloneTests.main()
 }
 
-func test_087_HoloAuthSessionStandaloneTestRunner() async throws {
+func test_088_HoloAuthSessionStandaloneTestRunner() async throws {
     // 来源：Services/Auth/HoloAuthSessionStandaloneTests.swift
     HoloAuthSessionStandaloneTestRunner.main()
 }
 
-func test_088_HoloInternalAccessStandaloneTests() async throws {
+func test_089_HoloInternalAccessStandaloneTests() async throws {
     // 来源：Services/Auth/HoloInternalAccessStandaloneTests.swift
     try HoloInternalAccessStandaloneTests.main()
 }
 
-func test_089_CalendarHeatmapDarkModeStandaloneTests() async throws {
+func test_090_CalendarHeatmapDarkModeStandaloneTests() async throws {
     // 来源：Services/Calendar/CalendarHeatmapDarkModeStandaloneTests.swift
     CalendarHeatmapDarkModeStandaloneTests.main()
 }
 
-func test_090_WeeklyGridAxisProfileStandaloneTests() async throws {
+func test_091_WeeklyGridAxisProfileStandaloneTests() async throws {
     // 来源：Services/Calendar/WeeklyGridAxisProfileStandaloneTests.swift
     WeeklyGridAxisProfileStandaloneTests.main()
 }
 
-func test_091_HoloInternalLogStoreStandaloneTests() async throws {
+func test_092_HoloInternalLogStoreStandaloneTests() async throws {
     // 来源：Services/Diagnostics/HoloInternalLogStoreStandaloneTests.swift
     try HoloInternalLogStoreStandaloneTests.main()
 }
 
-func test_092_ThoughtDuplicateRepairStandaloneTests() async throws {
+func test_093_ThoughtDuplicateRepairStandaloneTests() async throws {
     // 来源：Services/Sync/ThoughtDuplicateRepairStandaloneTests.swift
     try ThoughtDuplicateRepairStandaloneTests.main()
 }
 
-func test_093_ThoughtClusterEngineStandaloneTests() async throws {
+func test_094_ThoughtClusterEngineStandaloneTests() async throws {
     // 来源：Services/Thoughts/ThoughtClusterEngineStandaloneTests.swift
     ThoughtClusterEngineStandaloneTests.main()
 }
 
-func test_094_EffectiveRecordDayStandaloneTests() async throws {
+func test_095_EffectiveRecordDayStandaloneTests() async throws {
     // 来源：Services/WeeklyObservation/EffectiveRecordDayStandaloneTests.swift
     EffectiveRecordDayStandaloneTests.main()
 }
 
-func test_095_ScheduleRankerStandaloneTests() async throws {
+func test_096_ScheduleRankerStandaloneTests() async throws {
     // 来源：Services/WeeklyObservation/ScheduleRankerStandaloneTests.swift
     ScheduleRankerStandaloneTests.main()
 }
 
-func test_096_HoloWidgetModelsStandaloneTests() async throws {
+func test_097_HoloWidgetModelsStandaloneTests() async throws {
     // 来源：Services/Widgets/HoloWidgetModelsStandaloneTests.swift
     try HoloWidgetModelsStandaloneTests.main()
 }
 
-func test_097_AIReadableResponseParserStandaloneTests() async throws {
+func test_098_AIReadableResponseParserStandaloneTests() async throws {
     // 来源：Views/Chat/AIReadableResponseParserStandaloneTests.swift
     AIReadableResponseParserStandaloneTests.main()
 }
 
-func test_098_AnalysisReadableTextParserStandaloneTests() async throws {
+func test_099_AnalysisReadableTextParserStandaloneTests() async throws {
     // 来源：Views/Chat/Analysis/AnalysisReadableTextParserStandaloneTests.swift
     AnalysisReadableTextParserStandaloneTests.main()
 }
 
-func test_099_MarkdownAttributedStringRendererStandaloneTests() async throws {
+func test_100_MarkdownAttributedStringRendererStandaloneTests() async throws {
     // 来源：Views/Chat/Analysis/MarkdownAttributedStringRendererStandaloneTests.swift
     MarkdownAttributedStringRendererStandaloneTests.main()
 }
 
-func test_100_HoloMemoryEvidenceRoutingTests() async throws {
+func test_101_HoloMemoryEvidenceRoutingTests() async throws {
     // 来源：Views/MemoryGallery/HoloMemoryEvidenceRoutingTests.swift
     try await HoloMemoryEvidenceRoutingTests.main()
 }
 
-func test_101_ThoughtTagPresentationStandaloneTests() async throws {
+func test_102_ThoughtTagPresentationStandaloneTests() async throws {
     // 来源：Views/Thoughts/ThoughtTagPresentationStandaloneTests.swift
     ThoughtTagPresentationStandaloneTests.main()
 }
