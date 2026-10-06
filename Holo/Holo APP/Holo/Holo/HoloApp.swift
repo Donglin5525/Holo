@@ -371,45 +371,59 @@ struct HoloApp: App {
 
 /// 菜单栏命令：全部经 HoloShortcutBus 广播，由 ContentView（模块直跳）/ HomeView（新建/关闭/设置）响应。
 /// 替代旧「透明按钮挂快捷键」方案：接硬件键盘时菜单栏常显、任何页面都响应。
+/// Mac（为 iPad 设计）运行态例外：该运行态对菜单命令 ⌘ 快捷键的响应不可靠，
+/// 快捷键改由 ContentView 视图层直挂，这里菜单项保留但不注册快捷键，避免双触发。
 struct HoloIPadCommands: Commands {
+
+    /// 仅原生 iPadOS 注册菜单快捷键
+    private var registersShortcuts: Bool { !ProcessInfo.processInfo.isiOSAppOnMac }
+
+    /// 菜单命令按钮：按运行态决定是否携带 ⌘ 快捷键
+    @ViewBuilder
+    private func commandButton(
+        _ title: String,
+        key: KeyEquivalent,
+        action: @escaping () -> Void
+    ) -> some View {
+        if registersShortcuts {
+            Button(title, action: action)
+                .keyboardShortcut(key, modifiers: .command)
+        } else {
+            Button(title, action: action)
+        }
+    }
 
     var body: some Commands {
         CommandMenu(String(localized: "前往")) {
             ForEach(HoloSidebarDestination.mainItems) { dest in
                 if let number = dest.shortcutNumber {
-                    Button(dest.title) {
+                    commandButton(dest.title, key: KeyEquivalent(Character(String(number)))) {
                         HoloShortcutBus.shared.post(.goToSidebar(dest))
                     }
-                    .keyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: .command)
                 }
             }
             Divider()
-            Button(String(localized: "个人")) {
+            commandButton(String(localized: "个人"), key: "9") {
                 HoloShortcutBus.shared.post(.goToSidebar(.profile))
             }
-            .keyboardShortcut("9", modifiers: .command)
-            Button(String(localized: "设置")) {
+            commandButton(String(localized: "设置"), key: ",") {
                 HoloShortcutBus.shared.post(.openSettings)
             }
-            .keyboardShortcut(",", modifiers: .command)
         }
 
         CommandMenu(String(localized: "文件")) {
-            Button(String(localized: "新建")) {
+            commandButton(String(localized: "新建"), key: "n") {
                 HoloShortcutBus.shared.post(.newItemAtCurrentModule)
             }
-            .keyboardShortcut("n", modifiers: .command)
-            Button(String(localized: "关闭当前模块")) {
+            commandButton(String(localized: "关闭当前模块"), key: "w") {
                 HoloShortcutBus.shared.post(.closeCurrentModule)
             }
-            .keyboardShortcut("w", modifiers: .command)
         }
 
         CommandMenu(String(localized: "编辑")) {
-            Button(String(localized: "在当前模块搜索")) {
+            commandButton(String(localized: "在当前模块搜索"), key: "f") {
                 HoloShortcutBus.shared.post(.searchInCurrentModule)
             }
-            .keyboardShortcut("f", modifiers: .command)
         }
     }
 }

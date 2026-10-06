@@ -187,24 +187,24 @@ struct HomeView: View {
                 .opacity(activeScreen == nil ? 1 : 0)
                 .zIndex(0)
 
-            // 每一层在首次进入时创建，跳到下一模块后仅隐藏、不销毁。
-            // 因此返回来源时，对话、日期筛选、滚动位置等现场仍然存在。
-            // v2：expanded 宽度模块通铺（各模块自行控制内容密度），
-            // 其余宽度保持 720 限宽居中。
+            // 每个模块首次进入时挂载，之后仅隐藏、不销毁：侧边栏往返切换只翻转
+            // 可见性（交叉淡出），滚动位置、聊天现场等状态跨切换保留，重入零重建。
+            // zIndex 按挂载顺序稳定排列，顶层由 current 决定（与挂载顺序无关）。
             ForEach(Array(residentNavigation.routes.enumerated()), id: \.element.id) { index, route in
+                let isTop = residentNavigation.current == route.screen
                 if HoloAdaptiveLayout.isExpandedWidth(holoContentWidth) {
                     residentDestination(for: route.screen)
-                        .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
-                        .allowsHitTesting(index == residentNavigation.routes.count - 1)
-                        .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                        .opacity(isTop ? 1 : 0)
+                        .allowsHitTesting(isTop)
+                        .accessibilityHidden(!isTop)
                         .zIndex(Double(index + 1))
                         .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 } else {
                     residentDestination(for: route.screen)
                         .holoContentColumn(paintsBackground: false)
-                        .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
-                        .allowsHitTesting(index == residentNavigation.routes.count - 1)
-                        .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                        .opacity(isTop ? 1 : 0)
+                        .allowsHitTesting(isTop)
+                        .accessibilityHidden(!isTop)
                         .zIndex(Double(index + 1))
                         .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }

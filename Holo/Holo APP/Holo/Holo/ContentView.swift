@@ -116,6 +116,34 @@ struct ContentView: View {
                         .ignoresSafeArea()
 
                     HomeView(sidebarSelection: $sidebarSelection)
+
+                    // Mac（为 iPad 设计）运行态：菜单栏命令对 ⌘ 组合键的响应不可靠，
+                    // 这里在视图层直挂同款组合键（老方案，iPadOS 硬件键盘验证过）。
+                    // iPad 不挂载：与菜单栏命令并存会双触发（⌘W 会连关两层模块）。
+                    if ProcessInfo.processInfo.isiOSAppOnMac {
+                        Group {
+                            ForEach(HoloSidebarDestination.allCases) { dest in
+                                if let number = dest.shortcutNumber {
+                                    Button(String(localized: "前往") + dest.title) {
+                                        HoloShortcutBus.shared.post(.goToSidebar(dest))
+                                    }
+                                    .keyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: .command)
+                                }
+                            }
+
+                            Button(String(localized: "打开设置")) { HoloShortcutBus.shared.post(.openSettings) }
+                                .keyboardShortcut(",", modifiers: .command)
+                            Button(String(localized: "新建")) { HoloShortcutBus.shared.post(.newItemAtCurrentModule) }
+                                .keyboardShortcut("n", modifiers: .command)
+                            Button(String(localized: "关闭当前模块")) { HoloShortcutBus.shared.post(.closeCurrentModule) }
+                                .keyboardShortcut("w", modifiers: .command)
+                            Button(String(localized: "在当前模块搜索")) { HoloShortcutBus.shared.post(.searchInCurrentModule) }
+                                .keyboardShortcut("f", modifiers: .command)
+                        }
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
                 }
                 .environment(
                     \.holoContentWidth,

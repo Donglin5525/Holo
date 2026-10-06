@@ -225,6 +225,9 @@ struct HoloSidebarView: View {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .fill(isSelected ? Color.holoPrimary.opacity(0.14) : Color.clear)
             )
+            // 整行可点：Mac（为 iPad 设计）上 Spacer 撑开的空白与透明背景不参与
+            // 点击判定，必须显式声明内容形状（contentShape 须挂在 label 内部才生效）
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .holoHover()
@@ -268,6 +271,7 @@ struct HoloSidebarView: View {
                     .shadow(color: Color.holoPrimary.opacity(0.3), radius: 12, x: 0, y: 5)
                 }
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .holoHover()
@@ -292,6 +296,7 @@ struct HoloSidebarView: View {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .fill(Color.holoPrimary.opacity(0.06))
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .holoHover()
@@ -311,6 +316,7 @@ struct HoloSidebarView: View {
                     RoundedRectangle(cornerRadius: HoloRadius.md)
                         .fill(Color.holoPrimary.opacity(0.06))
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .holoHover()
