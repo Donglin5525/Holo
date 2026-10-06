@@ -309,12 +309,35 @@ struct HoloShadow {
 
 // MARK: - 动画系统
 
+/// 展示开关与设计系统共用，供主 App 和 Widget 编译；不参与业务保存。
+nonisolated enum HoloMotionRollout {
+    static let interactionKey = "holo.motion.interactionEnabled"
+    static let recordKey = "holo.motion.recordFeedbackEnabled"
+    static let completionKey = "holo.motion.completionFeedbackEnabled"
+    static let replayKey = "holo.motion.replayEnabled"
+}
+
 /// Holo 应用动画 token。
 ///
 /// 全 App 动画时长 / 弹簧参数的唯一来源。新增动画从这里取值，
 /// 禁止在业务代码里裸写 `.easeInOut(duration: 0.15)`、`.spring(response: 0.3, ...)` 这类魔法数字。
 /// 现有页面可渐进迁移到本 token；值与原习惯值一致，迁移不改变现有手感。
 enum HoloAnimation {
+    /// 按压只缩小内容，不改变布局或命中区域。
+    static let pressScale: CGFloat = 0.98
+    static let recordSettleDuration: TimeInterval = 0.4
+    static let recordSettle: Animation = .easeOut(duration: recordSettleDuration)
+    static let completionGlowDuration: TimeInterval = 0.6
+    static let completionGlow: Animation = .easeOut(duration: completionGlowDuration)
+    static let replayReveal: Animation = .easeOut(duration: 0.3)
+    static let replayOffset: CGFloat = 6
+    static let completionGlowExpansion: CGFloat = 0.025
+    static let waitingPulse: Animation = .easeInOut(duration: 1.4).repeatForever(autoreverses: true)
+    static let loadingRotation: Animation = .linear(duration: 0.9).repeatForever(autoreverses: false)
+    /// 最晚一组在 300ms 开始，全部展开在 600ms 内完成。
+    static func replayDelay(order: Int) -> TimeInterval {
+        Double(min(max(order, 0), 3)) * 0.1
+    }
     // MARK: 时长动画（easeInOut）
     /// 微交互——开关切换、高亮、按压反馈
     static let quick: Animation = .easeInOut(duration: 0.15)

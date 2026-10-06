@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-10-06
+
+### fix
+- **首页光球永转拍板落地（东林 2026-10-06：「对用户影响非常小，我希望这里一直转」）** — 背景：动效治理批次把首页光球从「出现必转」改为五条件门控（动效开关/非ReduceMotion/前台/首页可见/isAnimating），用户开启系统「减少动态效果」即停转，东林设备「光球不转」根因即此行为变化；本次拆除 ReduceMotion 门：中心球 `synchronizeAmbientMotion` 与背景光球 `synchronizeBackgroundMotion` 的 guard 去掉 reduceMotion 条件并摘除对应 onChange（`reduceBrandMotion` 属性删除），三环进度弹簧仍尊重该设置（数据反馈≠持续装饰）；设计规范两处条文同步改写（首页品牌光球永转为例外明文，其余界面持续装饰仍尊重 Reduce Motion 不扩大豁免）。随批入库光球门控依赖闭包：Components/Motion（HoloAmbientMotion/HoloMotionFeedback）+ Models/Motion（HoloMotionEventLedger）+ DesignSystem 的 HoloMotionRollout 开关枚举 + HomeView 光球可见性门控 hunks（庆祝改手动事件、Tool 色板替换、resident 模块注入等其余在途批次 hunks 未裹挟，待各批收口）。验证：构建绿+模拟器截帧 diff 实证（球区域 4000px/4秒 与改动前转动基线同量级，切模块往返恢复链路通）。纯iOS无发版
+
+
 ## 2026-09-02
 
 ### feat

@@ -184,7 +184,12 @@ struct HomeView: View {
 
             // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）
             homeContent
+                .environment(\.holoMotionSurfaceIsActive, homeMotionIsVisible)
+                .onChange(of: motionScenePhase) { _, _ in synchronizeBackgroundMotion() }
+                .onChange(of: homeMotionIsVisible) { _, _ in synchronizeBackgroundMotion() }
                 .opacity(activeScreen == nil ? 1 : 0)
+                .allowsHitTesting(activeScreen == nil)
+                .accessibilityHidden(activeScreen != nil)
                 .zIndex(0)
 
             // 每个模块首次进入时挂载，之后仅隐藏、不销毁：侧边栏往返切换只翻转
@@ -893,6 +898,12 @@ struct HomeView: View {
     // MARK: - 子视图
     
     /// 背景装饰元素 — 鲜艳渐变光球 + 装饰弧线
+    @AppStorage(HoloMotionRollout.interactionKey) private var brandMotionEnabled = true
+    @Environment(\.scenePhase) private var motionScenePhase
+
+    private var homeMotionIsVisible: Bool {
+        activeScreen == nil && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage
+    }
     @State private var orbDrift: CGFloat = 0
     @State private var arcRotation: Double = 0
     @State private var dotTwinkle: Double = 1.0
@@ -962,7 +973,22 @@ struct HomeView: View {
         // v2：光球/弧线按手机画布设计（最大 500pt），大屏四角露黑；
         // 整组渐变无文字，缩放无损，宽屏放大铺满
         .scaleEffect(homeWidthTier == .expanded ? 1.7 : (homeWidthTier == .medium ? 1.3 : 1.0))
-        .onAppear {
+        .onAppear { synchronizeBackgroundMotion() }
+        .onChange(of: brandMotionEnabled) { _, _ in synchronizeBackgroundMotion() }
+    }
+
+
+    /// 光球、弧线、闪烁持续运转（不受系统减少动态效果约束，东林 2026-10-06 拍板）；
+    /// 仅在动效开关开启、前台且首页可见时播放。
+    private func synchronizeBackgroundMotion() {
+        var transaction = SwiftUI.Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            orbDrift = 0
+            arcRotation = 0
+            dotTwinkle = 1
+        }
+        guard brandMotionEnabled, homeMotionIsVisible, motionScenePhase == .active else { return }
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 orbDrift = 1.0
             }
@@ -972,7 +998,6 @@ struct HomeView: View {
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 dotTwinkle = 0.3
             }
-        }
     }
 
     /// 装饰光点

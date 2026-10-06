@@ -14,6 +14,11 @@ import SwiftUI
 
 struct DailyKanbanEntryButton: View {
 
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.holoMotionSurfaceIsActive) private var surfaceActive
+
     let action: () -> Void
     /// 新版统一 ViewModel（HomeView 持有唯一实例；注入后才显示下方标题+摘要）。
     var todayViewModel: HoloTodayViewModel? = nil
@@ -61,27 +66,21 @@ struct DailyKanbanEntryButton: View {
 
     var body: some View {
         sphere
+        .buttonStyle(HoloPressStyle())
         .onAppear {
             isAnimating = true
             refreshProgress()
             animatedOverall = cachedOverallPercent
             animatedHabit = cachedHabitPercent
             animatedTask = cachedTaskPercent
-            withAnimation(.linear(duration: 90).repeatForever(autoreverses: false)) {
-                ringRotation1 = 360
-            }
-            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) {
-                ringRotation2 = -360
-            }
-            withAnimation(.linear(duration: 45).repeatForever(autoreverses: false)) {
-                ringRotation3 = 360
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                centerPulse = 1.0
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                breathScale = 1.03
-            }
+            synchronizeAmbientMotion()
+        }
+        .onChange(of: motionEnabled) { _, _ in synchronizeAmbientMotion() }
+        .onChange(of: scenePhase) { _, _ in synchronizeAmbientMotion() }
+        .onChange(of: surfaceActive) { _, _ in synchronizeAmbientMotion() }
+        .onDisappear {
+            isAnimating = false
+            synchronizeAmbientMotion()
         }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             refreshProgress()
@@ -98,20 +97,51 @@ struct DailyKanbanEntryButton: View {
             refreshProgress()
         }
         .onChange(of: cachedOverallPercent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+            withAnimation(reduceMotion || !motionEnabled ? nil : .spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedOverall = newValue
             }
         }
         .onChange(of: cachedHabitPercent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+            withAnimation(reduceMotion || !motionEnabled ? nil : .spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedHabit = newValue
             }
         }
         .onChange(of: cachedTaskPercent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+            withAnimation(reduceMotion || !motionEnabled ? nil : .spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedTask = newValue
             }
         }
+    }
+
+    /// 品牌持续动画（三环旋转/中心光点/整体呼吸）不受系统减少动态效果约束
+    /// （东林 2026-10-06 拍板：生命感优先、影响面小），仅前台、首页可见且动效开关开启时播放；
+    /// 三环进度弹簧仍尊重减少动态效果与动效开关。
+    private func synchronizeAmbientMotion() {
+        var transaction = SwiftUI.Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            ringRotation1 = 0
+            ringRotation2 = 0
+            ringRotation3 = 0
+            centerPulse = 0.6
+            breathScale = 1
+        }
+        guard motionEnabled, isAnimating, surfaceActive, scenePhase == .active else { return }
+            withAnimation(.linear(duration: 90).repeatForever(autoreverses: false)) {
+                ringRotation1 = 360
+            }
+            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) {
+                ringRotation2 = -360
+            }
+            withAnimation(.linear(duration: 45).repeatForever(autoreverses: false)) {
+                ringRotation3 = 360
+            }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                centerPulse = 1.0
+            }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                breathScale = 1.03
+            }
     }
 
     // MARK: - 球体（原版布局：三环轨道 + 中心呼吸光点）
