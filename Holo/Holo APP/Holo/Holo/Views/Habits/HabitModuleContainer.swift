@@ -185,6 +185,7 @@ struct HabitModuleContainer: View {
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.holoToolText)
                 .padding(.top, 0)
+                .accessibilityIdentifier("habit.title")
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, -6)

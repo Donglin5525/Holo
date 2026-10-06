@@ -270,6 +270,7 @@
 		AA11BB22CC33DD44EE55FF01 /* HoloMemoryEvidenceRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */; };
 		AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */; };
 		B71FE0A12F6A4C1E9D2B0108 /* HabitPauseSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0107 /* HabitPauseSmokeUITests.swift */; };
+		B71FE0A12F6A4C1E9D2B0202 /* SwipeCloseResidentBlackScreenUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */; };
 		AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */; };
 		AA11BB22CC33DD44EE880002 /* PersonalContextWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE880001 /* PersonalContextWalkthroughUITests.swift */; };
 		AA11BB22CC33DD44EE880004 /* PersonalEdgeSwipeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE880003 /* PersonalEdgeSwipeUITests.swift */; };
@@ -729,6 +730,7 @@
 		AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryEvidenceRoutingTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitStatsFloatUITests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2B0107 /* HabitPauseSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPauseSmokeUITests.swift; sourceTree = "<group>"; };
+		B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SwipeCloseResidentBlackScreenUITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtImageSourceSheetUITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE880001 /* PersonalContextWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalContextWalkthroughUITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE880003 /* PersonalEdgeSwipeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalEdgeSwipeUITests.swift; sourceTree = "<group>"; };
@@ -1599,6 +1601,7 @@
 				AA11BB22CC33DD44EE550006 /* HoloXhsShotUITests.swift */,
 				AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */,
 				B71FE0A12F6A4C1E9D2B0107 /* HabitPauseSmokeUITests.swift */,
+				B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */,
 				EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */,
 				RECONUI0000000000000001 /* NewEntryReconUITests.swift */,
 				AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */,
@@ -2197,6 +2200,7 @@
 				AA11BB22CC33DD44EE550005 /* HoloXhsShotUITests.swift in Sources */,
 				AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0108 /* HabitPauseSmokeUITests.swift in Sources */,
+				B71FE0A12F6A4C1E9D2B0202 /* SwipeCloseResidentBlackScreenUITests.swift in Sources */,
 				EA77E10C0DE0000000000032 /* MatterVerticalSliceUITests.swift in Sources */,
 				RECONUI0000000000000002 /* NewEntryReconUITests.swift in Sources */,
 				AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */,

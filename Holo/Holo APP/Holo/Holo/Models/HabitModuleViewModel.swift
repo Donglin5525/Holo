@@ -125,19 +125,20 @@ final class HabitModuleViewModel: ObservableObject {
     }
 
     /// 异步等待存储就绪后首次刷新（容器 onAppear 调用）。
-    /// 与旧 HabitListView 相同的首启模式：后台触碰 persistentContainer，就绪后回主线程。
+    /// 正确等待姿势：挂起协程等 store 就绪（CheckedContinuation），不阻塞任何线程。
+    /// 本类是 @MainActor，Task 继承主执行器，await 返回后天然回主线程。
+    /// （旧写法 `_ = persistentContainer` 拿到的只是容器对象，store 仍在后台加载，
+    /// 随后主线程 setup()/refresh() 撞上未就绪的库会阻塞主线程——开发规范 §10）
     func warmUp() {
         if repository.isReady {
             refresh()
             return
         }
-        Task.detached(priority: .userInitiated) { [weak self] in
-            _ = CoreDataStack.shared.persistentContainer
-            await MainActor.run {
-                guard let self else { return }
-                self.repository.setup()
-                self.refresh()
-            }
+        Task { [weak self] in
+            await CoreDataStack.shared.waitUntilReady()
+            guard let self else { return }
+            self.repository.setup()
+            self.refresh()
         }
     }
 

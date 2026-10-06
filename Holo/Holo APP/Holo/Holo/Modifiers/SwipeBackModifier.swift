@@ -119,6 +119,14 @@ struct SwipeBackModifier: ViewModifier {
                 swipeCloseMarker?()
             }
             onDismiss()
+            // 常驻栈（2026-10 重构）关闭=隐藏不卸载，模块视图与本 @State offset 跨
+            // 关闭存活。不复位则 offset 永久停在整屏宽——模块重开时内容整层停在
+            // 屏外，页面黑屏只剩底部标签栏（2026-10-07 真机+模拟器双实锤，
+            // 八个常驻模块同坑）。延迟到模块淡出结束（holoScreenTransition 0.28s）
+            // 之后在隐藏态静默复位，用户不可见。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                offset = 0
+            }
         }
     }
 
