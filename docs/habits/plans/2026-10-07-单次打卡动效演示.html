@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单次打卡动效 · 设计演示 V2</title>
+<style>
+  :root {
+    --bg:#1C1C1E; --surface:#2C2C2E; --inset:#3A3A3C; --border:#48484A;
+    --text:#F5F5F5; --text2:#A8A8A8; --accent:#FF8A5C;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#000; font-family:-apple-system,"PingFang SC",sans-serif;
+    display:flex; gap:32px; justify-content:center; align-items:flex-start;
+    padding:28px 16px; min-height:100vh;
+  }
+  .panel { width:270px; padding:18px; background:#111; border:1px solid #333; border-radius:14px; position:sticky; top:28px; }
+  .panel h1 { font-size:15px; color:#fff; margin-bottom:4px; }
+  .panel p.desc { font-size:11px; color:#888; line-height:1.6; margin-bottom:14px; }
+  .panel .grp { margin-bottom:12px; }
+  .panel .grp label { display:block; font-size:11px; color:#aaa; margin-bottom:6px; }
+  .panel button {
+    display:block; width:100%; padding:10px 10px; margin-bottom:6px;
+    background:#1e1e1e; color:#ddd; border:1px solid #333; border-radius:8px;
+    font-size:12.5px; cursor:pointer; text-align:left;
+  }
+  .panel button:hover { border-color:#EA580C; }
+  .panel button.on { border-color:#EA580C; color:#FF8A5C; }
+  .timeline { font-size:10.5px; color:#bbb; line-height:1.9; border-top:1px solid #333; padding-top:10px; font-family:ui-monospace,Menlo,monospace; min-height:180px; }
+  .timeline b { color:#FF8A5C; }
+  .timeline .now { color:#fff; }
+  .timeline .done { color:#6c6; }
+
+  .phone {
+    width:390px; border-radius:44px; overflow:hidden;
+    border:6px solid #222; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; color:var(--text);
+  }
+  .statusbar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:14px; font-weight:600; }
+  .inner { padding:0 20px 30px; }
+  .navrow { display:flex; align-items:center; }
+  .navrow .back { font-size:18px; width:40px; height:40px; display:flex; align-items:center; }
+  h1.title { font-size:24px; font-weight:800; margin-bottom:2px; }
+  .dateline { font-size:13px; color:var(--text2); margin-bottom:8px; }
+
+  .row { padding:12px 0 14px; position:relative; }
+  .rowmain { display:flex; align-items:center; gap:12px; }
+  .hicon { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; background:#8063CE22; }
+  .hmain { flex:1; }
+  .hname { font-size:17px; font-weight:600; margin-bottom:2px; }
+  .hsub { font-size:12.5px; color:var(--text2); }
+  .hsub .ok { color:var(--accent); font-weight:600; display:none; }
+  .hsub.done .ok { display:inline; }
+  .hsub.done #statusWord { display:none; }
+
+  .btn {
+    width:56px; height:44px; border:none; cursor:pointer; border-radius:999px;
+    background:var(--inset); color:var(--text); font-size:14px; font-weight:600;
+    position:relative; transition:width .25s cubic-bezier(.3,1.2,.4,1), background .2s;
+    flex-shrink:0; overflow:hidden;
+  }
+  .btn .txt { transition:opacity .15s; }
+  .btn .mark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0; font-size:18px; font-weight:800; color:#fff; }
+  .btn.done { width:44px; background:#8063CE; }
+  .btn.done .txt { opacity:0; }
+  .btn.done .mark { opacity:1; }
+
+  .trailwrap { margin-top:14px; position:relative; }
+  .trailcap { font-size:10px; color:var(--text2); opacity:.6; margin-bottom:7px; letter-spacing:.3px; }
+  .tC { position:relative; height:26px; display:flex; align-items:center; }
+  .tC .rail { position:absolute; left:0; right:0; height:7px; border-radius:3.5px; background:var(--inset); }
+  .tC .slot { position:absolute; top:6px; height:7px; }
+  .tC .slot.hit { background:#8063CE; opacity:.9; }
+  .tC .slot.hit.first { border-radius:3.5px 0 0 3.5px; }
+  .tC .slot.hit.last { border-radius:0 3.5px 3.5px 0; }
+  .tC .slot.hit.first.last { border-radius:3.5px; }
+  .tC .slot.retro { background:#8063CE; border-radius:1px; }
+  .tC .pen { position:absolute; top:7.5px; width:10px; height:10px; border-radius:50%; background:transparent; border:2px solid #8063CE; opacity:.5; box-shadow:0 0 0 2.5px var(--bg); z-index:3; }
+  .tC .pen.settled { background:#8063CE; opacity:1; }
+  .tC .daylabel { position:absolute; top:100%; margin-top:5px; font-size:9px; color:var(--text2); opacity:.55; }
+
+  .glow { position:absolute; inset:-4px -6px; border-radius:14px; pointer-events:none; border:1.5px solid #8063CE; opacity:0; }
+
+  .undo { margin-top:18px; display:flex; align-items:center; gap:10px; background:var(--surface); border-radius:999px; padding:10px 18px; box-shadow:0 6px 18px rgba(0,0,0,.35); opacity:0; transform:translateY(8px); transition:opacity .25s, transform .25s; }
+  .undo.show { opacity:1; transform:translateY(0); }
+  .undo .uic { color:var(--accent); }
+  .undo .ut { flex:1; font-size:13px; }
+  .undo .ub { color:var(--accent); font-weight:600; font-size:13px; cursor:pointer; }
+  .haptic { font-size:10px; color:var(--text2); opacity:.75; }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>单次打卡 · 动效时序 V2</h1>
+  <p class="desc">JS 驱动动画（必然可播）。<b>先点「▶ 播放打卡」</b>，再开慢速逐步看。撤销是反向：墨缩回笔尖。</p>
+  <div class="grp">
+    <label>动作</label>
+    <button onclick="demoCheckin()">▶ 播放打卡（今天落墨）</button>
+    <button onclick="demoUndo()">◀ 播放撤销（擦回笔尖）</button>
+    <button onclick="resetAll()">↺ 复位</button>
+  </div>
+  <div class="grp">
+    <label>速度</label>
+    <button id="btnSlow" onclick="toggleSlow()">慢速 0.35x</button>
+  </div>
+  <div class="timeline" id="tl"><b>时序</b><br>点上方按钮开始。</div>
+</div>
+
+<div class="phone">
+  <div class="statusbar"><span>09:30</span><span>🔋 56</span></div>
+  <div class="inner">
+    <div class="navrow"><div class="back">‹</div></div>
+    <h1 class="title">习惯</h1>
+    <div class="dateline">10月7日 星期三 · 已记录 0 项</div>
+
+    <div class="row">
+      <div class="glow" id="glow"></div>
+      <div class="rowmain">
+        <div class="hicon">🌙</div>
+        <div class="hmain">
+          <div class="hname">23:30 前上床</div>
+          <div class="hsub" id="sub">连续 6 天 · <span id="statusWord">未记录</span><span class="ok">已达标 · 连续 7 天</span></div>
+        </div>
+        <button class="btn" id="btn" onclick="tapBtn()">
+          <span class="txt">打卡</span>
+          <span class="mark">✓</span>
+        </button>
+      </div>
+
+      <div class="trailwrap">
+        <div class="trailcap">最近 30 天 · 一条墨带两个缺口：中间空的一格是漏做的那天，今天的墨等你落</div>
+        <div class="tC" id="trail"></div>
+      </div>
+
+      <div class="undo" id="undo">
+        <span class="uic">✔</span>
+        <span class="ut">已记录 <span class="haptic">（success 触觉）</span></span>
+        <span class="ub" onclick="demoUndo()">撤销</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 30 天：index0=29天前，29=今天。
+   真实感历史：22 天长带（其中一格是补录）+ 第 23 天漏了一天（缺口）+ 最近 6 天连续 + 今天待打卡。
+   1=已记录 2=补录 0=未记录 */
+const TODAY = 29;
+let trail = Array(30).fill(1);
+trail[5] = 2;      // 有一天是补录（带子里浅一格）
+trail[22] = 0;     // 漏了一天（带子上的缺口）
+trail[29] = 0;     // 今天还没记
+
+let slow = false, done = false, playing = false;
+const F = () => slow ? (1/0.35) : 1;   // 慢速倍率
+
+function buildTrail() {
+  const el = document.getElementById("trail");
+  let html = '<div class="rail"></div>';
+  /* 连续带渲染：hit 连片成段，retro 单独浅格（仍属同一段坚持） */
+  let i = 0;
+  while (i < 29) {
+    if (trail[i] === 1 || trail[i] === 2) {
+      let j = i; while (j < 28 && (trail[j+1] === 1 || trail[j+1] === 2)) j++;
+      let k = i;
+      while (k <= j) {
+        if (trail[k] === 2) {
+          html += `<div class="slot retro" style="left:${k*(100/30)}%;width:${100/30}%;opacity:.42;"></div>`;
+          k++;
+        } else {
+          let m = k; while (m <= j && trail[m] === 1) m++;
+          const left = k*(100/30), width = (m-k)*(100/30);
+          const first = k===0?' first':'', last = m-1===28?' last':'';
+          const isTail = m-1===28;
+          html += `<div class="slot hit${first}${last}" ${isTail?'id="seg"':''} style="left:${left}%;width:${width}%;transform-origin:right center;"></div>`;
+          k = m;
+        }
+      }
+      i = j+1;
+    } else i++;
+  }
+  const penLeft = `calc(${(TODAY+0.5)*(100/30)}% - 5px)`;
+  html += `<div class="pen" id="pen" style="left:${penLeft}"></div>`;
+  html += `<div class="daylabel" style="left:${(TODAY+0.5)*(100/30)}%;transform:translateX(-50%)">今天</div>`;
+  el.innerHTML = html;
+}
+buildTrail();
+
+const tl = document.getElementById("tl");
+const steps = [];
+function setSteps(arr) { steps.length = 0; steps.push(...arr); tl.innerHTML = "<b>时序</b><br>" + arr.map(s=>`· ${s}`).join("<br>"); }
+function step(i) { const rows = tl.innerHTML.split("<br>"); if (rows[i+1] !== undefined) { rows[i+1] = `<span class="now">▸ ${steps[i]}</span>`; tl.innerHTML = rows.join("<br>"); } }
+function finishLog(extra) { const rows = tl.innerHTML.split("<br>"); rows.push(`<span class="done">✓ ${extra}</span>`); tl.innerHTML = rows.join("<br>"); }
+window.onerror = function(msg) { tl.innerHTML = "<b style='color:#f66'>页面脚本异常：" + msg + "</b>"; };
+
+const sleep = ms => new Promise(r => setTimeout(r, ms * F()));
+
+function resetVisual() {
+  done = false; playing = false;
+  const btn = document.getElementById("btn");
+  btn.classList.remove("done");
+  btn.style.transform = "";
+  btn.style.width = "";
+  const pen = document.getElementById("pen");
+  pen.classList.remove("settled");
+  pen.style.transform = "";
+  const seg = document.getElementById("seg");
+  if (seg) seg.style.transform = "";
+  document.getElementById("sub").classList.remove("done");
+  document.getElementById("undo").classList.remove("show");
+}
+
+async function demoCheckin() {
+  if (playing) return;
+  if (done) { resetVisual(); await sleep(220); }
+  playing = true;
+  const btn = document.getElementById("btn");
+  const markEl = btn.querySelector(".mark");
+  const pen = document.getElementById("pen");
+  const seg = document.getElementById("seg");
+  const glow = document.getElementById("glow");
+
+  setSteps([
+    "按压：按钮下压 + light 触觉（即时反馈，不等保存）",
+    "保存确认 → 「打卡」淡出，胶囊收成圆钮",
+    "勾章落定：✓ 从 1.6x 盖下回弹 + success 触觉",
+    "落墨：今天这格从笔尖向左写出，接上左边 6 天的墨（缺口右边连成新的连续段）",
+    "笔尖坐实：空环变实心，压进墨里",
+    "暖光扫过 + 「已达标 · 连续 7 天」淡入",
+    "撤销条浮起（7 秒窗口）",
+  ]);
+
+  try {
+    step(0);
+    btn.animate([{transform:"scale(1)"},{transform:"scale(.93)"},{transform:"scale(1)"}], {duration:140*F(), easing:"ease-out"});
+    await sleep(130);
+
+    step(1);
+    btn.classList.add("done");
+    markEl.animate([{transform:"scale(1.6)",opacity:0},{transform:"scale(.92)",opacity:1},{transform:"scale(1)",opacity:1}], {duration:280*F(), easing:"cubic-bezier(.34,1.7,.64,1)", fill:"both"});
+    await sleep(150);
+
+    step(2);
+    if (seg) seg.animate([{transform:"scaleX(0)"},{transform:"scaleX(1)"}], {duration:220*F(), easing:"ease-out", fill:"both"});
+    await sleep(200);
+
+    step(3);
+    pen.classList.add("settled");
+    pen.animate([{transform:"scale(1.5)"},{transform:"scale(1)"}], {duration:300*F(), easing:"cubic-bezier(.34,1.7,.64,1)", fill:"both"});
+    await sleep(110);
+
+    step(4);
+    glow.animate([{opacity:0,transform:"scale(.98)"},{opacity:.55},{opacity:0,transform:"scale(1.01)"}], {duration:700*F(), easing:"ease"});
+    document.getElementById("sub").classList.add("done");
+    await sleep(210);
+
+    step(5);
+    document.getElementById("undo").classList.add("show");
+    await sleep(220);
+
+    step(6);
+    finishLog("墨条长出一格，连续 6 → 7 天。全程 ≈0.9s");
+    done = true; playing = false;
+  } catch (err) {
+    tl.innerHTML = "<b style='color:#f66'>脚本异常：" + err.message + "</b>";
+    playing = false;
+  }
+}
+
+async function demoUndo() {
+  if (playing || !done) return;
+  playing = true;
+  const pen = document.getElementById("pen");
+  const seg = document.getElementById("seg");
+  setSteps([
+    "今天的墨向右缩回笔尖（反向擦除 0.18s）",
+    "笔尖浮起：实心变回空环，恢复悬空",
+    "勾还原成「打卡」按钮",
+  ]);
+  try {
+    step(0); await sleep(20);
+    if (seg) seg.animate([{transform:"scaleX(1)"},{transform:"scaleX(0)"}], {duration:180*F(), easing:"ease-in", fill:"both"});
+    await sleep(200);
+    step(1);
+    pen.classList.remove("settled");
+    pen.animate([{transform:"scale(1.3)"},{transform:"scale(1)"}], {duration:250*F(), fill:"both"});
+    await sleep(140);
+    step(2);
+    resetVisual();
+    finishLog("痕迹如实回到未记录，无触觉奖励（撤销不该被奖励）");
+    playing = false;
+  } catch (err) {
+    tl.innerHTML = "<b style='color:#f66'>脚本异常：" + err.message + "</b>";
+    playing = false;
+  }
+}
+
+function tapBtn() { done ? demoUndo() : demoCheckin(); }
+function resetAll() { resetVisual(); buildTrail(); setSteps(["已复位。点「▶ 播放打卡」开始。"]); }
+function toggleSlow() {
+  slow = !slow;
+  const b = document.getElementById("btnSlow");
+  b.classList.toggle("on", slow);
+  b.textContent = slow ? "慢速 0.35x（当前开启）" : "慢速 0.35x";
+}
+setSteps(["已就绪。点「▶ 播放打卡」开始。"]);
+</script>
+</body>
+</html>

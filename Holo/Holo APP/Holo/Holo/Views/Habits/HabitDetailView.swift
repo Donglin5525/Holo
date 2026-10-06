@@ -21,6 +21,7 @@ struct HabitDetailSnapshot {
     var unit: String? = nil
     var isPaused: Bool = false
     var pausedUntil: Date? = nil
+    var isArchived: Bool = false
 
     // 目标归属
     var goalTitle: String? = nil
@@ -74,6 +75,8 @@ struct HabitDetailView: View {
     @State private var showDeleteAlert: Bool = false
     /// 待删除的记录（用于确认弹窗）
     @State private var recordToDelete: HabitRecord? = nil
+    /// 正在编辑的记录（record ID 精确定位，方案 §7：不用「当天最后一条」模糊定位）
+    @State private var recordToEdit: HabitRecord? = nil
     /// 缓存的 habit ID（避免 onReceive 访问已删除的 habit 对象）
     @State private var cachedHabitId: UUID? = nil
     /// 标记是否正在删除或归档当前习惯
@@ -91,6 +94,8 @@ struct HabitDetailView: View {
     @State private var reminderTime: Date = Date()
     /// 暂停弹层（Plus 功能，非 Plus 走统一付费墙）
     @State private var showPauseSheet: Bool = false
+    /// 测量记录输入（详情内直接记录）
+    @State private var showMeasureInput: Bool = false
     @ObservedObject private var entitlement = HoloEntitlementState.shared
     
     // MARK: - Body
@@ -100,12 +105,17 @@ struct HabitDetailView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     habitHeader
+                    if snapshot.isArchived {
+                        archivedBanner
+                    }
                     if snapshot.isPaused {
                         pausedBanner
                     }
+                    recordActionBar
                     recoverBanner
                     rangePicker
                     statsSection
+                    milestoneSection
                     if snapshot.isCheckInType && !snapshot.isPaused {
                         reminderSection
                     }
@@ -114,7 +124,7 @@ struct HabitDetailView: View {
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -123,7 +133,7 @@ struct HabitDetailView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
                 
@@ -165,7 +175,7 @@ struct HabitDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                     }
                 }
             }
@@ -221,6 +231,26 @@ struct HabitDetailView: View {
             }
             .sheet(item: $retroContext) { context in
                 HabitRetroactiveSheet(context: context)
+            }
+            .sheet(isPresented: $showMeasureInput) {
+                HabitMeasureInputSheet(
+                    snapshot: measureRowSnapshot
+                ) { value, note in
+                    Task {
+                        _ = await HabitActionCoordinator.shared.perform(
+                            .addNumeric(value: value), habitId: habit.id, note: note
+                        )
+                    }
+                }
+            }
+            .sheet(item: $recordToEdit) { record in
+                HabitRecordEditSheet(
+                    record: record,
+                    isCountType: snapshot.isCountType,
+                    unit: snapshot.unit
+                ) { value, note in
+                    updateRecordById(record.id, value: value, note: note)
+                }
             }
             .alert("确认删除", isPresented: $showDeleteAlert) {
                 Button("取消", role: .cancel) {}
@@ -280,6 +310,7 @@ struct HabitDetailView: View {
             s.goalDomain = habit.goal?.goalDomain
             s.isPaused = habit.isPaused
             s.pausedUntil = habit.pausedUntil
+            s.isArchived = habit.isArchived
 
             if habit.isCheckInType {
                 s.streak = repo.calculateStreakInfo(for: habit)
@@ -339,6 +370,234 @@ struct HabitDetailView: View {
         }
     }
 
+    /// 已归档横幅：状态说明 + 取消归档（补录前需先取消归档，方案 §10.3）
+    private var archivedBanner: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "archivebox.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.holoToolTextSecondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("已归档")
+                    .font(.holoBody.weight(.semibold))
+                    .foregroundColor(.holoToolText)
+                Text("历史记录完整保留；要继续记录或补录，先取消归档")
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                unarchiveNow()
+            } label: {
+                Text("取消归档")
+                    .font(.holoBody.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(Color.holoToolAction))
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                .fill(Color.holoToolInset)
+        )
+    }
+
+    private func unarchiveNow() {
+        do {
+            try HabitRepository.shared.unarchiveHabitById(habit.id)
+            HoloToastCenter.shared.show(String(localized: "已取消归档，习惯回到进行中"), type: .success)
+        } catch {
+            HoloToastCenter.shared.show(error.localizedDescription, type: .error)
+        }
+    }
+
+    /// 测量输入弹层的最小行快照（仅名称/单位/类型供弹层文案）
+    private var measureRowSnapshot: HabitRowSnapshot {
+        HabitRowSnapshot(
+            id: habit.id, name: habit.name, icon: habit.icon,
+            isCustomIcon: snapshot.isCustomIcon, colorHex: snapshot.color,
+            kind: .measure, frequency: habit.habitFrequency,
+            isBadHabit: habit.isBadHabit, lifecycle: .active,
+            pauseSummaryText: nil, target: nil,
+            today: HabitTodayProgress(isCheckInDone: false, isRecorded: false, isTargetMet: false,
+                                      todayValue: nil, periodValueText: nil, periodRangeText: nil),
+            streak: nil, trail: [], allowsTodayRecord: true
+        )
+    }
+
+    /// 按 record ID 更新记录（数值可改值/备注；打卡记录改备注）
+    private func updateRecordById(_ recordId: UUID, value: Double?, note: String?) {
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", recordId as CVarArg)
+        request.fetchLimit = 1
+        guard let record = try? HabitRepository.shared.context.fetch(request).first else {
+            saveErrorMessage = String(localized: "这条记录已变化，请到详情确认")
+            showSaveErrorAlert = true
+            return
+        }
+        do {
+            try HabitRepository.shared.updateRecord(record, value: value, note: note)
+        } catch {
+            saveErrorMessage = String(localized: "这次没有保存成功，内容还在，可以重试")
+            showSaveErrorAlert = true
+        }
+    }
+
+    // MARK: - 操作条（立即可见的常用动作，方案 §7）
+
+    private var recordActionBar: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            // 本次记录：详情内直接记录（与今天页同一动作语义）
+            if !snapshot.isArchived {
+                if snapshot.isCheckInType {
+                    if !snapshot.isPaused {
+                        Button {
+                            checkInHere()
+                        } label: {
+                            actionBarLabel(icon: "checkmark.circle",
+                                           text: habit.isBadHabit ? String(localized: "记录发生") : String(localized: "打卡"))
+                        }
+                        .buttonStyle(HoloPressStyle())
+                    }
+                } else if snapshot.isCountType {
+                    Button {
+                        Task {
+                            _ = await HabitActionCoordinator.shared.perform(.increment(amount: 1), habitId: habit.id)
+                        }
+                    } label: {
+                        actionBarLabel(icon: "plus.circle", text: String(localized: "记一次"))
+                    }
+                    .buttonStyle(HoloPressStyle())
+                } else {
+                    Button {
+                        showMeasureInput = true
+                    } label: {
+                        actionBarLabel(icon: "square.and.pencil", text: String(localized: "记录数值"))
+                    }
+                    .buttonStyle(HoloPressStyle())
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                showEditSheet = true
+            } label: {
+                actionBarLabel(icon: "pencil", text: String(localized: "编辑"))
+            }
+            .buttonStyle(HoloPressStyle())
+
+            if !snapshot.isArchived {
+                if canBackfill {
+                    Button {
+                        retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: nil, mode: .sign)
+                    } label: {
+                        actionBarLabel(icon: "clock.arrow.circlepath", text: String(localized: "补签 / 补记"))
+                    }
+                    .buttonStyle(HoloPressStyle())
+                }
+
+                if snapshot.isPaused {
+                    Button {
+                        resumeNow()
+                    } label: {
+                        actionBarLabel(icon: "play.circle", text: String(localized: "恢复"))
+                    }
+                    .buttonStyle(HoloPressStyle())
+                } else {
+                    Button {
+                        requestPause()
+                    } label: {
+                        actionBarLabel(icon: "pause.circle", text: String(localized: "暂停"))
+                    }
+                    .buttonStyle(HoloPressStyle())
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func actionBarLabel(icon: String, text: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundColor(snapshot.habitColor)
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.holoToolText)
+        }
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                .fill(Color.holoToolSurface)
+        )
+    }
+
+    /// 详情内打卡（不自动打卡；与今天页同一闸：暂停期不可）
+    private func checkInHere() {
+        Task {
+            _ = await HabitActionCoordinator.shared.perform(.toggleCheckIn, habitId: habit.id)
+        }
+    }
+
+    // MARK: - 里程碑（静态可回看，方案 §7/§9.4）
+
+    @State private var milestoneItems: [HabitMilestone] = []
+
+    private var milestoneSection: some View {
+        let store = HabitMilestoneStore()
+        let achieved: [HabitMilestone] = milestoneLabel.map { label in
+            store.achievedMilestones(habitId: habit.id, streak: label, frequency: habit.habitFrequency)
+        } ?? []
+        return Group {
+            if !achieved.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("里程碑")
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(achieved) { milestone in
+                                HStack(spacing: 6) {
+                                    Image(systemName: store.isDisplayed(milestone) ? "rosette" : "rosette")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(snapshot.habitColor)
+                                    Text(milestone.displayText)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.holoToolText)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule().fill(Color.holoToolSurface)
+                                )
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.holoToolSurface)
+                .cornerRadius(HoloRadius.lg)
+            }
+        }
+    }
+
+    /// 里程碑用的连续标签（好习惯；数值坏习惯不出）
+    private var milestoneLabel: HabitStreakLabel? {
+        guard !habit.isBadHabit else { return nil }
+        let data = HabitPresentationProjector.buildData(
+            records: HabitRepository.shared.allRecordFacts(),
+            pauseWindowsByHabit: HabitRepository.shared.pauseWindowsByIds([habit.id]),
+            now: Date()
+        )
+        return HabitPresentationProjector.streakLabel(for: habit, data: data)
+    }
+
     /// 暂停态横幅：说明进度已保留 + 一键恢复
     private var pausedBanner: some View {
         HStack(spacing: HoloSpacing.sm) {
@@ -349,10 +608,10 @@ struct HabitDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("已暂停")
                     .font(.holoBody.weight(.semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Text(pausedSubtitleText)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer()
@@ -431,12 +690,12 @@ struct HabitDetailView: View {
             }
             
             Text(snapshot.name)
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.sectionTitle)
+                .foregroundColor(.holoToolText)
             
             HStack(spacing: 8) {
                 Text(snapshot.habitTypeName)
-                    .font(.holoCaption)
+                    .holoText(.supporting)
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -444,8 +703,8 @@ struct HabitDetailView: View {
                     .cornerRadius(HoloRadius.sm)
                 
                 Text(snapshot.frequencyTargetText)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 if let goalTitle = snapshot.goalTitle, let domain = snapshot.goalDomain {
                     Button {
@@ -455,7 +714,7 @@ struct HabitDetailView: View {
                             Image(systemName: domain.icon)
                                 .font(.system(size: 10, weight: .medium))
                             Text(goalTitle)
-                                .font(.holoCaption)
+                                .holoText(.supporting)
                                 .lineLimit(1)
                         }
                         .foregroundColor(domain.badgeColor)
@@ -473,12 +732,12 @@ struct HabitDetailView: View {
                             Image(systemName: "target")
                                 .font(.system(size: 10, weight: .medium))
                             Text("关联目标")
-                                .font(.holoCaption)
+                                .holoText(.supporting)
                         }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.holoTextSecondary.opacity(0.1))
+                        .background(Color.holoToolTextSecondary.opacity(0.1))
                         .cornerRadius(HoloRadius.sm)
                     }
                     .buttonStyle(.plain)
@@ -512,13 +771,13 @@ struct HabitDetailView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("最近 \(HabitRetroactivePolicy.lookbackDays) 天有 \(missed.count) 天漏卡")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
 
                         Text(missed.count == 1
                              ? String(localized: "\(missedDayText(missed[0])) · 补上可恢复连续打卡")
                              : String(localized: "最早 \(missedDayText(missed[0])) · 补上可恢复连续打卡"))
                             .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
@@ -594,11 +853,11 @@ struct HabitDetailView: View {
                     showCustomRangeSheet = true
                 }
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .cornerRadius(HoloRadius.sm)
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.sm)
-                    .stroke(Color.holoBorder, lineWidth: 1)
+                    .stroke(Color.holoToolBorder, lineWidth: 1)
             )
 
             if selectedRange == nil {
@@ -609,7 +868,7 @@ struct HabitDetailView: View {
                         Image(systemName: "calendar")
                         Text(customRangeText)
                     }
-                    .font(.holoCaption)
+                    .holoText(.supporting)
                     .foregroundColor(.holoPrimary)
                 }
                 .buttonStyle(.plain)
@@ -624,13 +883,13 @@ struct HabitDetailView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.holoCaption)
+                .holoText(.supporting)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .foregroundColor(isSelected ? .white : .holoTextSecondary)
+                .foregroundColor(isSelected ? .white : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.holoPrimary : Color.holoCardBackground)
+                .background(isSelected ? Color.holoPrimary : Color.holoToolSurface)
         }
     }
     
@@ -645,7 +904,7 @@ struct HabitDetailView: View {
             }
         }
         .padding()
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .cornerRadius(HoloRadius.lg)
     }
     
@@ -745,7 +1004,7 @@ struct HabitDetailView: View {
                             value: "-",
                             label: String(localized: "变化"),
                             icon: "minus",
-                            color: .holoTextSecondary
+                            color: .holoToolTextSecondary
                         )
                     }
                     Divider().frame(height: 40)
@@ -786,12 +1045,12 @@ struct HabitDetailView: View {
                 
                 Text(value)
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
             
             Text(label)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
                 // 四列均分后列宽有限：标签超长（英文/Dynamic Type 大字号）不折行，轻微缩字保住四列数值水平对齐
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -804,8 +1063,8 @@ struct HabitDetailView: View {
     private var reminderSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("打卡提醒")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
 
             HabitReminderModePicker(mode: $reminderMode, time: $reminderTime)
                 .onChange(of: reminderMode) { _, _ in
@@ -830,8 +1089,8 @@ struct HabitDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("记录")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -846,14 +1105,14 @@ struct HabitDetailView: View {
                 }
 
                 Text("\(records.count) 条")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             
             if records.isEmpty && visibleMissedDays.isEmpty {
                 Text("暂无记录")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
@@ -869,7 +1128,7 @@ struct HabitDetailView: View {
             }
         }
         .padding()
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .cornerRadius(HoloRadius.lg)
     }
 
@@ -911,8 +1170,8 @@ struct HabitDetailView: View {
                 .foregroundColor(.holoError.opacity(0.7))
 
             Text("\(missedDayText(day)) · 未打卡")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
 
@@ -948,8 +1207,8 @@ struct HabitDetailView: View {
             if record.isRetroactive {
                 // 补签记录：目标日 + 「补」标记，补签时刻见行尾
                 Text(retroDayText(record))
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
 
                 Text("补")
                     .font(.system(size: 9, weight: .bold))
@@ -962,32 +1221,43 @@ struct HabitDetailView: View {
                 Spacer()
 
                 Text("补签于 \(record.retroactiveCreatedAtText)")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             } else {
                 Text(record.formattedDate)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer()
 
                 if snapshot.isCheckInType {
                     Image(systemName: record.isCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 16))
-                        .foregroundColor(record.isCompleted ? .holoSuccess : .holoTextSecondary)
+                        .foregroundColor(record.isCompleted ? .holoSuccess : .holoToolTextSecondary)
                 } else if record.valueDouble != nil {
                     Text(record.formattedValue(unit: snapshot.unit))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
                 }
             }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
-        .background(Color.holoBackground.opacity(0.5))
+        .background(Color.holoToolBackground.opacity(0.5))
         .cornerRadius(HoloRadius.sm)
         .contentShape(Rectangle())
+        .onTapGesture {
+            // 点击记录行：编辑该条（record ID 定位；数值可改值/备注，打卡可补备注）
+            if !record.isRetroactive || habit.isNumericType {
+                recordToEdit = record
+            }
+        }
         .contextMenu {
+            Button {
+                recordToEdit = record
+            } label: {
+                Label("编辑记录", systemImage: "pencil")
+            }
             Button(role: .destructive) {
                 recordToDelete = record
             } label: {
@@ -1046,6 +1316,116 @@ struct HabitDetailView: View {
 }
 
 /// 习惯统计自定义日期面板。只有点击“应用”才会改变详情页当前周期。
+/// 记录编辑弹层：数值记录改值/备注（测量允许 0）；打卡记录补备注（方案 §5.4）
+struct HabitRecordEditSheet: View {
+    let record: HabitRecord
+    let isCountType: Bool
+    let unit: String?
+    var onSave: (Double?, String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var valueText: String = ""
+    @State private var note: String = ""
+    @State private var errorMessage: String?
+    @FocusState private var valueFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+            Text(String(localized: "编辑记录"))
+                .font(.holoHeading)
+                .foregroundColor(.holoToolText)
+
+            if !isCountType || record.valueDouble != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        TextField(String(localized: "数值"), text: $valueText)
+                            .keyboardType(.decimalPad)
+                            .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                            .foregroundColor(.holoToolText)
+                            .focused($valueFocused)
+                        if let unit, !unit.isEmpty {
+                            Text(unit)
+                                .font(.system(size: 14))
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
+                    }
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoError)
+                    }
+                }
+                .padding()
+                .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
+            }
+
+            TextField(String(localized: "备注"), text: $note)
+                .font(.holoBody)
+                .foregroundColor(.holoToolText)
+                .padding()
+                .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
+
+            HStack(spacing: HoloSpacing.md) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text(String(localized: "取消"))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.holoToolText)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(Capsule().fill(Color.holoToolInset))
+                }
+                .buttonStyle(HoloPressStyle())
+
+                Button {
+                    save()
+                } label: {
+                    Text(String(localized: "保存"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoToolOnAction)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(Capsule().fill(Color.holoToolAction))
+                }
+                .buttonStyle(HoloPressStyle())
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(HoloSpacing.lg)
+        .presentationDetents([.height(300)])
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(String(localized: "完成")) { valueFocused = false }
+            }
+        }
+        .onAppear {
+            if let v = record.valueDouble {
+                valueText = HabitPresentationProjector.formatValue(v)
+            }
+            note = record.note ?? ""
+        }
+    }
+
+    private func save() {
+        var newValue: Double? = nil
+        if record.valueDouble != nil {
+            let formatter = NumberFormatter()
+            formatter.locale = Locale.current
+            formatter.numberStyle = .decimal
+            guard let number = formatter.number(from: valueText.trimmingCharacters(in: .whitespaces)),
+                  let parsed = number as? Double, parsed.isFinite,
+                  isCountType ? parsed > 0 : parsed >= 0 else {
+                errorMessage = String(localized: isCountType ? "计数值需要大于 0" : "请输入有效的数值（0 及以上）")
+                valueFocused = true
+                return
+            }
+            newValue = parsed
+        }
+        onSave(newValue, note.isEmpty ? nil : note)
+        dismiss()
+    }
+}
+
 private struct HabitCustomDateRangeSheet: View {
     @Environment(\.dismiss) private var dismiss
 

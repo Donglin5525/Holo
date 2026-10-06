@@ -92,8 +92,11 @@ final class HabitPauseSmokeUITests: XCTestCase {
             print("[CREATE] 名称输入框未找到")
             return nil
         }
+        // 唯一命名：共享模拟器会残留上一轮夹具习惯，固定名会让
+        // 「暂停后磁贴消失」断言命中残留磁贴误报（2026-10-05 实锤两同名磁贴）
+        let uniqueName = "PM\(Int(Date().timeIntervalSince1970) % 1000000)"
         nameField.tap()
-        nameField.typeText("PauseMe1")
+        nameField.typeText(uniqueName)
         guard let saveBtn = buttonContaining(["儲存", "保存"]), saveBtn.exists else {
             print("[CREATE] 儲存按钮未找到")
             app.buttons["取消"].firstMatch.tap()
@@ -101,7 +104,7 @@ final class HabitPauseSmokeUITests: XCTestCase {
         }
         saveBtn.tap()
         sleep(1)
-        return "PauseMe1"
+        return uniqueName
     }
 
     /// 长按磁贴呼出菜单，点「暂停」
@@ -165,6 +168,12 @@ final class HabitPauseSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[name].waitForNonExistence(timeout: 3), "暂停后磁贴仍在墙上")
 
         // 4. 展开折叠区 → 行内恢复
+        // 夹具残留会撑长磁贴墙，折叠区可能贴底与吸底 Tab 栏重叠（tap 被 Tab 栏吃掉
+        // 误触「设置」，2026-10-06 实锤）；tap 前先把折叠区滑进安全区
+        if pausedSection.exists, pausedSection.frame.maxY > app.frame.maxY - 130 {
+            app.swipeUp()
+            _ = pausedSection.waitForExistence(timeout: 2)
+        }
         pausedSection.tap()
         sleep(1)
         shoot("P14_paused_expanded")
@@ -196,6 +205,39 @@ final class HabitPauseSmokeUITests: XCTestCase {
         XCTAssertTrue(paywall.waitForExistence(timeout: 6), "免费态暂停未弹付费墙")
         shoot("P20_paywall")
         print("[RESULT] 免费态门控 PASS")
+    }
+
+    // MARK: - 三十天缝线打卡走查（B 方案 2026-10-07）
+
+    /// 打卡=缝一针 / 撤销=拆针：验证最高频动作不崩、按钮态与痕迹联动正确。
+    /// 依赖模拟器库内有至少一个今日未打卡的每日习惯（播种库满足）。
+    func test_缝线打卡落针与拆针() throws {
+        let walkDir = "/tmp/holo_stitch_walk"
+        try? FileManager.default.createDirectory(atPath: walkDir, withIntermediateDirectories: true)
+        app.launch()
+        sleep(3)
+        // 真实导航：首页 → 习惯模块（深链在 UITest 下会被 Plus 门控拦成付费墙，2026-10-07 实测）
+        guard enterHabitsModule() else { return }
+        sleep(1)
+
+        let checkInBtn = app.buttons.matching(NSPredicate(format: "label == %@", "打卡")).firstMatch
+        XCTAssertTrue(checkInBtn.waitForExistence(timeout: 10), "未找到今日未打卡的习惯行")
+        shoot("S10_before_checkin", settle: 0)
+
+        // 缝一针：按钮态 打卡 → 取消打卡
+        checkInBtn.tap()
+        let undoBtn = app.buttons.matching(NSPredicate(format: "label == %@", "取消打卡")).firstMatch
+        XCTAssertTrue(undoBtn.waitForExistence(timeout: 5), "打卡后按钮未变为「取消打卡」")
+        sleep(1) // 等落针过渡与完成光晕播完
+        shoot("S11_after_checkin", settle: 0)
+
+        // 拆针：还原为打卡
+        undoBtn.tap()
+        let restored = app.buttons.matching(NSPredicate(format: "label == %@", "打卡")).firstMatch
+        XCTAssertTrue(restored.waitForExistence(timeout: 5), "撤销后按钮未还原为「打卡」")
+        sleep(1)
+        shoot("S12_after_undo", settle: 0)
+        print("[RESULT] 缝线打卡落针/拆针 PASS")
     }
 }
 

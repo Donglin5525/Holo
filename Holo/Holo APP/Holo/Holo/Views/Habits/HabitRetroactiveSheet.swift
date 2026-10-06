@@ -14,7 +14,7 @@ import SwiftUI
 /// 补签/补记两种模式
 /// - sign: 补签（找回断签），7 天窗口内系统判定的漏卡日（磁贴点阵/横幅/记录行入口）
 /// - backfill: 补记（补录事实），不限窗口、用户自选日期（详情页入口）
-enum HabitRetroactiveMode {
+enum HabitRetroactiveMode: Equatable {
     case sign
     case backfill
 }

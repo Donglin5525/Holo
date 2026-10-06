@@ -87,4 +87,44 @@ final class HabitStatsDisplaySettingsTests: XCTestCase {
         let reloaded = makeSettings(defaults)
         XCTAssertEqual(reloaded.orderedHabitIds, [b, a])
     }
+
+    // MARK: - 显式全部关闭兼容（2026-10 重构，方案 §12.4 / R42/R43）
+
+    func testLegacyEmptyMeansAllWhenNotConfigured() {
+        let defaults = makeDefaults("legacy-empty")
+        let settings = makeSettings(defaults)
+        // 未配置过：空数组保持旧语义 = 显示全部（nil）
+        XCTAssertNil(settings.effectiveStatsVisibleIds())
+        XCTAssertNil(settings.effectiveDashboardVisibleIds())
+    }
+
+    func testExplicitEmptyMeansAllClosedAfterConfigured() {
+        let defaults = makeDefaults("explicit-empty")
+        let settings = makeSettings(defaults)
+
+        settings.setVisibleHabitIds([])
+        XCTAssertTrue(settings.effectiveStatsVisibleIds()?.isEmpty == true, "已配置后空数组 = 全部关闭")
+    }
+
+    func testDashboardExplicitClosedDoesNotAutoAddNewHabit() {
+        let defaults = makeDefaults("dashboard-closed")
+        let settings = makeSettings(defaults)
+        settings.setDashboardVisibleHabitIds([])
+
+        let newHabit = UUID()
+        settings.addDashboardHabitIfNeeded(newHabit)
+        XCTAssertTrue(settings.effectiveDashboardVisibleIds()?.isEmpty == true, "显式全关闭时新建习惯不擅自开启")
+    }
+
+    func testDashboardConfiguredKeepsAutoAddForNonEmptyWhitelist() {
+        let defaults = makeDefaults("dashboard-open")
+        let settings = makeSettings(defaults)
+        let existing = UUID()
+        settings.setDashboardVisibleHabitIds([existing])
+
+        let newHabit = UUID()
+        settings.addDashboardHabitIfNeeded(newHabit)
+        XCTAssertEqual(settings.dashboardVisibleHabitIds, [existing, newHabit], "非空白名单自动纳入保持")
+    }
 }
+

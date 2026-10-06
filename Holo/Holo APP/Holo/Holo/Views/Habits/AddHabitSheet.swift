@@ -55,6 +55,23 @@ struct AddHabitSheet: View {
     @State private var showIconPicker: Bool = false
     @State private var isSaving: Bool = false
 
+    // 目标三态（方案 §8.2/§12.4）：目标关闭 = 编辑模式提交 clear，不能被误解释为「不更新」
+    @State private var targetEnabled: Bool = false
+    // 关联目标（真实 Goal 关系，非名称字符串）
+    @State private var goalSelection: Goal? = nil
+    @State private var initialGoalId: UUID? = nil
+    @State private var showGoalPicker: Bool = false
+    // 渐进配置展开状态（§8.2：首屏只做名称+方式两个决定）
+    @State private var expandedGoalsFrequency = false
+    @State private var expandedReminderGoal = false
+    @State private var expandedIconColor = false
+    @State private var expandedNature = false
+
+    // 保存失败：表单内错误 + 保留草稿重试（方案 §8.3/§11.4）
+    @State private var saveErrorMessage: String? = nil
+    /// 新增时「基础习惯已创建但目标关联失败」的续接草稿 ID（重试只补关联，不再新建）
+    @State private var pendingGoalLinkHabitId: UUID? = nil
+
     // 未保存修改确认
     @State private var showDismissAlert: Bool = false
     
@@ -77,38 +94,62 @@ struct AddHabitSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    // 图标和颜色选择
-                    iconColorSection
-                    
-                    // 名称输入
+                    // 名称：第一个必要决定
                     nameSection
-                    
-                    // 习惯类型选择
-                    typeSection
-                    
-                    // 数值型子类型（仅当选择数值型时显示）
-                    if selectedType == .numeric {
-                        aggregationTypeSection
+
+                    // 记录方式：第二个必要决定（打卡/计数/测量，方案 §8.1）
+                    methodSection
+
+                    // 渐进配置：按需展开但能力完整（方案 §8.2）
+                    configSection(title: String(localized: "目标与频率"),
+                                  summary: goalsFrequencySummary,
+                                  isExpanded: $expandedGoalsFrequency) {
+                        frequencySection
+                        targetSection
                     }
 
-                    // 打卡提醒（仅打卡型）
-                    if selectedType == .checkIn {
-                        reminderSection
+                    configSection(title: String(localized: "提醒与关联目标"),
+                                  summary: reminderGoalSummary,
+                                  isExpanded: $expandedReminderGoal) {
+                        if selectedType == .checkIn {
+                            reminderSection
+                        }
+                        goalLinkSection
                     }
 
-                    // 频率选择
-                    frequencySection
-                    
-                    // 目标设置
-                    targetSection
+                    configSection(title: String(localized: "图标与颜色"),
+                                  summary: String(localized: "已选择"),
+                                  isExpanded: $expandedIconColor) {
+                        iconColorSection
+                    }
 
-                    // 习惯性质（好习惯/坏习惯）
-                    habitNatureSection
+                    configSection(title: String(localized: "习惯性质"),
+                                  summary: natureSummaryText,
+                                  isExpanded: $expandedNature) {
+                        habitNatureSection
+                    }
+
+                    // 保存失败：表单内显示原因与重试，输入不清空不关闭（方案 §8.3）
+                    if let saveErrorMessage {
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 13))
+                            Text(saveErrorMessage)
+                        }
+                        .font(.holoCaption)
+                        .foregroundColor(.holoError)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(Color.holoError.opacity(0.08))
+                        )
+                    }
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.sm)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(isEditing ? String(localized: "编辑习惯") : String(localized: "新增习惯"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -120,14 +161,14 @@ struct AddHabitSheet: View {
                             dismiss()
                         }
                     }
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         saveHabit()
                     }
-                    .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
                     .fontWeight(.semibold)
                     .disabled(!canSave || isSaving)
                 }
@@ -138,6 +179,11 @@ struct AddHabitSheet: View {
         }
         .sheet(isPresented: $showIconPicker) {
             IconPickerSheet(selectedIcon: $selectedIcon)
+        }
+        .sheet(isPresented: $showGoalPicker) {
+            GoalPickerSheet(currentGoalId: goalSelection?.id) { goal in
+                goalSelection = goal
+            }
         }
         .swipeBackToDismiss {
             if hasUnsavedChanges {
@@ -173,6 +219,17 @@ struct AddHabitSheet: View {
                     || reminderMode != habit.habitReminderMode
                     || calendar.component(.hour, from: reminderTime) != Int(habit.reminderHour)
                     || calendar.component(.minute, from: reminderTime) != Int(habit.reminderMinute)
+            }
+            // 目标三态与关联目标改动
+            let originalTargetExists = habit.targetValueDouble != nil || habit.targetCountValue != nil
+            changed = changed
+                || targetEnabled != originalTargetExists
+                || goalSelection?.id != habit.goal?.id
+            if targetEnabled, originalTargetExists {
+                changed = changed
+                    || (Int(targetCount) ?? habit.targetCountValue ?? -1) != (habit.targetCountValue ?? -1)
+                    || (Double(targetValue) ?? habit.targetValueDouble ?? -1) != (habit.targetValueDouble ?? -1)
+                    || unit != (habit.unit ?? "")
             }
             return changed
         } else {
@@ -216,6 +273,17 @@ struct AddHabitSheet: View {
                 comps.minute = Int(habit.reminderMinute)
                 reminderTime = Calendar.current.date(from: comps) ?? Self.defaultReminderTime
             }
+
+            // 目标三态初始值（数值型 targetValue 优先，历史 targetCount 兜底展示）
+            targetEnabled = habit.targetValueDouble != nil || habit.targetCountValue != nil
+            initialGoalId = habit.goal?.id
+            goalSelection = habit.goal
+
+            // 编辑模式默认展开全部配置（用户需要看到现值）
+            expandedGoalsFrequency = true
+            expandedReminderGoal = true
+            expandedIconColor = false
+            expandedNature = false
         } else if let draft = prefill {
             name = draft.name
             selectedIcon = draft.icon
@@ -261,7 +329,7 @@ struct AddHabitSheet: View {
             
             Text("点击选择图标")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             
             // 颜色选择（5x2 网格布局）
             LazyVGrid(columns: colorColumns, spacing: 10) {
@@ -274,7 +342,7 @@ struct AddHabitSheet: View {
                             .frame(width: 28, height: 28)
                             .overlay(
                                 Circle()
-                                    .stroke(Color.holoCardBackground, lineWidth: selectedColor == color ? 2 : 0)
+                                    .stroke(Color.holoToolSurface, lineWidth: selectedColor == color ? 2 : 0)
                             )
                             .overlay(
                                 Circle()
@@ -295,25 +363,234 @@ struct AddHabitSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("习惯名称")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             
             TextField("如：早起、喝水、运动", text: $name)
                 .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .cornerRadius(HoloRadius.sm)
         }
     }
     
-    // MARK: - 习惯类型选择
+    // MARK: - 记录方式（三卡，方案 §8.1：先名称后方式，两个必要决定）
+
+    private var methodSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("记录方式")
+                .font(.holoLabel)
+                .foregroundColor(.holoToolTextSecondary)
+
+            VStack(spacing: 8) {
+                methodCard(.checkIn, .sum,
+                           title: String(localized: "打卡"),
+                           subtitle: String(localized: "做了以后留一个勾"),
+                           icon: "checkmark.circle")
+                methodCard(.numeric, .sum,
+                           title: String(localized: "计数"),
+                           subtitle: String(localized: "一次次累加，例如喝水、练习次数"),
+                           icon: "number")
+                methodCard(.numeric, .latest,
+                           title: String(localized: "测量"),
+                           subtitle: String(localized: "记下每次的数值，例如体重、时长"),
+                           icon: "scalemass")
+            }
+
+            // 编辑模式且类型有改动：预告历史记录的转换方式（复用既有幂等桥接）
+            if let habit = editingHabit,
+               selectedType != habit.habitType || selectedAggregationType != habit.habitAggregationType {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12))
+                    Text(typeChangeHint)
+                }
+                .font(.holoCaption)
+                .foregroundColor(.holoPrimary)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(Color.holoPrimary.opacity(0.08))
+                )
+            }
+        }
+    }
+
+    private func methodCard(_ type: HabitType, _ aggregation: HabitAggregationType,
+                            title: String, subtitle: String, icon: String) -> some View {
+        let isSelected = selectedType == type && selectedAggregationType == aggregation
+        return Button {
+            withAnimation(HoloAnimation.quick) {
+                selectedType = type
+                selectedAggregationType = aggregation
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.holoBody.weight(.medium))
+                        .foregroundColor(.holoToolText)
+                    Text(subtitle)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.holoPrimary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .fill(isSelected ? Color.holoPrimary.opacity(0.08) : Color.holoToolSurface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .strokeBorder(isSelected ? Color.holoPrimary.opacity(0.5) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 类型/聚合切换的历史记录转换预告文案
+    private var typeChangeHint: String {
+        switch selectedType {
+        case .checkIn:
+            String(localized: "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回")
+        case .numeric:
+            selectedAggregationType == .sum
+                ? String(localized: "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回")
+                : String(localized: "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回")
+        }
+    }
+
+    // MARK: - 渐进配置容器（摘要行 + 点开设置）
+
+    private func configSection<Content: View>(title: String, summary: String,
+                                              isExpanded: Binding<Bool>,
+                                              @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(HoloAnimation.quick) { isExpanded.wrappedValue.toggle() }
+            } label: {
+                HStack {
+                    Text(title)
+                        .font(.holoLabel)
+                        .foregroundColor(.holoToolText)
+                    Spacer()
+                    Text(summary)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoToolTextSecondary)
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 46)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded.wrappedValue {
+                VStack(alignment: .leading, spacing: 14) {
+                    content()
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+            }
+        }
+        .background(Color.holoToolSurface)
+        .cornerRadius(HoloRadius.sm)
+    }
+
+    private var goalsFrequencySummary: String {
+        var parts: [String] = [selectedFrequency.displayName]
+        if targetEnabled {
+            if selectedType == .checkIn, let tc = Int(targetCount), tc > 0 {
+                parts.append(String(localized: "目标 \(tc) 次"))
+            } else if selectedType == .numeric, !targetValue.isEmpty {
+                parts.append(String(localized: "目标 \(targetValue)\(unit.isEmpty ? "" : " \(unit)")"))
+            }
+        } else {
+            parts.append(String(localized: "无目标"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var reminderGoalSummary: String {
+        var parts: [String] = []
+        if selectedType == .checkIn {
+            parts.append(reminderMode.displayName)
+        }
+        parts.append(goalSelection != nil
+            ? String(localized: "已关联目标")
+            : String(localized: "未关联目标"))
+        return parts.joined(separator: " · ")
+    }
+
+    private var natureSummaryText: String {
+        switch isBadHabit {
+        case .some(false): return String(localized: "好习惯")
+        case .some(true): return String(localized: "坏习惯")
+        case .none: return String(localized: "好习惯")
+        }
+    }
+
+    // MARK: - 关联目标（真实 Goal 关系，方案 §6.3/§8.2）
+
+    private var goalLinkSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("关联目标（可选）")
+                .font(.holoLabel)
+                .foregroundColor(.holoToolTextSecondary)
+
+            Button {
+                showGoalPicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "target")
+                        .font(.system(size: 13))
+                        .foregroundColor(goalSelection != nil ? .holoPrimary : .holoToolTextSecondary)
+                    Text(goalSelection?.title ?? String(localized: "暂不关联"))
+                        .font(.holoBody)
+                        .foregroundColor(goalSelection != nil ? .holoToolText : .holoToolTextSecondary)
+                    Spacer()
+                    if goalSelection != nil {
+                        Button {
+                            goalSelection = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.6))
+                }
+                .frame(minHeight: 40)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("habit.edit.goal")
+        }
+    }
+
+    // MARK: - 习惯类型（旧 segmented 保留兼容引用；新 UI 走 methodSection）
     
     private var typeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("习惯类型")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             
             Picker("习惯类型", selection: $selectedType) {
                 ForEach(HabitType.allCases) { type in
@@ -324,7 +601,7 @@ struct AddHabitSheet: View {
 
             Text(selectedType.description)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             // 编辑模式且类型有改动：预告历史记录的转换方式
             if let habit = editingHabit, selectedType != habit.habitType {
@@ -345,15 +622,6 @@ struct AddHabitSheet: View {
         }
     }
 
-    /// 类型切换的历史记录转换预告文案
-    private var typeChangeHint: String {
-        switch selectedType {
-        case .checkIn:
-            String(localized: "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回")
-        case .numeric:
-            String(localized: "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回")
-        }
-    }
     
     // MARK: - 聚合类型选择（数值型）
 
@@ -361,7 +629,7 @@ struct AddHabitSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("数值类型")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Picker("数值类型", selection: $selectedAggregationType) {
                 ForEach(HabitAggregationType.allCases) { type in
@@ -372,7 +640,7 @@ struct AddHabitSheet: View {
 
             Text(selectedAggregationType.description)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -382,7 +650,7 @@ struct AddHabitSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("打卡提醒")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             HabitReminderModePicker(mode: $reminderMode, time: $reminderTime)
         }
@@ -394,7 +662,7 @@ struct AddHabitSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("频率")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             
             HStack(spacing: 8) {
                 ForEach(HabitFrequency.allCases) { freq in
@@ -403,12 +671,12 @@ struct AddHabitSheet: View {
                     } label: {
                         Text(freq.displayName)
                             .font(.holoCaption)
-                            .foregroundColor(selectedFrequency == freq ? .white : .holoTextPrimary)
+                            .foregroundColor(selectedFrequency == freq ? .white : .holoToolText)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                    .fill(selectedFrequency == freq ? Color.holoPrimary : Color.holoCardBackground)
+                                    .fill(selectedFrequency == freq ? Color.holoPrimary : Color.holoToolSurface)
                             )
                     }
                 }
@@ -420,42 +688,54 @@ struct AddHabitSheet: View {
 
     private var targetSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("目标（可选）")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+            HStack {
+                Text("目标（可选）")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoToolTextSecondary)
+                Spacer()
+                // 目标开关：关闭 = 编辑模式提交 clear（两个兼容字段一并清除，方案 §9.2）
+                Toggle("", isOn: $targetEnabled)
+                    .labelsHidden()
+                    .frame(width: 46)
+                    .accessibilityIdentifier("habit.edit.targetToggle")
+            }
 
-            if selectedType == .checkIn {
+            if !targetEnabled {
+                Text(String(localized: "未设置目标；编辑时关闭会清除已有目标"))
+                    .font(.holoCaption)
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.8))
+            } else if selectedType == .checkIn {
                 HStack(spacing: 8) {
                     TextField("目标次数", text: $targetCount)
                         .font(.holoBody)
                         .keyboardType(.numberPad)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .cornerRadius(HoloRadius.sm)
 
                     Text("次/\(selectedFrequency.displayName)")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             } else {
                 HStack(spacing: 8) {
                     TextField("目标值", text: $targetValue)
                         .font(.holoBody)
                         .keyboardType(.decimalPad)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .cornerRadius(HoloRadius.sm)
 
                     TextField("单位", text: $unit)
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .cornerRadius(HoloRadius.sm)
                         .frame(width: 70)
                 }
@@ -469,7 +749,7 @@ struct AddHabitSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("习惯性质（可选）")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: 8) {
                 Button {
@@ -482,11 +762,11 @@ struct AddHabitSheet: View {
                             .font(.holoCaption)
                     }
                     .frame(maxWidth: .infinity)
-                    .foregroundColor(isBadHabit == false ? .white : .holoTextPrimary)
+                    .foregroundColor(isBadHabit == false ? .white : .holoToolText)
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(isBadHabit == false ? Color.holoPrimary : Color.holoCardBackground)
+                            .fill(isBadHabit == false ? Color.holoPrimary : Color.holoToolSurface)
                     )
                 }
 
@@ -500,18 +780,18 @@ struct AddHabitSheet: View {
                             .font(.holoCaption)
                     }
                     .frame(maxWidth: .infinity)
-                    .foregroundColor(isBadHabit == true ? .white : .holoTextPrimary)
+                    .foregroundColor(isBadHabit == true ? .white : .holoToolText)
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(isBadHabit == true ? Color.holoError : Color.holoCardBackground)
+                            .fill(isBadHabit == true ? Color.holoError : Color.holoToolSurface)
                     )
                 }
             }
 
             Text(natureDescriptionText)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -531,63 +811,118 @@ struct AddHabitSheet: View {
     private func saveHabit() {
         guard canSave else { return }
         isSaving = true
-        
+        saveErrorMessage = nil
+
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
-        let tc = Int(targetCount)
-        let tv = Double(targetValue)
-        let u = unit.isEmpty ? nil : unit
+        let tc = targetEnabled ? Int(targetCount) : nil
+        let tv = targetEnabled ? Double(targetValue) : nil
+        let u = targetEnabled && !unit.isEmpty ? unit : nil
         let badHabit = isBadHabit ?? false
         let calendar = Calendar.current
-        // 打卡提醒仅打卡型有意义；数值型不参与提醒，走默认值/不更新
+        // 打卡提醒仅打卡型有意义；数值型不参与提醒（方案 §6.3）
         let isCheckIn = selectedType == .checkIn
         let reminderTimeComponents = (
             hour: calendar.component(.hour, from: reminderTime),
             minute: calendar.component(.minute, from: reminderTime)
         )
 
-        do {
-            if let habit = editingHabit {
-                // 编辑模式
-                try repository.updateHabit(habit, updates: HabitUpdates(
-                    type: selectedType,
-                    name: trimmedName,
-                    icon: selectedIcon,
-                    color: selectedColor,
-                    frequency: selectedFrequency,
-                    targetCount: tc,
-                    targetValue: tv,
-                    unit: u,
-                    aggregationType: selectedAggregationType,
-                    isBadHabit: isBadHabit,
-                    reminderMode: isCheckIn ? reminderMode : nil,
-                    reminderTime: isCheckIn ? reminderTimeComponents : nil
-                ))
+        // 编辑模式：三态字段一次用户意图完整提交（方案 §8.3/§12.4）
+        if let habit = editingHabit {
+            var payload = HabitEditPayload(
+                name: trimmedName, icon: selectedIcon, color: selectedColor,
+                type: selectedType, aggregationType: selectedAggregationType,
+                frequency: selectedFrequency, isBadHabit: badHabit,
+                reminderMode: isCheckIn ? reminderMode : .follow,
+                reminderTime: reminderTimeComponents
+            )
+            // 目标三态：关闭 = clear（两个兼容字段一并清除）；开启有值 = set；开启无值按无效拦截
+            if !targetEnabled {
+                payload.targetCount = .clear
+                payload.targetValue = .clear
+            } else if selectedType == .checkIn {
+                payload.targetCount = tc.map { .set($0) } ?? .clear
             } else {
-                // 新增模式
-                _ = try repository.createHabit(
+                if let tv, tv > 0 {
+                    payload.targetValue = .set(tv)
+                } else if habit.targetValueDouble != nil || habit.targetCountValue != nil {
+                    saveErrorMessage = String(localized: "目标值需要大于 0；或关闭目标")
+                    isSaving = false
+                    return
+                }
+            }
+            payload.unit = targetEnabled ? (u.map { HabitFieldUpdate<String>.set($0) } ?? .clear) : .clear
+            // 目标关系三态
+            switch (initialGoalId, goalSelection?.id) {
+            case (.none, .none): payload.goalId = .keep
+            case (.some(let origin), .some(let now)) where origin == now: payload.goalId = .keep
+            case (_, .some(let now)): payload.goalId = .set(now)
+            case (.some, .none): payload.goalId = .clear
+            }
+
+            do {
+                try repository.applyHabitEdits(habitId: habit.id, payload: payload)
+                onSave?()
+                dismiss()
+                HapticManager.success()
+            } catch {
+                // 失败：保留草稿、显示原因、可重试（不关闭不清理）
+                logger.error("编辑保存失败: \(error)")
+                saveErrorMessage = String(localized: "这次没有保存成功，内容还在，可以重试")
+                isSaving = false
+            }
+            return
+        }
+
+        // 新增模式
+        do {
+            if let pendingId = pendingGoalLinkHabitId {
+                // 续接：基础习惯已创建，仅补目标关联（同一草稿 ID，不重复新建）
+                try linkGoal(habitId: pendingId)
+                pendingGoalLinkHabitId = nil
+            } else {
+                let habit = try repository.createHabit(
                     name: trimmedName,
                     icon: selectedIcon,
                     color: selectedColor,
                     type: selectedType,
                     frequency: selectedFrequency,
-                    targetCount: tc,
-                    targetValue: tv,
-                    unit: u,
+                    targetCount: selectedType == .checkIn ? tc : nil,
+                    targetValue: selectedType == .numeric ? tv : nil,
+                    unit: selectedType == .numeric ? u : nil,
                     aggregationType: selectedAggregationType,
                     isBadHabit: badHabit,
                     reminderMode: isCheckIn ? reminderMode : .follow,
                     reminderTime: reminderTimeComponents
                 )
+                // 目标关联失败不回滚基础习惯：保留同一草稿 ID 只补关联（方案 §8.3）
+                if let goal = goalSelection {
+                    do {
+                        try linkGoal(habitId: habit.id)
+                    } catch {
+                        pendingGoalLinkHabitId = habit.id
+                        throw error
+                    }
+                }
             }
-            
             onSave?()
             dismiss()
-
             HapticManager.success()
         } catch {
-            logger.error("保存失败: \(error)")
+            logger.error("新增保存失败: \(error)")
+            saveErrorMessage = pendingGoalLinkHabitId != nil
+                ? String(localized: "习惯已创建，但目标关联没有成功；再点保存只补关联")
+                : String(localized: "这次没有保存成功，内容还在，可以重试")
             isSaving = false
         }
+    }
+
+    /// 用 GoalRepository 既有通道建立习惯→目标关系
+    private func linkGoal(habitId: UUID) throws {
+        guard let goal = goalSelection else { return }
+        guard let habit = repository.findHabit(by: habitId) else {
+            throw HabitError.notFound
+        }
+        try GoalRepository.shared.linkHabit(habit, to: goal)
     }
 }
 
@@ -647,10 +982,10 @@ struct IconPickerSheet: View {
                         }
                         .padding()
                     }
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                 }
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("选择图标")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -677,7 +1012,7 @@ struct IconPickerSheet: View {
                 
                 Text(category.name)
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             
             // 图标网格
@@ -700,7 +1035,7 @@ struct IconPickerSheet: View {
             VStack(spacing: 4) {
                 ZStack {
                     RoundedRectangle(cornerRadius: HoloRadius.md)
-                        .fill(selectedIcon == item.name ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
+                        .fill(selectedIcon == item.name ? Color.holoPrimary.opacity(0.1) : Color.holoToolSurface)
                         .frame(width: 52, height: 52)
                     
                     // 根据是否为自定义图标选择不同的显示方式
@@ -710,11 +1045,11 @@ struct IconPickerSheet: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 22, height: 22)
-                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoTextPrimary)
+                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoToolText)
                     } else {
                         Image(systemName: item.name)
                             .font(.system(size: 22))
-                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoTextPrimary)
+                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoToolText)
                     }
                 }
                 .overlay(
@@ -724,7 +1059,7 @@ struct IconPickerSheet: View {
                 
                 Text(item.label)
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
             }
         }

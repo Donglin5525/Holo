@@ -25,7 +25,7 @@ extension Notification.Name {
 @MainActor
 class HabitRepository: ObservableObject {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HabitRepository")
+    let logger = Logger(subsystem: "com.holo.app", category: "HabitRepository")
 
     // MARK: - Singleton
 
@@ -298,7 +298,7 @@ class HabitRepository: ObservableObject {
     /// - 打卡→数值：已完成的记录补 value = 1（勾选语义保留为每次计 1）
     /// - 两个方向都清理「未完成且无数值」的空记录（勾了又取消/同步残留，无任何数据）
     /// 只改内存对象不落库，由调用方与类型写入同一事务一次 save
-    private func bridgeRecordsForTypeChange(_ habit: Habit, to newType: HabitType) {
+    func bridgeRecordsForTypeChange(_ habit: Habit, to newType: HabitType) {
         for record in getAllRecords(for: habit) {
             let hasValue = record.value != nil
             if !record.isCompleted && !hasValue {
@@ -689,6 +689,22 @@ class HabitRepository: ObservableObject {
         let dayStart = calendar.startOfDay(for: day)
         guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return .invalidDate }
 
+        // 幂等识别前移（2026-10 重构）：已完成日在配额门禁之前识别，
+        // 给「这一天已经记录过了」，不展示无意义付费墙、不扣额度
+        if habit.isCheckInType {
+            let doneRequest = HabitRecord.fetchRequest()
+            doneRequest.predicate = NSPredicate(
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
+                habit.id as CVarArg,
+                dayStart as NSDate,
+                dayEnd as NSDate
+            )
+            doneRequest.fetchLimit = 1
+            if ((try? context.fetch(doneRequest))?.count ?? 0) > 0 {
+                return .alreadyCompleted
+            }
+        }
+
         // 额度：Plus 无限；免费用尽返回 requiresPlus，由 UI 层弹付费墙
         let isPlus = HoloEntitlementState.shared.isPlusActive
         if !isPlus, HabitRetroactiveQuota.remaining() <= 0 {
@@ -698,19 +714,6 @@ class HabitRepository: ObservableObject {
         let streakBefore = calculateStreakInfo(for: habit).value
 
         if habit.isCheckInType {
-            // 当天已有完成记录 → 幂等返回
-            let request = HabitRecord.fetchRequest()
-            request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                habit.id as CVarArg,
-                dayStart as NSDate,
-                dayEnd as NSDate
-            )
-            request.fetchLimit = 1
-            if ((try? context.fetch(request))?.count ?? 0) > 0 {
-                return .alreadyCompleted
-            }
-
             // 当天存在「取消态」记录（曾打卡又取消）时复用它，保持一天一条的数据形态
             let existing = HabitRecord.fetchRequest()
             existing.predicate = NSPredicate(
@@ -1441,10 +1444,11 @@ class HabitRepository: ObservableObject {
         }
     }
     
+
     // MARK: - Notifications
 
     /// 发送数据变更通知
-    private func notifyDataChange(habitId: UUID? = nil) {
+    func notifyDataChange(habitId: UUID? = nil) {
         // 触发 objectWillChange，让仅依赖 @ObservedObject（未监听 NotificationCenter）的视图
         // 如 KanbanProgressHero 在打卡后实时刷新；既有通过 .habitDataDidChange 监听的视图不受影响
         objectWillChange.send()

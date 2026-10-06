@@ -70,8 +70,19 @@ struct HabitsView: View {
     // MARK: - Body
 
     var body: some View {
+        // 2026-10 交互重构：新 UI（今天/回顾/管理）默认关闭，开关开启时整体切换；
+        // 关闭开关只换界面，不删新记录、不重置偏好（方案 §18.1 回退契约）
+        if HabitInteractionFeature.isV1Enabled {
+            HabitModuleContainer()
+        } else {
+            legacyBody
+        }
+    }
+
+    /// 旧版三页签（统计/习惯/设置），作为新 UI 的短期回退路径保留
+    private var legacyBody: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             Group {
                 switch selectedTab {
@@ -152,10 +163,10 @@ struct HabitsView: View {
                             Capsule().fill(Color.holoPrimary.opacity(0.15))
                                 .matchedGeometryEffect(id: "habitTopTabCapsule", in: habitTabNamespace)
                         } else {
-                            Capsule().fill(Color.holoCardBackground)
+                            Capsule().fill(Color.holoToolSurface)
                         }
                     }
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .holoHover()
@@ -164,7 +175,7 @@ struct HabitsView: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     /// 底部导航栏：统计 / 习惯 / 设置
@@ -181,14 +192,14 @@ struct HabitsView: View {
             .padding(.top, 8)
             .padding(.bottom, bottomInset)
             .background(
-                Color.holoCardBackground
+                Color.holoToolSurface
                     .shadow(color: HoloShadow.card, radius: 10, x: 0, y: -2)
                     .ignoresSafeArea(edges: .bottom)
             )
         }
         .frame(height: 88)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
+        .background(Color.holoToolSurface.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
 
@@ -209,11 +220,11 @@ struct HabitsView: View {
 
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
 
                 Text(tab.displayName)
                     .font(.holoTinyLabel)
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }
@@ -439,13 +450,6 @@ struct HabitListView: View {
             HabitTileItem(id: habit.id, habit: habit, index: index)
         }
         let newProgress = repository.getTodayCheckInProgress()
-        // 「从未全部完成 → 全部完成」的跳变触发庆祝波浪（仅一次）
-        if newProgress.total > 0,
-           todayProgress.total == newProgress.total,
-           todayProgress.completed < newProgress.total,
-           newProgress.completed == newProgress.total {
-            waveToken += 1
-        }
         todayProgress = newProgress
         weekPatterns = repository.getWeekCompletionPatterns()
         hasLoadedOnce = true
@@ -467,39 +471,67 @@ struct HabitListView: View {
     // MARK: - 顶部导航栏
 
     private var headerView: some View {
-        HStack {
-            Button {
-                onBack()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.holoToolText)
+                        .frame(width: 44, height: 44)
+                }
 
-            Spacer()
+                Spacer()
+
+                // 新增按钮：品牌橙渐变圆钮（温润纸感方案，带顶部高光与橙影）
+                Button {
+                    addHabitDraft = HabitPrefillDraft()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 38, height: 38)
+                        .background(
+                            Circle().fill(
+                                LinearGradient(
+                                    colors: [.holoPrimary, .holoPrimaryDark],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                        )
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+                        .shadow(color: Color.holoPrimaryDark.opacity(0.35), radius: 8, x: 0, y: 4)
+                }
+                .frame(width: 44, height: 44)
+                .buttonStyle(.plain)
+            }
 
             Text("习惯")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .font(.system(size: 30, weight: .bold))
+                .foregroundColor(.holoToolText)
+                .padding(.top, 2)
 
-            Spacer()
-
-            // 新增按钮（从底部导航移入习惯 Tab 内部）
-            Button {
-                addHabitDraft = HabitPrefillDraft()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoPrimary)
-                    .clipShape(Circle())
-            }
+            Text(todayDateString)
+                .font(.system(size: 13))
+                .foregroundColor(.holoToolTextSecondary)
+                .padding(.top, 3)
         }
         .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoBackground)
+        .padding(.bottom, HoloSpacing.sm)
+        .background(Color.holoToolBackground)
+    }
+
+    /// 头部日期行：如「10月6日 · 周二」（跟随系统日历与语言）
+    private var todayDateString: String {
+        let calendar = Calendar.current
+        let now = Date()
+        let datePart = calendar.component(.month, from: now)
+        let dayPart = calendar.component(.day, from: now)
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        let weekday = formatter.weekdaySymbols[calendar.component(.weekday, from: now) - 1]
+        return "\(datePart)月\(dayPart)日 · \(weekday)"
     }
 
     // MARK: - 空状态（示例磁贴）
@@ -512,9 +544,9 @@ struct HabitListView: View {
     }
 
     private let sampleTiles = [
-        SampleHabitTile(name: String(localized: "散步"), icon: "figure.walk", color: "#22C55E"),
-        SampleHabitTile(name: String(localized: "阅读"), icon: "book.fill", color: "#F97316"),
-        SampleHabitTile(name: String(localized: "早睡"), icon: "moon.fill", color: "#8B5CF6")
+        SampleHabitTile(name: String(localized: "散步"), icon: "figure.walk", color: "#2FA360"),
+        SampleHabitTile(name: String(localized: "阅读"), icon: "book.fill", color: "#D9662C"),
+        SampleHabitTile(name: String(localized: "早睡"), icon: "moon.fill", color: "#8063CE")
     ]
 
     private var emptyStateView: some View {
@@ -535,18 +567,18 @@ struct HabitListView: View {
 
                             Text(sample.name)
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.holoToolText)
 
                             Text("点击创建")
                                 .font(.system(size: 10))
-                                .foregroundColor(.holoTextSecondary.opacity(0.8))
+                                .foregroundColor(.holoToolTextSecondary.opacity(0.8))
 
                             Spacer(minLength: 0)
                         }
                         .padding(14)
                         // 与真实磁贴一致撑满列宽，避免宽屏下示例磁贴缩在列左缘
                         .frame(maxWidth: .infinity, minHeight: 118, alignment: .top)
-                        .background(Color.holoCardBackground.opacity(0.6))
+                        .background(Color.holoToolSurface.opacity(0.6))
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
@@ -560,8 +592,8 @@ struct HabitListView: View {
             }
 
             Text("点一块快速开始，或点右上角 ＋ 自定义")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary.opacity(0.7))
         }
         .padding(.top, 40)
     }
@@ -588,20 +620,20 @@ struct HabitPausedSection: View {
                 HStack(spacing: 6) {
                     Image(systemName: "pause.circle")
                         .font(.system(size: 13))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text(String(localized: "已暂停（\(items.count)）"))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolTextSecondary)
                     Spacer()
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                        .fill(Color.holoCardBackground.opacity(0.6))
+                        .fill(Color.holoToolSurface.opacity(0.6))
                 )
                 .contentShape(Rectangle())
             }
@@ -619,7 +651,7 @@ struct HabitPausedSection: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                        .fill(Color.holoCardBackground)
+                        .fill(Color.holoToolSurface)
                 )
             }
         }
@@ -640,12 +672,12 @@ private struct HabitPausedRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(habit.name)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
                 Text(String(localized: "连续进度已保留"))
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.7))
             }
 
             Spacer()
