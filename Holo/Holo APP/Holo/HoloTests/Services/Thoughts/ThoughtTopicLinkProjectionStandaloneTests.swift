@@ -1,4 +1,5 @@
 import CoreData
+import CryptoKit
 import Foundation
 
 // V3 Phase 1 standalone：ThoughtTopicLink 投影层核心行为锁定。
@@ -30,7 +31,25 @@ struct ThoughtTopicLinkProjectionStandaloneTests {
         try mergeDualWrite(ctx)
         try supersededOnAIReplacement(ctx)
         try userDecisionProtection(ctx)
+        try staleAIProjection(ctx)
         print("PASS: 确定性ID、迁移幂等、shadow=0、双写生命周期、墓碑语义、重复行裁决、合并双写、AI替换superseded、用户决定保护（§7.1不覆盖）")
+    }
+
+    static func staleAIProjection(_ ctx: NSManagedObjectContext) throws {
+        let (thought, topic) = try makePair(ctx, reason: nil)
+        topic.statusEnum = .active
+        let hash = SHA256.hash(data: Data(thought.content.trimmingCharacters(in: .whitespacesAndNewlines).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        check(ThoughtTopicLinkProjection.recordAIV3Decision(thought: thought, topic: topic, basisTextHash: hash, decisionTier: "high", engineVersion: "test", consentGeneration: 0))
+        check(ThoughtTopicLinkProjection.isEffectiveMember(thought, of: topic), "当前 AI 关系有效")
+        thought.content = "内容改成了另一个问题"
+        check(!ThoughtTopicLinkProjection.isEffectiveMember(thought, of: topic), "正文修改后旧 AI 关系立即失效")
+        check(ThoughtTopicLinkProjection.effectiveTopics(for: thought).isEmpty)
+        check(ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: topic) == 0)
+        ThoughtTopicLinkProjection.recordManualAdd(thought: thought, topic: topic)
+        thought.content = "用户手动关系不被编辑或 AI 覆盖"
+        check(ThoughtTopicLinkProjection.isEffectiveMember(thought, of: topic))
+        ThoughtTopicLinkProjection.recordManualRemove(thought: thought, topic: topic)
+        check(!ThoughtTopicLinkProjection.recordAIV3Decision(thought: thought, topic: topic, basisTextHash: hash, decisionTier: "high", engineVersion: "test", consentGeneration: 0), "用户拒绝不得复活")
     }
 
     // MARK: - 1. 确定性 ID（防多设备重复 pair）

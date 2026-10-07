@@ -398,3 +398,247 @@ final class ThoughtGestureGateUITests: XCTestCase {
             "卡片展开态右滑只收按钮，不应同时拉出侧栏（防双动让位）")
     }
 }
+
+// MARK: - V2 视觉迁移的真实入口回归
+
+/// 使用独立模拟器的虚构种子，不访问生产AI，不改用户记录。
+final class HoloVisualV2SmokeUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    private func launch(route: String = "home", dark: Bool = false, large: Bool = false) {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN", "-darkModeSetting", dark ? "dark" : "light"]
+        if large {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
+    }
+
+    private func button(_ title: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@", title)).firstMatch
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func returnHome() {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        let home = button("记忆长廊")
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        XCTAssertTrue(home.isHittable, "模块退出后首页必须可操作")
+    }
+
+    func testHomeModulesAndReturn() {
+        launch()
+        XCTAssertTrue(button("记忆长廊").waitForExistence(timeout: 20))
+        for name in ["任务", "财务", "健康", "想法", "习惯"] {
+            XCTAssertTrue(button(name).exists, "品牌首页不能丢失\(name)入口")
+            XCTAssertTrue(button(name).isHittable, "\(name)入口必须可点击")
+        }
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH '今天，'")).firstMatch.exists, "中央品牌光球的今天操作不能丢失")
+        capture("V2-首页-品牌光球")
+        for name in ["任务", "财务", "健康", "想法", "习惯"] {
+            button(name).tap()
+            // 等真实导航完成，避免把首页截成模块证据。
+            XCTAssertTrue(button("返回").waitForExistence(timeout: 10) || !button("记忆长廊").isHittable)
+            capture("V2-\(name)")
+            returnHome()
+        }
+    }
+
+    private func calendarScale(_ name: String) throws -> XCUIElement {
+        // iOS 26 的单元素优化查询会返回无限坐标；完整查询保留真实窗口坐标。
+        let element = app.buttons.allElementsBoundByIndex.first {
+            $0.identifier == "calendar.scale.\(name)"
+        }
+        return try XCTUnwrap(element, "日历刻度入口必须存在")
+    }
+
+    private func tapCalendarScale(_ name: String) throws {
+        let target = try calendarScale(name)
+        let rect = target.frame
+        XCTAssertTrue(rect.origin.x.isFinite && rect.origin.y.isFinite && !rect.isEmpty)
+        XCTAssertTrue(app.frame.intersects(rect), "刻度必须位于可见屏幕内")
+        // 模拟器的hittable查询异常，使用完整快照的真实坐标发出触摸，并验证实际选中状态。
+        let point = app.coordinate(withNormalizedOffset: CGVector(
+            dx: rect.midX / app.frame.width, dy: rect.midY / app.frame.height))
+        point.tap()
+        XCTAssertTrue(try calendarScale(name).isSelected, "触摸后必须实际切换刻度")
+    }
+
+    func testDarkLargeTypeAndCalendarContext() throws {
+        launch(route: "memory-calendar", dark: true, large: true)
+        XCTAssertTrue(app.buttons["calendar.scale.week"].waitForExistence(timeout: 20))
+        capture("V2-深色大字体-长廊日")
+        try tapCalendarScale("week")
+        capture("V2-深色大字体-长廊周")
+        try tapCalendarScale("month")
+        try tapCalendarScale("day")
+        capture("V2-深色大字体-长廊返回日")
+    }
+
+    func testTodayAndChatInputRemainAvailable() {
+        launch(route: "daily-kanban")
+        XCTAssertTrue(app.staticTexts["今天的安排"].waitForExistence(timeout: 20))
+        capture("V2-今天")
+        launch(route: "ai-actions")
+        XCTAssertTrue(button("语音输入").waitForExistence(timeout: 20))
+        XCTAssertTrue(button("图片识别记账").exists)
+        XCTAssertTrue(app.textFields.firstMatch.exists || app.textViews.firstMatch.exists)
+        capture("V2-对话")
+    }
+}
+
+/// 动效不能改变完成与撤回行为；在真实入口验证，避免只测展示组件。
+final class HoloMotionInteractionUITests: XCTestCase {
+    private func verifyCompletionUndo(disableMotion: Bool) {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+                               "-holo.motion.completionFeedbackEnabled", disableMotion ? "NO" : "YES",
+                               "-holo.motion.interactionEnabled", disableMotion ? "NO" : "YES"]
+        app.launch()
+        let tasks = app.buttons.matching(NSPredicate(format: "label == '任务'")).firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 20))
+        tasks.tap()
+        // 生活故事夹具的任务不一定到期于今天，明确进入全部清单，避免依赖当天日期和上次筛选。
+        let allTasks = app.buttons.matching(NSPredicate(format: "label == '全部'")).firstMatch
+        XCTAssertTrue(allTasks.waitForExistence(timeout: 10))
+        allTasks.tap()
+        let completion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.completion.' AND label BEGINSWITH '完成：'")).firstMatch
+        // 远期任务按产品规则默认折叠，测试通过分组按钮展开真实记录。
+        for title in ["本周", "稍后", "未安排"] where !completion.exists {
+            let group = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title + "、")).firstMatch
+            if group.exists { group.tap() }
+        }
+        XCTAssertTrue(completion.waitForExistence(timeout: 15), "应能找到真实任务完成入口")
+        let identifier = completion.identifier
+        let originalLabel = completion.label
+        completion.tap()
+        let undo = app.buttons.matching(NSPredicate(format: "label == '撤回'")).firstMatch
+        XCTAssertTrue(undo.waitForExistence(timeout: 2), "动画开启或关闭时都必须可撤回")
+        undo.tap()
+        let restored = app.buttons[identifier]
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", originalLabel), object: restored)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, "撤回后必须恢复未完成，不得残留完成状态")
+        app.terminate()
+    }
+
+    func testCompletionCanBeUndoneWithMotion() {
+        verifyCompletionUndo(disableMotion: false)
+    }
+
+    func testCompletionCanBeUndoneWithoutMotion() {
+        verifyCompletionUndo(disableMotion: true)
+    }
+}
+
+/// 专用 iPad 模拟器横竖屏验证，覆盖共享可见性环境下的主要操作入口。
+final class HoloMotionIPadUITests: XCTestCase {
+    func testPortraitAndLandscapeEntrypoints() {
+        continueAfterFailure = false
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+            XCUIDevice.shared.orientation = orientation
+            for route in ["home", "daily-kanban", "ai-actions", "memory-calendar"] {
+                let app = XCUIApplication()
+                app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+                app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+                app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+                app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+                app.launch()
+                switch route {
+                case "home":
+                    XCTAssertTrue(app.buttons["记忆长廊"].firstMatch.waitForExistence(timeout: 20))
+                    for label in ["任务", "财务", "想法", "习惯", "健康"] {
+                        XCTAssertTrue(app.buttons[label].firstMatch.isHittable, "宽屏首页的\(label)必须可操作")
+                    }
+                case "daily-kanban":
+                    XCTAssertTrue(app.staticTexts["今天的安排"].waitForExistence(timeout: 20))
+                case "ai-actions":
+                    XCTAssertTrue(app.buttons["语音输入"].firstMatch.waitForExistence(timeout: 20))
+                    XCTAssertTrue(app.textFields.firstMatch.exists || app.textViews.firstMatch.exists)
+                default:
+                    XCTAssertTrue(app.buttons["calendar.scale.week"].waitForExistence(timeout: 20))
+                }
+                XCTAssertEqual(app.state, .runningForeground)
+                let attachment = XCTAttachment(screenshot: app.screenshot())
+                attachment.name = "动效复验-iPad-\(orientation.rawValue)-\(route)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                app.terminate()
+            }
+        }
+    }
+}
+
+/// 通过系统设置启用减少动态效果，不用 App 内假开关替代真实无障碍环境。
+final class HoloMotionAccessibilityUITests: XCTestCase {
+    func testSystemReduceMotionKeepsEntrypointsAvailable() {
+        continueAfterFailure = false
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launchArguments = ["-AppleLanguages", "(en)"]
+        settings.launch()
+        let accessibility = settings.buttons.matching(NSPredicate(format: "label == 'Accessibility' OR label == '辅助功能'")).firstMatch
+        for _ in 0..<5 { settings.swipeDown() }
+        for _ in 0..<6 where !accessibility.isHittable { settings.swipeUp() }
+        XCTAssertTrue(accessibility.waitForExistence(timeout: 10), settings.debugDescription)
+        accessibility.tap()
+        let motion = settings.descendants(matching: .any).matching(NSPredicate(format: "label == 'Motion' OR label == '动态效果'")).firstMatch
+        XCTAssertTrue(motion.waitForExistence(timeout: 10), settings.debugDescription)
+        motion.tap()
+        let reduced = settings.switches.matching(NSPredicate(format: "label == 'Reduce Motion' OR label == '减弱动态效果'")).firstMatch
+        XCTAssertTrue(reduced.waitForExistence(timeout: 10), settings.debugDescription)
+        // iOS 26 将含文字的整行暴露为 Switch；默认 tap 实际点在行中央，不能切换右侧开关。
+        func tapReducedSwitch() {
+            guard let control = settings.switches.allElementsBoundByIndex.first(where: {
+                $0.identifier == "REDUCE_MOTION" || $0.label == "Reduce Motion" || $0.label == "减弱动态效果"
+            }) else { XCTFail("应能定位系统减少动态效果开关"); return }
+            let rect = control.frame
+            XCTAssertTrue(rect.origin.x.isFinite && rect.origin.y.isFinite && !rect.isEmpty)
+            settings.coordinate(withNormalizedOffset: CGVector(
+                dx: (rect.maxX - 28) / settings.frame.width,
+                dy: rect.midY / settings.frame.height)).tap()
+        }
+        let originallyEnabled = reduced.value as? String == "1"
+        defer {
+            settings.activate()
+            if !originallyEnabled, reduced.value as? String == "1" { tapReducedSwitch() }
+            settings.terminate()
+        }
+        if !originallyEnabled { tapReducedSwitch() }
+        let enabledExpectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: reduced)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabledExpectation], timeout: 3), .completed, settings.debugDescription)
+        for route in ["daily-kanban", "ai-actions", "memory-calendar"] {
+            let app = XCUIApplication()
+            app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+            app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+            app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+            app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+            app.launch()
+            if route == "daily-kanban" {
+                XCTAssertTrue(app.staticTexts["今天的安排"].waitForExistence(timeout: 20))
+            } else if route == "ai-actions" {
+                XCTAssertTrue(app.buttons["语音输入"].firstMatch.waitForExistence(timeout: 20))
+                XCTAssertTrue(app.textFields.firstMatch.exists || app.textViews.firstMatch.exists)
+            } else {
+                XCTAssertTrue(app.buttons["calendar.scale.week"].waitForExistence(timeout: 20))
+            }
+            XCTAssertEqual(app.state, .runningForeground)
+            app.terminate()
+        }
+    }
+}

@@ -67,6 +67,11 @@ struct ThoughtSemanticStoreStandaloneTests {
         check(!(try await store.hasActiveItem(thoughtID: id, contentHash: "changed",
                                               modelVersion: ThoughtSemanticStore.defaultModelVersion)))
         check(!(try await store.hasActiveItem(thoughtID: id, contentHash: "abc123", modelVersion: "other-v9")))
+        let topicID = UUID()
+        try await store.saveTopicProfile(topicID: topicID, contentHash: "definition1", vector: vector)
+        let profile = try await store.topicProfile(topicID: topicID, contentHash: "definition1")
+        check(profile?.count == 1024, "空主题定义的向量可持久缓存")
+        check(try await store.topicProfile(topicID: topicID, contentHash: "definition2") == nil, "修改主题定义后不得复用旧向量")
 
         // tombstone 后不再算已完成
         try await store.tombstoneItem(thoughtID: id)
@@ -109,13 +114,44 @@ struct ThoughtSemanticStoreStandaloneTests {
             id: future.id, thoughtID: t, contentHash: "h3", kind: "embed", priority: 0, state: "pending",
             attemptCount: 0, nextAttemptAt: Date().addingTimeInterval(3600),
             consentGeneration: 0, lastErrorCode: nil))
-        check(try await store.claimNextDueJob(consentGeneration: 0)?.contentHash == "h1", "未到期不领取")
+        check(try await store.claimNextDueJob(consentGeneration: 0) == nil, "未来任务不领取，旧正文 h1 已取消")
 
         // 撤权：高于当前 generation 的任务不领取；cancelAll 终态化
         try await store.enqueueJob(job("h4", consent: 5))
         check(try await store.claimNextDueJob(consentGeneration: 1)?.contentHash != "h4", "高 generation 任务不被旧授权领取")
         try await store.cancelAllJobs()
         check(try await store.pendingJobCount() == 0, "cancelAll 后无 pending")
+        let interrupted = job("resume", consent: 5)
+        try await store.enqueueJob(interrupted)
+        let running = try await store.claimNextDueJob(consentGeneration: 5, kind: "embed")
+        check(running?.id == interrupted.id)
+        await store.close()
+        let recovered = await ThoughtSemanticStore(root: root)
+        try await recovered.open()
+        check(try await recovered.pendingJobCount() == 1, "重启恢复正在执行的任务")
+        let restored = try await recovered.claimNextDueJob(consentGeneration: 5, kind: "embed")
+        check(restored?.id == interrupted.id, "恢复同一个任务")
+        try await recovered.cancelAllJobs()
+        let relate = ThoughtSemanticStore.SemanticJob(id: UUID(), thoughtID: t, contentHash: "kinds", kind: "relate", priority: 100, state: "pending", attemptCount: 0, nextAttemptAt: nil, consentGeneration: 5, lastErrorCode: nil)
+        try await recovered.enqueueJob(relate)
+        check(try await recovered.claimNextDueJob(consentGeneration: 5, kind: "embed") == nil, "embed 不领取 relate")
+        check(try await recovered.claimNextDueJob(consentGeneration: 6, kind: "relate") == nil, "旧授权代数不能领取")
+        check(try await recovered.claimNextDueJob(consentGeneration: 5, kind: "relate")?.id == relate.id)
+        try await recovered.cancelAllJobs()
+        try await recovered.recordRelationCandidate(thoughtID: t, topicID: t, contentHash: "eval", scoreFeatures: "{}", verifierResult: "no_match", state: "evaluated", engineVersion: "catalog1", expiryDays: 1)
+        check(try await recovered.hasRelationRecord(thoughtID: t, contentHash: "eval", evaluationVersion: "catalog1"))
+        check(!(try await recovered.hasRelationRecord(thoughtID: t, contentHash: "eval", evaluationVersion: "catalog2")), "新目录必须重评")
+        let waiting = job("wait", consent: 5)
+        try await recovered.enqueueJob(waiting)
+        _ = try await recovered.claimNextDueJob(consentGeneration: 5, kind: "embed")
+        try await recovered.finishJob(id: waiting.id, state: "pending", nextAttemptAt: Date().addingTimeInterval(3600), errorCode: "PRIVACY_ROUTE_UNVERIFIED")
+        check(try await recovered.indexStats().waitingReason == "PRIVACY_ROUTE_UNVERIFIED", "服务未开放时展示真实等待原因")
+        try await recovered.retryFailedJobs()
+        check(try await recovered.claimNextDueJob(consentGeneration: 5, kind: "embed")?.id == waiting.id, "主动重试立即恢复暂时失败的任务")
+        try await recovered.cancelAllJobs()
+        try await recovered.finishJob(id: waiting.id, state: "pending")
+        check(try await recovered.pendingJobCount() == 0, "迟到结果不能恢复已取消的任务")
+
     }
 
     // MARK: - 3. Flat 索引检索正确性
