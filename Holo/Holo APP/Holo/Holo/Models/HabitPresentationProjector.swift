@@ -122,9 +122,20 @@ enum HabitPresentationProjector {
         (0..<7).compactMap { data.calendar.date(byAdding: .day, value: $0 - 6, to: data.today) }
     }
 
-    /// 滚动三十天（今天-29 … 今天，升序）。截至今天，不含未来。行内缝线痕迹用（B 方案）。
-    static func rollingThirtyDays(_ data: HabitProjectionData) -> [Date] {
-        (0..<30).compactMap { data.calendar.date(byAdding: .day, value: $0 - 29, to: data.today) }
+    /// 当月逐日（1 号 … 月末，升序）。含月末前的未来日子（isFuture 由渲染层退后），
+    /// 月初累加视角的缝线窗口（2026-10-07 东林定稿：今天 10.7 就是 31 格走到第 7 格）。
+    static func currentMonthDays(_ data: HabitProjectionData) -> [Date] {
+        let calendar = data.calendar
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: data.today)),
+              let nextMonthStart = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return [] }
+        var days: [Date] = []
+        var day = monthStart
+        while day < nextMonthStart {
+            days.append(day)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return days
     }
 
     // MARK: 行快照
@@ -175,9 +186,9 @@ enum HabitPresentationProjector {
         // 连续积累
         let streak = streakLabel(for: habit, data: data)
 
-        // 三十天缝线痕迹（B 方案）：记录/补录/暂停/创建前空位，今天带指针
+        // 当月缝线痕迹：记录/补录/暂停/创建前空位/未来空位，今天带指针
         let creationDay = data.dayStart(habit.createdAt)
-        let trail = rollingThirtyDays(data).map { day -> HabitTrailDay in
+        let trail = currentMonthDays(data).map { day -> HabitTrailDay in
             let dayFacts = data.records(facts, on: day)
             let recorded: Bool
             if isCheckIn {
@@ -185,13 +196,15 @@ enum HabitPresentationProjector {
             } else {
                 recorded = dayFacts.contains { $0.finiteValue != nil }
             }
+            let dayStart = data.dayStart(day)
             return HabitTrailDay(
                 day: day,
                 isRecorded: recorded,
                 isRetroactive: dayFacts.contains { $0.isRetroactive },
                 isPaused: data.isDayPaused(windows, on: day),
-                isToday: day == data.today,
-                isBeforeCreation: day < creationDay
+                isToday: dayStart == data.today,
+                isBeforeCreation: dayStart < creationDay,
+                isFuture: dayStart > data.today
             )
         }
 

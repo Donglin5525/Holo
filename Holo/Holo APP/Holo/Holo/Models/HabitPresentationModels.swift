@@ -97,11 +97,11 @@ struct HabitStreakLabel: Equatable {
     var displayText: String { "\(kindName) \(value) \(unitName)" }
 }
 
-// MARK: - 三十天痕迹
+// MARK: - 当月痕迹
 
-/// 滚动三十天的单日痕迹（B 方案「缝线日课」数据源，探索入口，不承担统计口径）
-/// 四态互斥渲染：实针=已记录 / 空心针=已记录且补录 / 搭线=暂停日 / 针眼=漏做；
-/// 创建前空位不渲染。isToday 是今天指针（空圈），独立于四态。
+/// 当月逐日痕迹（自然月「缝线日课」数据源，探索入口，不承担统计口径）
+/// 五态互斥渲染：实针=已记录 / 空心针=已记录且补录 / 搭线=暂停日 / 针眼=漏做 / 淡点=未来；
+/// 创建前空位不渲染。isToday 是今天指针（空圈，位置即日期），独立于五态。
 struct HabitTrailDay: Equatable, Identifiable {
     let day: Date
     let isRecorded: Bool
@@ -109,6 +109,7 @@ struct HabitTrailDay: Equatable, Identifiable {
     var isPaused: Bool = false
     var isToday: Bool = false
     var isBeforeCreation: Bool = false
+    var isFuture: Bool = false
     var id: Date { day }
 }
 
@@ -131,7 +132,7 @@ struct HabitRowSnapshot: Identifiable, Equatable {
     let target: HabitTargetSummary?
     let today: HabitTodayProgress
     let streak: HabitStreakLabel?
-    /// 最近三十天痕迹（含今天，升序；2026-10-07 B 方案从七天扩到三十天）
+    /// 当月逐日痕迹（1 号…月末，含今天与未来，升序；2026-10-07 东林定稿改月初累加视角）
     let trail: [HabitTrailDay]
     /// 今天是否允许记录（暂停/归档关闭今天记录按钮）
     let allowsTodayRecord: Bool

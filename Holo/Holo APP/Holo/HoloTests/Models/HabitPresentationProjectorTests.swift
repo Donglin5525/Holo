@@ -122,7 +122,7 @@ final class HabitPresentationProjectorTests: XCTestCase {
         let snapshot = HabitPresentationProjector.rowSnapshot(habit: habit, lifecycle: .active, data: data)
 
         XCTAssertTrue(snapshot.today.isRecorded, "真实 0 是有效业务数据（方案 §9.1）")
-        XCTAssertEqual(snapshot.trail.last?.isRecorded, true)
+        XCTAssertTrue(snapshot.trail.first { $0.isToday }?.isRecorded == true, "今天的格子已点亮")
     }
 
     func test_计数达标后独立标记() throws {
@@ -323,68 +323,87 @@ final class HabitPresentationProjectorTests: XCTestCase {
                        "首位是今天−6")
     }
 
-    // MARK: - 三十天缝线痕迹（B 方案，2026-10-07）
+    // MARK: - 当月缝线痕迹（月初累加视角，2026-10-07 东林定稿）
 
-    func test_滚动三十天含今天不含未来() {
+    private func monthDayCount(_ date: Date, _ calendar: Calendar) -> Int {
+        calendar.range(of: .day, in: .month, for: date)!.count
+    }
+
+    func test_当月窗口从1号到月末含未来() {
         let calendar = Calendar.current
         let now = Date()
         let data = HabitProjectionData(
             recordsByHabit: [:], completedDaysByHabit: [:], dailyNumericByHabit: [:],
             pauseWindowsByHabit: [:], now: now, calendar: calendar
         )
-        let days = HabitPresentationProjector.rollingThirtyDays(data)
+        let days = HabitPresentationProjector.currentMonthDays(data)
+        let today = calendar.startOfDay(for: now)
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: today))!
 
-        XCTAssertEqual(days.count, 30)
-        XCTAssertEqual(calendar.startOfDay(for: days.last!), calendar.startOfDay(for: now), "末位是今天")
-        XCTAssertEqual(calendar.startOfDay(for: days.first!),
-                       calendar.date(byAdding: .day, value: -29, to: calendar.startOfDay(for: now))!,
-                       "首位是今天−29")
+        XCTAssertEqual(days.count, monthDayCount(now, calendar), "窗口是当月全部天数（10月=31格）")
+        XCTAssertEqual(calendar.startOfDay(for: days.first!), monthStart, "首位是当月 1 号")
+        XCTAssertEqual(days.last!,
+                       calendar.date(byAdding: .day, value: monthDayCount(now, calendar) - 1, to: monthStart)!,
+                       "末位是当月最后一天（含未来日子）")
+        XCTAssertEqual(days.filter { $0 > today }.count,
+                       monthDayCount(now, calendar) - (calendar.component(.day, from: today)),
+                       "未来日子=月末减今天")
     }
 
-    func test_行痕迹扩到三十天且携带四态标记() throws {
+    func test_行痕迹为当月且携带五态标记() throws {
         let (repo, context) = try makeRepo()
-        // 10 天前创建 → 30 天窗口前 20 天是创建前空位
+        // 10 天前创建 → 本月内创建日之前的日子是创建前空位（若创建日跨月则本月无空位）
         let habit = try makeHabit(in: context, type: .checkIn, createdAtDaysAgo: 10)
         try makeRecord(in: context, habit: habit, daysAgo: 0, completed: true)
         try makeRecord(in: context, habit: habit, daysAgo: 2, completed: true, retroactive: true)
         try context.save()
         // 暂停窗口：5 天前 → 昨天（覆盖昨天，今天不暂停）
-        let dayStart = Calendar.current.startOfDay(for: Date())
-        let fiveDaysAgo = Calendar.current.date(byAdding: .day, value: -5, to: dayStart)!
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: dayStart)!
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: Date())
+        let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: dayStart)!
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: dayStart)!
         habit.pauseWindows = [HabitPauseWindow(startDate: fiveDaysAgo, endDate: yesterday)]
         try context.save()
 
         let data = buildData(for: [habit], repo: repo)
         let snapshot = HabitPresentationProjector.rowSnapshot(habit: habit, lifecycle: .active, data: data)
 
-        XCTAssertEqual(snapshot.trail.count, 30, "缝线痕迹固定三十天")
-        let today = snapshot.trail.last!
-        XCTAssertTrue(today.isToday, "末位是今天指针")
-        XCTAssertTrue(today.isRecorded, "今天已打卡")
+        XCTAssertEqual(snapshot.trail.count, monthDayCount(Date(), calendar), "缝线痕迹是当月全部天数")
+        let today = snapshot.trail.first { $0.isToday }
+        XCTAssertNotNil(today, "今天带指针")
+        XCTAssertTrue(today?.isRecorded == true, "今天已打卡")
+        XCTAssertFalse(today?.isFuture ?? true, "今天不是未来")
         let retroDay = snapshot.trail.first { $0.isRetroactive }
         XCTAssertNotNil(retroDay, "补录日进痕迹")
         XCTAssertTrue(retroDay?.isRecorded == true, "补录日同时是已记录（空心针数据源）")
         let pausedDays = snapshot.trail.filter(\.isPaused)
         XCTAssertFalse(pausedDays.isEmpty, "暂停窗口内的日子带暂停标记")
         XCTAssertTrue(pausedDays.contains { $0.isRecorded }, "暂停窗口内的补录日：记录事实不被暂停抹除（渲染时记录优先于搭线）")
+        let creationDay = calendar.startOfDay(for: habit.createdAt)
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: dayStart))!
+        let expectedBeforeCreation = creationDay >= monthStart
+            ? calendar.dateComponents([.day], from: monthStart, to: creationDay).day!
+            : 0
         let beforeCreation = snapshot.trail.filter(\.isBeforeCreation)
-        XCTAssertEqual(beforeCreation.count, 19, "创建前的日子是空位（10 天前创建：窗口 idx0..18 共 19 天）")
-        XCTAssertTrue(beforeCreation.allSatisfy { !$0.isRecorded && !$0.isPaused }, "创建前不可能有记录、也谈不上暂停")
-        // 四态互斥校验：今天既是指针又有记录，创建前空位不带记录/暂停
-        XCTAssertTrue(today.isToday && today.isRecorded, "针脚与指针可叠加")
+        XCTAssertEqual(beforeCreation.count, expectedBeforeCreation, "创建前的日子是空位（按当月内实际天数算）")
+        XCTAssertTrue(beforeCreation.allSatisfy { !$0.isRecorded && !$0.isPaused && !$0.isFuture }, "创建前不可能有记录、也谈不上暂停或未来")
+        let futureDays = snapshot.trail.filter(\.isFuture)
+        XCTAssertEqual(futureDays.count,
+                       monthDayCount(Date(), calendar) - calendar.component(.day, from: dayStart),
+                       "今天之后的月末日子全带未来标记")
+        XCTAssertTrue(futureDays.allSatisfy { !$0.isRecorded && !$0.isRetroactive && !$0.isPaused }, "未来日子无记录无暂停")
     }
 
-    func test_创建前空位不吞掉真实记录窗口() throws {
+    func test_创建满30天时当月窗口内无空位() throws {
         let (repo, context) = try makeRepo()
-        // 30 天前创建 → 窗口内没有创建前空位
+        // 30 天前创建 → 创建日必落在当月 1 号或更早，本月窗口内没有创建前空位
         let habit = try makeHabit(in: context, type: .checkIn, createdAtDaysAgo: 30)
         try context.save()
 
         let data = buildData(for: [habit], repo: repo)
         let snapshot = HabitPresentationProjector.rowSnapshot(habit: habit, lifecycle: .active, data: data)
 
-        XCTAssertTrue(snapshot.trail.allSatisfy { !$0.isBeforeCreation }, "创建满 30 天时窗口内无空位")
+        XCTAssertTrue(snapshot.trail.allSatisfy { !$0.isBeforeCreation }, "创建满 30 天时当月窗口内无空位")
     }
 
     // MARK: - 坏习惯超标标记

@@ -4,7 +4,7 @@
 //
 //  今天页连续习惯行（2026-10 重构，V2 调整职责）：
 //  左侧名字/图标/摘要 =「今天的记录」入口；右侧动作按钮独立命中。
-//  三十天缝线只读（积累摘要，不承担导航，V2 §5.1）。
+//  当月缝线只读（积累摘要，不承担导航，V2 §5.1；10-07 定稿月初累加视角）。
 //
 
 import SwiftUI
@@ -80,6 +80,30 @@ struct HabitRowView: View {
         return .holoToolTextSecondary
     }
 
+    /// 副标题视图：打卡行连续值有效时带橙色火焰前缀（旧磁贴连续徽章的激励记号，V1 重构时丢失，2026-10-07 东林要求加回）
+    @ViewBuilder
+    private var subtitleView: some View {
+        if showsStreakFlame {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+                    .accessibilityHidden(true)
+                Text(subtitleText)
+            }
+        } else {
+            Text(subtitleText)
+        }
+    }
+
+    /// 火焰显示条件：打卡行 + 连续值>0 + 无行内错误（错误态副标题整体被错误文案替换）
+    private var showsStreakFlame: Bool {
+        guard case .checkIn = snapshot.kind,
+              inlineErrorMessage == nil,
+              let streak = snapshot.streak else { return false }
+        return streak.value > 0
+    }
+
     // MARK: Body
 
     var body: some View {
@@ -97,7 +121,7 @@ struct HabitRowView: View {
                                 .foregroundColor(.holoToolText)
                                 .lineLimit(1)
                                 .multilineTextAlignment(.leading)
-                            Text(subtitleText)
+                            subtitleView
                                 .font(.system(size: 12))
                                 .foregroundColor(subtitleColor)
                                 .lineLimit(2)
@@ -115,7 +139,7 @@ struct HabitRowView: View {
             }
             .padding(.vertical, 10)
 
-            // 三十天缝线：只读积累摘要（不承担导航，V2 §5.1）
+            // 当月缝线：只读积累摘要（不承担导航，V2 §5.1）
             trailStitches
                 .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
                 .padding(.bottom, 8)
@@ -134,7 +158,7 @@ struct HabitRowView: View {
     /// VoiceOver 摘要：只报告积累事实，不宣称可点日（V2 §5.1）
     private var trailAccessibilityText: String {
         let recorded = snapshot.trail.filter { $0.isRecorded }.count
-        return String(localized: "最近30天有\(recorded)天记录，痕迹仅作摘要")
+        return String(localized: "本月有\(recorded)天记录，痕迹仅作摘要")
     }
 
     // MARK: 图标
@@ -297,10 +321,10 @@ struct HabitRowView: View {
         return String(localized: "今天 \(todayValueText) \(unitText)")
     }
 
-    // MARK: 三十天缝线（B 方案「缝线日课」，2026-10-07 东林定稿）
+    // MARK: 当月缝线（月初累加视角，2026-10-07 东林定稿）
 
-    /// 实针=已记录 ｜ 空心针=补录 ｜ 针眼=漏做 ｜ 细搭线=暂停日（不算断）｜ 空圈=今天指针；
-    /// 创建前空位不渲染（那时还没有这个习惯，不是漏做）。
+    /// 实针=已记录 ｜ 空心针=补录 ｜ 针眼=漏做 ｜ 细搭线=暂停日（不算断）｜ 淡点=还没到的日子 ｜
+    /// 空圈=今天游标（位置即日期，不另标数字）；创建前空位不渲染（那时还没有这个习惯，不是漏做）。
     private var trailStitches: some View {
         HStack(spacing: 0) {
             ForEach(snapshot.trail) { day in
@@ -318,6 +342,11 @@ struct HabitRowView: View {
         ZStack {
             if day.isBeforeCreation {
                 // 创建前：空位，不渲染
+            } else if day.isFuture {
+                // 还没走到的日子：极淡小点，弱于漏做针眼
+                Circle()
+                    .fill(Color.holoToolBorder.opacity(0.35))
+                    .frame(width: 2, height: 2)
             } else if day.isRecorded {
                 if day.isRetroactive {
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -340,7 +369,7 @@ struct HabitRowView: View {
                     .frame(width: 2.5, height: 2.5)
             }
 
-            // 今天空圈：位置指针，独立于四态，恒显
+            // 今天游标：空圈位置指针，独立于五态，恒显
             if day.isToday {
                 Circle()
                     .strokeBorder(color.opacity(0.65), lineWidth: 1)
