@@ -10,6 +10,7 @@
 
 import CoreData
 import CloudKit
+import SQLite3
 import os.log
 
 /// Core Data 数据栈单例
@@ -171,6 +172,14 @@ nonisolated class CoreDataStack {
 
             let nsError = error as NSError
             let storeURL = container.persistentStoreDescriptions.first?.url
+            // 迁移门禁（任务分类字段升级）：库是本次升级的已知旧版时，
+            // 迁移失败必须终止装载进入可恢复失败状态、原库原地保留，
+            // 不允许备份重建空库后把失败伪装成「迁移成功 + 云端回同步」。
+            if let storeURL, storeIsKnownPreTaskClassification(at: storeURL) {
+                logger.fault("任务分类字段迁移失败（code \(nsError.code)）：原库原地保留，不走空库重建（迁移门禁）userInfo: \(nsError.userInfo)")
+                onFinish(error)
+                return
+            }
             // R02（2026-10-04 体检）：备份完整性是重建的硬前提——三件套没挪干净
             // （目录权限/空间异常/未合并 WAL/扩展并发访问）就重建空库，会永久丢失
             // 未合并事务。此时放弃自动重建，走可恢复失败状态，原库原地保留待救援。
@@ -203,6 +212,59 @@ nonisolated class CoreDataStack {
         let nsError = error as NSError
         guard nsError.domain == NSCocoaErrorDomain else { return false }
         return (134100...134199).contains(nsError.code)
+    }
+
+    // MARK: - 任务分类字段升级的迁移门禁（2026-10-06 任务重构方案 §8.4-5）
+
+    /// 已知升级源参考模型：全量模型副本剔除 TodoTask 的 importanceRaw/urgencyModeRaw
+    /// 两个字段，即本次升级前的模型形态。仅用于迁移测试建库；
+    /// 绝不用于装载真实 store（副本实例不注册 NSManagedObject 子类映射，避开 134020 族）。
+    /// 注意：实体版本哈希在「共享模型 → copy → 改属性」路径上实测不稳定（内容相同、
+    /// 哈希因缓存时序不同而不同），门禁识别不依赖哈希，走下面的 SQLite 列级识别。
+    nonisolated static func makePreTaskClassificationModel() -> NSManagedObjectModel? {
+        guard let legacy = sharedDataModel.copy() as? NSManagedObjectModel,
+              let todoEntity = legacy.entitiesByName["TodoTask"] else { return nil }
+        todoEntity.properties = todoEntity.properties.filter {
+            $0.name != "importanceRaw" && $0.name != "urgencyModeRaw"
+        }
+        return legacy
+    }
+
+    /// store 是否为「本次任务分类字段升级前的已知旧库」（内容级识别）：
+    /// ZTODOTASK 表存在、有基础列、且尚无两个新分类列。
+    /// 迁移失败时命中本判定 → 原地保留并如实上报，不走备份重建空库分支
+    /// （方案 §8.4-5 只针对此迁移收口；其余形态的指纹冲突仍走既有自动恢复策略）。
+    nonisolated static func storeIsKnownPreTaskClassification(at url: URL) -> Bool {
+        // 普通只读打开失败（WAL/SHM 缺失等）时退回 immutable 快照读：只读 schema 足够
+        let attempts: [(path: String, flags: Int32)] = [
+            (url.path, SQLITE_OPEN_READONLY),
+            ("file:\(url.path)?immutable=1", SQLITE_OPEN_READONLY | SQLITE_OPEN_URI)
+        ]
+        for attempt in attempts {
+            var db: OpaquePointer?
+            guard sqlite3_open_v2(attempt.path, &db, attempt.flags, nil) == SQLITE_OK, let db else {
+                sqlite3_close(db)
+                continue
+            }
+            defer { sqlite3_close(db) }
+            let baseExists = scalarInt(db, sql: "SELECT COUNT(*) FROM pragma_table_info('ZTODOTASK') WHERE name = 'ZTITLE'") ?? 0
+            guard baseExists > 0 else { return false }
+            let newColumns = scalarInt(db, sql: "SELECT COUNT(*) FROM pragma_table_info('ZTODOTASK') WHERE name IN ('ZIMPORTANCERAW','ZURGENCYMODERAW')") ?? 2
+            return newColumns == 0
+        }
+        return false
+    }
+
+    /// 只读单值查询（门禁内部用；失败返回 nil 不抛错——识别失败走既有恢复分支）
+    nonisolated private static func scalarInt(_ db: OpaquePointer, sql: String) -> Int32? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            sqlite3_finalize(statement)
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return sqlite3_column_int(statement, 0)
     }
 
     /// 冲突库备份结果（R02，2026-10-04 体检）：三件套各自的搬运结果必须完整上报。
@@ -464,6 +526,8 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createTaskExecutionEntities())
         // 目标共创会话与决策版本（ID 逻辑外键；payload 版本化信封）
         entities.append(contentsOf: createGoalWorkshopEntities())
+        // 「今天减负」当日计划版本（ID 逻辑外键；ADR-02 不可变完整版本）
+        entities.append(contentsOf: createTodayPlanEntities())
         model.entities = entities
         return model
     }

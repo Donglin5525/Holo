@@ -211,7 +211,11 @@
 		A1D01D00000000000000000096 /* TodoTaskModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000095 /* TodoTaskModels.swift */; };
 		A1D01D00000000000000000098 /* TodoTaskPriority.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000097 /* TodoTaskPriority.swift */; };
 		A1D01D000000000000000000A0 /* TransactionType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D0000000000000000009F /* TransactionType.swift */; };
+		A1D01D000000000000000000A2 /* TaskClassification.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D000000000000000000A1 /* TaskClassification.swift */; };
 		A1D01D000000000000000000A4 /* Weekday.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D000000000000000000A3 /* Weekday.swift */; };
+		A1D01D000000000000000000A6 /* CoreDataStack+TodayPlanEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D000000000000000000A5 /* CoreDataStack+TodayPlanEntities.swift */; };
+		A1D01D000000000000000000A8 /* HoloTodayPlanRevision+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D000000000000000000A7 /* HoloTodayPlanRevision+CoreDataClass.swift */; };
+		A1D01D000000000000000000AA /* HoloTodayReliefModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D000000000000000000A9 /* HoloTodayReliefModels.swift */; };
 		A1D01D10000000000000000011 /* ChineseLunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000010 /* ChineseLunarCalendar.swift */; };
 		A1D01D10000000000000000013 /* PersistencePreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000012 /* PersistencePreviewSupport.swift */; };
 		A1D01D10000000000000000015 /* CalendarHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D10000000000000000014 /* CalendarHelpers.swift */; };
@@ -255,6 +259,10 @@
 		A27D00030000000000000001 /* Network/APIClientStreamingRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27D00040000000000000001 /* Network/APIClientStreamingRecoveryTests.swift */; };
 		A34DE8AF42707BBA0B9BEE03 /* MemoryObserverOutputValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8640CCF9881B7E86AB863E88 /* MemoryObserverOutputValidatorTests.swift */; };
 		A6CEB161A87E1F977BD35E2B /* SemanticDomainMemorySignalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EEA678FD3D09817A782E4F4 /* SemanticDomainMemorySignalsTests.swift */; };
+		A7B100000000000000000002 /* TaskQuadrantResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000001 /* TaskQuadrantResolverTests.swift */; };
+		A7B100000000000000000004 /* TaskClassificationMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000003 /* TaskClassificationMigrationTests.swift */; };
+		A7B100000000000000000006 /* TaskAnalyticsAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000005 /* TaskAnalyticsAggregatorTests.swift */; };
+		A7B100000000000000000008 /* TaskAnalyticsPeriodResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000007 /* TaskAnalyticsPeriodResolverTests.swift */; };
 		A98C511454054EFA1E2E362E /* DailySenseSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC172B6E8AE092CE1F54E97 /* DailySenseSnapshotTests.swift */; };
 		AA10F1E2B3C4D5E6F7A8B9C0 /* FinanceYearBasisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01E2D3C4B5A6978869F0E1 /* FinanceYearBasisTests.swift */; };
 		AA11BB22CC33DD44EE550002 /* HoloAcceptanceR4UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE550001 /* HoloAcceptanceR4UITests.swift */; };
@@ -416,6 +424,14 @@
 		RECONUI0000000000000002 /* NewEntryReconUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECONUI0000000000000001 /* NewEntryReconUITests.swift */; };
 		TPEDIT020000000000000002 /* TaskPendingEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TPEDIT010000000000000001 /* TaskPendingEditTests.swift */; };
 		TSAFE0B000000000000000001 /* ThoughtSemanticSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */; };
+		A7C200000000000000000002 /* TodayPlanMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000001 /* TodayPlanMigrationTests.swift */; };
+		A7C200000000000000000004 /* TodayPlanServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000003 /* TodayPlanServiceTests.swift */; };
+		A7C200000000000000000006 /* TodayReliefCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000005 /* TodayReliefCoordinatorTests.swift */; };
+		A7C200000000000000000008 /* TodayReliefPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000007 /* TodayReliefPolicyTests.swift */; };
+		A7C20000000000000000000A /* DataExportReceiptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000009 /* DataExportReceiptsTests.swift */; };
+		A7C20000000000000000000C /* TodayReliefUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C20000000000000000000B /* TodayReliefUITests.swift */; };
+		A7C20000000000000000000E /* PolaroidPerfSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C20000000000000000000D /* PolaroidPerfSmokeUITests.swift */; };
+		A7C200000000000000000010 /* ReceiptDeletePathUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C20000000000000000000F /* ReceiptDeletePathUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -682,7 +698,11 @@
 		A1D01D00000000000000000095 /* TodoTaskModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoTaskModels.swift; path = Holo/Models/TodoTaskModels.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000097 /* TodoTaskPriority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoTaskPriority.swift; path = Holo/Models/TodoTaskPriority.swift; sourceTree = "<group>"; };
 		A1D01D0000000000000000009F /* TransactionType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TransactionType.swift; path = Holo/Models/TransactionType.swift; sourceTree = "<group>"; };
+		A1D01D000000000000000000A1 /* TaskClassification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TaskClassification.swift; path = Holo/Models/TaskClassification.swift; sourceTree = "<group>"; };
 		A1D01D000000000000000000A3 /* Weekday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Weekday.swift; path = Holo/Models/Weekday.swift; sourceTree = "<group>"; };
+		A1D01D000000000000000000A5 /* CoreDataStack+TodayPlanEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+TodayPlanEntities.swift"; path = "Holo/Models/CoreDataStack+TodayPlanEntities.swift"; sourceTree = "<group>"; };
+		A1D01D000000000000000000A7 /* HoloTodayPlanRevision+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HoloTodayPlanRevision+CoreDataClass.swift"; path = "Holo/Models/HoloTodayPlanRevision+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A1D01D000000000000000000A9 /* HoloTodayReliefModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloTodayReliefModels.swift; path = Holo/Models/Today/HoloTodayReliefModels.swift; sourceTree = "<group>"; };
 		A1D01D10000000000000000010 /* ChineseLunarCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChineseLunarCalendar.swift; path = Holo/Utils/ChineseLunarCalendar.swift; sourceTree = "<group>"; };
 		A1D01D10000000000000000012 /* PersistencePreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PersistencePreviewSupport.swift; path = Holo/Utils/PersistencePreviewSupport.swift; sourceTree = "<group>"; };
 		A1D01D10000000000000000014 /* CalendarHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CalendarHelpers.swift; path = Holo/Utils/CalendarHelpers.swift; sourceTree = "<group>"; };
@@ -731,6 +751,10 @@
 		A5C1A2077BA368A85BEC6D7F /* CategoryIconCatalogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryIconCatalogTests.swift; sourceTree = "<group>"; };
 		A5EA497516F5BCBB6C86D7ED /* HoloMemorySchedulerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemorySchedulerStandaloneTests.swift; sourceTree = "<group>"; };
 		A73CDEC6A92DA7D92BF0F437 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		A7B100000000000000000001 /* TaskQuadrantResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskQuadrantResolverTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000003 /* TaskClassificationMigrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskClassificationMigrationTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000005 /* TaskAnalyticsAggregatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskAnalyticsAggregatorTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000007 /* TaskAnalyticsPeriodResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskAnalyticsPeriodResolverTests.swift; sourceTree = "<group>"; };
 		A9400352FE311A1786D062AC /* HoloInsightCriticTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloInsightCriticTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE550001 /* HoloAcceptanceR4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoloAcceptanceR4UITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE550006 /* HoloXhsShotUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloXhsShotUITests.swift; sourceTree = "<group>"; };
@@ -866,6 +890,14 @@
 		RECONUI0000000000000001 /* NewEntryReconUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewEntryReconUITests.swift; sourceTree = "<group>"; };
 		TPEDIT010000000000000001 /* TaskPendingEditTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskPendingEditTests.swift; sourceTree = "<group>"; };
 		TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtSemanticSafetyTests.swift; sourceTree = "<group>"; };
+		A7C200000000000000000001 /* TodayPlanMigrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Services/Today/TodayPlanMigrationTests.swift"; sourceTree = "<group>"; };
+		A7C200000000000000000003 /* TodayPlanServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Services/Today/TodayPlanServiceTests.swift"; sourceTree = "<group>"; };
+		A7C200000000000000000005 /* TodayReliefCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Services/Today/TodayReliefCoordinatorTests.swift"; sourceTree = "<group>"; };
+		A7C200000000000000000007 /* TodayReliefPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Services/Today/TodayReliefPolicyTests.swift"; sourceTree = "<group>"; };
+		A7C200000000000000000009 /* DataExportReceiptsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Services/DataExportReceiptsTests.swift"; sourceTree = "<group>"; };
+		A7C20000000000000000000B /* TodayReliefUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodayReliefUITests.swift; sourceTree = "<group>"; };
+		A7C20000000000000000000D /* PolaroidPerfSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PolaroidPerfSmokeUITests.swift; sourceTree = "<group>"; };
+		A7C20000000000000000000F /* ReceiptDeletePathUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptDeletePathUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1057,6 +1089,7 @@
 		2E1562479D32669DC4181D6C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				A7B100000000000000000001 /* TaskQuadrantResolverTests.swift */,
 				B4B0167B38070BDB97E68153 /* AI */,
 				7A1C3E95B4D8F2A6C0E31B74 /* SleepStructureAnalyzerTests.swift */,
 				3D5E7F91B2C4A6D8E0F21B53 /* HealthSleepTimelineBuilderTests.swift */,
@@ -1189,6 +1222,9 @@
 				A1D01D00000000000000000017 /* CoreDataStack+SyncEntities.swift */,
 				A1D01D00000000000000000019 /* CoreDataStack+ThoughtEntities.swift */,
 				A1D01D0000000000000000001B /* CoreDataStack+TodoEntities.swift */,
+				A1D01D000000000000000000A5 /* CoreDataStack+TodayPlanEntities.swift */,
+				A1D01D000000000000000000A7 /* HoloTodayPlanRevision+CoreDataClass.swift */,
+				A1D01D000000000000000000A9 /* HoloTodayReliefModels.swift */,
 				A1E11000000000000000000001 /* CoreDataStack+TaskExecutionEntities.swift */,
 				A1E11000000000000000000003 /* HoloTaskExecutionRevision+CoreDataClass.swift */,
 				A1E11000000000000000000005 /* HoloTaskExecutionStep+CoreDataClass.swift */,
@@ -1219,6 +1255,7 @@
 				A1D01D0000000000000000008F /* TodoTask+CoreDataClass.swift */,
 				A1D01D00000000000000000091 /* TodoTask+CoreDataProperties.swift */,
 				A1D01D00000000000000000093 /* TodoTaskDatePolicy.swift */,
+				A1D01D000000000000000000A1 /* TaskClassification.swift */,
 				A1D01D00000000000000000095 /* TodoTaskModels.swift */,
 				A1D01D00000000000000000097 /* TodoTaskPriority.swift */,
 				A1D01D0000000000000000009F /* TransactionType.swift */,
@@ -1362,6 +1399,11 @@
 		8D9FDE44AC903B6747A6C03F /* HoloTests */ = {
 			isa = PBXGroup;
 			children = (
+				A7C200000000000000000001 /* TodayPlanMigrationTests.swift */,
+				A7C200000000000000000003 /* TodayPlanServiceTests.swift */,
+				A7C200000000000000000005 /* TodayReliefCoordinatorTests.swift */,
+				A7C200000000000000000007 /* TodayReliefPolicyTests.swift */,
+				A7C200000000000000000009 /* DataExportReceiptsTests.swift */,
 				55E03EC424AE42E89670D0C9 /* Utils */,
 				079BFD6E9A641C5C71E8B981 /* Components */,
 				2E1562479D32669DC4181D6C /* Models */,
@@ -1424,6 +1466,9 @@
 			isa = PBXGroup;
 			children = (
 				A1E12000000000000000000001 /* HoloTaskExecutionServiceTests.swift */,
+				A7B100000000000000000003 /* TaskClassificationMigrationTests.swift */,
+				A7B100000000000000000005 /* TaskAnalyticsAggregatorTests.swift */,
+				A7B100000000000000000007 /* TaskAnalyticsPeriodResolverTests.swift */,
 			);
 			path = Tasks;
 			sourceTree = "<group>";
@@ -1618,6 +1663,9 @@
 				AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */,
 				B71FE0A12F6A4C1E9D2B0107 /* HabitPauseSmokeUITests.swift */,
 				DDA06C0100000000000000C1 /* HabitDragReorderUITests.swift */,
+				A7C20000000000000000000B /* TodayReliefUITests.swift */,
+				A7C20000000000000000000D /* PolaroidPerfSmokeUITests.swift */,
+				A7C20000000000000000000F /* ReceiptDeletePathUITests.swift */,
 				HBV2UI0000000000000002B /* HabitInteractionV2WalkthroughUITests.swift */,
 				B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */,
 				EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */,
@@ -1922,6 +1970,15 @@
 				64CC2125D96E17D2B2A5C4E8 /* CategoryDefaultIconTests.swift in Sources */,
 				A98C511454054EFA1E2E362E /* DailySenseSnapshotTests.swift in Sources */,
 				AFDBE0135F44542F3E325C4C /* FinanceChartScaleTests.swift in Sources */,
+				A7B100000000000000000002 /* TaskQuadrantResolverTests.swift in Sources */,
+				A7B100000000000000000004 /* TaskClassificationMigrationTests.swift in Sources */,
+				A7B100000000000000000006 /* TaskAnalyticsAggregatorTests.swift in Sources */,
+				A7B100000000000000000008 /* TaskAnalyticsPeriodResolverTests.swift in Sources */,
+				A7C200000000000000000002 /* TodayPlanMigrationTests.swift in Sources */,
+				A7C200000000000000000004 /* TodayPlanServiceTests.swift in Sources */,
+				A7C200000000000000000006 /* TodayReliefCoordinatorTests.swift in Sources */,
+				A7C200000000000000000008 /* TodayReliefPolicyTests.swift in Sources */,
+				A7C20000000000000000000A /* DataExportReceiptsTests.swift in Sources */,
 				AA10F1E2B3C4D5E6F7A8B9C0 /* FinanceYearBasisTests.swift in Sources */,
 				CC01A1B2C3D4E5F6A7B8C9D0 /* FinancePeriodDirectSelectTests.swift in Sources */,
 				CC06A1B2C3D4E5F6A7B8C9D0 /* CoreDataStoreRecoveryTests.swift in Sources */,
@@ -2149,6 +2206,9 @@
 				A1D01D00000000000000000018 /* CoreDataStack+SyncEntities.swift in Sources */,
 				A1D01D0000000000000000001A /* CoreDataStack+ThoughtEntities.swift in Sources */,
 				A1D01D0000000000000000001C /* CoreDataStack+TodoEntities.swift in Sources */,
+				A1D01D000000000000000000A6 /* CoreDataStack+TodayPlanEntities.swift in Sources */,
+				A1D01D000000000000000000A8 /* HoloTodayPlanRevision+CoreDataClass.swift in Sources */,
+				A1D01D000000000000000000AA /* HoloTodayReliefModels.swift in Sources */,
 				A1E11000000000000000000002 /* CoreDataStack+TaskExecutionEntities.swift in Sources */,
 				A1E11000000000000000000004 /* HoloTaskExecutionRevision+CoreDataClass.swift in Sources */,
 				A1E11000000000000000000006 /* HoloTaskExecutionStep+CoreDataClass.swift in Sources */,
@@ -2180,6 +2240,7 @@
 				A1D01D00000000000000000092 /* TodoTask+CoreDataProperties.swift in Sources */,
 				A1D01D00000000000000000094 /* TodoTaskDatePolicy.swift in Sources */,
 				A1D01D00000000000000000096 /* TodoTaskModels.swift in Sources */,
+				A1D01D000000000000000000A2 /* TaskClassification.swift in Sources */,
 				A1D01D00000000000000000098 /* TodoTaskPriority.swift in Sources */,
 				A1D01D000000000000000000A0 /* TransactionType.swift in Sources */,
 				A1D01D000000000000000000A4 /* Weekday.swift in Sources */,
@@ -2235,6 +2296,9 @@
 				AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0108 /* HabitPauseSmokeUITests.swift in Sources */,
 				DDA06C0100000000000000C2 /* HabitDragReorderUITests.swift in Sources */,
+				A7C20000000000000000000C /* TodayReliefUITests.swift in Sources */,
+				A7C20000000000000000000E /* PolaroidPerfSmokeUITests.swift in Sources */,
+				A7C200000000000000000010 /* ReceiptDeletePathUITests.swift in Sources */,
 				HBV2UI0000000000000001B /* HabitInteractionV2WalkthroughUITests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0202 /* SwipeCloseResidentBlackScreenUITests.swift in Sources */,
 				EA77E10C0DE0000000000032 /* MatterVerticalSliceUITests.swift in Sources */,
