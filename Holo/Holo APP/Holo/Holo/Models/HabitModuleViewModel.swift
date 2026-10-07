@@ -78,11 +78,14 @@ final class HabitModuleViewModel: ObservableObject {
         let text: String
         let style: UndoHintStyle
         let receipt: HabitActionReceipt
+        /// 撤销窗口起点（进度条 TimelineView 的唯一时间锚点；连续记录时随新回执刷新）
+        let startedAt: Date
 
         init(text: String, style: UndoHintStyle = .recorded, receipt: HabitActionReceipt) {
             self.text = text
             self.style = style
             self.receipt = receipt
+            self.startedAt = Date()
         }
     }
 
