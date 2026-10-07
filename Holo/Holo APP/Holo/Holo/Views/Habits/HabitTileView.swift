@@ -2,10 +2,10 @@
 //  HabitTileView.swift
 //  Holo
 //
-//  习惯磁贴 —— 打卡页磁贴墙的基本单元
+//  习惯磁贴 —— 打卡页磁贴墙的基本单元（温润纸感 · 2026-10-06 方案）
 //  点磁贴 = 主记录动作（打卡型勾选 / 计数类 +1 / 测量类弹记录键盘）
 //  长按 = 快捷菜单（数值型撤销今日最近一笔 / 查看详情 / 编辑 / 删除习惯）
-//  两态：未完成 = 习惯色淡底；完成 = 实底反白 + 勾徽章，点亮时颜色圆形扩散
+//  两态：未完成 = 纸白卡 + 暖灰细描边（安静纸墙）；完成 = 习惯色钳制实底 + 白字 + 盖章
 //
 
 import SwiftUI
@@ -21,11 +21,11 @@ struct HabitTileView: View {
     // MARK: - 输入
 
     let habit: Habit
-    /// 磁贴在墙中的序号（入场瀑布与庆祝波浪的动画延迟）
+    /// 磁贴在墙中的序号（保留调用方接口）
     var index: Int = 0
     /// 本周逐日完成情况（下标 0 = 本周第一天，末位 = 今天），由列表页统一预取
     var weekPattern: [Bool] = []
-    /// 庆祝波浪令牌：父视图全部完成时 +1，磁贴依次跳动一次
+    /// 兼容原有调用方参数；V2 不再播放全墙庆祝波浪
     var waveToken: Int = 0
     /// 长按菜单「查看详情」（无详情能力的容器如快捷打卡页传 nil 隐藏）
     var onOpenDetail: (() -> Void)? = nil
@@ -56,10 +56,7 @@ struct HabitTileView: View {
     @State private var deleteTargetName: String = ""
     /// 坏习惯超标提示文案是否可见（3 秒自动消失，复刻原卡片）
     @State private var showOverLimitWarning: Bool = false
-    /// 点亮扩散动画进行中（结束后背景切实底，移除扩散圆）
-    @State private var isRevealing: Bool = false
-    @State private var revealScale: CGFloat = 0
-    @State private var bounceOffset: CGFloat = 0
+    /// 首次呈现时的轻淡入
     @State private var appeared: Bool = false
     /// 缓存的 habit ID，避免 onReceive 访问已删除对象
     @State private var cachedHabitId: UUID? = nil
@@ -70,6 +67,10 @@ struct HabitTileView: View {
     @FocusState private var isValueInputFocused: Bool
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 完成反馈动效灰度开关（与系统 Reduce Motion 相与；关闭只影响展示不影响打卡）
+    @AppStorage(HoloMotionRollout.completionKey) private var motionEnabled = true
+    private var allowsMotion: Bool { motionEnabled && !reduceMotion }
 
     // MARK: - Body
 
@@ -79,16 +80,18 @@ struct HabitTileView: View {
             // 撑满磁贴列宽：宽屏下列宽≥240pt，不撑满会缩在列左缘显得稀疏
             .frame(maxWidth: .infinity, minHeight: 118, alignment: .top)
             .background(backgroundLayer)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.tile, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
-                    .stroke(
-                        habit.habitColor.opacity(isCompleted ? 0 : Color.habitTileBorderOpacity(colorScheme)),
-                        lineWidth: 1
-                    )
+                RoundedRectangle(cornerRadius: HoloRadius.tile, style: .continuous)
+                    .stroke(borderStroke, lineWidth: 1)
+            )
+            .shadow(
+                color: isCompleted ? doneSurface.opacity(0.30) : .clear,
+                radius: 10, x: 0, y: 4
             )
             .contextMenu { menuItems }
             .holoHover()
+            .holoRecordArrival(habit.id, domain: .habit, isActive: !showValueInput && !showCheckInNote && !showUndoConfirm)
             .onTapGesture { handlePrimaryAction() }
             .sheet(isPresented: $showValueInput) { valueInputSheet }
             .sheet(isPresented: $showCheckInNote) { checkInNoteSheet }
@@ -120,7 +123,7 @@ struct HabitTileView: View {
             .onAppear {
                 cachedHabitId = habit.id
                 loadStatus()
-                withAnimation(.easeOut(duration: 0.45).delay(Double(index) * 0.04)) {
+                withAnimation(reduceMotion ? nil : HoloAnimation.enter) {
                     appeared = true
                 }
             }
@@ -130,158 +133,227 @@ struct HabitTileView: View {
                 }
                 loadStatus()
             }
-            .onChange(of: waveToken) { _, _ in
-                playBounce()
-            }
-            .offset(y: bounceOffset)
+            .animation(allowsMotion ? HoloAnimation.standard : nil, value: isCompleted)
             .opacity(appeared ? 1 : 0)
+            .accessibilityElement(children: .contain)
+            .accessibilityAction(named: Text("记录\(habit.name)")) { handlePrimaryAction() }
     }
 
-    // MARK: - 磁贴内容
+    // MARK: - 磁贴内容（三层：行1 → 副行 → 底部）
 
     private var tileContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // 图标行高钉死：SF Symbol/emoji/自定义资产三种图标固有高度不一（26~31pt），
-            // 不钉死会让名字行的起点在并排卡之间高低不齐
-            HStack(alignment: .top) {
-                tileIcon
+        VStack(alignment: .leading, spacing: 0) {
+            headerRow
 
-                Spacer()
+            sublineRow
 
-                if isCompleted {
-                    checkBadge
-                }
-            }
-            .frame(height: 30, alignment: .top)
-
-            nameRow
-
-            if let subtitle = subtitleText {
-                Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundColor(isCompleted ? .white.opacity(0.78) : .holoTextSecondary.opacity(0.9))
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
+            Spacer(minLength: 10)
 
             bottomArea
 
-            // 坏习惯超标提示（自动消失，复刻原卡片）
+            // 坏习惯超标提示（3 秒自动消失）：副行已红字，此行作强调
             if showOverLimitWarning {
-                Text("已经超过当日限额，请注意控制")
-                    .font(.system(size: 9))
+                Text("已超当日限额，请注意控制")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(isCompleted ? .white : .holoError)
+                    .padding(.top, 6)
                     .lineLimit(1)
                     .transition(.opacity)
             }
         }
     }
 
-    /// 磁贴图标：单色图标完成时变白；emoji 自带颜色无法变白，完成态用白色圆片托底，
-    /// 避免彩色 emoji 直接压在实色习惯色背景上显脏
-    @ViewBuilder
-    private var tileIcon: some View {
-        if EmojiCatalog.isEmojiIcon(habit.icon) {
-            if isCompleted {
-                Text(habit.icon)
-                    .font(.system(size: 19))
-                    .frame(width: 27, height: 27)
-                    .background(Circle().fill(Color.white.opacity(0.28)))
-            } else {
-                Text(habit.icon)
-                    .font(.system(size: 26))
-            }
-        } else {
-            habit.iconImage(size: 26)
-                .foregroundColor(isCompleted ? .white : habit.habitColor)
+    /// 行1：图标 chip + 名字（名字独占行，徽章已移副行）+ 右上状态位
+    /// 名字给状态位预留尾部安全距离，避免长名贴环/被环叠字
+    private var headerRow: some View {
+        HStack(spacing: 8) {
+            iconChip
+
+            Text(habit.name)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .foregroundColor(isCompleted ? .white : .holoToolText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 26)
         }
+        .frame(minHeight: 32, alignment: .center)
+        .overlay(alignment: .topTrailing) { statusSlot }
     }
 
-    /// 完成勾徽章（右上角）
-    private var checkBadge: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.25))
-                .frame(width: 22, height: 22)
-
-            Image(systemName: "checkmark")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.white)
+    /// 图标 chip：32×32 圆角 10。未完成 = 习惯色淡底 + 习惯色图标；
+    /// 完成 = 白 26% 底 + 内白描边（emoji 自带颜色直接显示）
+    private var iconChip: some View {
+        Group {
+            if EmojiCatalog.isEmojiIcon(habit.icon) {
+                Text(habit.icon).font(.system(size: 17))
+            } else {
+                habit.iconImage(size: 17)
+                    .foregroundColor(isCompleted ? .white : habit.habitColor)
+            }
         }
-        .transition(.scale(scale: 0.3).combined(with: .opacity))
-        // 点亮瞬间跟在扩散动画后弹出（取消时立即消失）
-        .animation(
-            isCompleted
-                ? .spring(response: 0.45, dampingFraction: 0.6).delay(0.12)
-                : HoloAnimation.enter,
-            value: isCompleted
+        .frame(width: 32, height: 32)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isCompleted
+                      ? Color.white.opacity(0.26)
+                      : habit.habitColor.opacity(colorScheme == .dark ? 0.20 : 0.13))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isCompleted ? Color.white.opacity(0.22) : .clear, lineWidth: 1)
         )
     }
 
-    /// 名字行：名字是主信息不许截断，徽章是从属信息。窄卡空间不足时按
-    /// 「火焰+累计 → 火焰 → 全部让位」渐进降级，而不是把名字挤成省略号
-    private var nameRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 5) {
-                habitNameText
+    /// 右上状态位：未完成 = 空心灰环（「待办」暗示）；完成 = 盖章（白圆 + 光晕环 + 习惯色勾，微旋转）。
+    /// 两态条件渲染而非叠放：未完成时盖章不占位，光晕环不会撑出卡缘被裁
+    @ViewBuilder
+    private var statusSlot: some View {
+        if isCompleted {
+            stamp
+        } else {
+            Circle()
+                .strokeBorder(Color.holoToolTextSecondary.opacity(0.45), lineWidth: 1.6)
+                .frame(width: 21, height: 21)
+        }
+    }
+
+    /// 盖章：未完成时放大 1.5 倍且透明，完成瞬间弹入（spring），带 -7° 手盖歪度
+    private var stamp: some View {
+        ZStack {
+            Circle()
+                .fill(Color.white)
+                .frame(width: 25, height: 25)
+                .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+            Circle()
+                .strokeBorder(Color.white.opacity(0.4), lineWidth: 2)
+                .frame(width: 29, height: 29)
+            Image(systemName: "checkmark")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(habit.habitColor)
+        }
+        .rotationEffect(.degrees(-7))
+        .scaleEffect(isCompleted ? 1 : 1.5)
+        .opacity(isCompleted ? 1 : 0)
+        .animation(allowsMotion ? HoloAnimation.snappy : nil, value: isCompleted)
+        .accessibilityLabel(String(localized: "今天已记录"))
+    }
+
+    /// 副行：徽章（连续/累计）+ 数据文本（周计/上限）+ 完成后的备注入口
+    private var sublineRow: some View {
+        // 有徽章（连续/累计）时周计压缩为纯数字，防止三件同排把文本截成残字
+        let hasBadge = streakInfo.value > 0 || (lifetimeTotal ?? 0) > 0
+        return HStack(spacing: 6) {
+            if streakInfo.value > 0 {
                 streakBadge
+            }
+            if let lifetimeTotal, lifetimeTotal > 0, !habit.isBadHabit, habit.isCheckInType {
                 lifetimeBadge
             }
 
-            HStack(spacing: 5) {
-                habitNameText
-                streakBadge
+            if let subline = sublineText(compactWeekLabel: hasBadge) {
+                (subline.0 + subline.1)
+                    .font(.system(size: 12))
+                    .foregroundColor(isCompleted ? .white.opacity(0.82) : .holoToolTextSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
-            habitNameText
+            Spacer(minLength: 0)
+
+            if isCompleted, habit.isCheckInType {
+                noteEntry
+            }
         }
-        .foregroundColor(isCompleted ? .white : .holoTextPrimary)
+        .padding(.top, 8)
     }
 
-    private var habitNameText: some View {
-        Text(habit.name)
-            .font(.system(size: 14, weight: .semibold))
-            .lineLimit(1)
-    }
-
+    /// 连续天数徽章：橙 tint 胶囊（完成态白 22% 反白）
     private var streakBadge: some View {
-        Group {
-            if streakInfo.value > 0 {
-                HStack(spacing: 1) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 8))
-                    Text("\(streakInfo.value)")
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .opacity(0.85)
-                .fixedSize()
-            }
+        HStack(spacing: 2) {
+            Image(systemName: "flame.fill").font(.system(size: 9))
+            Text("\(streakInfo.value)").font(.system(size: 11, weight: .bold))
         }
+        .padding(.horizontal, 8)
+        .frame(height: 20)
+        .background(
+            Capsule().fill(isCompleted ? Color.white.opacity(0.22) : Color.holoPrimary.opacity(0.11))
+        )
+        .foregroundColor(isCompleted ? .white : .holoPrimary)
+        .fixedSize()
     }
 
+    /// 累计徽章：习惯色 tint 胶囊（打卡型好习惯专用）
     private var lifetimeBadge: some View {
-        // 累计总账徽章（永不归零）：坏习惯/测量类为 nil 不显示，0 不显示与火焰口径一致
-        Group {
-            if let lifetimeTotal, lifetimeTotal > 0 {
-                Text(String(localized: "累计\(habit.formatValue(lifetimeTotal))次"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .opacity(0.85)
-                    .fixedSize()
-            }
+        HStack(spacing: 2) {
+            Image(systemName: "infinity").font(.system(size: 9, weight: .bold))
+            Text(String(localized: "\(habit.formatValue(lifetimeTotal ?? 0))次"))
+                .font(.system(size: 11, weight: .bold))
         }
+        .padding(.horizontal, 8)
+        .frame(height: 20)
+        .background(
+            Capsule().fill(isCompleted ? Color.white.opacity(0.22) : habit.habitColor.opacity(0.12))
+        )
+        .foregroundColor(isCompleted ? .white : habit.habitColor)
+        .fixedSize()
     }
 
-    /// 副标题：信息只在偏离默认时出现（每日习惯不显示频率）
-    private var subtitleText: String? {
-        var parts: [String] = []
-        if habit.habitFrequency != .daily {
-            parts.append(habit.habitFrequency.displayName)
+    /// 打卡型完成后的备注入口：视觉 26×24 笔记图标，热区隐形扩到 44
+    private var noteEntry: some View {
+        Color.clear
+            .frame(width: 44, height: 44)
+            .overlay(alignment: .trailing) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.9))
+                    .frame(width: 26, height: 24)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.white.opacity(0.8), lineWidth: 1)
+                    )
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                checkInNoteText = HabitRepository.shared.findTodayCheckInRecord(for: habit)?.note ?? ""
+                showCheckInNote = true
+            }
+            .accessibilityLabel(String(localized: "编辑今日备注"))
+    }
+
+    /// 副行数据文本：打卡型=本周节奏（compact 时省「本周」前缀）；坏习惯=上限与超标
+    private var sublineText: ((Text, Text))? { sublineText(compactWeekLabel: false) }
+
+    private func sublineText(compactWeekLabel: Bool) -> (Text, Text)? {
+        if habit.isCheckInType {
+            let pastDays = weekPattern.dropLast()
+            if !pastDays.isEmpty {
+                let hits = pastDays.filter { $0 }.count
+                return (
+                    Text(compactWeekLabel ? "" : String(localized: "本周 ")),
+                    Text("\(hits)/\(pastDays.count)")
+                        .fontWeight(.bold)
+                        .foregroundColor(isCompleted ? .white : .holoPrimary)
+                )
+            }
+            return nil
         }
-        if habit.isBadHabit, let target = habit.targetValueDouble {
-            parts.append(String(localized: "上限 \(habit.formatValue(target))\(habit.unitText)"))
+        if habit.isBadHabit {
+            let target = habit.targetValueDouble ?? Double(habit.targetCountValue ?? 0)
+            if target > 0 {
+                let unit = habit.unitText
+                let head = Text(String(localized: "上限 \(habit.formatValue(target))\(unit)/日"))
+                guard isOverLimit else { return (head, Text("")) }
+                let exceed = (todayValue ?? 0) - target
+                let over = Text(String(localized: " · 已超 \(habit.formatValue(exceed))"))
+                    .fontWeight(.bold)
+                    .foregroundColor(isCompleted ? .white : .holoError)
+                return (head, over)
+            }
+            return nil
         }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return nil
     }
 
     // MARK: - 底部区（按类型分化）
@@ -297,106 +369,82 @@ struct HabitTileView: View {
         }
     }
 
-    /// 打卡型：本周点阵（过去完成实色 / 未完成淡色 / 今天描边 / 未来最淡）
-    /// 过去未打卡的日子（漏卡日）显示为虚线空心点＋小加号，点击直接补签
-    /// 今日已打卡时行尾提供备注入口（低频操作，不占打卡主路径）
+    /// 打卡型：本周点阵（独立底行，补签/备注入口在副行与长按菜单）
+    /// 过去完成=习惯色实点 / 漏卡日=淡彩底+加号（点击直达补签）/ 今天=习惯色描边 / 未来=灰空心
     private var weekDots: some View {
-        HStack(spacing: 5) {
+        // 周数据缺位（新库/极端时序）兜底为 7 个未完成日，保证「今日描边点」恒在
+        let pattern: [Bool] = weekPattern.count == 7 ? weekPattern : Array(repeating: false, count: 7)
+        return HStack(spacing: 5) {
             ForEach(0..<7, id: \.self) { day in
-                let isToday = day == weekPattern.count - 1
-                let hit = day < weekPattern.count && weekPattern[day]
-                let future = day >= weekPattern.count
-                if isRetroactiveDot(day, hit: hit, future: future, isToday: isToday) {
-                    retroactiveDot(day)
-                } else {
-                    Circle()
-                        .fill(dotFill(hit: hit, future: future))
-                        .frame(width: 6, height: 6)
-                        .overlay(
-                            Circle()
-                                .stroke(isCompleted ? Color.white.opacity(0.6) : habit.habitColor.opacity(0.45), lineWidth: 1)
-                                .frame(width: 8.5, height: 8.5)
-                                .opacity(isToday ? 1 : 0)
-                        )
-                }
-            }
-
-            if isCompleted {
-                Spacer(minLength: 0)
-                Button {
-                    checkInNoteText = HabitRepository.shared.findTodayCheckInRecord(for: habit)?.note ?? ""
-                    showCheckInNote = true
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 10))
-                        .foregroundColor(isCompleted ? .white.opacity(0.7) : habit.habitColor.opacity(0.6))
-                }
-                .buttonStyle(.plain)
+                weekDot(day, pattern: pattern)
             }
         }
+        .padding(.top, 10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "本周已记录\(pattern.filter { $0 }.count)天"))
+    }
+
+    @ViewBuilder
+    private func weekDot(_ day: Int, pattern: [Bool]) -> some View {
+        if day < pattern.count - 1 {
+            if pattern[day] {
+                Circle()
+                    .fill(isCompleted ? Color.white.opacity(0.88) : habit.habitColor)
+                    .frame(width: 8, height: 8)
+            } else {
+                // 漏卡日：淡彩点 + 加号，点击直达补签（44pt 主入口仍在长按菜单）
+                Color.clear
+                    .frame(width: 20, height: 20)
+                    .overlay {
+                        ZStack {
+                            Circle()
+                                .fill(isCompleted ? Color.white.opacity(0.30) : habit.habitColor.opacity(0.26))
+                            Text("+")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(isCompleted ? .white : habit.habitColor)
+                        }
+                        .frame(width: 10, height: 10)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        HapticManager.light()
+                        retroContext = HabitRetroactiveSheetContext(
+                            habit: habit,
+                            preselectedDay: weekDayDate(day)
+                        )
+                    }
+            }
+        } else if day == pattern.count - 1 {
+            Circle()
+                .strokeBorder(isCompleted ? Color.white : habit.habitColor, lineWidth: 2)
+                .frame(width: 9, height: 9)
+        } else {
+            Circle()
+                .strokeBorder(
+                    isCompleted ? Color.white.opacity(0.40) : Color.holoToolTextSecondary.opacity(0.40),
+                    lineWidth: 1.5
+                )
+                .frame(width: 8, height: 8)
+        }
+    }
+
+    /// weekPattern 下标 → 该日 Date（下标 0 = 本周第一天）
+    private func weekDayDate(_ day: Int) -> Date {
+        let calendar = Calendar.current
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        return calendar.date(byAdding: .day, value: day, to: weekStart) ?? Date()
     }
 
     // MARK: - 补签入口（点阵漏卡日）
-
-    /// 点阵中的日子是否为「可补签的漏卡日」：
-    /// 每日打卡型好习惯的过去未打卡日（本周点阵的过去日天然落在 7 天补签窗口内）
-    private func isRetroactiveDot(_ day: Int, hit: Bool, future: Bool, isToday: Bool) -> Bool {
-        guard habit.isCheckInType, !habit.isBadHabit, habit.habitFrequency == .daily else { return false }
-        return !hit && !future && !isToday
-    }
-
-    /// 漏卡日的点：虚线空心圆＋习惯色小加号角标
-    private func retroactiveDot(_ day: Int) -> some View {
-        Button {
-            openRetroactiveSheet(day)
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(isCompleted ? Color.white.opacity(0.14) : habit.habitColor.opacity(0.08))
-                    .frame(width: 9, height: 9)
-
-                Circle()
-                    .stroke(
-                        isCompleted ? Color.white.opacity(0.7) : habit.habitColor.opacity(0.5),
-                        style: StrokeStyle(lineWidth: 1, dash: [2, 1.5])
-                    )
-                    .frame(width: 8.5, height: 8.5)
-            }
-            .overlay(alignment: .topTrailing) {
-                Text("+")
-                    .font(.system(size: 7, weight: .heavy))
-                    .foregroundColor(isCompleted ? .white : habit.habitColor)
-                    .offset(x: 3, y: -3.5)
-            }
-            .frame(width: 12, height: 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 本周点阵下标 → 日期（下标 0 = 本周第一天，跟随系统 firstWeekday）
-    private func weekDayDate(_ day: Int) -> Date? {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return nil }
-        return calendar.date(byAdding: .day, value: day, to: week.start)
-    }
-
-    /// 从点阵漏卡日打开补签弹层（直进确认卡）
-    private func openRetroactiveSheet(_ day: Int) {
-        guard let date = weekDayDate(day) else { return }
-        HapticManager.light()
-        retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: date)
-    }
 
     /// 打卡型：当日记录补/改备注
     private var checkInNoteSheet: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 TextField("备注（可选，如：状态不错）", text: $checkInNoteText)
-                    .font(.holoBody)
+                    .holoText(.body)
                     .padding(10)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .onChange(of: checkInNoteText) { _, newValue in
                         if newValue.count > 100 { checkInNoteText = String(newValue.prefix(100)) }
@@ -404,17 +452,17 @@ struct HabitTileView: View {
                 Spacer()
             }
             .padding(HoloSpacing.lg)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("打卡备注")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") { showCheckInNote = false }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") { saveCheckInNote() }
-                        .font(.holoBody)
+                        .holoText(.body)
                         .foregroundColor(.holoPrimary)
                 }
             }
@@ -430,77 +478,94 @@ struct HabitTileView: View {
         showCheckInNote = false
     }
 
-    private func dotFill(hit: Bool, future: Bool) -> Color {
-        if hit {
-            return isCompleted ? .white : habit.habitColor
-        }
-        let base: Double = future ? 0.06 : 0.18
-        return isCompleted ? Color.white.opacity(base + 0.08) : habit.habitColor.opacity(base)
-    }
-
-    /// 计数类：第一行迷你进度条 + 当前值；第二行「−」「＋」
-    /// 「−」仅在今日有记录时出现（手滑多记可直接回退，与原卡片的 -1 对齐）
+    /// 计数类：进度行（条 6pt + 圆体数字）+ 按钮行（− 描边 30 / ＋ 实底 37，热区 44）
+    /// 「−」仅在今日有记录时出现（手滑多记可直接回退）
     private var countRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
                 if let target = habit.targetValueDouble, target > 0 {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule()
-                                .fill(isCompleted ? Color.white.opacity(0.25) : habit.habitColor.opacity(0.14))
+                                .fill(isCompleted ? Color.white.opacity(0.25) : Color.holoToolInset)
                             Capsule()
                                 .fill(countAccentColor)
                                 .frame(width: geo.size.width * min((todayValue ?? 0) / target, 1))
                         }
                     }
-                    .frame(height: 4)
-                    .animation(.easeOut(duration: 0.3), value: todayValue)
+                    .frame(height: 6)
+                    .animation(allowsMotion ? HoloAnimation.standard : nil, value: todayValue)
                 }
 
                 Text(countText)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
                     .foregroundColor(countTextColor)
                     .fixedSize()
             }
+            .padding(.top, 2)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 9) {
                 Spacer(minLength: 0)
 
                 if (todayValue ?? 0) > 0 {
-                    Button {
+                    circularButton(
+                        systemName: "minus",
+                        iconSize: 13,
+                        visual: 30,
+                        fill: .clear,
+                        stroke: isCompleted ? Color.white.opacity(0.55) : habit.habitColor
+                    ) {
                         undoLatestRecord()
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(isCompleted ? .white : habit.habitColor)
-                            .frame(width: 22, height: 22)
-                            .overlay(
-                                Circle()
-                                    .stroke(isCompleted ? Color.white.opacity(0.5) : habit.habitColor, lineWidth: 1.2)
-                            )
                     }
-                    .buttonStyle(.plain)
-                    .contentShape(Circle().inset(by: -5))
                     .transition(.scale(scale: 0.5).combined(with: .opacity))
                 }
 
-                Button {
+                circularButton(
+                    systemName: "plus",
+                    iconSize: 16,
+                    visual: 37,
+                    fill: isOverLimit
+                          ? Color.holoErrorDark
+                          : (isCompleted ? Color.white.opacity(0.28) : habit.habitColor),
+                    stroke: .clear
+                ) {
                     increment()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 24, height: 24)
-                        .background(
-                            // 超标时按钮变红（复刻原卡片）
-                            Circle().fill(isCompleted ? Color.white.opacity(0.28) : (isOverLimit ? .holoError : habit.habitColor))
-                        )
                 }
-                .buttonStyle(.plain)
-                .contentShape(Circle().inset(by: -5))
             }
-            .animation(HoloAnimation.snappy, value: todayValue)
+            .animation(allowsMotion ? HoloAnimation.standard : nil, value: todayValue)
         }
+    }
+
+    /// 圆形操作钮：视觉直径小于 44 时热区仍扩到 44（隐形扩大，不占卡内布局）
+    private func circularButton(
+        systemName: String,
+        iconSize: CGFloat,
+        visual: CGFloat,
+        fill: Color,
+        stroke: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Color.clear
+                .frame(width: 44, height: 44)
+                .overlay {
+                    ZStack {
+                        Circle().fill(fill)
+                        if stroke != .clear {
+                            Circle().strokeBorder(stroke, lineWidth: 1.4)
+                        }
+                        Image(systemName: systemName)
+                            .font(.system(size: iconSize, weight: .bold))
+                            .foregroundColor(fill == .clear
+                                             ? (isCompleted ? .white : habit.habitColor)
+                                             : .white)
+                    }
+                    .frame(width: visual, height: visual)
+                }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
     }
 
     private var countText: String {
@@ -541,33 +606,35 @@ struct HabitTileView: View {
         if isOverLimit {
             return isCompleted ? .white : .holoError
         }
-        return isCompleted ? .white : habit.habitColor
+        return isCompleted ? .white : .holoToolText
     }
 
-    /// 测量类：当前值（今日值优先，回退历史最新值）+ 撤销（有今日记录时）+「记录」
+    /// 测量类：值行（当前值 + 单位 + 撤销）+ 整宽「记录」主按钮
     private var measureRow: some View {
-        HStack(spacing: 6) {
-            if let value = todayValue ?? latestHistoricalValue {
-                Text(habit.formatValue(value))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(measureValueColor)
-                    + Text(" \(habit.unitText)")
-                        .font(.system(size: 9))
-                        .foregroundColor(isOverLimit && !isCompleted ? .holoError : (isCompleted ? .white.opacity(0.75) : .holoTextSecondary))
-            }
-
-            Spacer(minLength: 0)
-
-            if todayValue != nil {
-                Button {
-                    showUndoConfirm = true
-                } label: {
-                    Text("撤销")
-                        .font(.system(size: 10))
-                        .foregroundColor(isCompleted ? .white.opacity(0.75) : .holoTextSecondary)
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                if let value = todayValue ?? latestHistoricalValue {
+                    (Text(habit.formatValue(value))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(measureValueColor)
+                     + Text(" \(habit.unitText)")
+                        .font(.system(size: 11))
+                        .foregroundColor(isCompleted ? .white.opacity(0.75) : .holoToolTextSecondary))
                 }
-                .buttonStyle(.plain)
-                .transition(.opacity)
+
+                Spacer(minLength: 0)
+
+                if todayValue != nil {
+                    Color.clear
+                        .frame(width: 44, height: 36)
+                        .overlay(alignment: .trailing) {
+                            Text("撤销")
+                                .font(.system(size: 12.5))
+                                .foregroundColor(isCompleted ? .white.opacity(0.75) : .holoToolTextSecondary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { showUndoConfirm = true }
+                }
             }
 
             Button {
@@ -575,18 +642,22 @@ struct HabitTileView: View {
                 inputNote = ""
                 showValueInput = true
             } label: {
-                Text("记录")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule().fill(isCompleted ? Color.white.opacity(0.28) : habit.habitColor)
-                    )
+                HStack(spacing: 5) {
+                    Image(systemName: "pencil.tip.crop.circle")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("记录")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(
+                    Capsule().fill(isCompleted ? Color.white.opacity(0.28) : habit.habitColor)
+                )
             }
             .buttonStyle(.plain)
         }
-        .animation(HoloAnimation.enter, value: todayValue)
+        .animation(allowsMotion ? HoloAnimation.enter : nil, value: todayValue)
     }
 
     /// 测量类当前值颜色：超标红（复刻原卡片），点亮后白
@@ -595,22 +666,41 @@ struct HabitTileView: View {
         return isCompleted ? .white : habit.habitColor
     }
 
-    // MARK: - 背景（两态 + 点亮扩散）
+    // MARK: - 背景（两态：未完成纸白 / 完成钳制实底 + 光泽）
 
-    @ViewBuilder
+    /// 完成态底色：习惯色经暖化钳制（压饱和压亮度保白字可读，色相不动）
+    private var doneSurface: Color {
+        Color.holoHabitSurface(habit.habitColor, scheme: colorScheme)
+    }
+
+    /// 描边：未完成 = 暖灰细线；完成 = 浅色无描边（彩影撑形）、深色补习惯色 30%
+    private var borderStroke: Color {
+        if isCompleted {
+            return colorScheme == .dark ? habit.habitColor.opacity(0.30) : .clear
+        }
+        return .holoToolBorder
+    }
+
     private var backgroundLayer: some View {
         ZStack {
-            Color.holoCardBackground
-            // reveal 期间保持淡底，扩散圆负责点亮视觉；结束后跳到实底（此刻被圆覆盖，跳变不可见）
-            habit.habitColor.opacity(isCompleted && !isRevealing ? 1 : Color.habitTileTintOpacity(colorScheme))
-
-            if isRevealing {
-                Circle()
-                    .fill(habit.habitColor)
-                    .frame(width: 300, height: 300)
-                    .scaleEffect(revealScale)
+            if isCompleted {
+                doneSurface
+                // 顶部光泽 + 底部微沉：纸片被点亮的体积感
+                LinearGradient(
+                    colors: [.white.opacity(0.17), .clear],
+                    startPoint: UnitPoint(x: 0.1, y: 0),
+                    endPoint: UnitPoint(x: 0.62, y: 0.45)
+                )
+                LinearGradient(
+                    colors: [.black.opacity(0.07), .clear],
+                    startPoint: .bottom,
+                    endPoint: UnitPoint(x: 0.5, y: 0.72)
+                )
+            } else {
+                Color.holoCardBackground
             }
         }
+        .animation(allowsMotion ? HoloAnimation.recordSettle : nil, value: isCompleted)
     }
 
     // MARK: - 长按菜单
@@ -680,13 +770,17 @@ struct HabitTileView: View {
     private func handlePrimaryAction() {
         guard habit.isCheckInType else { return }
         do {
+            let wasCompleted = isCompleted
             let newStatus = try HabitRepository.shared.toggleCheckIn(for: habit)
             if newStatus {
                 isCompleted = true
-                startReveal()
+                if !wasCompleted && !habit.isBadHabit {
+                    HoloMotionFeedbackCenter.shared.completedHabit(habit.id)
+                }
                 HapticManager.success()
             } else {
-                withAnimation(.easeInOut(duration: 0.4)) {
+                HoloMotionFeedbackCenter.shared.cancelHabitResponse(habit.id)
+                withAnimation(reduceMotion ? nil : HoloAnimation.recordSettle) {
                     isCompleted = false
                 }
                 HapticManager.light()
@@ -698,14 +792,15 @@ struct HabitTileView: View {
 
     private func increment() {
         do {
+            let firstOfToday = (todayValue ?? 0) == 0
             _ = try HabitRepository.shared.incrementCount(for: habit)
             let newValue = HabitRepository.shared.getTodayValue(for: habit)
             // 「有记录即完成」语义：今日第一笔触发点亮
-            let firstOfToday = (todayValue == nil || todayValue == 0) && (newValue ?? 0) > 0
+            let becameRecorded = firstOfToday && (newValue ?? 0) > 0
             todayValue = newValue
-            if firstOfToday {
+            if becameRecorded {
                 isCompleted = true
-                startReveal()
+                if !habit.isBadHabit { HoloMotionFeedbackCenter.shared.completedHabit(habit.id) }
                 HapticManager.success()
             } else {
                 HapticManager.light()
@@ -725,39 +820,14 @@ struct HabitTileView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             guard self.isOverLimit else { return }
 
-            withAnimation(.easeIn(duration: 0.3)) {
+            withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                 self.showOverLimitWarning = true
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                withAnimation(.easeOut(duration: 0.3)) {
+                withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                     self.showOverLimitWarning = false
                 }
-            }
-        }
-    }
-
-    /// 点亮扩散：从磁贴中心圆形晕开铺满（iOS 17 无点击坐标 API，中心扩散视觉等效）
-    private func startReveal() {
-        isRevealing = true
-        withAnimation(.easeOut(duration: 0.45)) {
-            revealScale = 1
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.48) {
-            isRevealing = false
-            revealScale = 0
-        }
-    }
-
-    /// 庆祝波浪：磁贴按位置依次跳一下
-    private func playBounce() {
-        let delay = Double(index) * 0.045
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.5).delay(delay)) {
-            bounceOffset = -8
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5 + delay) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                bounceOffset = 0
             }
         }
     }
@@ -779,12 +849,12 @@ struct HabitTileView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(habit.name)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
 
                         Text(habit.unitText.isEmpty ? String(localized: "输入数值") : String(localized: "单位：\(habit.unitText)"))
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
@@ -796,14 +866,14 @@ struct HabitTileView: View {
                     .keyboardType(.decimalPad)
                     .focused($isValueInputFocused)
                     .padding()
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
                 TextField("备注（可选，如：膝盖疼只跑2公里）", text: $inputNote)
-                    .font(.holoBody)
+                    .holoText(.body)
                     .onSubmit { isValueInputFocused = true }
                     .padding(10)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .onChange(of: inputNote) { _, newValue in
                         if newValue.count > 100 { inputNote = String(newValue.prefix(100)) }
@@ -812,7 +882,7 @@ struct HabitTileView: View {
                 Spacer()
             }
             .padding(HoloSpacing.lg)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("记录数值")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -820,14 +890,14 @@ struct HabitTileView: View {
                     Button("取消") {
                         showValueInput = false
                     }
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         saveValue()
                     }
-                    .font(.holoBody)
+                    .holoText(.body)
                     .foregroundColor(.holoPrimary)
                     .disabled(inputValue.isEmpty)
                 }
@@ -849,13 +919,13 @@ struct HabitTileView: View {
 
         let note = inputNote.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            _ = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note.isEmpty ? nil : note)
             let firstOfToday = todayValue == nil
+            _ = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note.isEmpty ? nil : note)
             todayValue = HabitRepository.shared.getTodayValue(for: habit)
             showValueInput = false
             if firstOfToday {
                 isCompleted = true
-                startReveal()
+                if !habit.isBadHabit { HoloMotionFeedbackCenter.shared.completedHabit(habit.id) }
                 HapticManager.success()
             } else {
                 HapticManager.light()
@@ -891,7 +961,8 @@ struct HabitTileView: View {
                 latestHistoricalValue = HabitRepository.shared.getLatestValue(for: habit)
             }
             if (todayValue ?? 0) == 0 {
-                withAnimation(.easeInOut(duration: 0.4)) {
+                HoloMotionFeedbackCenter.shared.cancelHabitResponse(habit.id)
+                withAnimation(reduceMotion ? nil : HoloAnimation.recordSettle) {
                     isCompleted = false
                 }
             }
@@ -945,65 +1016,72 @@ struct HabitProgressHeader: View {
     let completed: Int
     let total: Int
 
+    /// 全部完成时摘要卡的暖光（克制的成功氛围，不撒花）
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if isAllDone {
-                    // 单个 Text 承载 emoji：Text(a)+Text(b) 拼接会让 ✨ 走字体回退失败显示成豆腐块
-                    Text("今天全部点亮 ✨")
-                        .font(.system(size: 15, weight: .bold))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("今日")
+                        .font(.system(size: 14))
+                        .foregroundColor(.holoToolTextSecondary)
+                    Text("\(completed)")
+                        .font(.system(size: 33, weight: .heavy, design: .rounded))
                         .foregroundColor(.holoPrimary)
-                } else {
-                    Text("今日进度 ")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.holoTextPrimary)
-                    + Text("\(completed)")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(.holoPrimary)
-                    + Text(" / \(total)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
+                    Text("/ \(total)")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer()
 
                 Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .font(.system(size: 13, weight: isAllDone ? .semibold : .regular))
+                    .foregroundColor(isAllDone ? .holoPrimary : .holoToolTextSecondary)
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
+            // 分段进度条：一段=今日应打卡的一个习惯，完成一段亮一段（比连续条更有计数感）
+            HStack(spacing: 3) {
+                ForEach(0..<max(total, 1), id: \.self) { index in
                     Capsule()
-                        .fill(Color.holoBorder)
-
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [.holoPrimary, .holoPrimaryDark],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * ratio)
+                        .fill(index < completed ? AnyShapeStyle(segmentGradient) : AnyShapeStyle(Color.holoToolInset))
+                        .frame(height: 9)
                 }
             }
-            .frame(height: 6)
-            .animation(.easeOut(duration: 0.5), value: completed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.45), value: completed)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 15)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.holoPrimary.opacity(0.05), .clear],
+                        startPoint: .top,
+                        endPoint: UnitPoint(x: 0.5, y: 0.75)
+                    )
+                )
+                .background(Color.holoToolSurface)
+        )
+        .shadow(
+            color: isAllDone ? Color.holoPrimary.opacity(0.22) : Color.black.opacity(0.04),
+            radius: isAllDone ? 14 : 8,
+            x: 0, y: isAllDone ? 6 : 2
+        )
+    }
+
+    private var segmentGradient: LinearGradient {
+        LinearGradient(colors: [.holoPrimary, .holoPrimaryDark], startPoint: .leading, endPoint: .trailing)
     }
 
     private var isAllDone: Bool {
         total > 0 && completed == total
     }
 
-    private var ratio: CGFloat {
-        total > 0 ? CGFloat(completed) / CGFloat(total) : 0
-    }
-
     private var subtitle: String {
         if total == 0 { return "" }
-        return isAllDone ? String(localized: "完美的一天") : String(localized: "还有 \(total - completed) 项待点亮")
+        return isAllDone ? String(localized: "完美的一天 ✨") : String(localized: "还有 \(total - completed) 项待点亮")
     }
 }
 
@@ -1012,8 +1090,8 @@ struct HabitProgressHeader: View {
 #Preview {
     VStack {
         Text("磁贴组件预览（需 Habit 数据）")
-            .font(.holoHeading)
+            .holoText(.sectionTitle)
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

@@ -11,8 +11,8 @@ import SwiftUI
 struct HabitManagementView: View {
 
     @ObservedObject var model: HabitModuleViewModel
-    /// 从今天页「暂停管理」进入时选中已暂停分组
-    var initialSection: HabitModuleViewModel.Tab? = nil
+    /// 从今天页「暂停管理」进入时选中已暂停分组（V2 后管理页不再挂载，保留能力供回退）
+    var initialPausedFocus: Bool = false
     let onOpenDetail: (UUID) -> Void
     let onEditHabit: (Habit) -> Void
     let onOpenStatsSettings: () -> Void
@@ -35,6 +35,7 @@ struct HabitManagementView: View {
     @State private var pauseTarget: Habit?
     @State private var showDataManagement = false
     @State private var showReminders = false
+    @State private var showTodaySort = false
     @ObservedObject private var entitlement = HoloEntitlementState.shared
 
     var body: some View {
@@ -55,7 +56,7 @@ struct HabitManagementView: View {
             .padding(.bottom, 40)
         }
         .onAppear {
-            if let initialSection, initialSection == .manage {
+            if initialPausedFocus {
                 selectedSection = .paused
             }
         }
@@ -68,6 +69,10 @@ struct HabitManagementView: View {
         }
         .sheet(isPresented: $showReminders) {
             HabitReminderDetailView()
+        }
+        .sheet(isPresented: $showTodaySort) {
+            // 今天页长按拖拽为主路径；本弹层是按钮/拖拽双通道的精细排序兜底（G3 接线）
+            NavigationStack { SortPage(model: model) }
         }
     }
 
@@ -267,7 +272,8 @@ struct HabitManagementView: View {
     private var maintenanceEntries: some View {
         VStack(spacing: 0) {
             entryRow(icon: "arrow.up.arrow.down", text: String(localized: "今天列表排序")) {
-                // G3：显式排序编辑模式（拖动）；主列表排序事实源 = Habit.sortOrder
+                // 主路径=今天页长按拖拽（Habit.sortOrder 事实源）；本弹层提供按钮式精细排序
+                showTodaySort = true
             }
             entryRow(icon: "eye", text: String(localized: "回顾展示设置")) {
                 onOpenStatsSettings()

@@ -145,6 +145,11 @@ struct AddHabitSheet: View {
                                 .fill(Color.holoError.opacity(0.08))
                         )
                     }
+
+                    // V2 §8：编辑态底部 = 习惯设置的生命周期操作
+                    if isEditing {
+                        lifecycleSection
+                    }
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.sm)
@@ -198,6 +203,191 @@ struct AddHabitSheet: View {
         // 无改动时保留系统下拉关闭；有改动时拦下并走「放弃修改？」确认
         .interactiveDismissDisabled(hasUnsavedChanges)
         .sheetDismissGuard { showDismissAlert = true }
+    }
+
+    // MARK: - 生命周期操作（V2 §8：与编辑表单同层，操作靠近对象）
+
+    @State private var pauseTarget: Habit? = nil
+    @State private var pendingLifecycleAction: LifecycleAction? = nil
+    @State private var lifecycleError: String? = nil
+    @ObservedObject private var entitlement = HoloEntitlementState.shared
+
+    private enum LifecycleAction: Identifiable {
+        case archive, delete
+
+        var id: Int { self == .archive ? 0 : 1 }
+    }
+
+    /// 编辑对象当前生命周期（读取托管对象现值）
+    private var editingLifecycle: HabitLifecycle {
+        guard let habit = editingHabit else { return .active }
+        if habit.isArchived { return .archived }
+        return habit.isPaused ? .paused : .active
+    }
+
+    @ViewBuilder
+    private var lifecycleSection: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.holoToolBorder.opacity(0.6))
+                .frame(height: 0.5)
+                .padding(.vertical, 6)
+
+            if let lifecycleError {
+                Text(lifecycleError)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoError)
+                    .padding(.bottom, 6)
+            }
+
+            switch editingLifecycle {
+            case .active:
+                lifecycleRow(icon: "pause.circle",
+                             title: String(localized: "暂停习惯"),
+                             plusMark: entitlement.isPlusActive ? false : true,
+                             subtitle: String(localized: "给日常留一段空隙")) {
+                    requestPause()
+                }
+                lifecycleRow(icon: "archivebox",
+                             title: String(localized: "归档习惯"),
+                             subtitle: String(localized: "从今天隐藏，保留全部历史")) {
+                    pendingLifecycleAction = .archive
+                }
+            case .paused:
+                lifecycleRow(icon: "play.circle",
+                             title: String(localized: "恢复习惯"),
+                             subtitle: String(localized: "重新出现在今天")) {
+                    performLifecycle { try repository.resumeHabitById(editingHabit!.id) }
+                }
+                lifecycleRow(icon: "archivebox",
+                             title: String(localized: "归档习惯"),
+                             subtitle: String(localized: "从今天隐藏，保留全部历史")) {
+                    pendingLifecycleAction = .archive
+                }
+            case .archived:
+                lifecycleRow(icon: "archivebox",
+                             title: String(localized: "取消归档"),
+                             subtitle: String(localized: "恢复后沿用原暂停状态")) {
+                    performLifecycle { try repository.unarchiveHabitById(editingHabit!.id) }
+                }
+            }
+
+            lifecycleRow(icon: "trash",
+                         title: String(localized: "删除习惯"),
+                         subtitle: String(localized: "删除习惯及全部记录，无法恢复"),
+                         destructive: true) {
+                pendingLifecycleAction = .delete
+            }
+        }
+        .sheet(item: $pauseTarget) { habit in
+            HabitPauseSheet(habit: habit, onPaused: {
+                // 暂停确认成功：收起整个设置弹层回页面（HTML 同款：关闭全部弹层）
+                dismiss()
+            })
+        }
+        .confirmationDialog(
+            confirmTitle,
+            isPresented: Binding(get: { pendingLifecycleAction != nil },
+                                 set: { if !$0 { pendingLifecycleAction = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(confirmButtonTitle, role: .destructive) {
+                if let action = pendingLifecycleAction {
+                    switch action {
+                    case .archive:
+                        performLifecycle { try repository.archiveHabitById(editingHabit!.id) }
+                    case .delete:
+                        performLifecycle { try repository.deleteHabitById(editingHabit!.id) }
+                    }
+                }
+                pendingLifecycleAction = nil
+            }
+            Button(String(localized: "取消"), role: .cancel) {
+                pendingLifecycleAction = nil
+            }
+        } message: {
+            Text(confirmMessage)
+        }
+    }
+
+    private var confirmTitle: String {
+        pendingLifecycleAction == .archive
+            ? String(localized: "归档这个习惯？")
+            : String(localized: "删除这个习惯？")
+    }
+
+    private var confirmButtonTitle: String {
+        pendingLifecycleAction == .archive
+            ? String(localized: "确认归档")
+            : String(localized: "删除习惯与记录")
+    }
+
+    private var confirmMessage: String {
+        if pendingLifecycleAction == .archive {
+            return String(localized: "归档「\(editingHabit?.name ?? "")」后，它会从今天隐藏，历史记录全部保留。")
+        }
+        return String(localized: "删除「\(editingHabit?.name ?? "")」及全部记录？这项删除无法恢复。")
+    }
+
+    private func lifecycleRow(icon: String, title: String, plusMark: Bool = false,
+                              subtitle: String, destructive: Bool = false,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: HoloSpacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                    .foregroundColor(destructive ? .holoError : .holoToolTextSecondary)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(title)
+                            .font(.holoBody)
+                            .foregroundColor(destructive ? .holoError : .holoToolText)
+                        if plusMark {
+                            Text("Plus")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.holoPrimary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .overlay(RoundedRectangle(cornerRadius: 4)
+                                    .strokeBorder(Color.holoPrimary.opacity(0.6)))
+                        }
+                    }
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                Spacer()
+            }
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 暂停按 Plus 权益执行（既有契约：真实权益确认后才开弹层）
+    private func requestPause() {
+        guard let habit = editingHabit else { return }
+        if entitlement.isPlusActive {
+            pauseTarget = habit
+        } else {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .habitPause) {
+                await MainActor.run {
+                    pauseTarget = HabitRepository.shared.findHabit(by: habit.id)
+                }
+            }
+        }
+    }
+
+    /// 生命周期动作：成功关全部弹层；失败原状态保留并说明（A16）
+    private func performLifecycle(_ work: () throws -> Void) {
+        do {
+            try work()
+            lifecycleError = nil
+            dismiss()
+        } catch {
+            lifecycleError = String(localized: "操作没有成功，状态保持原样。请重试。")
+        }
     }
 
     // MARK: - 未保存修改检测

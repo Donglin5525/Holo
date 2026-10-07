@@ -36,13 +36,11 @@ final class HabitModuleViewModel: ObservableObject {
     enum Tab: String, CaseIterable {
         case today
         case review
-        case manage
 
         var displayName: String {
             switch self {
             case .today: return String(localized: "今天")
             case .review: return String(localized: "回顾")
-            case .manage: return String(localized: "管理")
             }
         }
 
@@ -50,9 +48,15 @@ final class HabitModuleViewModel: ObservableObject {
             switch self {
             case .today: return "checkmark.circle.fill"
             case .review: return "calendar"
-            case .manage: return "slider.horizontal.3"
             }
         }
+    }
+
+    // MARK: 回顾路由（V2 §9：整体 → 单习惯，返回恢复整体）
+
+    enum ReviewRoute: Equatable {
+        case overview
+        case single(UUID)
     }
 
     // MARK: 筛选
@@ -64,9 +68,22 @@ final class HabitModuleViewModel: ObservableObject {
 
     // MARK: 撤销提示
 
+    /// 提示形态：普通记录回执 / 坏习惯超限警告（恢复旧磁贴版超限提示语义，方案拍板 2026-10-07）
+    enum UndoHintStyle: Equatable {
+        case recorded
+        case overLimit
+    }
+
     struct UndoHint: Equatable {
         let text: String
+        let style: UndoHintStyle
         let receipt: HabitActionReceipt
+
+        init(text: String, style: UndoHintStyle = .recorded, receipt: HabitActionReceipt) {
+            self.text = text
+            self.style = style
+            self.receipt = receipt
+        }
     }
 
     // MARK: 行内错误
@@ -82,10 +99,17 @@ final class HabitModuleViewModel: ObservableObject {
     @Published private(set) var todayRows: [HabitRowSnapshot] = []
     @Published private(set) var pausedRows: [HabitRowSnapshot] = []
     @Published private(set) var archivedRows: [HabitRowSnapshot] = []
+    /// 回顾：当前月份（模块级唯一月份持有者，V2 §A03）
+    @Published var overviewMonth: Date = Calendar.current.date(
+        from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+    /// 回顾：整体 / 单习惯（返回整体恢复原月份与位置，V2 §9）
+    @Published var reviewRoute: ReviewRoute = .overview
+    /// 回顾整体月度快照
+    @Published private(set) var reviewOverview: HabitReviewOverviewSnapshot?
+    /// 记录查询失败（不能用空数据冒充「从未记录」，V2 §10）
+    @Published private(set) var reviewLoadFailed = false
     /// 今天已记录的不同习惯数（新口径，方案 §9.1）
     @Published private(set) var recordedTodayCount: Int = 0
-    /// 滚动七天每天的有效记录习惯数（与习惯去重；日期条）
-    @Published private(set) var rollingSevenDayCounts: [Date: Int] = [:]
     @Published private(set) var isLoading = true
     @Published var todayFilter: TodayFilter = .all {
         didSet { recomputeFilteredRows() }
@@ -103,6 +127,12 @@ final class HabitModuleViewModel: ObservableObject {
 
     /// 暂停管理入口计数（今天页）
     var pausedCount: Int { pausedRows.count }
+
+    /// 回顾有效可见集合（nil=全部；[]=用户明确全关；非空=白名单）。
+    /// 与整体摘要/列表共用同一集合（V2 §6.2）
+    var visibleIdsForReview: [UUID]? {
+        HabitStatsDisplaySettings.shared.effectiveStatsVisibleIds()
+    }
 
     let coordinator: HabitActionCoordinator
     private let repository: HabitRepository
@@ -154,6 +184,10 @@ final class HabitModuleViewModel: ObservableObject {
 
     // MARK: 数据刷新（批量投影，固定窗口）
 
+    /// 上一次投影材料（overviewMonth 切换时免 fetch 重建回顾快照）
+    private var lastReviewHabits: [HabitReviewHabitInfo] = []
+    private var lastProjectionData: HabitProjectionData?
+
     func refresh() {
         // 未就绪时静默返回（等 warmUp 异步完成后会再刷）；
         // 这里绝不能同步 setup()——会在主线程阻塞等库，页面整体卡黑
@@ -161,7 +195,17 @@ final class HabitModuleViewModel: ObservableObject {
         projectionNow = Date()
         let calendar = Calendar.current
 
-        let facts = repository.allRecordFacts()
+        let facts: [HabitRecordFact]
+        do {
+            facts = try repository.tryAllRecordFacts()
+            reviewLoadFailed = false
+        } catch {
+            // 查询失败：保留旧快照并明确标记（§10 失败可表达），不拿空数据冒充无记录
+            reviewLoadFailed = true
+            isLoading = false
+            return
+        }
+
         let allIds = (repository.activeHabits + repository.pausedHabits).map(\.id)
         let windows = repository.pauseWindowsByIds(allIds)
         let data = HabitPresentationProjector.buildData(
@@ -183,17 +227,41 @@ final class HabitModuleViewModel: ObservableObject {
 
         recordedTodayCount = todayRows.filter { $0.today.isRecorded }.count
 
-        // 滚动七天：每天「有效记录的不同习惯数」（仅今天页在册习惯；与方案 §4.2 口径一致）
-        rollingSevenDayCounts = HabitPresentationProjector.rollingSevenDays(data)
-            .reduce(into: [Date: Int]()) { result, day in
-                let count = todayRows.filter { row in
-                    row.trail.first { data.dayStart($0.day) == day }?.isRecorded == true
-                }.count
-                result[day] = count
-            }
+        // V2 回顾：全量未删除习惯（历史不随生命周期隐去，§6.2）
+        let reviewHabits = repository.fetchAllHabitsForReview().map { habit -> HabitReviewHabitInfo in
+            let lifecycle: HabitLifecycle = habit.isArchived ? .archived : (habit.isPaused ? .paused : .active)
+            return HabitReviewHabitInfo(habit: habit, lifecycle: lifecycle)
+        }
+        lastReviewHabits = reviewHabits
+        lastProjectionData = data
+        rebuildReviewOverview()
 
         recomputeFilteredRows()
         isLoading = false
+    }
+
+    /// 按当前 overviewMonth 与展示偏好重建整体快照（纯内存，无 fetch）。
+    /// 投影材料尚未就绪时静默返回——refresh() 完成后会按当前月份构建。
+    private func rebuildReviewOverview() {
+        guard let data = lastProjectionData else { return }
+        let settings = HabitStatsDisplaySettings.shared
+        reviewOverview = HabitReviewProjector.overviewSnapshot(
+            habits: lastReviewHabits,
+            visibleIds: settings.effectiveStatsVisibleIds(),
+            orderedIds: settings.orderedHabitIds,
+            month: overviewMonth,
+            data: data
+        )
+    }
+
+    /// 切月重建（整体页与单习惯页共用模块级月份）
+    func setOverviewMonth(_ month: Date) {
+        let calendar = Calendar.current
+        let day = calendar.date(from: calendar.dateComponents([.year, .month], from: month)) ?? month
+        let current = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
+        guard day <= current else { return } // 未来月份不可选（§6.1）
+        overviewMonth = day
+        rebuildReviewOverview()
     }
 
     /// 「未记录」筛选：进入时固定本次可见集合（方案 §4.5——
@@ -204,8 +272,10 @@ final class HabitModuleViewModel: ObservableObject {
             unrecordedFilterIds = nil
             filteredTodayRows = todayRows
         case .unrecorded:
+            // 进入筛选时固定「当时还没记录」的集合（方案 §4.5）：
+            // 本次成功记录的行原位保留变成已记录，其余已记录行不再出现
             if unrecordedFilterIds == nil {
-                unrecordedFilterIds = Set(todayRows.map(\.id))
+                unrecordedFilterIds = Set(todayRows.filter { !$0.today.isRecorded }.map(\.id))
             }
             let ids = unrecordedFilterIds ?? []
             filteredTodayRows = todayRows.filter { ids.contains($0.id) }
@@ -250,6 +320,22 @@ final class HabitModuleViewModel: ObservableObject {
         }
     }
 
+    /// 今天页拖拽排序落库（每日组+周月组拼接为感知顺序；
+    /// 穿插合并保持暂停/归档/被筛选隐藏习惯的原位，见 HabitOrderMerge）
+    func persistTodayOrder(dailyIds: [UUID], periodIds: [UUID], draggedId: UUID) {
+        do {
+            try repository.persistTodayOrder(dailyIds + periodIds)
+            refresh()
+        } catch {
+            // 落库失败：显示回滚到库内事实，提示挂在被拖的行
+            refresh()
+            inlineError = InlineError(
+                habitId: draggedId,
+                message: String(localized: "顺序保存没有成功，已恢复原顺序。请重试。")
+            )
+        }
+    }
+
     /// 页内撤销（短提示上的撤销按钮）
     func undoLast() async {
         guard let hint = undoHint else { return }
@@ -274,15 +360,25 @@ final class HabitModuleViewModel: ObservableObject {
         }
     }
 
-    /// 普通今日打卡、计数/测量新增成功后开启约 7 秒撤销窗口（方案 §11.3）
+    /// 普通今日打卡、计数/测量新增成功后开启约 7 秒撤销窗口（方案 §11.3）。
+    /// 坏习惯本次记录后超上限 → 警告形态（旧磁贴版「已超当日限额」提示的 V1 接续）。
     private func showUndoHintIfNeeded(receipt: HabitActionReceipt) {
         switch receipt.kind {
         case .toggleCheckIn:
-            // 仅「勾上」才给撤销；取消打卡不需要
+            // 仅「勾上」才给撤销；取消打卡不需要（打卡型坏习惯无上限概念，不会超限）
             guard receipt.newCheckInState == true else { return }
             undoHint = UndoHint(text: String(localized: "已记录 · 撤销"), receipt: receipt)
         case .addNumeric, .increment:
-            undoHint = UndoHint(text: String(localized: "已记录 · 撤销"), receipt: receipt)
+            if let row = todayRows.first(where: { $0.id == receipt.habitId }),
+               row.isBadHabit, row.today.isOverLimit {
+                undoHint = UndoHint(
+                    text: String(localized: "已超当日限额，请注意控制"),
+                    style: .overLimit,
+                    receipt: receipt
+                )
+            } else {
+                undoHint = UndoHint(text: String(localized: "已记录 · 撤销"), receipt: receipt)
+            }
         case .removeLatestNumeric, .retroactive, .updateRecord, .deleteRecord:
             // 补录/明细操作不走短提示撤销（各自有入口）
             break

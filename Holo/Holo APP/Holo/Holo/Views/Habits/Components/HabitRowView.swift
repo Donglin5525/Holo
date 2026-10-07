@@ -2,9 +2,9 @@
 //  HabitRowView.swift
 //  Holo
 //
-//  今天页连续习惯行（2026-10 重构）：
-//  左侧名字/图标/摘要构成详情入口；右侧动作按钮独立命中。
-//  禁止整行「点击即打卡」（方案 §4.3）；行背景与页面连续，不加白卡。
+//  今天页连续习惯行（2026-10 重构，V2 调整职责）：
+//  左侧名字/图标/摘要 =「今天的记录」入口；右侧动作按钮独立命中。
+//  三十天缝线只读（积累摘要，不承担导航，V2 §5.1）。
 //
 
 import SwiftUI
@@ -18,18 +18,24 @@ struct HabitRowView: View {
     let isSaving: Bool
     /// 行内错误消息（覆盖副标题位置短暂显示）
     let inlineErrorMessage: String?
-    var onOpenDetail: () -> Void
+    var onOpenTodayRecords: () -> Void
     var onToggleCheckIn: () -> Void
     var onIncrement: () -> Void
     var onDecrement: () -> Void
     var onMeasureRecord: () -> Void
-    /// 点击三十天痕迹区（整体入口，进该习惯详情回看）
-    var onOpenTrail: () -> Void
 
     // MARK: 文案
 
+    /// 坏习惯今日超上限（数值型才有；行内红化的统一开关）
+    private var isOverLimit: Bool {
+        snapshot.isBadHabit && snapshot.today.isOverLimit
+    }
+
     private var statusText: String {
         if let inlineErrorMessage { return inlineErrorMessage }
+        if isOverLimit {
+            return String(localized: "已超当日限额")
+        }
         if snapshot.isBadHabit {
             if snapshot.today.isRecorded {
                 return String(localized: "已记录发生")
@@ -66,14 +72,22 @@ struct HabitRowView: View {
         return parts.joined(separator: " · ")
     }
 
+    /// 副行颜色：行内错误与超限共用红（旧磁贴版超限红字语义）
+    private var subtitleColor: Color {
+        if inlineErrorMessage != nil || isOverLimit {
+            return .holoError
+        }
+        return .holoToolTextSecondary
+    }
+
     // MARK: Body
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: HoloSpacing.md) {
-                // 详情入口：图标 + 名字 + 摘要（命中区域独立，不与动作重叠）
+                // 今日记录入口：图标 + 名字 + 摘要（命中区域独立，不与动作重叠）
                 Button {
-                    onOpenDetail()
+                    onOpenTodayRecords()
                 } label: {
                     HStack(alignment: .center, spacing: HoloSpacing.md) {
                         habitIcon
@@ -85,14 +99,15 @@ struct HabitRowView: View {
                                 .multilineTextAlignment(.leading)
                             Text(subtitleText)
                                 .font(.system(size: 12))
-                                .foregroundColor(inlineErrorMessage != nil ? Color.holoError : .holoToolTextSecondary)
+                                .foregroundColor(subtitleColor)
                                 .lineLimit(2)
                         }
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(Text(String(localized: "查看\(snapshot.name)详情")))
+                .accessibilityLabel(Text(String(localized: "查看\(snapshot.name)今天的记录")))
+                .accessibilityIdentifier("habit.rowbody.\(snapshot.id)")
 
                 Spacer(minLength: HoloSpacing.sm)
 
@@ -100,17 +115,12 @@ struct HabitRowView: View {
             }
             .padding(.vertical, 10)
 
-            // 三十天缝线痕迹：整体入口，不拆碎成小按钮（方案 §4.3）
-            Button {
-                onOpenTrail()
-            } label: {
-                trailStitches
-                    .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(String(localized: "查看\(snapshot.name)最近30天记录")))
-            .padding(.bottom, 8)
+            // 三十天缝线：只读积累摘要（不承担导航，V2 §5.1）
+            trailStitches
+                .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
+                .padding(.bottom, 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(trailAccessibilityText))
         }
         .padding(.horizontal, HoloSpacing.sm)
         .frame(minHeight: 72)
@@ -119,6 +129,12 @@ struct HabitRowView: View {
                 .fill(Color.holoToolBorder.opacity(0.6))
                 .frame(height: 0.5)
         }
+    }
+
+    /// VoiceOver 摘要：只报告积累事实，不宣称可点日（V2 §5.1）
+    private var trailAccessibilityText: String {
+        let recorded = snapshot.trail.filter { $0.isRecorded }.count
+        return String(localized: "最近30天有\(recorded)天记录，痕迹仅作摘要")
     }
 
     // MARK: 图标
@@ -205,7 +221,7 @@ struct HabitRowView: View {
 
                 Text(todayValueText)
                     .font(.system(size: 19, weight: .semibold).monospacedDigit())
-                    .foregroundColor(.holoToolText)
+                    .foregroundColor(isOverLimit ? Color.holoError : .holoToolText)
                     .frame(minWidth: 26)
                     .accessibilityLabel(Text(todayAccessibilityText))
             }
@@ -218,7 +234,7 @@ struct HabitRowView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 34, height: 44)
-                    .background(Circle().fill(Color(hex: snapshot.colorHex)))
+                    .background(Circle().fill(isOverLimit ? Color.holoError : Color(hex: snapshot.colorHex)))
                     .contentShape(Rectangle())
             }
             .buttonStyle(HoloPressStyle())
@@ -237,19 +253,23 @@ struct HabitRowView: View {
                     VStack(spacing: 1) {
                         Text(todayValueText)
                             .font(.system(size: 17, weight: .semibold).monospacedDigit())
-                            .foregroundColor(.holoToolText)
+                            .foregroundColor(isOverLimit ? Color.holoError : .holoToolText)
                         Text(String(localized: "再记录"))
                             .font(.system(size: 11))
-                            .foregroundColor(Color(hex: snapshot.colorHex))
+                            .foregroundColor(isOverLimit ? Color.holoError : Color(hex: snapshot.colorHex))
                     }
                     .frame(minWidth: 56, minHeight: 44)
                 } else {
                     Text(String(localized: "记录"))
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(hex: snapshot.colorHex))
+                        .foregroundColor(isOverLimit ? Color.holoError : Color(hex: snapshot.colorHex))
                         .padding(.horizontal, 16)
                         .frame(height: 44)
-                        .background(Capsule().fill(Color(hex: snapshot.colorHex).opacity(0.12)))
+                        .background(Capsule().fill(
+                            isOverLimit
+                                ? Color.holoError.opacity(0.12)
+                                : Color(hex: snapshot.colorHex).opacity(0.12)
+                        ))
                 }
             }
         }

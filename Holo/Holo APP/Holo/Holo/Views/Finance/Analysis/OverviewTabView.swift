@@ -540,6 +540,8 @@ struct YearComparisonChartView: View {
         }
         .chartXScale(domain: domain)
         .chartYScale(domain: 0...ceiling)
+        // X 刻度由 chartOverlay 自绘（见下方）；显式隐藏默认数字轴，防止与自绘日期混排
+        .chartXAxis(.hidden)
         .chartYAxis {
             AxisMarks(position: .leading, values: [0.0, ceiling * 0.5, ceiling]) { value in
                 AxisGridLine()

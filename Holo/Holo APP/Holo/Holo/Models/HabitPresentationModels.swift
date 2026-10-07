@@ -79,6 +79,9 @@ struct HabitTodayProgress: Equatable {
     let periodValueText: String?
     /// 当前周期日期范围文本（周/月习惯展示，如「10月5日 – 10月11日」）
     let periodRangeText: String?
+    /// 坏习惯今日已超控制上限（当日聚合 > targetValue；口径与 HabitDaySnapshot.isOverLimit 一致）。
+    /// 仅数值型坏习惯可能为 true；打卡型无上限概念恒 false。
+    let isOverLimit: Bool
 }
 
 // MARK: - 连续积累标签

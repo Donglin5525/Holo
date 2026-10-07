@@ -233,24 +233,24 @@ extension HabitRepository {
 
     /// 一次性取全部有效习惯的记录值（投影底座；固定 1 次 fetch，不随习惯数增长）
     func allRecordFacts() -> [HabitRecordFact] {
+        (try? tryAllRecordFacts()) ?? []
+    }
+
+    /// 同 allRecordFacts，但查询失败可报告（V2 回顾不能用「空数组」冒充「从未记录」，§10）
+    func tryAllRecordFacts() throws -> [HabitRecordFact] {
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
 
-        do {
-            return try context.fetch(request).map { record in
-                HabitRecordFact(
-                    id: record.id,
-                    habitId: record.habitId,
-                    date: record.date,
-                    isCompleted: record.isCompleted,
-                    value: record.valueDouble,
-                    isRetroactive: record.isRetroactive
-                )
-            }
-        } catch {
-            logger.error("取记录投影数据失败: \(error)")
-            return []
+        return try context.fetch(request).map { record in
+            HabitRecordFact(
+                id: record.id,
+                habitId: record.habitId,
+                date: record.date,
+                isCompleted: record.isCompleted,
+                value: record.valueDouble,
+                isRetroactive: record.isRetroactive
+            )
         }
     }
 
@@ -263,5 +263,30 @@ extension HabitRepository {
             result[habit.id] = habit.pauseWindows
         }
         return result
+    }
+
+    /// V2 回顾的默认集合：全部未删除习惯（active + paused + archived），主排序。
+    /// 历史记录不随当前生命周期隐去（§6.2）。
+    func fetchAllHabitsForReview() -> [Habit] {
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
+        return Self.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
+    /// 今天列表排序落库（拖拽/排序弹层共用，2026-10-07）：
+    /// 只重排参与集合的相对顺序，未参与习惯（暂停/归档/被筛选隐藏）位置不变
+    /// （穿插合并见 HabitOrderMerge）。入参 = 参与习惯按用户感知顺序排列的 id
+    /// （今天页=每日组+周月组拼接）。
+    func persistTodayOrder(_ orderedActiveIds: [UUID]) throws {
+        if !isReady { setup() }
+        let all = fetchAllHabitsForReview()
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        let mergedIds = HabitOrderMerge.interleaveActive(
+            allIds: all.map(\.id),
+            newActiveOrder: orderedActiveIds
+        )
+        let reordered = mergedIds.compactMap { byId[$0] }
+        try updateHabitOrder(reordered)
     }
 }

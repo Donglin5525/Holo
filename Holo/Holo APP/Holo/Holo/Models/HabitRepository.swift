@@ -537,9 +537,11 @@ class HabitRepository: ObservableObject {
         for (index, habit) in habits.enumerated() {
             habit.sortOrder = Int16(index)
         }
-        
+
         try context.save()
         loadActiveHabits()
+        // 顺序是跨模块事实（看板/今天页/小组件同源），落库后广播刷新
+        notifyDataChange()
     }
     
     // MARK: - Record Operations

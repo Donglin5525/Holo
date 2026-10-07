@@ -284,6 +284,8 @@ struct HoloRadius {
     static let lg: CGFloat = 16
     /// 超大圆角 - 24pt，用于弹窗
     static let xl: CGFloat = 24
+    /// 习惯磁贴 - 20pt（温润纸感磁贴专用）
+    static let tile: CGFloat = 20
     /// 圆形 - 用于头像等
     static let full: CGFloat = 9999
 }
@@ -588,6 +590,21 @@ extension Color {
     /// 习惯磁贴未完成态的描边浓度
     static func habitTileBorderOpacity(_ scheme: ColorScheme) -> Double {
         scheme == .dark ? 0.30 : 0.16
+    }
+
+    /// 习惯色 → 完成磁贴底色（暖化钳制，2026-10-06 温润纸感方案）：
+    /// 压饱和、压亮度保证白字可读（≥3:1），**色相不动**（色彩语义是用户数据，
+    /// 用户的绿色不能变橙）。存量任意旧色一并治理；深色模式把亮度钳进可见区间。
+    static func holoHabitSurface(_ base: Color, scheme: ColorScheme) -> Color {
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        guard UIColor(base).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+            return base
+        }
+        if scheme == .dark {
+            let clamped = min(max(brightness, 0.60), 0.88)
+            return Color(hue: hue, saturation: min(saturation, 0.70), brightness: clamped, opacity: alpha)
+        }
+        return Color(hue: hue, saturation: min(saturation, 0.75), brightness: min(brightness, 0.82), opacity: alpha)
     }
 }
 

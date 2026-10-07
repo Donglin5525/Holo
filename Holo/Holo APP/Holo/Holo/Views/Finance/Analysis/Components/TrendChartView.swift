@@ -135,6 +135,10 @@ struct TrendChartView: View {
         }
         .chartXScale(domain: xDomain)
         .chartYScale(domain: 0...plotUnitMax)
+        // X 刻度已由 chartOverlay 自绘；必须显式隐藏默认轴——不提供 chartXAxis 时
+        // Charts 会自画一套数字刻度（0/10/20…），与自绘日期刻度同区混排悬浮
+        // （习惯回顾趋势图 2026-10-07 东林真机实锤同病，预防性同治）
+        .chartXAxis(.hidden)
         .chartYAxis {
             // 左轴：收支柱刻度（含 0 基线网格）
             AxisMarks(position: .leading, values: [0.0, barY(cap * 0.5, cap: cap), barY(cap, cap: cap)]) { value in

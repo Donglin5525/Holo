@@ -424,7 +424,8 @@ struct HabitDetailView: View {
             isBadHabit: habit.isBadHabit, lifecycle: .active,
             pauseSummaryText: nil, target: nil,
             today: HabitTodayProgress(isCheckInDone: false, isRecorded: false, isTargetMet: false,
-                                      todayValue: nil, periodValueText: nil, periodRangeText: nil),
+                                      todayValue: nil, periodValueText: nil, periodRangeText: nil,
+                                      isOverLimit: false),
             streak: nil, trail: [], allowsTodayRecord: true
         )
     }

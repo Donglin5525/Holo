@@ -78,7 +78,7 @@ struct HabitStatsView: View {
                 isFloating: $isMonthSwitcherFloating
             ))
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .navigationBarHidden(true)
         .sheet(isPresented: $isMonthPickerPresented) {
             monthPickerSheet
@@ -106,10 +106,10 @@ struct HabitStatsView: View {
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, HoloSpacing.sm)
             .frame(maxWidth: .infinity)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.holoTextPrimary.opacity(0.06))
+                    .fill(Color.holoToolText.opacity(0.06))
                     .frame(height: 0.5)
             }
             .shadow(color: .black.opacity(0.05), radius: 6, y: 2)
@@ -124,7 +124,7 @@ struct HabitStatsView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .frame(width: 44, height: 44)
             }
 
@@ -132,7 +132,7 @@ struct HabitStatsView: View {
 
             Text("统计")
                 .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
@@ -140,7 +140,7 @@ struct HabitStatsView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     // MARK: - 卡片列表

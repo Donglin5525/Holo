@@ -156,13 +156,20 @@ enum HabitPresentationProjector {
         let numericToday = habit.isNumericType ? dailyAggregate(habit: habit, facts: todayFacts, data: data) : nil
         let periodInfo = periodProgressText(for: habit, target: target, facts: facts, data: data)
 
+        // 坏习惯超限（当日聚合 > 控制上限；与日快照 isOverLimit 同口径）
+        var isOverLimit = false
+        if habit.isBadHabit, let limit = target?.value, let value = numericToday {
+            isOverLimit = value > limit
+        }
+
         let today = HabitTodayProgress(
             isCheckInDone: isCheckInDone,
             isRecorded: isRecorded,
             isTargetMet: isTargetMet,
             todayValue: numericToday,
             periodValueText: periodInfo.text,
-            periodRangeText: periodInfo.rangeText
+            periodRangeText: periodInfo.rangeText,
+            isOverLimit: isOverLimit
         )
 
         // 连续积累
