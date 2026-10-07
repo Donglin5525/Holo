@@ -63,7 +63,6 @@ struct TaskDetailView: View {
     @State private var title = ""
     @State private var description = ""
     @State private var descriptionEditorHeight = TaskDescriptionEditorLayout.minHeight
-    @State private var priority: TaskPriority = .medium
     @State private var dueDate = Date()
     @State private var hasDueDate = false
     @State private var hasTime = false
@@ -138,6 +137,15 @@ struct TaskDetailView: View {
     // ===== 状态（编辑模式） =====
     @State private var taskStatus: TaskStatus = .todo
 
+    // ===== 轻重缓急（2026-10-06 任务重构方案 §6.2）=====
+    /// 详情草稿：打开分类子弹层选择先写这里，确定回详情；沿用详情现有保存时点
+    @State private var classificationImportance: TaskImportance = .unknown
+    @State private var classificationUrgencyMode: TaskUrgencyMode = .auto
+    @State private var showClassificationSheet = false
+    /// 新建模式从轻量弹层预填的两轴（保存时随 createTask 一次写入）
+    var prefilledImportance: TaskImportance? = nil
+    var prefilledUrgencyMode: TaskUrgencyMode? = nil
+
     // ===== 记忆 =====
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
@@ -168,7 +176,6 @@ struct TaskDetailView: View {
 
         _title = State(initialValue: task.title)
         _description = State(initialValue: task.desc ?? "")
-        _priority = State(initialValue: task.taskPriority)
         _dueDate = State(initialValue: task.dueDate ?? Date())
         _hasDueDate = State(initialValue: task.dueDate != nil)
         _hasTime = State(initialValue: !task.isAllDay)
@@ -196,6 +203,8 @@ struct TaskDetailView: View {
         }
 
         _taskStatus = State(initialValue: task.taskStatus)
+        _classificationImportance = State(initialValue: task.importance)
+        _classificationUrgencyMode = State(initialValue: task.urgencyMode)
     }
 
     /// 新建模式：底部「＋」、首页深链、看板、日程转任务进入
@@ -205,18 +214,26 @@ struct TaskDetailView: View {
         defaultDueDate: Date? = nil,
         prefilledTitle: String? = nil,
         prefilledDescription: String? = nil,
-        prefilledPlannedRange: (start: Date, end: Date)? = nil
+        prefilledPlannedRange: (start: Date, end: Date)? = nil,
+        prefilledImportance: TaskImportance? = nil,
+        prefilledUrgencyMode: TaskUrgencyMode? = nil,
+        prefilledDueIsAllDay: Bool? = nil
     ) {
         self.repository = repository
         self.existingTask = nil
         self.defaultDueDate = defaultDueDate
         self.onBack = nil
+        self.prefilledImportance = prefilledImportance
+        self.prefilledUrgencyMode = prefilledUrgencyMode
 
         let rememberedId = list?.id ?? (UserDefaults.standard.string(forKey: "lastSelectedListId").flatMap { UUID(uuidString: $0) })
         _selectedListId = State(initialValue: rememberedId)
         _dueDate = State(initialValue: defaultDueDate ?? Date())
         _hasDueDate = State(initialValue: defaultDueDate != nil)
-        _hasTime = State(initialValue: false)
+        _hasTime = State(initialValue: prefilledDueIsAllDay.map { !$0 } ?? false)
+        // 轻重缓急草稿：预填即初始（来自象限的上下文可见、可调整）
+        _classificationImportance = State(initialValue: prefilledImportance ?? .unknown)
+        _classificationUrgencyMode = State(initialValue: prefilledUrgencyMode ?? .auto)
         // 日程转任务等场景的预填
         if let prefilledTitle, !prefilledTitle.isEmpty {
             _title = State(initialValue: prefilledTitle)
@@ -262,7 +279,7 @@ struct TaskDetailView: View {
                                     )
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(.tertiarySystemGroupedBackground))
+                                    .background(Color.holoNestedCardBackground)
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                             }
@@ -387,6 +404,20 @@ struct TaskDetailView: View {
                     ),
                     onPostpone: applyDetailPostpone
                 )
+            }
+        }
+        .sheet(isPresented: $showClassificationSheet) {
+            // 分类子弹层：选择先写详情草稿，确定回详情；沿用详情现有保存时点（§6.2）
+            TaskClassificationSheet(
+                initialImportance: classificationImportance,
+                initialUrgencyMode: classificationUrgencyMode,
+                contextEffectiveDue: TodoTaskDatePolicy.effectiveDueDate(
+                    dueDate: hasDueDate ? dueDate : nil,
+                    isAllDay: !hasTime
+                )
+            ) { importance, urgencyMode in
+                classificationImportance = importance
+                classificationUrgencyMode = urgencyMode
             }
         }
         .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
@@ -515,9 +546,11 @@ struct TaskDetailView: View {
         if let task = existingTask {
             return title != task.title
                 || description != (task.desc ?? "")
-                || priority != task.taskPriority
                 || selectedListId != task.list?.id
                 || checkItems.count != (task.checkItems?.count ?? 0)
+                // 轻重缓急草稿纳入变更判断（§6.2）
+                || classificationImportance != task.importance
+                || classificationUrgencyMode != task.urgencyMode
         } else {
             return !title.trimmingCharacters(in: .whitespaces).isEmpty
                 || !description.isEmpty
@@ -525,6 +558,9 @@ struct TaskDetailView: View {
                 || hasRepeat
                 || hasPlannedRange
                 || !pendingCheckItems.isEmpty
+                // 分类草稿离开预填初始值才算用户编辑（预填不算，§5.4）
+                || classificationImportance != (prefilledImportance ?? .unknown)
+                || classificationUrgencyMode != (prefilledUrgencyMode ?? .auto)
         }
     }
 
@@ -1541,8 +1577,35 @@ struct TaskDetailView: View {
 
             Divider().padding(.horizontal, 12)
 
-            // 优先级：四档平铺，不再折叠
-            priorityRow
+            // 轻重缓急（§6.2-2）：当前象限/待整理 + 判断方式；点击编辑两个维度
+            Button {
+                showClassificationSheet = true
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    rowIcon("square.grid.2x2")
+
+                    Text("轻重缓急")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer(minLength: HoloSpacing.md)
+
+                    Text(classificationSummaryText)
+                        .font(.holoCaption)
+                        .foregroundColor(classificationImportance == .unknown ? .holoTextSecondary : .holoPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .multilineTextAlignment(.trailing)
+
+                    rowChevron
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+
 
             // 状态（编辑模式）
             if existingTask != nil {
@@ -1567,6 +1630,32 @@ struct TaskDetailView: View {
             return .holoError
         }
         return Calendar.current.isDateInToday(dueDate) ? .holoPrimary : .holoTextPrimary
+    }
+
+    /// 轻重缓急行摘要：P 档 · 紧急分 · 去向（未判断=待整理）（2026-10-07 紧急分体系）
+    private var classificationSummaryText: String {
+        let effectiveDue = TodoTaskDatePolicy.effectiveDueDate(
+            dueDate: hasDueDate ? dueDate : nil,
+            isAllDay: !hasTime
+        )
+        let quadrant = TaskQuadrantResolver.quadrant(
+            importance: classificationImportance,
+            mode: classificationUrgencyMode,
+            effectiveDue: effectiveDue,
+            now: Date(),
+            calendar: TaskAnalyticsPeriod.makeCalendar()
+        )
+        guard classificationImportance != .unknown else {
+            return "\(quadrant.displayTitle) · \(String(localized: "未判断"))"
+        }
+        let score = TaskQuadrantResolver.urgencyScore(
+            importance: classificationImportance,
+            mode: classificationUrgencyMode,
+            effectiveDue: effectiveDue,
+            now: Date(),
+            calendar: TaskAnalyticsPeriod.makeCalendar()
+        ).map { "\($0)" } ?? "—"
+        return "\(classificationImportance.displayTitle) · \(String(localized: "紧急分")) \(score) · \(quadrant.displayTitle)"
     }
 
     /// 时间段行右侧摘要：「今天 10:00–12:00」；非今明用「M/d」
@@ -1617,42 +1706,6 @@ struct TaskDetailView: View {
         } catch {
             Logger(subsystem: "com.holo.app", category: "TaskDetailView").error("延期失败: \(error.localizedDescription)")
         }
-    }
-
-    private var priorityRow: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            rowIcon("flag")
-
-            Text("优先级")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer(minLength: HoloSpacing.md)
-
-            HStack(spacing: 5) {
-                ForEach([TaskPriority.urgent, .high, .medium, .low], id: \.self) { p in
-                    Button {
-                        priority = p
-                    } label: {
-                        Text(p.shortTitle)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundColor(priority == p ? .white : p.color)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(priority == p ? p.color : p.color.opacity(0.12))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(minHeight: 44)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     private var statusRow: some View {
@@ -2140,7 +2193,8 @@ struct TaskDetailView: View {
                         title: finalTitle,
                         description: description,
                         status: taskStatus,
-                        priority: priority,
+                        importance: classificationImportance,
+                        urgencyMode: classificationUrgencyMode,
                         dueDate: hasDueDate ? .set(dueDate) : .clear,
                         isAllDay: !hasTime,
                         // 收件箱是显式保存意图：nil 会被「不修改」语义吞掉，任务永远留在原清单
@@ -2155,7 +2209,8 @@ struct TaskDetailView: View {
                         title: trimmedTitle,
                         description: description.isEmpty ? nil : description,
                         list: selectedList,
-                        priority: priority,
+                        importance: classificationImportance,
+                        urgencyMode: classificationUrgencyMode,
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: !hasTime,
                         reminders: remindersToSave,

@@ -197,6 +197,7 @@ struct HomeView: View {
                 let isTop = residentNavigation.current == route.screen
                 if HoloAdaptiveLayout.isExpandedWidth(holoContentWidth) {
                     residentDestination(for: route.screen)
+                        .environment(\.holoMotionSurfaceIsActive, isTop && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage)
                         .opacity(isTop ? 1 : 0)
                         .allowsHitTesting(isTop)
                         .accessibilityHidden(!isTop)
@@ -205,6 +206,7 @@ struct HomeView: View {
                 } else {
                     residentDestination(for: route.screen)
                         .holoContentColumn(paintsBackground: false)
+                        .environment(\.holoMotionSurfaceIsActive, isTop && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage)
                         .opacity(isTop ? 1 : 0)
                         .allowsHitTesting(isTop)
                         .accessibilityHidden(!isTop)
@@ -346,7 +348,6 @@ struct HomeView: View {
             // 新用户激活判定要在 store 就绪后做，否则空库误判（老用户会闪现行动卡）
             wasEmptyAtLaunch = !NewUserActivationState.hasAnyRecord()
             refreshFirstStepCard()
-            checkFirstRecordCelebration()
         }
         // 轻量新人引导（结束后紧接着播放一次首页三步导览）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
@@ -439,10 +440,11 @@ struct HomeView: View {
                 }
             }
         }
-        // Deep Link / 小组件 - 新建待办
+        // Deep Link / 小组件 / 看板 / 模块快捷键 - 新建待办
+        // （2026-10-07 起统一走新添加任务页：旧 TaskDetailView 空白态三合一不再承接新建）
         .sheet(isPresented: $showAddTaskSheet) {
             LazyView {
-                TaskDetailView(repository: TodoRepository.shared, list: nil)
+                TaskCreationSheet(repository: TodoRepository.shared)
             }
         }
         // Matter「进行中的事」列表（查看全部；内部路由，不占 Tab）
@@ -525,7 +527,7 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .replayHomeCoachTour)) { _ in
             replayHomeCoachTour()
         }
-        // 行动卡/庆祝随四域数据变化自动显隐：任一模块产生首条记录 → 卡消失、庆祝判定
+        // 数据刷新只更新行动卡；庆祝只接收手动保存事件，避免云同步触发。
         .onReceive(
             NotificationCenter.default.publisher(for: .financeDataDidChange)
                 .merge(with: NotificationCenter.default.publisher(for: .todoDataDidChange))
@@ -535,6 +537,8 @@ struct HomeView: View {
             if showFirstStepCard {
                 refreshFirstStepCard()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoManualFinanceRecordSaved)) { _ in
             checkFirstRecordCelebration()
         }
     }
@@ -1000,7 +1004,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Holo")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .kerning(1.2)
                 
                 Text(UserDisplayNameSettings.greetingText(
@@ -1008,7 +1012,7 @@ struct HomeView: View {
                     rawName: userName
                 ))
                     .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
             
             Spacer()
@@ -1029,7 +1033,7 @@ struct HomeView: View {
 
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                     }
                 }
                 .accessibilityLabel(String(localized: "设置"))

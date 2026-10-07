@@ -456,6 +456,7 @@ final class ChatMessageRepository: ObservableObject {
         intent: String? = nil,
         extractedDataJSON: String? = nil,
         parentMessageId: UUID? = nil,
+        todayReliefJSON: String? = nil,
         messageType: ChatMessageType = .normal
     ) -> UUID {
         let message = ChatMessage(context: context)
@@ -467,6 +468,7 @@ final class ChatMessageRepository: ObservableObject {
         message.extractedDataJSON = extractedDataJSON
         message.isStreaming = false
         message.parentMessageId = parentMessageId
+        message.todayReliefJSON = todayReliefJSON
         message.messageType = messageType.rawValue
 
         save()
@@ -669,6 +671,7 @@ final class ChatMessageRepository: ObservableObject {
         insightResultJSON: String? = nil,
         contextPlanJSON: String? = nil,
         contextPlanRunJSON: String? = nil,
+        todayReliefJSON: String? = nil,
         messageType: ChatMessageType? = nil
     ) {
         guard let message = messageForUpdate(messageId) else { return }
@@ -687,6 +690,7 @@ final class ChatMessageRepository: ObservableObject {
         message.insightResultJSON = insightResultJSON
         message.contextPlanJSON = contextPlanJSON
         message.contextPlanRunJSON = contextPlanRunJSON
+        message.todayReliefJSON = todayReliefJSON
         if let messageType {
             message.messageType = messageType.rawValue
         }

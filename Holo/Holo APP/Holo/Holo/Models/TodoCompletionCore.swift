@@ -96,12 +96,15 @@ enum TodoCompletionCore {
             return nil
         }
 
-        // 创建下一个任务实例
+        // 创建下一个任务实例（继承本项轻重缓急两轴：自动方式依新截止重新计算，
+        // 手动方式保持——方案 §6.5/§8.3，不因调用默认值丢失分类）
         let nextTask = TodoTask.create(
             in: context,
             title: task.title,
             list: task.list,
             priority: task.taskPriority,
+            importance: task.importance,
+            urgencyMode: task.urgencyMode,
             dueDate: nextDate,
             isAllDay: task.isAllDay,
             reminders: task.remindersSet

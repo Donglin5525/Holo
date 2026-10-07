@@ -21,6 +21,10 @@ class TodoTask: NSManagedObject {
     @NSManaged var desc: String?
     @NSManaged var status: String
     @NSManaged var priority: Int16
+    /// 轻重缓急：重要性 0=暂未判断 1=重要 2=不重要（枚举桥接见 TaskClassification.swift）
+    @NSManaged var importanceRaw: Int16
+    /// 轻重缓急：紧急方式 0=按日期 1=手动紧急 2=手动不紧急
+    @NSManaged var urgencyModeRaw: Int16
     @NSManaged var dueDate: Date?
     @NSManaged var isAllDay: Bool
     /// 计划时间段开始（时间块）：与 plannedEnd 成对出现，两者同时有值或同时为空；不允许跨天

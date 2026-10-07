@@ -161,6 +161,24 @@ extension CoreDataStack {
         taskPriority.defaultValue = 1
         todoTaskAttributes.append(taskPriority)
 
+        // 轻重缓急两个独立分类维度（2026-10-06 任务重构方案 §8.1；P 档体系 2026-10-07）：
+        // importanceRaw 0=暂未判断 1=P1 2=P3 3=P2；urgencyModeRaw 0=按日期 1=手动P1 2=手动P3 3=手动P2。
+        // raw 1/2 沿用 10-06 重要/不重要、紧急/不紧急取值，旧数据零迁移。
+        // 与旧 priority 并存互不映射；不存象限与紧急分，均随日期实时解析。
+        let taskImportanceRaw = NSAttributeDescription()
+        taskImportanceRaw.name = "importanceRaw"
+        taskImportanceRaw.attributeType = .integer16AttributeType
+        taskImportanceRaw.isOptional = false
+        taskImportanceRaw.defaultValue = 0
+        todoTaskAttributes.append(taskImportanceRaw)
+
+        let taskUrgencyModeRaw = NSAttributeDescription()
+        taskUrgencyModeRaw.name = "urgencyModeRaw"
+        taskUrgencyModeRaw.attributeType = .integer16AttributeType
+        taskUrgencyModeRaw.isOptional = false
+        taskUrgencyModeRaw.defaultValue = 0
+        todoTaskAttributes.append(taskUrgencyModeRaw)
+
         let taskDueDate = NSAttributeDescription()
         taskDueDate.name = "dueDate"
         taskDueDate.attributeType = .dateAttributeType

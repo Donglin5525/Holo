@@ -18,6 +18,8 @@ extension TodoTask {
         desc: String? = nil,
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
+        importance: TaskImportance = .unknown,
+        urgencyMode: TaskUrgencyMode = .auto,
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
@@ -31,6 +33,8 @@ extension TodoTask {
         task.desc = desc
         task.list = list
         task.priority = priority.rawValue
+        task.importanceRaw = importance.rawValue
+        task.urgencyModeRaw = urgencyMode.rawValue
         task.dueDate = dueDate
         task.isAllDay = isAllDay
         task.isDailyRitual = isDailyRitual

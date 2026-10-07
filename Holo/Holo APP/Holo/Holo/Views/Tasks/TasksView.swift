@@ -79,6 +79,13 @@ struct TasksView: View {
     /// 直接使用单例，避免 @StateObject 创建新实例
     private var repository: TodoRepository { TodoRepository.shared }
 
+    /// 任务模块 V2 开关（2026-10-06 任务重构方案 §15.1）：关闭只切回旧首页与旧统计入口，
+    /// 不删字段、不降模型、不清分类；验收包默认开启。
+    @AppStorage("taskExperienceV2Enabled") private var taskExperienceV2Enabled: Bool = true
+
+    /// V2 范围上下文（首页把当前范围/象限传给新增入口预填）
+    @State private var v2CreationContext: TaskCreationContext = TaskCreationContext()
+
     // MARK: - Body
 
     var body: some View {
@@ -88,15 +95,27 @@ struct TasksView: View {
             Group {
                 switch selectedTab {
                 case .stats:
-                    TaskStatsView(repository: repository, onBack: { close() })
+                    if taskExperienceV2Enabled {
+                        TaskExperienceStatsView(repository: repository, onBack: { close() })
+                    } else {
+                        TaskStatsView(repository: repository, onBack: { close() })
+                    }
                 case .tasks:
-                    TaskListView(
-                        repository: repository,
-                        onBack: { close() },
-                        onFilterChanged: { selectedTaskFilter = $0 },
-                        searchTrigger: searchTrigger,
-                        onAddRequested: { showAddTask = true }
-                    )
+                    if taskExperienceV2Enabled {
+                        TaskExperienceView(
+                            repository: repository,
+                            onBack: { close() },
+                            searchTrigger: searchTrigger
+                        )
+                    } else {
+                        TaskListView(
+                            repository: repository,
+                            onBack: { close() },
+                            onFilterChanged: { selectedTaskFilter = $0 },
+                            searchTrigger: searchTrigger,
+                            onAddRequested: { showAddTask = true }
+                        )
+                    }
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })
                 case .add:
@@ -110,7 +129,13 @@ struct TasksView: View {
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
         }
-        // Cmd+F：切到任务 Tab（TaskListView 是 switch 销毁式，须先建活）再转发触发
+        // 统一创建回执：任何入口新建成功后切回任务页（统计页新增后定位，§4.5）
+        .onReceive(NotificationCenter.default.publisher(for: .taskExperienceCreated)) { _ in
+            if taskExperienceV2Enabled, selectedTab != .tasks {
+                selectedTab = .tasks
+            }
+        }
+        // Cmd+F：切到任务 Tab（任务首页是 switch 销毁式，须先建活）再转发触发
         .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
             guard event?.action == .searchInCurrentModule else { return }
             selectedTab = .tasks
@@ -128,11 +153,16 @@ struct TasksView: View {
             }
         }
         .sheet(isPresented: $showAddTask) {
-            TaskDetailView(
-                repository: repository,
-                list: selectedListForNewTask,
-                defaultDueDate: defaultDueDateForNewTask
-            )
+            if taskExperienceV2Enabled {
+                // 普通新增走完整单页（V2）：保存成功经 .taskExperienceCreated 切回任务页并定位
+                TaskCreationSheet(repository: repository, context: v2CreationContext)
+            } else {
+                TaskDetailView(
+                    repository: repository,
+                    list: selectedListForNewTask,
+                    defaultDueDate: defaultDueDateForNewTask
+                )
+            }
         }
     }
 

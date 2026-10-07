@@ -93,6 +93,8 @@ class TodoRepository: ObservableObject {
         loadFolders()
         loadActiveTasks()
         loadTrashedTasks()
+        // 旧优先级 → 轻重缓急两轴 一次性迁移（每设备一次，幂等；东林 2026-10-06 拍板放弃旧优先级体系）
+        TaskPriorityMigration.runIfNeeded(in: context)
         isReady = true
     }
 
@@ -306,6 +308,8 @@ class TodoRepository: ObservableObject {
         description: String? = nil,
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
+        importance: TaskImportance = .unknown,
+        urgencyMode: TaskUrgencyMode = .auto,
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
@@ -328,6 +332,8 @@ class TodoRepository: ObservableObject {
             desc: description,
             list: list,
             priority: priority,
+            importance: importance,
+            urgencyMode: urgencyMode,
             dueDate: dueDate,
             isAllDay: isAllDay,
             reminders: reminders,
@@ -397,6 +403,8 @@ class TodoRepository: ObservableObject {
         description: String? = nil,
         status: TaskStatus? = nil,
         priority: TaskPriority? = nil,
+        importance: TaskImportance? = nil,
+        urgencyMode: TaskUrgencyMode? = nil,
         dueDate: TaskDueDateUpdate? = nil,
         isAllDay: Bool? = nil,
         list: TaskListUpdate? = nil,
@@ -414,6 +422,10 @@ class TodoRepository: ObservableObject {
         if let description = description { task.desc = description }
         if let status = status { task.taskStatus = status }
         if let priority = priority { task.taskPriority = priority }
+        // 轻重缓急两轴独立：nil = 不修改；unknown/auto 是明确设值（方案 §8.2）。
+        // 两轴变化不发 dueDateChanged、不触发提醒重排、不影响完成/延期计数。
+        if let importance = importance { task.importance = importance }
+        if let urgencyMode = urgencyMode { task.urgencyMode = urgencyMode }
         // 截止时间被改动时，需要把已调度的本地通知挪到新时间，
         // 否则旧通知仍按原时间响、新通知不会建（通知是一次性绑死在固定时间点的）。
         let dueDateChanged = dueDate != nil
@@ -797,12 +809,28 @@ class TodoRepository: ObservableObject {
 
     // MARK: - Query Methods
 
-    /// 通过 ID 查找任务
+    /// 通过 ID 查找任务（同 id 多行副本时取物理行号最小的规范行，方案 §7.3/§8.2：
+    /// 写入口按 UUID 获取同一规范副本，避免写进云端大行号副本）
     func findTask(by id: UUID) -> TodoTask? {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
-        request.fetchLimit = 1
-        return (try? context.fetch(request).first) ?? nil
+        guard let rows = try? context.fetch(request), !rows.isEmpty else { return nil }
+        guard rows.count > 1 else { return rows[0] }
+        return rows.min { DuplicateRowFilter.physicalRowNumber($0) < DuplicateRowFilter.physicalRowNumber($1) }
+    }
+
+    /// 轻重缓急直接操作（方案 §8.2）：按 UUID 重新获取规范副本验证可用后，
+    /// 一次保存两轴并走既有变更通知；nil 轴保持不变。
+    /// 只发送任务数据变化，不触发截止变化/提醒重排/完成或延期计数。
+    func updateTaskClassification(
+        taskID: UUID,
+        importance: TaskImportance?,
+        urgencyMode: TaskUrgencyMode?
+    ) throws {
+        guard let task = findTask(by: taskID) else {
+            throw TaskInputError.taskNotFound
+        }
+        try updateTask(task, importance: importance, urgencyMode: urgencyMode)
     }
 
     /// 标记任务的 AI 确认流程来源（对账用，与 Transaction.aiSourceMessageId 同构）
