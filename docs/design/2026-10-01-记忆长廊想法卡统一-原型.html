@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆长廊 · 想法卡产品语言统一 原型</title>
+<style>
+  :root{
+    --paper:#0C0C0C;          /* holoPaper 深色册页底 */
+    --card:#1A1A1C;           /* holoCardBackground */
+    --card2:#232326;          /* 嵌套卡 */
+    --border:rgba(255,255,255,0.10);
+    --t1:#F2F0EC;             /* 主文字 */
+    --t2:#9A968F;             /* 次文字 */
+    --t3:#5C5852;             /* 占位 */
+    --orange:#F46D38;         /* 记账/主色 */
+    --pink:#EC4899;           /* 想法 */
+    --seal:#C64B3C;           /* 印章红 */
+    --serif:"Songti SC","STSong",Georgia,serif;
+    --sans:-apple-system,"PingFang SC",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#141414;color:var(--t1);font-family:var(--sans);padding:48px 32px 80px;}
+  .page-head{max-width:1320px;margin:0 auto 40px;}
+  .page-head h1{font:600 26px/1.4 var(--serif);letter-spacing:1px;}
+  .page-head p{color:var(--t2);font-size:13px;line-height:1.9;margin-top:10px;max-width:760px;}
+  .boards{display:flex;gap:36px;flex-wrap:wrap;justify-content:center;max-width:1400px;margin:0 auto;}
+  .board{width:392px;flex:0 0 auto;}
+  .board-title{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+  .board-title .no{font:600 12px var(--sans);color:var(--paper);background:var(--orange);border-radius:6px;padding:2px 8px;}
+  .board-title h2{font:600 17px/1.4 var(--serif);}
+  .board-desc{color:var(--t2);font-size:12px;line-height:1.8;margin-bottom:14px;min-height:44px;}
+
+  /* ====== 手机画板 ====== */
+  .phone{background:var(--paper);border-radius:34px;border:1px solid rgba(255,255,255,0.07);
+         box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden;}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 6px;
+             font:600 13px var(--sans);color:#fff;}
+  .statusbar .right{display:flex;gap:6px;align-items:center;font-size:12px;}
+  .navbar{display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;}
+  .navbar .back{font-size:18px;color:var(--t1);}
+  .navbar .title{font:600 17px var(--serif);letter-spacing:2px;}
+  .navbar .tools{display:flex;gap:8px;}
+  .navbar .tools .cal{width:34px;height:34px;border-radius:50%;background:var(--orange);
+                      display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .navbar .tools .spark{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.06);
+                        display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--t2);}
+  .tabs{display:flex;gap:6px;padding:6px 16px 12px;align-items:center;}
+  .tab{flex:1;text-align:center;padding:8px 0;border-radius:12px;font-size:14px;color:var(--t2);
+       background:rgba(255,255,255,.045);}
+  .tab.on{color:var(--orange);background:rgba(244,109,56,.10);border:1px solid rgba(244,109,56,.35);}
+  .today-chip{margin-left:4px;padding:8px 14px;border-radius:12px;color:var(--orange);
+              background:rgba(244,109,56,.10);font-size:14px;}
+
+  /* 章节头 */
+  .chapter{display:flex;align-items:flex-start;padding:18px 20px 8px;gap:14px;}
+  .daynum{font:500 52px/0.9 var(--serif);letter-spacing:-2px;}
+  .chapter .meta{flex:1;padding-top:4px;}
+  .chapter .meta .d1{font:600 17px var(--sans);}
+  .chapter .meta .d2{font-size:11px;color:var(--t3);margin-top:4px;}
+  .filter-pill{margin-top:2px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);
+               background:rgba(255,255,255,.05);border-radius:12px;padding:8px 12px;}
+  .chapter-rule{height:1px;background:linear-gradient(90deg,rgba(244,109,56,.55),rgba(255,255,255,.06));margin:8px 20px 0;}
+
+  /* 时段组 */
+  .period{display:flex;align-items:center;gap:10px;margin:20px 20px 10px;padding-left:0;}
+  .period .pname{font:600 11px var(--serif);letter-spacing:1.5px;color:var(--t2);margin-left:56px;}
+  .period .pline{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.14),transparent);}
+  .row{display:flex;gap:10px;padding:0 20px;margin-bottom:14px;}
+  .row.full{padding:0 20px;}
+  .timecol{width:46px;flex:0 0 auto;text-align:right;font:500 11px var(--sans);color:var(--t2);
+           padding-top:14px;font-variant-numeric:tabular-nums;}
+
+  /* 普通记忆时刻卡（无图想法/记账） */
+  .card{flex:1;background:linear-gradient(135deg,var(--card),rgba(244,109,56,.025));
+        border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:13px 14px;}
+  .badge{display:inline-flex;align-items:center;gap:5px;font:700 10px var(--sans);
+         padding:0 8px;height:24px;border-radius:9px;}
+  .badge.finance{color:var(--orange);background:rgba(244,109,56,.10);}
+  .badge.thought{color:var(--pink);background:rgba(236,72,154,.10);}
+  .card .topline{display:flex;align-items:center;}
+  .card .topline .count{margin-left:auto;font-size:10px;color:var(--t3);}
+  .card .body{display:flex;align-items:baseline;gap:8px;margin-top:9px;}
+  .card .body .t{font:600 15px/1.5 var(--sans);flex:1;}
+  .card .body .t.serif{font-family:var(--serif);}
+  .card .body .v{font:600 15px var(--sans);font-variant-numeric:tabular-nums;}
+  .card .ctx{font-size:11px;color:var(--t2);margin-top:6px;line-height:1.6;}
+  .card .more-hint{font-size:10px;color:rgba(244,109,56,.85);margin-top:8px;}
+  .card .topics{margin-top:8px;display:flex;gap:6px;}
+  .card .topics span{font-size:9px;color:var(--t2);background:var(--card2);border-radius:7px;padding:4px 7px;}
+  .card .divider{border-top:1px solid rgba(255,255,255,.10);margin-top:9px;padding-top:9px;}
+  .card .gitem{display:flex;font:500 10px/1.7 var(--sans);color:var(--t2);}
+  .card .gitem .gd{margin-left:auto;color:var(--t1);}
+  .card .gmore{font-size:10px;color:var(--t3);margin-top:3px;}
+
+  /* ====== 拍立得册页卡 ====== */
+  .polaroid-card{flex:1;padding:6px 0 8px;}
+  .polaroid-card .topline{display:flex;align-items:center;padding:0 4px;margin-bottom:10px;}
+  .polaroid-card .topline .count{margin-left:auto;font-size:10px;color:var(--t3);}
+  .photostack{position:relative;height:210px;margin:2px 0 10px;}
+  .photo{position:absolute;background:#fff;border-radius:4px;padding:6px;
+         box-shadow:0 3px 4px rgba(0,0,0,.09),0 8px 10px rgba(0,0,0,.10);}
+  .photo .img{border-radius:2.5px;overflow:hidden;position:relative;}
+  .photo svg{display:block;}
+  .p-back-left{width:166px;height:166px;left:14px;top:30px;transform:rotate(-3.2deg) scale(.89);z-index:1;}
+  .p-back-right{width:176px;height:172px;right:8px;top:16px;transform:rotate(2.6deg) scale(.93);z-index:2;}
+  .p-top{width:196px;height:202px;left:50%;top:0;transform:translateX(-50%) rotate(1.6deg);z-index:3;
+         box-shadow:0 3px 4px rgba(0,0,0,.12),0 10px 16px rgba(0,0,0,.16);}
+  .p-top .img{width:184px;height:150px;}
+  .p-back-left .img{width:154px;height:118px;}
+  .p-back-right .img{width:164px;height:126px;}
+  .seal{position:absolute;right:30px;top:4px;z-index:5;width:36px;height:36px;transform:rotate(6deg);
+        border:1.5px solid rgba(198,75,60,.55);border-radius:6px;background:rgba(244,240,232,.75);
+        display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+  .seal .n{font:700 15px var(--serif);color:var(--seal);}
+  .seal .u{font-size:8px;color:rgba(198,75,60,.85);letter-spacing:2px;}
+  .caption{display:flex;align-items:baseline;gap:8px;padding:0 4px;}
+  .caption .t{font:600 14.5px/1.65 var(--serif);flex:1;}
+  .caption .tm{font:500 11px var(--sans);color:var(--t2);font-variant-numeric:tabular-nums;}
+  .polaroid-card .ctx{font-size:11px;color:var(--t2);margin:6px 4px 0;line-height:1.6;}
+  .polaroid-card .more-hint{font-size:10px;color:rgba(236,72,154,.85);margin:8px 4px 0;}
+  .polaroid-card .divider{border-top:1px solid rgba(255,255,255,.10);margin:9px 4px 0;padding-top:9px;}
+  .polaroid-card .gitem{display:flex;font:500 10px/1.7 var(--sans);color:var(--t2);}
+  .polaroid-card .gmore{font-size:10px;color:var(--t3);margin-top:3px;}
+  .polaroid-card .topics{margin:8px 4px 0;font-size:10px;color:var(--t2);}
+  .polaroid-card .topics b{color:var(--t2);font-weight:500;}
+
+  /* 变化点标注 */
+  .tag{position:relative;display:inline-flex;align-items:center;justify-content:center;
+       width:16px;height:16px;border-radius:50%;background:var(--pink);color:#fff;
+       font:700 9px var(--sans);vertical-align:2px;margin-right:5px;flex:0 0 auto;}
+  .mark-outline{outline:1.5px dashed rgba(236,72,154,.65);outline-offset:3px;border-radius:6px;}
+
+  /* 变体小样 */
+  .variants{max-width:1320px;margin:56px auto 0;}
+  .variants h2{font:600 18px var(--serif);margin-bottom:8px;}
+  .variants p.note{color:var(--t2);font-size:12px;line-height:1.8;margin-bottom:20px;max-width:760px;}
+  .variant-row{display:flex;gap:28px;flex-wrap:wrap;}
+  .variant{width:392px;background:var(--paper);border-radius:24px;border:1px solid rgba(255,255,255,.07);
+           padding:18px 20px 20px;}
+  .variant .v-name{font:600 13px var(--sans);color:var(--orange);margin-bottom:4px;}
+  .variant .v-desc{font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:14px;}
+
+  /* 拍板点 */
+  .decide{max-width:1320px;margin:52px auto 0;background:#191919;border:1px solid rgba(255,255,255,.08);
+          border-radius:18px;padding:26px 30px;}
+  .decide h2{font:600 17px var(--serif);margin-bottom:14px;}
+  .decide li{color:#C9C5BE;font-size:13px;line-height:2.1;margin-left:18px;}
+  .decide b{color:var(--t1);}
+
+  /* 单张照片小样复用 */
+  .single-photo-wrap{display:flex;justify-content:center;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>记忆长廊 · 有图 / 无图想法卡 产品语言统一</h1>
+  <p>统一原则：<b>一张想法卡该展示哪些信息，有一份固定清单</b>——类型徽章、正文、补充说明、照片、话题。照片只是其中一个字段「有或没有」，它的有无不改变其他字段的呈现。以下画板用你 10 月 1 日（东京这一天）的真实内容绘制；普通无图想法卡<b>保持现状不动</b>，只把带图的拍立得卡丢掉的字段补回来。</p>
+</div>
+
+<div class="boards">
+
+  <!-- ================= 画板一：现状 ================= -->
+  <div class="board">
+    <div class="board-title"><span class="no">画板一</span><h2>现状（对照基线）</h2></div>
+    <div class="board-desc">还原你截图这天：19:04 带图想法只有「照片 + 2 行标题 + 时间 + 话题」，没有徽章、没有补充说明；02:49 无图想法反而是字段齐全的。信息差就在这。</div>
+    <div class="phone">
+      <div class="statusbar"><span>00:38 ✈</span><span class="right">󰤨 58</span></div>
+      <div class="navbar"><span class="back">‹</span><span class="title">记忆长廊</span>
+        <span class="tools"><span class="cal">🗓</span><span class="spark">✦</span></span></div>
+      <div class="tabs"><span class="tab on">日</span><span class="tab">周</span><span class="tab">月</span><span class="tab">轴</span><span class="today-chip">今天</span></div>
+
+      <div class="chapter">
+        <span class="daynum">1</span>
+        <span class="meta"><div class="d1">10月 · 星期四</div><div class="d2">5 个记忆时刻 · 02:49—20:48</div></span>
+        <span class="filter-pill">≡ 全部</span>
+      </div>
+      <div class="chapter-rule"></div>
+
+      <!-- 晚上：拍立得现状 -->
+      <div class="period"><span class="pname">晚上</span><span class="pline"></span></div>
+      <div class="row full">
+        <div class="polaroid-card">
+          <div class="photostack">
+            <div class="photo p-back-left"><div class="img">
+              <svg width="154" height="118" viewBox="0 0 154 118"><rect width="154" height="118" fill="#0E1526"/><circle cx="30" cy="40" r="1.4" fill="#F5D98B" opacity=".9"/><circle cx="58" cy="66" r="1.2" fill="#F5D98B" opacity=".7"/><circle cx="86" cy="34" r="1.3" fill="#F5D98B" opacity=".8"/><circle cx="118" cy="72" r="1.5" fill="#F5D98B" opacity=".9"/><circle cx="132" cy="44" r="1.1" fill="#F5D98B" opacity=".6"/><circle cx="44" cy="88" r="1.2" fill="#F5D98B" opacity=".7"/><circle cx="100" cy="92" r="1.3" fill="#F5D98B" opacity=".8"/><rect y="96" width="154" height="22" fill="#0A0F1D"/></svg>
+            </div></div>
+            <div class="photo p-back-right"><div class="img">
+              <svg width="164" height="126" viewBox="0 0 164 126"><rect width="164" height="126" fill="#8A8F94"/><rect y="90" width="164" height="36" fill="#6E7276"/><g fill="#E8E6E0"><rect x="8" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="38" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="68" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="98" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="128" y="96" width="18" height="7" transform="skewX(-18)"/></g><rect x="104" y="30" width="10" height="60" fill="#5A5E62"/><rect x="20" y="46" width="26" height="44" fill="#777B7F"/><circle cx="40" cy="88" r="6" fill="#D9534F"/><circle cx="118" cy="70" r="5" fill="#E8E6E0"/></svg>
+            </div></div>
+            <div class="photo p-top"><div class="img">
+              <svg width="184" height="150" viewBox="0 0 184 150"><defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E8B87A"/><stop offset="1" stop-color="#D4956A"/></linearGradient></defs><rect width="184" height="150" fill="url(#sky)"/><rect y="108" width="184" height="42" fill="#7A6A58"/><g fill="#5E5245"><rect x="6" y="92" width="20" height="18"/><rect x="30" y="98" width="14" height="12"/><rect x="48" y="88" width="24" height="22"/><rect x="120" y="94" width="18" height="16"/><rect x="142" y="86" width="22" height="24"/><rect x="100" y="100" width="16" height="10"/></g><g><rect x="80" y="46" width="7" height="64" fill="#C93C34"/><rect x="72" y="66" width="23" height="5" fill="#E8E2D8"/><rect x="70" y="84" width="27" height="5" fill="#E8E2D8"/><polygon points="83.5,34 78,48 89,48" fill="#C93C34"/><rect x="82.5" y="26" width="2" height="10" fill="#C93C34"/></g><circle cx="160" cy="20" r="9" fill="#F6E2B8" opacity=".85"/></svg>
+            </div></div>
+            <div class="seal"><span class="n">3</span><span class="u">张</span></div>
+          </div>
+          <div class="caption">
+            <span class="t">几年没来东京了，又一次登上了 shibuya sky 参观，这次的天气比上次更好。</span>
+            <span class="tm">19:04</span>
+          </div>
+          <div class="topics"><b>#东京旅行 · #城市观察</b></div>
+        </div>
+      </div>
+
+      <!-- 下午：记账卡（不变，作参照） -->
+      <div class="period"><span class="pname">下午</span><span class="pline"></span></div>
+      <div class="row">
+        <span class="timecol">16:11</span>
+        <div class="card">
+          <div class="topline"><span class="badge finance">💳 记账</span></div>
+          <div class="body"><span class="t">公司停车费</span><span class="v">-¥230.00</span></div>
+          <div class="ctx">礼物 · 长期成本 · 自动生成</div>
+        </div>
+      </div>
+
+      <!-- 凌晨：无图想法现状 -->
+      <div class="period"><span class="pname">凌晨</span><span class="pline"></span></div>
+      <div class="row">
+        <span class="timecol">02:49</span>
+        <div class="card">
+          <div class="topline"><span class="badge thought">💡 想法</span></div>
+          <div class="body"><span class="t serif">明天 manus 安排了面试 而我现在在日本旅行，感觉 HR 是想推进面试的，就让她约了个明天的时间 大本简单跟我说了下这个岗位要的是什么人，大概画像是一个懂业务又懂点技术的角色，薪资区间也聊了。</span></div>
+          <div class="more-hint">轻点查看全文</div>
+          <div class="topics"><span>求职</span><span>日本旅行</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 画板二：方案B 6行完整版 ================= -->
+  <div class="board">
+    <div class="board-title"><span class="no">画板二</span><h2>统一后 · 完整版（正文 6 行）</h2></div>
+    <div class="board-desc">拍立得的版式和气质<b>原样保留</b>，把丢掉的字段全部补回：
+      <span class="tag">1</span>徽章　<span class="tag">2</span>正文 6 行　<span class="tag">3</span>查看全文提示　<span class="tag">4</span>补充说明　<span class="tag">5</span>多条明细。
+      下方并排放了同一天的<b>无图想法卡</b>——两边字段完全一致，只有照片区之差。</div>
+    <div class="phone">
+      <div class="statusbar"><span>00:38 ✈</span><span class="right">󰤨 58</span></div>
+      <div class="navbar"><span class="back">‹</span><span class="title">记忆长廊</span>
+        <span class="tools"><span class="cal">🗓</span><span class="spark">✦</span></span></div>
+      <div class="tabs"><span class="tab on">日</span><span class="tab">周</span><span class="tab">月</span><span class="tab">轴</span><span class="today-chip">今天</span></div>
+
+      <div class="chapter">
+        <span class="daynum">1</span>
+        <span class="meta"><div class="d1">10月 · 星期四</div><div class="d2">5 个记忆时刻 · 02:49—20:48</div></span>
+        <span class="filter-pill">≡ 全部</span>
+      </div>
+      <div class="chapter-rule"></div>
+
+      <!-- 晚上带图：补齐版（示例给这条加长正文+第二条明细） -->
+      <div class="period"><span class="pname">晚上</span><span class="pline"></span></div>
+      <div class="row full">
+        <div class="polaroid-card">
+          <div class="topline mark-outline"><span class="badge thought"><span class="tag" style="position:static;transform:none;margin-right:0;margin-left:0;">1</span>💡 想法</span><span class="count">2 条记录</span></div>
+          <div class="photostack" style="height:196px;">
+            <div class="photo p-back-left" style="top:22px;"><div class="img">
+              <svg width="154" height="118" viewBox="0 0 154 118"><rect width="154" height="118" fill="#0E1526"/><circle cx="30" cy="40" r="1.4" fill="#F5D98B" opacity=".9"/><circle cx="58" cy="66" r="1.2" fill="#F5D98B" opacity=".7"/><circle cx="86" cy="34" r="1.3" fill="#F5D98B" opacity=".8"/><circle cx="118" cy="72" r="1.5" fill="#F5D98B" opacity=".9"/><circle cx="132" cy="44" r="1.1" fill="#F5D98B" opacity=".6"/><rect y="96" width="154" height="22" fill="#0A0F1D"/></svg>
+            </div></div>
+            <div class="photo p-back-right" style="top:10px;"><div class="img">
+              <svg width="164" height="126" viewBox="0 0 164 126"><rect width="164" height="126" fill="#8A8F94"/><rect y="90" width="164" height="36" fill="#6E7276"/><g fill="#E8E6E0"><rect x="8" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="38" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="68" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="98" y="96" width="18" height="7" transform="skewX(-18)"/><rect x="128" y="96" width="18" height="7" transform="skewX(-18)"/></g><rect x="104" y="30" width="10" height="60" fill="#5A5E62"/><circle cx="40" cy="88" r="6" fill="#D9534F"/></svg>
+            </div></div>
+            <div class="photo p-top"><div class="img">
+              <svg width="184" height="150" viewBox="0 0 184 150"><rect width="184" height="150" fill="#E8B87A"/><rect y="108" width="184" height="42" fill="#7A6A58"/><g fill="#5E5245"><rect x="6" y="92" width="20" height="18"/><rect x="48" y="88" width="24" height="22"/><rect x="120" y="94" width="18" height="16"/><rect x="142" y="86" width="22" height="24"/></g><g><rect x="80" y="46" width="7" height="64" fill="#C93C34"/><rect x="72" y="66" width="23" height="5" fill="#E8E2D8"/><rect x="70" y="84" width="27" height="5" fill="#E8E2D8"/><polygon points="83.5,34 78,48 89,48" fill="#C93C34"/></g><circle cx="160" cy="20" r="9" fill="#F6E2B8" opacity=".85"/></svg>
+            </div></div>
+            <div class="seal"><span class="n">3</span><span class="u">张</span></div>
+          </div>
+          <div class="caption">
+            <span class="t mark-outline">几年没来东京了，又一次登上了 shibuya sky 参观，这次的天气比上次更好。上一次来还是疫情前，涩谷站前广场都重新修过了，站在楼顶看整个东京在夕阳里发金光，突然觉得这几年折腾的一切都值得。</span>
+            <span class="tm">19:04</span>
+          </div>
+          <div class="more-hint mark-outline"><span class="tag" style="position:static;transform:none;">3</span>轻点查看全文</div>
+          <div class="ctx mark-outline"><span class="tag" style="position:static;transform:none;">4</span>记录于 东京 · 涩谷</div>
+          <div class="divider mark-outline">
+            <div class="gitem"><span class="tag" style="position:static;transform:none;">5</span><span>明天 manus 安排了面试，感觉 HR 是想推进面试的，就让她约了明天</span></div>
+            <div class="gitem" style="margin-top:3px;"><span style="margin-left:21px;">出门前记得给大本带伴手礼，他在邮件里提过想要抹茶</span></div>
+            <div class="gmore" style="margin-left:21px;">另有 1 条</div>
+          </div>
+          <div class="topics"><b>#东京旅行 · #城市观察</b></div>
+        </div>
+      </div>
+
+      <!-- 凌晨无图想法：保持现状 -->
+      <div class="period"><span class="pname">凌晨</span><span class="pline"></span></div>
+      <div class="row">
+        <span class="timecol">02:49</span>
+        <div class="card">
+          <div class="topline"><span class="badge thought">💡 想法</span></div>
+          <div class="body"><span class="t serif">明天 manus 安排了面试 而我现在在日本旅行，感觉 HR 是想推进面试的，就让她约了个明天的时间 大本简单跟我说了下这个岗位要的是什么人，大概画像是一个懂业务又懂点技术的角色，薪资区间也聊了。</span></div>
+          <div class="more-hint">轻点查看全文</div>
+          <div class="topics"><span>求职</span><span>日本旅行</span></div>
+        </div>
+      </div>
+      <div style="padding:2px 20px 18px;font-size:10px;color:var(--t3);">↑ 无图想法卡：完全不动。两卡字段已一致，唯一差异 = 照片区。</div>
+    </div>
+  </div>
+
+  <!-- ================= 画板三：折中 4 行 ================= -->
+  <div class="board">
+    <div class="board-title"><span class="no">画板三</span><h2>统一后 · 轻量版（正文 4 行）</h2></div>
+    <div class="board-desc">如果觉得完整版卡片太重，可以把带图卡的正文压到 4 行（无图卡仍 6 行）。信息字段一个不少，只少两行正文——但我更建议两边行数也一致，才叫「展示一样的内容」。</div>
+    <div class="phone">
+      <div class="statusbar"><span>00:38 ✈</span><span class="right">󰤨 58</span></div>
+      <div class="navbar"><span class="back">‹</span><span class="title">记忆长廊</span>
+        <span class="tools"><span class="cal">🗓</span><span class="spark">✦</span></span></div>
+      <div class="tabs"><span class="tab on">日</span><span class="tab">周</span><span class="tab">月</span><span class="tab">轴</span><span class="today-chip">今天</span></div>
+
+      <div class="chapter">
+        <span class="daynum">1</span>
+        <span class="meta"><div class="d1">10月 · 星期四</div><div class="d2">5 个记忆时刻 · 02:49—20:48</div></span>
+        <span class="filter-pill">≡ 全部</span>
+      </div>
+      <div class="chapter-rule"></div>
+
+      <div class="period"><span class="pname">晚上</span><span class="pline"></span></div>
+      <div class="row full">
+        <div class="polaroid-card">
+          <div class="topline"><span class="badge thought">💡 想法</span><span class="count">2 条记录</span></div>
+          <div class="photostack" style="height:196px;">
+            <div class="photo p-back-left" style="top:22px;"><div class="img">
+              <svg width="154" height="118" viewBox="0 0 154 118"><rect width="154" height="118" fill="#0E1526"/><circle cx="30" cy="40" r="1.4" fill="#F5D98B" opacity=".9"/><circle cx="86" cy="34" r="1.3" fill="#F5D98B" opacity=".8"/><circle cx="118" cy="72" r="1.5" fill="#F5D98B" opacity=".9"/><rect y="96" width="154" height="22" fill="#0A0F1D"/></svg>
+            </div></div>
+            <div class="photo p-back-right" style="top:10px;"><div class="img">
+              <svg width="164" height="126" viewBox="0 0 164 126"><rect width="164" height="126" fill="#8A8F94"/><rect y="90" width="164" height="36" fill="#6E7276"/><rect x="104" y="30" width="10" height="60" fill="#5A5E62"/><circle cx="40" cy="88" r="6" fill="#D9534F"/></svg>
+            </div></div>
+            <div class="photo p-top"><div class="img">
+              <svg width="184" height="150" viewBox="0 0 184 150"><rect width="184" height="150" fill="#E8B87A"/><rect y="108" width="184" height="42" fill="#7A6A58"/><g fill="#5E5245"><rect x="6" y="92" width="20" height="18"/><rect x="142" y="86" width="22" height="24"/></g><g><rect x="80" y="46" width="7" height="64" fill="#C93C34"/><rect x="72" y="66" width="23" height="5" fill="#E8E2D8"/><polygon points="83.5,34 78,48 89,48" fill="#C93C34"/></g></svg>
+            </div></div>
+            <div class="seal"><span class="n">3</span><span class="u">张</span></div>
+          </div>
+          <div class="caption">
+            <span class="t" style="-webkit-line-clamp:4;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;">几年没来东京了，又一次登上了 shibuya sky 参观，这次的天气比上次更好。上一次来还是疫情前，涩谷站前广场都重新修过了，站在楼顶看整个东京在夕阳里发金光，突然觉得这几年折腾的一切都值得。</span>
+            <span class="tm">19:04</span>
+          </div>
+          <div class="more-hint">轻点查看全文</div>
+          <div class="ctx">记录于 东京 · 涩谷</div>
+          <div class="divider">
+            <div class="gitem"><span>明天 manus 安排了面试，感觉 HR 是想推进面试的，就让她约了明天</span></div>
+            <div class="gmore">另有 1 条</div>
+          </div>
+          <div class="topics"><b>#东京旅行 · #城市观察</b></div>
+        </div>
+      </div>
+
+      <div style="padding:2px 20px 18px;font-size:10px;color:var(--t3);">正文 4 行截断（此画板其余字段与画板二相同）</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 徽章位置变体 ================= -->
+<div class="variants">
+  <h2>附：徽章位置的两种放法（拍板点）</h2>
+  <p class="note">补徽章有两个位置可选。A 案放照片上方独立一行——跟无图卡完全同构，最「统一」；B 案把徽章做成照片堆右上角的一枚小粉签——更贴「册页贴纸」的气质，但位置不与无图卡对应。画板二、三目前画的是 A 案。</p>
+  <div class="variant-row">
+    <div class="variant">
+      <div class="v-name">A 案 · 徽章独立行（画板二现状）</div>
+      <div class="v-desc">照片上方一行：左「💡想法」徽章、右「N 条记录」。与无图卡第一行完全对应，实现直接。</div>
+      <div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;">
+        <span class="badge thought">💡 想法</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--t3);">2 条记录</span>
+      </div>
+    </div>
+    <div class="variant">
+      <div class="v-name">B 案 · 徽章贴纸式</div>
+      <div class="v-desc">徽章盖在照片堆右上（印章旁），像册页里夹的一张便签。气质更「回忆册」，但少了与无图卡的结构呼应，多条记录数没地方放，只能放正文行。</div>
+      <div class="single-photo-wrap">
+        <div style="position:relative;width:150px;height:110px;background:#fff;border-radius:4px;padding:6px;box-shadow:0 3px 4px rgba(0,0,0,.12);transform:rotate(1.6deg);">
+          <div style="width:138px;height:84px;border-radius:2.5px;background:linear-gradient(180deg,#E8B87A,#7A6A58);"></div>
+          <span class="badge thought" style="position:absolute;right:-8px;top:-10px;transform:rotate(6deg);box-shadow:0 2px 5px rgba(0,0,0,.25);">💡 想法</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 拍板点 ================= -->
+<div class="decide">
+  <h2>需要你拍板的三件事</h2>
+  <li><b>① 正文行数</b>：完整版 6 行（与无图卡完全一致，推荐）还是轻量版 4 行？</li>
+  <li><b>② 徽章位置</b>：A 独立行（与无图卡同构，推荐）还是 B 照片贴纸式？</li>
+  <li><b>③ 多条明细与照片的取舍</b>：同一分钟多条想法且都带图时，照片堆目前只显示第一条的照片。是否把所有条目的照片合并进照片堆一起翻？（推荐合并，翻片才能看到全部）</li>
+</div>
+
+</body>
+</html>

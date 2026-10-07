@@ -25,21 +25,15 @@ struct ShimmerModifier: ViewModifier {
                     endPoint: .trailing
                 )
                 .offset(x: phase * 400)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             )
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .onAppear {
-                withAnimation(
-                    .linear(duration: 1.5)
-                    .repeatForever(autoreverses: false)
-                ) {
-                    phase = 1
-                }
-            }
+            .holoRepeatingPhase($phase, from: -1, to: 1,
+                                animation: .linear(duration: 1.5).repeatForever(autoreverses: false))
     }
 }
 
 extension View {
-    func shimmer() -> some View {
-        modifier(ShimmerModifier())
-    }
+    func shimmer() -> some View { modifier(ShimmerModifier()) }
 }

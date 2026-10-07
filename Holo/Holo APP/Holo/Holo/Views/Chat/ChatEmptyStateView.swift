@@ -12,6 +12,7 @@ import SwiftUI
 struct ChatEmptyStateView: View {
 
     @ObservedObject var viewModel: ChatViewModel
+    @State private var showsAllCapabilities = false
 
     private var isNewUser: Bool { !LightweightOnboardingSettings.isCompleted }
 
@@ -34,20 +35,26 @@ struct ChatEmptyStateView: View {
                 // 欢迎区
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     Text(welcomeTitle)
-                        .font(.holoTitle)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.pageTitle)
+                        .foregroundColor(.holoToolText)
 
                     Text(welcomeSubtitle)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // 建议问题卡片
                 VStack(spacing: HoloSpacing.sm) {
-                    ForEach(viewModel.emptyStateCapabilities) { capability in
+                    ForEach(showsAllCapabilities ? viewModel.emptyStateCapabilities : Array(viewModel.emptyStateCapabilities.prefix(3))) { capability in
                         suggestionCard(for: capability)
+                    }
+                    if viewModel.emptyStateCapabilities.count > 3 {
+                        Button(showsAllCapabilities ? "收起" : "更多") {
+                            showsAllCapabilities.toggle()
+                        }
+                        .buttonStyle(HoloActionStyle(role: .secondary))
                     }
                 }
 
@@ -66,39 +73,32 @@ struct ChatEmptyStateView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: capability.systemImage)
                     .font(.system(size: 18))
-                    .foregroundColor(capability.isEmphasized ? .white : .holoPrimary)
+                    .foregroundColor(.holoToolAction)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
-                            .fill(capability.isEmphasized ? Color.holoPrimary : Color.holoPrimary.opacity(0.1))
+                            .fill(Color.holoToolInset)
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(capability.title)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
 
                     Text(capability.previewPrompt)
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoTextSecondary)
-                        .lineLimit(1)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(HoloSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color.holoCardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(capability.isEmphasized ? Color.holoPrimary.opacity(0.3) : Color.clear, lineWidth: 1)
-            )
+            .holoSurface()
         }
         .disabled(viewModel.isStreaming || !capability.isEnabled)
         .opacity(capability.isEnabled ? 1.0 : 0.5)

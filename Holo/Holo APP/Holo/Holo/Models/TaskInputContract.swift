@@ -20,6 +20,8 @@ enum TaskInputError: Error, Equatable {
     case invalidRepeatWeekdays
     case invalidRepeatMonthOrdinal(Int)
     case invalidRepeatUntilCount(Int)
+    /// 目标任务不存在或已删除（按 UUID 重新获取失败，方案 §8.2）
+    case taskNotFound
 
     /// 用户可读原因（AI 回复与 UI 提示共用）
     var userMessage: String {
@@ -36,6 +38,8 @@ enum TaskInputError: Error, Equatable {
             return "「第几个星期几」需要在 1…5 内，收到的是 \(raw)"
         case .invalidRepeatUntilCount(let raw):
             return "重复次数需要在 1…999 内，收到的是 \(raw)"
+        case .taskNotFound:
+            return "任务不存在或已删除"
         }
     }
 }

@@ -78,14 +78,14 @@ struct AddTransactionView: View {
                             selectedCategory: $selectedCategory,
                             transactionType: $transactionType
                         )
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
                         
                         // 账户选择
                         AccountPicker(selectedAccount: $selectedAccount)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
@@ -96,7 +96,7 @@ struct AddTransactionView: View {
                             showPicker: $showDatePicker
                         )
                         .padding(HoloSpacing.md)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
@@ -104,16 +104,16 @@ struct AddTransactionView: View {
                         // 备注输入
                         NoteInput(note: $note)
                             .padding(HoloSpacing.md)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
                         
                         // 标签选择
                         TagSelector(selectedTags: $selectedTags)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                     }
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     
                     // 保存按钮
                     SaveButton(
@@ -127,7 +127,7 @@ struct AddTransactionView: View {
                 }
                 .padding(.top, HoloSpacing.lg)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("记一笔")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -135,7 +135,7 @@ struct AddTransactionView: View {
                     Button("取消") {
                         dismiss()
                     }
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 }
             }
             .alert("错误", isPresented: .constant(errorMessage != nil)) {
@@ -163,7 +163,7 @@ struct AddTransactionView: View {
     /// 保存交易记录
     @MainActor
     private func saveTransaction() async {
-        guard canSave else { return }
+        guard canSave, !isSaving else { return }
         
         isSaving = true
         
@@ -181,7 +181,7 @@ struct AddTransactionView: View {
                 return
             }
 
-            try await repository.addTransaction(
+            let savedTransaction = try await repository.addTransaction(
                 amount: amountValue,
                 type: transactionType,
                 category: category,
@@ -191,6 +191,7 @@ struct AddTransactionView: View {
                 tags: selectedTags.isEmpty ? nil : selectedTags
             )
 
+            HoloMotionFeedbackCenter.shared.saved(savedTransaction.id, domain: .finance)
             HapticManager.success()
             dismiss()
         } catch {
@@ -225,16 +226,16 @@ struct DatePickerRow: View {
             } label: {
                 HStack {
                     Text("日期")
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     
                     Spacer()
                     
                     Text(formattedDate)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .rotationEffect(.degrees(showPicker ? 180 : 0))
                 }
             }
@@ -274,11 +275,11 @@ struct NoteInput: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("备注")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             
             TextField("添加备注...", text: $note)
                 .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
     }
 }
@@ -321,7 +322,7 @@ struct SaveButton: View {
             .frame(maxWidth: .infinity)
             .frame(height: 56)
             .background(
-                isEnabled ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3),
+                isEnabled ? Color.holoPrimary : Color.holoToolTextSecondary.opacity(0.3),
                 in: RoundedRectangle(cornerRadius: HoloRadius.lg)
             )
             .foregroundColor(.white)

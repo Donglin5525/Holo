@@ -99,18 +99,18 @@ struct BudgetSettingsSheet: View {
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         Text("预算金额")
                             .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
 
                         HStack(spacing: HoloSpacing.sm) {
                             Text("¥")
                                 .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.holoToolText)
                             TextField("0.00", text: $amountString)
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                                 .keyboardType(.decimalPad)
                         }
                         .padding(HoloSpacing.md)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                         if !amountString.isEmpty && !isAmountFormatValid {
                             Text("请输入有效的金额")
@@ -123,7 +123,7 @@ struct BudgetSettingsSheet: View {
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         Text("预算周期")
                             .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
 
                         HStack(spacing: HoloSpacing.sm) {
                             ForEach(BudgetPeriod.allCases) { period in
@@ -144,7 +144,7 @@ struct BudgetSettingsSheet: View {
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         Text("起始日期")
                             .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
 
                         DatePicker(
                             "",
@@ -155,7 +155,7 @@ struct BudgetSettingsSheet: View {
                         .environment(\.locale, Locale(identifier: "zh_CN"))
                         .padding(HoloSpacing.md)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     }
 
@@ -181,20 +181,20 @@ struct BudgetSettingsSheet: View {
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? String(localized: "预算设置") : String(localized: "新建预算"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(isEditMode ? String(localized: "保存") : String(localized: "创建")) {
                         saveBudget()
                     }
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(isValid ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isValid ? .holoPrimary : .holoToolTextSecondary)
                     .disabled(!isValid)
                 }
             }
@@ -257,7 +257,7 @@ struct BudgetSettingsSheet: View {
                 } label: {
                     Text(modeOption.displayName)
                         .font(.system(size: 13, weight: mode == modeOption ? .semibold : .regular))
-                        .foregroundColor(mode == modeOption ? .white : .holoTextSecondary)
+                        .foregroundColor(mode == modeOption ? .white : .holoToolTextSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background(

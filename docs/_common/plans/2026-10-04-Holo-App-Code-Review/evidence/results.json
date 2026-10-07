@@ -1,0 +1,26 @@
+[
+  {
+    "case": "semantic-open",
+    "exit": 0
+  },
+  {
+    "case": "semantic-negative",
+    "exit": -5
+  },
+  {
+    "case": "semantic-short-blob",
+    "exit": 0
+  },
+  {
+    "case": "integer-overflow",
+    "exit": -5
+  },
+  {
+    "case": "dst-day",
+    "exit": 0
+  },
+  {
+    "case": "fusion-duplicate",
+    "exit": -5
+  }
+]

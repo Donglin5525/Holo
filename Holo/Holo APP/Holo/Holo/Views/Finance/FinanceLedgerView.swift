@@ -9,6 +9,7 @@ import SwiftUI
 import os.log
 
 struct FinanceLedgerView: View {
+    @Environment(\.holoMotionSurfaceIsActive) private var parentMotionSurfaceActive
 
     private let logger = Logger(subsystem: "com.holo.app", category: "FinanceLedgerView")
 
@@ -177,7 +178,8 @@ struct FinanceLedgerView: View {
                 }
             )
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
+        .environment(\.holoMotionSurfaceIsActive, parentMotionSurfaceActive && !showAddTransaction && editingTransaction == nil && quickAddDate == nil && refundTarget == nil && refundEditing == nil && !showSearch)
         .overlay(alignment: .top) {
             if let operationMessage {
                 operationToast(operationMessage)
@@ -319,9 +321,9 @@ struct FinanceLedgerView: View {
                 Button(action: { onBack() }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 40, height: 40)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
                         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
                 }
@@ -364,9 +366,9 @@ struct FinanceLedgerView: View {
                     Button { showSearch = true } label: {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 40, height: 40)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
@@ -392,9 +394,9 @@ struct FinanceLedgerView: View {
                     Button(action: { calendarState.showPopupCalendar() }) {
                         Image(systemName: "calendar")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
+                            .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoToolTextSecondary)
                             .frame(width: 40, height: 40)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
@@ -406,12 +408,12 @@ struct FinanceLedgerView: View {
 
             // Row 2: 标题居中（不受左右按钮宽度影响）
             Text(headerTitle)
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 12)
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
     
     /// 标题：今天显示"今日账本"，其他日期仅显示"M月d日"
@@ -437,7 +439,7 @@ struct FinanceLedgerView: View {
     private var calendarDragHandle: some View {
         Image(systemName: "chevron.down")
             .font(.system(size: 9, weight: .semibold))
-            .foregroundColor(.holoTextSecondary.opacity(0.45))
+            .foregroundColor(.holoToolTextSecondary.opacity(0.45))
             .rotationEffect(.degrees(isCalendarExpanded ? 180 : 0))
             .contentTransition(.symbolEffect(.replace))
             .frame(maxWidth: .infinity, minHeight: 28)
@@ -567,7 +569,7 @@ struct FinanceLedgerView: View {
                 }
             }
             .opacity(isInitialContentReady ? 1 : 0)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
         }
     }
@@ -630,8 +632,8 @@ struct FinanceLedgerView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("交易记录")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
                 Spacer()
             }
             .padding(.horizontal, HoloSpacing.lg)

@@ -20,11 +20,11 @@ struct MemoryStatsSummaryView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.lg)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
     }
 
@@ -32,13 +32,13 @@ struct MemoryStatsSummaryView: View {
         VStack(spacing: 4) {
             Text(formatCount(value))
                 .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
             Text(label)
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -55,5 +55,5 @@ struct MemoryStatsSummaryView: View {
 #Preview {
     MemoryStatsSummaryView(memoryCount: 128, recordedDays: 45, insightCount: 0)
         .padding()
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
 }

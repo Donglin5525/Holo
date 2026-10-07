@@ -1,0 +1,26 @@
+{
+  "source_files": 1114,
+  "source_lines": 306855,
+  "widget_files": 8,
+  "widget_lines": 2830,
+  "test_files": 309,
+  "ui_test_files": 28,
+  "branch": "1.1",
+  "head": "91265544ba7c0eacefd791f0e633cb59a896142e",
+  "build": "failed",
+  "compiler_errors": 2,
+  "unique_warnings": 332,
+  "actor_related_warnings": 215,
+  "source_drift": [
+    "Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository+EditorCommit.swift",
+    "Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository.swift",
+    "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtEditorView.swift",
+    "Holo/Holo APP/Holo/Holo/Services/Network/APIClient.swift",
+    "Holo/Holo APP/Holo/Holo/Services/Network/HoloDeviceSessionManager.swift",
+    "Holo/Holo APP/Holo/Holo/Services/Speech/HoloBackendSpeechRecognitionProvider.swift",
+    "Holo/Holo APP/Holo/Holo/Services/Subscription/HoloSubscriptionService.swift",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisClient.swift",
+    "Holo/Holo APP/Holo/Holo.xcodeproj/project.pbxproj",
+    "Holo/Holo APP/Holo/Holo.xcodeproj/xcuserdata/tangyuxuan.xcuserdatad/xcschemes/xcschememanagement.plist"
+  ]
+}

@@ -302,13 +302,13 @@ struct TimelineReplayView: View {
             .padding(.leading, TimelineAxisLayout.gutterWidth)
 
             Rectangle()
-                .fill(Color.holoBorder.opacity(0.35))
+                .fill(Color.holoToolBorder.opacity(0.35))
                 .frame(height: 0.5)
                 .padding(.leading, TimelineAxisLayout.gutterWidth - 8)
             HStack(spacing: 2) {
                 Text(String(format: "%02d", hour))
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.holoTextSecondary.opacity(0.65))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.65))
                 // 展开态的收起入口固定在 0 点行（与周档「表头固定入口」同一交互语言）
                 if isFirstHour {
                     Image(systemName: "chevron.down")
@@ -331,13 +331,13 @@ struct TimelineReplayView: View {
     private var morningBand: some View {
         ZStack(alignment: .leading) {
             Rectangle()
-                .fill(Color.holoBorder.opacity(0.35))
+                .fill(Color.holoToolBorder.opacity(0.35))
                 .frame(height: 0.5)
                 .padding(.leading, TimelineAxisLayout.gutterWidth - 8)
             HStack(spacing: 4) {
                 Text("凌晨")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.holoTextSecondary.opacity(0.75))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.75))
                 if morningItemCount > 0 {
                     Text("\(morningItemCount) 项")
                         .font(.system(size: 10, design: .monospaced))
@@ -405,7 +405,7 @@ struct TimelineReplayView: View {
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.holoCardBackground.opacity(0.95)))
+                    .background(Capsule().fill(Color.holoToolSurface.opacity(0.95)))
                     .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.4), lineWidth: 1))
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -429,7 +429,7 @@ struct TimelineReplayView: View {
             .foregroundColor(.holoPrimary)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Capsule().fill(Color.holoCardBackground.opacity(0.95)))
+            .background(Capsule().fill(Color.holoToolSurface.opacity(0.95)))
             .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -467,13 +467,13 @@ struct TimelineReplayView: View {
                     .foregroundColor(.holoPrimary)
                 Text("接下来")
                     .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Text(Self.timeText(item.start))
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundColor(.holoPrimary)
                 Text(item.title)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -481,7 +481,7 @@ struct TimelineReplayView: View {
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.sm)
-                    .fill(Color.holoCardBackground.opacity(0.95))
+                    .fill(Color.holoToolSurface.opacity(0.95))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.sm)
@@ -498,17 +498,17 @@ struct TimelineReplayView: View {
                     Circle().fill(item.calendarColor).frame(width: 7, height: 7)
                     Text(item.title)
                         .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(Color.holoCardBackground.opacity(0.92)))
+                .background(Capsule().fill(Color.holoToolSurface.opacity(0.92)))
             }
             if items.count > 3 {
                 Text("+\(items.count - 3)")
                     .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
     }
@@ -519,13 +519,13 @@ struct TimelineReplayView: View {
         VStack(spacing: HoloSpacing.sm) {
             Image(systemName: "hand.draw")
                 .font(.system(size: 22))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             Text("长按空白处拖动，直接排一件事")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.body)
+                .foregroundColor(.holoToolTextSecondary)
             Text("接入系统日历后，日程也会自动铺到这里")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary.opacity(0.75))
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary.opacity(0.75))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -603,15 +603,15 @@ struct TimelineReplayView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(task.title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
-                .strikethrough(task.completed, color: .holoTextSecondary)
+                .foregroundColor(task.completed ? .holoToolTextSecondary : .holoToolText)
+                .strikethrough(task.completed, color: .holoToolTextSecondary)
                 .lineLimit(height > 60 ? 2 : 1)
 
             if height > 40 {
                 HStack(spacing: 4) {
                     Text(Self.rangeText(start, end))
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     if task.completed, let actual = task.actualDurationMinutes?.intValue,
                        let planned = task.plannedDurationMinutes, actual != planned {
                         Text("实际\(ActualDurationSheet.durationText(actual))")
@@ -781,12 +781,12 @@ struct TimelineReplayView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(height > 60 ? 2 : 1)
             if height > 40 {
                 Text(Self.rangeText(item.startDate, item.endDate))
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             Spacer(minLength: 0)
         }

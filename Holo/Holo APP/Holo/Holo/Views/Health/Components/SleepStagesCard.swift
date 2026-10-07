@@ -33,7 +33,7 @@ struct SleepStagesCard: View {
             items.append(StageItem(id: "rem", name: String(localized: "快速眼动"), hours: rem, color: .holoChart8))
         }
         if let awake = detail.awakeHours {
-            items.append(StageItem(id: "awake", name: String(localized: "清醒"), hours: awake, color: .holoTextSecondary))
+            items.append(StageItem(id: "awake", name: String(localized: "清醒"), hours: awake, color: .holoToolTextSecondary))
         }
         return items
     }
@@ -42,13 +42,13 @@ struct SleepStagesCard: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.sm) {
                 Text("睡眠阶段")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                 // 与下方时间轴卡口径对齐：本卡总量含小睡（时间轴只画主睡眠），显式标注避免两卡数字对不上
                 if let napCount = detail.napCount, napCount > 0 {
                     Text("含小睡")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(Color.holoNestedCardBackground)
@@ -66,11 +66,11 @@ struct SleepStagesCard: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
     }
 
@@ -87,11 +87,11 @@ struct SleepStagesCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("深度睡眠")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Text(proportionText(for: hours))
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer(minLength: 0)
@@ -116,7 +116,7 @@ struct SleepStagesCard: View {
 
             Text(stage.name)
                 .font(.holoLabel)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer(minLength: HoloSpacing.sm)
 
@@ -124,7 +124,7 @@ struct SleepStagesCard: View {
 
             Text(Self.formatHours(stage.hours))
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 72, alignment: .trailing)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -186,5 +186,5 @@ struct SleepStagesCard: View {
         interruptionCount: 1
     ))
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

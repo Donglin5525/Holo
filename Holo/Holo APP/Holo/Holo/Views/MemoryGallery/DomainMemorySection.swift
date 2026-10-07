@@ -80,6 +80,7 @@ extension HoloMemoryDomain {
 }
 
 struct DomainMemorySection: View {
+    @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @State private var records: [HoloMemoryRecord] = []
     @State private var isLoading = true
     @State private var loadError: String?
@@ -88,6 +89,7 @@ struct DomainMemorySection: View {
     @State private var workingIDs: Set<String> = []
     @State private var notice: String?
     @State private var showsConfirmationQueue = false
+    @State private var showsMemorySettings = false
     @State private var inboxSnapshot = HoloMemoryInboxSnapshot(
         newMemoryCount: 0,
         pendingConfirmationCount: 0,
@@ -98,6 +100,10 @@ struct DomainMemorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             header
+
+            if !records.isEmpty, !memorySettings.memoryAssistedAnsweringEnabled {
+                answeringHintBar
+            }
 
             if showsInboxSummary, !inboxSnapshot.isEmpty {
                 inboxSummaryCard
@@ -144,6 +150,11 @@ struct DomainMemorySection: View {
             }
         }
         .task { await load() }
+        .sheet(isPresented: $showsMemorySettings) {
+            NavigationStack {
+                PersonalMemorySettingsView()
+            }
+        }
         .sheet(item: $selectedRecord) { record in
             NavigationStack {
                 HoloMemoryRecordDetailView(record: record) { change in
@@ -178,10 +189,42 @@ struct DomainMemorySection: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
-            Text("每条都标明会记多久：近期观察会随数据变化淡出，长期记忆只保留跨周期规律或你确认的重要事实。健康与敏感类记忆仅保存在本设备、不上传 iCloud，卸载重装后这部分不会恢复。")
+            Text("近期观察会随数据变化淡出；健康类记忆仅存本机、不同步 iCloud。")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
         }
+    }
+
+    /// 「记忆辅助回答」关闭时的引导：萃取与展示不依赖该开关，但 AI 回答读取记忆
+    /// 全靠它——不提示的话用户只会看到「记了一堆但没被用上」（2026-10-03 体检结论）。
+    private var answeringHintBar: some View {
+        Button {
+            showsMemorySettings = true
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "lightbulb")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Holo 还没在回答中使用这些记忆")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("开启「记忆辅助回答」，HoloAI 才会读取它们")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoPrimary.opacity(0.07))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        }
+        .buttonStyle(.plain)
     }
 
     /// 分组顺序按「组内最新一条记忆的更新时间」倒序：最新变化的领域排最前，
@@ -240,12 +283,14 @@ struct DomainMemorySection: View {
     }
 
     /// 「观察中」折叠组：无计数徽章、无清空义务，用户可主动打开纠正（§8.3）。
+    /// 卡片带「对/不对」快捷确认：点「对」即经既有反馈链路置 active，立即可用于回答
+    /// ——这是观察中记忆唯一的手动升级出口（收件箱已下线，后台不会自动升级）。
     private var observingSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             DisclosureGroup(isExpanded: $showsObservingSection) {
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     ForEach(observingRecords) { record in
-                        memoryCard(record)
+                        memoryCard(record, showsQuickConfirm: true, showsSourceInMetadata: true)
                     }
                 }
                 .padding(.top, HoloSpacing.xs)
@@ -259,7 +304,7 @@ struct DomainMemorySection: View {
                         .foregroundColor(.holoTextSecondary)
                 }
             }
-            Text("这些内容目前不会用于回答，Holo 会继续观察。")
+            Text("点「对」即可让 Holo 在回答中使用；不确认就继续观察。")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
         }
@@ -335,13 +380,21 @@ struct DomainMemorySection: View {
             }
 
             ForEach(records) { record in
-                memoryCard(record, showsQuickConfirm: showsQuickConfirm)
+                memoryCard(record, showsQuickConfirm: showsQuickConfirm, showsSourceInMetadata: true)
             }
         }
     }
 
-    private func memoryCard(_ record: HoloMemoryRecord, showsQuickConfirm: Bool = false) -> some View {
+    private func memoryCard(
+        _ record: HoloMemoryRecord,
+        showsQuickConfirm: Bool = false,
+        showsSourceInMetadata: Bool = false
+    ) -> some View {
         let feedbackBadge = HoloMemoryFeedbackBadge(decision: record.userDecision)
+        let metadata = HoloMemoryUserPresentation.condensedMetadata(
+            for: record,
+            includesSource: showsSourceInMetadata
+        )
 
         // 外层用 onTapGesture 而不是 Button：卡片内嵌「对/不对」按钮，Button 套 Button 会让两个动作同时触发。
         return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -349,7 +402,7 @@ struct DomainMemorySection: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextPrimary)
                 .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if (record.state == .candidate && !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled)
@@ -377,16 +430,13 @@ struct DomainMemorySection: View {
             }
 
             HStack(alignment: .top, spacing: HoloSpacing.xs) {
-                Image(systemName: HoloMemoryUserPresentation.durationIcon(for: record))
-                    .frame(width: 14, alignment: .leading)
-
-                Text([
-                    HoloMemoryUserPresentation.durationTitle(for: record),
-                    HoloMemoryUserPresentation.timeRange(for: record),
-                    HoloMemoryUserPresentation.sourceSummary(for: record)
-                ].joined(separator: " · "))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let metadata {
+                    Text(metadata)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Spacer(minLength: 0)
+                }
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
@@ -782,6 +832,23 @@ enum HoloMemoryUserPresentation {
             return String(localized: "来自\(joined(names))的综合观察")
         }
         return String(localized: "来自\(joined(names))记录")
+    }
+
+    /// 列表卡的精简元信息：只在有实际日期或需要来源线索（观察中/确认/归档组
+    /// 无分组标题可依）时返回内容，nil=整行不渲染。「长期规律」「持续观察中」等
+    /// 恒定标签与完整解释移入详情页，避免整列卡片重复同一行字（2026-10-03 瘦身）。
+    static func condensedMetadata(
+        for record: HoloMemoryRecord,
+        includesSource: Bool
+    ) -> String? {
+        var parts: [String] = []
+        if includesSource {
+            parts.append(sourceSummary(for: record))
+        }
+        if record.validFrom != nil || record.validTo != nil {
+            parts.append(timeRange(for: record))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     static func degradedStatus(for record: HoloMemoryRecord) -> String? {

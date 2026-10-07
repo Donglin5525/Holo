@@ -16,7 +16,11 @@ struct ContextPlanRunStatusView: View {
     var onStop: (() -> Void)? = nil
 
     /// 运行中图标的呼吸相位（repeatForever 自_reverse，见 body）
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
     @State private var breathing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.holoMotionSurfaceIsActive) private var surfaceActive
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -29,11 +33,8 @@ struct ContextPlanRunStatusView: View {
                     Image(systemName: iconName)
                         .foregroundStyle(iconColor)
                         .opacity(breathing ? 0.45 : 1)
-                        .onAppear {
-                            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                                breathing = true
-                            }
-                        }
+                        .onAppear { synchronizeBreathing() }
+                        .onDisappear { breathing = false }
                 }
                 Text(title)
                     .font(.subheadline.weight(.semibold))
@@ -78,8 +79,21 @@ struct ContextPlanRunStatusView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onChange(of: motionEnabled) { _, _ in synchronizeBreathing() }
+        .onChange(of: reduceMotion) { _, _ in synchronizeBreathing() }
+        .onChange(of: scenePhase) { _, _ in synchronizeBreathing() }
+        .onChange(of: surfaceActive) { _, _ in synchronizeBreathing() }
+        .onChange(of: isTerminal) { _, _ in synchronizeBreathing() }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("个性化规划：\(title)。\(isTerminal ? terminalText : envelope.stage.displayText)"))
+    }
+
+    private func synchronizeBreathing() {
+        var transaction = SwiftUI.Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { breathing = false }
+        guard motionEnabled, !reduceMotion, surfaceActive, scenePhase == .active, !isTerminal else { return }
+        withAnimation(HoloAnimation.waitingPulse) { breathing = true }
     }
 
     private var isTerminal: Bool {

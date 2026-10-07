@@ -372,6 +372,8 @@ class MemoryGalleryViewModel: ObservableObject {
 
         for record in records {
             if let habit = habitMap[record.habitId] {
+                // 取消打卡 = 保留记录行翻 isCompleted=NO（为保备注），用户已撤回，不算一条记忆
+                if habit.isCheckInType, !record.isCompleted { continue }
                 items.append(MemoryItem.from(habitRecord: record, habit: habit))
             }
         }
@@ -538,17 +540,32 @@ class MemoryGalleryViewModel: ObservableObject {
         return habits.map(\.id)
     }
 
+    /// 排除取消打卡行（isCompleted=NO 仅在取消后出现；数值型行该字段恒 false，不适用），
+    /// 记忆总数/记录天数/热力图三个口径共用，口径变更只动这里
+    private static var excludeCancelledCheckInPredicate: NSPredicate {
+        NSPredicate(
+            format: "(habit.type != %d OR isCompleted == YES)",
+            HabitType.checkIn.rawValue
+        )
+    }
+
     private static func countHabitRecords(for activeHabitIds: [UUID], context: NSManagedObjectContext) -> Int {
         guard !activeHabitIds.isEmpty else { return 0 }
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds),
+            excludeCancelledCheckInPredicate
+        ])
         return (try? context.count(for: request)) ?? 0
     }
 
     private static func fetchHabitRecordDates(for activeHabitIds: [UUID], context: NSManagedObjectContext) -> Set<Date> {
         guard !activeHabitIds.isEmpty else { return [] }
         let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
-        request.predicate = NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds),
+            excludeCancelledCheckInPredicate
+        ])
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["date"]
         request.returnsDistinctResults = true
@@ -564,12 +581,15 @@ class MemoryGalleryViewModel: ObservableObject {
     ) -> [Date: Int] {
         guard !activeHabitIds.isEmpty else { return [:] }
         let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
-        request.predicate = NSPredicate(
-            format: "habitId IN %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
-            activeHabitIds,
-            start as NSDate,
-            end as NSDate
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "habitId IN %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
+                activeHabitIds,
+                start as NSDate,
+                end as NSDate
+            ),
+            excludeCancelledCheckInPredicate
+        ])
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["date"]
         let rows = (try? context.fetch(request)) ?? []

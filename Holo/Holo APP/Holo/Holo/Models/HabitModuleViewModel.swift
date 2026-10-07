@@ -367,7 +367,7 @@ final class HabitModuleViewModel: ObservableObject {
         case .toggleCheckIn:
             // 仅「勾上」才给撤销；取消打卡不需要（打卡型坏习惯无上限概念，不会超限）
             guard receipt.newCheckInState == true else { return }
-            undoHint = UndoHint(text: String(localized: "已记录 · 撤销"), receipt: receipt)
+            undoHint = UndoHint(text: String(localized: "已记录"), receipt: receipt)
         case .addNumeric, .increment:
             if let row = todayRows.first(where: { $0.id == receipt.habitId }),
                row.isBadHabit, row.today.isOverLimit {
@@ -377,7 +377,7 @@ final class HabitModuleViewModel: ObservableObject {
                     receipt: receipt
                 )
             } else {
-                undoHint = UndoHint(text: String(localized: "已记录 · 撤销"), receipt: receipt)
+                undoHint = UndoHint(text: String(localized: "已记录"), receipt: receipt)
             }
         case .removeLatestNumeric, .retroactive, .updateRecord, .deleteRecord:
             // 补录/明细操作不走短提示撤销（各自有入口）

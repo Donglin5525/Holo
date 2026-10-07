@@ -38,8 +38,8 @@ struct SleepTimelineCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             Text("整晚睡眠时间轴")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
 
             if let span = nightSpan, span > 0 {
                 anchorRow
@@ -51,12 +51,12 @@ struct SleepTimelineCard: View {
                 readout
             } else {
                 Text("暂无时间轴数据")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: - 时刻锚点行（入睡 / 起床）
@@ -74,10 +74,10 @@ struct SleepTimelineCard: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value.map { Self.clockFormatter.string(from: $0) } ?? "—")
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
             Text(LocalizedStringKey(label))
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -119,7 +119,7 @@ struct SleepTimelineCard: View {
                 let rawX = tick.timeIntervalSince(nightStart) / span * width
                 Text(Self.clockFormatter.string(from: tick))
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .position(x: min(max(rawX, 16), width - 16), y: proxy.size.height / 2)
             }
         }
@@ -159,7 +159,7 @@ struct SleepTimelineCard: View {
                 .frame(width: 7, height: 7)
             Text(LocalizedStringKey(label))
                 .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -175,7 +175,7 @@ struct SleepTimelineCard: View {
         .padding(.top, 2)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.holoBorder)
+                .fill(Color.holoToolBorder)
                 .frame(height: 1)
         }
     }
@@ -184,12 +184,12 @@ struct SleepTimelineCard: View {
         VStack(spacing: 2) {
             Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(LocalizedStringKey(label))
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -207,8 +207,8 @@ struct SleepTimelineCard: View {
         if let napCount = detail.napCount, napCount > 0 {
             let duration = Self.napDurationFormatter.string(from: (detail.napHours ?? 0) * 3600) ?? ""
             Text(String(format: String(localized: "白天另有小睡 %lld 次 · 约 %@，未计入上图"), napCount, duration))
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, HoloSpacing.sm)
                 .padding(.vertical, 7)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -221,8 +221,8 @@ struct SleepTimelineCard: View {
 
     private var readout: some View {
         Text(Self.structureSummary(detail: detail))
-            .font(.holoCaption)
-            .foregroundColor(.holoTextPrimary)
+            .holoText(.supporting)
+            .foregroundColor(.holoToolText)
             .lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, HoloSpacing.sm)
@@ -285,8 +285,8 @@ struct SleepTimelineCard: View {
         case .asleepDeep: return .holoChart1
         case .asleepCore, .asleepUnspecified: return .holoChart7
         case .asleepREM: return .holoChart8
-        case .awake: return .holoTextSecondary.opacity(0.4)
-        case .inBedAwake: return .holoTextSecondary.opacity(0.26)
+        case .awake: return .holoToolTextSecondary.opacity(0.4)
+        case .inBedAwake: return .holoToolTextSecondary.opacity(0.26)
         }
     }
 }
@@ -314,5 +314,5 @@ struct SleepTimelineCard: View {
     )
     return SleepTimelineCard(timeline: timeline, detail: detail)
         .padding()
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
 }

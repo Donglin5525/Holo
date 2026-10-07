@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新建任务改版 · 方案B2「紧急分」</title>
+<style>
+  :root{
+    --bg:#FDFCF8; --card:#FFFFFF; --inset:#F2EEE6; --text:#2E2E30; --text2:#726D64;
+    --border:#EAE5DB; --brand:#F46D38; --brand-dark:#E0581B; --err:#C0392B;
+    --ring:#C2BCAE; --placeholder:#B9B2A6; --divider:#F0EBE1;
+    --tint:rgba(244,109,56,.06);
+    --card-shadow:0 1px 2px rgba(46,40,32,.04),0 6px 16px rgba(46,40,32,.05);
+    --q1:#A74532; --q1bg:#F8E9E3; --q2:#426553; --q2bg:#EAF0E8;
+    --q3:#876321; --q3bg:#F7EFDD; --q4:#646876; --q4bg:#EEEDF2; --qu:#726D64;
+  }
+  .dark{
+    --bg:#191A1B; --card:#262628; --inset:#3A3A3D; --text:#F5F4F0; --text2:#B4AFA7;
+    --border:#38383B; --err:#F28B82; --ring:#5C5C61; --placeholder:#6E6A63; --divider:#333336;
+    --tint:rgba(244,109,56,.10);
+    --card-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.28);
+    --q1:#F0A48E; --q1bg:#3C2927; --q2:#ADD1B3; --q2bg:#28352D;
+    --q3:#DDC07E; --q3bg:#383222; --q4:#C4C3D4; --q4bg:#30303D; --qu:#B4AFA7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  html{background:linear-gradient(180deg,#f2f0ea,#e9e7e0)}
+  .dark body, body.dark{background:linear-gradient(180deg,#141415,#1d1d1f)}
+  html.dark{background:linear-gradient(180deg,#141415,#1d1d1f)}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:var(--text);padding:34px 18px 80px;line-height:1.5;display:flex;flex-direction:column;align-items:center;transition:background .35s}
+  .doctitle{font-size:21px;font-weight:700;letter-spacing:.3px}
+  .docsub{font-size:13px;color:var(--text2);margin-top:5px;text-align:center;max-width:600px}
+  .toolbar{display:flex;gap:9px;margin:18px 0 24px;flex-wrap:wrap;justify-content:center}
+  .toolbar a,.toolbar button{border:1px solid #d8d4ca;background:#fff;border-radius:99px;padding:7px 17px;font-size:13px;cursor:pointer;color:#33312c;text-decoration:none;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .toolbar .on{background:#26261f;color:#fff;border-color:#26261f}
+
+  .phone{width:400px;border-radius:56px;background:#0d0d0f;padding:11px;box-shadow:0 30px 70px rgba(30,25,15,.35),inset 0 0 0 2px #2a2a2e}
+  .screen{border-radius:46px;overflow:hidden;background:var(--bg);height:844px;position:relative;transition:background .35s}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:118px;height:33px;border-radius:20px;background:#0d0d0f;z-index:40}
+  .homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:99px;background:var(--text);opacity:.28;z-index:31}
+
+  .status{display:flex;justify-content:space-between;align-items:center;padding:16px 30px 4px;color:var(--text)}
+  .stime{font-size:15px;font-weight:600}
+  .sicons{display:flex;gap:6px;align-items:center}
+  .navbar{display:flex;align-items:center;height:44px;padding:0 10px;position:relative}
+  .nav-cancel{font-size:16px;color:var(--brand);padding:6px 10px;cursor:pointer}
+  .nav-title{position:absolute;left:50%;transform:translateX(-50%);font-size:16px;font-weight:600;color:var(--text)}
+
+  .scrollarea{height:742px;overflow-y:auto;scrollbar-width:none;padding:4px 20px 130px}
+  .scrollarea::-webkit-scrollbar{display:none}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px;box-shadow:var(--card-shadow);padding:16px;margin-top:14px;transition:background .35s,border-color .35s}
+
+  /* 内容卡：标题行带附件回形针 */
+  .trow{display:flex;align-items:center;gap:10px}
+  .t-title{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:22px;font-weight:700;color:var(--text);font-family:inherit}
+  .titleicon{flex:none;width:32px;height:32px;border-radius:10px;background:var(--inset);border:0;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer;position:relative;transition:.2s;font-family:inherit}
+  .titleicon:active{transform:scale(.92)}
+  .titleicon .dot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--brand);border:2px solid var(--card);display:none}
+  .titleicon.has .dot{display:block}
+  .attach-strip{display:none;gap:8px;margin-top:10px}
+  .attach-strip.show{display:flex}
+  .athumb{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#e8dfc9,#d9cdb2);display:flex;align-items:center;justify-content:center;font-size:17px;position:relative}
+  .athumb .x{position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#0d0d0f;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .aadd{width:42px;height:42px;border-radius:10px;border:1.2px dashed var(--ring);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:14px;cursor:pointer}
+
+  .t-desc{width:100%;border:0;outline:0;background:transparent;font-size:15px;color:var(--text);opacity:.72;resize:none;line-height:1.55;font-family:inherit;margin-top:2px}
+  .hr{height:1px;background:var(--divider);margin:12px 0}
+
+  .ck-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px}
+  .ck-title{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--text2)}
+  .ck-count{font-size:11px;color:var(--text2)}
+  .ck-item{display:flex;align-items:center;gap:10px;padding:9px 0}
+  .ck-dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--ring);flex:none}
+  .ck-text{flex:1;font-size:15px;color:var(--text)}
+  .ck-del{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ring);cursor:pointer;font-size:15px;transition:.2s}
+  .ck-del:hover{color:var(--err)}
+  .ck-add{display:flex;align-items:center;gap:10px;padding-top:9px;cursor:text}
+  .ck-add .plus{color:var(--brand);font-weight:700;font-size:14px}
+  .ck-add input{flex:1;border:0;outline:0;background:transparent;font-size:15px;color:var(--text);font-family:inherit}
+  .ck-add .okbtn{border:0;background:transparent;color:var(--brand);font-size:13px;font-weight:700;cursor:pointer;visibility:hidden}
+  .ck-add .okbtn.show{visibility:visible}
+
+  /* ===== 轻重缓急：双 P 杆 + 紧急分 ===== */
+  .scorehead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .sec-label{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--text2)}
+  .scorerow{font-size:11.5px;color:var(--text2)}
+  .scorerow b{font-size:20px;color:var(--brand);font-family:"SF Pro Rounded","Hiragino Maru Gothic ProN",-apple-system,sans-serif;font-variant-numeric:tabular-nums;line-height:1;margin-left:4px}
+  .duo{display:flex;gap:16px}
+  .pcol{flex:1;min-width:0}
+  .pcol.dim .mtrack,.pcol.dim .plabels{opacity:.4}
+  .pcolhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+  .pcolhead .pl{font-size:12.5px;font-weight:600;color:var(--text)}
+  .minichip{border:1px solid var(--border);background:transparent;border-radius:8px;font-size:10.5px;color:var(--text2);padding:3px 9px;cursor:pointer;transition:.2s;font-family:inherit}
+  .minichip.on{border-color:var(--brand);color:var(--brand);background:var(--tint);font-weight:700}
+  .mtrack{position:relative;height:26px;border-radius:99px;background:var(--inset);cursor:pointer;touch-action:none;transition:opacity .25s}
+  .mfill{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,var(--inset),var(--brand));opacity:.32;transition:width .35s cubic-bezier(.3,1.6,.5,1)}
+  .mticks{position:absolute;inset:0;display:flex;justify-content:space-around}
+  .mtick{width:4px;height:4px;border-radius:50%;background:var(--ring);align-self:center}
+  .mthumb{position:absolute;top:50%;width:22px;height:22px;border-radius:50%;background:var(--card);border:2px solid var(--ring);box-shadow:0 2px 5px rgba(46,40,32,.18);transform:translate(-50%,-50%);transition:left .35s cubic-bezier(.3,1.6,.5,1),border-color .3s,box-shadow .3s}
+  .mthumb.hot{border-color:var(--brand);box-shadow:0 3px 9px rgba(230,90,30,.35)}
+  .mghost{position:absolute;top:50%;width:19px;height:19px;border-radius:50%;border:1.5px dashed var(--brand);transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;font-size:8px;color:var(--brand)}
+  .plabels{display:flex;margin-top:5px;transition:opacity .25s}
+  .plabel{flex:1;text-align:center;font-size:11.5px;color:var(--text2);cursor:pointer;transition:.2s;padding:2px 0}
+  .plabel.on{color:var(--brand);font-weight:700}
+  .exp{font-size:11px;color:var(--text2);opacity:.85;margin-top:10px}
+  .dest{display:flex;align-items:center;gap:6px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--inset);font-size:12.5px;color:var(--text2);transition:background .3s}
+  .dest b{font-weight:700}
+
+  /* 属性卡：时间前移（紧跟内容卡，先设日期→自动紧急立现） */
+  .prop{display:flex;align-items:center;gap:10px;padding:12px 2px;cursor:pointer}
+  .prop .pl{font-size:15px;font-weight:600;color:var(--text)}
+  .prop .pv{margin-left:auto;font-size:13px;color:var(--text2)}
+  .prop .chev{color:var(--ring);font-size:12px;margin-left:2px}
+
+  .bottombar{position:absolute;left:0;right:0;bottom:0;padding:10px 20px 24px;background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--divider);z-index:30}
+  .save{width:100%;padding:15px;border:0;border-radius:16px;background:linear-gradient(180deg,var(--brand),var(--brand-dark));color:#fff;font-size:16px;font-weight:700;font-family:inherit;box-shadow:0 6px 14px rgba(230,90,30,.30),inset 0 1px 0 rgba(255,255,255,.25);cursor:pointer;transition:transform .15s}
+  .save:active{transform:scale(.97)}
+
+  .notes{width:400px;margin-top:22px;font-size:12.5px;color:var(--text2);line-height:1.8}
+  .notes b{color:var(--text)}
+</style>
+</head>
+<body>
+  <div class="doctitle">新建任务改版 · 方案B2「紧急分」（基于方案B，按东林思路落的一版）</div>
+  <div class="docsub">轻重缓急＝重要/紧急两根 P 杆，组合出 3–9 分的紧急分供排序；卡片压缩约四成；附件改为标题行回形针；时间前移到内容卡后面</div>
+  <div class="toolbar">
+    <a href="2026-10-07-新建任务改版-方案A-结构罗盘.html">方案A 结构罗盘</a>
+    <a href="2026-10-07-新建任务改版-方案B-手感拨杆.html">方案B 手感拨杆</a>
+    <a href="2026-10-07-新建任务改版-方案C-极简语义卡.html">方案C 极简语义卡</a>
+    <a class="on" href="#">方案B2 紧急分</a>
+    <button id="themeBtn">深色模式</button>
+  </div>
+
+  <div class="phone"><div class="screen" id="screen">
+    <div class="island"></div>
+    <div class="status"><span class="stime">9:41</span><span class="sicons">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0.5" y="3" width="2.5" height="7" rx="1" fill="currentColor"/><rect x="4.5" y="1.5" width="2.5" height="8.5" rx="1" fill="currentColor" opacity=".65"/><rect x="8.5" y="0" width="2.5" height="10" rx="1" fill="currentColor" opacity=".4"/><rect x="12.5" y="2" width="3.5" height="7" rx="1.8" fill="currentColor"/><rect x="16.6" y="4" width="1.4" height="3" rx="0.7" fill="currentColor"/></svg>
+    </span></div>
+    <div class="navbar"><div class="nav-cancel">取消</div><div class="nav-title">添加任务</div></div>
+
+    <div class="scrollarea">
+      <!-- 内容卡：标题行带附件回形针 + 描述 + 检查清单 -->
+      <div class="card">
+        <div class="trow">
+          <input class="t-title" value="整理旅行相册">
+          <button class="titleicon" id="attachBtn" title="添加附件">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            <span class="dot"></span>
+          </button>
+        </div>
+        <div class="attach-strip" id="attachStrip">
+          <div class="athumb">🖼️<span class="x" id="athumbX">✕</span></div>
+          <div class="aadd">＋</div>
+        </div>
+        <div class="hr"></div>
+        <textarea class="t-desc" rows="2">敦煌回来攒了 800 多张照片，趁着假期整理出来。</textarea>
+        <div class="hr"></div>
+        <div class="ck-head"><span class="ck-title">检查清单</span><span class="ck-count" id="ckCount">3 项</span></div>
+        <div id="ckList">
+          <div class="ck-item"><span class="ck-dot"></span><span class="ck-text">初筛删掉废片</span><span class="ck-del">－</span></div>
+          <div class="ck-item"><span class="ck-dot"></span><span class="ck-text">按景点和日期分册</span><span class="ck-del">－</span></div>
+          <div class="ck-item"><span class="ck-dot"></span><span class="ck-text">拼一版九宫格发朋友圈</span><span class="ck-del">－</span></div>
+        </div>
+        <div class="ck-add" id="ckAdd"><span class="plus">＋</span><input id="ckInput" placeholder="添加一项，回车收入"><button class="okbtn" id="ckOk">添加</button></div>
+      </div>
+
+      <!-- 时间前移：先设日期，下面的自动紧急立刻有依据 -->
+      <div class="card">
+        <div class="prop"><span class="pl">时间</span><span class="pv">明天 · 全天</span><span class="chev">›</span></div>
+        <div class="hr"></div>
+        <div class="prop"><span class="pl">清单</span><span class="pv">收件箱</span><span class="chev">›</span></div>
+      </div>
+
+      <!-- 轻重缓急：双 P 杆并排 + 紧急分（分数挂在标题行，不占额外高度） -->
+      <div class="card">
+        <div class="scorehead">
+          <span class="sec-label">轻重缓急</span>
+          <span class="scorerow">紧急分<b id="scoreVal">—</b><span id="scoreHint"></span></span>
+        </div>
+        <div class="duo">
+          <div class="pcol dim" id="impCol">
+            <div class="pcolhead"><span class="pl">重要吗</span><button class="minichip on" id="impChip" title="暂不判断，收进待整理">？</button></div>
+            <div class="mtrack" id="impTrack">
+              <div class="mfill" id="impFill"></div>
+              <div class="mticks"><span class="mtick"></span><span class="mtick"></span><span class="mtick"></span></div>
+              <div class="mthumb" id="impThumb"></div>
+            </div>
+            <div class="plabels" id="impStops">
+              <span class="plabel" data-v="P3">P3</span>
+              <span class="plabel" data-v="P2">P2</span>
+              <span class="plabel" data-v="P1">P1</span>
+            </div>
+          </div>
+          <div class="pcol" id="urgCol">
+            <div class="pcolhead"><span class="pl">有多急</span><button class="minichip on" id="urgChip" title="按截止日期自动折算">自动</button></div>
+            <div class="mtrack" id="urgTrack">
+              <div class="mfill" id="urgFill"></div>
+              <div class="mticks"><span class="mtick"></span><span class="mtick"></span><span class="mtick"></span></div>
+              <div class="mthumb" id="urgThumb"></div>
+              <div class="mghost" id="urgGhost">⏱</div>
+            </div>
+            <div class="plabels" id="urgStops">
+              <span class="plabel" data-v="P3">P3</span>
+              <span class="plabel" data-v="P2">P2</span>
+              <span class="plabel" data-v="P1">P1</span>
+            </div>
+          </div>
+        </div>
+        <div class="exp" id="lexp">紧急度按日期自动折算：明天到期 → P1。</div>
+        <div class="dest" id="dest">将进入「<b id="destName">待整理</b>」· <span id="destGuide">判断这件事是否重要</span></div>
+      </div>
+    </div>
+
+    <div class="bottombar"><button class="save">添加任务</button></div>
+    <div class="homebar"></div>
+  </div></div>
+
+  <div class="notes">
+    <b>本案看点（相对方案B的三处变化）</b><br>
+    ① 每根杆从三档文字升级成 P3/P2/P1，两杆组合出紧急分（本版公式＝重要×2＋紧急，3–9 分，重要性加倍保住「重要不急 &gt; 不重要急」的次序）；<br>
+    ② 卡片压缩：双杆并排一行、分数挂在标题行右侧不占高度、解释并成一行小字；<br>
+    ③ 附件收进标题行回形针（点击出缩略图条+红点角标），时间/清单上移到轻重缓急前面——先设日期，自动紧急立刻有依据；<br>
+    ④ 分组口径（拍板点）：P1 归重要侧（优先处理/留出时间），P2/P3 归另一侧（集中处理/稍后再看），组内精细次序由紧急分排。
+  </div>
+
+<script>
+(function(){
+  var state={imp:'unknown',urg:'auto'};
+  var ORDER=['P3','P2','P1'];           /* 左→右，P1 在最右 */
+  var V={P3:1,P2:2,P1:3};
+  var AUTO_P='P1';                        /* 演示：明天到期 → 自动折算 P1 */
+  var QUADS={
+    doFirst:{name:'优先处理',guide:'先推进这些事',v:'q1',bg:'q1bg'},
+    scheduleTime:{name:'留出时间',guide:'安排具体执行时段',v:'q2',bg:'q2bg'},
+    batchHandle:{name:'集中处理',guide:'合并处理零碎事项',v:'q3',bg:'q3bg'},
+    reviewLater:{name:'稍后再看',guide:'按需要保留或归档',v:'q4',bg:'q4bg'},
+    unclassified:{name:'待整理',guide:'判断这件事是否重要',v:'qu',bg:'inset'}
+  };
+  var dest=document.getElementById('dest'),destName=document.getElementById('destName'),destGuide=document.getElementById('destGuide');
+  var scoreVal=document.getElementById('scoreVal'),scoreHint=document.getElementById('scoreHint'),lexp=document.getElementById('lexp');
+  var impChip=document.getElementById('impChip'),urgChip=document.getElementById('urgChip');
+  var impCol=document.getElementById('impCol'),urgCol=document.getElementById('urgCol');
+  var urgGhost=document.getElementById('urgGhost');
+
+  function P(i){return [16.66,50,83.34][i];}
+  function urgValue(){return state.urg==='auto'?AUTO_P:state.urg;}
+  function score(){
+    if(state.imp==='unknown')return null;
+    return V[state.imp]*2+V[urgValue()];
+  }
+  function resolveQuad(){
+    if(state.imp==='unknown')return'unclassified';
+    var urgent=urgValue()==='P1';
+    if(state.imp!=='P1')return urgent?'batchHandle':'reviewLater';
+    /* P1 归重要侧，P2/P3 归另一侧（「重要」保持稀缺）；组内精细次序交给紧急分 */
+    return urgent?'doFirst':'scheduleTime';
+  }
+  function paintLever(prefix,order,val,autoGhost){
+    var fill=document.getElementById(prefix+'Fill'),thumb=document.getElementById(prefix+'Thumb');
+    var stops=[].slice.call(document.getElementById(prefix+'Stops').children);
+    if(val){
+      var idx=ORDER.indexOf(val);
+      fill.style.width=P(idx)+'%';
+      thumb.style.left=P(idx)+'%';
+      thumb.style.display='block';
+      thumb.classList.toggle('hot',idx===2);
+      stops.forEach(function(s,i){s.classList.toggle('on',i===idx);});
+    }else{
+      fill.style.width='0%';thumb.style.display='none';
+      stops.forEach(function(s){s.classList.remove('on');});
+    }
+    if(autoGhost){urgGhost.style.display=state.urg==='auto'?'flex':'none';urgGhost.style.left=P(ORDER.indexOf(AUTO_P))+'%';}
+  }
+  function render(){
+    paintLever('imp',ORDER,state.imp==='unknown'?null:state.imp,false);
+    paintLever('urg',ORDER,state.urg==='auto'?null:state.urg,true);
+    impCol.classList.toggle('dim',state.imp==='unknown');
+    impChip.classList.toggle('on',state.imp==='unknown');
+    urgChip.classList.toggle('on',state.urg==='auto');
+    var s=score();
+    scoreVal.textContent=s===null?'—':s;
+    scoreHint.textContent=s===null?'（先判断重要性）':' / 9';
+    lexp.textContent=state.urg==='auto'
+      ?'紧急度按日期自动折算：明天到期 → P1（三天内 P1 · 一周内 P2 · 更远 P3）。'
+      :'紧急度已手动锁定为 '+state.urg+'。';
+    var q=QUADS[resolveQuad()];
+    destName.textContent=q.name;destGuide.textContent=q.guide;
+    dest.style.background='var(--'+q.bg+')';
+    destName.style.color='var(--'+q.v+')';
+  }
+  function bindLever(prefix,key){
+    var track=document.getElementById(prefix+'Track');
+    function setIdx(idx){
+      state[key]=ORDER[idx];
+      render();
+    }
+    track.addEventListener('pointerdown',function(e){
+      track.setPointerCapture(e.pointerId);
+      function apply(ev){
+        var rect=track.getBoundingClientRect();
+        var ratio=Math.min(1,Math.max(0,(ev.clientX-rect.left)/rect.width));
+        setIdx(Math.round(ratio*2));
+      }
+      apply(e);
+      function mv(ev){apply(ev);}
+      function up(){track.removeEventListener('pointermove',mv);track.removeEventListener('pointerup',up);}
+      track.addEventListener('pointermove',mv);track.addEventListener('pointerup',up);
+    });
+    [].slice.call(document.getElementById(prefix+'Stops').children).forEach(function(s){
+      s.addEventListener('click',function(){state[key]=s.dataset.v;render();});
+    });
+  }
+  bindLever('imp','imp');
+  bindLever('urg','urg');
+  impChip.addEventListener('click',function(){state.imp='unknown';render();});
+  urgChip.addEventListener('click',function(){state.urg='auto';render();});
+
+  /* 附件回形针：点击出缩略图条 */
+  var attachBtn=document.getElementById('attachBtn'),attachStrip=document.getElementById('attachStrip');
+  function setAttach(on){
+    attachStrip.classList.toggle('show',on);
+    attachBtn.classList.toggle('has',on);
+  }
+  attachBtn.addEventListener('click',function(){setAttach(!attachStrip.classList.contains('show'));});
+  document.getElementById('athumbX').addEventListener('click',function(e){e.stopPropagation();setAttach(false);});
+
+  /* 检查清单 */
+  var ckList=document.getElementById('ckList'),ckInput=document.getElementById('ckInput'),
+      ckOk=document.getElementById('ckOk'),ckCount=document.getElementById('ckCount');
+  function refreshCount(){ckCount.textContent=ckList.children.length+' 项';}
+  function addItem(){
+    var t=ckInput.value.trim();if(!t)return;
+    var row=document.createElement('div');row.className='ck-item';
+    row.innerHTML='<span class="ck-dot"></span><span class="ck-text"></span><span class="ck-del">－</span>';
+    row.querySelector('.ck-text').textContent=t;
+    row.querySelector('.ck-del').addEventListener('click',function(){row.remove();refreshCount();});
+    ckList.appendChild(row);ckInput.value='';ckOk.classList.remove('show');refreshCount();
+  }
+  ckInput.addEventListener('input',function(){ckOk.classList.toggle('show',!!ckInput.value.trim());});
+  ckInput.addEventListener('keydown',function(e){if(e.key==='Enter')addItem();});
+  ckOk.addEventListener('click',addItem);
+  [].slice.call(ckList.children).forEach(function(row){
+    row.querySelector('.ck-del').addEventListener('click',function(){row.remove();refreshCount();});
+  });
+  refreshCount();
+
+  document.getElementById('themeBtn').addEventListener('click',function(){
+    document.documentElement.classList.toggle('dark');document.body.classList.toggle('dark');render();
+  });
+  if(/[?&]dark/.test(location.search)){document.documentElement.classList.add('dark');document.body.classList.add('dark');}
+  if(/[?&]attach/.test(location.search)){setAttach(true);}
+  render();
+})();
+</script>
+</body>
+</html>

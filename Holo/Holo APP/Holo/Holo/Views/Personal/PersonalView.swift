@@ -65,10 +65,10 @@ struct PersonalView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
-                    plusSection
                     profileSection
                     goalsSection
                     memorySection
+                    plusSection
                     #if DEBUG
                     developerToolsSection
                     #endif
@@ -78,7 +78,7 @@ struct PersonalView: View {
                 // 通宵冲刺 D6（B-P1-1）：iPad 限宽居中为设置型阅读列；iPhone 直通
                 .holoContentColumn(paintsBackground: false)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             // 手势必须挂在 NavigationStack 内部：挂栈外时让位判断（沿响应链向上找
             // UINavigationController）恒失效，子页面 push 后右滑会把整个个人页连同
             // 子页一起关掉（2026-09-16 健康页睡眠详情同款事故，见 SwipeBackModifier 文档）。
@@ -93,7 +93,7 @@ struct PersonalView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
@@ -159,78 +159,25 @@ struct PersonalView: View {
         NavigationLink {
             HoloMembershipCenterView()
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
-                    .fill(HoloPlusTheme.darkGradient)
-
-                Circle()
-                    .fill(HoloPlusTheme.glowColor)
-                    .frame(width: 120, height: 120)
-                    .blur(radius: 28)
-                    .offset(x: 34, y: -44)
-
-                VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                    HStack(alignment: .top, spacing: HoloSpacing.md) {
-                        HoloPlusEmblem(size: 58, tier: entitlementState.isPlusActive ? .plus : .free)
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            // 图文必须与真实档位一致：免费用户看到「免费版」，
-                            // 不能让卡片读起来像已经开通了 Plus
-                            // 标题是 title 级大字、随系统字号放大，固定单行宽度
-                            // 防止被 HStack 的 Spacer 挤压折行。
-                            Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
-                                .font(.holoTitle)
-                                .foregroundColor(HoloPlusTheme.accentText)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-
-                            Text(
-                                entitlementState.isPlusActive
-                                    ? String(localized: "更高额度已为你开启")
-                                    : String(localized: "升级解锁 2 倍 AI 额度与全部小组件")
-                            )
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(HoloPlusTheme.subtleText)
-                            .lineLimit(2)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    HStack(spacing: HoloSpacing.sm) {
-                        plusFeaturePill(
-                            "HoloAI",
-                            value: entitlementState.isPlusActive ? String(localized: "30/天") : String(localized: "15/天")
-                        )
-                        plusFeaturePill(
-                            String(localized: "语音识别"),
-                            value: entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天")
-                        )
-                        plusFeaturePill(
-                            String(localized: "任务"),
-                            value: entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天")
-                        )
-                    }
-
-                    HStack(spacing: HoloSpacing.xs) {
-                        Text(entitlementState.isPlusActive ? String(localized: "查看会员权益") : String(localized: "升级 Holo Plus"))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(HoloPlusTheme.accentText)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(HoloPlusTheme.accentText.opacity(0.82))
-                    }
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                HoloPlusEmblem(size: 36, tier: entitlementState.isPlusActive ? .plus : .free)
+                VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                    Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
+                        .holoText(.body)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.holoToolText)
+                    Text(entitlementState.isPlusActive ? String(localized: "查看会员权益") : String(localized: "升级解锁 2 倍 AI 额度与全部小组件"))
+                        .holoText(.supporting)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(HoloSpacing.lg)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .accessibilityHidden(true)
             }
-            .frame(maxWidth: .infinity)
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
-                    .stroke(HoloPlusTheme.strokeColor, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
-            .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 12)
+            .padding(HoloSpacing.md)
+            .holoSurface()
         }
         .buttonStyle(.plain)
     }
@@ -261,9 +208,9 @@ struct PersonalView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("个人档案")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             Button {
@@ -274,28 +221,28 @@ struct PersonalView: View {
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(profileService.hasProfile
                                   ? Color.holoSuccess.opacity(0.1)
-                                  : Color.holoTextSecondary.opacity(0.1))
+                                  : Color.holoToolTextSecondary.opacity(0.1))
                             .frame(width: 40, height: 40)
 
                         Image(systemName: profileService.hasProfile ? "checkmark.shield.fill" : "shield")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(profileService.hasProfile ? .holoSuccess : .holoTextSecondary)
+                            .foregroundColor(profileService.hasProfile ? .holoSuccess : .holoToolTextSecondary)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(profileService.hasProfile ? String(localized: "已配置") : String(localized: "未配置"))
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
 
                         if profileService.hasProfile {
                             Text(profileService.previewText)
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .lineLimit(1)
                         } else {
                             Text("让 AI 了解你，获得更个性化的回复")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                     }
 
@@ -303,10 +250,10 @@ struct PersonalView: View {
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(PlainButtonStyle())
@@ -320,26 +267,26 @@ struct PersonalView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("个人资料")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
 
                         Text("头像与昵称，随 iCloud 同步")
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
 
                     Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolTextSecondary)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(PlainButtonStyle())
@@ -361,7 +308,7 @@ struct PersonalView: View {
             } label: {
                 Label(memoryInboxSnapshot.presentationText, systemImage: "brain.head.profile.fill")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
             .buttonStyle(.plain)
 
@@ -372,7 +319,7 @@ struct PersonalView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .padding(5)
             }
             .buttonStyle(.plain)
@@ -404,9 +351,9 @@ struct PersonalView: View {
                     .font(.system(size: 18))
                     .foregroundColor(.holoPrimary)
                 Text("我的目标")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             Button {
@@ -423,19 +370,19 @@ struct PersonalView: View {
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("目标管理")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                         Text("查看 HoloAI 为你规划的长期目标")
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(PlainButtonStyle())
@@ -451,9 +398,9 @@ struct PersonalView: View {
                     .font(.system(size: 18))
                     .foregroundColor(.holoPrimary)
                 Text("长期记忆")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             NavigationLink {
@@ -471,13 +418,13 @@ struct PersonalView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Holo 记住的你")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                             .lineLimit(1)
 
                         Text(memoryStatusText)
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .lineLimit(2)
 
                         if !memoryInboxSnapshot.isEmpty {
@@ -498,10 +445,10 @@ struct PersonalView: View {
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(.plain)
@@ -527,9 +474,9 @@ struct PersonalView: View {
                     .font(.system(size: 18))
                     .foregroundColor(.holoPrimary)
                 Text("开发者工具")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             NavigationLink {
@@ -547,21 +494,21 @@ struct PersonalView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("AI 记忆实验室")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                         Text("验证领域萃取、跨域融合与问题召回")
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(.plain)

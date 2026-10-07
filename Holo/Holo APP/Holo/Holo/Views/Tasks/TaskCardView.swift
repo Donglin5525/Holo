@@ -95,6 +95,8 @@ struct TaskCardView: View {
                         .font(.system(size: 22, weight: .medium))
                         .foregroundColor(showsCompleted ? .holoPrimary : .holoTextSecondary)
                         .symbolEffect(.bounce, value: showsCompleted)
+                        // 固定网格宽：子任务勾选框按此宽居中对齐，保证上下文字同线
+                        .frame(width: 22, height: 22)
                 }
                 .buttonStyle(.plain)
 
@@ -199,13 +201,15 @@ struct TaskCardView: View {
 
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                     ForEach(displayedCheckItems, id: \.id) { item in
-                        HStack(spacing: 8) {
+                        // 勾选框挂主行完成圈同宽网格（22+11），子任务文字与主行标题同一条左缘线
+                        HStack(spacing: 11) {
                             Button {
                                 toggleCheckItem(item)
                             } label: {
                                 Image(systemName: item.isChecked ? "checkmark.square.fill" : "square")
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(item.isChecked ? .holoPrimary : .holoTextSecondary.opacity(0.5))
+                                    .frame(width: 22, height: 22)
                             }
                             .buttonStyle(.plain)
 
@@ -251,6 +255,8 @@ struct TaskCardView: View {
                                 Spacer(minLength: 0)
                             }
                         }
+                        // 与子任务文字同一条左缘线（22pt 圈网格 + 11 间距）
+                        .padding(.leading, 33)
                         .padding(.top, HoloSpacing.xs)
                     }
                 }

@@ -133,20 +133,16 @@ struct DailyReplayEventCard: View {
             : .system(size: 15 * typeScale, weight: .semibold)
     }
 
-    /// 想法正文是否长过 6 行：按卡片实际可用宽度量一次文本高度。
-    /// 宽度取「屏宽 − 页边距 − 时间列 − 卡内边距」的近似值，误差只会让临界长文少/多出一次提示。
+    /// 想法正文是否长过 6 行：判定收在 DailyReplayPresentation，与拍立得卡同一口径。
+    /// 宽度取「屏宽 − 页边距 − 时间列 − 卡内边距」的近似值。
     private var thoughtNeedsFullTextHint: Bool {
         guard moment.module == .thought else { return false }
-        let base = UIFont.systemFont(ofSize: 15 * typeScale, weight: .semibold)
-        let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: 15 * typeScale) } ?? base
-        let availableWidth = UIScreen.main.bounds.width - 116
-        let textHeight = (moment.title as NSString).boundingRect(
-            with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: font],
-            context: nil
-        ).height
-        return textHeight > font.lineHeight * 6.5
+        return DailyReplayPresentation.thoughtExceedsLineLimit(
+            moment.title,
+            lines: 6,
+            fontSize: 15 * typeScale,
+            availableWidth: UIScreen.main.bounds.width - 116
+        )
     }
 
     @ViewBuilder

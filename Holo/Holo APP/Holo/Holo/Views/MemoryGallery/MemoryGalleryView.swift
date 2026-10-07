@@ -45,7 +45,7 @@ struct MemoryGalleryView: View {
             // 背景独立铺层（与任务/财务等模块同一模式）。
             // 不能写成 .background(Color.ignoresSafeArea())：该写法会把「忽略安全区」
             // 包装住整个内容 VStack，突破骨架层 720 列的布局上限，导致长廊通铺全宽。
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // 顶部导航栏（右侧并入页级 tab，L1 轻头部）
@@ -119,7 +119,7 @@ struct MemoryGalleryView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -135,14 +135,14 @@ struct MemoryGalleryView: View {
 
             Text("记忆长廊")
                 .font(.system(size: 20, weight: .semibold, design: .serif))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .overlay(alignment: .bottom) {
             LinearGradient(
-                colors: [Color.holoBorder.opacity(0), Color.holoBorder.opacity(0.42), Color.holoBorder.opacity(0)],
+                colors: [Color.holoToolBorder.opacity(0), Color.holoToolBorder.opacity(0.42), Color.holoToolBorder.opacity(0)],
                 startPoint: .leading,
                 endPoint: .trailing
             )
@@ -227,17 +227,17 @@ struct MemoryGalleryView: View {
         return HStack(spacing: 12) {
             Text("理解")
                 .font(.system(size: 42 * typeScale, weight: .medium, design: .serif))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .tracking(-2)
                 .frame(minWidth: 78 * typeScale, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Holo 看见的你")
                     .font(.system(size: 15 * typeScale, weight: .semibold, design: .serif))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Text("\(viewModel.totalRecordedDays) 天生活证据 · \(viewModel.totalMemoryCount) 条记录")
                     .font(.system(size: 10 * typeScale, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
             }
 
@@ -254,7 +254,7 @@ struct MemoryGalleryView: View {
         .frame(minHeight: 92)
         .background(
             LinearGradient(
-                colors: [Color.holoBackground.opacity(0.99), Color.holoBackground.opacity(0.94)],
+                colors: [Color.holoToolBackground.opacity(0.99), Color.holoToolBackground.opacity(0.94)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -287,8 +287,8 @@ struct MemoryGalleryView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text(dateStr)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
 
                 Spacer(minLength: 0)
 
@@ -309,21 +309,21 @@ struct MemoryGalleryView: View {
                     selectedDateStats(summary)
                 } else {
                     Text("当天暂无记录")
-                        .font(.holoCaption)
+                        .holoText(.supporting)
                         .foregroundColor(.holoTextPlaceholder)
                 }
             } else {
                 Text("当天暂无记录")
-                    .font(.holoCaption)
+                    .holoText(.supporting)
                     .foregroundColor(.holoTextPlaceholder)
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder.opacity(0.5), lineWidth: 1)
+                .stroke(Color.holoToolBorder.opacity(0.5), lineWidth: 1)
         )
     }
 
@@ -333,7 +333,7 @@ struct MemoryGalleryView: View {
 
         if stats.isEmpty {
             Text("当天暂无记录")
-                .font(.holoCaption)
+                .holoText(.supporting)
                 .foregroundColor(.holoTextPlaceholder)
         } else {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: HoloSpacing.sm)], spacing: HoloSpacing.sm) {
@@ -351,15 +351,15 @@ struct MemoryGalleryView: View {
                 .foregroundColor(stat.color)
 
             Text(stat.value)
-                .font(.holoCaption)
+                .holoText(.supporting)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
             Text(stat.label)
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
         }
         .padding(HoloSpacing.sm)
@@ -434,8 +434,8 @@ struct MemoryGalleryView: View {
                 .foregroundColor(.holoPrimary)
 
             Text(title)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
 
             Spacer()
         }
@@ -446,8 +446,8 @@ struct MemoryGalleryView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             HStack(spacing: HoloSpacing.xs) {
                 Text(item.section.formattedDate)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Text(item.section.displayLabel)
                     .font(.holoTinyLabel)
@@ -539,15 +539,15 @@ struct MemoryGalleryView: View {
                 .foregroundColor(.holoTextPlaceholder)
 
             Text(message)
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.body)
+                .foregroundColor(.holoToolTextSecondary)
                 .multilineTextAlignment(.center)
 
             Button {
                 Task { await viewModel.refresh() }
             } label: {
                 Text("重试")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, HoloSpacing.xl)
                     .padding(.vertical, HoloSpacing.sm)
@@ -578,27 +578,27 @@ struct MemoryGalleryView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Circle()
-                    .fill(Color.holoBorder)
+                    .fill(Color.holoToolBorder)
                     .frame(width: 12, height: 12)
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.holoBorder)
+                    .fill(Color.holoToolBorder)
                     .frame(width: 100, height: 14)
             }
 
             HStack(spacing: 18) {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.holoBorder)
+                    .fill(Color.holoToolBorder)
                     .frame(width: 80, height: 20)
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.holoBorder)
+                    .fill(Color.holoToolBorder)
                     .frame(width: 60, height: 20)
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.holoBorder)
+                    .fill(Color.holoToolBorder)
                     .frame(width: 40, height: 20)
             }
         }
         .padding(16)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 

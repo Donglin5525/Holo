@@ -64,12 +64,7 @@ extension AddTransactionSheet {
         selectedProject = nil
     }
 
-    /// 启动光标闪烁动画
-    func startCursorAnimation() {
-        withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-            cursorOpacity = 0
-        }
-    }
+
 }
 
 // MARK: - 快捷标签

@@ -1666,7 +1666,7 @@ enum HealthError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .healthKitNotAvailable:
-            return String(localized: "此设备不支持 HealthKit")
+            return String(localized: "健康功能暂不支持 iPad 和 Mac")
         case .authorizationDenied:
             return String(localized: "未获得健康数据访问权限")
         case .dataNotAvailable:

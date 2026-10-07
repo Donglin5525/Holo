@@ -92,7 +92,7 @@ struct LineChartView: View {
         .animation(HoloAnimation.smooth, value: dataPoints.isEmpty)
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 14)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: - 图例
@@ -103,11 +103,11 @@ struct LineChartView: View {
                 Text("收支趋势")
                     .font(.holoLabel)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Text(subtitle)
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer(minLength: HoloSpacing.sm)
@@ -164,7 +164,7 @@ struct LineChartView: View {
                     x: .value("选中日期", point.date),
                     y: .value("选中金额", Double(truncating: amount(for: point) as NSDecimalNumber))
                 )
-                .foregroundStyle(Color.holoCardBackground)
+                .foregroundStyle(Color.holoToolSurface)
                 .symbolSize(66)
 
                 PointMark(
@@ -190,7 +190,7 @@ struct LineChartView: View {
                        let label = labelForAxisDate(date) {
                         Text(label)
                             .font(.system(size: 10))
-                            .foregroundStyle(Color.holoTextSecondary)
+                            .foregroundStyle(Color.holoToolTextSecondary)
                     }
                 }
             }
@@ -203,7 +203,7 @@ struct LineChartView: View {
                     if let val = value.as(Double.self) {
                         Text(formatAxisValue(val))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 40, alignment: .trailing)
                     }
                 }
@@ -251,7 +251,7 @@ struct LineChartView: View {
                    let lastLabel = labelForAxisDate(lastPoint.date) {
                     Text(lastLabel)
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.holoTextSecondary)
+                        .foregroundStyle(Color.holoToolTextSecondary)
                         .frame(width: plotFrame.width, alignment: .trailing)
                         .position(x: plotFrame.midX, y: plotFrame.maxY + 10)
                 }
@@ -285,7 +285,7 @@ struct LineChartView: View {
         VStack(spacing: 2) {
             Text(ChartTooltipDateLabel.string(for: point, points: dataPoints))
                 .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text("\(displayedType == .expense ? "-" : "+")\(NumberFormatter.compactCurrency(amount(for: point)))")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(lineColor)
@@ -294,7 +294,7 @@ struct LineChartView: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
         )
         .fixedSize()
@@ -377,11 +377,11 @@ struct LineChartView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(height: 142)
         .frame(maxWidth: .infinity)
@@ -402,7 +402,7 @@ struct LegendItem: View {
                 .frame(width: 8, height: 8)
             Text(label)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
                 .fixedSize()
         }
@@ -428,5 +428,5 @@ struct LegendItem: View {
         Spacer()
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

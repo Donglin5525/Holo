@@ -146,7 +146,7 @@ struct ChatView: View {
 
     var body: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             // 宽屏（iPad）才包 HStack 侧栏层；iPhone/窄屏不付这一层容器级联——
             // 真机主线程仅 1MB 栈，容器层级与按值复制的视图体开销乘在每一层上
@@ -534,8 +534,8 @@ struct ChatView: View {
         VStack(spacing: 0) {
             HStack(spacing: HoloSpacing.md) {
                 Text(sidePanelTitle(panel))
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
@@ -547,7 +547,7 @@ struct ChatView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .frame(width: 30, height: 30)
                         .contentShape(Rectangle())
                 }
@@ -559,7 +559,7 @@ struct ChatView: View {
             .padding(.vertical, HoloSpacing.sm)
 
             Rectangle()
-                .fill(Color.holoBorder.opacity(0.4))
+                .fill(Color.holoToolBorder.opacity(0.4))
                 .frame(height: 0.5)
 
             switch panel {
@@ -576,7 +576,7 @@ struct ChatView: View {
             }
         }
         .frame(width: 520)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -1029,7 +1029,7 @@ private struct ChatContentColumn: View {
             if let hint = viewModel.streamingStatusHint, viewModel.isStreaming {
                 Label(hint, systemImage: "sparkles")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
@@ -1106,12 +1106,12 @@ private struct ChatContentColumn: View {
                 .scaleEffect(0.8)
             Text(text)
                 .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
     }
 
     /// 目标规划收集期横幅：明示「输入会被规划消费」并提供唯一可靠的退出出口
@@ -1493,7 +1493,7 @@ private struct ChatMessageListPane: View {
                         .scaleEffect(0.68)
                     Text("正在加载更早的消息")
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .transition(.opacity)
             } else if viewModel.earlierHistoryLoadFailed {
@@ -1545,7 +1545,7 @@ private struct ChatMessageListPane: View {
 
                 Image(systemName: "chevron.down")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .frame(width: 36, height: 36)
             }
             // 视觉与热区同源：iOS26 下 plain 按钮热区收缩到文字，材质胶囊必须画在 label 内，
@@ -1555,7 +1555,7 @@ private struct ChatMessageListPane: View {
             .background(.ultraThinMaterial, in: Capsule())
             .overlay {
                 Capsule()
-                    .stroke(Color.holoTextSecondary.opacity(0.18), lineWidth: 0.5)
+                    .stroke(Color.holoToolTextSecondary.opacity(0.18), lineWidth: 0.5)
             }
             .contentShape(Capsule())
         }
@@ -1687,9 +1687,9 @@ private struct ChatNavBar: View {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(width: 32, height: 32)
-                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .background(Color.holoToolTextSecondary.opacity(0.1))
                     .cornerRadius(16)
             }
 
@@ -1697,7 +1697,7 @@ private struct ChatNavBar: View {
 
             Text("HOLO AI")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
@@ -1705,9 +1705,9 @@ private struct ChatNavBar: View {
             Button(action: onOpenSettings) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(width: 32, height: 32)
-                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .background(Color.holoToolTextSecondary.opacity(0.1))
                     .cornerRadius(16)
             }
             #else
@@ -1718,7 +1718,7 @@ private struct ChatNavBar: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .zIndex(1)
     }
 }
@@ -1736,20 +1736,20 @@ private struct ChatUnconfiguredView: View {
                 .foregroundColor(.holoPrimary)
 
             Text("HOLO AI 对话")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
 
             if isGranted {
                 // 已授权但服务不可用：保留网络提示
                 Text("AI 服务暂时不可用\n请稍后重试或检查网络连接")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
             } else {
                 // 未授权：说明真实原因并提供开启入口
                 Text("你还未开启 AI 数据处理授权\n开启后即可使用")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
 
                 Button(action: onOpenConsent) {
@@ -1785,7 +1785,7 @@ private struct ChatPageTabBar: View {
         }
         .frame(width: 190)
         .padding(3)
-        .background(Color.holoTextSecondary.opacity(0.09), in: Capsule())
+        .background(Color.holoToolTextSecondary.opacity(0.09), in: Capsule())
         .padding(.top, 2)
         .padding(.bottom, 6)
     }
@@ -1807,12 +1807,12 @@ private struct ChatPageTabBar: View {
         } label: {
             Text(title)
                 .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                .foregroundColor(isSelected ? .holoToolText : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
                 .background {
                     if isSelected {
-                        Capsule().fill(Color.holoCardBackground)
+                        Capsule().fill(Color.holoToolSurface)
                             .matchedGeometryEffect(id: "chatPageTabCapsule", in: pageTabNamespace)
                     }
                 }
@@ -1845,14 +1845,14 @@ private struct ChatMemoryNoticeBar: View {
                 Button(action: onTapPrimary) {
                     Label(snapshot.presentationText, systemImage: "brain.head.profile.fill")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                 }
                 .buttonStyle(.plain)
 
                 Button(action: onTapDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .padding(5)
                 }
                 .buttonStyle(.plain)
@@ -1869,7 +1869,7 @@ private struct ChatMemoryNoticeBar: View {
         } else if let notice = memoryNotice {
             Label(notice, systemImage: "brain.head.profile.fill")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(.ultraThinMaterial, in: Capsule())

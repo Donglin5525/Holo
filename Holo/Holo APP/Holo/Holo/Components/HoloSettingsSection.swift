@@ -3,7 +3,7 @@
 //  Holo
 //
 //  设置类页面统一卡片语言组件家族（2026-09-19 财务设置页重设计定稿）
-//  卡片外观统一走 DesignSystem 的 .holoCard()（16pt 圆角 + 描边 + 轻投影），
+//  卡片外观统一走 DesignSystem 的 .holoSurface()（16pt 圆角 + 描边 + 轻投影），
 //  图标底座统一 36pt 正圆 + 同色 12% 低透明底（深浅模式通用，同 CategoryIconBadge 做法）。
 //  推广约定：设置类页面的「区块标题 + 卡片 + 行」一律用本家族组装，
 //  禁止再手写 background/clipShape/shadow 三件套与散落的图标底座规格。
@@ -29,8 +29,8 @@ struct HoloSettingsSection<Content: View>: View {
             if let title {
                 HStack {
                     Text(title)
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                     Spacer()
                 }
                 .padding(.horizontal, HoloSpacing.lg)
@@ -42,7 +42,7 @@ struct HoloSettingsSection<Content: View>: View {
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.xs)
-            .holoCard()
+            .holoSurface()
             .padding(.horizontal, HoloSpacing.lg)
         }
     }
@@ -65,7 +65,7 @@ struct HoloSettingsRow<Trailing: View>: View {
         icon: String,
         iconColor: Color = .holoPrimary,
         title: String,
-        titleColor: Color = .holoTextPrimary,
+        titleColor: Color = .holoToolText,
         subtitle: String? = nil,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
@@ -87,12 +87,12 @@ struct HoloSettingsRow<Trailing: View>: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.holoBody)
+                    .holoText(.body)
                     .foregroundColor(titleColor)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
 
@@ -111,7 +111,7 @@ struct HoloSettingsChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
             .font(.system(size: 14, weight: .medium))
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
     }
 }
 
@@ -140,8 +140,8 @@ struct HoloSettingsFootnote: View {
 
     var body: some View {
         Text(text)
-            .font(.holoLabel)
-            .foregroundColor(.holoTextPlaceholder)
+            .holoText(.metadata)
+            .foregroundColor(.holoToolTextSecondary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, HoloSpacing.xs)

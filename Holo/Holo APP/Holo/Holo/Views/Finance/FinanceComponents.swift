@@ -132,16 +132,16 @@ struct SummaryCard: View {
                         .foregroundColor(iconColor)
                 }
                 Text(title)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             
             Spacer(minLength: 16)
             
             // 金额，留白呼吸（数字滚动：切月份/记账后金额平滑滚动到新值）
             Text(NumberFormatter.compactCurrency(amount))
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.sectionTitle)
+                .foregroundColor(.holoToolText)
                 .contentTransition(.numericText())
                 .animation(HoloAnimation.smooth, value: amount)
                 .minimumScaleFactor(0.7)
@@ -150,25 +150,7 @@ struct SummaryCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 136)
         .padding(HoloSpacing.lg) // 负空间：更大内边距
-        .background {
-            ZStack {
-                // 毛玻璃：半透明模糊层增加深度
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                // 微观渐变：浅色系薄层叠在毛玻璃上，不盖住模糊
-                LinearGradient(
-                    colors: [gradientStart, gradientEnd],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .opacity(0.6)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .stroke(strokeColor, lineWidth: 0.5) // 0.5px 半透明描边，去厚重边框
-        )
+.holoSurface()
     }
 }
 
@@ -187,9 +169,9 @@ struct DateDivider: View {
             
             Text(title)
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, HoloSpacing.md)
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
             
             VStack {
                 Divider()
@@ -292,8 +274,8 @@ struct TransactionRowView: View {
                     // 主标题 + 分期标签
                     HStack(spacing: 4) {
                         Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? String(localized: "未分类")))
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                             .lineLimit(1)
                             .layoutPriority(1)
 
@@ -321,20 +303,20 @@ struct TransactionRowView: View {
                         if let compactMetadataText {
                             Text(compactMetadataText)
                                 .font(.system(size: 11))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .lineLimit(1)
                         }
                     } else if showsDate {
                         Text(searchMetadataText)
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .lineLimit(1)
                     } else {
                         // 副标题：有备注显示备注，无备注不显示副标题
                         if hasRemark, let remark = transaction.remark {
                             Text(remark)
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .lineLimit(1)
                         }
 
@@ -342,7 +324,7 @@ struct TransactionRowView: View {
                         if let tag = FinanceProjectTagCache.lookup(transaction.financeProjectId) {
                             Text("\(tag.icon) \(tag.name)")
                                 .font(.system(size: 11))
-                                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                                .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                                 .lineLimit(1)
                         }
 
@@ -350,7 +332,7 @@ struct TransactionRowView: View {
                         if let account = transaction.account, !account.isDefault {
                             Text(account.name)
                                 .font(.system(size: 11))
-                                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                                .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                                 .lineLimit(1)
                         }
                     }
@@ -360,8 +342,8 @@ struct TransactionRowView: View {
 
                 // 金额：右侧对齐，空间不足时自动缩放
                 Text(transaction.formattedAmount)
-                    .font(.holoBody)
-                    .foregroundColor(transaction.transactionType == .expense ? .holoTextPrimary : .holoSuccess)
+                    .holoText(.body)
+                    .foregroundColor(transaction.transactionType == .expense ? .holoToolText : .holoSuccess)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                     .frame(alignment: .trailing)
@@ -378,7 +360,8 @@ struct TransactionRowView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(HoloPressStyle())
+        .holoRecordArrival(transaction.id, domain: .finance)
         .task(id: transaction.id) { await refreshRefundBadge() }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             Task { await refreshRefundBadge() }
@@ -420,16 +403,16 @@ struct EmptyStateView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "wallet.pass")
                 .font(.system(size: 64, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.3))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.3))
 
             Text(isFirstRecord ? String(localized: "暂无交易记录") : String(localized: "这一天还没有记录"))
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.body)
+                .foregroundColor(.holoToolTextSecondary)
 
             if isFirstRecord {
                 Text(String(localized: "说一句话或手动记一笔，都可以开始"))
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                     .multilineTextAlignment(.center)
 
                 if let ctaTitle, let ctaAction {
@@ -445,7 +428,7 @@ struct EmptyStateView: View {
                             )
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HoloPressStyle())
                     .padding(.top, 4)
                     .accessibilityIdentifier("financeEmptyCta")
                 }

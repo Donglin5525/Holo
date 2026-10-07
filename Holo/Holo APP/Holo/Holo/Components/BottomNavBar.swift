@@ -82,7 +82,7 @@ struct BottomNavBar: View {
                         RoundedRectangle(cornerRadius: HoloRadius.xl)
                             .stroke(Color.holoBorder, lineWidth: 1)
                     )
-                    .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 5)
+                    .shadow(color: HoloShadow.card, radius: 8, x: 0, y: 3)
             )
         }
         .padding(.horizontal, HoloSpacing.lg)
@@ -101,14 +101,15 @@ struct BottomNavBar: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
-                    .symbolEffect(.bounce, value: isSelected)
+                    .foregroundColor(isSelected ? .holoToolAction : .holoToolTextSecondary)
+
 
                 Text(title)
                     .font(.holoTinyLabel)
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isSelected ? .holoToolAction : .holoToolTextSecondary)
             }
         }
+        .buttonStyle(HoloPressStyle())
     }
 
     /// 中央 AI 按钮
@@ -127,7 +128,7 @@ struct BottomNavBar: View {
                         Circle()
                             .fill(Color.holoPrimary)
                             .frame(width: 56, height: 56)
-                            .shadow(color: .holoPrimary.opacity(0.3), radius: 20, x: 0, y: 0)
+                            .shadow(color: HoloShadow.card, radius: 8, x: 0, y: 2)
 
                         // AI 图标
                         Image(systemName: "sparkles")
@@ -135,14 +136,10 @@ struct BottomNavBar: View {
                             .foregroundColor(.white)
                     }
 
-                    // 小黄点指示器：仅在首页时显示（出现/消失带轻微缩放过渡）
-                    Circle()
-                        .fill(selectedTab == .ai ? Color.holoChart8 : .clear)
-                        .frame(width: 6, height: 6)
-                        .scaleEffect(selectedTab == .ai ? 1 : 0.3)
-                        .animation(HoloAnimation.snappy, value: selectedTab)
+
                 }
             }
+            .buttonStyle(HoloPressStyle())
         }
         .offset(y: -24)
     }

@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - HealthDateNavigator
 
 struct HealthDateNavigator: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedDate: Date
     @State private var showCalendar = false
 
@@ -39,11 +40,11 @@ struct HealthDateNavigator: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
-            .background(Color.holoCardBackground.opacity(0.55))
+            .background(Color.holoToolSurface.opacity(0.55))
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(Color.holoBorder.opacity(0.7), lineWidth: 1)
+                    .stroke(Color.holoToolBorder.opacity(0.7), lineWidth: 1)
             )
         }
         .sheet(isPresented: $showCalendar) {
@@ -59,18 +60,18 @@ struct HealthDateNavigator: View {
             HStack(spacing: 5) {
                 Image(systemName: "calendar")
                     .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.7))
 
                 Text(dateDisplayText)
                     .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
             .frame(minWidth: 118)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
     }
 
     private func navigationButton(
@@ -83,17 +84,17 @@ struct HealthDateNavigator: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(isDisabled ? .holoTextSecondary.opacity(0.32) : .holoTextSecondary)
+                .foregroundColor(isDisabled ? .holoToolTextSecondary.opacity(0.32) : .holoToolTextSecondary)
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
         .disabled(isDisabled)
     }
 
     private var todayButton: some View {
         Button {
-            withAnimation(HoloAnimation.standard) {
+            withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                 selectedDate = Calendar.current.startOfDay(for: Date())
             }
         } label: {
@@ -105,7 +106,7 @@ struct HealthDateNavigator: View {
                 .background(Color.holoPrimary.opacity(0.1))
                 .clipShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
     }
 
     private var dateDisplayText: String {
@@ -128,7 +129,7 @@ struct HealthDateNavigator: View {
 
     private func navigateDate(_ direction: Int) {
         guard let newDate = Self.steppedDate(from: selectedDate, forward: direction > 0) else { return }
-        withAnimation(HoloAnimation.standard) {
+        withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
             selectedDate = newDate
         }
     }
@@ -147,6 +148,7 @@ struct HealthDateNavigator: View {
 
 /// 按天跳转日历弹层：点选任意历史日期立即生效并关闭，未来日期置灰不可选
 private struct HealthDatePickerSheet: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedDate: Date
     @Environment(\.dismiss) private var dismiss
 
@@ -155,7 +157,7 @@ private struct HealthDatePickerSheet: View {
         Binding(
             get: { selectedDate },
             set: { newValue in
-                withAnimation(HoloAnimation.standard) {
+                withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                     selectedDate = Calendar.current.startOfDay(for: newValue)
                 }
                 dismiss()
@@ -186,7 +188,7 @@ private struct HealthDatePickerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        withAnimation(HoloAnimation.standard) {
+                        withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                             selectedDate = Calendar.current.startOfDay(for: Date())
                         }
                         dismiss()

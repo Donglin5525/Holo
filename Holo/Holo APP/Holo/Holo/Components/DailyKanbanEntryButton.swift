@@ -44,11 +44,17 @@ struct DailyKanbanEntryButton: View {
 
     /// 统一刷新三环进度（仅在数据变更时调用，而非每次 body 求值）
     private func refreshProgress() {
-        let visibleIds = displaySettings.dashboardVisibleHabitIds
         let t = todoRepo.getDailyKanbanProgress()
-        let h = habitRepo.getTodayCheckInProgress(
-            visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
-        )
+        // 显式全部关闭（configured 标记）→ 看板进度归零，不回退成「显示全部」
+        let h: (completed: Int, total: Int)
+        if let visibleIds = displaySettings.effectiveDashboardVisibleIds(), visibleIds.isEmpty {
+            h = (0, 0)
+        } else {
+            let visibleIds = displaySettings.dashboardVisibleHabitIds
+            h = habitRepo.getTodayCheckInProgress(
+                visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
+            )
+        }
         cachedTaskPercent = t.total > 0 ? Double(t.completed) / Double(t.total) : 0
         cachedHabitPercent = h.total > 0 ? Double(h.completed) / Double(h.total) : 0
         let overall = Double(t.total + h.total)

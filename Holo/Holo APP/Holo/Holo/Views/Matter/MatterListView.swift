@@ -35,7 +35,7 @@ struct MatterListView: View {
             MatterListContent(onDiscussMatter: { matterID in
                 onDiscussMatter?(matterID)
             }, scope: .single(selectedScope))
-            .background(Color.holoBackground.ignoresSafeArea())
+            .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle(Text(verbatim: "正在推进"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {

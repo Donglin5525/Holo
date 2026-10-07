@@ -38,7 +38,7 @@ struct VitalsView: View {
                 .holoContentColumn(paintsBackground: false)
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             dismiss()
@@ -62,9 +62,9 @@ struct VitalsView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 40, height: 40)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
                         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
                 }
@@ -72,11 +72,11 @@ struct VitalsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("身体状态")
-                        .font(.holoTitle)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.pageTitle)
+                        .foregroundColor(.holoToolText)
                     Text("与你自己的 30 天基线比较")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 Spacer()
             }
@@ -111,12 +111,12 @@ struct VitalsView: View {
 
             Text("心率偏高与 HRV 偏低同时出现，常与疲劳或恢复不足相关，可适当降低训练强度。均与自己的基线比较；趋势观察，非医疗建议。数据来自 Apple Watch。")
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(HoloSpacing.md)
-                .background(Color.holoNestedCardBackground)
+                .background(Color.holoToolInset)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
     }
@@ -125,11 +125,11 @@ struct VitalsView: View {
         HStack(spacing: HoloSpacing.md) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolText)
                 Text(subtitle)
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(2)
             }
             .frame(width: 118, alignment: .leading)
@@ -140,22 +140,22 @@ struct VitalsView: View {
                 if let latest = values.last {
                     Text(String(format: "%.0f", latest.value))
                         .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     deviationText(latest: latest.value, baseline: baseline(values))
                         .font(.system(size: 10, weight: .semibold))
                 } else {
                     Text("—")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text("无数据")
                         .font(.system(size: 10))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
             .frame(width: 72, alignment: .trailing)
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     private func sparkline(values: [(date: Date, value: Double)]) -> some View {
@@ -183,7 +183,7 @@ struct VitalsView: View {
                         path.move(to: CGPoint(x: 0, y: y))
                         path.addLine(to: CGPoint(x: proxy.size.width, y: y))
                     }
-                    .stroke(Color.holoTextSecondary.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .stroke(Color.holoToolTextSecondary.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                 }
             }
         }
@@ -197,14 +197,14 @@ struct VitalsView: View {
                 let delta = latest - baseline
                 let magnitude = abs(delta) / max(baseline, 0.001)
                 if magnitude < Self.baselineBandRatio {
-                    Text("基线附近").foregroundColor(.holoTextSecondary)
+                    Text("基线附近").foregroundColor(.holoToolTextSecondary)
                 } else if delta > 0 {
                     Text("高于基线 \(String(format: "%.1f", delta)) ↗").foregroundColor(.holoChart4)
                 } else {
                     Text("低于基线 \(String(format: "%.1f", -delta)) ↘").foregroundColor(.holoChart4)
                 }
             } else {
-                Text("基线不足").foregroundColor(.holoTextSecondary)
+                Text("基线不足").foregroundColor(.holoToolTextSecondary)
             }
         }
     }
@@ -242,15 +242,15 @@ struct VitalsView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "applewatch")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无体征数据")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
 
             Text("静息心率、心率变异性、夜间呼吸频率需要佩戴 Apple Watch 记录。已佩戴但仍为空，可尝试重新授权健康数据读取。")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -259,7 +259,7 @@ struct VitalsView: View {
                 repository.requestAuthorization()
             } label: {
                 Text("重新授权健康数据")
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(.white)
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.vertical, 10)

@@ -127,11 +127,8 @@ struct ShineSweepIfEnabled: ViewModifier {
                     }
                 )
                 .mask { content }
-                .onAppear {
-                    withAnimation(.linear(duration: 2.6).repeatForever(autoreverses: false)) {
-                        x = 1.4
-                    }
-                }
+                .holoRepeatingPhase($x, from: -1.4, to: 1.4,
+                                    animation: .linear(duration: 2.6).repeatForever(autoreverses: false))
         } else {
             content
         }

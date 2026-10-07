@@ -85,6 +85,8 @@ struct KeypadButton: View {
 
 /// 键盘按钮按压缩放动画 + 品牌色按压反馈
 struct KeypadButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
     /// 按压时叠加的颜色（默认品牌橙，✓ 用黑色遮罩模拟按下变深）
     var pressedTint: Color = Color.holoPrimary.opacity(0.16)
 
@@ -95,7 +97,7 @@ struct KeypadButtonStyle: ButtonStyle {
                     .fill(pressedTint)
                     .opacity(configuration.isPressed ? 1 : 0)
             }
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(HoloAnimation.quick, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && motionEnabled && !reduceMotion ? HoloAnimation.pressScale : 1)
+            .animation(motionEnabled && !reduceMotion ? HoloAnimation.quick : nil, value: configuration.isPressed)
     }
 }

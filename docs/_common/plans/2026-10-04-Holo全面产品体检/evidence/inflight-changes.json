@@ -1,0 +1,57 @@
+[
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Models/FinanceProjectRepository.swift",
+    "initial": "ab41a3ce9f56d29c7fb2c9cbab9351967a4fbced9c2c8b6210d24b38ee310460",
+    "observed": "35d74106793b7c0b6569c92b905c16ee14e6a5c17e42ac799326498d92d95e80"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Models/FinanceRepository+Aggregation.swift",
+    "initial": "7beb631eb0575f1223cea7a520bcf3495446338f430bd438411cbde96abe9d19",
+    "observed": "d1845e7e35db2ec7728ea754558ac38c6a52256922ee4d7e3f422fbdc82db26c"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Models/FinanceAggregation.swift",
+    "initial": "01d8a121eb4330bb7a2fdacc6a3d5e4910cc505a58633c76aaecd2650b59a9d4",
+    "observed": "39c640c1aba245459cabcdff8ecb5492305fbff44d77f3b038ed66bafe36d193"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Models/FinanceAnalysisState.swift",
+    "initial": "49fe2af7cabb5005fe198b16b06118fb58f216612042af168ce46e0a0748f652",
+    "observed": "f8cdcfe0a2743a3b059f045c9efb20739b5e1e67a314ae0865f5aef7f3f1a4f2"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Views/Finance/FinanceProjectListView.swift",
+    "initial": "00c52d7f5ad96ffc983b03bf83efc811a5453a664408a875e86bcfd39841ffba",
+    "observed": "57b2465c4507017f1ac59c821ccb0c745d4a109e65a9e9f80ee8a41bed7240ea"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Views/Finance/FinanceProjectDetailView.swift",
+    "initial": "f5111eb85029cf06ff86cc954b83d447b13f7498c1653811a7dc6d0cf9f7f4a7",
+    "observed": "130440513496dadf55c9962dafb2bfea04b44a362be68501f5e820d8391b4100"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Views/Finance/Analysis/AccountTabView.swift",
+    "initial": "34d3838f9f32991b293ddb9172e1197f2de4da25af181189b142c2dc6da2ecec",
+    "observed": "95a0b56aaeb823ba3ee30dab2a8720ddec535560ce915b3a4bafec03d3fd0069"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Views/Finance/Analysis/ProjectTabView.swift",
+    "initial": "d862406e6551ec943199ba244560f6670722631d0c8a92677d6a2ba1a5b733c3",
+    "observed": "f5ce864cfd0f658cf9ebed70f669d13215c92ffcbed32b755f939319d025a79d"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Views/Finance/Analysis/CategoryTabView.swift",
+    "initial": "9eadbbb007b27f9806a9aa3520c09b9d6ab6354a1fca4ad7f78b0e7ab4953c5b",
+    "observed": "fea141d7108f0c03c8ce1d3d083e35a9a9fd0d58534e8b0a964783680879560c"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Views/Finance/Analysis/Components/ScopeInsightSections.swift",
+    "initial": "a2fbf94a447080f780f51411aceff068ef310b6f910c6fb12a80aaa7277dc434",
+    "observed": "f519d959226f3317acb8da7956be7a4ae1daf5ec6c0df5e5f905af58cf5fadf5"
+  },
+  {
+    "path": "Holo/Holo APP/Holo/Holo/Services/Finance/ReceiptBooking/ReceiptBookingCoordinator.swift",
+    "initial": "43a4c276db38c67de502008ea29295175fab74fa571715e57826cc7edf27bb41",
+    "observed": "f8b6c7cc2d2357fdc282a183a4fd96d188bf7e9b4e7c457212ed7d28a7a37182"
+  }
+]

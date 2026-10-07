@@ -38,7 +38,7 @@ struct TaskChatCard: View {
             if let description = data.description, !description.isEmpty {
                 Text(description)
                     .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(3)
                     .strikethrough(isDeleted)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -54,7 +54,7 @@ struct TaskChatCard: View {
                                 .padding(.top, 3)
                             Text(item)
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.holoToolText)
                                 .lineLimit(2)
                         }
                     }
@@ -66,7 +66,7 @@ struct TaskChatCard: View {
                                 .padding(.top, 3)
                             Text(item)
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .strikethrough()
                                 .lineLimit(2)
                         }
@@ -74,7 +74,7 @@ struct TaskChatCard: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.holoTextSecondary.opacity(0.06))
+                .background(Color.holoToolTextSecondary.opacity(0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else if !data.subtasks.isEmpty {
                 subtasksBlock
@@ -111,10 +111,10 @@ struct TaskChatCard: View {
                             } label: {
                                 Text("取消")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.holoTextSecondary)
+                                    .foregroundColor(.holoToolTextSecondary)
                                     .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(Color.holoTextSecondary.opacity(0.1))
+                                    .frame(minHeight: 44)
+                                    .background(Color.holoToolTextSecondary.opacity(0.1))
                                     .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
@@ -126,9 +126,9 @@ struct TaskChatCard: View {
                         } label: {
                             Text(confirmButtonText)
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(.holoToolOnAction)
                                 .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
+                                .frame(minHeight: 44)
                                 .background(confirmButtonColor)
                                 .clipShape(Capsule())
                         }
@@ -171,12 +171,12 @@ struct TaskChatCard: View {
             ForEach(Array(data.subtasks.prefix(4).enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .top, spacing: 9) {
                     Circle()
-                        .stroke(Color.holoTextSecondary.opacity(0.5), lineWidth: 1.3)
+                        .stroke(Color.holoToolTextSecondary.opacity(0.5), lineWidth: 1.3)
                         .frame(width: 10, height: 10)
                         .padding(.top, 4)
                     Text(item)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(2)
                         .strikethrough(isDeleted)
                 }
@@ -184,12 +184,12 @@ struct TaskChatCard: View {
             if data.subtasks.count > 4 {
                 Text("还有 \(data.subtasks.count - 4) 项")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoTextSecondary.opacity(0.06))
+        .background(Color.holoToolTextSecondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -218,7 +218,7 @@ struct TaskChatCard: View {
                 icon: "bell",
                 label: String(localized: "提醒"),
                 value: reminderValueText,
-                valueTint: reminderValueIsEmpty ? .holoTextSecondary.opacity(0.7) : .holoTextPrimary,
+                valueTint: reminderValueIsEmpty ? .holoToolTextSecondary.opacity(0.7) : .holoToolText,
                 action: { onEditReminders?() }
             )
             settingsDivider
@@ -226,7 +226,7 @@ struct TaskChatCard: View {
                 icon: "tray.full",
                 label: String(localized: "清单"),
                 value: listValueText,
-                valueTint: listWillCreate ? .holoPrimary : .holoTextPrimary,
+                valueTint: listWillCreate ? .holoPrimary : .holoToolText,
                 action: { onEditList?() }
             )
             settingsDivider
@@ -238,7 +238,7 @@ struct TaskChatCard: View {
             )
         }
         .padding(.vertical, 4)
-        .background(Color.holoTextSecondary.opacity(0.05))
+        .background(Color.holoToolTextSecondary.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
@@ -252,7 +252,7 @@ struct TaskChatCard: View {
         icon: String,
         label: String,
         value: String,
-        valueTint: Color = .holoTextPrimary,
+        valueTint: Color = .holoToolText,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -264,7 +264,7 @@ struct TaskChatCard: View {
 
                 Text(label)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Spacer(minLength: HoloSpacing.md)
 
@@ -277,7 +277,7 @@ struct TaskChatCard: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             }
             .frame(minHeight: 40)
             .padding(.horizontal, 12)
@@ -373,10 +373,10 @@ struct TaskChatCard: View {
 
     private var headerBadge: CardBadge? {
         if data.isCancelled {
-            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoToolTextSecondary)
         }
         if data.isConfirming {
-            return CardBadge(text: String(localized: "处理中"), color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "处理中"), color: .holoToolTextSecondary)
         }
         if data.requiresConfirmation {
             if isDeleteMode { return CardBadge(text: String(localized: "待删除"), color: .holoError) }
@@ -394,6 +394,6 @@ struct TaskChatCard: View {
 
     private var confirmButtonColor: Color {
         if isDeleteMode { return .holoError }
-        return .holoPrimary
+        return .holoToolAction
     }
 }

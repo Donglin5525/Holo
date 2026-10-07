@@ -40,7 +40,7 @@ struct MatterDetailView: View {
                 content(matter)
             }
         }
-        .background(Color.holoBackground.ignoresSafeArea())
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle(matter?.title ?? String(localized: "详情"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -197,7 +197,7 @@ struct MatterDetailView: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemGroupedBackground))
+                .background(Color.holoNestedCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             } else if hasActiveLoops {
                 VStack(alignment: .leading, spacing: 8) {
@@ -209,7 +209,7 @@ struct MatterDetailView: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemGroupedBackground))
+                .background(Color.holoNestedCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
                 VStack(alignment: .leading, spacing: 10) {
@@ -275,7 +275,7 @@ struct MatterDetailView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.tertiarySystemGroupedBackground))
+        .background(Color.holoNestedCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -709,7 +709,7 @@ struct MatterDetailView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
-        .background(Color.holoBackground.ignoresSafeArea(edges: .bottom))
+        .background(Color.holoToolBackground.ignoresSafeArea(edges: .bottom))
     }
 
     // MARK: - 空态 / 确认弹窗

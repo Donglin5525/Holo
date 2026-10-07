@@ -44,11 +44,13 @@ struct AnniversaryDetailView: View {
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             onBack()
         }
-        .onAppear {
-            HapticManager.medium()
-            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) { orbDrift = 1.0 }
-            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) { arcRotation = 360 }
-        }
+        .onAppear { HapticManager.medium() }
+        .holoRepeatingPhase($orbDrift, from: 0, to: 1,
+                            animation: .easeInOut(duration: 3).repeatForever(autoreverses: true),
+                            enabled: !showEdit && !showShare)
+        .holoRepeatingPhase($arcRotation, from: 0, to: 360,
+                            animation: .linear(duration: 60).repeatForever(autoreverses: false),
+                            enabled: !showEdit && !showShare)
         // 纪念日被删除（如在编辑表单里删除）时自动关闭详情页，避免展示已删数据
         .onReceive(NotificationCenter.default.publisher(for: .anniversaryDataDidChange)) { _ in
             if anniversary.isSoftDeleted || anniversary.isArchived {

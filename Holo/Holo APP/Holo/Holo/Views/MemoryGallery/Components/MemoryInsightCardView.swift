@@ -43,7 +43,7 @@ struct MemoryInsightCardView: View {
 
                 Text(card.title)
                     .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
@@ -73,7 +73,7 @@ struct MemoryInsightCardView: View {
             // 正文
             Text(card.body)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(isExpanded ? nil : 2)
                 .textSelection(.enabled)
 
@@ -169,7 +169,7 @@ struct MemoryInsightCardView: View {
             ForEach(card.evidence) { ev in
                 HStack(spacing: HoloSpacing.xs) {
                     Circle()
-                        .fill(Color.holoBorder)
+                        .fill(Color.holoToolBorder)
                         .frame(width: 4, height: 4)
 
                     Text(ev.label)
@@ -210,7 +210,7 @@ struct MemoryInsightCardView: View {
         case .thought: return .holoPrimary
         case .milestone: return .holoPrimary
         case .crossDomain: return .holoPrimary
-        case .overview: return .holoTextSecondary
+        case .overview: return .holoToolTextSecondary
         case .anomaly:
             switch anomalySeverity {
             case .critical: return .red
@@ -224,11 +224,11 @@ struct MemoryInsightCardView: View {
         if card.type == .anomaly {
             return cardColor.opacity(0.07)
         }
-        return Color.holoCardBackground
+        return Color.holoToolSurface
     }
 
     private var cardBorderColor: Color {
-        card.type == .anomaly ? cardColor.opacity(0.28) : Color.holoBorder.opacity(0.45)
+        card.type == .anomaly ? cardColor.opacity(0.28) : Color.holoToolBorder.opacity(0.45)
     }
 
     // MARK: - Action Helpers

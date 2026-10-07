@@ -155,6 +155,7 @@ struct OnboardingPrimaryButton: View {
                 .background(Color.holoPrimary)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
+        .buttonStyle(HoloPressStyle())
         .accessibilityLabel(title)
     }
 }
@@ -171,6 +172,7 @@ struct OnboardingSecondaryTextButton: View {
                 .foregroundColor(.holoTextSecondary)
                 .frame(minHeight: 44)
         }
+        .buttonStyle(HoloPressStyle())
         .accessibilityLabel(title)
     }
 }

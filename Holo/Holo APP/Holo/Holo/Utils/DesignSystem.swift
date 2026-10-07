@@ -715,6 +715,7 @@ enum HoloActionRole {
 
 /// 只负责外观和按压反馈，不附加保存、重试或触觉等业务副作用。
 struct HoloActionStyle: ButtonStyle {
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
     let role: HoloActionRole
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -733,8 +734,8 @@ struct HoloActionStyle: ButtonStyle {
                     .strokeBorder(role == .secondary ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
             }
             .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.5)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
-            .animation(reduceMotion ? nil : HoloAnimation.quick, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && motionEnabled && !reduceMotion ? HoloAnimation.pressScale : 1)
+            .animation(reduceMotion || !motionEnabled ? nil : HoloAnimation.quick, value: configuration.isPressed)
     }
 
     private var foreground: Color {

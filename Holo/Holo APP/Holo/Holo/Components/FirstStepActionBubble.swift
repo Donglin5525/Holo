@@ -34,11 +34,8 @@ struct FirstStepActionBubble: View {
             bubble
                 .offset(y: -80)
         }
-        .onAppear {
-            withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
-                haloRotation = 360
-            }
-        }
+        .holoRepeatingPhase($haloRotation, from: 0, to: 360,
+                            animation: .linear(duration: 14).repeatForever(autoreverses: false))
     }
 
     private var bubble: some View {
@@ -55,17 +52,17 @@ struct FirstStepActionBubble: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(HoloPressStyle())
             .accessibilityIdentifier("firstStepBubble.main")
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.holoTextSecondary.opacity(0.55))
-                    .padding(6)
+                    .frame(width: 44, height: 44)
                     .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(HoloPressStyle())
             .accessibilityLabel(String(localized: "关闭新手引导"))
             .accessibilityIdentifier("firstStepBubble.dismiss")
         }

@@ -1,0 +1,48 @@
+# 本轮测试输出摘要（完整日志与xcresult在技术附录注明）
+
+
+## 后端全量现有测试
+
+ℹ tests 484
+ℹ pass 483
+ℹ fail 1
+ℹ skipped 0
+ℹ duration_ms 10263.552833
+  ❌ IntentDescriptor.swift 与后端 intents.json 漂移——请运行 generate-intent-descriptors.mjs 重新生成
+    output: [ null, '', '❌ IntentDescriptor.swift 与后端 intents.json 漂移——请运行 generate-intent-descriptors.mjs 重新生成\n' ],
+    stderr: '❌ IntentDescriptor.swift 与后端 intents.json 漂移——请运行 generate-intent-descriptors.mjs 重新生成\n'
+
+## iOS专项测试与旧旅程用例
+
+Test Suite 'FinanceReconciliationTests' passed at 2026-10-04 00:48:12.280.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 0.202 (0.207) seconds
+Test Suite 'HoloTaskExecutionServiceTests' passed at 2026-10-04 00:48:12.475.
+	 Executed 22 tests, with 0 failures (0 unexpected) in 0.190 (0.195) seconds
+Test Suite 'HoloTodayFocusResolverTests' passed at 2026-10-04 00:48:12.544.
+	 Executed 26 tests, with 0 failures (0 unexpected) in 0.064 (0.069) seconds
+Test Suite 'HoloTests.xctest' passed at 2026-10-04 00:48:12.544.
+	 Executed 71 tests, with 0 failures (0 unexpected) in 0.456 (0.471) seconds
+Test Suite 'Selected tests' passed at 2026-10-04 00:48:12.544.
+	 Executed 71 tests, with 0 failures (0 unexpected) in 0.456 (0.472) seconds
+Test Case '-[HoloUITests.G1JourneyWalkthroughUITests testJ1BookingFormReachable]' failed (20.687 seconds).
+Test Case '-[HoloUITests.G1JourneyWalkthroughUITests testJ2ThoughtFullCycle]' failed (46.033 seconds).
+Test Case '-[HoloUITests.G1JourneyWalkthroughUITests testJ3TaskCreateAndReadback]' failed (26.891 seconds).
+Test Suite 'G1JourneyWalkthroughUITests' failed at 2026-10-04 00:49:52.679.
+	 Executed 3 tests, with 7 failures (0 unexpected) in 93.610 (93.612) seconds
+Test Suite 'TodayReliefUITests' passed at 2026-10-04 00:50:43.026.
+	 Executed 1 test, with 0 failures (0 unexpected) in 50.346 (50.346) seconds
+Test Suite 'HoloUITests.xctest' failed at 2026-10-04 00:50:43.026.
+	 Executed 4 tests, with 7 failures (0 unexpected) in 143.956 (143.960) seconds
+Test Suite 'Selected tests' failed at 2026-10-04 00:50:43.026.
+	 Executed 4 tests, with 7 failures (0 unexpected) in 143.956 (143.960) seconds
+** TEST FAILED **
+
+## 视觉V2复核
+
+Test Suite 'HoloVisualV2SmokeUITests' passed at 2026-10-04 00:54:19.398.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 82.630 (82.632) seconds
+Test Suite 'HoloUITests.xctest' passed at 2026-10-04 00:54:19.399.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 82.630 (82.633) seconds
+Test Suite 'Selected tests' passed at 2026-10-04 00:54:19.399.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 82.630 (82.633) seconds
+** TEST EXECUTE SUCCEEDED **

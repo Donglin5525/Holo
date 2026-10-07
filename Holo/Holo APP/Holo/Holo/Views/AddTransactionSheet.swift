@@ -76,8 +76,6 @@ struct AddTransactionSheet: View {
     /// 是否正在删除
     @State var isDeleting: Bool = false
 
-    /// 光标闪烁动画
-    @State var cursorOpacity: Double = 1.0
 
     /// 是否显示未保存修改确认弹窗
     @State var showDismissAlert: Bool = false
@@ -220,7 +218,7 @@ struct AddTransactionSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.holoBackground.ignoresSafeArea()
+                Color.holoToolBackground.ignoresSafeArea()
                     // 票根选图服务（系统相册/相机页；来源选择走 receiptSourcePopup）
                     .receiptImagePickerServices(
                         showPhotoPicker: $showReceiptPhotoPicker,
@@ -344,7 +342,6 @@ struct AddTransactionSheet: View {
             accounts = repository.getAccounts(includeArchived: false)
             financeProjects = FinanceProjectRepository.shared.activeProjects()
             loadQuickTags(for: selectedCategory)
-            startCursorAnimation()
             reloadReceiptItems()
             Task { await loadCategories() }
 
@@ -441,7 +438,7 @@ struct AddTransactionSheet: View {
         ZStack {
             Text(isEditMode ? String(localized: "编辑交易") : String(localized: "记一笔"))
                 .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             HStack {
                 Button {
@@ -453,9 +450,9 @@ struct AddTransactionSheet: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .frame(width: 32, height: 32)
-                        .background(Color.holoBackground)
+                        .background(Color.holoToolBackground)
                         .clipShape(Circle())
                 }
 
@@ -468,9 +465,9 @@ struct AddTransactionSheet: View {
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 32, height: 32)
-                            .background(Color.holoBackground)
+                            .background(Color.holoToolBackground)
                             .clipShape(Circle())
                     }
                 }
@@ -483,14 +480,14 @@ struct AddTransactionSheet: View {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .frame(width: 32, height: 32)
-                            .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                            .background(canSave ? Color.holoPrimary : Color.holoToolTextSecondary.opacity(0.3))
                             .clipShape(Circle())
                     } else {
                         Image(systemName: "checkmark")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
                             .frame(width: 32, height: 32)
-                            .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                            .background(canSave ? Color.holoPrimary : Color.holoToolTextSecondary.opacity(0.3))
                             .clipShape(Circle())
                     }
                 }
@@ -502,7 +499,7 @@ struct AddTransactionSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
     }
 
     /// 顶部紧凑输入区（金额 + 名称）
@@ -526,7 +523,7 @@ struct AddTransactionSheet: View {
             HStack(spacing: 6) {
                 Text(amountString == "0" ? String(localized: "金额") : String(localized: "¥ \(displayAmountString)"))
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(amountString == "0" ? .holoTextSecondary : .holoTextPrimary)
+                    .foregroundColor(amountString == "0" ? .holoToolTextSecondary : .holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
 
@@ -534,17 +531,17 @@ struct AddTransactionSheet: View {
                     Rectangle()
                         .fill(Color.holoPrimary)
                         .frame(width: 2, height: 20)
-                        .opacity(cursorOpacity)
+                        .holoAmbientOpacity()
                 }
 
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 14)
             .frame(height: 48)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(showNumericKeypad ? Color.holoPrimary.opacity(0.75) : Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+                    .stroke(showNumericKeypad ? Color.holoPrimary.opacity(0.75) : Color.holoToolTextSecondary.opacity(0.12), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
@@ -556,7 +553,7 @@ struct AddTransactionSheet: View {
         HStack(spacing: 6) {
             TextField("名称", text: $note)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .focused($isNoteFocused)
                 .lineLimit(1)
                 .onTapGesture {
@@ -573,17 +570,17 @@ struct AddTransactionSheet: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 15))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 14)
         .frame(height: 48)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(isNoteFocused ? Color.holoPrimary.opacity(0.75) : Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+                .stroke(isNoteFocused ? Color.holoPrimary.opacity(0.75) : Color.holoToolTextSecondary.opacity(0.12), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
@@ -623,7 +620,7 @@ struct AddTransactionSheet: View {
                 .foregroundColor(.holoError)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
     }
@@ -665,8 +662,6 @@ struct RefundEntrySheet: View {
     @State private var isSaving = false
     /// 计算键盘显隐（金额行点击唤起，其他输入聚焦时收起）
     @State private var showKeypad = false
-    /// 金额输入光标闪烁
-    @State private var cursorOpacity: Double = 1.0
     /// 退款层内就地编辑原交易（弹通用编辑表单，东林 9-26：已退款记录也要能改原信息）
     @State private var showOriginalEditor = false
     @FocusState private var remarkFocused: Bool
@@ -698,7 +693,7 @@ struct RefundEntrySheet: View {
                         }
                         Text(String(localized: "退款单独成一笔流水，自动冲减\(original.category?.name ?? "原")分类支出；原交易金额保持不变。"))
                             .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .padding(HoloSpacing.lg)
                 }
@@ -707,7 +702,7 @@ struct RefundEntrySheet: View {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(editingRefund == nil ? String(localized: "记退款") : String(localized: "编辑退款"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -730,7 +725,6 @@ struct RefundEntrySheet: View {
         }
         .presentationDetents([.large])
         .task { await load() }
-        .onAppear { startCursorAnimation() }
         .onChange(of: remarkFocused) { _, focused in
             if focused { showKeypad = false }
         }
@@ -758,11 +752,11 @@ struct RefundEntrySheet: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(original.note?.isEmpty == false ? original.note! : (original.category?.name ?? String(localized: "未分类")))
                     .font(.holoBody.weight(.semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                 Text("\(shortDateText(original.date)) · \(original.category?.name ?? "") · \(original.account?.name ?? "")")
                     .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
             }
             Spacer(minLength: HoloSpacing.sm)
@@ -773,7 +767,7 @@ struct RefundEntrySheet: View {
             } label: {
                 Image(systemName: "pencil")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(Color.holoNestedCardBackground))
             }
@@ -781,10 +775,10 @@ struct RefundEntrySheet: View {
             // formattedAmount 自带货币符号，不要再拼 ¥（会双符号）
             Text(original.formattedAmount)
                 .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
         .padding(HoloSpacing.md)
-        .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoCardBackground))
+        .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoToolSurface))
     }
 
     /// 退款金额 / 到账日期 / 到账账户 / 备注
@@ -797,20 +791,20 @@ struct RefundEntrySheet: View {
                 HStack {
                     Text(String(localized: "退款金额"))
                         .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Spacer()
                     Text(amountText == "0" || amountText.isEmpty
                          ? String(localized: "¥ 0")
                          : String(localized: "¥ \(amountText)"))
                         .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(amountText == "0" || amountText.isEmpty ? .holoTextSecondary : .holoPrimaryDark)
+                        .foregroundColor(amountText == "0" || amountText.isEmpty ? .holoToolTextSecondary : .holoPrimaryDark)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     if showKeypad {
                         Rectangle()
                             .fill(Color.holoPrimary)
                             .frame(width: 2, height: 22)
-                            .opacity(cursorOpacity)
+                            .holoAmbientOpacity()
                     }
                 }
                 .contentShape(Rectangle())
@@ -823,7 +817,7 @@ struct RefundEntrySheet: View {
             HStack {
                 Text(String(localized: "到账日期"))
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 DatePicker(
                     "",
@@ -840,7 +834,7 @@ struct RefundEntrySheet: View {
             HStack {
                 Text(String(localized: "到账账户"))
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 Menu {
                     ForEach(accounts, id: \.id) { account in
@@ -852,10 +846,10 @@ struct RefundEntrySheet: View {
                     HStack(spacing: 4) {
                         Text(selectedAccount?.name ?? String(localized: "未指定"))
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.caption)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
@@ -866,7 +860,7 @@ struct RefundEntrySheet: View {
             HStack {
                 Text(String(localized: "备注"))
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 TextField(String(localized: "选填"), text: $remarkText)
                     .font(.holoBody)
@@ -877,7 +871,7 @@ struct RefundEntrySheet: View {
             }
             .padding(HoloSpacing.md)
         }
-        .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoCardBackground))
+        .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoToolSurface))
     }
 
     /// 计算键盘托盘：全额快捷键 + 通用计算键盘（与记账同款，支持四则运算）
@@ -925,24 +919,17 @@ struct RefundEntrySheet: View {
         .padding(.top, HoloSpacing.sm)
     }
 
-    /// 金额输入光标闪烁（与记账页同节奏）
-    private func startCursorAnimation() {
-        withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-            cursorOpacity = 0
-        }
-    }
-
     /// 已退进度：文案 + 进度条
     private var refundProgress: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             HStack {
                 Text(String(localized: "已退 \(otherRefunded.formattedAsCurrency()) / \(original.formattedAmount)"))
                     .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 Text(String(localized: "还可退 \(maxRefundable.formattedAsCurrency())"))
                     .font(.holoCaption.weight(.semibold))
-                    .foregroundColor(maxRefundable > 0 ? .holoSuccessDark : .holoTextSecondary)
+                    .foregroundColor(maxRefundable > 0 ? .holoSuccessDark : .holoToolTextSecondary)
             }
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -1057,15 +1044,15 @@ struct RefundPickerSheet: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(String(localized: "退 ¥\(refund.amountAsDecimal.formattedAsCurrency())"))
                                     .font(.holoBody.weight(.semibold))
-                                    .foregroundColor(.holoTextPrimary)
+                                    .foregroundColor(.holoToolText)
                                 Text("\(shortDateText(refund.date)) · \(refund.account?.name ?? String(localized: "未指定"))")
                                     .font(.holoCaption)
-                                    .foregroundColor(.holoTextSecondary)
+                                    .foregroundColor(.holoToolTextSecondary)
                             }
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption)
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                         .contentShape(Rectangle())
                     }
@@ -1074,7 +1061,7 @@ struct RefundPickerSheet: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(String(localized: "退款记录"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

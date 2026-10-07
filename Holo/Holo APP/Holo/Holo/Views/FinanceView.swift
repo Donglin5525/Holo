@@ -104,7 +104,7 @@ struct FinanceView: View {
 
     var body: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             // 内容锁宽：子页滚动内容的理想宽度（图表图例 fixedSize 长行等）会经
             // ScrollView 上泄参与 ZStack 取最大，把整个模块撑到比屏幕宽
@@ -296,14 +296,14 @@ struct FinanceView: View {
             .padding(.top, 8)
             .padding(.bottom, bottomInset)
             .background(
-                Color.holoCardBackground
+                Color.holoToolSurface
                     .shadow(color: HoloShadow.card, radius: 10, x: 0, y: -2)
                     .ignoresSafeArea(edges: .bottom)
             )
         }
         .frame(height: 88)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
+        .background(Color.holoToolSurface.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
 
@@ -351,10 +351,10 @@ struct FinanceView: View {
                             Capsule().fill(Color.holoPrimary.opacity(0.15))
                                 .matchedGeometryEffect(id: "financeTopTabCapsule", in: financeTabNamespace)
                         } else {
-                            Capsule().fill(Color.holoCardBackground)
+                            Capsule().fill(Color.holoToolSurface)
                         }
                     }
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .holoHover()
@@ -363,7 +363,7 @@ struct FinanceView: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     /// 单个 Tab 按钮
@@ -380,12 +380,12 @@ struct FinanceView: View {
 
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
 
                 Text(tab.displayName)
                     .font(.holoTinyLabel)
                     .fontWeight(selectedTab == tab ? .bold : .medium)
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }

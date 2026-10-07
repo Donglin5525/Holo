@@ -14,7 +14,10 @@ struct FirstRecordCelebrationOverlay: View {
     var onOpenGallery: () -> Void
     var onDismiss: () -> Void
 
+    var motion = HoloContinuousMotion()
+    @AppStorage(HoloMotionRollout.completionKey) private var completionEnabled = true
     @State private var appeared = false
+    @State private var confettiInterrupted = false
 
     var body: some View {
         ZStack {
@@ -22,7 +25,7 @@ struct FirstRecordCelebrationOverlay: View {
                 .ignoresSafeArea()
                 .onTapGesture(perform: onDismiss)
 
-            CelebrationConfetti()
+            if motion.isActive && completionEnabled && !confettiInterrupted { CelebrationConfetti() }
 
             VStack(spacing: 0) {
                 ZStack {
@@ -64,7 +67,7 @@ struct FirstRecordCelebrationOverlay: View {
                                 .fill(Color.holoPrimary)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloPressStyle())
                 .padding(.top, 18)
                 .accessibilityIdentifier("firstRecordCelebration.openGallery")
 
@@ -72,10 +75,10 @@ struct FirstRecordCelebrationOverlay: View {
                     Text(String(localized: "以后再说"))
                         .font(.caption)
                         .foregroundColor(.holoTextSecondary.opacity(0.7))
-                        .padding(.vertical, 8)
+                        .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloPressStyle())
                 .padding(.top, 4)
             }
             .padding(.horizontal, 22)
@@ -86,21 +89,24 @@ struct FirstRecordCelebrationOverlay: View {
                     .shadow(color: Color.black.opacity(0.22), radius: 24, y: 10)
             )
             .padding(.horizontal, 34)
-            .scaleEffect(appeared ? 1 : 0.88)
+            .scaleEffect(appeared || !motion.isActive || !completionEnabled ? 1 : 0.88)
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
-            withAnimation(HoloAnimation.snappy) {
+            confettiInterrupted = !motion.isActive || !completionEnabled
+            withAnimation(motion.isActive && completionEnabled ? HoloAnimation.snappy : nil) {
                 appeared = true
             }
         }
+        .onChange(of: motion.isActive) { _, active in if !active { confettiInterrupted = true } }
+        .onChange(of: completionEnabled) { _, enabled in if !enabled { confettiInterrupted = true } }
         .accessibilityIdentifier("firstRecordCelebrationOverlay")
     }
 }
 
 // MARK: - 纸屑
 
-/// 循环下落的彩色纸屑；纯装饰，不拦截触摸。
+/// 一次性下落的彩色纸屑；纯装饰，不拦截触摸。
 private struct CelebrationConfetti: View {
 
     struct Piece: Identifiable {
@@ -112,12 +118,13 @@ private struct CelebrationConfetti: View {
         let duration: Double
     }
 
-    let pieces: [Piece]
+    // 粒子身份与位置只初始化一次，父页面刷新不会重建并重播。
+    @State private var pieces: [Piece]
 
     init() {
         let palette: [Color] = [.holoPrimary, .holoPrimaryLight, .holoChart8, .holoPurple, .holoInfo, .holoSuccess]
         var g = SystemRandomNumberGenerator()
-        pieces = (0..<16).map { index in
+        _pieces = State(initialValue: (0..<16).map { index in
             Piece(
                 xRatio: CGFloat.random(in: 0.06...0.94, using: &g),
                 color: palette[index % palette.count],
@@ -128,7 +135,7 @@ private struct CelebrationConfetti: View {
                 delay: Double.random(in: 0...1.6, using: &g),
                 duration: Double.random(in: 2.2...3.2, using: &g)
             )
-        }
+        })
     }
 
     var body: some View {
@@ -156,7 +163,7 @@ private struct CelebrationConfetti: View {
                 .offset(y: falling ? 320 : -12)
                 .rotationEffect(.degrees(falling ? 210 : 0))
                 .onAppear {
-                    withAnimation(.easeIn(duration: duration).delay(delay).repeatForever(autoreverses: false)) {
+                    withAnimation(.easeIn(duration: duration).delay(delay)) {
                         falling = true
                     }
                 }

@@ -63,7 +63,7 @@ struct OverviewTabView: View {
             }
             .padding(HoloSpacing.lg)
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     /// 年档同比标签（当前周期=今年，历史周期=年份数字）
@@ -88,18 +88,18 @@ struct OverviewTabView: View {
                     Text("周期汇总")
                         .font(.holoLabel)
                         .fontWeight(.semibold)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
 
                     Text(periodSubtitle)
                         .font(.system(size: 10))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer(minLength: HoloSpacing.sm)
 
                 Text("\(state.periodSummary.transactionCount) 笔")
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             // 三列必须同构对齐：任一列行数不同就会被 HStack 垂直居中整体下坠
@@ -147,7 +147,7 @@ struct OverviewTabView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     /// 均值副标题：年档给月均（看全年时日均没有信息量），其他档位保持日均
@@ -200,7 +200,7 @@ struct PeriodSummaryItem: View {
         VStack(spacing: HoloSpacing.xs) {
             Text(title)
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Text(amount)
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -210,7 +210,7 @@ struct PeriodSummaryItem: View {
 
             Text(subtitle.isEmpty ? " " : subtitle)
                 .font(.system(size: 11))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
                 .opacity(subtitle.isEmpty ? 0 : 1)
 
@@ -239,7 +239,7 @@ struct YearOverYearSummaryCard: View {
             Text(String(localized: "\(currentLabel) vs \(previousLabel)"))
                 .font(.holoLabel)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             comparisonRow(
                 title: String(localized: "支出"),
@@ -256,7 +256,7 @@ struct YearOverYearSummaryCard: View {
             )
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     /// 一组对比：标题 + 涨跌 badge + 双行比例条
@@ -266,7 +266,7 @@ struct YearOverYearSummaryCard: View {
             HStack {
                 Text(title)
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer()
 
@@ -280,7 +280,7 @@ struct YearOverYearSummaryCard: View {
                 } else {
                     Text(String(localized: "\(previousLabel)无记录"))
                         .font(.system(size: 10))
-                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                 }
             }
         }
@@ -298,7 +298,7 @@ struct YearOverYearSummaryCard: View {
                     label: previousLabel,
                     amount: previousAmount,
                     base: max(currentAmount, previousAmount),
-                    color: .holoTextSecondary.opacity(0.4)
+                    color: .holoToolTextSecondary.opacity(0.4)
                 )
             }
             .padding(.top, 26),
@@ -313,7 +313,7 @@ struct YearOverYearSummaryCard: View {
         HStack(spacing: HoloSpacing.sm) {
             Text(label)
                 .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 64, alignment: .leading)
 
             GeometryReader { barGeo in
@@ -326,7 +326,7 @@ struct YearOverYearSummaryCard: View {
 
             Text(NumberFormatter.compactCurrency(amount))
                 .font(.system(size: 10, design: .rounded))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
                 .fixedSize()
                 .layoutPriority(1)
@@ -365,12 +365,12 @@ struct YearComparisonChartView: View {
                 Text(String(localized: "支出同比"))
                     .font(.holoLabel)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
                 legendDot(color: .holoError, label: currentLabel)
-                legendDot(color: .holoTextSecondary.opacity(0.4), label: previousLabel)
+                legendDot(color: .holoToolTextSecondary.opacity(0.4), label: previousLabel)
             }
 
             if let idx = selectedIdx {
@@ -379,8 +379,8 @@ struct YearComparisonChartView: View {
 
             if points.isEmpty {
                 Text(String(localized: "暂无数据"))
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, HoloSpacing.xl)
             } else {
@@ -388,7 +388,7 @@ struct YearComparisonChartView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: 图例
@@ -400,7 +400,7 @@ struct YearComparisonChartView: View {
                 .frame(width: 7, height: 7)
             Text(label)
                 .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -413,12 +413,12 @@ struct YearComparisonChartView: View {
                 HStack(spacing: 4) {
                     Text(point.label)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
 
                     if let rangeText = point.rangeText {
                         Text(rangeText)
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     if point.isOngoing {
@@ -453,7 +453,7 @@ struct YearComparisonChartView: View {
                 } else {
                     Text("\(previousLabel) \(NumberFormatter.compactCurrency(point.previous))")
                         .font(.system(size: 10, design: .rounded))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
         }
@@ -517,7 +517,7 @@ struct YearComparisonChartView: View {
                         width: .fixed(5)
                     )
                     .cornerRadius(1.5)
-                    .foregroundStyle(Color.holoTextSecondary.opacity(0.4))
+                    .foregroundStyle(Color.holoToolTextSecondary.opacity(0.4))
                 }
 
                 // 今年柱（未来桶不画，避免零柱读成「暴跌」）
@@ -657,7 +657,7 @@ struct YearBudgetProgressCard: View {
                 Text(String(localized: "年预算 · 已用 \(Int(summary.progress * 100))%"))
                     .font(.holoLabel)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -691,17 +691,17 @@ struct YearBudgetProgressCard: View {
             HStack {
                 Text(String(localized: "已用 \(NumberFormatter.compactCurrency(summary.totalSpentAmount))"))
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer()
 
                 Text(String(localized: "预算 \(NumberFormatter.compactCurrency(summary.totalBudgetAmount))"))
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 }
 

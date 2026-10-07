@@ -288,10 +288,10 @@ struct HoloApp: App {
                 if HoloAIFeatureFlags.agentRuntimeEnabled {
                     await MainActor.run {
                         HoloBackgroundContinuationManager.shared.appDidLaunch()
-                        // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
-                        HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
-                        // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
-                        HoloCloudAnalysisService.shared.recoverIfNeeded()
+                    // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
+                    HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
+                    // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
+                    HoloCloudAnalysisService.shared.recoverIfNeeded()
                     // 设备会话预热（S01）：提前持钥换会话，首个业务请求不必等两段往返
                     HoloDeviceSessionManager.shared.warmUp()
                     }
@@ -326,12 +326,17 @@ struct HoloApp: App {
                     }
                 case .active:
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
+                    #if DEBUG
+                    // 删除链路 UITest 冒烟播种：须在兜底弹出之前落盘，弹出检查才能看到草案
+                    ReceiptBookingResultStore.shared.seedDraftsForUITestsIfRequested()
+                    #endif
                     // 图片快捷记账确认页必达（2026-09-22）：回前台统一兜底——存在
                     // 未自动弹过的待复核草案就直接弹复核页。用户从横幅/图标/多任务
                     // 任何一路回到 Holo 都命中这里，不再依赖快捷指令拉起或通知点击。
                     ReceiptBookingForegroundPresenter.presentIfNeeded()
                     // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
                     ThoughtOrganizationQueue.shared.appWillEnterForeground()
+                Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }
                     // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
                     Task { await HoloSubscriptionService.shared.refreshStatus() }
                     Task {

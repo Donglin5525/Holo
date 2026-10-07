@@ -13,6 +13,7 @@ import Charts
 
 /// 健康趋势柱状图
 struct HealthTrendChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let data: [DailyHealthData]
     let type: HealthMetricType
 
@@ -33,14 +34,14 @@ struct HealthTrendChart: View {
             HStack {
                 Text("近 7 天趋势")
                     .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer()
 
                 if !data.isEmpty {
                     Text("平均: \(type.formatValue(averageValue)) \(type.unit)")
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
 
@@ -52,7 +53,7 @@ struct HealthTrendChart: View {
                     .transition(.opacity)
             }
         }
-        .animation(HoloAnimation.smooth, value: data.isEmpty || allValuesZero)
+        .animation(reduceMotion ? nil : HoloAnimation.smooth, value: data.isEmpty || allValuesZero)
         .frame(height: 140)
     }
 
@@ -80,12 +81,12 @@ struct HealthTrendChart: View {
                     if let date = value.as(Date.self) {
                         Text(formatDate(date))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
         }
-        .animation(HoloAnimation.smooth, value: animatedSignature)
+        .animation(reduceMotion ? nil : HoloAnimation.smooth, value: animatedSignature)
         .chartXScale(range: .plotDimension(startPadding: 12, endPadding: 12))
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
@@ -95,7 +96,7 @@ struct HealthTrendChart: View {
                     if let doubleValue = value.as(Double.self) {
                         Text(formatYAxis(doubleValue))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 40, alignment: .trailing)
                     }
                 }
@@ -150,11 +151,11 @@ struct HealthTrendChart: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.bar.fill")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无可用趋势数据")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -172,5 +173,5 @@ struct HealthTrendChart: View {
 
     return HealthTrendChart(data: mockData, type: .steps)
         .padding()
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
 }

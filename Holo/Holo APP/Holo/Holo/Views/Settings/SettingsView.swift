@@ -155,7 +155,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             settingsContent
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -164,14 +164,14 @@ struct SettingsView: View {
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                     }
 
                     ToolbarItem(placement: .principal) {
                         Text("设置")
-                            .font(.holoHeading)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.sectionTitle)
+                            .foregroundColor(.holoToolText)
                     }
                 }
         }
@@ -212,7 +212,7 @@ struct SettingsView: View {
             HStack(spacing: 0) {
                 settingsNavColumn
                 Rectangle()
-                    .fill(Color.holoBorder.opacity(0.4))
+                    .fill(Color.holoToolBorder.opacity(0.4))
                     .frame(width: 0.5)
                 selectedSectionPane
             }
@@ -296,11 +296,11 @@ struct SettingsView: View {
             HStack(spacing: 10) {
                 Image(systemName: section.icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
                     .frame(width: 22)
                 Text(section.title)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                    .foregroundColor(isSelected ? .holoToolText : .holoToolTextSecondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -355,9 +355,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("个人资料")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             Button {
@@ -368,23 +368,23 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
 
                         Text("更换头像或昵称")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 12)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                 .contentShape(Rectangle())
             }
@@ -401,12 +401,12 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(authService.session?.displayName ?? UserDisplayNameSettings.displayOrPlaceholder(userName))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
 
                     Text(accountStatusSubtitle)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -428,7 +428,7 @@ struct SettingsView: View {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                         Text("退出登录")
                     }
-                    .font(.holoBody)
+                    .holoText(.body)
                     .foregroundColor(.holoError)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -454,7 +454,7 @@ struct SettingsView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
@@ -484,9 +484,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("外观")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             // 深色模式选项
@@ -495,7 +495,7 @@ struct SettingsView: View {
                     darkModeOptionRow(setting)
                 }
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
     }
@@ -511,27 +511,27 @@ struct SettingsView: View {
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .fill(setting == darkModeManager.currentSetting
                               ? Color.holoPrimary.opacity(0.1)
-                              : Color.holoBackground)
+                              : Color.holoToolBackground)
                         .frame(width: 40, height: 40)
 
                     Image(systemName: setting.iconName)
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(setting == darkModeManager.currentSetting
                                          ? .holoPrimary
-                                         : .holoTextSecondary)
+                                         : .holoToolTextSecondary)
                 }
 
                 // 文字
                 VStack(alignment: .leading, spacing: 2) {
                     Text(setting.displayName)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
 
                     // 跟随系统时显示当前系统状态
                     if setting == .system {
                         Text(systemColorScheme == .dark ? String(localized: "当前：深色") : String(localized: "当前：浅色"))
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
 
@@ -566,9 +566,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("iCloud 同步")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             VStack(spacing: 0) {
@@ -586,12 +586,12 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("账号状态")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
 
                         Text(iCloudAccountSubtitle)
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
@@ -677,12 +677,12 @@ struct SettingsView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("如何恢复上传")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+                                .holoText(.body)
+                                .foregroundColor(.holoToolText)
 
                             Text("数据已安全保存在本机。请前往 系统设置 → 顶部你的名字 → iCloud → 管理账户存储 清理空间；清理完成后系统会自动恢复上传，无需手动操作。")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
@@ -887,9 +887,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("AI 整理")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             // HoloAI 数据授权（全局 AI 授权，保留在系统设置）
@@ -907,35 +907,11 @@ struct SettingsView: View {
                 }
             }
 
-            // P1（东林拍板）：AI 自动分类开关已迁移至 知识树 → 整理设置，此处不再保留第二开关
-            // V3 新 UI：整理设置退场，换「设备智能索引」状态页（AI 状态唯一可见处，§4.1）
-            if ThoughtSemanticFeatureFlags.uiEnabled {
-                NavigationLink {
-                    DeviceIntelligenceIndexView()
-                } label: {
-                    settingsRow(
-                        icon: "cpu",
-                        iconColor: .holoPrimary,
-                        title: String(localized: "设备智能索引"),
-                        subtitle: ThoughtSemanticFeatureFlags.index == .off
-                            ? String(localized: "未开启")
-                            : String(localized: "本机语义索引状态与删除入口")
-                    ) {}
-                }
-                .buttonStyle(.plain)
-            } else {
-                settingsRow(
-                    icon: "slider.horizontal.3",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "想法整理设置"),
-                    subtitle: String(localized: "自动分类开关与标签治理，已移至想法页的「主题」内")
-                ) {
-                    showThoughtOrganizationSettings = true
-                }
-                .sheet(isPresented: $showThoughtOrganizationSettings) {
-                    ThoughtOrganizationSettingsView()
-                }
+            settingsRow(icon: "gearshape", iconColor: .holoPrimary,
+                title: String(localized: "想法设置"), subtitle: String(localized: "智能整理、主题与标签管理")) {
+                showThoughtOrganizationSettings = true
             }
+            .sheet(isPresented: $showThoughtOrganizationSettings) { ThoughtOrganizationSettingsView() }
 
             // 统一通知中心入口（早报/习惯提醒/晨报/AI 回放的完整开关与时间都在这里）
             settingsRow(
@@ -952,7 +928,7 @@ struct SettingsView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -967,9 +943,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("AI 回放")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             // 开关列表
@@ -1007,7 +983,7 @@ struct SettingsView: View {
                     isOn: $insightSettings.backgroundAutoGenerationEnabled
                 )
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
     }
@@ -1049,13 +1025,13 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
 
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1077,12 +1053,12 @@ struct SettingsView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "gearshape.circle.fill")
                     .font(.system(size: 18))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Text("通用")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             #if DEBUG
@@ -1096,11 +1072,11 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("任务纸面动效")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
                     Text("开发调试：任务模块纸页视觉，关闭恢复原布局")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer(minLength: 8)
@@ -1217,9 +1193,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("存储与缓存")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             VStack(spacing: 0) {
@@ -1242,12 +1218,12 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("缓存大小")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
 
                         Text(storageService.formattedSize)
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
@@ -1266,7 +1242,7 @@ struct SettingsView: View {
                         ZStack {
                             RoundedRectangle(cornerRadius: HoloRadius.sm)
                                 .fill(storageService.isClearing || storageService.cacheSize == 0
-                                      ? Color.holoTextSecondary.opacity(0.1)
+                                      ? Color.holoToolTextSecondary.opacity(0.1)
                                       : Color.holoError.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
@@ -1276,18 +1252,18 @@ struct SettingsView: View {
                             } else {
                                 Image(systemName: "trash")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .holoError)
+                                    .foregroundColor(storageService.cacheSize == 0 ? .holoToolTextSecondary : .holoError)
                             }
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("清除缓存")
-                                .font(.holoBody)
-                                .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .holoError)
+                                .holoText(.body)
+                                .foregroundColor(storageService.cacheSize == 0 ? .holoToolTextSecondary : .holoError)
 
                             Text("清理诊断日志和过期数据，不会删除你的数据")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
 
                         Spacer()
@@ -1299,7 +1275,7 @@ struct SettingsView: View {
                 .buttonStyle(PlainButtonStyle())
                 .disabled(storageService.isClearing || storageService.cacheSize == 0)
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
         .alert("确认清除缓存？", isPresented: $showClearCacheAlert) {
@@ -1322,9 +1298,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("隐私与安全")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             VStack(spacing: 0) {
@@ -1354,7 +1330,7 @@ struct SettingsView: View {
                     isOn: thoughtExcerptBinding
                 )
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
         .alert("无法开启应用锁", isPresented: $showAppLockUnavailableAlert) {
@@ -1441,13 +1417,13 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("锁定时机")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
 
                     Text(appLockSettings.graceStyle.subtitle)
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1455,7 +1431,7 @@ struct SettingsView: View {
 
                 Text(appLockSettings.graceStyle.displayName)
                     .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
@@ -1477,9 +1453,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoPrimary)
 
                 Text("法律与隐私")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             settingsRow(
@@ -1518,9 +1494,9 @@ struct SettingsView: View {
                     .foregroundColor(.holoError)
 
                 Text("账号与数据")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             VStack(spacing: 0) {
@@ -1530,7 +1506,7 @@ struct SettingsView: View {
                     HStack(spacing: HoloSpacing.md) {
                         ZStack {
                             RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                .fill(isDeletingAccountData ? Color.holoTextSecondary.opacity(0.1) : Color.holoError.opacity(0.1))
+                                .fill(isDeletingAccountData ? Color.holoToolTextSecondary.opacity(0.1) : Color.holoError.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
                             if isDeletingAccountData {
@@ -1545,17 +1521,17 @@ struct SettingsView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("删除账号与 Holo 数据")
-                                .font(.holoBody)
+                                .holoText(.body)
                                 .foregroundColor(.holoError)
 
                             Text("清除本机数据、附件、AI 记忆和登录状态")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
 
                             if let accountDataDeletionMessage {
                                 Text(accountDataDeletionMessage)
                                     .font(.system(size: 11))
-                                    .foregroundColor(.holoTextSecondary)
+                                    .foregroundColor(.holoToolTextSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -1563,7 +1539,7 @@ struct SettingsView: View {
                         Spacer()
                     }
                     .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .contentShape(Rectangle())
                 }
@@ -1604,9 +1580,9 @@ struct SettingsView: View {
                     .foregroundColor(.orange)
 
                 Text("数据管理")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             #if DEBUG
@@ -1665,13 +1641,13 @@ struct SettingsView: View {
                 // 文字
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
 
                     Text(subtitle)
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1680,10 +1656,10 @@ struct SettingsView: View {
                 // 箭头
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(PlainButtonStyle())

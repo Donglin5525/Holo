@@ -16,6 +16,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 private struct HoloScreenDismissKey: EnvironmentKey {
     /// 默认 nil：未注入时由调用方 fallback 到 @Environment(\.dismiss)
@@ -53,6 +54,12 @@ enum HoloScreenTransitionMetrics {
     /// 全屏模块从首页进入或退出的统一时长。
     /// 需要在转场结束后再展示动态内容的页面，应复用这个值，避免两套位移动画重叠。
     static let duration: TimeInterval = 0.28
+
+    /// 全屏移动与局部按压遵循同一展示开关，减少动态效果时仅淡入淡出。
+    static var allowsMovement: Bool {
+        !UIAccessibility.isReduceMotionEnabled &&
+        HoloMotionPreferencePolicy.isEnabled(HoloMotionRollout.interactionKey)
+    }
 }
 
 /// 全屏模块在 ZStack 平级常驻时的转场动画 + 过渡样式。
@@ -64,7 +71,9 @@ enum HoloScreenTransitionMetrics {
 /// 让从系统模态迁移到 ZStack 常驻后的视觉差异尽可能小。
 extension Animation {
     static var holoScreenTransition: Animation {
-        .easeInOut(duration: HoloScreenTransitionMetrics.duration)
+        HoloScreenTransitionMetrics.allowsMovement
+            ? .easeInOut(duration: HoloScreenTransitionMetrics.duration)
+            : HoloAnimation.quick
     }
 }
 
@@ -72,7 +81,8 @@ extension Animation {
 /// 用 `.combined(with:)` 让两个效果同时生效。
 extension AnyTransition {
     static var holoScreenTransition: AnyTransition {
-        .asymmetric(
+        guard HoloScreenTransitionMetrics.allowsMovement else { return .opacity }
+        return .asymmetric(
             insertion: .move(edge: .bottom).combined(with: .opacity),
             removal: .move(edge: .bottom).combined(with: .opacity)
         )

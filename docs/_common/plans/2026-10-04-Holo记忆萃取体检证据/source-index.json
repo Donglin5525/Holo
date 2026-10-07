@@ -1,0 +1,543 @@
+[
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Models/AI/HoloAICapability.swift",
+    "hits": [
+      {
+        "line": 82,
+        "text": "static func resolve(from explicitlyStoredValues: [String: Bool]) -> HoloMemorySettingsSnapshot {"
+      },
+      {
+        "line": 360,
+        "text": "static var current: Self {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Models/AI/HoloPersonalContextControls.swift",
+    "hits": [
+      {
+        "line": 33,
+        "text": "var allowsExtraction: Bool {"
+      },
+      {
+        "line": 41,
+        "text": "var allowsRetrieval: Bool {"
+      },
+      {
+        "line": 49,
+        "text": "var allowsPlanningInjection: Bool {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemorySignals/MemorySignalDataAdapter.swift",
+    "hits": [
+      {
+        "line": 14,
+        "text": "static func buildDomainSignals(now: Date = Date()) async -> [HoloMemoryDomain: [HoloDomainMemorySignal]] {"
+      },
+      {
+        "line": 106,
+        "text": "static func buildThoughtMemoryInputs(now: Date = Date()) -> [ThoughtMemoryInput] {"
+      },
+      {
+        "line": 197,
+        "text": "static func buildConversationMemoryInputs(now: Date = Date()) async -> [ConversationMemoryInput] {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloLifeSourceObservation.swift",
+    "hits": [
+      {
+        "line": 71,
+        "text": "request.fetchLimit = cursor == nil ? limit : limit * 2"
+      },
+      {
+        "line": 73,
+        "text": "let filtered = results.drop { transaction in"
+      },
+      {
+        "line": 159,
+        "text": "request.fetchLimit = cursor == nil ? limit : limit * 2"
+      },
+      {
+        "line": 161,
+        "text": "let filtered = results.drop { task in"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloPersonalContextExtractor.swift",
+    "hits": [
+      {
+        "line": 108,
+        "text": "static func extractionPrompt("
+      },
+      {
+        "line": 137,
+        "text": "static func verificationPrompt("
+      },
+      {
+        "line": 246,
+        "text": "func runOneBatch(now: Date) async throws -> BatchOutcome {"
+      },
+      {
+        "line": 428,
+        "text": "static func batchKey("
+      },
+      {
+        "line": 446,
+        "text": "static func newRecord("
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloDomainMemoryOutputValidator.swift",
+    "hits": [
+      {
+        "line": 35,
+        "text": "static func validate("
+      },
+      {
+        "line": 47,
+        "text": "let allowedAnchorKeys = Set(package.signals.flatMap { $0.anchors.map(\\.stableKey) })"
+      },
+      {
+        "line": 107,
+        "text": "prohibitedInferences: candidate.prohibitedInferences.map {"
+      },
+      {
+        "line": 113,
+        "text": "validFrom: package.window.start,"
+      },
+      {
+        "line": 193,
+        "text": "records = Dictionary(grouping: records, by: \\.id).compactMap { $0.value.last }"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemorySignals/ConversationMemorySignalBuilder.swift",
+    "hits": [
+      {
+        "line": 46,
+        "text": "value: input.statementKind.rawValue"
+      },
+      {
+        "line": 60,
+        "text": "id: \"conversation-\\(input.statementKind.rawValue)-\\(input.id)\","
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryIdentity.swift",
+    "hits": [
+      {
+        "line": 23,
+        "text": "static func makeStableID(for record: HoloMemoryRecord) throws -> String {"
+      },
+      {
+        "line": 33,
+        "text": "static func makeStableID("
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryDecisionPolicy.swift",
+    "hits": [
+      {
+        "line": 769,
+        "text": "if isCurrentStateClaim(record),"
+      },
+      {
+        "line": 863,
+        "text": "if isCurrentStateClaim(record), record.validTo.map({ $0 < now }) == true {"
+      },
+      {
+        "line": 870,
+        "text": "private static func isCurrentStateClaim(_ record: HoloMemoryRecord) -> Bool {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryActivationPolicy.swift",
+    "hits": [
+      {
+        "line": 18,
+        "text": "static func isEligible(_ record: HoloMemoryRecord) -> Bool {"
+      },
+      {
+        "line": 264,
+        "text": "record.expiresAt.map { $0 <= now } ?? false"
+      },
+      {
+        "line": 267,
+        "text": "static func isEligible(_ record: HoloMemoryRecord, now: Date) -> Bool {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloPersonalContextValidator.swift",
+    "hits": [
+      {
+        "line": 349,
+        "text": "if let revision = basis.revision, !revision.isEmpty, revision != source.revisionDigest {"
+      },
+      {
+        "line": 354,
+        "text": "if let quote = basis.quote, !quote.isEmpty {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextReconciler.swift",
+    "hits": [
+      {
+        "line": 98,
+        "text": "case .supported, .qualified:"
+      },
+      {
+        "line": 100,
+        "text": "let level: HoloContextAdmissionLevel = .adviceEligible"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/HoloMemoryFeedbackService.swift",
+    "hits": [
+      {
+        "line": 85,
+        "text": "func correct("
+      },
+      {
+        "line": 98,
+        "text": "record.aiUseSummary = sanitized"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextAccessPolicy.swift",
+    "hits": [
+      {
+        "line": 47,
+        "text": "static func selectAdviceCandidates("
+      },
+      {
+        "line": 92,
+        "text": "guard ![.rejected, .markedIrrelevant, .forgotten, .corrected].contains(record.userDecision) else {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryRepository/CoreDataHoloMemoryRepository.swift",
+    "hits": [
+      {
+        "line": 44,
+        "text": "private func upsertUnlocked("
+      },
+      {
+        "line": 105,
+        "text": "func applyObservationBatch("
+      },
+      {
+        "line": 141,
+        "text": "let userControlIsNewer = existing.record.userDecision != .none &&"
+      },
+      {
+        "line": 147,
+        "text": "if userControlIsNewer && !containsNewEvidence {"
+      },
+      {
+        "line": 154,
+        "text": "preserveUserControlledFields: userControlIsNewer"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryRepository/HoloMemoryForgettingService.swift",
+    "hits": [
+      {
+        "line": 129,
+        "text": "func invalidateMemories("
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloMemoryLiveObservationCoordinator.swift",
+    "hits": [
+      {
+        "line": 69,
+        "text": "static func changedDomainDigests("
+      },
+      {
+        "line": 203,
+        "text": "let changed = HoloMemoryLiveObservationPlan.changedDomainDigests("
+      },
+      {
+        "line": 278,
+        "text": "private func runScheduler("
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloMemoryObservationScheduler.swift",
+    "hits": [
+      {
+        "line": 128,
+        "text": "func lightweightCheck(trigger: HoloMemorySchedulerTrigger) async {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift",
+    "hits": [
+      {
+        "line": 416,
+        "text": "private static let lastPassAtKey = \"holo_personal_context_extraction_last_pass_at_v1\""
+      },
+      {
+        "line": 420,
+        "text": "static func runPassIfDue(bypassDebounce: Bool = false, packageLimit: Int = 2) async {"
+      },
+      {
+        "line": 422,
+        "text": "if !bypassDebounce, let last = defaults.object(forKey: lastPassAtKey) as? Date,"
+      },
+      {
+        "line": 426,
+        "text": "defaults.set(Date(), forKey: lastPassAtKey)"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/UserContextBuilder.swift",
+    "hits": [
+      {
+        "line": 48,
+        "text": "? await HoloMemorySummaryProvider.selectRelevantSummary("
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/HoloMemorySummaryProvider.swift",
+    "hits": [
+      {
+        "line": 19,
+        "text": "_ = requireQueryMatch"
+      },
+      {
+        "line": 86,
+        "text": "case .goalPlanning: return \"帮我规划下一步\""
+      },
+      {
+        "line": 97,
+        "text": "case .goalPlanning:"
+      },
+      {
+        "line": 133,
+        "text": "case .goalPlanning: return .capabilityGoalPlanning"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/MemoryQuery/HoloMemoryQueryRouter.swift",
+    "hits": [
+      {
+        "line": 124,
+        "text": "case .planning:"
+      },
+      {
+        "line": 141,
+        "text": "(.finance, [\"消费\", \"花销\", \"财务\", \"支出\", \"收入\", \"预算\", \"麦当劳\"]),"
+      },
+      {
+        "line": 157,
+        "text": "if text.contains(\"麦当劳\"),"
+      },
+      {
+        "line": 158,
+        "text": "let anchor = try? HoloMemoryAnchorRef(type: .merchant, value: \"麦当劳\") {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloAgentRuntimeShared.swift",
+    "hits": [
+      {
+        "line": 127,
+        "text": "question: \"查询近期与长期记忆\","
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisSnapshotBuilder.swift",
+    "hits": [
+      {
+        "line": 13,
+        "text": "//  - 体积控制：默认近 180 天窗口 + 单数据集行数上限，超出按时间倒序截断，"
+      },
+      {
+        "line": 79,
+        "text": "static let defaultHistoryDays = 180"
+      },
+      {
+        "line": 195,
+        "text": "// 时任务窗缺失，云端退回快照默认窗（180 天）全窗分析（2026-09-24 实锤）。"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/HoloMemoryAttributionReconciler.swift",
+    "hits": [
+      {
+        "line": 26,
+        "text": "static func matchedMemoryIDs(reply: String, entries: [Entry]) -> [String] {"
+      },
+      {
+        "line": 30,
+        "text": "guard !entry.id.isEmpty, hasContentOverlap(reply: reply, entryText: entry.text) else { continue }"
+      },
+      {
+        "line": 39,
+        "text": "private static func hasContentOverlap(reply: String, entryText: String) -> Bool {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Chat/ChatViewModel.swift",
+    "hits": [
+      {
+        "line": 3890,
+        "text": "usedMemoryIDs = HoloMemoryAttributionReconciler.matchedMemoryIDs("
+      },
+      {
+        "line": 3893,
+        "text": "HoloMemoryAttributionReconciler.Entry(id: $0.id, text: $0.title + \"\\n\" + $0.aiUseSummary)"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/MemoryGallery/MemoryGalleryView.swift",
+    "hits": [
+      {
+        "line": 26,
+        "text": "@State private var selectedTab: MemoryGalleryTab = .calendar"
+      },
+      {
+        "line": 56,
+        "text": "if selectedTab == .calendar {"
+      },
+      {
+        "line": 91,
+        "text": "selectedTab = .insight"
+      },
+      {
+        "line": 106,
+        "text": "selectedTab = .insight"
+      },
+      {
+        "line": 132,
+        "text": "MemoryViewToggleSwitch(selectedTab: $selectedTab)"
+      },
+      {
+        "line": 166,
+        "text": ".opacity(selectedTab == .calendar ? 1 : 0)"
+      },
+      {
+        "line": 167,
+        "text": ".allowsHitTesting(selectedTab == .calendar)"
+      },
+      {
+        "line": 168,
+        "text": ".accessibilityHidden(selectedTab != .calendar)"
+      },
+      {
+        "line": 172,
+        "text": ".opacity(selectedTab == .insight ? 1 : 0)"
+      },
+      {
+        "line": 173,
+        "text": ".allowsHitTesting(selectedTab == .insight)"
+      },
+      {
+        "line": 174,
+        "text": ".accessibilityHidden(selectedTab != .insight)"
+      },
+      {
+        "line": 490,
+        "text": "DomainMemorySection()"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/HoloApp.swift",
+    "hits": [
+      {
+        "line": 228,
+        "text": "await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)"
+      },
+      {
+        "line": 231,
+        "text": "Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }"
+      },
+      {
+        "line": 320,
+        "text": "await HoloMemoryObservationScheduler.shared.lightweightCheck("
+      },
+      {
+        "line": 355,
+        "text": "await HoloMemoryObservationScheduler.shared.lightweightCheck("
+      },
+      {
+        "line": 359,
+        "text": "Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/AIProvider.swift",
+    "hits": [
+      {
+        "line": 220,
+        "text": "func completeGoalPlanning(prompt: String, context: UserContext) async throws -> String {"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextSourceReader.swift",
+    "hits": [
+      {
+        "line": 130,
+        "text": "static func packageSegments("
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Personal/PersonalView.swift",
+    "hits": [
+      {
+        "line": 420,
+        "text": "Text(\"Holo 记住的你\")"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Personal/PersonalMemorySettingsView.swift",
+    "hits": [
+      {
+        "line": 84,
+        "text": "Text(\"进入记忆长廊\")"
+      }
+    ]
+  },
+  {
+    "file": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Onboarding/OnboardingAIConsentPage.swift",
+    "hits": [
+      {
+        "line": 36,
+        "text": "consentBullet(String(localized: \"只在你使用相关 AI 功能，或由想法自动整理（自动形成记忆，默认开启）处理必要数据。\"))"
+      }
+    ]
+  }
+]

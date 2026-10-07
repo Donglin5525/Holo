@@ -14,6 +14,7 @@ import SwiftUI
 
 /// 环形饼图视图
 struct PieChartView: View {
+    var motion = HoloContinuousMotion()
     let aggregations: [CategoryAggregation]
     let selectedCategory: Category?
     /// 外部传入的颜色数组（与图例共享同一调色板，保证颜色一致）
@@ -102,7 +103,7 @@ struct PieChartView: View {
 
     private var pieChartContent: some View {
         ZStack {
-            TimelineView(.animation(minimumInterval: nil, paused: sweepStart == nil)) { timeline in
+            TimelineView(.animation(minimumInterval: nil, paused: sweepStart == nil || !motion.isActive)) { timeline in
                 Canvas { context, size in
                     let sweep = sweepProgress(at: timeline.date)
                     drawPieSectors(into: &context, size: size, sweep: sweep)
@@ -116,7 +117,7 @@ struct PieChartView: View {
                         onChanged: { location in
                             let category = categoryAtPoint(location, canvasSize: geo.size)
                             guard category?.id != highlightedCategory?.id else { return }
-                            withAnimation(HoloAnimation.quick) {
+                            withAnimation(motion.isActive ? HoloAnimation.quick : nil) {
                                 highlightedCategory = category
                             }
                         },
@@ -135,7 +136,7 @@ struct PieChartView: View {
                             switch phase {
                             case .active(let location):
                                 let category = categoryAtPoint(location, canvasSize: geo.size)
-                                withAnimation(HoloAnimation.quick) {
+                                withAnimation(motion.isActive ? HoloAnimation.quick : nil) {
                                     highlightedCategory = category
                                 }
                             case .ended:
@@ -150,6 +151,10 @@ struct PieChartView: View {
         }
         .onAppear {
             replaySweep()
+        }
+        .onDisappear { sweepStart = nil }
+        .onChange(of: motion.isActive) { _, active in
+            if !active { sweepStart = nil }
         }
         // 切时间范围/收支类型等导致金额分布变化时重播扫开；纯交互（选中/悬停）不触发
         .onChange(of: amountSignature) { _, _ in
@@ -168,6 +173,7 @@ struct PieChartView: View {
     }
 
     private func replaySweep() {
+        guard motion.isActive else { sweepStart = nil; return }
         let start = Date()
         sweepStart = start
         // 播完停帧：TimelineView paused 恢复 true；若期间又重播（start 已被替换）则由新任务接管
@@ -180,7 +186,7 @@ struct PieChartView: View {
     }
 
     private func sweepProgress(at date: Date) -> Double {
-        guard let sweepStart else { return 1 }
+        guard motion.isActive, let sweepStart else { return 1 }
         return min(1, max(0, date.timeIntervalSince(sweepStart) / Self.sweepDuration))
     }
 

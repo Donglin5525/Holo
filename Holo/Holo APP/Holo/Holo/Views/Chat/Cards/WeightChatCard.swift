@@ -22,7 +22,7 @@ struct WeightChatCard: View {
             HoloAIHeroMetric(
                 label: String(localized: "当前体重"),
                 value: "\(data.weight) \(data.unit)",
-                tint: .holoTextPrimary
+                tint: .holoToolText
             )
 
             CardFooterView(timeText: String(localized: "刚刚"), showsChevron: false)

@@ -28,9 +28,9 @@ struct FinanceSettingsView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 36, height: 36)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
@@ -38,8 +38,8 @@ struct FinanceSettingsView: View {
                 Spacer()
 
                 Text("设置")
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.pageTitle)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -79,7 +79,7 @@ struct FinanceSettingsView: View {
                 .padding(.bottom, 100)
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         }
         .sheet(isPresented: $showStrictModeIntro) { strictModeIntroSheet }
     }
@@ -91,7 +91,7 @@ struct FinanceSettingsView: View {
         VStack(spacing: HoloSpacing.lg) {
             Text("严格预算模式已开启")
                 .font(.system(size: 17, weight: .bold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .padding(.top, 24)
 
             BudgetStrictModeRulesContent()
@@ -145,7 +145,7 @@ private extension FinanceSettingsView {
                             Image(systemName: "lock.fill")
                                 .font(.system(size: 11))
                         }
-                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.6))
                     }
                     .buttonStyle(.plain)
                 }

@@ -67,7 +67,7 @@ struct AnniversaryFlipDigits: View {
 
 // MARK: - 彩带
 
-/// 庆祝彩带：主题色系碎屑，循环飘落
+/// 庆祝彩带：主题色系碎屑，只飘落一次。
 struct AnniversaryConfetti: View {
 
     var tint: Color = .white
@@ -84,6 +84,8 @@ struct AnniversaryConfetti: View {
         let isCircle: Bool
     }
 
+    var motion = HoloContinuousMotion()
+    @AppStorage(HoloMotionRollout.completionKey) private var completionEnabled = true
     @State private var falling = false
 
     private var pieces: [Piece] {
@@ -121,14 +123,15 @@ struct AnniversaryConfetti: View {
                 .rotationEffect(.degrees(falling ? piece.rotation : 0))
                 .opacity(0.9)
                 .animation(
-                    .linear(duration: piece.duration)
-                        .repeatForever(autoreverses: false)
-                        .delay(piece.delay),
+                    motion.isActive && completionEnabled ? .linear(duration: piece.duration).delay(piece.delay) : nil,
                     value: falling)
             }
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .opacity(motion.isActive && completionEnabled ? 1 : 0)
         .onAppear { falling = true }
+        .onChange(of: motion.isActive) { _, active in if !active { falling = true } }
     }
 
     private var palette: [Color] {
@@ -205,9 +208,9 @@ struct AnniversaryMilestoneTrack: View {
             }
             .frame(height: 24)
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) { pulse = true }
-        }
+        .holoRepeatingPhase($pulse, from: false, to: true,
+                            animation: .easeInOut(duration: 1.8).repeatForever(autoreverses: true),
+                            enabled: info.isMilestoneToday)
     }
 
     /// 进度线填充比例：最后一个已达成里程碑 → 下一个里程碑的进度

@@ -14,7 +14,7 @@ mkdir -p "$OUT"
 
 BIN="$OUT/ThoughtSemanticStoreStandaloneTests"
 
-swiftc -o "$BIN" \
+swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift" \
   "$APP/Services/AI/SemanticV3/LocalSemanticIndex.swift" \
   "$APP/Services/AI/SemanticV3/FlatSemanticIndex.swift" \

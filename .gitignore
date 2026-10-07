@@ -103,3 +103,4 @@ build-*.dd/
 *-build-dd/
 .qa-tmp/
 qa-shots/
+.build-trend-dd/

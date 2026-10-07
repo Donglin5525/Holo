@@ -37,7 +37,7 @@ enum HealthDataSourceState: Equatable {
         case .denied:
             return String(localized: "无法访问健康数据")
         case .unavailable:
-            return String(localized: "此设备不支持 HealthKit")
+            return String(localized: "健康功能暂不支持 iPad 和 Mac")
         }
     }
 
@@ -52,7 +52,7 @@ enum HealthDataSourceState: Equatable {
         case .denied:
             return String(localized: "请在系统设置中允许 HOLO 读取健康数据")
         case .unavailable:
-            return String(localized: "可继续使用其他 HOLO 模块")
+            return String(localized: "健康数据保存在 iPhone 的「健康」App 里，请在 iPhone 上查看和记录。")
         }
     }
 

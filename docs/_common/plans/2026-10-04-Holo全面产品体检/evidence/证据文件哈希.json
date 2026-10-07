@@ -1,0 +1,543 @@
+{
+  "capturedAt": "2026-10-04T01:29:10.725721+08:00",
+  "sources": [
+    {
+      "evidence": "E01",
+      "path": "HoloBackend/src/app.js",
+      "sha256": "c8fee29ab144f8f170859d21c7dd3b5e71e99f8a843299ae5289335e8e5c6928",
+      "ranges": [
+        [
+          2020,
+          2030
+        ]
+      ]
+    },
+    {
+      "evidence": "E02",
+      "path": "HoloBackend/src/agent/cloudAnalysisExecutor.js",
+      "sha256": "909f6aaa2cff2730ec3efe2476660d60d91113b59e7f75dcbd444231cd710952",
+      "ranges": [
+        [
+          138,
+          155
+        ],
+        [
+          185,
+          220
+        ]
+      ]
+    },
+    {
+      "evidence": "E03",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisSnapshotBuilder.swift",
+      "sha256": "3d9eeb40103375703054d51a191643e6044c535f193acb6607162ba9a00c4a80",
+      "ranges": [
+        [
+          30,
+          33
+        ],
+        [
+          73,
+          92
+        ],
+        [
+          124,
+          159
+        ]
+      ]
+    },
+    {
+      "evidence": "E04",
+      "path": "Holo/Holo APP/Holo/Holo/Models/FinanceRepository+Accounts.swift",
+      "sha256": "115bbb73d65956c0ff47e171df50c7404ac352ed7c7f57d47e0343c88a91012a",
+      "ranges": [
+        [
+          87,
+          95
+        ],
+        [
+          115,
+          122
+        ]
+      ]
+    },
+    {
+      "evidence": "E04",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Finance/AddAccountSheet.swift",
+      "sha256": "c2c05001655615c99248fad311f83a1eba58e1405103610bc0c905f68fb1f576",
+      "ranges": [
+        [
+          415,
+          438
+        ]
+      ]
+    },
+    {
+      "evidence": "E05",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisService.swift",
+      "sha256": "d4cb444e956d7c540946797aaa49c873f545e1dca63e0c3266ed0e4702f72139",
+      "ranges": [
+        [
+          291,
+          302
+        ],
+        [
+          433,
+          455
+        ],
+        [
+          466,
+          471
+        ]
+      ]
+    },
+    {
+      "evidence": "E05",
+      "path": "Holo/Holo APP/Holo/Holo/Data/Repositories/ChatMessageRepository.swift",
+      "sha256": "fc61ca5f3576f9d185d7cacba9bf9cb19364e38d0bd15b601a59fa8d1c289e1c",
+      "ranges": [
+        [
+          803,
+          840
+        ],
+        [
+          1547,
+          1555
+        ]
+      ]
+    },
+    {
+      "evidence": "E06",
+      "path": "Holo/Holo APP/Holo/Holo/Models/CoreDataStack.swift",
+      "sha256": "c680b9db305de27b41a40f6ea4e22c8b0f3a3ec680c34780fa29c286fc3bab85",
+      "ranges": [
+        [
+          141,
+          199
+        ]
+      ]
+    },
+    {
+      "evidence": "E07",
+      "path": "Holo/Holo APP/Holo/Holo/Models/ImportExportModels.swift",
+      "sha256": "29ff634d951e1a1500ab15e394315390cf2145bda960fab3f341fa8ec4163f28",
+      "ranges": [
+        [
+          15,
+          36
+        ],
+        [
+          87,
+          99
+        ]
+      ]
+    },
+    {
+      "evidence": "E07",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Settings/ImportExportView.swift",
+      "sha256": "2f6cbd2eeb1876b4c2c68c417be05eea44b2c421515cbcd186553a7e8c8e5578",
+      "ranges": [
+        [
+          184,
+          191
+        ]
+      ]
+    },
+    {
+      "evidence": "E08",
+      "path": "Holo/Holo APP/Holo/Holo/Models/RepeatRule+CoreDataProperties.swift",
+      "sha256": "2c67fdd253d75339aee8509738dc815f58fc281d14da7392fed232a3cf1f4572",
+      "ranges": [
+        [
+          82,
+          128
+        ]
+      ]
+    },
+    {
+      "evidence": "E08",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Tasks/TaskDetailView.swift",
+      "sha256": "209d47d6fa1cbf6136ca5b239693deb4743ca27191b2198575eb26cb3c4f8d1c",
+      "ranges": [
+        [
+          2201,
+          2227
+        ]
+      ]
+    },
+    {
+      "evidence": "E08",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Tasks/RepeatPicker.swift",
+      "sha256": "d7b5123182c4b4f5a9295b052fcedc6613003bd8fdfaecc6a7da941126a0812b",
+      "ranges": [
+        [
+          237,
+          253
+        ],
+        [
+          297,
+          335
+        ]
+      ]
+    },
+    {
+      "evidence": "E09",
+      "path": "Holo/Holo APP/Holo/Holo/Models/TodoCompletionCore.swift",
+      "sha256": "71bcb5bff2fc78a00bb16053c26b11fdfadee9fcaff81e54d76f4294658b9528",
+      "ranges": [
+        [
+          85,
+          123
+        ]
+      ]
+    },
+    {
+      "evidence": "E10",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AccountDataDeletionService.swift",
+      "sha256": "03a57ae08fa96f18d4fa4d26e9c8307014cf5b7bcec4d1872a5b2358c55315ed",
+      "ranges": [
+        [
+          36,
+          105
+        ]
+      ]
+    },
+    {
+      "evidence": "E10",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/ThoughtEmbeddingStore.swift",
+      "sha256": "5b0c6e8bc0c3fa76981ee3bd499845aa903f1b05cedc8120a41f921c7c41c192",
+      "ranges": [
+        [
+          34,
+          43
+        ]
+      ]
+    },
+    {
+      "evidence": "E10",
+      "path": "Holo/Holo APP/Holo/Holo/Services/Schedule/ScheduleStore.swift",
+      "sha256": "ce659e508c9178bdb9d062dfa06dfe850cb23326124d3ae5d3915932ff431019",
+      "ranges": [
+        [
+          360,
+          366
+        ]
+      ]
+    },
+    {
+      "evidence": "E11",
+      "path": "HoloBackend/src/auth/appleRevokeService.js",
+      "sha256": "880028a2b7a4ff28af70a6913556b2acd6d12ce5f0cd6862c62b63a0b768e95f",
+      "ranges": [
+        [
+          35,
+          57
+        ]
+      ]
+    },
+    {
+      "evidence": "E12",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Onboarding/OnboardingAIConsentPage.swift",
+      "sha256": "6c52070211f0f394ac886b0cb651082d4d97d033233a8b3de1cd035465ec941f",
+      "ranges": [
+        [
+          28,
+          40
+        ]
+      ]
+    },
+    {
+      "evidence": "E12",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Settings/AIDataProcessingConsentView.swift",
+      "sha256": "c6142eb67817ec445b6275691d9bdb34d77f944a92ba7220cd6b45efc5b3a92a",
+      "ranges": [
+        [
+          10,
+          21
+        ]
+      ]
+    },
+    {
+      "evidence": "E12",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticFeatureFlags.swift",
+      "sha256": "652b7d3f74dd97c1b4bf8312d6189c7c10d8a2c89e274055f262b5adb50b207f",
+      "ranges": [
+        [
+          12,
+          28
+        ],
+        [
+          42,
+          51
+        ]
+      ]
+    },
+    {
+      "evidence": "E12",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticEmbeddingExecutor.swift",
+      "sha256": "9579b1701fdeaadae445f7f04170f37245e2163343e6f7de4aa8342452a8453c",
+      "ranges": [
+        [
+          70,
+          78
+        ]
+      ]
+    },
+    {
+      "evidence": "E13",
+      "path": "Holo/Holo APP/Holo/Holo/HoloApp.swift",
+      "sha256": "707d91ab0360838251998cfc3077d2462783303a27a5ef8dee8758431385909a",
+      "ranges": [
+        [
+          291,
+          299
+        ],
+        [
+          357,
+          364
+        ]
+      ]
+    },
+    {
+      "evidence": "E13",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Execution/HoloAgentTelemetryUploader.swift",
+      "sha256": "51938170c06b4e0b79177f13a8de8ceb2f9055346852ba80966763270f063f36",
+      "ranges": [
+        [
+          38,
+          60
+        ]
+      ]
+    },
+    {
+      "evidence": "E14",
+      "path": "Holo/Holo APP/Holo/Holo/Models/Onboarding/NewUserActivationState.swift",
+      "sha256": "9fa3a2960b1f6815e2c464886d0bd46d66afd32bc66ac574b501e9a92e8345e8",
+      "ranges": [
+        [
+          13,
+          33
+        ]
+      ]
+    },
+    {
+      "evidence": "E15",
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloOutcomeReviewStore.swift",
+      "sha256": "f63c2e8b0d804837f58a8e7a2441ba6660981bcbb38bf34747b56704afee9d47",
+      "ranges": [
+        [
+          32,
+          68
+        ],
+        [
+          83,
+          102
+        ]
+      ]
+    },
+    {
+      "evidence": "E16",
+      "path": "Holo/Holo APP/Holo/Holo/Services/Today/HoloTodaySnapshotBuilder.swift",
+      "sha256": "8c8c33a349e36266cd6313892e25ffe367c1c7cf1f221beacce1fd253fc74c6b",
+      "ranges": [
+        [
+          483,
+          506
+        ]
+      ]
+    },
+    {
+      "evidence": "E16",
+      "path": "Holo/Holo APP/Holo/Holo/Views/DailyKanban/TodayOverviewSection.swift",
+      "sha256": "2c7cbc9a69a1ee616d600134c263c46cd159d60bc59f8f0e1595716920baf4a6",
+      "ranges": [
+        [
+          83,
+          89
+        ]
+      ]
+    },
+    {
+      "evidence": "E17",
+      "path": "Holo/Holo APP/Holo/Holo/Services/WeeklyBriefScheduler.swift",
+      "sha256": "8cf408ff1c2a8012dc58d1390212b0eced1278a4a4a0dcfbcb875d6f44004bc4",
+      "ranges": [
+        [
+          121,
+          153
+        ]
+      ]
+    },
+    {
+      "evidence": "E17",
+      "path": "Holo/Holo APP/Holo/Holo/Models/HabitRepository.swift",
+      "sha256": "2b5fb7825ade64a2e995c5514df5cd4102d38e851091394a5e336c7341712027",
+      "ranges": [
+        [
+          482,
+          501
+        ],
+        [
+          910,
+          919
+        ]
+      ]
+    },
+    {
+      "evidence": "E18",
+      "path": "Holo/Holo APP/Holo/Holo/Views/Health/HealthView.swift",
+      "sha256": "0fdfde4290072893d785d45f884f59d67b8c0b94c9da7e800a8ecd4f4cfe54b6",
+      "ranges": [
+        [
+          44,
+          66
+        ]
+      ]
+    },
+    {
+      "evidence": "E18",
+      "path": "Holo/Holo APP/Holo/Holo/Models/HealthRepository.swift",
+      "sha256": "c49cbf7280ae51abbc061370367a5b4cc2051d8fe789d5aadd3fd4b207bf1355",
+      "ranges": [
+        [
+          309,
+          332
+        ],
+        [
+          458,
+          468
+        ]
+      ]
+    },
+    {
+      "evidence": "E19",
+      "path": "HoloBackend/tests/intent-registry-consistency.test.js",
+      "sha256": "03156ba22e8ab6a2254b6f4aa39f5ec712f85c16514e9b8c3c8c23b648a18801",
+      "ranges": [
+        [
+          16,
+          23
+        ]
+      ]
+    },
+    {
+      "evidence": "E24",
+      "path": "HoloBackend/src/subscription/appleReceiptVerifier.js",
+      "sha256": "6eb7885529ac2b5d93bb047c8c35324d3cec0424fd37df385fc830717628d166",
+      "ranges": [
+        [
+          1,
+          12
+        ],
+        [
+          76,
+          87
+        ]
+      ]
+    },
+    {
+      "evidence": "E27",
+      "path": "Holo/Holo APP/Holo/Holo/Services/Schedule/ScheduleStore.swift",
+      "sha256": "ce659e508c9178bdb9d062dfa06dfe850cb23326124d3ae5d3915932ff431019",
+      "ranges": [
+        [
+          388,
+          419
+        ]
+      ]
+    },
+    {
+      "evidence": "E27",
+      "path": "Holo/Holo APP/Holo/Holo/Models/AnniversaryRepository.swift",
+      "sha256": "4f0174e634371ed2e1e777fb759bcb4964c4468ea2f948e5cdbe7f8ff85231bf",
+      "ranges": [
+        [
+          73,
+          100
+        ]
+      ]
+    },
+    {
+      "evidence": "E27",
+      "path": "Holo/Holo APP/Holo/Holo/Services/Widgets/HoloWidgetSnapshotStore.swift",
+      "sha256": "8b62c18052b4f402dfbb6b7206a820997f758f90083bdaad72fb0372590370db",
+      "ranges": [
+        [
+          100,
+          123
+        ]
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "path": "evidence/AI对话.png",
+      "sha256": "4305a5532f3031e63f3c332c9765603303fc6071fbf0a5dae1d82cbdc6aca594"
+    },
+    {
+      "path": "evidence/AppStore公开快照.json",
+      "sha256": "ee1b25f3ab07c632800c0e97a5ef51b18da0f1d7f36b5eb617ab4e9a0e250a1b"
+    },
+    {
+      "path": "evidence/Today.png",
+      "sha256": "c8ada2e5f87013910c8121c84579075a5a0fb4e83bfb62cf20461a4ad61d7cf5"
+    },
+    {
+      "path": "evidence/inflight-changes.json",
+      "sha256": "1273b7ea55ac47cab60953cba9e22099c055691b83772030b5937bad04265589"
+    },
+    {
+      "path": "evidence/production-health.json",
+      "sha256": "64d48b8b192b347793d19b6bfdbd1941259676494537ea4d87395c8053c138b1"
+    },
+    {
+      "path": "evidence/production-release.json",
+      "sha256": "0de8efad980787c9d849fac2a64324a4b024acb8913ae2a0c684ff515dcb65c0"
+    },
+    {
+      "path": "evidence/代码证据摘录.md",
+      "sha256": "b355c1325aef99135453095819877c906ae7c67508341dba40e8fd7c50ba6fe3"
+    },
+    {
+      "path": "evidence/合成安全与AI复现.log",
+      "sha256": "719ab6c834fee6a9b5e10bb162965707295c370711951e8c31ba4c3a51adf8a7"
+    },
+    {
+      "path": "evidence/想法回读证据.png",
+      "sha256": "912363e91b00d3ebce10305d4a394842c8d7a0325d68294f2b0cde5fb02583e0"
+    },
+    {
+      "path": "evidence/意图契约差异.diff",
+      "sha256": "9651c505a7c1ad299e8e39daeb73c8f3640449d9b80f6cfc9742337e7ade9cc5"
+    },
+    {
+      "path": "evidence/本地安全与AI复现.mjs",
+      "sha256": "a41b746faddb09ca18808574add4a8722a34f7df300e6705d5ea93c32303ec79"
+    },
+    {
+      "path": "evidence/测试输出摘要.txt",
+      "sha256": "6a2b3bca3b9fca20ed8542690ae490b82bd88fef1d4c0822ec925520d51d2dab"
+    },
+    {
+      "path": "evidence/财务.png",
+      "sha256": "3c535d87daddeb10e347521c9ee86e94f104a43b774b8d2709a59ef17800dc39"
+    },
+    {
+      "path": "evidence/重复规则复现.log",
+      "sha256": "16203a57459050c6ab7588f5266fce00f7fadafe852713e6185020197e6839ad"
+    },
+    {
+      "path": "evidence/重复规则复现入口.swift",
+      "sha256": "045d865d9b4dc6ec99d8f5dd3540a6484184610fcba52087413e267d8dccf8ba"
+    },
+    {
+      "path": "evidence/重复规则最小实体.swift",
+      "sha256": "27b20ccec0367b98b284855a61f7af39e9b38d93682a993b20dc258bebe8dc32"
+    },
+    {
+      "path": "evidence/首页.png",
+      "sha256": "376b15b9f026a49a0183f904e9e33a98579ce813c092aa145776b66f0504555f"
+    }
+  ],
+  "completedAt": "2026-10-04T01:33:35.144281+08:00"
+}

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 习惯模块 · 温润纸感 v3 · 高保真原型</title>
+<style>
+  :root{
+    /* 浅色（方案 token） */
+    --bg:#FDFCF8; --card:#FFFFFF; --inset:#F7F1EA; --text:#333333; --text2:#6E6E6E;
+    --border:#E9E4DA; --brand:#F46D38; --brand-dark:#EA580C; --err:#D64545;
+    --shadow-card:0 2px 8px rgba(0,0,0,.035);
+    --chip-bg:rgba(0,0,0,.05);
+  }
+  .dark{
+    --bg:#1C1C1E; --card:#2C2C2E; --inset:#3A3A3C; --text:#F5F5F5; --text2:#A8A8A8;
+    --border:#48484A; --shadow-card:none;
+    --chip-bg:rgba(255,255,255,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;background:#eef0ee;color:#1f2328;padding:28px 16px 90px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:22px;margin-bottom:4px}
+  .sub{color:#6b7280;font-size:13.5px;margin-bottom:18px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .toolbar button{border:1px solid #d7dcd6;background:#fff;border-radius:99px;padding:6px 16px;font-size:13px;cursor:pointer;color:#333;transition:.2s}
+  .toolbar button.on{background:#1f2328;color:#fff;border-color:#1f2328}
+  .stage{display:flex;gap:26px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+
+  /* ===== iPhone 外框 ===== */
+  .phone{width:394px;border-radius:54px;background:#111;padding:12px;box-shadow:0 24px 60px rgba(0,0,0,.25)}
+  .screen{border-radius:43px;overflow:hidden;background:var(--bg);height:820px;position:relative;transition:background .3s}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#111;border-radius:20px;z-index:50}
+  .status{display:flex;justify-content:space-between;padding:14px 26px 0;font-size:13px;font-weight:600;color:var(--text);position:relative;z-index:40}
+  .scrollarea{height:756px;overflow-y:auto;scrollbar-width:none}
+  .scrollarea::-webkit-scrollbar{display:none}
+
+  /* ===== 头部 ===== */
+  .head{padding:8px 20px 0}
+  .ops{display:flex;justify-content:space-between;align-items:center;height:44px}
+  .back{width:34px;height:34px;border-radius:12px;background:var(--chip-bg);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:16px}
+  .addbtn{width:36px;height:36px;border-radius:50%;background:linear-gradient(180deg,var(--brand),var(--brand-dark));color:#fff;font-size:19px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(244,109,56,.3)}
+  .title{font-size:28px;font-weight:600;color:var(--text);letter-spacing:.3px;margin-top:6px}
+  .date{font-size:13px;color:var(--text2);margin-top:2px}
+
+  /* ===== 摘要 ===== */
+  .summary{margin:20px 20px 0;padding:16px 18px;background:var(--card);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);transition:.3s}
+  .sumrow{display:flex;align-items:baseline;justify-content:space-between}
+  .sumleft{display:flex;align-items:baseline;gap:7px}
+  .sumlabel{font-size:15px;color:var(--text2)}
+  .sumnum{font-size:24px;font-weight:700;color:var(--brand);font-family:"SF Pro Rounded",-apple-system,sans-serif}
+  .sumden{font-size:15px;color:var(--text2)}
+  .sumstate{font-size:13px;color:var(--text2)}
+  .sumstate.all{color:var(--brand);font-weight:600}
+  .segs{display:flex;gap:3px;margin-top:12px}
+  .seg{flex:1;height:8px;border-radius:99px;background:var(--inset);transition:background .45s ease}
+  .seg.lit{background:linear-gradient(90deg,var(--brand),var(--brand-dark))}
+
+  /* ===== 磁贴墙 ===== */
+  .wall{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:24px 20px 0}
+  .tile{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;min-height:150px;display:flex;flex-direction:column;box-shadow:var(--shadow-card);position:relative;transition:background .4s ease,border-color .4s ease,box-shadow .4s ease;cursor:pointer}
+  .tile.done{border-color:transparent}
+  .tile.done.lightshadow{box-shadow:0 4px 10px rgba(0,0,0,0)}
+  /* 完成底=习惯色（HTML 里直接给定钳制后的色） */
+  .tile.done[data-c="#2FA360"]{background:#2FA360;box-shadow:0 4px 10px rgba(47,163,96,.28)}
+  .tile.done[data-c="#3B76C9"]{background:#3B76C9;box-shadow:0 4px 10px rgba(59,118,201,.28)}
+  .tile.done[data-c="#8063CE"]{background:#8063CE;box-shadow:0 4px 10px rgba(128,99,206,.28)}
+  .tile.done[data-c="#1F9E9E"]{background:#1F9E9E;box-shadow:0 4px 10px rgba(31,158,158,.28)}
+  .tile.done[data-c="#CE4A6B"]{background:#CE4A6B;box-shadow:0 4px 10px rgba(206,74,107,.28)}
+  .tile.done[data-c="#D9662C"]{background:#D9662C;box-shadow:0 4px 10px rgba(217,102,44,.28)}
+  .dark .tile.done[data-c="#2FA360"]{background:#3DAE76;box-shadow:none;border-color:rgba(255,255,255,.16)}
+  .dark .tile.done[data-c="#3B76C9"]{background:#5C8FD6;box-shadow:none;border-color:rgba(255,255,255,.16)}
+  .dark .tile.done[data-c="#8063CE"]{background:#9581D8;box-shadow:none;border-color:rgba(255,255,255,.16)}
+  .dark .tile.done[data-c="#1F9E9E"]{background:#35AEAE;box-shadow:none;border-color:rgba(255,255,255,.16)}
+  .dark .tile.done[data-c="#CE4A6B"]{background:#DA6B8B;box-shadow:none;border-color:rgba(255,255,255,.16)}
+  .dark .tile.done[data-c="#D9662C"]{background:#E58A5C;box-shadow:none;border-color:rgba(255,255,255,.16)}
+
+  .trow1{display:flex;justify-content:space-between;align-items:flex-start;height:36px}
+  .iconchip{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;transition:.4s}
+  .tile:not(.done) .iconchip{background:color-mix(in srgb,var(--tc) 12%,transparent)}
+  .dark .tile:not(.done) .iconchip{background:color-mix(in srgb,var(--tc) 20%,transparent)}
+  .tile.done .iconchip{background:rgba(255,255,255,.28)}
+
+  /* 状态位 */
+  .ring{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);transition:.3s}
+  .dark .ring{border-color:#5a5a5e}
+  .stamp{width:24px;height:24px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;
+    transform:scale(1);opacity:1;transition:transform .3s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+  .stamp svg{width:12px;height:12px}
+  .tile:not(.done) .stamp{transform:scale(1.4);opacity:0}
+
+  .trow2{display:flex;align-items:center;gap:5px;margin-top:10px;flex-wrap:nowrap}
+  .tname{font-size:17px;font-weight:500;color:var(--text);transition:color .4s;white-space:nowrap}
+  .tile.done .tname{color:#fff}
+  .badge{display:inline-flex;align-items:center;gap:2px;height:20px;padding:0 8px;border-radius:99px;font-size:11px;font-weight:600;flex:0 0 auto;transition:.4s}
+  .badge .fl{font-size:10px}
+  .tile:not(.done) .badge{background:color-mix(in srgb,var(--brand) 12%,transparent);color:var(--brand)}
+  .tile.done .badge{background:rgba(255,255,255,.2);color:#fff}
+  .badge.total{background:color-mix(in srgb,var(--tc) 12%,transparent);color:var(--tc)}
+  .tile.done .badge.total{background:rgba(255,255,255,.2);color:#fff}
+  .tsub{font-size:13px;color:var(--text2);margin-top:3px;transition:.4s}
+  .tile.done .tsub{color:rgba(255,255,255,.78)}
+  .spacer{flex:1;min-height:8px}
+
+  /* 打卡点阵 */
+  .dots{display:flex;gap:6px;align-items:center}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .dot.hit{background:var(--tc)}
+  .tile.done .dot.hit{background:rgba(255,255,255,.85)}
+  .dot.miss{border:1px dashed color-mix(in srgb,var(--tc) 60%,transparent);position:relative;background:transparent}
+  .dot.miss::after{content:"+";position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);font-size:9px;color:color-mix(in srgb,var(--tc) 80%,transparent);line-height:1}
+  .dot.today{background:transparent;border:1.5px solid var(--tc)}
+  .tile.done .dot.today{border-color:#fff;background:rgba(255,255,255,.14)}
+  .dot.future{background:color-mix(in srgb,var(--tc) 12%,transparent)}
+  .tile.done .dot.future{background:rgba(255,255,255,.14)}
+
+  /* 操作 chips 行 */
+  .chips{display:flex;justify-content:flex-end;gap:6px;margin-top:10px}
+  .chip{height:28px;padding:0 11px;border-radius:99px;font-size:13px;display:inline-flex;align-items:center;cursor:pointer;transition:.3s;user-select:none}
+  .chip.a{border:1px solid color-mix(in srgb,var(--tc) 35%,transparent);color:var(--tc)}
+  .tile.done .chip.a{border-color:rgba(255,255,255,.85);color:#fff}
+
+  /* 计数型 */
+  .countrow{display:flex;align-items:center;gap:6px;margin-top:2px}
+  .bar{flex:1;height:6px;border-radius:99px;background:var(--inset);overflow:hidden}
+  .tile.done .bar{background:rgba(255,255,255,.25)}
+  .bar i{display:block;height:100%;border-radius:99px;background:var(--tc);transition:width .35s ease}
+  .tile.done .bar i{background:#fff}
+  .bar.over i{background:var(--err)}
+  .cnum{font-size:15px;font-weight:600;font-family:"SF Pro Rounded",-apple-system,sans-serif;color:var(--text);font-variant-numeric:tabular-nums}
+  .tile.done .cnum{color:#fff}
+  .cnum .warn{color:var(--err)}
+  .btnrow{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px}
+  .cbtn{border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;transition:.25s;user-select:none}
+  .cminus{width:32px;height:32px;border:1.2px solid var(--tc);color:var(--tc);font-size:13px}
+  .tile.done .cminus{border-color:rgba(255,255,255,.5);color:#fff}
+  .cplus{width:40px;height:40px;background:var(--tc);color:#fff;font-size:17px;box-shadow:0 3px 8px color-mix(in srgb,var(--tc) 35%,transparent)}
+  .cplus:active{transform:scale(.95)}
+  .cplus.over{background:var(--err)}
+  .tile.done .cplus{background:rgba(255,255,255,.28)}
+
+  /* 测量型 */
+  .mrow{display:flex;align-items:flex-end;gap:5px;margin-top:2px}
+  .mval{font-size:15px;font-weight:600;font-family:"SF Pro Rounded",-apple-system,sans-serif;color:var(--tc)}
+  .tile.done .mval{color:#fff}
+  .munit{font-size:11px;color:var(--text2)}
+  .tile.done .munit{color:rgba(255,255,255,.75)}
+  .mrow2{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+  .undo{font-size:13px;color:var(--text2);cursor:pointer}
+  .tile.done .undo{color:rgba(255,255,255,.75)}
+  .recc{height:32px;padding:0 14px;border-radius:99px;background:var(--tc);color:#fff;font-size:13px;font-weight:600;display:inline-flex;align-items:center;cursor:pointer;transition:.25s}
+  .recc:active{transform:scale(.95)}
+  .tile.done .recc{background:rgba(255,255,255,.28)}
+
+  /* 坏习惯警告 */
+  .warnrow{display:flex;align-items:center;gap:4px;margin-top:8px;font-size:13px;color:var(--err);animation:warnIn .2s ease}
+  .tile.done .warnrow{color:#fff}
+  @keyframes warnIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* ===== 暂停区 ===== */
+  .paused{margin:26px 20px 0;border:1px dashed var(--border);border-radius:18px;padding:13px 16px;display:flex;justify-content:space-between;align-items:center}
+  .plabel{font-size:13.5px;color:var(--text2)}
+  .resume{height:28px;padding:0 12px;border-radius:99px;border:1px solid var(--brand);color:var(--brand);font-size:13px;display:inline-flex;align-items:center;cursor:pointer}
+  .bottompad{height:90px}
+
+  /* ===== 侧注解 ===== */
+  .notes{width:300px;display:flex;flex-direction:column;gap:12px}
+  .note{background:#fff;border:1px solid #e2e6e1;border-radius:14px;padding:14px 16px;font-size:13px;color:#374151}
+  .note b{color:#111827}
+  .note .sw{display:inline-block;width:11px;height:11px;border-radius:4px;vertical-align:-1px;margin-right:5px;border:1px solid rgba(0,0,0,.08)}
+  .kcap{font-size:12px;color:#9ca3af;margin-top:6px}
+  .cta{background:#111827;color:#fff;border:none}
+  .cta b{color:#FDBA74}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>习惯模块 · 温润纸感 v3 · 高保真原型</h1>
+  <div class="sub">2026-10-05 · 与任务模块「暖纸」语言同源 · 数据为虚构演示 · <b>点磁贴可体验「盖章」打卡，点 ＋/− 体验计数</b></div>
+
+  <div class="toolbar">
+    <button id="modeBtn" class="on" onclick="toggleMode()">☀️ 浅色模式（点我切深色）</button>
+    <span style="font-size:12.5px;color:#6b7280">完成卡颜色已按「暖化钳制」规则呈现（压暗降饱和、色相不变）</span>
+  </div>
+
+  <div class="stage">
+    <!-- 手机 -->
+    <div class="phone">
+      <div class="screen" id="screen">
+        <div class="notch"></div>
+        <div class="status"><span>21:47</span><span>􀙇 􀛨</span></div>
+        <div class="scrollarea">
+          <div class="head">
+            <div class="ops">
+              <div class="back">‹</div>
+              <div class="addbtn">＋</div>
+            </div>
+            <div class="title">习惯</div>
+            <div class="date">10月5日 · 周一</div>
+          </div>
+
+          <div class="summary">
+            <div class="sumrow">
+              <div class="sumleft">
+                <span class="sumlabel">今日</span>
+                <span class="sumnum" id="sumNum">3</span>
+                <span class="sumden">/ 8</span>
+              </div>
+              <span class="sumstate" id="sumState">还有 5 项待点亮</span>
+            </div>
+            <div class="segs" id="segs"></div>
+          </div>
+
+          <div class="wall" id="wall"></div>
+
+          <div class="paused">
+            <span class="plabel">▸ 已暂停（2）· 连续进度冻结中</span>
+            <span class="resume">恢复</span>
+          </div>
+          <div class="bottompad"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 注解 -->
+    <div class="notes">
+      <div class="note"><b>① 安静的纸墙</b><br>未完成 = 纸白卡 + 暖灰细描边；习惯色只出现在图标底、点阵、按钮这些小地方。整面墙安静、干净。</div>
+      <div class="note"><b>② 盖章完成</b><br>点一张打卡卡试试：整卡点亮为习惯色（自动压暗保证白字可读），右上角「啪」盖一个白圆勾章。</div>
+      <div class="note"><b>③ 分段点亮</b><br>顶部进度条按「今天该打的卡」分段，完成一张亮一段；全亮时变橙色渐变 + 「完美的一天 ✨」。</div>
+      <div class="note"><b>④ 三种类型</b><br>打卡型=本周点阵（漏卡日虚线+可补签）；计数型=进度条+大＋钮（可试按）；测量型=数值+记录胶囊。坏习惯超标变红+文字警告。</div>
+      <div class="note"><b>⑤ 徽章升级</b><br>「连续 12 天」从小灰字升级为橙色小胶囊，最该被看见的数字终于看得见了。</div>
+      <div class="note cta"><b>待你拍板的三个点</b><br>1. 顶部改大标题（多占约40pt）？<br>2. 完成卡颜色比选色器略暗（保白字可读）？<br>3. 深色模式沿用现有底色？<br><span class="kcap">三点都同意就按这个开工</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const HABITS=[
+ {type:"check",name:"维生素",icon:"💊",c:"#2FA360",streak:12,week:[1,1,1,1,1,0,0],done:false},
+ {type:"check",name:"晨跑",icon:"🏃",c:"#3B76C9",week:[1,1,0,1,1,0,0],done:true},
+ {type:"count",name:"喝水",icon:"💧",c:"#1F9E9E",val:5,target:8,unit:"杯",done:false},
+ {type:"measure",name:"体重",icon:"⚖️",c:"#8063CE",val:"65.2",unit:"kg",hasToday:true,done:false},
+ {type:"check",name:"阅读",icon:"📖",c:"#A87B0F",week:[1,0,1,1,0,0,0],done:false},
+ {type:"count",name:"戒烟",icon:"🚭",c:"#D64545",val:11,target:10,unit:"支",bad:true,done:false},
+ {type:"check",name:"冥想",icon:"🧘",c:"#CE4A6B",total:"累计 36 次",week:[1,1,1,1,1,0,0],done:true},
+ {type:"check",name:"轻食",icon:"🥗",c:"#6E8F26",week:[0,1,1,0,1,0,0],done:false},
+];
+let doneCount=3;
+
+const wall=document.getElementById('wall');
+const segsEl=document.getElementById('segs');
+const sumNum=document.getElementById('sumNum');
+const sumState=document.getElementById('sumState');
+
+function dotCls(state,tc){return state}
+
+function renderSegs(){
+  segsEl.innerHTML='';
+  HABITS.forEach(h=>{
+    const s=document.createElement('div');
+    s.className='seg'+((h.type==='count'?h.val>=(h.target||1e9):h.done)?' lit':'');
+    segsEl.appendChild(s);
+  });
+}
+function renderSummary(){
+  sumNum.textContent=doneCount;
+  const all=doneCount>=HABITS.length;
+  sumState.textContent=all?'完美的一天 ✨':`还有 ${HABITS.length-doneCount} 项待点亮`;
+  sumState.className='sumstate'+(all?' all':'');
+}
+
+function checkInner(h){
+  const todayIdx=5; // 演示：本周第6天是今天
+  let dots='<div class="dots">';
+  for(let i=0;i<7;i++){
+    let cls='dot';
+    if(i===todayIdx) cls+=' today';
+    else if(i<todayIdx) cls+= h.week[i]? ' hit':' miss';
+    else cls+=' future';
+    dots+=`<div class="${cls}"></div>`;
+  }
+  dots+='</div>';
+  let chips='<div class="chips">';
+  if(h.week.slice(0,todayIdx).some(v=>!v)) chips+='<span class="chip a">补签</span>';
+  if(h.done) chips+='<span class="chip a">备注</span>';
+  chips+='</div>';
+  return dots+chips;
+}
+function countInner(h){
+  const over=h.bad&&h.val>h.target;
+  const pct=Math.min(h.val/h.target*100,100);
+  return `<div class="countrow">
+      <div class="bar${over?' over':''}"><i style="width:${pct}%"></i></div>
+      <div class="cnum">${h.val}<span style="color:var(--text2)">/${h.target}</span>${over?'<span class="warn"> ⚠</span>':''}</div>
+    </div>
+    <div class="btnrow">
+      ${h.val>0?`<div class="cbtn cminus" onclick="cnt(event,this,-1)">−</div>`:''}
+      <div class="cbtn cplus${over?' over':''}" onclick="cnt(event,this,1)">＋</div>
+    </div>
+    ${over?'<div class="warnrow">⚠️ 已超当日限额，请注意控制</div>':''}`;
+}
+function measureInner(h){
+  return `<div class="mrow"><span class="mval">${h.val}</span><span class="munit">${h.unit}</span></div>
+    <div class="mrow2">
+      ${h.hasToday?'<span class="undo">撤销</span>':'<span></span>'}
+      <span class="recc">记录</span>
+    </div>`;
+}
+
+function render(){
+  wall.innerHTML='';
+  HABITS.forEach((h,idx)=>{
+    const t=document.createElement('div');
+    t.className='tile'+(h.done?' done':'');
+    t.dataset.c=h.c; t.style.setProperty('--tc',h.c);
+    let badges='';
+    if(h.streak) badges=`<span class="badge"><span class="fl">🔥</span>${h.streak}</span>`;
+    if(h.total) badges=`<span class="badge total">${h.total}</span>`;
+    const sub=h.type==='count'&&h.target?`每日 · 上限 ${h.target}${h.unit||''}`:'';
+    t.innerHTML=`
+      <div class="trow1">
+        <div class="iconchip">${h.icon}</div>
+        <div class="ring"></div>
+        <div class="stamp"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.6 2.6L10 3.5" stroke="${h.c}" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+      </div>
+      <div class="trow2"><span class="tname">${h.name}</span>${badges}</div>
+      ${sub?`<div class="tsub">${sub}</div>`:''}
+      <div class="spacer"></div>
+      ${h.type==='check'?checkInner(h):h.type==='count'?countInner(h):measureInner(h)}`;
+    if(h.type==='check'){
+      t.onclick=()=>{toggleDone(idx)};
+    }
+    wall.appendChild(t);
+  });
+  renderSegs();renderSummary();
+}
+
+function toggleDone(idx){
+  const h=HABITS[idx];
+  h.done=!h.done;
+  doneCount+=h.done?1:-1;
+  render();
+  if(h.done&&navigator.vibrate)navigator.vibrate(8);
+}
+function cnt(e,el,d){
+  e.stopPropagation();
+  const tile=el.closest('.tile');
+  const idx=[...wall.children].indexOf(tile);
+  const h=HABITS[idx];
+  h.val=Math.max(0,h.val+d);
+  const was=h.val>=h.target;
+  render();
+}
+function toggleMode(){
+  const sc=document.getElementById('screen');
+  const btn=document.getElementById('modeBtn');
+  sc.classList.toggle('dark');
+  const dark=sc.classList.contains('dark');
+  btn.textContent=dark?'🌙 深色模式（点我切浅色）':'☀️ 浅色模式（点我切深色）';
+  btn.classList.toggle('on',!dark);
+}
+render();
+</script>
+</body>
+</html>

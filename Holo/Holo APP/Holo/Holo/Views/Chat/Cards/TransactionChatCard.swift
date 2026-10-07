@@ -29,8 +29,9 @@ struct TransactionChatCard: View {
 
             // 金额
             Text(formattedAmount)
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(data.isExpense ? .holoError : .holoSuccess)
+                .holoText(.amount)
+                .monospacedDigit()
+                .foregroundColor(.holoToolText)
                 .minimumScaleFactor(0.75)
                 .lineLimit(1)
                 .strikethrough(isDeleted || data.isCancelled)
@@ -39,7 +40,7 @@ struct TransactionChatCard: View {
             if let note = data.note, !note.isEmpty {
                 Text(note)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .strikethrough(isDeleted)
             }
 
@@ -66,6 +67,12 @@ struct TransactionChatCard: View {
             } else if data.isFailed {
                 failedInfo
             } else {
+                HStack {
+                    Label(String(localized: "已记入财务"), systemImage: "checkmark.circle")
+                        .holoText(.metadata)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                    Spacer()
+                }
                 CardFooterView(timeText: String(localized: "查看明细"), isDeleted: isDeleted)
             }
         }
@@ -93,7 +100,7 @@ struct TransactionChatCard: View {
             return CardBadge(text: String(localized: "待确认"), color: .holoPrimary)
         }
         if data.isCancelled {
-            return CardBadge(text: String(localized: "已取消"), color: .holoTextSecondary)
+            return CardBadge(text: String(localized: "已取消"), color: .holoToolTextSecondary)
         }
         return nil
     }
@@ -116,12 +123,12 @@ struct TransactionChatCard: View {
                 let dateText = data.refundCandidateDate.map { " · \($0)" } ?? ""
                 Text("\(title)\(amountText)\(dateText)")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Text(String(localized: "确认后自动冲减该笔支出，不计入收入"))
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,13 +154,13 @@ struct TransactionChatCard: View {
                 let perPeriod = total / Decimal(periods)
                 Text("每期 ¥\(perPeriod.description) × \(periods) 期")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             if let fee = data.installmentFeePerPeriod, fee != "0" {
                 Text("手续费 ¥\(fee)/期")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(10)
@@ -188,10 +195,10 @@ struct TransactionChatCard: View {
             } label: {
                 Text("取消")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .frame(minHeight: 44)
+                    .background(Color.holoToolTextSecondary.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -202,10 +209,10 @@ struct TransactionChatCard: View {
             } label: {
                 Text(data.isConfirming ? String(localized: "正在记录…") : String(localized: "确认"))
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.holoToolOnAction)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(data.isConfirming ? Color.holoPrimary.opacity(0.5) : Color.holoPrimary)
+                    .frame(minHeight: 44)
+                    .background(data.isConfirming ? Color.holoToolAction.opacity(0.5) : Color.holoToolAction)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -219,7 +226,7 @@ struct TransactionChatCard: View {
         HStack {
             Text("已取消记账")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Spacer()
         }
     }
@@ -241,10 +248,10 @@ struct TransactionChatCard: View {
                 } label: {
                     Text("重试")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.holoToolOnAction)
                         .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Color.holoPrimary)
+                        .frame(minHeight: 44)
+                        .background(Color.holoToolAction)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -290,7 +297,7 @@ struct TransactionChatCard: View {
                     }
                 }
             }
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
         }
     }
 

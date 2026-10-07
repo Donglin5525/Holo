@@ -1,0 +1,32 @@
+{
+  "audit_date": "2026-10-04",
+  "snapshot_at": "2026-10-04 09:56 Asia/Shanghai",
+  "branch": "1.1",
+  "head": "91265544ba7c0eacefd791f0e633cb59a896142e",
+  "scope": "客户端代码审查与独立异常输入验证；未修改业务代码",
+  "findings": {
+    "P1": 10,
+    "P2": 6,
+    "watch": 3
+  },
+  "release_simulator_build": "succeeded",
+  "emitted_unique_warnings": 332,
+  "actor_or_sendable_keyword_warnings": 234,
+  "source_drift_after_final_snapshot": [
+    "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtEditorView.swift",
+    "Holo/Holo APP/Holo/Holo/Services/PhotoLibraryImageLoader.swift",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisService.swift",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Presentation/HoloAgentResultRenderer.swift",
+    "Holo/Holo APP/Holo/Holo/Services/Thoughts/ThoughtEditorRecoveryStore.swift",
+    "Holo/Holo APP/Holo/HoloTests/Services/AI/Agent/CloudNarrativeContractTests.swift"
+  ],
+  "not_verified": [
+    "完整App异常数据端到端",
+    "全量XCTest/UI tests",
+    "真机闪退/黑屏/卡死",
+    "性能与内存测量",
+    "双设备CloudKit",
+    "HealthKit实测",
+    "后端生产"
+  ]
+}

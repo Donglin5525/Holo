@@ -41,6 +41,8 @@ extension AddTransactionSheet {
 
     /// 保存交易
     func saveTransaction() {
+        guard !isSaving else { return }
+        let motionOperationID = UUID()
         // 保存前先计算表达式（如果有）
         calculateExpression()
 
@@ -199,6 +201,9 @@ extension AddTransactionSheet {
 
                 await attachPendingReceipts(to: savedTransaction)
 
+                if editingTransaction == nil, let savedTransaction {
+                    HoloMotionFeedbackCenter.shared.saved(savedTransaction.id, domain: .finance, operationID: motionOperationID)
+                }
                 HapticManager.success()
                 onSave(savedTransaction)
                 dismiss()
@@ -217,6 +222,8 @@ extension AddTransactionSheet {
 
     /// 异步保存交易（用于下拉刷新）
     func saveTransactionAsync() async {
+        guard !isSaving else { return }
+        let motionOperationID = UUID()
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
@@ -374,6 +381,9 @@ extension AddTransactionSheet {
             await attachPendingReceipts(to: savedTransaction)
 
             await MainActor.run {
+                if editingTransaction == nil, let savedTransaction {
+                    HoloMotionFeedbackCenter.shared.saved(savedTransaction.id, domain: .finance, operationID: motionOperationID)
+                }
                 HapticManager.success()
                 onSave(savedTransaction)
                 dismiss()

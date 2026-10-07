@@ -1,0 +1,8 @@
+ HoloBackend/src/agent/cloudAnalysisExecutor.js     |  92 +++++-
+ HoloBackend/src/agent/cloudAnalysisQueryEngine.js  |  37 ++-
+ HoloBackend/src/prompts/defaultPrompts.json        |   1 +
+ HoloBackend/src/prompts/promptRegistry.js          |   3 +-
+ .../cloud-analysis-catalog-driven-fields.test.js   | 104 +++++++
+ HoloBackend/tests/cloud-analysis-executor.test.js  | 320 ++++++++++++++++++---
+ HoloBackend/tests/prompts.test.js                  |   4 +-
+ 7 files changed, 507 insertions(+), 54 deletions(-)
