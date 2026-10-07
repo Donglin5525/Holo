@@ -13,6 +13,7 @@
 
 import XCTest
 import CoreData
+import CryptoKit
 @testable import Holo
 
 final class ThoughtTopicConsistencyTests: XCTestCase {
@@ -45,11 +46,18 @@ final class ThoughtTopicConsistencyTests: XCTestCase {
         return t
     }
 
+    /// 与 ThoughtTopicLinkProjection.isCurrentActive 同口径的正文指纹（SHA256 前 8 位 hex）：
+    /// AI 关系只对生成它的正文版本有效，写入必须带真实指纹才能通过读投影校验。
+    private func basisHash(of content: String) -> String {
+        SHA256.hash(data: Data(content.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
+            .prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// 只写 link（模拟 V3 AI 归入路径——verifier 不写旧 Thought.topics）
-    private func writeAILink(thought: Thought, topic: Topic, hash: String) throws {
+    private func writeAILink(thought: Thought, topic: Topic, hash: String? = nil) throws {
         _ = ThoughtTopicLinkProjection.recordAIV3Decision(
             thought: thought, topic: topic,
-            basisTextHash: hash,
+            basisTextHash: hash ?? basisHash(of: thought.content ?? ""),
             decisionTier: "high",
             engineVersion: "thought_semantic_v3.0",
             consentGeneration: ThoughtSemanticFeatureFlags.consentGeneration,
@@ -69,7 +77,7 @@ final class ThoughtTopicConsistencyTests: XCTestCase {
         // 旧关系为空（差异场景实锤：V3 只写 link）
         XCTAssertTrue(((thought.topics as? Set<Topic>) ?? []).isEmpty, "前置：旧关系应为空")
 
-        try writeAILink(thought: thought, topic: topic, hash: "h1")
+        try writeAILink(thought: thought, topic: topic)
 
         // ① 卡片口径（投影）
         let cardTopics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
@@ -93,7 +101,7 @@ final class ThoughtTopicConsistencyTests: XCTestCase {
         topic.status = Topic.TopicStatus.active.rawValue
         try ctx.save()
 
-        try writeAILink(thought: thought, topic: topic, hash: "h1")
+        try writeAILink(thought: thought, topic: topic)
         try repo.remove(thoughtId: thought.id, fromTopic: topic.id)
 
         XCTAssertTrue(ThoughtTopicLinkProjection.effectiveTopics(for: thought).isEmpty, "卡片应无主题")
@@ -101,7 +109,7 @@ final class ThoughtTopicConsistencyTests: XCTestCase {
         XCTAssertTrue(try repo.fetchThoughts(byTopic: topic.id).isEmpty, "详情应无成员")
 
         // AI 同版本迟到决策：投影墓碑压制，四处均不复活
-        try writeAILink(thought: thought, topic: topic, hash: "h1")
+        try writeAILink(thought: thought, topic: topic)
         XCTAssertTrue(ThoughtTopicLinkProjection.effectiveTopics(for: thought).isEmpty,
                       "拒绝后同版本 AI 决策不得复活")
         XCTAssertEqual(repo.thoughtCount(of: topic), 0)

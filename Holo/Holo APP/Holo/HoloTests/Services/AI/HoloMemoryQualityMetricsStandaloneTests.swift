@@ -210,13 +210,20 @@ struct HoloMemoryQualityMetricsStandaloneTests {
         expect(!json.contains("question"), "漏斗指标不得包含问题正文")
     }
 
-    /// 体检 G0：身份快照只含配置元数据，standalone 环境版本号如实回落 unknown。
+    /// 体检 G0：身份快照只含配置元数据。版本号两种合法形态：
+    /// standalone（swiftc 直编无 App 包）如实回落 unknown；
+    /// XCTest 桥（Bundle.main=测试 Runner 包）读到 Runner 的真实版本——
+    /// 两者都算「不编造」，唯独不允许出现与宿主包无关的假值。
     @MainActor
     private static func testDiagnosticsIdentity() {
         let identity = HoloMemoryDiagnosticsIdentity.current()
         expect(!identity.logLine.isEmpty, "身份日志行应可构造")
-        expect(identity.appVersion == "unknown" && identity.buildNumber == "unknown",
-               "无 App 包环境应回落 unknown 而非编造版本")
+        let hostVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let hostBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        let versionOK = (identity.appVersion == "unknown" && identity.buildNumber == "unknown")
+            || (hostVersion != nil && identity.appVersion == hostVersion
+                && hostBuild != nil && identity.buildNumber == hostBuild)
+        expect(versionOK, "版本号应如实回落 unknown 或与宿主包一致，不得编造")
         expect(identity.domainExtractorVersion == HoloMemoryPipelineVersions.domainExtractorVersion,
                "身份快照的管线版本应来自统一常量")
         expect(identity.personalPromptVersion == HoloMemoryPipelineVersions.personalPromptVersion,

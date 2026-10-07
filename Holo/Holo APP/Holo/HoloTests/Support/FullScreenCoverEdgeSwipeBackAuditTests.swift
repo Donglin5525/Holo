@@ -35,6 +35,7 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         "ChatLogView": "DEBUG 诊断日志页（#if DEBUG 块内，不随正式包分发）",
         "PhotoLibraryPickerView": "系统照片选择器（UIImagePickerController 包装）：系统自带取消与交互，不适用滑动退出（同 CameraView）",
         "UserAvatarCropView": "头像裁剪操作页：拖动/双指缩放调整裁剪框，右滑会与拖动手势冲突，走明确取消/确认按钮（同 ThoughtEditorView 逻辑）",
+        "CloudRepullView": "iCloud 重新拉取确认流程页：有明确的开始/取消按钮与进度状态，多步流程走按钮退出（同 CSVQuickImportView）",
     ]
 
     /// 需要右滑返回的全屏页（阅读/详情/检索类）。定义文件必须挂手势。
@@ -52,6 +53,8 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         "ThoughtGalleryView",      // 想法图片画廊
         "TopicDetailView",         // 主题详情
         "ReceiptGalleryView",      // 票根图片画廊（已挂 holoEdgeSwipeBack，与朋友圈式下拉关闭共存）
+        "TagThoughtListView",      // 标签想法列表（已挂 holoEdgeSwipeBack）
+        "TaskExperienceSearchView",// 任务体验搜索页（2026-10-07 收口补挂）
     ]
 
     private static let auditFileName = "FullScreenCoverEdgeSwipeBackAuditTests.swift"

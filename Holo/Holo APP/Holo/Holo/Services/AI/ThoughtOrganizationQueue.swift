@@ -154,26 +154,27 @@ final class ThoughtOrganizationQueue: ObservableObject {
         // 先恢复 processing 超时
         repository.recoverStaleProcessingThoughts(coldStart: coldStart)
 
-        // 自动分类关闭时不恢复后台队列；用户仍可从“批量 AI 整理”主动处理。
-        guard ThoughtAIClassificationPolicy.isEnabled() else {
-            logger.info("自动分类已关闭，跳过 pending 队列恢复")
-            return
-        }
-
-        // 读取 pending 想法（批量整理被配额暂停 / 断网回退留下的，恢复后续做）
-        do {
-            let pendingIds = try repository.fetchPendingThoughtIds()
-            for id in pendingIds {
-                let alreadyQueued = pendingItems.contains { $0.thoughtId == id }
-                if !alreadyQueued {
-                    pendingItems.append(QueueItem(thoughtId: id, retryCount: 0))
+        // 自动分类关闭时不重拾后台 pending（避免关了自动整理还在自动跑）；
+        // 但内存队列里用户手动入队、断网挂起的条目必须继续消费——否则网络恢复沿
+        // 手动整理会永远停在挂起态（2026-10-07 收口修复：V3 收口后 V2 策略恒关，
+        // 原 guard 提前 return 连 processNext 一起跳过，冻结了手动队列）。
+        if ThoughtAIClassificationPolicy.isEnabled() {
+            do {
+                let pendingIds = try repository.fetchPendingThoughtIds()
+                for id in pendingIds {
+                    let alreadyQueued = pendingItems.contains { $0.thoughtId == id }
+                    if !alreadyQueued {
+                        pendingItems.append(QueueItem(thoughtId: id, retryCount: 0))
+                    }
                 }
+                if !pendingIds.isEmpty {
+                    logger.info("重建队列：\(pendingIds.count) 条 pending 想法")
+                }
+            } catch {
+                logger.error("重建队列失败：\(error.localizedDescription)")
             }
-            if !pendingIds.isEmpty {
-                logger.info("重建队列：\(pendingIds.count) 条 pending 想法")
-            }
-        } catch {
-            logger.error("重建队列失败：\(error.localizedDescription)")
+        } else {
+            logger.info("自动分类已关闭，跳过 pending 队列恢复（内存队列照常消费）")
         }
 
         processNext()

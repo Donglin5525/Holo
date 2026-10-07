@@ -428,6 +428,7 @@ struct TaskExperienceSearchView: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: String(localized: "标题、描述、清单名")
         )
+        .holoEdgeSwipeBack { dismiss() }
     }
 
     @ViewBuilder

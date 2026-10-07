@@ -56,18 +56,18 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        // 未显式设置 + 新 UI 生效 → 默认停（新 UI 不展示 V2 标签，不再空耗配额）
+        // V3 收口（2026-10-03）：自动主题统一走 V3 Pipeline 的 automatic 开关，
+        // V2 策略退役恒停——UI 形态、显式设置都不再翻开旧策略（显式回滚通道
+        // 由 ThoughtSemanticFeatureFlags.automatic 承担，另有测试覆盖）。
         defaults.set(true, forKey: "thought_semantic_v3_ui")
         XCTAssertFalse(ThoughtAIClassificationPolicy.isEnabled(in: defaults))
 
-        // 未显式设置 + 旧 UI（Release 线上形态）→ 默认开，线上行为不变
         defaults.removeObject(forKey: "thought_semantic_v3_ui")
         defaults.set(false, forKey: "thought_semantic_v3_ui")
-        XCTAssertTrue(ThoughtAIClassificationPolicy.isEnabled(in: defaults))
+        XCTAssertFalse(ThoughtAIClassificationPolicy.isEnabled(in: defaults))
 
-        // 显式设置永远优先（回滚通道）
         defaults.set(true, forKey: ThoughtAIClassificationPolicy.isEnabledKey)
-        XCTAssertTrue(ThoughtAIClassificationPolicy.isEnabled(in: defaults))
+        XCTAssertFalse(ThoughtAIClassificationPolicy.isEnabled(in: defaults))
         defaults.set(false, forKey: ThoughtAIClassificationPolicy.isEnabledKey)
         XCTAssertFalse(ThoughtAIClassificationPolicy.isEnabled(in: defaults))
     }
