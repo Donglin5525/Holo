@@ -82,20 +82,9 @@ struct ReceiptReviewDetailView: View {
                 .padding(.bottom, 6)
                 .background(.ultraThinMaterial)
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("删除这条草稿", systemImage: "trash", role: .destructive) {
-                        showDeleteConfirmation = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .disabled(isCommitting)
-            }
-        }
         .confirmationDialog("删除这条待复核记录？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("删除", role: .destructive, action: deleteDraft)
+            Button("取消", role: .cancel) {}
         } message: {
             Text("草稿和暂存的证据图会被删除，且不会记账。")
         }
@@ -375,6 +364,18 @@ struct ReceiptReviewDetailView: View {
                             .fill(Color.holoCardBackground)
                     )
             }
+            .disabled(isCommitting)
+
+            // 删除与「确认/稍后」并列为三选一（2026-10-02 东林拍板：从「…」菜单提为页面一等操作）
+            Button {
+                showDeleteConfirmation = true
+            } label: {
+                Label("删除这条草稿", systemImage: "trash")
+                    .font(.holoBody)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .tint(.red)
             .disabled(isCommitting)
         }
         .padding(.top, HoloSpacing.xs)

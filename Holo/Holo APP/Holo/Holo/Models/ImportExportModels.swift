@@ -109,11 +109,14 @@ struct TransactionDTO: Codable {
     let tags: [String]?
     let createdAt: Date
     let updatedAt: Date
+    /// 小票图片文件名（仅「包含小票图片」导出时有值；对应 ZIP 包内 receipts/ 目录同名文件）
+    let receipts: [String]?
 
     // 兼容旧版 JSON（无 accountId/categoryId 字段时使用默认值）
     init(id: String, amount: Double, type: String, categoryName: String, accountName: String,
          accountId: String? = nil, categoryId: String? = nil,
-         date: Date, note: String?, tags: [String]?, createdAt: Date, updatedAt: Date) {
+         date: Date, note: String?, tags: [String]?, createdAt: Date, updatedAt: Date,
+         receipts: [String]? = nil) {
         self.id = id
         self.amount = amount
         self.type = type
@@ -126,6 +129,7 @@ struct TransactionDTO: Codable {
         self.tags = tags
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.receipts = receipts
     }
 
     init(from decoder: Decoder) throws {
@@ -142,6 +146,7 @@ struct TransactionDTO: Codable {
         tags = try container.decodeIfPresent([String].self, forKey: .tags)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        receipts = try container.decodeIfPresent([String].self, forKey: .receipts)
     }
 }
 

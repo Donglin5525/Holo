@@ -77,6 +77,14 @@ struct ReceiptReviewListView: View {
                             }
                             .padding(.vertical, 2)
                         }
+                        // 左滑直接删（2026-10-02 东林拍板：免确认——草稿未入账无资金损失，7 天本就自动清理）
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteDraft(draft)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
                     }
                 } footer: {
                     Text("超过 7 天未处理的复核项会自动清理，不会入账。")
@@ -112,6 +120,20 @@ struct ReceiptReviewListView: View {
 
     private func refresh() {
         drafts = ReceiptBookingResultStore.shared.loadDrafts()
+    }
+
+    /// 左滑删除：与详情页删除同一链路（清草稿文件+证据图+提醒通知，结果流留痕）
+    private func deleteDraft(_ draft: ReceiptBookingResultStore.StoredDraft) {
+        ReceiptBookingCoordinator.discardDraftFiles(draftID: draft.id)
+        Task {
+            await ReceiptBookingResultStore.shared.append(result: .init(
+                id: UUID(), createdAt: Date(), kind: .rejected, reasonCode: nil,
+                summaryText: String(localized: "已删除一条待复核记录"), transactionID: nil,
+                additionalTransactionIDs: nil, draftID: nil, undoToken: nil,
+                usedDefaultAccount: false, undoneAt: nil
+            ))
+        }
+        refresh()
     }
 
     private func reviewReasonText(_ reasons: [String]) -> String {

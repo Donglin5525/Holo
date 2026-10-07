@@ -228,6 +228,68 @@ actor ReceiptBookingResultStore {
         loadResultsFromDisk()
     }
 
+    /// UITest 播种（DEBUG 门控）：清空草稿盘后写入两条待复核草案，
+    /// 供删除链路冒烟（详情页删除按钮 / 列表左滑删除）。走真实落盘通道，格式与生产一致。
+    #if DEBUG
+    func seedDraftsForUITestsIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECEIPT_DRAFTS") else { return }
+        if let dir = Self.draftDirectoryURL {
+            for file in (try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] {
+                try? fileManager.removeItem(at: file)
+            }
+        }
+        func smokeDraft(_ amount: String, merchant: String, reason: String, createdAt: Date) -> StoredDraft {
+            let id = UUID()
+            let itemKey = id.uuidString.lowercased() + "-0"
+            let item = StoredDraftItem(
+                itemKey: itemKey,
+                amountText: amount,
+                typeIsIncome: false,
+                dateText: nil,
+                note: nil,
+                paymentChannel: "现金",
+                amountOriginalText: "¥ " + amount,
+                categoryCandidate: "超市",
+                normalizedCategoryCandidate: nil,
+                semanticCategoryHint: nil,
+                reviewNotes: nil
+            )
+            return StoredDraft(
+                id: id,
+                createdAt: createdAt,
+                reasons: [reason],
+                amountText: amount,
+                typeIsIncome: false,
+                merchant: merchant,
+                dateText: nil,
+                note: nil,
+                paymentChannel: "现金",
+                amountOriginalText: "¥ " + amount,
+                paymentStatusOriginalText: nil,
+                categoryCandidate: "超市",
+                normalizedCategoryCandidate: nil,
+                semanticCategoryHint: nil,
+                imageType: "",
+                sourceKey: "uitest-" + id.uuidString.lowercased(),
+                itemKey: itemKey,
+                accountChoiceRaw: "",
+                projectChoiceRaw: "",
+                modeRaw: "",
+                items: [item]
+            )
+        }
+        // 文件名必须用草稿自身的 id（删除按内容 id 找文件，错位=永远删不掉）。
+        // 山姆=现在（最新，兜底弹出必直达它），7-11=1分钟前（留在列表当「另一条」）——
+        // createdAt 错开让弹出对象确定，UITest 断言才可写死。
+        let draft1 = smokeDraft("62.10", merchant: "Seven-Eleven Japan", reason: "reviewPaymentStatusLowConfidence", createdAt: Date().addingTimeInterval(-60))
+        let draft2 = smokeDraft("158.00", merchant: "山姆会员店", reason: "reviewAmountLowConfidence", createdAt: Date())
+        if let url1 = draftURL(draft1.id), let url2 = draftURL(draft2.id) {
+            writeAtomically(draft1, to: url1)
+            writeAtomically(draft2, to: url2)
+        }
+    }
+    #endif
+
     nonisolated func loadDrafts() -> [StoredDraft] {
         guard let dir = Self.draftDirectoryURL, let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return []
