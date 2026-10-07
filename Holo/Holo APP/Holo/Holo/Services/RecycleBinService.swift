@@ -83,6 +83,17 @@ enum RecycleBinModule: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 模块清空时同批软删、但不计入用户可见数量、不作为独立可恢复项的辅助实体
+    /// （「今天减负」§8.5：清空任务模块时日计划版本同批处理；模块恢复时跟随恢复）
+    var auxiliaryEntityNames: [String] {
+        switch self {
+        case .task:
+            return ["HoloTodayPlanRevision"]
+        default:
+            return []
+        }
+    }
+
     /// 「清空所有数据」时是否包含该模块
     static let globalClearModules: Set<RecycleBinModule> = [.finance, .thought, .task, .habit,
                                                             .anniversary, .goal, .chat, .insight,
@@ -225,6 +236,10 @@ final class RecycleBinService: ObservableObject {
                         cancelledTaskIds = try Self.fetchAliveIDs(entityName: entityName, context: context)
                     }
                     try Self.markAllDeleted(entityName: entityName, batchId: batchId, at: now, context: context)
+                }
+                // 辅助实体同批软删（同批次可跟随恢复；不进用户数量统计）
+                for auxEntityName in module.auxiliaryEntityNames {
+                    try Self.markAllDeleted(entityName: auxEntityName, batchId: batchId, at: now, context: context)
                 }
             }
             try context.save()
@@ -487,6 +502,8 @@ final class RecycleBinService: ObservableObject {
         "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO",
         "LifePlanMO", "PlanPriorityMO", "PlanActionMO", "PlanSignalMO",
         "PlanFeedbackMO", "PlanRunMO",
+        // 「今天减负」当日计划版本（辅助实体：跟随任务模块批次清理）
+        "HoloTodayPlanRevision",
     ]
 
     // MARK: - 内部工具

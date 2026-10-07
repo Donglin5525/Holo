@@ -24,6 +24,11 @@ enum HoloTodaySnapshotBuilder {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: referenceTime)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
+        let scope = HoloTodayDayScope(
+            referenceTime: referenceTime,
+            calendar: calendar,
+            timeZone: TimeZone.current
+        )
 
         var sectionStates: [HoloTodaySection: HoloTodaySectionState] = [:]
 
@@ -197,18 +202,190 @@ enum HoloTodaySnapshotBuilder {
             ))
         }
 
+        // MARK: 日计划（「今天减负」§9.1：读取 + 派生行 + 候选扩展）
+
+        let planRepository = HoloTodayPlanRepository(context: CoreDataStack.shared.viewContext)
+        let planRead = planRepository.currentPlan(scope: scope)
+        var planContext: HoloTodayPlanResolverContext? = nil
+        var planProjection = HoloTodayPlanProjection(
+            state: .inheritBase, selectionRows: [], constraintRows: [], deferredRows: []
+        )
+
+        if case .active(let payload, let headRevisionIDs) = planRead.state,
+           payload.selectionMode == .explicit {
+            var planTaskIDs = Set(payload.entries.map(\.taskID))
+            planTaskIDs.formUnion(payload.deferredTaskIDs)
+            let planStepIDs = Set(payload.entries.compactMap { entry -> UUID? in
+                if case .existingStep(let stepID, _, _) = entry.goal { return stepID }
+                return nil
+            })
+            let planFacts = planRepository.facts(taskIDs: planTaskIDs, stepIDs: planStepIDs)
+
+            // 选择行（按 entries 顺序；不可见任务不进活跃列表与数量）
+            var selectionRows: [HoloTodayPlanSelectionRow] = []
+            var orderedSelectable: [UUID] = []
+            for entry in payload.entries {
+                let state = HoloTodayReliefPolicy.goalState(entry: entry, facts: planFacts)
+                if case .excluded = state { continue }
+                let task = planFacts.tasks[entry.taskID]
+                var stepActionText: String? = nil
+                if case .existingStep(let stepID, _, _) = entry.goal {
+                    stepActionText = planFacts.steps[stepID]?.actionText
+                }
+                selectionRows.append(HoloTodayPlanSelectionRow(
+                    taskID: entry.taskID,
+                    title: task?.title ?? "",
+                    goal: entry.goal,
+                    goalState: state,
+                    dueAt: task?.dueDate,
+                    isAllDay: task?.isAllDay ?? false,
+                    stepActionText: stepActionText,
+                    matterTitle: taskMatterLookup[entry.taskID]?.matterTitle
+                ))
+                if case .pending = state {
+                    orderedSelectable.append(entry.taskID)
+                }
+            }
+
+            // 放下行（风险确认是否仍有效）
+            let deferredRows: [HoloTodayPlanDeferredRow] = payload.deferredTaskIDs.compactMap { taskID in
+                guard let task = planFacts.tasks[taskID], task.visible else { return nil }
+                let needsAck = HoloTodayReliefPolicy.needsDeadlineAcknowledgement(
+                    dueDate: task.dueDate, isAllDay: task.isAllDay, scope: scope
+                )
+                let ackValid = HoloTodayReliefPolicy.isAcknowledgementValid(
+                    taskID: taskID, dueDate: task.dueDate, isAllDay: task.isAllDay, payload: payload
+                )
+                return HoloTodayPlanDeferredRow(
+                    taskID: taskID,
+                    title: task.title,
+                    dueAt: task.dueDate,
+                    isAllDay: task.isAllDay,
+                    acknowledgementValid: !needsAck || ackValid
+                )
+            }
+            let acknowledgedDeferred = Set(payload.deferredTaskIDs.filter { taskID in
+                HoloTodayReliefPolicy.isAcknowledgementValid(
+                    taskID: taskID,
+                    dueDate: planFacts.tasks[taskID]?.dueDate,
+                    isAllDay: planFacts.tasks[taskID]?.isAllDay ?? false,
+                    payload: payload
+                )
+            })
+
+            // 已选/放下任务必须进入 resolver 候选（未来截止也取到；§9.1）
+            let existingCandidateIDs = Set(taskCandidates.map(\.id))
+            let planTaskRequest = NSFetchRequest<TodoTask>(entityName: "TodoTask")
+            planTaskRequest.predicate = NSPredicate(format: "id IN %@", planTaskIDs)
+            if let planTasks = try? CoreDataStack.shared.viewContext.fetch(planTaskRequest) {
+                for task in DuplicateRowFilter.deduplicatingCopies(planTasks) {
+                    guard !task.completed, task.deletedAt == nil, !task.archived,
+                          !existingCandidateIDs.contains(task.id) else { continue }
+                    let matterRef = taskMatterLookup[task.id]
+                    taskCandidates.append(HoloTodayTaskCandidate(
+                        id: task.id,
+                        title: task.title,
+                        dueAt: task.dueDate,
+                        isAllDay: task.isAllDay,
+                        isCompleted: task.completed,
+                        priority: Int(task.priority),
+                        plannedForToday: payload.entries.contains { $0.taskID == task.id },
+                        matterID: matterRef?.matterID,
+                        matterTitle: matterRef?.matterTitle,
+                        updatedAt: task.updatedAt
+                    ))
+                }
+            }
+
+            // 固定约束行：当日全部日程（不只 90 分钟窗）+ 当日计划执行时段 + 到期/逾期事实
+            var constraintRows: [HoloTodayPlanConstraintRow] = []
+            for schedule in scheduleCandidates {
+                constraintRows.append(HoloTodayPlanConstraintRow(
+                    id: "schedule:\(schedule.id)",
+                    title: schedule.title,
+                    kind: .schedule(start: schedule.startAt, end: schedule.endAt, isAllDay: schedule.isAllDay),
+                    taskID: nil
+                ))
+            }
+            let segmentRequest = NSFetchRequest<TodoTask>(entityName: "TodoTask")
+            segmentRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "plannedStart != nil AND plannedStart >= %@ AND plannedStart < %@", dayStart as NSDate, dayEnd as NSDate),
+                NSPredicate(format: "completed == false"),
+                NSPredicate(format: "deletedAt == nil"),
+                NSPredicate(format: "archived == false"),
+            ])
+            if let segmentTasks = try? CoreDataStack.shared.viewContext.fetch(segmentRequest) {
+                for task in DuplicateRowFilter.deduplicatingCopies(segmentTasks) {
+                    if let start = task.plannedStart, let end = task.plannedEnd {
+                        constraintRows.append(HoloTodayPlanConstraintRow(
+                            id: "segment:\(task.id.uuidString)",
+                            title: task.title,
+                            kind: .plannedSegment(start: start, end: end),
+                            taskID: task.id
+                        ))
+                    }
+                }
+            }
+            let selectedOrDeferred = planTaskIDs
+            for task in overdue + dueToday {
+                guard !selectedOrDeferred.contains(task.id) else { continue }
+                constraintRows.append(HoloTodayPlanConstraintRow(
+                    id: "deadline:\(task.id.uuidString)",
+                    title: task.title,
+                    kind: .deadline(dueAt: task.dueDate ?? dayEnd, isAllDay: task.isAllDay, isOverdue: (task.dueDate ?? dayEnd) < dayStart),
+                    taskID: task.id
+                ))
+            }
+            let selectedSet = Set(payload.entries.map(\.taskID))
+            planContext = HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: orderedSelectable,
+                deferredTaskIDs: Set(payload.deferredTaskIDs),
+                acknowledgedDeferredTaskIDs: acknowledgedDeferred
+            )
+            _ = selectedSet
+            planProjection = HoloTodayPlanProjection(
+                state: .explicit(payload: payload, headRevisionIDs: headRevisionIDs),
+                selectionRows: selectionRows,
+                constraintRows: constraintRows,
+                deferredRows: deferredRows
+            )
+        } else {
+            // conflict / syncing / unavailable：约束事实继续展示，不回退假空态（§8.4）
+            switch planRead.state {
+            case .conflict(let candidates):
+                planProjection = HoloTodayPlanProjection(
+                    state: .conflict(candidates: candidates),
+                    selectionRows: [], constraintRows: [], deferredRows: []
+                )
+            case .syncing(let reason):
+                planProjection = HoloTodayPlanProjection(
+                    state: .syncing(reason: reason),
+                    selectionRows: [], constraintRows: [], deferredRows: []
+                )
+            case .unavailable(let reason):
+                planProjection = HoloTodayPlanProjection(
+                    state: .unavailable(reason: reason),
+                    selectionRows: [], constraintRows: [], deferredRows: []
+                )
+            case .noPlan, .active:
+                break
+            }
+        }
+
         // MARK: Focus（唯一 resolver）
 
+        let focusInput = HoloTodayFocusInput(
+            referenceTime: referenceTime,
+            dayStart: dayStart,
+            dayEnd: dayEnd,
+            schedules: scheduleCandidates,
+            tasks: taskCandidates,
+            matters: matterCandidates,
+            plan: planContext
+        )
         var focus: HoloTodayFocus?
         do {
-            focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
-                referenceTime: referenceTime,
-                dayStart: dayStart,
-                dayEnd: dayEnd,
-                schedules: scheduleCandidates,
-                tasks: taskCandidates,
-                matters: matterCandidates
-            ))
+            focus = HoloTodayFocusResolver.resolve(input: focusInput)
             sectionStates[.focus] = .content
         } catch {
             sectionStates[.focus] = .failed(lastSuccessfulAt: nil)
@@ -349,7 +526,9 @@ enum HoloTodaySnapshotBuilder {
             agenda: agendaItems,
             routine: routine,
             overview: overview,
-            sectionStates: sectionStates
+            sectionStates: sectionStates,
+            plan: planProjection,
+            focusInput: focusInput
         )
     }
 

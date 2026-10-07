@@ -79,7 +79,7 @@ struct KanbanTaskSection: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.holoSuccess)
-                        Text("任务已完成")
+                        Text("已勾选，可撤回")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
                     }
@@ -387,12 +387,31 @@ struct KanbanTaskSection: View {
     }
 
     private func addToToday(_ task: TodoTask) {
-        do {
-            try todoRepo.planTask(task, for: Date())
-            HapticManager.light()
-        } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("加入今日失败: \(error.localizedDescription)")
+        // 「加入今日」= 当日注意力选择，不再误改 dueDate（R04；2026-10-03 方案 §9.3）
+        Task { @MainActor in
+            let scope = HoloTodayDayScope.current()
+            let heads = Self.currentTodayPlanHeadIDs(scope: scope)
+            do {
+                _ = try await HoloTodayPlanService.shared.addTask(
+                    taskID: task.id,
+                    goal: .taskResult,
+                    scope: scope,
+                    expectedHeads: heads,
+                    operationID: UUID().uuidString
+                )
+                HapticManager.light()
+            } catch {
+                Logger(subsystem: "com.holo.app", category: "UI").error("加入今日失败: \(error.localizedDescription)")
+            }
         }
+    }
+
+    /// 当前日计划 heads（采用前防线：服务端校验一致才写；conflict/syncing 返回空由服务拒绝）。
+    @MainActor
+    static func currentTodayPlanHeadIDs(scope: HoloTodayDayScope) -> [UUID] {
+        let read = HoloTodayPlanRepository(context: CoreDataStack.shared.viewContext).currentPlan(scope: scope)
+        if case .active(_, let headRevisionIDs) = read.state { return headRevisionIDs }
+        return []
     }
 
     private func priorityColor(_ priority: TaskPriority) -> Color {

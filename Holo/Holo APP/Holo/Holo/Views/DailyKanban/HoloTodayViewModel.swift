@@ -50,6 +50,9 @@ final class HoloTodayViewModel: ObservableObject {
     func loadIfNeeded() async {
         guard case .loading = state else { return }
         await CoreDataStack.shared.waitUntilReady()
+        #if DEBUG
+        TodayReliefUITestSeeder.seedIfNeeded()
+        #endif
         TodoRepository.shared.seedDailyRitualsForToday()
         await refreshNow()
     }
@@ -91,44 +94,13 @@ final class HoloTodayViewModel: ObservableObject {
         state = .ready(applyPostpone(to: fresh))
     }
 
-    /// 用会话级稍后键重解析焦点（不重查库，纯内存）。
+    /// 用会话级稍后键重解析焦点（不重查库，纯内存；复用快照冻结的完整候选输入）。
+    /// 不再从 agenda 反推候选——那会丢 Matter/优先级、日程 endAt 被补成 1 小时（§9.3）。
     private func applyPostpone(to snapshot: HoloTodaySnapshot) -> HoloTodaySnapshot {
         guard !postponedKeys.isEmpty else { return snapshot }
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: snapshot.referenceTime)
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? snapshot.referenceTime
-
-        // 从已冻结的候选重解析：日程 + 任务从 agenda 重建、Matter 用列表重排前的意图交给下次 refresh。
-        var schedules: [HoloTodayScheduleCandidate] = []
-        var tasks: [HoloTodayTaskCandidate] = []
-        for item in snapshot.agenda {
-            switch item.action {
-            case .openSchedule(let id):
-                if let start = item.timeAt {
-                    schedules.append(HoloTodayScheduleCandidate(
-                        id: id, title: item.title, startAt: start,
-                        endAt: start.addingTimeInterval(3600), isAllDay: false
-                    ))
-                }
-            case .openTask(let id):
-                tasks.append(HoloTodayTaskCandidate(
-                    id: id, title: item.title, dueAt: item.timeAt,
-                    plannedForToday: item.kind == .taskPlannedToday,
-                    matterID: nil, matterTitle: item.matterTitle
-                ))
-            default:
-                break
-            }
-        }
-        let focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
-            referenceTime: snapshot.referenceTime,
-            dayStart: dayStart,
-            dayEnd: dayEnd,
-            schedules: schedules,
-            tasks: tasks,
-            matters: [],
-            postponedKeys: postponedKeys
-        ))
+        var input = snapshot.focusInput
+        input.postponedKeys = postponedKeys
+        let focus = HoloTodayFocusResolver.resolve(input: input)
         return HoloTodaySnapshot(
             referenceTime: snapshot.referenceTime,
             dayStart: snapshot.dayStart,
@@ -141,7 +113,9 @@ final class HoloTodayViewModel: ObservableObject {
             agenda: snapshot.agenda,
             routine: snapshot.routine,
             overview: snapshot.overview,
-            sectionStates: snapshot.sectionStates
+            sectionStates: snapshot.sectionStates,
+            plan: snapshot.plan,
+            focusInput: input
         )
     }
 
@@ -153,6 +127,8 @@ final class HoloTodayViewModel: ObservableObject {
             Notification.Name.habitDataDidChange,
             Notification.Name.financeDataDidChange,
             Notification.Name.holoTaskChange,
+            // 日计划写入成功（采用/手动调整/撤销）→ Today 立即反映（§9.3）
+            Notification.Name.holoTodayPlanDidChange,
         ]
         for name in names {
             NotificationCenter.default.publisher(for: name)
@@ -169,6 +145,35 @@ final class HoloTodayViewModel: ObservableObject {
                 self?.scheduleDebouncedRefresh()
             }
             .store(in: &cancellables)
+        // 前台恢复 / 显著时间变化（午夜边界）/ 时区变化：刷新 scope，
+        // 跨日的会话级稍后键随 scope 失效清理（§7.1/§9.3）。
+        let timeNames = [
+            UIApplication.significantTimeChangeNotification,
+            Notification.Name.NSSystemTimeZoneDidChange,
+            UIApplication.didBecomeActiveNotification,
+        ]
+        for name in timeNames {
+            NotificationCenter.default.publisher(for: name)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.invalidateSessionStateIfScopeChanged()
+                    self?.scheduleDebouncedRefresh()
+                }
+                .store(in: &cancellables)
+        }
+    }
+
+    /// scope 变化（跨午夜/时区）：清掉属于旧 scope 的会话级稍后键。
+    private func invalidateSessionStateIfScopeChanged() {
+        guard case .ready(let snapshot) = state else { return }
+        let current = HoloTodayDayScope.current(now: Date())
+        if current.scopeKey != HoloTodayDayScope(
+            referenceTime: snapshot.referenceTime,
+            calendar: Calendar.current,
+            timeZone: TimeZone(identifier: snapshot.timeZoneIdentifier) ?? .current
+        ).scopeKey {
+            postponedKeys = []
+        }
     }
 
     private func scheduleDebouncedRefresh() {

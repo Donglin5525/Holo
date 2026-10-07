@@ -54,6 +54,9 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     // 通用个人情境规划（只读 query 类；ConversationCoordinator 在写执行前分流，
     // 方案 2026-09-06-HoloAI通用个人情境理解与规划 §9.1）
     case contextualPlanning = "contextual_planning"
+    // 「今天减负」当日安排整理（只读 planning；Coordinator 分流到 ReliefCoordinator，
+    // 2026-10-03 实施方案 §12）
+    case todayRelief = "today_relief"
     // 兜底
     case unknown = "unknown"
 }
@@ -61,7 +64,17 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
 // MARK: - AIIntent Category Helpers
 
 extension AIIntent {
-    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis, .flexibleDataQuery, .contextualPlanning]
+    /// 未知意图值兜底为 .unknown（R44 旧客户端兼容）：后端新增意图时，旧版本
+    /// 不因解码失败丢整条消息，而是按 unknown 走普通兜底，不执行任何写动作。
+    /// （枚举声明的 Codable 合成会优先采用本自定义实现）
+    nonisolated init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = AIIntent(rawValue: raw) ?? .unknown
+    }
+}
+
+extension AIIntent {
+    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis, .flexibleDataQuery, .contextualPlanning, .todayRelief]
     nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask, .modifyTaskItems]
     nonisolated static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
 
@@ -95,6 +108,7 @@ extension AIIntent {
         case .generateMemoryInsight: return String(localized: "已生成回放")
         case .weeklyPlanning: return String(localized: "本周重点")
         case .contextualPlanning: return String(localized: "个人情境规划")
+        case .todayRelief: return String(localized: "今天减负")
         case .unknown: return String(localized: "未识别指令")
         case .query: return String(localized: "查询")
         }

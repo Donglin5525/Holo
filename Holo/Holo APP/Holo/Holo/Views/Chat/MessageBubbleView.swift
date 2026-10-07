@@ -231,6 +231,14 @@ struct MessageBubbleView: View {
                 } else {
                     bubbleContent
                 }
+            } else if message.messageType == .todayRelief {
+                // 「今天减负」候选卡：同一候选/回执；过期只允许重新整理（R45）
+                if let json = message.todayReliefJSON,
+                   let envelope = TodayReliefCardEnvelope.decode(json) {
+                    TodayReliefChatCard(envelope: envelope)
+                } else {
+                    bubbleContent
+                }
             } else if message.messageType == .contextPlan {
                 if message.contextPlanJSON != nil {
                     ContextPlanChatCard(
@@ -445,7 +453,7 @@ struct MessageBubbleView: View {
 
             Text("Holo")
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Text("AI")
                 .font(.system(size: 10, weight: .semibold))
@@ -507,7 +515,7 @@ struct MessageBubbleView: View {
                     .foregroundColor(pendingCount == cards.count ? .holoPrimary : .holoSuccess)
                 Text(summaryHeaderText(cardCount: cards.count, pendingCount: pendingCount))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
@@ -742,14 +750,14 @@ struct VisionChatThumbnail: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Color.holoCardBackground
+                Color.holoToolSurface
             }
         }
         .frame(width: 128, height: 170)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+                .stroke(Color.holoToolTextSecondary.opacity(0.12), lineWidth: 1)
         )
         .task {
             // 压缩图长边 ≤2400，直接整图解码；列表滚动中只解码一次

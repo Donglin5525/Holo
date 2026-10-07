@@ -14,6 +14,25 @@ import SwiftUI
 
 struct TodayPrimaryFocusCard: View {
 
+    /// 日计划对主卡的轻量上下文：显式计划生效且无可推进项时的 calm 文案变体（§9.2）。
+    struct PlanFocusContext: Equatable {
+        let explicitActive: Bool
+        let hasPendingSelection: Bool
+
+        init(snapshotPlan: HoloTodayPlanProjection?) {
+            guard case .explicit = snapshotPlan?.state else {
+                self.explicitActive = false
+                self.hasPendingSelection = false
+                return
+            }
+            self.explicitActive = true
+            self.hasPendingSelection = snapshotPlan?.selectionRows.contains { row in
+                if case .pending = row.goalState { return true }
+                return false
+            } ?? false
+        }
+    }
+
     let focus: HoloTodayFocus?
     let isLoading: Bool
     let inFlightAction: HoloTodayAction?
@@ -22,6 +41,8 @@ struct TodayPrimaryFocusCard: View {
     let onPostpone: () -> Void
     /// calm 态行动出口：指向 AI 一句话记录（激活方案 §3.2；nil 则不显示）
     var onCalmQuickRecord: (() -> Void)? = nil
+    /// 「今天减负」日计划上下文；nil = 未启用显式计划。
+    var planContext: PlanFocusContext? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,11 +56,7 @@ struct TodayPrimaryFocusCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .fill(Color.holoCardBackground)
-                .shadow(color: Color.black.opacity(0.06), radius: 12, y: 4)
-        )
+.holoSurface()
     }
 
     // MARK: 有可执行行动
@@ -55,28 +72,26 @@ struct TodayPrimaryFocusCard: View {
                 Image(systemName: focus.severity == .risk ? "exclamationmark.circle.fill" : "arrow.right.circle.fill")
                     .foregroundStyle(focus.severity == .risk ? Color.holoError : Color.holoPrimary)
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.holoToolTextSecondary)
 
             Text(focus.title)
-                .font(.title3.weight(.semibold))
+                .holoText(.sectionTitle)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let matterTitle = focus.reasonArguments.matterTitle {
                 Text(String(localized: "来自：\(matterTitle)"))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
 
             Text(Self.reasonText(for: focus))
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             // 错误行（局部失败不吞整卡）。
             if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                HoloInlineState(kind: .failure, message: errorMessage)
             }
 
             actionRow(focus)
@@ -106,27 +121,18 @@ struct TodayPrimaryFocusCard: View {
                 }
                 Text(label)
             }
-            .font(.subheadline.weight(.semibold))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color.holoPrimary)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloActionStyle(role: .primary))
         .disabled(inFlightAction == focus.action)
         .accessibilityLabel(Text("\(label)，\(focus.title)"))
 
-        // 「稍后」：仅会话内降级该候选。
+        // 「先看其他事」：仅会话内降级该候选（不持久化放下、不改任何任务事实；R05）。
         Button(action: onPostpone) {
-            Text(String(localized: "稍后"))
-                .font(.subheadline)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .background(Color(.tertiarySystemGroupedBackground))
-                .foregroundStyle(.secondary)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            Text(String(localized: "先看其他事"))
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -136,16 +142,30 @@ struct TodayPrimaryFocusCard: View {
 
     private var calmContent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label {
-                Text(String(localized: "今天没有必须立刻处理的事"))
-                    .font(.title3.weight(.semibold))
-            } icon: {
-                Image(systemName: "leaf.circle.fill")
-                    .foregroundStyle(Color.holoSuccess)
+            // 显式计划全部推进完：今天先推进到这里（不自动补入其他任务；§9.2）
+            if planContext?.explicitActive == true {
+                Label {
+                    Text(String(localized: "今天先推进到这里"))
+                        .holoText(.sectionTitle)
+                } icon: {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(Color.holoSuccess)
+                }
+                Text(String(localized: "今天的安排都处理完了，剩下的明天再说。"))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            } else {
+                Label {
+                    Text(String(localized: "今天没有必须立刻处理的事"))
+                        .holoText(.sectionTitle)
+                } icon: {
+                    Image(systemName: "leaf.circle.fill")
+                        .foregroundStyle(Color.holoSuccess)
+                }
+                Text(String(localized: "可以按自己的节奏推进安排。"))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
-            Text(String(localized: "可以按自己的节奏推进安排。"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
 
             if let onCalmQuickRecord {
                 Button(action: onCalmQuickRecord) {

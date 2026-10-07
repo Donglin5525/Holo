@@ -158,3 +158,8 @@ extension PlanRunMO: SoftDeletable {
     @NSManaged var deletedAt: Date?
     @NSManaged var deletedBatchId: UUID?
 }
+
+// 「今天减负」当日计划版本：属性已在实体类声明，此处仅接入统一软删除协议
+// （回收站清空/恢复/物理清理覆盖；辅助实体不计入用户可见数量）
+extension HoloTodayPlanRevision: SoftDeletable {
+}

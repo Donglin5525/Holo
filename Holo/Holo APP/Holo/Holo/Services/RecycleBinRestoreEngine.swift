@@ -166,6 +166,14 @@ extension RecycleBinService {
                         outcome.linkedRestored += Self.restoreLinkedParents(of: object, in: context)
                     }
                 }
+                // 辅助实体跟随模块恢复（「今天减负」§8.5）：同批软删的计划版本一并还原，
+                // 不计入用户可见恢复数量；部分任务被跳过时计划仍整体还原，读取端按任务可见性自然过滤。
+                for auxEntityName in module.auxiliaryEntityNames {
+                    let auxObjects = try Self.fetchBatchObjects(entityName: auxEntityName, batchId: batchId, in: context)
+                    for object in auxObjects {
+                        (object as? SoftDeletable)?.clearDeletedMark()
+                    }
+                }
             }
             try context.save()
             return taskIDs

@@ -35,6 +35,8 @@ nonisolated struct HoloTodayTaskCandidate: Equatable, Sendable {
     let title: String
     /// nil = 无截止日（只有用户明确加入今日才进 P4）。
     let dueAt: Date?
+    /// 全天截止的到期口径是日末（显式计划的风险分层需要；旧调用默认 false）。
+    let isAllDay: Bool
     let isCompleted: Bool
     /// 数值越大优先级越高（与 TaskPriority raw 对齐）。
     let priority: Int
@@ -48,6 +50,7 @@ nonisolated struct HoloTodayTaskCandidate: Equatable, Sendable {
         id: UUID,
         title: String,
         dueAt: Date? = nil,
+        isAllDay: Bool = false,
         isCompleted: Bool = false,
         priority: Int = 1,
         plannedForToday: Bool = false,
@@ -58,6 +61,7 @@ nonisolated struct HoloTodayTaskCandidate: Equatable, Sendable {
         self.id = id
         self.title = title
         self.dueAt = dueAt
+        self.isAllDay = isAllDay
         self.isCompleted = isCompleted
         self.priority = priority
         self.plannedForToday = plannedForToday
@@ -65,6 +69,16 @@ nonisolated struct HoloTodayTaskCandidate: Equatable, Sendable {
         self.matterTitle = matterTitle
         self.updatedAt = updatedAt
     }
+}
+
+/// 显式日计划生效时 resolver 所需的最小上下文（§9.2 分层的第 3/4 层）。
+nonisolated struct HoloTodayPlanResolverContext: Equatable, Sendable {
+    /// 已过滤（根未完成/目标未达/可见/目标有效）后的有序可选任务。
+    let orderedSelectableTaskIDs: [UUID]
+    /// 用户明确放下的任务。
+    let deferredTaskIDs: Set<UUID>
+    /// 放下且风险确认仍有效的任务（已确认的风险不重复强占主卡）。
+    let acknowledgedDeferredTaskIDs: Set<UUID>
 }
 
 nonisolated struct HoloTodayLoopCandidate: Equatable, Sendable {
@@ -178,8 +192,10 @@ nonisolated struct HoloTodayFocusInput: Equatable, Sendable {
     let tasks: [HoloTodayTaskCandidate]
     let matters: [HoloTodayMatterCandidate]
     let habits: [HoloTodayHabitWindowCandidate]
-    /// 用户本会话点过「稍后」的候选键（仅本次会话降级，不永久压制）。
-    let postponedKeys: Set<String>
+    /// 用户本会话点过「稍后」的候选键（仅本次会话降级，不永久压制；重解析时可替换）。
+    var postponedKeys: Set<String>
+    /// 显式日计划上下文；nil/inheritBase = 未启用显式计划（保持旧基础排序）。
+    let plan: HoloTodayPlanResolverContext?
 
     init(
         referenceTime: Date,
@@ -189,7 +205,8 @@ nonisolated struct HoloTodayFocusInput: Equatable, Sendable {
         tasks: [HoloTodayTaskCandidate] = [],
         matters: [HoloTodayMatterCandidate] = [],
         habits: [HoloTodayHabitWindowCandidate] = [],
-        postponedKeys: Set<String> = []
+        postponedKeys: Set<String> = [],
+        plan: HoloTodayPlanResolverContext? = nil
     ) {
         self.referenceTime = referenceTime
         self.dayStart = dayStart
@@ -199,6 +216,7 @@ nonisolated struct HoloTodayFocusInput: Equatable, Sendable {
         self.matters = matters
         self.habits = habits
         self.postponedKeys = postponedKeys
+        self.plan = plan
     }
 }
 
@@ -276,13 +294,22 @@ nonisolated enum HoloTodayFocusResolver {
         }
 
         // Matter Next Action（linkedTask → entityID 指向真实任务时并进任务候选去重）。
-        for matter in input.matters {
-            appendMatterCandidates(matter, input: input, into: &candidates)
+        // 显式计划生效时不参与主卡竞争：Matter 风险仍在「进行中的事」区块表达，
+        // 不绕过用户当日选择反复占据主卡（§9.2）。
+        if input.plan == nil {
+            for matter in input.matters {
+                appendMatterCandidates(matter, input: input, into: &candidates)
+            }
         }
 
-        // MARK: 任务（P2 逾期 / P3 今日 / P4 加入今日）
+        // MARK: 任务
 
-        for task in input.tasks where !task.isCompleted {
+        if let plan = input.plan {
+            // 显式计划分层（§9.2）：P2 真正临近风险（未确认放下）→ P3 用户有序选择 →
+            // 历史逾期/普通今日到期留在约束区，不重复强占主卡。
+            appendPlanTaskCandidates(plan, input: input, into: &candidates)
+        } else {
+            for task in input.tasks where !task.isCompleted {
             let isPostponed = input.postponedKeys.contains(postponeKey(for: .task(task.id)))
             let dueDateOnly = task.dueAt.map { input.dayStart <= $0 && $0 < input.dayEnd }
             if let due = task.dueAt, due < input.dayStart {
@@ -339,10 +366,10 @@ nonisolated enum HoloTodayFocusResolver {
                     4, now, task.priority, .distantPast, task.id.uuidString
                 ))
             }
+            }
         }
 
         // MARK: 习惯（P5，仅有明确时间窗口且当前在窗内/临近）
-
         for habit in input.habits where !habit.isNegative {
             guard let start = habit.windowStart, let end = habit.windowEnd,
                   end > now else { continue }
@@ -391,6 +418,83 @@ nonisolated enum HoloTodayFocusResolver {
 
         // 任务候选的显式优先级在同层时间相同时参与比较（重新做一次精确比较）。
         return best.focus
+    }
+
+    /// 显式计划生效时的任务分层（§9.2）：
+    /// P2 真正临近风险（未被确认放下）→ P3 用户有序选择（跳过已完成/已达目标项）。
+    /// 历史逾期与普通今日到期不再全体进主卡；已确认放下的风险保持可见但不占主卡。
+    private static func appendPlanTaskCandidates(
+        _ plan: HoloTodayPlanResolverContext,
+        input: HoloTodayFocusInput,
+        into candidates: inout [(focus: HoloTodayFocus, tier: Int, timeKey: Date, priority: Int, matterStamp: Date, stableID: String)]
+    ) {
+        let now = input.referenceTime
+        let riskWindow: TimeInterval = 60 * 60
+
+        func isPreciseRisk(_ task: HoloTodayTaskCandidate) -> Bool {
+            guard let due = task.dueAt else { return false }
+            if task.isAllDay {
+                // 全天截止按真实日末：往日全天已过日末；今日全天只在日末前 60 分钟内提示
+                if due < input.dayStart { return true }
+                return input.dayEnd.timeIntervalSince(now) <= riskWindow
+            }
+            return due.timeIntervalSince(now) <= riskWindow
+        }
+
+        let selectableSet = Set(plan.orderedSelectableTaskIDs)
+        for task in input.tasks where !task.isCompleted {
+            let isPostponed = input.postponedKeys.contains(postponeKey(for: .task(task.id)))
+            let deferredAcked = plan.acknowledgedDeferredTaskIDs.contains(task.id)
+
+            // P2：临近风险（已确认放下的不重复强占主卡）
+            if !deferredAcked, isPreciseRisk(task) {
+                if isPostponed { continue }
+                let overdue = task.isAllDay
+                    ? task.dueAt! < input.dayStart
+                    : task.dueAt! < now
+                candidates.append((
+                    HoloTodayFocus(
+                        id: "task:\(task.id.uuidString)",
+                        source: overdue ? .overdueTask : .todayTask,
+                        title: task.title,
+                        reasonCode: overdue ? .overdueTask : .dueToday,
+                        reasonArguments: HoloTodayReasonArguments(
+                            overdueDays: overdue ? max(1, Calendar(identifier: .gregorian).dateComponents(
+                                [.day],
+                                from: Calendar(identifier: .gregorian).startOfDay(for: task.dueAt!),
+                                to: Calendar(identifier: .gregorian).startOfDay(for: now)
+                            ).day ?? 1) : nil
+                        ),
+                        dueAt: task.dueAt,
+                        severity: .risk,
+                        matterID: task.matterID,
+                        action: .openTask(task.id)
+                    ),
+                    2, task.dueAt!, task.priority, .distantPast, task.id.uuidString
+                ))
+                continue
+            }
+
+            // P3：用户有序选择（顺序即推进顺序；timeKey 按 index 递增保持稳定排序）
+            if selectableSet.contains(task.id),
+               let order = plan.orderedSelectableTaskIDs.firstIndex(of: task.id) {
+                if isPostponed { continue }
+                candidates.append((
+                    HoloTodayFocus(
+                        id: "task:\(task.id.uuidString)",
+                        source: .todayTask,
+                        title: task.title,
+                        reasonCode: .plannedToday,
+                        reasonArguments: HoloTodayReasonArguments(),
+                        dueAt: task.dueAt,
+                        severity: .normal,
+                        matterID: task.matterID,
+                        action: .openTask(task.id)
+                    ),
+                    3, now.addingTimeInterval(Double(order)), task.priority, .distantPast, task.id.uuidString
+                ))
+            }
+        }
     }
 
     /// Matter 候选转换（§7.3/§7.4：去重、stale 抑制、安全降级）。

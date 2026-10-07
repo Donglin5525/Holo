@@ -45,6 +45,9 @@ nonisolated enum ChatCardData: Equatable {
         case .contextualPlanning:
             // 个人情境规划走独立 ContextPlanChatCard（.contextPlan 消息类型），不构造领域执行卡
             return nil
+        case .todayRelief:
+            // 「今天减负」走独立 TodayReliefChatCard（.todayRelief 消息类型），不构造领域执行卡
+            return nil
         case .recordExpense:
             guard let amount = data["amount"] else { return nil }
             return .transaction(TransactionCardData(

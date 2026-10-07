@@ -39,6 +39,8 @@ enum ChatMessageType: String, Codable, Sendable {
     case lifePlan
     // 通用个人情境方案草案（contextPlanJSON 持久 HoloContextPlanDraft）
     case contextPlan
+    // 「今天减负」当日安排候选（todayReliefJSON 持久 TodayReliefCardEnvelope）
+    case todayRelief
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
@@ -72,6 +74,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             && lhs.cachedDeletionState == rhs.cachedDeletionState
             && lhs.showsTimestampSeparator == rhs.showsTimestampSeparator
             && lhs.contextPlanRunJSON == rhs.contextPlanRunJSON
+            && lhs.todayReliefJSON == rhs.todayReliefJSON
     }
     let id: UUID
     var role: String
@@ -92,6 +95,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var contextPlanJSON: String?
     /// 规划运行信封 JSON（HoloContextPlanRunEnvelope；运行态首帧渲染用，轻量查询直取）
     var contextPlanRunJSON: String?
+    /// 「今天减负」候选最小内容 JSON（TodayReliefCardEnvelope 原样字符串，卡片自解码）
+    var todayReliefJSON: String?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
     /// 关联实体的删除态缓存（预计算，避免渲染时逐条查 Core Data）
@@ -126,7 +131,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         agentResult: HoloRenderedAgentResult? = nil,
         insightResult: MemoryInsightPayload? = nil,
         contextPlanJSON: String? = nil,
-        contextPlanRunJSON: String? = nil
+        contextPlanRunJSON: String? = nil,
+        todayReliefJSON: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -145,6 +151,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.insightResult = insightResult
         self.contextPlanJSON = contextPlanJSON
         self.contextPlanRunJSON = contextPlanRunJSON
+        self.todayReliefJSON = todayReliefJSON
         self.metadataState = .loaded
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
@@ -172,7 +179,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             agentResult: Self.decodeAgentResult(message.agentResultJSON),
             insightResult: Self.decodeInsightResult(message.insightResultJSON),
             contextPlanJSON: message.contextPlanJSON,
-            contextPlanRunJSON: message.contextPlanRunJSON
+            contextPlanRunJSON: message.contextPlanRunJSON,
+            todayReliefJSON: message.todayReliefJSON
         )
     }
 

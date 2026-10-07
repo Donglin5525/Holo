@@ -115,6 +115,13 @@ struct MatterExecutionContent: View {
         }
     }
 
+    // MARK: 当日选择轻量出口（「今天减负」§12）
+
+    /// 当日选择轻量出口（「今天减负」§12）：共享组件，加入今天/今天先放下
+    private var todayPlanOutlet: some View {
+        TodayPlanOutletRow(taskID: taskID)
+    }
+
     // MARK: 未采纳：帮我拆开
 
     @ViewBuilder
@@ -124,13 +131,16 @@ struct MatterExecutionContent: View {
                 Button {
                     showProposalSheet = true
                 } label: {
+                    // 品牌胶囊（与「加入今天」同语言）：iOS 26 的 .bordered 是玻璃材质，
+                    // 投影被外层 clipShape 裁出脏边，禁用
                     Label(String(localized: "帮我拆开"), systemImage: "wand.and.stars")
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.holoPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("executionSplitButton")
                 Text(String(localized: "把这件事拆成一步步可做的小动作，卡住了可以调整"))
                     .font(.caption)
@@ -156,6 +166,8 @@ struct MatterExecutionContent: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+            // 当日选择轻量出口（「今天减负」§12）：加入今天/今天先放下，不改期限与时段
+            todayPlanOutlet
 
             if let current, let node {
                 // 当前动作 + 短完成条件（不暴露节点类型/依赖/模型版本）

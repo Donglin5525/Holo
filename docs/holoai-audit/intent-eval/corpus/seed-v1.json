@@ -1102,6 +1102,46 @@
         "contextual_planning"
       ],
       "note": "个人情境规划：居家维护"
+    },
+    {
+      "id": "tr1",
+      "text": "今天事太多做不完，帮我理一理",
+      "acceptable": [
+        "today_relief"
+      ],
+      "note": "今天减负：当日重新选择"
+    },
+    {
+      "id": "tr2",
+      "text": "突然加班，今晚只剩半小时，先做什么",
+      "acceptable": [
+        "today_relief"
+      ],
+      "note": "今天减负：时间不够"
+    },
+    {
+      "id": "tr3",
+      "text": "今天很累，想轻一点，把今天的安排减一减",
+      "acceptable": [
+        "today_relief"
+      ],
+      "note": "今天减负：减负载"
+    },
+    {
+      "id": "tr4",
+      "text": "想接着上次做的那个继续",
+      "acceptable": [
+        "today_relief"
+      ],
+      "note": "今天减负：中断恢复"
+    },
+    {
+      "id": "tr5",
+      "text": "帮我想想下周末爸妈来怎么安排",
+      "acceptable": [
+        "contextual_planning"
+      ],
+      "note": "边界：新事项筹备仍是情境规划非减负"
     }
   ]
 }

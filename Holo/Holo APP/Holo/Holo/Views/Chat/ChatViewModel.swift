@@ -1115,6 +1115,32 @@ final class ChatViewModel: ObservableObject {
                     return
                 }
 
+                // 「今天减负」候选卡（只读；采用走卡片按钮/PlanService，§12）
+                if let reliefCandidate = processResult.todayReliefCandidate {
+                    let envelope = TodayReliefCardEnvelope(
+                        schemaVersion: TodayReliefCardEnvelope.schema,
+                        scopeKey: reliefCandidate.scope.scopeKey,
+                        payload: reliefCandidate.payload,
+                        newTaskTitle: reliefCandidate.newTaskTitle,
+                        expectedHeads: reliefCandidate.expectedHeads,
+                        createdAt: Date()
+                    )
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: TodayReliefChatCard.summaryText(for: reliefCandidate.payload),
+                        intent: AIIntent.todayRelief.rawValue,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
+                        todayReliefJSON: envelope.encode(),
+                        messageType: .todayRelief
+                    )
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                    return
+                }
+
                 // 个人情境规划产出：草案卡消息（只读，不写业务事项；保存走卡片按钮）
                 if let planOutcome = processResult.contextPlanOutcome {
                     let encoder = JSONEncoder()

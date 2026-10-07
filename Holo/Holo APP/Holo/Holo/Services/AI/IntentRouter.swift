@@ -137,6 +137,9 @@ final class IntentRouter {
         case .contextualPlanning:
             // 只读意图：Coordinator 已在写执行前分流到规划器；这里兜底不执行任何写动作
             return RouteResult(text: result.responseText ?? "正在结合你的情况整理方案…")
+        case .todayRelief:
+            // 「今天减负」只读意图：Coordinator 分流到 ReliefCoordinator；兜底零业务写入（§12）
+            return RouteResult(text: result.responseText ?? "正在帮你理今天的安排…")
         case .query, .queryAnalysis, .flexibleDataQuery, .unknown:
             return RouteResult(
                 text: result.responseText ?? "我可以帮你记账、创建任务、记录心情等。有什么需要帮忙的吗？"
@@ -267,6 +270,8 @@ final class IntentRouter {
             type: .expense
         )
 
+        // 用户当前对话发起的记账，真实落库后才回应；幂等命中与同步路径不发布。
+        HoloMotionFeedbackCenter.shared.saved(transaction.id, domain: .finance)
         return RouteResult(
             text: AIResponseTextBuilder.expenseRecorded(
                 amount: amountStr,
@@ -436,6 +441,8 @@ final class IntentRouter {
             type: .income
         )
 
+        // 用户当前对话发起的记账，真实落库后才回应；幂等命中与同步路径不发布。
+        HoloMotionFeedbackCenter.shared.saved(transaction.id, domain: .finance)
         return RouteResult(
             text: refundOverflowNote
                 ?? AIResponseTextBuilder.incomeRecorded(
@@ -1757,6 +1764,10 @@ final class IntentRouter {
         }
 
         let groupId = transactions.first?.installmentGroupId
+        if let first = transactions.first {
+            HoloMotionFeedbackCenter.shared.saved(first.id, domain: .finance)
+        }
+
         logger.info("分期支出已记录：¥\(amount) × \(periods) 期，groupId=\(groupId?.uuidString ?? "nil")")
 
         let matchedNames = try await resolvedCategoryDisplayNames(

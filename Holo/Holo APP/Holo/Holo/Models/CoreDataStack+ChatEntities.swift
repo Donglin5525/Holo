@@ -125,6 +125,14 @@ extension CoreDataStack {
         chatContextPlanJSON.isOptional = true
         chatAttributes.append(chatContextPlanJSON)
 
+        // 「今天减负」候选最小内容 JSON（TodayReliefCardEnvelope 序列化）
+        // 只存展示/恢复候选所需的版本化最小内容，不保存全库快照（§12）；轻量迁移。
+        let chatTodayReliefJSON = NSAttributeDescription()
+        chatTodayReliefJSON.name = "todayReliefJSON"
+        chatTodayReliefJSON.attributeType = .stringAttributeType
+        chatTodayReliefJSON.isOptional = true
+        chatAttributes.append(chatTodayReliefJSON)
+
         // 个人情境规划运行信封 JSON（HoloContextPlanRunEnvelope 序列化）
         // 运行中的阶段状态持久化：退出重进/冷启动按同一 run 渲染，不再是空白消息；轻量迁移。
         let chatContextPlanRunJSON = NSAttributeDescription()

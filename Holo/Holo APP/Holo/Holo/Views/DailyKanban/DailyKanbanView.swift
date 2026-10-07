@@ -60,6 +60,7 @@ struct DailyKanbanView: View {
     @State private var editingHabit: Habit? = nil
     @State private var inputValue: String = ""
     @State private var showGoalCreate = false
+    @State private var showReliefSheet = false
     @FocusState private var isInputFocused: Bool
 
     /// 键盘高度：数值输入弹窗是手写 overlay（非系统 sheet），系统键盘避让管不到，
@@ -89,7 +90,7 @@ struct DailyKanbanView: View {
     private var newTodayBody: some View {
         NavigationStack(path: $dispatcher.path) {
             ZStack {
-                Color.holoBackground.ignoresSafeArea()
+                Color.holoToolBackground.ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 20) {
@@ -123,6 +124,9 @@ struct DailyKanbanView: View {
                 if let task = TodoRepository.shared.findTask(by: taskID) {
                     TaskDetailView(task: task, repository: TodoRepository.shared)
                 }
+            }
+            .sheet(isPresented: $showReliefSheet) {
+                TodayReliefSheet()
             }
         }
         .swipeBackToDismiss { dismiss() }
@@ -162,7 +166,9 @@ struct DailyKanbanView: View {
                         maxVisible: 12,
                         onItem: { dispatcher.perform($0.action) },
                         onComplete: { completeTask($0) },
-                        pendingUndoTaskID: completionCoordinator.pending?.taskID
+                        pendingUndoTaskID: completionCoordinator.pending?.taskID,
+                        plan: snapshot.plan,
+                        onResolveConflict: { candidate in resolveTodayPlanConflict(candidate) }
                     )
                     TodayRoutineStrip(
                         routine: snapshot.routine,
@@ -188,13 +194,17 @@ struct DailyKanbanView: View {
                 errorMessage: dispatcher.localErrorMessage,
                 onStart: { dispatcher.perform($0) },
                 onPostpone: { todayViewModel?.postponeFocus() },
-                onCalmQuickRecord: { onQuickRecord?() }
+                onCalmQuickRecord: { onQuickRecord?() },
+                planContext: TodayPrimaryFocusCard.PlanFocusContext(snapshotPlan: snapshot.plan)
             )
+
+            // 1.5 「帮我理一理」轻量入口（「今天减负」§4.1：主行动卡后、不弹引导）
+            reliefEntryButton
 
             // 2. Weekly Brief（次级横幅，不压主行动）
             // （已在上方紧跟主卡之后渲染）
 
-            // 3. 今天的安排（V2 §4.3：先安排后正在推进，压缩注意力）
+            // 3. 今天的安排（V2 §4.3：先安排后正在推进，压缩注意力；显式计划时三分组）
             TodayAgendaSection(
                 items: snapshot.agenda,
                 sectionState: snapshot.sectionStates[.agenda],
@@ -205,7 +215,9 @@ struct DailyKanbanView: View {
                 onComplete: { item in
                     completeTask(item)
                 },
-                pendingUndoTaskID: completionCoordinator.pending?.taskID
+                pendingUndoTaskID: completionCoordinator.pending?.taskID,
+                plan: snapshot.plan,
+                onResolveConflict: { candidate in resolveTodayPlanConflict(candidate) }
             )
 
             // 4. 正在推进（V2：最多两行紧凑，无 active 整块隐藏）
@@ -272,6 +284,61 @@ struct DailyKanbanView: View {
         onOpenChatWithMatter?(matterID)
     }
 
+    // MARK: - 「帮我理一理」入口（§4.1）
+
+    /// 主行动卡后的轻量整理入口；空态也可进入；iPad 复用同一入口。
+    private var reliefEntryButton: some View {
+        Button {
+            showReliefSheet = true
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.system(size: 13, weight: .medium))
+                Text(String(localized: "帮我理一理"))
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(String(localized: "说说现在的情况"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Color.holoPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                    .fill(Color.holoPrimary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color.holoPrimary.opacity(0.15), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("todayReliefEntryButton")
+    }
+
+    /// 分叉解决：选择一份完整安排（两台设备今日安排不同；§8.4）。
+    private func resolveTodayPlanConflict(_ candidate: HoloTodayPlanConflictCandidate) {
+        Task { @MainActor in
+            let scope = HoloTodayDayScope.current()
+            let read = HoloTodayPlanRepository(context: CoreDataStack.shared.viewContext).currentPlan(scope: scope)
+            guard case .conflict(let candidates) = read.state else { return }
+            do {
+                _ = try await HoloTodayPlanService.shared.resolveConflict(
+                    chosenPayload: candidate.payload,
+                    scope: scope,
+                    expectedHeads: candidates.map(\.revisionID),
+                    operationID: UUID().uuidString
+                )
+                HapticManager.light()
+            } catch {
+                Logger(subsystem: "com.holo.app", category: "UI").error("解决安排分叉失败: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// 完成任务（真实回执 + 3 秒撤回，统一走完成协调层；落库延迟到 confirm）。
     private func completeTask(_ item: HoloTodayAgendaItem) {
         guard case .openTask(let taskID) = item.action else { return }
@@ -281,18 +348,27 @@ struct DailyKanbanView: View {
 
     /// 习惯快速打卡。
     private func checkInHabit(_ row: HoloTodayHabitRow) {
-        let habit = habitRepo.activeHabits.first { $0.id == row.id }
-        guard let habit else { return }
-        if row.isNegative {
-            _ = try? habitRepo.addNumericRecord(for: habit, value: 1)
-        } else if habit.isMeasureType {
-            if let target = habit.targetValue?.doubleValue {
-                _ = try? habitRepo.addNumericRecord(for: habit, value: target)
+        guard let habit = habitRepo.activeHabits.first(where: { $0.id == row.id }) else { return }
+        do {
+            let wasRecorded = (habitRepo.getTodayValue(for: habit) ?? 0) > 0
+            if row.isNegative {
+                _ = try habitRepo.addNumericRecord(for: habit, value: 1)
+            } else if habit.isMeasureType {
+                guard let target = habit.targetValue?.doubleValue else { return }
+                _ = try habitRepo.addNumericRecord(for: habit, value: target)
+            } else {
+                _ = try habitRepo.toggleCheckIn(for: habit)
             }
-        } else {
-            try? habitRepo.toggleCheckIn(for: habit)
+            let isRecorded = (habitRepo.getTodayValue(for: habit) ?? 0) > 0
+            if !row.isNegative && !wasRecorded && isRecorded {
+                HoloMotionFeedbackCenter.shared.completedHabit(habit.id)
+            } else if !isRecorded {
+                HoloMotionFeedbackCenter.shared.cancelHabitResponse(habit.id)
+            }
+            HapticManager.light()
+        } catch {
+            HoloToastCenter.shared.show(String(localized: "打卡失败，请重试"), type: .error)
         }
-        HapticManager.light()
     }
 
     // MARK: - Header（今天 + 日期 + 关闭）
@@ -300,25 +376,25 @@ struct DailyKanbanView: View {
     private var headerView: some View {
         ZStack {
             Text(String(localized: "今天"))
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.sectionTitle)
+                .foregroundColor(.holoToolText)
 
             HStack {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 36, height: 36)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
+                        .overlay(Circle().stroke(Color.holoToolBorder, lineWidth: 1))
                 }
                 .accessibilityLabel(Text("关闭"))
 
                 Spacer()
 
                 Text(todayString)
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -339,7 +415,7 @@ struct DailyKanbanView: View {
 
     private var legacyBody: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
@@ -424,24 +500,24 @@ struct DailyKanbanView: View {
     private var legacyHeaderView: some View {
         ZStack {
             Text(String(localized: "今日看板"))
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.sectionTitle)
+                .foregroundColor(.holoToolText)
 
             HStack {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 36, height: 36)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
+                        .overlay(Circle().stroke(Color.holoToolBorder, lineWidth: 1))
                 }
 
                 Spacer()
 
                 Text(todayString)
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -477,11 +553,11 @@ struct DailyKanbanView: View {
                         }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(habit.name)
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+                                .holoText(.body)
+                                .foregroundColor(.holoToolText)
                             Text(habit.unitText.isEmpty ? String(localized: "输入数值") : String(localized: "单位：\(habit.unitText)"))
                                 .font(.holoTinyLabel)
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                     }
                     Spacer()
@@ -491,7 +567,7 @@ struct DailyKanbanView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
 
@@ -502,7 +578,7 @@ struct DailyKanbanView: View {
                     .multilineTextAlignment(.center)
                     .keyboardType(.decimalPad)
                     .padding(.vertical, 16)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
@@ -526,7 +602,7 @@ struct DailyKanbanView: View {
                 .disabled(inputValue.isEmpty)
             }
             .padding(24)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
             .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 32)
@@ -536,9 +612,13 @@ struct DailyKanbanView: View {
     private func saveNumericRecord(_ habit: Habit) {
         guard let value = Double(inputValue) else { return }
         do {
+            let firstOfToday = habitRepo.getTodayValue(for: habit) == nil
             _ = try habitRepo.addNumericRecord(for: habit, value: value)
             isInputFocused = false
             editingHabit = nil
+            if firstOfToday && !habit.isBadHabit {
+                HoloMotionFeedbackCenter.shared.completedHabit(habit.id)
+            }
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("记录数值失败: \(error.localizedDescription)")
