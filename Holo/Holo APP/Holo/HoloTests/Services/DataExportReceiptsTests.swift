@@ -65,21 +65,24 @@ final class DataExportReceiptsTests: XCTestCase {
                                       date: date, note: note)
     }
 
-    /// 本地时区固定时刻（与导出端 DateFormatter 默认本地时区一致）
-    private func date(_ y: Int, _ m: Int, _ d: Int, _ hh: Int, _ mm: Int) -> Date {
+    /// 本地时区固定时刻（与导出端 DateFormatter 默认本地时区一致）；
+    /// 秒可指定——同分钟内不同秒让排序有确定次序（文件名格式只到分钟，
+    /// 撞名后缀语义不受影响），否则导出行序对同刻交易未定义、断言抖动。
+    private func date(_ y: Int, _ m: Int, _ d: Int, _ hh: Int, _ mm: Int, _ ss: Int = 0) -> Date {
         var comps = DateComponents()
         comps.year = y; comps.month = m; comps.day = d; comps.hour = hh; comps.minute = mm
+        comps.second = ss
         return Calendar.current.date(from: comps)!
     }
 
     // MARK: - CSV「小票」列
 
     func testCSVIncludesReceiptColumnAndFileNames() async throws {
-        let txA = try await makeTransaction(date: date(2026, 10, 2, 14, 30), note: "A")
+        let txA = try await makeTransaction(date: date(2026, 10, 2, 14, 30, 10), note: "A")
         _ = try await repo.attachReceipt(to: txA, imageData: try makeImageData(hue: 0.1), source: .camera)
         _ = try await repo.attachReceipt(to: txA, imageData: try makeImageData(hue: 0.2), source: .photoLibrary)
 
-        let txB = try await makeTransaction(date: date(2026, 10, 2, 14, 30), note: "B")
+        let txB = try await makeTransaction(date: date(2026, 10, 2, 14, 30, 40), note: "B")
         _ = try await repo.attachReceipt(to: txB, imageData: try makeImageData(hue: 0.3), source: .receiptBooking)
 
         let txC = try await makeTransaction(date: date(2026, 10, 2, 15, 0), note: "C")
