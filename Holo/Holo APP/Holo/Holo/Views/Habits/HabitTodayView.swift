@@ -3,8 +3,8 @@
 //  Holo
 //
 //  今天页（V2 §5）：日期与已记录数量 → 全部/未记录筛选与补录 →
-//  每日分组连续列表 → 本周与本月分组 → 底部轻量暂停入口。
-//  名称打开「今天的记录」；缝线只读；无顶部七天统计条。
+//  全部习惯连续列表（不按频率分组，东林 2026-10-07 拍板：分组切断拖拽排序）→
+//  底部轻量暂停入口。名称打开「今天的记录」；缝线只读；无顶部七天统计条。
 //
 
 import SwiftUI
@@ -29,22 +29,14 @@ struct HabitTodayView: View {
     /// 补录的习惯选择
     @State private var showRetroactiveHabitPicker = false
 
-    // MARK: 拖拽排序（每日组/周月组各自组内重排，落库全局生效）
+    // MARK: 拖拽排序（单一连续列表，跨频率自由拖动，落库全局生效）
 
     @StateObject private var reorder = HabitListReorderModel()
 
-    private var dailyRows: [HabitRowSnapshot] {
-        rowsInOrder(section: .daily) { $0.frequency == .daily }
-    }
-
-    private var periodRows: [HabitRowSnapshot] {
-        rowsInOrder(section: .period) { $0.frequency != .daily }
-    }
-
-    private func rowsInOrder(section: HabitReorderSection, _ filter: (HabitRowSnapshot) -> Bool) -> [HabitRowSnapshot] {
-        let base = model.filteredTodayRows.filter(filter)
+    private var orderedRows: [HabitRowSnapshot] {
+        let base = model.filteredTodayRows
         let byId = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
-        return reorder.effectiveIds(section, baseline: base.map(\.id)).compactMap { byId[$0] }
+        return reorder.effectiveIds(.today, baseline: base.map(\.id)).compactMap { byId[$0] }
     }
 
     // MARK: Body
@@ -59,20 +51,9 @@ struct HabitTodayView: View {
                     if model.filteredTodayRows.isEmpty {
                         emptyState
                     } else {
-                        if !dailyRows.isEmpty {
-                            sectionTitle(String(localized: "每日习惯"))
-                            ForEach(dailyRows) { row in
-                                habitRow(row)
-                                .id(row.id)
-                            }
-                        }
-
-                        if !periodRows.isEmpty {
-                            sectionTitle(String(localized: "本周与本月"))
-                            ForEach(periodRows) { row in
-                                habitRow(row)
-                                .id(row.id)
-                            }
+                        ForEach(orderedRows) { row in
+                            habitRow(row)
+                            .id(row.id)
                         }
 
                         pausedEntry
@@ -84,8 +65,8 @@ struct HabitTodayView: View {
             }
             .onAppear {
                 reorder.scrollProxy = proxy
-                reorder.onCommit = { section, order, draggedId in
-                    commitReorder(section: section, order: order, draggedId: draggedId)
+                reorder.onCommit = { _, order, draggedId in
+                    model.persistTodayOrder(order, draggedId: draggedId)
                 }
                 consumeFocus(proxy)
             }
@@ -153,21 +134,10 @@ struct HabitTodayView: View {
         )
         .habitReorderable(
             id: row.id,
-            section: row.frequency == .daily ? .daily : .period,
+            section: .today,
             spacing: HoloSpacing.sm,
             model: reorder
         )
-    }
-
-    /// 松手落库：拖拽组用新顺序，另一组保持当前顺序；拼接为今天页感知顺序
-    private func commitReorder(section: HabitReorderSection, order: [UUID], draggedId: UUID) {
-        let daily = section == .daily
-            ? order
-            : model.filteredTodayRows.filter { $0.frequency == .daily }.map(\.id)
-        let period = section == .period
-            ? order
-            : model.filteredTodayRows.filter { $0.frequency != .daily }.map(\.id)
-        model.persistTodayOrder(dailyIds: daily, periodIds: period, draggedId: draggedId)
     }
 
     // MARK: 头部（日期 + 已记录数量）
@@ -240,15 +210,6 @@ struct HabitTodayView: View {
                 .frame(minHeight: 30)
         }
         .buttonStyle(HoloPressStyle())
-    }
-
-    // MARK: 分组标题
-
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.holoToolTextSecondary)
-            .padding(.top, 6)
     }
 
     // MARK: 底部暂停轻量入口（有活跃列表且有暂停时）

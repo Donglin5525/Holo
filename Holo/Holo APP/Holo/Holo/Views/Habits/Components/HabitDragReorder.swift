@@ -19,10 +19,10 @@ import Combine
 
 // MARK: - 分组
 
-/// 拖拽重排的独立顺序槽（一次拖拽会话只属于一个槽）
+/// 拖拽重排的独立顺序槽（一次拖拽会话只属于一个槽）。
+/// 今天页是单一连续列表（2026-10-07 东林拍板去掉每日/周月分组，跨频率自由拖）。
 enum HabitReorderSection {
-    case daily
-    case period
+    case today
     case sortSheet
 }
 

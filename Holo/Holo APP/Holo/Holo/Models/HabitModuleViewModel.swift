@@ -320,11 +320,11 @@ final class HabitModuleViewModel: ObservableObject {
         }
     }
 
-    /// 今天页拖拽排序落库（每日组+周月组拼接为感知顺序；
+    /// 今天页拖拽排序落库（单一连续列表的感知顺序；
     /// 穿插合并保持暂停/归档/被筛选隐藏习惯的原位，见 HabitOrderMerge）
-    func persistTodayOrder(dailyIds: [UUID], periodIds: [UUID], draggedId: UUID) {
+    func persistTodayOrder(_ orderedIds: [UUID], draggedId: UUID) {
         do {
-            try repository.persistTodayOrder(dailyIds + periodIds)
+            try repository.persistTodayOrder(orderedIds)
             refresh()
         } catch {
             // 落库失败：显示回滚到库内事实，提示挂在被拖的行

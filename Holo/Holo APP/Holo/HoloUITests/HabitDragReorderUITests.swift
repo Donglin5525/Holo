@@ -2,9 +2,8 @@
 //  HabitDragReorderUITests.swift
 //  HoloUITests
 //
-//  2026-10-07 今天页长按拖拽排序：
-//  长按首行拖过次行 → 两行顺序互换（AX 树断言）；前两行被分组标题隔开时 skip
-//  （跨组拖拽本就不支持）；断言后反向拖回保持测试幂等。
+//  2026-10-07 今天页长按拖拽排序（当日东林拍板去掉每日/周月分组，单一连续列表自由拖）：
+//  长按首行拖过次行 → 两行顺序互换（AX 树断言）；断言后反向拖回保持测试幂等。
 //  手感（抬起/触觉/吸附）无法 AX 断言，由真机验收清单覆盖。
 //
 
@@ -56,10 +55,11 @@ final class HabitDragReorderUITests: XCTestCase {
     func test_长按拖拽_首行拖过次行_顺序互换() throws {
         XCTAssertTrue(enterHabitsModule(), "未能进入习惯模块")
 
-        // 等列表稳定（冷启投影完成）
-        let appeared = NSPredicate(format: "count >= 2")
-        expectation(for: appeared, evaluatedWith: habitRows)
-        waitForExpectations(timeout: 15)
+        // 等列表稳定（冷启投影完成）：先轻量等首行出现，再一次性枚举
+        // （全树枚举昂贵，不能放 expectation 每轮轮询——iOS 26 大 AX 树会打崩 runner）
+        let predicate = NSPredicate(format: "identifier BEGINSWITH 'habit.rowbody.'")
+        let anyRow = app.descendants(matching: .any).matching(predicate).firstMatch
+        XCTAssertTrue(anyRow.waitForExistence(timeout: 15), "习惯行未出现")
 
         let rows = habitRows
         guard rows.count >= 2 else {
@@ -68,16 +68,6 @@ final class HabitDragReorderUITests: XCTestCase {
 
         let firstName = rowName(rows[0])
         let secondName = rowName(rows[1])
-
-        // 前两行被「本周与本月」分组标题隔开 = 跨组场景（拖拽不支持跨组），skip
-        if let divider = app.staticTexts["本周与本月"].firstMatch.exists ? app.staticTexts["本周与本月"].firstMatch : nil,
-           divider.isHittable {
-            let firstBottom = rows[0].frame.maxY
-            let secondTop = rows[1].frame.minY
-            if divider.frame.minY > firstBottom, divider.frame.minY < secondTop {
-                throw XCTSkip("前两行分属不同分组（每日/周月），跨组拖拽不在支持范围")
-            }
-        }
 
         // 长按 0.9s（> 激活阈值 0.45s）拖到次行中心（跨过半行触发换位）
         rows[0].press(forDuration: 0.9, thenDragTo: rows[1])
@@ -93,5 +83,48 @@ final class HabitDragReorderUITests: XCTestCase {
             after[1].press(forDuration: 0.9, thenDragTo: after[0])
             sleep(2)
         }
+    }
+
+    /// 坏习惯超限记录 → 底部红色警告条（2026-10-07 恢复的超限提示）。
+    /// 依赖库里有数值坏习惯且当日已达上限（播种/真库），否则 skip。
+    func test_坏习惯超限点按_底部出红色警告条() throws {
+        XCTAssertTrue(enterHabitsModule(), "未能进入习惯模块")
+
+        // 找数值坏习惯行：行主体 label 形如「查看X今天的记录」；再取行内 + 钮
+        let rowPredicate = NSPredicate(format: "identifier BEGINSWITH 'habit.rowbody.'")
+        let rows = app.descendants(matching: .any).matching(rowPredicate).allElementsBoundByIndex
+        var incrementButton: XCUIElement?
+        for row in rows {
+            guard let uuid = row.identifier.split(separator: ".").last else { continue }
+            let button = app.buttons["habit.row.\(uuid).increment"].firstMatch
+            if button.exists {
+                incrementButton = button
+                break
+            }
+        }
+
+        // 没有数值行时无法触发计数超限，skip（对数据鲁棒）
+        guard let plus = incrementButton else {
+            throw XCTSkip("当前库无数值型习惯行，无法验证超限警告条")
+        }
+
+        // 连续点按直到警告条出现（上限 12 次防御：正常播种上限 3 支内触发）。
+        // 反馈条容器是 contain 模式（label 不聚合文本），文案断言走内部 staticText
+        let warningText = app.staticTexts["已超当日限额，请注意控制"].firstMatch
+        var shown = false
+        for _ in 0..<12 where !shown {
+            plus.tap()
+            shown = warningText.waitForExistence(timeout: 2)
+        }
+
+        XCTAssertTrue(shown, "点按后未出现超限警告条文案")
+        XCTAssertTrue(app.otherElements["habit.feedback.container"].firstMatch.exists
+                      || app.buttons["habit.feedback.undo"].firstMatch.exists,
+                      "警告条容器/撤销按钮应存在")
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "over-limit-warning"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
